@@ -5,6 +5,7 @@
 - [MVP y alcance vigente](<product/Decision Room - MVP.md>).
 - [Plan de implementación y avance](<product/Decision Room - Plan de implementacion.md>).
 - [Definición del producto](<product/Decision Room - Definicion del producto.md>).
+- [Organización multiagente del producto final](<product/Decision Room - Definicion del producto.md#186-organización-multiagente-del-producto-final>): negocio, analítica y revisión; evolución posterior al MVP.
 - [Servicios y diferenciación](<product/Decision Room - Servicios y diferenciacion.md>).
 
 El borrador Word inicial se conserva localmente; la documentación pública se

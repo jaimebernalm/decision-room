@@ -1,10 +1,10 @@
 # Decision Room: definición del producto y experiencia de uso
 
-**Actualizado:** 17 de septiembre de 2026.  
-**Estado:** definición de UX especializada en pequeños comercios, previa a la construcción.  
-**Base:** decisiones de experiencia del 15 de septiembre, selección de segmento y propuesta funcional del 17 de septiembre. Esta versión actualiza la definición anterior.
+**Actualizado:** 21 de septiembre de 2026.  
+**Estado:** visión del producto completo y organización multiagente objetivo; su implementación y evaluación siguen el alcance acotado del MVP.  
+**Base:** decisiones de experiencia del 15 de septiembre, selección de segmento y propuesta funcional del 17 de septiembre, y separación futura de negocio, analítica y revisión acordada el 21 de septiembre. Esta versión actualiza la definición anterior.
 
-Este documento define la experiencia del cliente: cómo empieza, qué aporta, qué recibe y por qué vuelve. Recoge las decisiones acordadas y señala las propuestas de diseño pendientes. La guía de investigación, las capacidades, la diferenciación y sus criterios de validación se concretan en [Servicios y diferenciación](<Decision Room - Servicios y diferenciacion.md>). No define arquitectura, tecnologías ni organización de agentes.
+Este documento define la experiencia del cliente: cómo empieza, qué aporta, qué recibe y por qué vuelve. Recoge las decisiones acordadas y señala las propuestas de diseño pendientes. La guía de investigación, las capacidades, la diferenciación y sus criterios de validación se concretan en [Servicios y diferenciación](<Decision Room - Servicios y diferenciacion.md>). La sección 18.6 define los roles y la colaboración multiagente del producto final. Las tecnologías y la secuencia de construcción se concretan en el MVP y su plan de implementación.
 
 **Principio transversal:** autonomía para decidir qué investigar, con resultados comprobables. La guía base orienta un plan que se adapta a los datos y respuestas del cliente. Se puede ofrecer valor con información agregada, profundizar con detalle y ampliar la investigación cuando existan datos y herramientas verificables.
 
@@ -616,6 +616,32 @@ Añadir tablas de costes y existencias en formatos concretos con relaciones conf
 
 El piloto determinará si esta ampliación es necesaria para que el producto aporte valor comercial suficiente. La facilidad de producir un informe de ventas no garantiza que el propietario quiera pagarlo.
 
+### 18.6. Organización multiagente del producto final
+
+**Decisión del 21 de septiembre de 2026:** el producto completo tendrá como organización objetivo un agente de negocio, un agente analítico y un revisor con responsabilidades separadas. Esta decisión define una evolución posterior al MVP; no afirma que esté construida ni que su ventaja se haya demostrado. El MVP mantiene un agente principal que planifica y ejecuta, más un revisor separado.
+
+El objetivo de esta separación es combinar una investigación orientada a las necesidades del propietario con profundidad analítica y conclusiones comprobables. El cliente interactúa con un único producto: explica su negocio, responde las aclaraciones pertinentes y recibe resultados; no tiene que dirigir a los agentes.
+
+| Rol | Responsabilidad | Entrega a los demás |
+|---|---|---|
+| Agente de negocio | Mantener el objetivo del caso, entender prioridades y restricciones del cliente, proponer y priorizar investigaciones, coordinar aclaraciones y preparar la explicación final | Preguntas de investigación con su utilidad, contexto, definiciones y criterios de respuesta; contenido candidato del informe o dashboard |
+| Agente analítico | Inspeccionar datos y relaciones, evaluar si una pregunta es abordable, elegir métodos, generar y ejecutar cálculos con las herramientas autorizadas y examinar sus resultados | Resultados con fuentes, operaciones, comprobaciones y limitaciones; necesidades de aclaración y nuevas líneas de investigación justificadas |
+| Revisor | Examinar resultados, afirmaciones, recomendaciones y redacción final frente a sus evidencias y al contexto del negocio | Observaciones concretas y solicitudes de corrección o comprobación; valoración explícita de lo que puede sostenerse |
+
+El agente de negocio representa las prioridades declaradas del propietario y comunica también hallazgos que contradigan sus expectativas. El agente analítico puede cuestionar una premisa, indicar que los datos no permiten responder o proponer una investigación adicional. La especialización consiste en responsabilidades, contexto y herramientas; no presupone que cada rol requiera un modelo o proveedor distinto.
+
+**Ciclo de investigación:** negocio plantea una pregunta → analítica investiga y devuelve evidencia → negocio examina su relevancia y puede pedir una ampliación o reformular la pregunta → revisión de los resultados y del contenido propuesto → corrección, publicación de lo comprobado o cierre con límites explícitos. Una observación del revisor puede requerir un nuevo cálculo o una corrección de la explicación. Los cambios materiales vuelven a comprobarse.
+
+Por ejemplo, ante «vendo más unidades pero ingreso menos», negocio pide separar los efectos que permitan los datos. Analítica podría observar una mayor proporción de artículos baratos y señalar que falta examinar descuentos. Negocio solicita ese desglose si aporta valor; analítica devuelve el cálculo o la limitación correspondiente. El informe distingue los efectos cuantificados de las explicaciones todavía hipotéticas. Es un ejemplo de comportamiento esperado, no un resultado ya obtenido.
+
+**Estado y entregas compartidas:** cada petición registra la pregunta, su utilidad, las fuentes y versiones autorizadas, el periodo, las definiciones, las dependencias y las comprobaciones esperadas. Cada respuesta conserva los resultados y su procedencia, las operaciones ejecutadas, los supuestos y lo que sigue sin resolver. Las interpretaciones distinguen observado, inferido, confirmado y sin resolver. Las aclaraciones del dueño se guardan una vez y se aplican a las investigaciones dependientes; una respuesta o archivo nuevo puede invalidar resultados anteriores. Los agentes reciben el contexto necesario mediante referencias y herramientas, sin depender únicamente de su conversación entre sí.
+
+**Control y finalización:** el controlador de la aplicación conserva el estado autorizado, limita acceso por negocio y revisión, aplica presupuestos de tiempo, coste, llamadas y correcciones, y gestiona pausas, reintentos y operaciones repetidas. Los agentes proponen cambios; el controlador exige las comprobaciones antes de publicar. El acuerdo entre agentes no demuestra exactitud numérica ni autoriza saltarse una validación. El trabajo termina cuando las preguntas prioritarias abordables están resueltas, no queda una ampliación justificada dentro del presupuesto o se alcanza un límite. Si falta una aclaración esencial, se guarda y pausa la investigación afectada mientras las independientes pueden continuar; una respuesta permite reanudarla sin repetir lo ya resuelto. Se conserva y presenta únicamente lo respaldado, con lo pendiente identificado.
+
+**Informe y dashboard:** negocio propone la selección de hallazgos, explicaciones, indicadores y visualizaciones; analítica aporta los datos calculados y trazables; el revisor examina el contenido final. La aplicación construye la presentación con componentes y estilo consistentes. Las interacciones del dashboard que requieran nuevos cálculos pasan por el mismo proceso de comprobación. Esta organización no requiere inicialmente otro agente dedicado a generar interfaces.
+
+**Transición desde el MVP:** mantener separables las responsabilidades de negocio y analítica dentro del agente principal previsto para el MVP, con un plan y resultados estructurados. Posteriormente, implementar los roles separados y compararlos con la arquitectura del MVP sobre los mismos casos: utilidad, exactitud, preguntas al cliente, recuperación, tiempo y coste. Esa comparación determinará cómo desplegar la evolución; especialistas adicionales solo se incorporarán ante una necesidad y mejora comprobables. El reparto objetivo queda acordado; modelos, contratos técnicos detallados, límites numéricos y rendimiento quedan por implementar y evaluar.
+
 ## 19. Criterios de aceptación de la experiencia
 
 | Comprobación | Resultado esperado |
@@ -681,7 +707,7 @@ Si cada archivo exige ayuda manual continua, habrá que reducir el formato admit
 
 - Escenarios con distintos niveles de datos y resultados admisibles, incluyendo negativas a aportar más información.
 - Evaluación de información, guía base, planificación autónoma y reformulación.
-- Coordinación de agentes o un agente con herramientas; presupuestos, verificación y parada.
+- Implementación y evaluación de la coordinación acordada: agente principal y revisor en el MVP; negocio, analítica y revisor como evolución del producto final (sección 18.6). Concretar presupuestos, verificación y parada.
 - Lectura de Excel/CSV, operaciones componibles, consultas y análisis adicionales comprobables.
 - Definiciones y requisitos por análisis, con reglas y cálculos de referencia para comprobar resultados.
 - Persistencia del contexto, disponibilidad, planes, ejecuciones, evidencia y resultados.
@@ -729,6 +755,14 @@ El orden operativo de estas decisiones está en la sección 8 del MVP. Se empiez
 - Se evalúa con distintos niveles de detalle y planes admisibles, no con un informe único.
 - La planificación técnica empieza por comportamiento y escenarios, seguida de evaluación de datos, coordinación, herramientas y persistencia.
 - El MVP sigue terminando en una página sencilla; chat posterior, PDF y seguimiento quedan para entregas siguientes.
+
+### 21.4. Organización multiagente objetivo del 21 de septiembre de 2026
+
+- Se acuerda separar negocio, analítica y revisión en la evolución del producto completo.
+- Negocio orienta la investigación y puede pedir nuevas comprobaciones a analítica; analítica devuelve evidencia, limitaciones y propuestas de profundización.
+- El revisor examina cálculos y contenido; el controlador conserva los permisos, presupuestos y condiciones de publicación.
+- Informe y dashboard utilizan contenido estructurado y componentes de presentación de la aplicación.
+- El MVP mantiene su agente principal con revisor. La separación futura se implementará y comparará con esa referencia antes de consolidar su despliegue.
 
 ## 22. Experiencia objetivo
 

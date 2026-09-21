@@ -334,6 +334,8 @@ Habrá límites globales de tiempo, coste, iteraciones y correcciones. Sus valor
 
 #### F. Cuándo separar planificación y ejecución o añadir investigadores
 
+**Evolución acordada para el producto completo (21 de septiembre de 2026):** separar un agente de negocio, un agente analítico y un revisor, con colaboración iterativa y entregas estructuradas. Sus responsabilidades, estado compartido y relación con informe/dashboard están en la [sección 18.6 de la definición del producto](<Decision Room - Definicion del producto.md#186-organización-multiagente-del-producto-final>). Esta arquitectura objetivo no cambia el alcance del MVP: aquí se mantiene el agente principal que planifica y ejecuta, más el revisor separado.
+
 Considerar agentes especializados cuando haya investigaciones suficientemente independientes, problemas medidos de contexto o ventajas comprobables de especialización. Compartir definiciones y usar entregas estructuradas antes de paralelizar. La autonomía no exige maximizar el número de agentes.
 
 Evaluar la arquitectura inicial frente a una referencia de agente principal con comprobaciones programáticas, y frente a más investigadores solo cuando exista una razón concreta. Medir errores, utilidad, preguntas innecesarias, coste y tiempo con los escenarios del bloque 1.
