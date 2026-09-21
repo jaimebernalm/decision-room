@@ -1,0 +1,43 @@
+{
+  "metrics": {
+    "sales_ex_tax": "73784.10",
+    "first_period_sales_ex_tax": "34137.85",
+    "second_period_sales_ex_tax": "39646.25",
+    "change_amount": "5508.40",
+    "change_percent": "16.14",
+    "observed_days": 24
+  },
+  "daily_sales_ex_tax": {
+    "2016-04-01": "2536.00",
+    "2016-04-02": "406.00",
+    "2016-04-04": "1347.75",
+    "2016-04-05": "1211.40",
+    "2016-04-06": "3132.20",
+    "2016-04-07": "4276.55",
+    "2016-04-08": "1633.60",
+    "2016-04-09": "3939.00",
+    "2016-04-11": "8495.70",
+    "2016-04-12": "28.80",
+    "2016-04-13": "4684.25",
+    "2016-04-14": "2446.60",
+    "2016-04-15": "7080.40",
+    "2016-04-16": "1832.00",
+    "2016-04-18": "3162.60",
+    "2016-04-19": "1251.40",
+    "2016-04-20": "2098.60",
+    "2016-04-21": "3207.65",
+    "2016-04-22": "675.00",
+    "2016-04-23": "100.00",
+    "2016-04-25": "3274.30",
+    "2016-04-26": "4766.00",
+    "2016-04-27": "3629.25",
+    "2016-04-28": "8569.05"
+  },
+  "must_not_claim": [
+    "Do not infer causes, profit, stock levels or customer behaviour.",
+    "Do not treat absent dates as zero-sales days or assume opening days.",
+    "Describe these as recorded sales within the supplied scope.",
+    "No product rankings, ticket count or average ticket value."
+  ],
+  "expected_behaviour": "Proceed using the context; no mandatory clarification is needed."
+}

@@ -1,0 +1,6 @@
+{
+  "unit_price": "The amount is the price per unit, after any discount and excluding tax. Multiply it by quantity.",
+  "line_total": "The amount is the whole row total, after any discount and excluding tax. Do not multiply it again.",
+  "unknown": "I don't know. Continue with what you can safely analyse.",
+  "note": "unit_price matches the original source. line_total is a deliberately different hypothetical interpretation of the same upload, used to test adaptation."
+}

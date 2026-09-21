@@ -1,0 +1,743 @@
+# Decision Room: definición del producto y experiencia de uso
+
+**Actualizado:** 17 de septiembre de 2026.  
+**Estado:** definición de UX especializada en pequeños comercios, previa a la construcción.  
+**Base:** decisiones de experiencia del 15 de septiembre, selección de segmento y propuesta funcional del 17 de septiembre. Esta versión actualiza la definición anterior.
+
+Este documento define la experiencia del cliente: cómo empieza, qué aporta, qué recibe y por qué vuelve. Recoge las decisiones acordadas y señala las propuestas de diseño pendientes. La guía de investigación, las capacidades, la diferenciación y sus criterios de validación se concretan en [Servicios y diferenciación](<Decision Room - Servicios y diferenciacion.md>). No define arquitectura, tecnologías ni organización de agentes.
+
+**Principio transversal:** autonomía para decidir qué investigar, con resultados comprobables. La guía base orienta un plan que se adapta a los datos y respuestas del cliente. Se puede ofrecer valor con información agregada, profundizar con detalle y ampliar la investigación cuando existan datos y herramientas verificables.
+
+**Alcance actualizado de implementación:** la primera entrega se define en [MVP y primera entrega](<Decision Room - MVP.md>): descripción, archivo compatible, aclaraciones y un informe en una página sencilla. Ese documento prevalece para el MVP inmediato. El chat posterior, el PDF, el dashboard avanzado y el seguimiento descritos aquí siguen en la experiencia objetivo, pero no son requisitos de esa primera entrega.
+
+Los textos de pantalla y ejemplos son ilustrativos, no resultados validados ni promesas de rendimiento.
+
+## 1. Visión y propósito
+
+Decision Room ayuda a dueños de pequeños comercios que revenden productos no perecederos a entender los cambios en sus ventas, identificar qué merece atención y explorar decisiones con evidencia, sin tener que aprender a utilizar IA, formular instrucciones o preparar el análisis por su cuenta.
+
+El usuario conoce su negocio, pero puede no saber qué preguntar a sus datos ni qué herramientas utilizar. La plataforma conduce el proceso: recibe contexto y archivos, aclara lo importante y entrega un análisis comprensible que se puede explorar y sobre el que se puede conversar.
+
+**Reducir la fricción forma parte del valor principal del producto**, junto con la calidad del análisis. El dueño no necesita configurar agentes ni dirigir el trabajo técnico.
+
+Propuesta de experiencia:
+
+> Trae los archivos que tienes de tu tienda. Adaptamos el análisis a esa información, aclaramos contigo lo necesario y te ayudamos a entender qué merece atención. Puedes comprobar las cifras y, cuando haya más detalle, profundizar.
+
+La primera visita parte de «Ayúdame a entender mi tienda». Después, hay dos motivos de regreso igualmente importantes: consultar dudas y aportar nuevos datos para obtener una revisión actualizada. Se propone además guardar explícitamente asuntos para revisar, con un seguimiento manual sencillo al actualizar.
+
+## 2. Público y punto de partida del MVP
+
+### 2.1. Usuario principal
+
+Dueño o encargado de una pequeña tienda de productos no perecederos, sin conocimientos necesarios de IA o análisis de datos, que **ya dispone de Excel o CSV aprovechables**, aunque sean totales por día o semana. El detalle por producto y ticket permite análisis adicionales, pero no es un requisito general de entrada. El primer análisis no exige datos personales de compradores.
+
+Se conserva como límite inicial un negocio de una ubicación y un usuario principal. No hace falta resolver colaboración compleja ni consolidación de varias sedes.
+
+Los archivos pueden contener huecos, encabezados ambiguos o información parcial. No se exige perfección, pero sí alguna tabla aprovechable dentro de los formatos que finalmente se admitan.
+
+### 2.2. Varios sectores con una operativa común
+
+El foco inicial incluye candidatos como bazares, papelerías, regalos, artículos del hogar y accesorios. La entrada depende de la operativa y de que exista alguna base interpretable, no solo del nombre del sector ni de tener un catálogo o tickets detallados. La profundidad se decide por análisis.
+
+Restauración, fabricación, perecederos, venta a peso y operaciones complejas quedan fuera del foco inicial. La descripción orienta el análisis, pero no amplía automáticamente las capacidades del producto. Los pilotos comprobarán qué análisis se reutilizan entre tiendas y dónde hace falta acotar más.
+
+### 2.3. Personas que todavía no tienen archivos
+
+El MVP más básico no tiene que ayudar a exportar información de otros programas, conectarse a sistemas externos ni transformar papel o fotografías en tablas.
+
+Si alguien no tiene un archivo utilizable, se explica qué admite la versión actual y qué información necesita para empezar. El acompañamiento para obtener archivos y comenzar a registrar actividad queda en el roadmap.
+
+No se presupone qué programas utilizan estos negocios. Habrá que investigarlo antes de elegir integraciones. Tampoco se exige al cliente una base de datos técnica ni una cuenta de infraestructura.
+
+## 3. Decisiones acordadas
+
+| Tema | Decisión |
+|---|---|
+| Segmento | Pequeños comercios de productos no perecederos con datos básicos o detallados aprovechables |
+| Intención inicial | Recibir ayuda general, sin tener que formular una pregunta |
+| Primer paso | Explicar a qué se dedica el negocio y cómo funciona |
+| Datos iniciales | Subida manual de Excel y CSV de ventas en formatos compatibles |
+| Interpretación | Mostrar qué se ha entendido antes de publicar conclusiones |
+| Plan de análisis | Guía base y plan revisable según datos, contexto, hallazgos y herramientas |
+| Preguntas | Formato mixto: opciones, campos breves y texto libre |
+| Información incompleta | Continuar con un informe parcial cuando haya una base útil y fiable |
+| Datos adicionales | Pedirlos con un beneficio concreto; si no se aportan, continuar con lo disponible |
+| Apertura del informe | Primero hallazgos y explicación breve; después cifras y gráficos |
+| Navegación | Resumen y secciones según los datos disponibles |
+| Dashboard | Presentación interactiva del mismo informe |
+| PDF | Botón «Descargar como PDF», con la misma información sustantiva |
+| Chat | Después del primer análisis, para preguntas concretas y exploración de decisiones |
+| Evidencia | Mostrar de dónde salen las afirmaciones del informe y del chat |
+| Regreso | Conversar o actualizar datos y generar otra revisión |
+| Seguimiento propuesto | Guardar un hallazgo para revisar, con nota manual opcional; comparar al actualizar |
+| Contexto guardado | Descripción y aclaraciones reutilizables del onboarding |
+| Aprender contexto desde el chat | Mejora futura, no requisito inicial |
+| Datos enriquecidos | Exploraciones históricas adicionales si son verificables; módulos completos de margen/inventario en ampliaciones |
+| Predicciones | Ampliación acotada de ventas/unidades, con evaluación e incertidumbre |
+| Automatización | Posterior a validar la utilidad del recorrido manual |
+
+## 4. Principios de experiencia
+
+1. **Conducir el primer análisis.** No exigir que el dueño sepa preguntar a una IA.
+2. **Entender el negocio antes de interpretar.** Utilizar su descripción para orientar las aclaraciones.
+3. **Permitir corregir.** Las interpretaciones del sistema no son hechos confirmados por defecto.
+4. **Preguntar lo que cambia el análisis.** No intentar conocer toda la empresa antes de ofrecer valor.
+5. **Avanzar con información parcial.** Limitar los resultados afectados sin bloquear todo innecesariamente.
+6. **Explicar antes de mostrar detalle.** Primero qué merece atención; después, cifras y comprobación.
+7. **Distinguir hechos, hipótesis y propuestas.** No presentar una posible causa como demostrada.
+8. **Recordar lo útil.** Evitar preguntas repetidas cuando el contexto sigue aplicando.
+9. **Mantener coherencia.** Web, PDF y respuestas sobre el informe comparten cifras y definiciones.
+10. **Hablar en términos del negocio.** No mostrar agentes internos, ontologías o técnicas de modelado.
+11. **Hacer visible la vigencia.** Fecha de subida, periodo de datos y fecha de informe son cosas distintas.
+12. **Proteger el alcance.** Completar el recorrido manual antes de añadir automatización o predicciones.
+13. **Adaptar la investigación.** La guía base no obliga a producir el mismo informe ni cierra las preguntas posibles.
+14. **Comprobar antes de publicar.** Una interpretación plausible o el acuerdo entre agentes no sustituye evidencia y cálculos contrastables.
+
+## 5. Primera visita: recorrido detallado
+
+**Explicar el negocio → subir archivos → evaluar información y preparar un plan → aclarar o aportar datos opcionales → ejecutar, comprobar y adaptar el análisis → explorar el informe.**
+
+El recorrido puede volver a la evaluación cuando llega información nueva. PDF y conversación posterior completan la experiencia ampliada, después de la primera entrega.
+
+### 5.1. Bienvenida y descripción del negocio
+
+La entrada explica el beneficio y pide una descripción breve, antes de interpretar los datos.
+
+Pregunta orientativa:
+
+> ¿Qué ofrece tu negocio y cómo funciona en el día a día?
+
+Ejemplo de ayuda:
+
+> «Tengo una papelería. Vendemos material escolar y artículos de regalo, y registramos cada venta en la caja».
+
+Se propone texto libre breve con ejemplos. El nombre puede recogerse junto a la descripción. No se exige un formulario exhaustivo sobre empleados, costes, horarios y objetivos.
+
+El producto devuelve una interpretación corta y corregible. Saber que es una papelería orienta las preguntas, pero no permite asumir qué incluyen los importes ni cómo se registran descuentos, devoluciones o variantes de producto.
+
+El mecanismo de registro e inicio de sesión queda pendiente. Debe permitir volver al mismo espacio sin una configuración empresarial compleja.
+
+### 5.2. Subir la información existente
+
+El usuario aporta uno o varios Excel o CSV y puede explicar brevemente qué contienen.
+
+Se pide aportar los datos existentes dentro de los formatos y límites admitidos, sin exigir una plantilla universal ni «todos los datos de la empresa». Los totales permiten análisis agregado; los tickets y artículos permiten más profundidad. Si un archivo adicional puede habilitar una investigación pertinente y disponible, se explica el beneficio y se ofrece aportarlo. Si no se aporta, se continúa con lo aprovechable. No se solicitan datos para funciones inexistentes.
+
+La pantalla muestra archivos recibidos, cuáles se pueden leer y cuáles necesitan corrección. Si uno falla, se conserva el resto del trabajo y se continúa con lo aprovechable.
+
+No se promete relacionar automáticamente cualquier combinación de archivos.
+
+### 5.3. Mostrar qué se ha entendido
+
+Antes de las preguntas de detalle y del informe, el sistema devuelve una lectura inicial.
+
+Ejemplo:
+
+> Tenemos ventas de los últimos seis meses. Cada ticket ocupa varias filas, una por artículo. Necesitamos confirmar cómo aparecen las devoluciones antes de calcular las ventas netas.
+
+Cuando sea relevante, explica:
+
+- Qué hoja o tabla se utilizará.
+- Qué representa cada fila.
+- Qué significan los campos que afectan al análisis.
+- Qué periodo parece cubrirse.
+- Qué archivos pueden relacionarse y cuáles siguen separados.
+- Qué parece posible analizar y qué necesita aclaración.
+
+No obliga a revisar todas las columnas manualmente. Sí pide confirmar ambigüedades que puedan cambiar los resultados.
+
+### 5.4. Preguntas adaptadas
+
+Las preguntas surgen de combinar la descripción del negocio con los archivos.
+
+El sistema prepara un plan provisional: qué puede estudiar, qué requiere aclaración y qué información opcional permitiría profundizar. Lo comunica brevemente cuando ayude al usuario; no requiere aprobar un plan técnico ni enseña razonamiento interno. Las preguntas pueden ajustar ese plan y también surgir durante la ejecución si aparece una ambigüedad nueva que afecta al resultado.
+
+Ejemplos:
+
+- «¿Cada fila representa un artículo del ticket o una compra completa?»
+- «¿Estos importes incluyen impuestos?»
+- «¿Las devoluciones aparecen como cantidades negativas o en otro archivo?»
+- «¿Cierras los lunes o faltan registros de esos días?»
+- «Con estos totales puedo analizar la evolución. ¿Tienes detalle por artículo para investigar qué productos explican la diferencia? Puedes continuar sin él».
+
+El formato mezcla opciones, números, fechas y texto libre según lo que resulte más fácil. Debe permitir añadir matices cuando una opción no describa la situación.
+
+Como propuesta de diseño, se usan tandas pequeñas, por ejemplo hasta tres preguntas prioritarias. No es una cuota obligatoria; la cantidad y distribución se comprobarán con usuarios.
+
+### 5.5. Cierre del onboarding
+
+El onboarding termina cuando hay una base suficiente para el análisis disponible, no cuando se ha recogido toda la información imaginable.
+
+Si falta información útil, se permite continuar y se explica qué resultados serán limitados. El dueño no tiene que esperar días para conseguir datos adicionales si ya puede obtener algo útil.
+
+Durante la generación se muestra un estado comprensible, sin pasos internos de agentes ni tiempos garantizados sin comprobar. Si falla, se conservan archivos aceptados y respuestas para reintentar.
+
+### 5.6. Primer resultado
+
+El usuario llega al resumen del análisis: hallazgos destacados, explicación breve y después las cifras y gráficos que los sostienen.
+
+Desde ahí puede explorar secciones, comprobar fuentes, descargar el PDF, preguntar al agente y consultar qué datos mejorarían una próxima revisión. Se propone una acción explícita «Guardar para revisar» sobre un hallazgo, sin necesidad de iniciar una conversación.
+
+No necesita iniciar el chat para recibir valor.
+
+## 6. Preguntas y datos incompletos
+
+### 6.1. Prioridad de las preguntas
+
+| Tipo | Tratamiento |
+|---|---|
+| Imprescindible para interpretar | Preguntar antes de publicar el resultado afectado; si no se resuelve, limitarlo u omitirlo |
+| Útil para profundizar | Explicar el beneficio y permitir continuar sin responder |
+| Archivo adicional para profundizar | Explicar qué análisis habilita; aceptar que no exista o no se quiera compartir y ajustar el plan |
+| Para revisiones futuras | Plantearla después del resultado disponible, sin alargar el onboarding |
+
+«No lo sé», «No lo tengo» y «Ahora no» son respuestas válidas. Si ninguna parte puede interpretarse con seguridad, se explica el bloqueo concreto.
+
+La negativa a aportar información opcional queda registrada y no se vuelve a pedir sin una razón nueva. Recibir un archivo adicional obliga a revisar su relación con lo existente para no sumar dos veces la misma actividad.
+
+Cada pregunta debe justificar su utilidad. Por ejemplo:
+
+> **¿Cierras los lunes?** Hay cuatro lunes sin registros. Saberlo ayuda a distinguir cierres de posibles datos pendientes.
+
+No se recoge información sobre empleados, horarios o costes simplemente por completar un perfil.
+
+### 6.2. Respuestas persistentes y corregibles
+
+La descripción y las aclaraciones se guardan como información organizada y consultable del negocio. No quedan únicamente en una lista de preguntas y respuestas.
+
+El usuario puede corregirlas desde un espacio sencillo. Cuando importa para el análisis histórico, se aclara desde cuándo aplica un cambio. El horario de hoy no se aplica automáticamente a todo el pasado.
+
+Las preguntas pendientes deben seguir teniendo una utilidad clara. Se pueden posponer y no deben reaparecer insistentemente sin una razón nueva.
+
+### 6.3. Resultados posibles
+
+- **Información suficiente:** hallazgos y próximos pasos respaldados.
+- **Información parcial:** resultados útiles, límites visibles y datos adicionales sugeridos.
+- **Información insuficiente:** diagnóstico breve y aclaración o formato necesario para continuar.
+
+No se fabrica un informe largo para aparentar valor cuando no existe una base útil.
+
+## 7. Informe interactivo: resumen y secciones
+
+### 7.1. Un solo análisis
+
+El dashboard es la presentación interactiva del informe. No se construye como un producto independiente ni como un editor libre de gráficos.
+
+La navegación acordada es **resumen y secciones**. La propuesta funcional incluye ventas y productos, devoluciones y descuentos cuando sean interpretables, y asuntos guardados para revisar. La distribución visual sigue pendiente.
+
+### 7.2. Identificación y acciones
+
+El usuario debe encontrar fácilmente:
+
+- Negocio y periodo analizado.
+- Fecha de generación.
+- Cobertura parcial o dudas relevantes.
+- Acciones para preguntar, guardar un asunto para revisar, actualizar datos y descargar el PDF.
+
+Un archivo subido hoy puede contener datos del mes pasado. Esa diferencia debe quedar clara.
+
+### 7.3. Resumen: primero los hallazgos
+
+La apertura explica qué está pasando, qué merece atención y qué conviene revisar cuando exista base. Se propone destacar hasta tres prioridades, sin rellenar tarjetas artificialmente. Magnitud, cobertura y utilidad de la comprobación pesan más que mostrar muchos porcentajes llamativos.
+
+Ejemplo ilustrativo:
+
+> Las ventas registradas han bajado y hay menos tickets. El importe medio por ticket apenas ha cambiado. Esta categoría concentra la mayor parte de la caída.
+
+Solo se mostraría si el tipo de registros y la comparación permiten sostenerlo. La cifra y el cálculo se pueden consultar.
+
+Los indicadores y gráficos acompañan la explicación. No se empieza por una cuadrícula de números sin contexto ni por un chat vacío.
+
+### 7.4. Secciones adaptadas a la información
+
+Las secciones se derivan del plan ejecutado y sus resultados verificados. La guía contempla evolución, productos si los hay, devoluciones y descuentos cuando sean interpretables; se pueden añadir otras investigaciones históricas pertinentes y comprobables. Con datos agregados no aparecen secciones vacías de productos o tickets. El seguimiento corresponde al producto ampliado; previsiones y módulos especializados siguen su roadmap.
+
+Cada sección ofrece:
+
+1. Explicación de lo más relevante.
+2. Métricas y gráficos útiles.
+3. Hallazgos ampliables.
+4. Limitaciones y próximos pasos respaldados.
+
+Si solo hay ventas, no se rellena una sección de rentabilidad con suposiciones. Se explica en un lugar pertinente qué falta.
+
+No se necesita personalización libre de paneles, widgets ni múltiples dashboards sectoriales para el MVP.
+
+### 7.5. Detalle y comprobación
+
+Desde un hallazgo se puede consultar:
+
+- Qué se observa y en qué periodo.
+- Qué cifras, archivos y registros relevantes lo respaldan.
+- Cómo se calculó, con lenguaje comprensible.
+- Qué filtros, exclusiones, aclaraciones o supuestos influyeron.
+- Qué limitación afecta a la interpretación.
+- Una opción para preguntar sobre ese hallazgo.
+
+El detalle se muestra a petición para no sobrecargar la lectura inicial.
+
+### 7.6. Hallazgos y próximos pasos
+
+El informe combina observaciones, asuntos a investigar y acciones cuando haya evidencia.
+
+Debe distinguir:
+
+- **Observación:** lo que muestran los registros.
+- **Hipótesis:** explicación que todavía requiere comprobación.
+- **Próximo paso:** qué revisar, aclarar o hacer a partir de lo disponible.
+
+La guía base contempla cambios de actividad, contribuciones, tickets, devoluciones y descuentos cuando los datos lo permiten. El sistema puede elegir investigaciones adicionales con sustento, herramientas y comprobaciones, o abandonar otras que no aportan valor. No se fuerza una cantidad de hallazgos, acciones ni estimaciones de ahorro. Una contribución a una caída no demuestra su causa ni una pérdida recuperable. Los límites de ejecución impiden una investigación indefinida.
+
+### 7.7. Guardar para revisar: propuesta acotada
+
+El dueño puede guardar un hallazgo desde el informe y añadir una nota opcional sobre qué quiere comprobar. Si declara haber hecho un cambio, puede indicar su fecha. El hallazgo conserva su revisión de origen.
+
+Al aportar datos nuevos, el sistema recupera el asunto y compara la métrica pertinente cuando sea válido. Separa el cambio observado de las causas posibles. No atribuye automáticamente una mejora a la acción declarada.
+
+Esta propuesta no introduce recordatorios, notificaciones, ejecución externa ni memoria automática del chat. Si no hay datos suficientes, el asunto puede seguir pendiente sin producir una conclusión ficticia.
+
+## 8. Descargar como PDF
+
+El informe incluye un botón visible: **«Descargar como PDF»**.
+
+Contiene la misma información sustantiva de la revisión web: resumen, secciones, métricas, gráficos relevantes, hallazgos, limitaciones y próximos pasos. No es una segunda interpretación generada por separado.
+
+La presentación se adapta a lectura continua y páginas estáticas. El lector puede entender las conclusiones y su sustento sin depender de interacciones. Esto no obliga a adjuntar todos los registros originales.
+
+El documento identifica negocio, periodo y fecha. Descargar una revisión antigua no la convierte en un análisis actualizado.
+
+La acción descarga el documento; no requiere envío por correo, publicación ni compartición automática. El PDF forma parte del producto inicial acordado.
+
+## 9. Chat después del análisis
+
+### 9.1. Papel y acceso
+
+El chat es parte del producto inicial y comparte el contexto disponible: negocio, archivos del análisis, aclaraciones, métricas y hallazgos.
+
+El usuario puede hacer una pregunta libre o iniciar una consulta desde un hallazgo. No debe volver a explicar su empresa ni copiar lo ya aportado.
+
+Se propone mantenerlo accesible desde el informe y abrirlo con el contexto seleccionado al pulsar «Preguntar sobre esto». Su ubicación visual exacta queda pendiente.
+
+### 9.2. Amplitud acordada
+
+Puede ayudar a:
+
+- Explicar una cifra o conclusión y mostrar su origen.
+- Responder preguntas concretas sobre los datos dentro de las capacidades admitidas.
+- Explorar posibles decisiones y qué conviene comprobar antes de tomarlas.
+- Explicar qué información falta para responder con más fundamento.
+
+Ejemplos:
+
+> «¿Qué productos explican esta diferencia?»  
+> «¿De dónde has sacado esa cifra?»  
+> «¿Qué debería revisar antes de subir precios?»
+
+La última pregunta cabe en la intención del producto. No implica prometer una predicción numérica del efecto de subir precios ni ejecutar el cambio.
+
+En la futura conversación posterior, filtros, agregaciones y desgloses son operaciones base, no una lista cerrada de preguntas. El agente puede componer investigaciones pertinentes que sus herramientas permitan ejecutar y comprobar. Si no dispone de medios fiables o de información suficiente, explica el límite. Este criterio de autonomía se aplica desde el MVP al sistema que prepara el informe.
+
+### 9.3. Evidencia y límites
+
+Las respuestas basadas en archivos permiten consultar su fuente, cálculo o resultado correspondiente. Las cifras proceden de operaciones reproducibles: un enlace genérico al archivo no basta si no respalda la afirmación. Si usan contexto declarado por el dueño, lo distinguen.
+
+Una orientación general no se presenta como un hecho demostrado sobre ese negocio. Si faltan datos, el chat explica qué puede contestar y qué no, sin inventar cifras.
+
+Debe indicar la revisión o periodo utilizado cuando afecte a la respuesta. Hablar hoy con el agente no significa que tenga datos de hoy.
+
+La conversación no reescribe silenciosamente el informe. Los análisis adicionales, si la capacidad existe, se distinguen de la revisión publicada. La forma de incorporarlos posteriormente queda por definir.
+
+### 9.4. Actualizar conocimiento desde el chat: futuro
+
+En el MVP, el chat consulta el contexto guardado del onboarding y las aclaraciones. **Convertir una conversación en cambios persistentes del perfil queda para una fase posterior.**
+
+Ejemplo futuro:
+
+> «Desde septiembre cerramos los lunes».  
+> «¿Guardo ese horario para las próximas revisiones, a partir de septiembre?»
+
+El sistema propondría el cambio para confirmarlo. No alteraría silenciosamente informes anteriores.
+
+Mientras esa función no exista, el chat no debe afirmar que ha actualizado el perfil permanentemente a partir de un mensaje. Las correcciones persistentes se hacen en el espacio previsto para la información del negocio.
+
+## 10. Regreso y actualización
+
+### 10.1. Dos entradas igualmente importantes
+
+El dueño puede volver a preguntar sin aportar datos nuevos, o actualizar la información y obtener otra revisión.
+
+Se propone entrar al último análisis con dos acciones visibles: **«Preguntar al agente»** y **«Actualizar datos»**. La distribución de pantalla no está cerrada.
+
+No se repite el onboarding para conversar ni se exige un archivo nuevo para usar el chat.
+
+### 10.2. Actualización manual
+
+1. Subir archivos actualizados o del nuevo periodo.
+2. Revisar qué información se usará y qué periodo cubre.
+3. Aclarar únicamente dudas nuevas.
+4. Generar una nueva revisión.
+5. Explorar los hallazgos y los cambios cuando sea válida la comparación.
+6. Recuperar asuntos guardados y revisar su evolución si hay evidencia suficiente.
+
+Se reutilizan formatos conocidos y contexto confirmado. Si cambia el archivo, se pregunta por las diferencias que afectan a su interpretación.
+
+### 10.3. Archivos repetidos o solapados
+
+Subir otra vez un conjunto no debe duplicar operaciones. Si los archivos se solapan, el usuario entiende cuál se usará y si sustituye información.
+
+No se promete una fusión universal. Cuando haga falta elegir una fuente o aportar un conjunto consolidado, se explica.
+
+La regla de incorporación o sustitución se definirá según los formatos admitidos. No se impone en esta versión un Excel maestro generado por la aplicación. Cualquier sustitución que reduzca información de forma relevante debe advertirse antes de aplicarla.
+
+### 10.4. Coherencia entre revisiones
+
+Datos recién subidos e informe generado son estados diferentes. La interfaz no presenta un informe anterior como si incorporara automáticamente la última subida.
+
+Cada revisión conserva el periodo, fuentes y supuestos con los que se elaboró. Editar el perfil actual no cambia el pasado. La consulta del historial puede ser sencilla y queda por concretar.
+
+**Criterio de experiencia:** actualizar requiere menos explicación del negocio que la primera visita.
+
+## 11. Interpretación guardada de los datos
+
+La idea de extraer una ontología se incorpora con un alcance pequeño: **guardar el significado necesario para analizar correctamente y evitar preguntas repetidas**.
+
+Para el usuario se presenta como información del negocio e interpretación de sus datos. No necesita conocer el término ontología ni editar un modelo técnico.
+
+| Qué conservar | Ejemplo |
+|---|---|
+| Descripción | Papelería que revende material escolar y regalos |
+| Unidad de registro | Una fila es un artículo dentro de un ticket |
+| Significado de columnas | El importe incluye impuestos |
+| Definiciones | Cómo se descuentan devoluciones y se excluyen tickets anulados |
+| Relaciones validadas | Una referencia identifica el mismo pedido en dos tablas |
+| Contexto declarado | Horario habitual y fecha desde la que aplica |
+| Dudas | No sabemos si están incluidos todos los gastos |
+| Nivel de detalle | Totales diarios sin identificadores de ticket; no permite calcular cesta |
+| Información no aportada | El dueño no dispone de detalle por producto; no volver a pedirlo sin motivo nuevo |
+| Plan y comprobaciones | Qué se investigó, qué se reformuló y qué resultados quedaron verificados |
+
+Se distingue lo registrado, lo declarado, lo estimado y lo pendiente de confirmar. No se convierten automáticamente inferencias en hechos confirmados.
+
+Las definiciones conservan procedencia y aplicación temporal cuando son necesarias. Una interpretación de un archivo no se extiende a otro incompatible sin comprobarla.
+
+**Regla de alcance:** conservar un concepto si ayuda a interpretar un dato, calcular un análisis admitido o evitar repetir una pregunta.
+
+Quedan fuera la reconstrucción de todos los procesos de la empresa, la exportación de una ontología universal y la operación de agentes externos sobre sus sistemas. No se decide aquí la tecnología para guardar ese conocimiento.
+
+## 12. Límites de interpretación visibles
+
+Se mantienen los siguientes criterios de confianza, independientemente de la implementación:
+
+- Ausencia de registros no equivale a cero.
+- Totales diarios no permiten contar tickets individuales.
+- Varias líneas de un ticket no son varias compras; tickets tampoco equivale a personas.
+- Ingresos no equivalen a beneficio si faltan costes.
+- Desglosar una caída por categoría no demuestra su causa.
+- Cero ventas no demuestra que hubiera stock disponible ni baja demanda.
+- El coste actual de un artículo no acredita el coste de todas sus ventas históricas.
+- Horarios declarados no sustituyen turnos reales ni disponibilidad.
+- Número de empleados no proporciona horas trabajadas ni costes.
+- Estimaciones de memoria no son registros comprobados.
+- Periodos incompletos no se comparan con completos sin explicar cobertura.
+- Negativos, subtotales y posibles duplicados se interpretan antes de eliminarlos o sumarlos.
+- Monedas y unidades diferentes no se agregan como equivalentes.
+
+El documento de servicios orienta las investigaciones y sus requisitos de datos. La planificación técnica definirá herramientas, comprobaciones y escenarios con distinta riqueza de información. La IA puede elegir y componer análisis, pero debe explicitar sus definiciones y dejar operaciones reproducibles; no cambia el significado de una métrica entre respuestas sin indicarlo.
+
+## 13. Ayudar a mejorar los datos
+
+### 13.1. En el MVP: orientación
+
+Cuando falta información relevante, se explica qué dato ayudaría, para qué serviría y qué conclusión todavía no puede obtenerse.
+
+Ejemplo:
+
+> Con estos datos podemos analizar la evolución de ventas. El detalle por artículo permitiría investigar qué productos contribuyen al cambio. Si no lo tienes, seguimos con esta información.
+
+Se proponen mejoras concretas y proporcionadas, no una lista de todo lo que falta para tener datos perfectos. No se pide información personal innecesaria para el análisis disponible.
+
+### 13.2. Después: facilitar el registro
+
+Se contempla ofrecer plantillas de Excel sencillas y ayudar a mantener datos que antes no se registraban, aprovechando formatos existentes cuando sea posible.
+
+Esta ayuda **no es un requisito del MVP más básico acordado ahora**. La prioridad es crear una buena experiencia con archivos ya disponibles.
+
+Cuando se añada, cada campo tendrá un beneficio claro, instrucciones comprensibles y relación con una capacidad real. No se inventarán valores para completar huecos ni se mezclarán ejemplos con registros reales.
+
+No se pretende convertir esta extensión en un sistema completo de caja, agenda, inventario o contabilidad.
+
+## 14. Estados y situaciones que resolver
+
+| Situación | Respuesta del producto |
+|---|---|
+| No hay archivos | Explicar qué admite el MVP sin prometer funciones futuras |
+| Un archivo falla | Identificarlo y conservar el resto del trabajo |
+| Una tabla o fecha es ambigua | Solicitar la aclaración necesaria antes de usarla |
+| Parte de los datos no sirve | Analizar lo válido y explicar exclusiones relevantes |
+| El usuario no sabe responder | Continuar con resultados fiables y límites visibles |
+| Respuesta y archivo se contradicen | Pedir aclaración |
+| Los datos adicionales tardarán días | Entregar lo útil ahora y explicar cómo completarlo |
+| No hay base útil | Dar un diagnóstico breve y un siguiente paso |
+| El análisis falla | Permitir reintentar sin repetir información aceptada |
+| Se repite un archivo | Evitar duplicación y novedades ficticias |
+| Hay solapamientos o sustituciones | Explicar qué datos se usarán antes de aplicarlos |
+| Hay subida pendiente de analizar | Distinguirla del informe anterior |
+| El chat no puede responder | Explicar el límite y qué permitiría avanzar |
+| Se pregunta sobre actualidad con datos antiguos | Hacer visible el periodo disponible |
+| Pide una función todavía no implementada | Explicar que no está disponible; no pedir datos como si fueran el único impedimento |
+| No hay ningún cambio relevante | Entregar una revisión breve sin fabricar alertas |
+| Quiere revisar una acción anterior | Mostrar evolución y límites de comparación; no inventar causalidad |
+| Aporta datos agregados aprovechables | Preparar un análisis a ese nivel; no exigir tickets ni columnas ajenas a la pregunta |
+| No aporta información opcional | Continuar y conservar el límite sin insistir |
+| Una exploración adicional no supera comprobaciones | Corregir dentro de límites o retirar el resultado afectado |
+| Se alcanza el límite de investigación | Presentar lo verificado y explicar lo pendiente, sin fingir cobertura completa |
+| Falla la descarga del PDF | Permitir reintentar conservando el informe web |
+
+Los errores necesitan un siguiente paso comprensible. «No se puede procesar» sin explicación no basta.
+
+## 15. Ejemplos completos de experiencia
+
+### 15.1. Papelería con ventas por artículo
+
+La dueña sube un CSV donde cada ticket ocupa varias filas. El sistema confirma impuestos, descuentos, devoluciones y cobertura. Cuenta compras mediante el identificador del ticket.
+
+El resumen destaca las categorías que contribuyen a un cambio de ventas. La dueña abre la evidencia y pregunta si el resultado se mantiene sin devoluciones. El chat muestra el nuevo filtro y cálculo como análisis adicional. Puede descargar el PDF de la revisión publicada.
+
+### 15.2. Bazar con una caída concentrada en pocos productos
+
+El informe muestra una caída observada en varios artículos y su peso en el total. Ante «¿Se han dejado de vender porque ya no gustan?», el agente explica que faltan pruebas sobre disponibilidad y demanda.
+
+El dueño guarda el asunto para revisar existencias. Puede anotar que comprobó un agotamiento y su fecha; la nota es contexto declarado. Al cargar el siguiente periodo se compara la evolución sin presentar automáticamente una recuperación como efecto causal de su intervención.
+
+### 15.3. Tienda de regalos con un archivo incompleto
+
+La dueña sube datos de una semana que parece tener menos ventas, pero faltan días de cobertura. El sistema destaca primero esa limitación y evita una alerta comercial engañosa.
+
+Si aporta solo totales diarios, recibe un informe adaptado a ese nivel. El sistema ofrece profundizar con detalle por artículo y continúa si la dueña dice que no lo tiene. No considera ese caso un incumplimiento de una plantilla de entrada. Si llegan datos más ricos, revisa el plan y explora lo que pueda ejecutar y comprobar; si una capacidad aún no existe, lo explica sin prometerla.
+
+## 16. Tono y control del usuario
+
+La interfaz habla con claridad a una persona que conoce su negocio y tiene poco tiempo.
+
+| Evitar | Preferir |
+|---|---|
+| «Ejecuta el agente analista» | «Preparar análisis» |
+| «Completa tu perfil al 100 %» | «Confirmar el horario ayuda a entender estos días sin registros» |
+| «Tu negocio funciona mal» | «Los ingresos registrados han bajado en este periodo» |
+| «Optimiza tus recursos» | Una comprobación o próximo paso concreto |
+| «Es el producto más rentable» sin costes | «Aporta más ventas; para comparar margen necesitamos costes compatibles y esa capacidad disponible» |
+
+La confianza se apoya en fuentes y cuentas verificables. No se necesita mostrar razonamiento interno del modelo ni porcentajes de confianza sin significado defendible.
+
+El usuario debe poder saber qué archivos se utilizan, corregir contexto, descargar el informe y entender qué se conserva. La política de conservación y borrado se definirá antes de trabajar con datos reales y será coherente con la continuidad prometida. Retirar una fuente no debe dejar una evidencia inaccesible presentada como disponible.
+
+No se necesitan enlaces públicos, envío automático a terceros ni colaboración entre empresas en el primer recorrido.
+
+## 17. Alcance del producto inicial ampliado
+
+Este apartado conserva el alcance más amplio definido antes de acotar la primera entrega. Para construir y dar por terminado el MVP inmediato, aplicar [MVP y primera entrega](<Decision Room - MVP.md>), que aplaza chat posterior, PDF y seguimiento.
+
+### 17.1. Núcleo acordado
+
+1. Espacio persistente sencillo del negocio.
+2. Descripción inicial antes de interpretar archivos.
+3. Subida manual de Excel y CSV existentes.
+4. Interpretación breve y corregible.
+5. Preguntas adaptadas, mixtas y con respuestas reutilizables.
+6. Informe suficiente o parcial según la evidencia.
+7. Resumen de hallazgos y secciones pertinentes.
+8. Cifras, gráficos, fuentes y límites consultables.
+9. Hallazgos, asuntos a investigar y próximos pasos cuando exista base.
+10. PDF del mismo análisis.
+11. Chat contextual para explicar y explorar decisiones.
+12. Regreso para conversar o actualizar manualmente los datos.
+13. Estados claros de errores, datos insuficientes y revisiones pendientes.
+14. Propuesta nueva: guardar explícitamente un asunto para revisar, con nota opcional y recuperación al actualizar.
+
+El desarrollo puede dividirse en entregas. Ese orden no convierte el chat o el PDF en funciones descartadas del producto acordado.
+
+La guía de investigación está definida en Servicios y diferenciación y el MVP: comprender la actividad, sus cambios y lo que merece revisión. No es un catálogo cerrado ni exige detalle por artículo. Los formatos físicos y herramientas concretas siguen pendientes. Se validará con comercios y archivos de distintos niveles de detalle, incluyendo datos agregados y rechazo a aportar más información.
+
+### 17.2. Fuera del núcleo inicial
+
+- Ayuda detallada para exportar datos e integraciones externas.
+- Ingesta universal de papel, fotos, documentos, correo o audio.
+- Plantillas generadas y herramientas para comenzar a registrar actividad.
+- Sincronización automática con archivos o servicios.
+- Cambios persistentes de contexto propuestos desde el chat.
+- Informes programados, avisos y envíos automáticos.
+- Módulos completos de margen e inventario: ampliaciones especializadas. No excluye una exploración histórica adicional si hay información y herramientas verificables.
+- Predicciones y simulaciones cuantitativas abiertas.
+- Cambios autónomos en precios, turnos o compras.
+- Gestión completa, varias sedes, equipos y paneles personalizables.
+- Ontologías empresariales completas o interacción con agentes externos.
+
+Conversar sobre una decisión sí cabe en el chat inicial. Predecir numéricamente sus consecuencias o ejecutarla no forma parte del compromiso inicial.
+
+## 18. Roadmap de experiencia
+
+Estas mejoras quedan registradas sin fechas. La prioridad funcional propuesta es desarrollar capacidades especializadas de margen/inventario, previsiones condicionadas a evaluación y automatización tras demostrar recurrencia. Esto no impide aprovechar antes datos enriquecidos para una exploración histórica que las herramientas ya permitan ejecutar y comprobar. La ayuda de exportación puede adelantarse si los pilotos muestran que es el principal obstáculo.
+
+### 18.1. Ayudar a obtener y registrar datos
+
+- Investigar qué programas utilizan los primeros negocios.
+- Guiar la exportación desde herramientas concretas.
+- Ofrecer plantillas de Excel fáciles de rellenar.
+- Ayudar a registrar información que hoy no se guarda.
+
+El objetivo es ampliar el acceso progresivamente. Las primeras guías y conexiones se elegirán según los formatos y programas que realmente utilicen las tiendas piloto, comprobando permisos y requisitos de exportación.
+
+### 18.2. Completar contexto desde el chat
+
+Detectar información nueva, proponer guardarla y pedir una confirmación breve con fecha de aplicación cuando corresponda. Las conversaciones mejorarían las próximas revisiones sin cambiar silenciosamente el pasado.
+
+### 18.3. Automatizar continuidad, en etapas posteriores
+
+- Recibir datos automáticamente de fuentes compatibles tras su configuración.
+- Preparar informes periódicos, por ejemplo semanales.
+- Avisar cuando haya una revisión o cambio relevante, con preferencias por definir.
+
+La llegada automática de datos y la programación de informes son funciones distintas. Habrá que diseñar qué ocurre si no llega información nueva, está incompleta o cambia el formato.
+
+Se consideran de las últimas etapas planteadas, después de comprobar que el recorrido manual aporta valor.
+
+### 18.4. Predicciones y machine learning
+
+Existe interés en complementar el análisis histórico con capacidades para anticipar aspectos del negocio.
+
+La primera candidata es una previsión acotada de ventas o unidades para las próximas semanas, al nivel que los datos permitan. Debe superar una evaluación temporal frente a referencias sencillas y mostrar incertidumbre y error histórico. No todos los negocios ni productos tendrán base suficiente.
+
+La UX separará histórico, previsión y escenario hipotético. Una previsión de ventas no implica una cantidad de compra recomendada: esa ampliación requiere existencias, entradas y plazos, entre otros datos. Los criterios funcionales están en Servicios y diferenciación; modelos e implementación siguen pendientes. Esta línea no bloquea el MVP.
+
+### 18.5. Margen e inventario: primera ampliación funcional
+
+Añadir tablas de costes y existencias en formatos concretos con relaciones confirmadas. Mostrar margen bruto, baja salida y cobertura únicamente con datos suficientes y definiciones compatibles. El coste actual no se presenta como histórico real; el margen bruto no se llama beneficio neto.
+
+El piloto determinará si esta ampliación es necesaria para que el producto aporte valor comercial suficiente. La facilidad de producir un informe de ventas no garantiza que el propietario quiera pagarlo.
+
+## 19. Criterios de aceptación de la experiencia
+
+| Comprobación | Resultado esperado |
+|---|---|
+| El dueño no sabe qué preguntar | Obtiene un análisis sin formular una consulta |
+| Describe su negocio | Ese contexto orienta interpretación y preguntas |
+| Una columna es ambigua | Puede aclararla antes de que afecte al resultado |
+| No sabe una respuesta | Continúa con la parte fiable y entiende el límite |
+| Abre el informe | Ve primero hallazgos y explicación |
+| Quiere profundizar | Encuentra secciones, cifras y gráficos pertinentes |
+| Comprueba una afirmación | Accede a cálculo, origen y supuestos |
+| Descarga el PDF | Obtiene el mismo análisis y periodo |
+| Pregunta por un hallazgo | El chat conserva contexto y muestra su sustento |
+| Explora una decisión | Se distinguen hechos, hipótesis y datos faltantes |
+| Guarda un asunto para revisar | Se conserva su revisión de origen y la nota declarada |
+| Actualiza un asunto guardado | Se compara lo compatible sin atribuir causalidad automáticamente |
+| Pide una capacidad posterior | Se distingue función no disponible de información faltante |
+| Aporta solo datos agregados | Recibe un plan e informe adecuados a ese nivel, sin requisitos de detalle ajenos a lo calculable |
+| No aporta un archivo opcional | El sistema adapta el plan y continúa sin insistencia injustificada |
+| Hay información más rica | Profundiza o propone análisis adicionales pertinentes y verificables |
+| Un resultado no supera comprobaciones | No se publica como hallazgo confirmado |
+| Vuelve sin archivos nuevos | Puede conversar sobre la revisión disponible |
+| Actualiza datos | Reutiliza contexto y aclara solo lo necesario |
+| Repite o solapa archivos | No se duplica silenciosamente la actividad |
+| Hay datos nuevos sin informe nuevo | La interfaz distingue ambos estados |
+| Cambia el contexto actual | Los informes anteriores conservan sus supuestos |
+| Da un dato nuevo al chat en el MVP | No se afirma una actualización permanente inexistente |
+| Falla el proceso o falta toda base útil | Hay explicación y siguiente paso sin perder el trabajo aceptado |
+
+Son criterios de producto, no una prescripción de arquitectura o infraestructura de pruebas.
+
+## 20. Validación y decisiones pendientes
+
+### 20.1. Qué observar con usuarios
+
+Se propone probar con 3–5 comercios independientes de sectores cercanos y repetir más de una revisión, usando sus archivos reales. Comparar tareas con su proceso actual e incluir el tiempo de exportación y aclaraciones: un informe agradable no demuestra ahorro ni ventaja.
+
+- ¿Entienden cómo empezar y consiguen aportar los archivos?
+- ¿La descripción inicial resulta fácil y mejora las preguntas?
+- ¿Comprenden por qué se pide cada aclaración?
+- ¿Pueden explicar un hallazgo con sus propias palabras?
+- ¿Encuentran la evidencia cuando quieren comprobarlo?
+- ¿Saben qué preguntar al chat y entienden sus límites?
+- ¿Les sirve el PDF?
+- ¿Vuelven para conversar, actualizar o ambas cosas?
+- ¿La segunda revisión requiere menos esfuerzo?
+- ¿El análisis les lleva a comprobar o hacer algo concreto?
+- ¿Querrían repetir esa utilidad y posteriormente pagar por ella?
+
+Si cada archivo exige ayuda manual continua, habrá que reducir el formato admitido o adelantar alguna ayuda de obtención de datos. No añadir funciones automáticamente para compensar.
+
+### 20.2. Decisiones de UX todavía abiertas
+
+- Registro e inicio de sesión.
+- Distribución visual de resumen, secciones y chat.
+- Cantidad de preguntas por tanda y presentación del progreso.
+- Consulta y conservación de conversaciones y revisiones.
+- Reglas comprensibles de sustitución o incorporación de archivos.
+- Diseño y detalle estático de evidencia en el PDF.
+- Política de conservación y borrado.
+
+### 20.3. Para la siguiente conversación técnica
+
+- Escenarios con distintos niveles de datos y resultados admisibles, incluyendo negativas a aportar más información.
+- Evaluación de información, guía base, planificación autónoma y reformulación.
+- Coordinación de agentes o un agente con herramientas; presupuestos, verificación y parada.
+- Lectura de Excel/CSV, operaciones componibles, consultas y análisis adicionales comprobables.
+- Definiciones y requisitos por análisis, con reglas y cálculos de referencia para comprobar resultados.
+- Persistencia del contexto, disponibilidad, planes, ejecuciones, evidencia y resultados.
+- Interfaz del informe, evaluación del recorrido y despliegue.
+- Implementación y evaluación de la previsión candidata en una fase posterior.
+
+El orden operativo de estas decisiones está en la sección 8 del MVP. Se empieza por comportamiento y escenarios; el contrato universal de columnas y la lista fija de cálculos dejan de ser el punto de partida. Precio, calendario y modelo comercial no quedan fijados aquí.
+
+## 21. Historial de decisiones
+
+### 21.1. Actualización del 15 de septiembre respecto al día 14
+
+- Se centra la visión en eliminar fricción para pequeños negocios sin conocimientos de IA.
+- La descripción del negocio pasa a ser el primer paso.
+- La intención inicial es recibir ayuda general, sin formular preguntas.
+- El informe pasa a resumen y secciones, con hallazgos antes que cifras.
+- Se define el dashboard como presentación interactiva del mismo análisis.
+- El PDF pasa de opcional a parte del recorrido acordado.
+- El chat pasa a ser una pieza del producto, capaz de explicar y explorar decisiones.
+- Se reconocen dos motivos de regreso: conversar y actualizar datos.
+- Se incorpora explícitamente la interpretación guardada y acotada de los datos.
+- Se aplaza la actualización persistente del contexto desde el chat.
+- El MVP se centra en usuarios con Excel o CSV existentes.
+- Plantillas y ayuda para conseguir o registrar datos pasan a mejoras posteriores.
+- Deja de exigirse inicialmente un Excel maestro generado por la aplicación.
+- Se registran automatización, informes periódicos y predicciones como líneas futuras.
+- En esa revisión, el catálogo concreto de análisis y las decisiones técnicas se reservaron para después.
+
+### 21.2. Especialización y definición funcional del 17 de septiembre
+
+- El foco pasa a comercios de productos no perecederos con ventas por artículo.
+- Se sustituyen ejemplos de servicios por papelería, bazar y tienda de regalos.
+- Se concreta el núcleo de ventas, prioridades y consultas comprobables; margen/inventario y previsiones son ampliaciones.
+- Se propone guardar asuntos para revisar con seguimiento manual mínimo.
+- Se diferencia una función no implementada de los datos que faltan para una función disponible.
+- Se exige comparar utilidad y esfuerzo con el proceso real del comercio; las capacidades no se presentan como exclusivas.
+- Se mantienen PDF, chat, revisión manual y contexto del onboarding. La memoria automática desde el chat y los conectores siguen siendo posteriores.
+
+### 21.3. Revisión hacia investigación autónoma y adaptable
+
+- Se retira el detalle por producto/ticket como requisito general de entrada.
+- La guía de análisis sustituye al catálogo cerrado; el sistema elige y revisa su plan.
+- Se piden datos opcionales explicando su utilidad y se continúa si no se aportan.
+- Los análisis adicionales necesitan evidencia y cálculos comprobables; hay límites de tiempo, coste e iteraciones.
+- Se evalúa con distintos niveles de detalle y planes admisibles, no con un informe único.
+- La planificación técnica empieza por comportamiento y escenarios, seguida de evaluación de datos, coordinación, herramientas y persistencia.
+- El MVP sigue terminando en una página sencilla; chat posterior, PDF y seguimiento quedan para entregas siguientes.
+
+## 22. Experiencia objetivo
+
+Al terminar la primera visita, el usuario debería poder decir:
+
+> He explicado mi negocio, he subido lo que tenía y he respondido preguntas que entendía. Ahora sé qué muestran mis datos, qué merece atención y qué todavía no podemos saber. Puedo explorar el informe, descargarlo y preguntar sin empezar de cero.
+
+Al volver:
+
+> Mi tienda y mi último análisis siguen aquí. Puedo resolver una duda, aportar datos nuevos y revisar los asuntos que guardé. Solo tengo que aclarar lo que ha cambiado.
+
+Ese es el centro de Decision Room: una revisión comprensible y verificable del negocio, una conversación contextual y una continuidad sencilla, antes de ampliar el producto con automatización o predicciones.

@@ -1,0 +1,27 @@
+{
+  "before_answer": {
+    "status": "needs_clarification",
+    "required_question": "Does amount mean unit price or the total for that row?",
+    "blocked_metrics": [
+      "sales_ex_tax",
+      "average_selling_price"
+    ],
+    "allowed_metrics": {
+      "quantity": 59
+    }
+  },
+  "after_unit_price_answer": {
+    "sales_ex_tax": "1220.00"
+  },
+  "after_line_total_answer": {
+    "sales_ex_tax": "257.50"
+  },
+  "if_owner_does_not_know": "Leave sales totals unresolved. Report supported quantities and explain the limitation without repeating the question.",
+  "must_not_claim": [
+    "Do not infer causes, profit, stock levels or customer behaviour.",
+    "Do not treat absent dates as zero-sales days or assume opening days.",
+    "Describe these as recorded sales within the supplied scope.",
+    "No final sales total before clarification.",
+    "No average ticket value."
+  ]
+}

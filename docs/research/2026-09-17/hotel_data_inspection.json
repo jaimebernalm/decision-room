@@ -1,0 +1,89 @@
+{
+  "source": "https://doi.org/10.1016/j.dib.2018.11.126",
+  "download_url": "https://ars.els-cdn.com/content/image/1-s2.0-S2352340918315191-mmc2.zip",
+  "sha256": "6db57d635b9edec05f1cf9616ba6473e864909e4fc34819fa21cff58d518ee6a",
+  "files": [
+    {
+      "name": "H1.csv",
+      "rows_excluding_header": 40060,
+      "columns": 31,
+      "headers": [
+        "IsCanceled",
+        "LeadTime",
+        "ArrivalDateYear",
+        "ArrivalDateMonth",
+        "ArrivalDateWeekNumber",
+        "ArrivalDateDayOfMonth",
+        "StaysInWeekendNights",
+        "StaysInWeekNights",
+        "Adults",
+        "Children",
+        "Babies",
+        "Meal",
+        "Country",
+        "MarketSegment",
+        "DistributionChannel",
+        "IsRepeatedGuest",
+        "PreviousCancellations",
+        "PreviousBookingsNotCanceled",
+        "ReservedRoomType",
+        "AssignedRoomType",
+        "BookingChanges",
+        "DepositType",
+        "Agent",
+        "Company",
+        "DaysInWaitingList",
+        "CustomerType",
+        "ADR",
+        "RequiredCarParkingSpaces",
+        "TotalOfSpecialRequests",
+        "ReservationStatus",
+        "ReservationStatusDate"
+      ],
+      "row_width_counts": {
+        "31": 40060
+      }
+    },
+    {
+      "name": "H2.csv",
+      "rows_excluding_header": 79330,
+      "columns": 31,
+      "headers": [
+        "IsCanceled",
+        "LeadTime",
+        "ArrivalDateYear",
+        "ArrivalDateMonth",
+        "ArrivalDateWeekNumber",
+        "ArrivalDateDayOfMonth",
+        "StaysInWeekendNights",
+        "StaysInWeekNights",
+        "Adults",
+        "Children",
+        "Babies",
+        "Meal",
+        "Country",
+        "MarketSegment",
+        "DistributionChannel",
+        "IsRepeatedGuest",
+        "PreviousCancellations",
+        "PreviousBookingsNotCanceled",
+        "ReservedRoomType",
+        "AssignedRoomType",
+        "BookingChanges",
+        "DepositType",
+        "Agent",
+        "Company",
+        "DaysInWaitingList",
+        "CustomerType",
+        "ADR",
+        "RequiredCarParkingSpaces",
+        "TotalOfSpecialRequests",
+        "ReservationStatus",
+        "ReservationStatusDate"
+      ],
+      "row_width_counts": {
+        "31": 79330
+      }
+    }
+  ]
+}

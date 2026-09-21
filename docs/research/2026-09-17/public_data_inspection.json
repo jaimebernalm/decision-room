@@ -1,0 +1,59 @@
+{
+  "source": "https://archive.ics.uci.edu/dataset/502/online+retail+ii",
+  "source_zip_url": "https://archive.ics.uci.edu/static/public/502/online+retail+ii.zip",
+  "inspection": "Workbook dimensions, actual headers and first 500 data rows of each sheet. Not a full data-quality audit.",
+  "sheets": [
+    {
+      "sheet": "Year 2009-2010",
+      "dimension_rows_including_header": 525462,
+      "dimension_columns": 8,
+      "headers": [
+        "Invoice",
+        "StockCode",
+        "Description",
+        "Quantity",
+        "InvoiceDate",
+        "Price",
+        "Customer ID",
+        "Country"
+      ],
+      "sample_rows_read": 500,
+      "sample_null_counts": {
+        "Invoice": 0,
+        "StockCode": 0,
+        "Description": 1,
+        "Quantity": 0,
+        "InvoiceDate": 0,
+        "Price": 0,
+        "Customer ID": 4,
+        "Country": 0
+      }
+    },
+    {
+      "sheet": "Year 2010-2011",
+      "dimension_rows_including_header": 541911,
+      "dimension_columns": 8,
+      "headers": [
+        "Invoice",
+        "StockCode",
+        "Description",
+        "Quantity",
+        "InvoiceDate",
+        "Price",
+        "Customer ID",
+        "Country"
+      ],
+      "sample_rows_read": 500,
+      "sample_null_counts": {
+        "Invoice": 0,
+        "StockCode": 0,
+        "Description": 0,
+        "Quantity": 0,
+        "InvoiceDate": 0,
+        "Price": 0,
+        "Customer ID": 0,
+        "Country": 0
+      }
+    }
+  ]
+}

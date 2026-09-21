@@ -1,0 +1,4435 @@
+{
+  "Application.Cities": {
+    "columns": [
+      {
+        "name": "CityID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "CityName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "StateProvinceID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "Location",
+        "computed": false,
+        "nullable": true,
+        "type": "sys].[geography"
+      },
+      {
+        "name": "LatestRecordedPopulation",
+        "computed": false,
+        "nullable": true,
+        "type": "bigint"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Application.Cities/TableData-000-00000.BCP",
+      "Data/Application.Cities/TableData-001-00000.BCP",
+      "Data/Application.Cities/TableData-002-00000.BCP",
+      "Data/Application.Cities/TableData-003-00000.BCP",
+      "Data/Application.Cities/TableData-004-00000.BCP",
+      "Data/Application.Cities/TableData-005-00000.BCP",
+      "Data/Application.Cities/TableData-006-00000.BCP",
+      "Data/Application.Cities/TableData-007-00000.BCP",
+      "Data/Application.Cities/TableData-008-00000.BCP",
+      "Data/Application.Cities/TableData-009-00000.BCP",
+      "Data/Application.Cities/TableData-010-00000.BCP",
+      "Data/Application.Cities/TableData-011-00000.BCP",
+      "Data/Application.Cities/TableData-012-00000.BCP",
+      "Data/Application.Cities/TableData-013-00000.BCP",
+      "Data/Application.Cities/TableData-014-00000.BCP",
+      "Data/Application.Cities/TableData-015-00000.BCP",
+      "Data/Application.Cities/TableData-016-00000.BCP",
+      "Data/Application.Cities/TableData-017-00000.BCP",
+      "Data/Application.Cities/TableData-018-00000.BCP",
+      "Data/Application.Cities/TableData-019-00000.BCP",
+      "Data/Application.Cities/TableData-020-00000.BCP",
+      "Data/Application.Cities/TableData-021-00000.BCP",
+      "Data/Application.Cities/TableData-022-00000.BCP",
+      "Data/Application.Cities/TableData-023-00000.BCP",
+      "Data/Application.Cities/TableData-024-00000.BCP",
+      "Data/Application.Cities/TableData-025-00000.BCP",
+      "Data/Application.Cities/TableData-026-00000.BCP",
+      "Data/Application.Cities/TableData-027-00000.BCP",
+      "Data/Application.Cities/TableData-028-00000.BCP",
+      "Data/Application.Cities/TableData-029-00000.BCP",
+      "Data/Application.Cities/TableData-030-00000.BCP",
+      "Data/Application.Cities/TableData-031-00000.BCP",
+      "Data/Application.Cities/TableData-032-00000.BCP",
+      "Data/Application.Cities/TableData-033-00000.BCP",
+      "Data/Application.Cities/TableData-034-00000.BCP",
+      "Data/Application.Cities/TableData-035-00000.BCP",
+      "Data/Application.Cities/TableData-036-00000.BCP",
+      "Data/Application.Cities/TableData-037-00000.BCP",
+      "Data/Application.Cities/TableData-038-00000.BCP",
+      "Data/Application.Cities/TableData-039-00000.BCP",
+      "Data/Application.Cities/TableData-040-00000.BCP",
+      "Data/Application.Cities/TableData-041-00000.BCP",
+      "Data/Application.Cities/TableData-042-00000.BCP",
+      "Data/Application.Cities/TableData-043-00000.BCP",
+      "Data/Application.Cities/TableData-044-00000.BCP",
+      "Data/Application.Cities/TableData-045-00000.BCP",
+      "Data/Application.Cities/TableData-046-00000.BCP",
+      "Data/Application.Cities/TableData-047-00000.BCP",
+      "Data/Application.Cities/TableData-048-00000.BCP",
+      "Data/Application.Cities/TableData-049-00000.BCP",
+      "Data/Application.Cities/TableData-050-00000.BCP",
+      "Data/Application.Cities/TableData-051-00000.BCP",
+      "Data/Application.Cities/TableData-052-00000.BCP",
+      "Data/Application.Cities/TableData-053-00000.BCP",
+      "Data/Application.Cities/TableData-054-00000.BCP",
+      "Data/Application.Cities/TableData-055-00000.BCP",
+      "Data/Application.Cities/TableData-056-00000.BCP",
+      "Data/Application.Cities/TableData-057-00000.BCP",
+      "Data/Application.Cities/TableData-058-00000.BCP",
+      "Data/Application.Cities/TableData-059-00000.BCP",
+      "Data/Application.Cities/TableData-060-00000.BCP",
+      "Data/Application.Cities/TableData-061-00000.BCP",
+      "Data/Application.Cities/TableData-062-00000.BCP",
+      "Data/Application.Cities/TableData-063-00000.BCP",
+      "Data/Application.Cities/TableData-064-00000.BCP",
+      "Data/Application.Cities/TableData-065-00000.BCP",
+      "Data/Application.Cities/TableData-066-00000.BCP",
+      "Data/Application.Cities/TableData-067-00000.BCP",
+      "Data/Application.Cities/TableData-068-00000.BCP",
+      "Data/Application.Cities/TableData-069-00000.BCP",
+      "Data/Application.Cities/TableData-070-00000.BCP",
+      "Data/Application.Cities/TableData-071-00000.BCP",
+      "Data/Application.Cities/TableData-072-00000.BCP",
+      "Data/Application.Cities/TableData-073-00000.BCP"
+    ]
+  },
+  "Application.Cities_Archive": {
+    "columns": [
+      {
+        "name": "CityID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "CityName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "StateProvinceID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "Location",
+        "computed": false,
+        "nullable": true,
+        "type": "sys].[geography"
+      },
+      {
+        "name": "LatestRecordedPopulation",
+        "computed": false,
+        "nullable": true,
+        "type": "bigint"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Application.Cities_Archive/TableData-000-00000.BCP"
+    ]
+  },
+  "Application.Countries": {
+    "columns": [
+      {
+        "name": "CountryID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "CountryName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "60"
+      },
+      {
+        "name": "FormalName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "60"
+      },
+      {
+        "name": "IsoAlpha3Code",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "3"
+      },
+      {
+        "name": "IsoNumericCode",
+        "computed": false,
+        "nullable": true,
+        "type": "int"
+      },
+      {
+        "name": "CountryType",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "LatestRecordedPopulation",
+        "computed": false,
+        "nullable": true,
+        "type": "bigint"
+      },
+      {
+        "name": "Continent",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "30"
+      },
+      {
+        "name": "Region",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "30"
+      },
+      {
+        "name": "Subregion",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "30"
+      },
+      {
+        "name": "Border",
+        "computed": false,
+        "nullable": true,
+        "type": "sys].[geography"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Application.Countries/TableData-000-00000.BCP"
+    ]
+  },
+  "Application.Countries_Archive": {
+    "columns": [
+      {
+        "name": "CountryID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "CountryName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "60"
+      },
+      {
+        "name": "FormalName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "60"
+      },
+      {
+        "name": "IsoAlpha3Code",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "3"
+      },
+      {
+        "name": "IsoNumericCode",
+        "computed": false,
+        "nullable": true,
+        "type": "int"
+      },
+      {
+        "name": "CountryType",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "LatestRecordedPopulation",
+        "computed": false,
+        "nullable": true,
+        "type": "bigint"
+      },
+      {
+        "name": "Continent",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "30"
+      },
+      {
+        "name": "Region",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "30"
+      },
+      {
+        "name": "Subregion",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "30"
+      },
+      {
+        "name": "Border",
+        "computed": false,
+        "nullable": true,
+        "type": "sys].[geography"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Application.Countries_Archive/TableData-000-00000.BCP"
+    ]
+  },
+  "Application.DeliveryMethods": {
+    "columns": [
+      {
+        "name": "DeliveryMethodID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "DeliveryMethodName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Application.DeliveryMethods/TableData-000-00000.BCP"
+    ]
+  },
+  "Application.DeliveryMethods_Archive": {
+    "columns": [
+      {
+        "name": "DeliveryMethodID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "DeliveryMethodName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Application.DeliveryMethods_Archive/TableData-000-00000.BCP"
+    ]
+  },
+  "Application.PaymentMethods": {
+    "columns": [
+      {
+        "name": "PaymentMethodID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "PaymentMethodName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Application.PaymentMethods/TableData-000-00000.BCP"
+    ]
+  },
+  "Application.PaymentMethods_Archive": {
+    "columns": [
+      {
+        "name": "PaymentMethodID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "PaymentMethodName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Application.PaymentMethods_Archive/TableData-000-00000.BCP"
+    ]
+  },
+  "Application.People": {
+    "columns": [
+      {
+        "name": "PersonID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "FullName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "PreferredName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "SearchName",
+        "computed": true,
+        "nullable": true,
+        "expression": "(concat([PreferredName],N' ',[FullName]))"
+      },
+      {
+        "name": "IsPermittedToLogon",
+        "computed": false,
+        "nullable": false,
+        "type": "bit"
+      },
+      {
+        "name": "LogonName",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "IsExternalLogonProvider",
+        "computed": false,
+        "nullable": false,
+        "type": "bit"
+      },
+      {
+        "name": "HashedPassword",
+        "computed": false,
+        "nullable": true,
+        "type": "varbinary",
+        "IsMax": "True"
+      },
+      {
+        "name": "IsSystemUser",
+        "computed": false,
+        "nullable": false,
+        "type": "bit"
+      },
+      {
+        "name": "IsEmployee",
+        "computed": false,
+        "nullable": false,
+        "type": "bit"
+      },
+      {
+        "name": "IsSalesperson",
+        "computed": false,
+        "nullable": false,
+        "type": "bit"
+      },
+      {
+        "name": "UserPreferences",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "IsMax": "True"
+      },
+      {
+        "name": "PhoneNumber",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "FaxNumber",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "EmailAddress",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "256"
+      },
+      {
+        "name": "Photo",
+        "computed": false,
+        "nullable": true,
+        "type": "varbinary",
+        "IsMax": "True"
+      },
+      {
+        "name": "CustomFields",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "IsMax": "True"
+      },
+      {
+        "name": "OtherLanguages",
+        "computed": true,
+        "nullable": true,
+        "expression": "(json_query([CustomFields],N'$.OtherLanguages'))"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Application.People/TableData-000-00000.BCP",
+      "Data/Application.People/TableData-001-00000.BCP"
+    ]
+  },
+  "Application.People_Archive": {
+    "columns": [
+      {
+        "name": "PersonID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "FullName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "PreferredName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "SearchName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "101"
+      },
+      {
+        "name": "IsPermittedToLogon",
+        "computed": false,
+        "nullable": false,
+        "type": "bit"
+      },
+      {
+        "name": "LogonName",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "IsExternalLogonProvider",
+        "computed": false,
+        "nullable": false,
+        "type": "bit"
+      },
+      {
+        "name": "HashedPassword",
+        "computed": false,
+        "nullable": true,
+        "type": "varbinary",
+        "IsMax": "True"
+      },
+      {
+        "name": "IsSystemUser",
+        "computed": false,
+        "nullable": false,
+        "type": "bit"
+      },
+      {
+        "name": "IsEmployee",
+        "computed": false,
+        "nullable": false,
+        "type": "bit"
+      },
+      {
+        "name": "IsSalesperson",
+        "computed": false,
+        "nullable": false,
+        "type": "bit"
+      },
+      {
+        "name": "UserPreferences",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "IsMax": "True"
+      },
+      {
+        "name": "PhoneNumber",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "FaxNumber",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "EmailAddress",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "256"
+      },
+      {
+        "name": "Photo",
+        "computed": false,
+        "nullable": true,
+        "type": "varbinary",
+        "IsMax": "True"
+      },
+      {
+        "name": "CustomFields",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "IsMax": "True"
+      },
+      {
+        "name": "OtherLanguages",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "IsMax": "True"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Application.People_Archive/TableData-000-00000.BCP"
+    ]
+  },
+  "Application.StateProvinces": {
+    "columns": [
+      {
+        "name": "StateProvinceID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "StateProvinceCode",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "5"
+      },
+      {
+        "name": "StateProvinceName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "CountryID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "SalesTerritory",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "Border",
+        "computed": false,
+        "nullable": true,
+        "type": "sys].[geography"
+      },
+      {
+        "name": "LatestRecordedPopulation",
+        "computed": false,
+        "nullable": true,
+        "type": "bigint"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Application.StateProvinces/TableData-000-00000.BCP"
+    ]
+  },
+  "Application.StateProvinces_Archive": {
+    "columns": [
+      {
+        "name": "StateProvinceID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "StateProvinceCode",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "5"
+      },
+      {
+        "name": "StateProvinceName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "CountryID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "SalesTerritory",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "Border",
+        "computed": false,
+        "nullable": true,
+        "type": "sys].[geography"
+      },
+      {
+        "name": "LatestRecordedPopulation",
+        "computed": false,
+        "nullable": true,
+        "type": "bigint"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Application.StateProvinces_Archive/TableData-000-00000.BCP"
+    ]
+  },
+  "Application.SystemParameters": {
+    "columns": [
+      {
+        "name": "SystemParameterID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "DeliveryAddressLine1",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "60"
+      },
+      {
+        "name": "DeliveryAddressLine2",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "60"
+      },
+      {
+        "name": "DeliveryCityID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "DeliveryPostalCode",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "10"
+      },
+      {
+        "name": "DeliveryLocation",
+        "computed": false,
+        "nullable": false,
+        "type": "sys].[geography"
+      },
+      {
+        "name": "PostalAddressLine1",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "60"
+      },
+      {
+        "name": "PostalAddressLine2",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "60"
+      },
+      {
+        "name": "PostalCityID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "PostalPostalCode",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "10"
+      },
+      {
+        "name": "ApplicationSettings",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "IsMax": "True"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "LastEditedWhen",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Application.SystemParameters/TableData-000-00000.BCP"
+    ]
+  },
+  "Application.TransactionTypes": {
+    "columns": [
+      {
+        "name": "TransactionTypeID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "TransactionTypeName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Application.TransactionTypes/TableData-000-00000.BCP"
+    ]
+  },
+  "Application.TransactionTypes_Archive": {
+    "columns": [
+      {
+        "name": "TransactionTypeID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "TransactionTypeName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Application.TransactionTypes_Archive/TableData-000-00000.BCP"
+    ]
+  },
+  "Purchasing.PurchaseOrderLines": {
+    "columns": [
+      {
+        "name": "PurchaseOrderLineID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "PurchaseOrderID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "StockItemID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "OrderedOuters",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "Description",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "100"
+      },
+      {
+        "name": "ReceivedOuters",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "PackageTypeID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ExpectedUnitPricePerOuter",
+        "computed": false,
+        "nullable": true,
+        "type": "decimal",
+        "Scale": "2",
+        "Precision": "18"
+      },
+      {
+        "name": "LastReceiptDate",
+        "computed": false,
+        "nullable": true,
+        "type": "date"
+      },
+      {
+        "name": "IsOrderLineFinalized",
+        "computed": false,
+        "nullable": false,
+        "type": "bit"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "LastEditedWhen",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Purchasing.PurchaseOrderLines/TableData-000-00000.BCP"
+    ]
+  },
+  "Purchasing.PurchaseOrders": {
+    "columns": [
+      {
+        "name": "PurchaseOrderID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "SupplierID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "OrderDate",
+        "computed": false,
+        "nullable": false,
+        "type": "date"
+      },
+      {
+        "name": "DeliveryMethodID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ContactPersonID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ExpectedDeliveryDate",
+        "computed": false,
+        "nullable": true,
+        "type": "date"
+      },
+      {
+        "name": "SupplierReference",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "IsOrderFinalized",
+        "computed": false,
+        "nullable": false,
+        "type": "bit"
+      },
+      {
+        "name": "Comments",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "IsMax": "True"
+      },
+      {
+        "name": "InternalComments",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "IsMax": "True"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "LastEditedWhen",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Purchasing.PurchaseOrders/TableData-000-00000.BCP",
+      "Data/Purchasing.PurchaseOrders/TableData-001-00000.BCP",
+      "Data/Purchasing.PurchaseOrders/TableData-002-00000.BCP",
+      "Data/Purchasing.PurchaseOrders/TableData-003-00000.BCP"
+    ]
+  },
+  "Purchasing.SupplierCategories": {
+    "columns": [
+      {
+        "name": "SupplierCategoryID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "SupplierCategoryName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Purchasing.SupplierCategories/TableData-000-00000.BCP"
+    ]
+  },
+  "Purchasing.SupplierCategories_Archive": {
+    "columns": [
+      {
+        "name": "SupplierCategoryID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "SupplierCategoryName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Purchasing.SupplierCategories_Archive/TableData-000-00000.BCP"
+    ]
+  },
+  "Purchasing.Suppliers": {
+    "columns": [
+      {
+        "name": "SupplierID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "SupplierName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "100"
+      },
+      {
+        "name": "SupplierCategoryID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "PrimaryContactPersonID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "AlternateContactPersonID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "DeliveryMethodID",
+        "computed": false,
+        "nullable": true,
+        "type": "int"
+      },
+      {
+        "name": "DeliveryCityID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "PostalCityID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "SupplierReference",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "BankAccountName",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "BankAccountBranch",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "BankAccountCode",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "BankAccountNumber",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "BankInternationalCode",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "PaymentDays",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "InternalComments",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "IsMax": "True"
+      },
+      {
+        "name": "PhoneNumber",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "FaxNumber",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "WebsiteURL",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "256"
+      },
+      {
+        "name": "DeliveryAddressLine1",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "60"
+      },
+      {
+        "name": "DeliveryAddressLine2",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "60"
+      },
+      {
+        "name": "DeliveryPostalCode",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "10"
+      },
+      {
+        "name": "DeliveryLocation",
+        "computed": false,
+        "nullable": true,
+        "type": "sys].[geography"
+      },
+      {
+        "name": "PostalAddressLine1",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "60"
+      },
+      {
+        "name": "PostalAddressLine2",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "60"
+      },
+      {
+        "name": "PostalPostalCode",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "10"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Purchasing.Suppliers/TableData-000-00000.BCP"
+    ]
+  },
+  "Purchasing.Suppliers_Archive": {
+    "columns": [
+      {
+        "name": "SupplierID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "SupplierName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "100"
+      },
+      {
+        "name": "SupplierCategoryID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "PrimaryContactPersonID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "AlternateContactPersonID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "DeliveryMethodID",
+        "computed": false,
+        "nullable": true,
+        "type": "int"
+      },
+      {
+        "name": "DeliveryCityID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "PostalCityID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "SupplierReference",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "BankAccountName",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "BankAccountBranch",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "BankAccountCode",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "BankAccountNumber",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "BankInternationalCode",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "PaymentDays",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "InternalComments",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "IsMax": "True"
+      },
+      {
+        "name": "PhoneNumber",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "FaxNumber",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "WebsiteURL",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "256"
+      },
+      {
+        "name": "DeliveryAddressLine1",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "60"
+      },
+      {
+        "name": "DeliveryAddressLine2",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "60"
+      },
+      {
+        "name": "DeliveryPostalCode",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "10"
+      },
+      {
+        "name": "DeliveryLocation",
+        "computed": false,
+        "nullable": true,
+        "type": "sys].[geography"
+      },
+      {
+        "name": "PostalAddressLine1",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "60"
+      },
+      {
+        "name": "PostalAddressLine2",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "60"
+      },
+      {
+        "name": "PostalPostalCode",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "10"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Purchasing.Suppliers_Archive/TableData-000-00000.BCP"
+    ]
+  },
+  "Purchasing.SupplierTransactions": {
+    "columns": [
+      {
+        "name": "SupplierTransactionID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "SupplierID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "TransactionTypeID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "PurchaseOrderID",
+        "computed": false,
+        "nullable": true,
+        "type": "int"
+      },
+      {
+        "name": "PaymentMethodID",
+        "computed": false,
+        "nullable": true,
+        "type": "int"
+      },
+      {
+        "name": "SupplierInvoiceNumber",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "TransactionDate",
+        "computed": false,
+        "nullable": false,
+        "type": "date"
+      },
+      {
+        "name": "AmountExcludingTax",
+        "computed": false,
+        "nullable": false,
+        "type": "decimal",
+        "Scale": "2",
+        "Precision": "18"
+      },
+      {
+        "name": "TaxAmount",
+        "computed": false,
+        "nullable": false,
+        "type": "decimal",
+        "Scale": "2",
+        "Precision": "18"
+      },
+      {
+        "name": "TransactionAmount",
+        "computed": false,
+        "nullable": false,
+        "type": "decimal",
+        "Scale": "2",
+        "Precision": "18"
+      },
+      {
+        "name": "OutstandingBalance",
+        "computed": false,
+        "nullable": false,
+        "type": "decimal",
+        "Scale": "2",
+        "Precision": "18"
+      },
+      {
+        "name": "FinalizationDate",
+        "computed": false,
+        "nullable": true,
+        "type": "date"
+      },
+      {
+        "name": "IsFinalized",
+        "computed": true,
+        "nullable": true,
+        "expression": "(case when [FinalizationDate] IS NULL then CONVERT([bit],(0)) else CONVERT([bit],(1)) end)"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "LastEditedWhen",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Purchasing.SupplierTransactions/TableData-000-00000.BCP",
+      "Data/Purchasing.SupplierTransactions/TableData-001-00000.BCP"
+    ]
+  },
+  "Sales.BuyingGroups": {
+    "columns": [
+      {
+        "name": "BuyingGroupID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "BuyingGroupName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Sales.BuyingGroups/TableData-000-00000.BCP"
+    ]
+  },
+  "Sales.BuyingGroups_Archive": {
+    "columns": [
+      {
+        "name": "BuyingGroupID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "BuyingGroupName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": []
+  },
+  "Sales.CustomerCategories": {
+    "columns": [
+      {
+        "name": "CustomerCategoryID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "CustomerCategoryName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Sales.CustomerCategories/TableData-000-00000.BCP"
+    ]
+  },
+  "Sales.CustomerCategories_Archive": {
+    "columns": [
+      {
+        "name": "CustomerCategoryID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "CustomerCategoryName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Sales.CustomerCategories_Archive/TableData-000-00000.BCP"
+    ]
+  },
+  "Sales.Customers": {
+    "columns": [
+      {
+        "name": "CustomerID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "CustomerName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "100"
+      },
+      {
+        "name": "BillToCustomerID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "CustomerCategoryID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "BuyingGroupID",
+        "computed": false,
+        "nullable": true,
+        "type": "int"
+      },
+      {
+        "name": "PrimaryContactPersonID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "AlternateContactPersonID",
+        "computed": false,
+        "nullable": true,
+        "type": "int"
+      },
+      {
+        "name": "DeliveryMethodID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "DeliveryCityID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "PostalCityID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "CreditLimit",
+        "computed": false,
+        "nullable": true,
+        "type": "decimal",
+        "Scale": "2",
+        "Precision": "18"
+      },
+      {
+        "name": "AccountOpenedDate",
+        "computed": false,
+        "nullable": false,
+        "type": "date"
+      },
+      {
+        "name": "StandardDiscountPercentage",
+        "computed": false,
+        "nullable": false,
+        "type": "decimal",
+        "Scale": "3",
+        "Precision": "18"
+      },
+      {
+        "name": "IsStatementSent",
+        "computed": false,
+        "nullable": false,
+        "type": "bit"
+      },
+      {
+        "name": "IsOnCreditHold",
+        "computed": false,
+        "nullable": false,
+        "type": "bit"
+      },
+      {
+        "name": "PaymentDays",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "PhoneNumber",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "FaxNumber",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "DeliveryRun",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "5"
+      },
+      {
+        "name": "RunPosition",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "5"
+      },
+      {
+        "name": "WebsiteURL",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "256"
+      },
+      {
+        "name": "DeliveryAddressLine1",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "60"
+      },
+      {
+        "name": "DeliveryAddressLine2",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "60"
+      },
+      {
+        "name": "DeliveryPostalCode",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "10"
+      },
+      {
+        "name": "DeliveryLocation",
+        "computed": false,
+        "nullable": true,
+        "type": "sys].[geography"
+      },
+      {
+        "name": "PostalAddressLine1",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "60"
+      },
+      {
+        "name": "PostalAddressLine2",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "60"
+      },
+      {
+        "name": "PostalPostalCode",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "10"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Sales.Customers/TableData-000-00000.BCP"
+    ]
+  },
+  "Sales.Customers_Archive": {
+    "columns": [
+      {
+        "name": "CustomerID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "CustomerName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "100"
+      },
+      {
+        "name": "BillToCustomerID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "CustomerCategoryID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "BuyingGroupID",
+        "computed": false,
+        "nullable": true,
+        "type": "int"
+      },
+      {
+        "name": "PrimaryContactPersonID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "AlternateContactPersonID",
+        "computed": false,
+        "nullable": true,
+        "type": "int"
+      },
+      {
+        "name": "DeliveryMethodID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "DeliveryCityID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "PostalCityID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "CreditLimit",
+        "computed": false,
+        "nullable": true,
+        "type": "decimal",
+        "Scale": "2",
+        "Precision": "18"
+      },
+      {
+        "name": "AccountOpenedDate",
+        "computed": false,
+        "nullable": false,
+        "type": "date"
+      },
+      {
+        "name": "StandardDiscountPercentage",
+        "computed": false,
+        "nullable": false,
+        "type": "decimal",
+        "Scale": "3",
+        "Precision": "18"
+      },
+      {
+        "name": "IsStatementSent",
+        "computed": false,
+        "nullable": false,
+        "type": "bit"
+      },
+      {
+        "name": "IsOnCreditHold",
+        "computed": false,
+        "nullable": false,
+        "type": "bit"
+      },
+      {
+        "name": "PaymentDays",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "PhoneNumber",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "FaxNumber",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "DeliveryRun",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "5"
+      },
+      {
+        "name": "RunPosition",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "5"
+      },
+      {
+        "name": "WebsiteURL",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "256"
+      },
+      {
+        "name": "DeliveryAddressLine1",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "60"
+      },
+      {
+        "name": "DeliveryAddressLine2",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "60"
+      },
+      {
+        "name": "DeliveryPostalCode",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "10"
+      },
+      {
+        "name": "DeliveryLocation",
+        "computed": false,
+        "nullable": true,
+        "type": "sys].[geography"
+      },
+      {
+        "name": "PostalAddressLine1",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "60"
+      },
+      {
+        "name": "PostalAddressLine2",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "60"
+      },
+      {
+        "name": "PostalPostalCode",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "10"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Sales.Customers_Archive/TableData-000-00000.BCP"
+    ]
+  },
+  "Sales.CustomerTransactions": {
+    "columns": [
+      {
+        "name": "CustomerTransactionID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "CustomerID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "TransactionTypeID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "InvoiceID",
+        "computed": false,
+        "nullable": true,
+        "type": "int"
+      },
+      {
+        "name": "PaymentMethodID",
+        "computed": false,
+        "nullable": true,
+        "type": "int"
+      },
+      {
+        "name": "TransactionDate",
+        "computed": false,
+        "nullable": false,
+        "type": "date"
+      },
+      {
+        "name": "AmountExcludingTax",
+        "computed": false,
+        "nullable": false,
+        "type": "decimal",
+        "Scale": "2",
+        "Precision": "18"
+      },
+      {
+        "name": "TaxAmount",
+        "computed": false,
+        "nullable": false,
+        "type": "decimal",
+        "Scale": "2",
+        "Precision": "18"
+      },
+      {
+        "name": "TransactionAmount",
+        "computed": false,
+        "nullable": false,
+        "type": "decimal",
+        "Scale": "2",
+        "Precision": "18"
+      },
+      {
+        "name": "OutstandingBalance",
+        "computed": false,
+        "nullable": false,
+        "type": "decimal",
+        "Scale": "2",
+        "Precision": "18"
+      },
+      {
+        "name": "FinalizationDate",
+        "computed": false,
+        "nullable": true,
+        "type": "date"
+      },
+      {
+        "name": "IsFinalized",
+        "computed": true,
+        "nullable": true,
+        "expression": "(case when [FinalizationDate] IS NULL then CONVERT([bit],(0)) else CONVERT([bit],(1)) end)"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "LastEditedWhen",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Sales.CustomerTransactions/TableData-000-00000.BCP",
+      "Data/Sales.CustomerTransactions/TableData-000-00001.BCP",
+      "Data/Sales.CustomerTransactions/TableData-001-00000.BCP",
+      "Data/Sales.CustomerTransactions/TableData-002-00000.BCP"
+    ]
+  },
+  "Sales.InvoiceLines": {
+    "columns": [
+      {
+        "name": "InvoiceLineID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "InvoiceID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "StockItemID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "Description",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "100"
+      },
+      {
+        "name": "PackageTypeID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "Quantity",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "UnitPrice",
+        "computed": false,
+        "nullable": true,
+        "type": "decimal",
+        "Scale": "2",
+        "Precision": "18"
+      },
+      {
+        "name": "TaxRate",
+        "computed": false,
+        "nullable": false,
+        "type": "decimal",
+        "Scale": "3",
+        "Precision": "18"
+      },
+      {
+        "name": "TaxAmount",
+        "computed": false,
+        "nullable": false,
+        "type": "decimal",
+        "Scale": "2",
+        "Precision": "18"
+      },
+      {
+        "name": "LineProfit",
+        "computed": false,
+        "nullable": false,
+        "type": "decimal",
+        "Scale": "2",
+        "Precision": "18"
+      },
+      {
+        "name": "ExtendedPrice",
+        "computed": false,
+        "nullable": false,
+        "type": "decimal",
+        "Scale": "2",
+        "Precision": "18"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "LastEditedWhen",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Sales.InvoiceLines/TableData-000-00000.BCP",
+      "Data/Sales.InvoiceLines/TableData-000-00001.BCP",
+      "Data/Sales.InvoiceLines/TableData-000-00002.BCP",
+      "Data/Sales.InvoiceLines/TableData-000-00003.BCP",
+      "Data/Sales.InvoiceLines/TableData-000-00004.BCP",
+      "Data/Sales.InvoiceLines/TableData-000-00005.BCP",
+      "Data/Sales.InvoiceLines/TableData-000-00006.BCP",
+      "Data/Sales.InvoiceLines/TableData-000-00007.BCP",
+      "Data/Sales.InvoiceLines/TableData-000-00008.BCP",
+      "Data/Sales.InvoiceLines/TableData-000-00009.BCP",
+      "Data/Sales.InvoiceLines/TableData-000-00010.BCP",
+      "Data/Sales.InvoiceLines/TableData-000-00011.BCP"
+    ]
+  },
+  "Sales.Invoices": {
+    "columns": [
+      {
+        "name": "InvoiceID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "CustomerID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "BillToCustomerID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "OrderID",
+        "computed": false,
+        "nullable": true,
+        "type": "int"
+      },
+      {
+        "name": "DeliveryMethodID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ContactPersonID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "AccountsPersonID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "SalespersonPersonID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "PackedByPersonID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "InvoiceDate",
+        "computed": false,
+        "nullable": false,
+        "type": "date"
+      },
+      {
+        "name": "CustomerPurchaseOrderNumber",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "IsCreditNote",
+        "computed": false,
+        "nullable": false,
+        "type": "bit"
+      },
+      {
+        "name": "CreditNoteReason",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "IsMax": "True"
+      },
+      {
+        "name": "Comments",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "IsMax": "True"
+      },
+      {
+        "name": "DeliveryInstructions",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "IsMax": "True"
+      },
+      {
+        "name": "InternalComments",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "IsMax": "True"
+      },
+      {
+        "name": "TotalDryItems",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "TotalChillerItems",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "DeliveryRun",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "5"
+      },
+      {
+        "name": "RunPosition",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "5"
+      },
+      {
+        "name": "ReturnedDeliveryData",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "IsMax": "True"
+      },
+      {
+        "name": "ConfirmedDeliveryTime",
+        "computed": true,
+        "nullable": true,
+        "expression": "(TRY_CONVERT([datetime2](7),json_value([ReturnedDeliveryData],N'$.DeliveredWhen'),(126)))"
+      },
+      {
+        "name": "ConfirmedReceivedBy",
+        "computed": true,
+        "nullable": true,
+        "expression": "(json_value([ReturnedDeliveryData],N'$.ReceivedBy'))"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "LastEditedWhen",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Sales.Invoices/TableData-000-00000.BCP",
+      "Data/Sales.Invoices/TableData-001-00000.BCP",
+      "Data/Sales.Invoices/TableData-002-00000.BCP",
+      "Data/Sales.Invoices/TableData-003-00000.BCP",
+      "Data/Sales.Invoices/TableData-004-00000.BCP",
+      "Data/Sales.Invoices/TableData-005-00000.BCP",
+      "Data/Sales.Invoices/TableData-006-00000.BCP",
+      "Data/Sales.Invoices/TableData-007-00000.BCP",
+      "Data/Sales.Invoices/TableData-007-00001.BCP",
+      "Data/Sales.Invoices/TableData-007-00002.BCP",
+      "Data/Sales.Invoices/TableData-008-00000.BCP",
+      "Data/Sales.Invoices/TableData-009-00000.BCP",
+      "Data/Sales.Invoices/TableData-010-00000.BCP",
+      "Data/Sales.Invoices/TableData-011-00000.BCP",
+      "Data/Sales.Invoices/TableData-012-00000.BCP",
+      "Data/Sales.Invoices/TableData-013-00000.BCP",
+      "Data/Sales.Invoices/TableData-013-00001.BCP",
+      "Data/Sales.Invoices/TableData-014-00000.BCP",
+      "Data/Sales.Invoices/TableData-015-00000.BCP",
+      "Data/Sales.Invoices/TableData-016-00000.BCP",
+      "Data/Sales.Invoices/TableData-017-00000.BCP",
+      "Data/Sales.Invoices/TableData-018-00000.BCP",
+      "Data/Sales.Invoices/TableData-019-00000.BCP",
+      "Data/Sales.Invoices/TableData-020-00000.BCP",
+      "Data/Sales.Invoices/TableData-021-00000.BCP",
+      "Data/Sales.Invoices/TableData-022-00000.BCP",
+      "Data/Sales.Invoices/TableData-023-00000.BCP",
+      "Data/Sales.Invoices/TableData-024-00000.BCP",
+      "Data/Sales.Invoices/TableData-024-00001.BCP"
+    ]
+  },
+  "Sales.OrderLines": {
+    "columns": [
+      {
+        "name": "OrderLineID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "OrderID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "StockItemID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "Description",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "100"
+      },
+      {
+        "name": "PackageTypeID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "Quantity",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "UnitPrice",
+        "computed": false,
+        "nullable": true,
+        "type": "decimal",
+        "Scale": "2",
+        "Precision": "18"
+      },
+      {
+        "name": "TaxRate",
+        "computed": false,
+        "nullable": false,
+        "type": "decimal",
+        "Scale": "3",
+        "Precision": "18"
+      },
+      {
+        "name": "PickedQuantity",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "PickingCompletedWhen",
+        "computed": false,
+        "nullable": true,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "LastEditedWhen",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Sales.OrderLines/TableData-000-00000.BCP",
+      "Data/Sales.OrderLines/TableData-000-00001.BCP",
+      "Data/Sales.OrderLines/TableData-000-00002.BCP",
+      "Data/Sales.OrderLines/TableData-000-00003.BCP",
+      "Data/Sales.OrderLines/TableData-000-00004.BCP",
+      "Data/Sales.OrderLines/TableData-000-00005.BCP",
+      "Data/Sales.OrderLines/TableData-000-00006.BCP",
+      "Data/Sales.OrderLines/TableData-000-00007.BCP",
+      "Data/Sales.OrderLines/TableData-000-00008.BCP",
+      "Data/Sales.OrderLines/TableData-000-00009.BCP"
+    ]
+  },
+  "Sales.Orders": {
+    "columns": [
+      {
+        "name": "OrderID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "CustomerID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "SalespersonPersonID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "PickedByPersonID",
+        "computed": false,
+        "nullable": true,
+        "type": "int"
+      },
+      {
+        "name": "ContactPersonID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "BackorderOrderID",
+        "computed": false,
+        "nullable": true,
+        "type": "int"
+      },
+      {
+        "name": "OrderDate",
+        "computed": false,
+        "nullable": false,
+        "type": "date"
+      },
+      {
+        "name": "ExpectedDeliveryDate",
+        "computed": false,
+        "nullable": false,
+        "type": "date"
+      },
+      {
+        "name": "CustomerPurchaseOrderNumber",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "IsUndersupplyBackordered",
+        "computed": false,
+        "nullable": false,
+        "type": "bit"
+      },
+      {
+        "name": "Comments",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "IsMax": "True"
+      },
+      {
+        "name": "DeliveryInstructions",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "IsMax": "True"
+      },
+      {
+        "name": "InternalComments",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "IsMax": "True"
+      },
+      {
+        "name": "PickingCompletedWhen",
+        "computed": false,
+        "nullable": true,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "LastEditedWhen",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Sales.Orders/TableData-000-00000.BCP",
+      "Data/Sales.Orders/TableData-001-00000.BCP",
+      "Data/Sales.Orders/TableData-002-00000.BCP",
+      "Data/Sales.Orders/TableData-003-00000.BCP",
+      "Data/Sales.Orders/TableData-004-00000.BCP",
+      "Data/Sales.Orders/TableData-005-00000.BCP",
+      "Data/Sales.Orders/TableData-006-00000.BCP",
+      "Data/Sales.Orders/TableData-007-00000.BCP",
+      "Data/Sales.Orders/TableData-008-00000.BCP",
+      "Data/Sales.Orders/TableData-009-00000.BCP",
+      "Data/Sales.Orders/TableData-010-00000.BCP",
+      "Data/Sales.Orders/TableData-011-00000.BCP",
+      "Data/Sales.Orders/TableData-012-00000.BCP",
+      "Data/Sales.Orders/TableData-013-00000.BCP",
+      "Data/Sales.Orders/TableData-014-00000.BCP",
+      "Data/Sales.Orders/TableData-015-00000.BCP",
+      "Data/Sales.Orders/TableData-016-00000.BCP",
+      "Data/Sales.Orders/TableData-017-00000.BCP",
+      "Data/Sales.Orders/TableData-018-00000.BCP",
+      "Data/Sales.Orders/TableData-019-00000.BCP",
+      "Data/Sales.Orders/TableData-020-00000.BCP",
+      "Data/Sales.Orders/TableData-021-00000.BCP",
+      "Data/Sales.Orders/TableData-022-00000.BCP",
+      "Data/Sales.Orders/TableData-023-00000.BCP",
+      "Data/Sales.Orders/TableData-024-00000.BCP",
+      "Data/Sales.Orders/TableData-025-00000.BCP",
+      "Data/Sales.Orders/TableData-026-00000.BCP",
+      "Data/Sales.Orders/TableData-027-00000.BCP",
+      "Data/Sales.Orders/TableData-028-00000.BCP",
+      "Data/Sales.Orders/TableData-029-00000.BCP",
+      "Data/Sales.Orders/TableData-030-00000.BCP",
+      "Data/Sales.Orders/TableData-031-00000.BCP",
+      "Data/Sales.Orders/TableData-032-00000.BCP",
+      "Data/Sales.Orders/TableData-033-00000.BCP",
+      "Data/Sales.Orders/TableData-034-00000.BCP",
+      "Data/Sales.Orders/TableData-035-00000.BCP",
+      "Data/Sales.Orders/TableData-036-00000.BCP",
+      "Data/Sales.Orders/TableData-037-00000.BCP",
+      "Data/Sales.Orders/TableData-038-00000.BCP",
+      "Data/Sales.Orders/TableData-039-00000.BCP",
+      "Data/Sales.Orders/TableData-040-00000.BCP",
+      "Data/Sales.Orders/TableData-041-00000.BCP",
+      "Data/Sales.Orders/TableData-042-00000.BCP",
+      "Data/Sales.Orders/TableData-043-00000.BCP",
+      "Data/Sales.Orders/TableData-044-00000.BCP",
+      "Data/Sales.Orders/TableData-045-00000.BCP",
+      "Data/Sales.Orders/TableData-046-00000.BCP",
+      "Data/Sales.Orders/TableData-047-00000.BCP",
+      "Data/Sales.Orders/TableData-048-00000.BCP",
+      "Data/Sales.Orders/TableData-049-00000.BCP",
+      "Data/Sales.Orders/TableData-050-00000.BCP",
+      "Data/Sales.Orders/TableData-051-00000.BCP",
+      "Data/Sales.Orders/TableData-052-00000.BCP",
+      "Data/Sales.Orders/TableData-053-00000.BCP",
+      "Data/Sales.Orders/TableData-054-00000.BCP",
+      "Data/Sales.Orders/TableData-055-00000.BCP",
+      "Data/Sales.Orders/TableData-056-00000.BCP",
+      "Data/Sales.Orders/TableData-057-00000.BCP",
+      "Data/Sales.Orders/TableData-058-00000.BCP",
+      "Data/Sales.Orders/TableData-059-00000.BCP",
+      "Data/Sales.Orders/TableData-060-00000.BCP",
+      "Data/Sales.Orders/TableData-061-00000.BCP",
+      "Data/Sales.Orders/TableData-062-00000.BCP",
+      "Data/Sales.Orders/TableData-063-00000.BCP",
+      "Data/Sales.Orders/TableData-064-00000.BCP",
+      "Data/Sales.Orders/TableData-065-00000.BCP",
+      "Data/Sales.Orders/TableData-066-00000.BCP",
+      "Data/Sales.Orders/TableData-067-00000.BCP",
+      "Data/Sales.Orders/TableData-068-00000.BCP",
+      "Data/Sales.Orders/TableData-069-00000.BCP",
+      "Data/Sales.Orders/TableData-070-00000.BCP",
+      "Data/Sales.Orders/TableData-071-00000.BCP",
+      "Data/Sales.Orders/TableData-072-00000.BCP",
+      "Data/Sales.Orders/TableData-073-00000.BCP",
+      "Data/Sales.Orders/TableData-074-00000.BCP",
+      "Data/Sales.Orders/TableData-075-00000.BCP",
+      "Data/Sales.Orders/TableData-076-00000.BCP",
+      "Data/Sales.Orders/TableData-077-00000.BCP",
+      "Data/Sales.Orders/TableData-078-00000.BCP",
+      "Data/Sales.Orders/TableData-079-00000.BCP",
+      "Data/Sales.Orders/TableData-080-00000.BCP",
+      "Data/Sales.Orders/TableData-081-00000.BCP",
+      "Data/Sales.Orders/TableData-082-00000.BCP",
+      "Data/Sales.Orders/TableData-083-00000.BCP",
+      "Data/Sales.Orders/TableData-084-00000.BCP",
+      "Data/Sales.Orders/TableData-085-00000.BCP",
+      "Data/Sales.Orders/TableData-086-00000.BCP",
+      "Data/Sales.Orders/TableData-087-00000.BCP",
+      "Data/Sales.Orders/TableData-088-00000.BCP",
+      "Data/Sales.Orders/TableData-089-00000.BCP",
+      "Data/Sales.Orders/TableData-090-00000.BCP",
+      "Data/Sales.Orders/TableData-091-00000.BCP",
+      "Data/Sales.Orders/TableData-092-00000.BCP",
+      "Data/Sales.Orders/TableData-093-00000.BCP",
+      "Data/Sales.Orders/TableData-094-00000.BCP",
+      "Data/Sales.Orders/TableData-095-00000.BCP",
+      "Data/Sales.Orders/TableData-096-00000.BCP",
+      "Data/Sales.Orders/TableData-097-00000.BCP",
+      "Data/Sales.Orders/TableData-098-00000.BCP",
+      "Data/Sales.Orders/TableData-099-00000.BCP",
+      "Data/Sales.Orders/TableData-100-00000.BCP",
+      "Data/Sales.Orders/TableData-101-00000.BCP",
+      "Data/Sales.Orders/TableData-102-00000.BCP",
+      "Data/Sales.Orders/TableData-103-00000.BCP",
+      "Data/Sales.Orders/TableData-104-00000.BCP",
+      "Data/Sales.Orders/TableData-105-00000.BCP",
+      "Data/Sales.Orders/TableData-106-00000.BCP",
+      "Data/Sales.Orders/TableData-107-00000.BCP",
+      "Data/Sales.Orders/TableData-108-00000.BCP",
+      "Data/Sales.Orders/TableData-109-00000.BCP",
+      "Data/Sales.Orders/TableData-110-00000.BCP",
+      "Data/Sales.Orders/TableData-111-00000.BCP",
+      "Data/Sales.Orders/TableData-112-00000.BCP",
+      "Data/Sales.Orders/TableData-113-00000.BCP",
+      "Data/Sales.Orders/TableData-114-00000.BCP",
+      "Data/Sales.Orders/TableData-115-00000.BCP",
+      "Data/Sales.Orders/TableData-116-00000.BCP",
+      "Data/Sales.Orders/TableData-117-00000.BCP",
+      "Data/Sales.Orders/TableData-118-00000.BCP",
+      "Data/Sales.Orders/TableData-119-00000.BCP",
+      "Data/Sales.Orders/TableData-120-00000.BCP",
+      "Data/Sales.Orders/TableData-121-00000.BCP",
+      "Data/Sales.Orders/TableData-122-00000.BCP",
+      "Data/Sales.Orders/TableData-123-00000.BCP",
+      "Data/Sales.Orders/TableData-124-00000.BCP",
+      "Data/Sales.Orders/TableData-125-00000.BCP",
+      "Data/Sales.Orders/TableData-126-00000.BCP",
+      "Data/Sales.Orders/TableData-127-00000.BCP"
+    ]
+  },
+  "Sales.SpecialDeals": {
+    "columns": [
+      {
+        "name": "SpecialDealID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "StockItemID",
+        "computed": false,
+        "nullable": true,
+        "type": "int"
+      },
+      {
+        "name": "CustomerID",
+        "computed": false,
+        "nullable": true,
+        "type": "int"
+      },
+      {
+        "name": "BuyingGroupID",
+        "computed": false,
+        "nullable": true,
+        "type": "int"
+      },
+      {
+        "name": "CustomerCategoryID",
+        "computed": false,
+        "nullable": true,
+        "type": "int"
+      },
+      {
+        "name": "StockGroupID",
+        "computed": false,
+        "nullable": true,
+        "type": "int"
+      },
+      {
+        "name": "DealDescription",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "30"
+      },
+      {
+        "name": "StartDate",
+        "computed": false,
+        "nullable": false,
+        "type": "date"
+      },
+      {
+        "name": "EndDate",
+        "computed": false,
+        "nullable": false,
+        "type": "date"
+      },
+      {
+        "name": "DiscountAmount",
+        "computed": false,
+        "nullable": true,
+        "type": "decimal",
+        "Scale": "2",
+        "Precision": "18"
+      },
+      {
+        "name": "DiscountPercentage",
+        "computed": false,
+        "nullable": true,
+        "type": "decimal",
+        "Scale": "3",
+        "Precision": "18"
+      },
+      {
+        "name": "UnitPrice",
+        "computed": false,
+        "nullable": true,
+        "type": "decimal",
+        "Scale": "2",
+        "Precision": "18"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "LastEditedWhen",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Sales.SpecialDeals/TableData-000-00000.BCP"
+    ]
+  },
+  "Warehouse.ColdRoomTemperatures": {
+    "columns": [
+      {
+        "name": "ColdRoomTemperatureID",
+        "computed": false,
+        "nullable": false,
+        "type": "bigint"
+      },
+      {
+        "name": "ColdRoomSensorNumber",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "RecordedWhen",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "Temperature",
+        "computed": false,
+        "nullable": false,
+        "type": "decimal",
+        "Scale": "2",
+        "Precision": "10"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Warehouse.ColdRoomTemperatures/TableData-000-00000.BCP"
+    ]
+  },
+  "Warehouse.ColdRoomTemperatures_Archive": {
+    "columns": [
+      {
+        "name": "ColdRoomTemperatureID",
+        "computed": false,
+        "nullable": false,
+        "type": "bigint"
+      },
+      {
+        "name": "ColdRoomSensorNumber",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "RecordedWhen",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "Temperature",
+        "computed": false,
+        "nullable": false,
+        "type": "decimal",
+        "Scale": "2",
+        "Precision": "10"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00000.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00001.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00002.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00003.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00004.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00005.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00006.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00007.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00008.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00009.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00010.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00011.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00012.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00013.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00014.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00015.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00016.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00017.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00018.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00019.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00020.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00021.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00022.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00023.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00024.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00025.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00026.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00027.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00028.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00029.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00030.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00031.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00032.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00033.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00034.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00035.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00036.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00037.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00038.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00039.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00040.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00041.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00042.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00043.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00044.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00045.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00046.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00047.BCP",
+      "Data/Warehouse.ColdRoomTemperatures_Archive/TableData-000-00048.BCP"
+    ]
+  },
+  "Warehouse.Colors": {
+    "columns": [
+      {
+        "name": "ColorID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ColorName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Warehouse.Colors/TableData-000-00000.BCP"
+    ]
+  },
+  "Warehouse.Colors_Archive": {
+    "columns": [
+      {
+        "name": "ColorID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ColorName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Warehouse.Colors_Archive/TableData-000-00000.BCP"
+    ]
+  },
+  "Warehouse.PackageTypes": {
+    "columns": [
+      {
+        "name": "PackageTypeID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "PackageTypeName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Warehouse.PackageTypes/TableData-000-00000.BCP"
+    ]
+  },
+  "Warehouse.PackageTypes_Archive": {
+    "columns": [
+      {
+        "name": "PackageTypeID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "PackageTypeName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": []
+  },
+  "Warehouse.StockGroups": {
+    "columns": [
+      {
+        "name": "StockGroupID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "StockGroupName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Warehouse.StockGroups/TableData-000-00000.BCP"
+    ]
+  },
+  "Warehouse.StockGroups_Archive": {
+    "columns": [
+      {
+        "name": "StockGroupID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "StockGroupName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Warehouse.StockGroups_Archive/TableData-000-00000.BCP"
+    ]
+  },
+  "Warehouse.StockItemHoldings": {
+    "columns": [
+      {
+        "name": "StockItemID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "QuantityOnHand",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "BinLocation",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "LastStocktakeQuantity",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "LastCostPrice",
+        "computed": false,
+        "nullable": false,
+        "type": "decimal",
+        "Scale": "2",
+        "Precision": "18"
+      },
+      {
+        "name": "ReorderLevel",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "TargetStockLevel",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "LastEditedWhen",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Warehouse.StockItemHoldings/TableData-000-00000.BCP"
+    ]
+  },
+  "Warehouse.StockItems": {
+    "columns": [
+      {
+        "name": "StockItemID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "StockItemName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "100"
+      },
+      {
+        "name": "SupplierID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ColorID",
+        "computed": false,
+        "nullable": true,
+        "type": "int"
+      },
+      {
+        "name": "UnitPackageID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "OuterPackageID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "Brand",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "Size",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "LeadTimeDays",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "QuantityPerOuter",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "IsChillerStock",
+        "computed": false,
+        "nullable": false,
+        "type": "bit"
+      },
+      {
+        "name": "Barcode",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "TaxRate",
+        "computed": false,
+        "nullable": false,
+        "type": "decimal",
+        "Scale": "3",
+        "Precision": "18"
+      },
+      {
+        "name": "UnitPrice",
+        "computed": false,
+        "nullable": false,
+        "type": "decimal",
+        "Scale": "2",
+        "Precision": "18"
+      },
+      {
+        "name": "RecommendedRetailPrice",
+        "computed": false,
+        "nullable": true,
+        "type": "decimal",
+        "Scale": "2",
+        "Precision": "18"
+      },
+      {
+        "name": "TypicalWeightPerUnit",
+        "computed": false,
+        "nullable": false,
+        "type": "decimal",
+        "Scale": "3",
+        "Precision": "18"
+      },
+      {
+        "name": "MarketingComments",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "IsMax": "True"
+      },
+      {
+        "name": "InternalComments",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "IsMax": "True"
+      },
+      {
+        "name": "Photo",
+        "computed": false,
+        "nullable": true,
+        "type": "varbinary",
+        "IsMax": "True"
+      },
+      {
+        "name": "CustomFields",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "IsMax": "True"
+      },
+      {
+        "name": "Tags",
+        "computed": true,
+        "nullable": true,
+        "expression": "(json_query([CustomFields],N'$.Tags'))"
+      },
+      {
+        "name": "SearchDetails",
+        "computed": true,
+        "nullable": true,
+        "expression": "(concat([StockItemName],N' ',[MarketingComments]))"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Warehouse.StockItems/TableData-000-00000.BCP"
+    ]
+  },
+  "Warehouse.StockItems_Archive": {
+    "columns": [
+      {
+        "name": "StockItemID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "StockItemName",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "100"
+      },
+      {
+        "name": "SupplierID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ColorID",
+        "computed": false,
+        "nullable": true,
+        "type": "int"
+      },
+      {
+        "name": "UnitPackageID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "OuterPackageID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "Brand",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "Size",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "LeadTimeDays",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "QuantityPerOuter",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "IsChillerStock",
+        "computed": false,
+        "nullable": false,
+        "type": "bit"
+      },
+      {
+        "name": "Barcode",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "50"
+      },
+      {
+        "name": "TaxRate",
+        "computed": false,
+        "nullable": false,
+        "type": "decimal",
+        "Scale": "3",
+        "Precision": "18"
+      },
+      {
+        "name": "UnitPrice",
+        "computed": false,
+        "nullable": false,
+        "type": "decimal",
+        "Scale": "2",
+        "Precision": "18"
+      },
+      {
+        "name": "RecommendedRetailPrice",
+        "computed": false,
+        "nullable": true,
+        "type": "decimal",
+        "Scale": "2",
+        "Precision": "18"
+      },
+      {
+        "name": "TypicalWeightPerUnit",
+        "computed": false,
+        "nullable": false,
+        "type": "decimal",
+        "Scale": "3",
+        "Precision": "18"
+      },
+      {
+        "name": "MarketingComments",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "IsMax": "True"
+      },
+      {
+        "name": "InternalComments",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "IsMax": "True"
+      },
+      {
+        "name": "Photo",
+        "computed": false,
+        "nullable": true,
+        "type": "varbinary",
+        "IsMax": "True"
+      },
+      {
+        "name": "CustomFields",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "IsMax": "True"
+      },
+      {
+        "name": "Tags",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "IsMax": "True"
+      },
+      {
+        "name": "SearchDetails",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "IsMax": "True"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "ValidFrom",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "ValidTo",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Warehouse.StockItems_Archive/TableData-000-00000.BCP"
+    ]
+  },
+  "Warehouse.StockItemStockGroups": {
+    "columns": [
+      {
+        "name": "StockItemStockGroupID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "StockItemID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "StockGroupID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "LastEditedWhen",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Warehouse.StockItemStockGroups/TableData-000-00000.BCP"
+    ]
+  },
+  "Warehouse.StockItemTransactions": {
+    "columns": [
+      {
+        "name": "StockItemTransactionID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "StockItemID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "TransactionTypeID",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "CustomerID",
+        "computed": false,
+        "nullable": true,
+        "type": "int"
+      },
+      {
+        "name": "InvoiceID",
+        "computed": false,
+        "nullable": true,
+        "type": "int"
+      },
+      {
+        "name": "SupplierID",
+        "computed": false,
+        "nullable": true,
+        "type": "int"
+      },
+      {
+        "name": "PurchaseOrderID",
+        "computed": false,
+        "nullable": true,
+        "type": "int"
+      },
+      {
+        "name": "TransactionOccurredWhen",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "Quantity",
+        "computed": false,
+        "nullable": false,
+        "type": "decimal",
+        "Scale": "3",
+        "Precision": "18"
+      },
+      {
+        "name": "LastEditedBy",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "LastEditedWhen",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      }
+    ],
+    "members": [
+      "Data/Warehouse.StockItemTransactions/TableData-000-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-001-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-002-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-003-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-004-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-005-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-006-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-007-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-008-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-009-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-010-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-011-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-012-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-013-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-014-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-015-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-016-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-017-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-018-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-019-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-020-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-021-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-022-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-023-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-024-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-025-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-026-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-027-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-028-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-029-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-030-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-031-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-032-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-033-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-034-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-035-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-036-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-037-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-038-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-039-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-040-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-041-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-042-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-043-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-044-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-045-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-046-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-047-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-048-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-049-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-050-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-051-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-052-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-053-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-054-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-055-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-056-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-057-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-058-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-059-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-060-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-061-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-062-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-063-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-064-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-065-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-066-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-067-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-068-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-069-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-070-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-071-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-072-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-073-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-074-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-075-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-076-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-077-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-078-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-079-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-080-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-081-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-082-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-083-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-084-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-085-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-086-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-087-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-088-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-089-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-090-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-091-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-092-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-093-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-094-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-095-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-096-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-097-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-098-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-099-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-100-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-101-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-102-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-103-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-104-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-105-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-106-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-107-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-108-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-109-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-110-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-111-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-112-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-113-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-114-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-115-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-116-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-117-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-118-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-119-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-120-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-121-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-122-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-123-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-124-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-125-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-126-00000.BCP",
+      "Data/Warehouse.StockItemTransactions/TableData-127-00000.BCP"
+    ]
+  },
+  "Warehouse.VehicleTemperatures": {
+    "columns": [
+      {
+        "name": "VehicleTemperatureID",
+        "computed": false,
+        "nullable": false,
+        "type": "bigint"
+      },
+      {
+        "name": "VehicleRegistration",
+        "computed": false,
+        "nullable": false,
+        "type": "nvarchar",
+        "Length": "20"
+      },
+      {
+        "name": "ChillerSensorNumber",
+        "computed": false,
+        "nullable": false,
+        "type": "int"
+      },
+      {
+        "name": "RecordedWhen",
+        "computed": false,
+        "nullable": false,
+        "type": "datetime2",
+        "Scale": "7"
+      },
+      {
+        "name": "Temperature",
+        "computed": false,
+        "nullable": false,
+        "type": "decimal",
+        "Scale": "2",
+        "Precision": "10"
+      },
+      {
+        "name": "FullSensorData",
+        "computed": false,
+        "nullable": true,
+        "type": "nvarchar",
+        "Length": "1000"
+      },
+      {
+        "name": "IsCompressed",
+        "computed": false,
+        "nullable": false,
+        "type": "bit"
+      },
+      {
+        "name": "CompressedSensorData",
+        "computed": false,
+        "nullable": true,
+        "type": "varbinary",
+        "IsMax": "True"
+      }
+    ],
+    "members": [
+      "Data/Warehouse.VehicleTemperatures/TableData-000-00000.BCP"
+    ]
+  }
+}

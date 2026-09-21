@@ -1,0 +1,54 @@
+{
+  "metrics": {
+    "sales_ex_tax": "73784.10",
+    "first_period_sales_ex_tax": "34137.85",
+    "second_period_sales_ex_tax": "39646.25",
+    "change_amount": "5508.40",
+    "change_percent": "16.14",
+    "observed_days": 24,
+    "quantity": 2668,
+    "product_count": 8
+  },
+  "by_product": {
+    "1": {
+      "quantity": 164,
+      "sales_ex_tax": "2867.50"
+    },
+    "2": {
+      "quantity": 89,
+      "sales_ex_tax": "1290.00"
+    },
+    "3": {
+      "quantity": 1770,
+      "sales_ex_tax": "32745.00"
+    },
+    "4": {
+      "quantity": 145,
+      "sales_ex_tax": "3633.60"
+    },
+    "5": {
+      "quantity": 128,
+      "sales_ex_tax": "2736.00"
+    },
+    "6": {
+      "quantity": 83,
+      "sales_ex_tax": "2003.20"
+    },
+    "7": {
+      "quantity": 125,
+      "sales_ex_tax": "3020.80"
+    },
+    "8": {
+      "quantity": 164,
+      "sales_ex_tax": "25488.00"
+    }
+  },
+  "top_product_by_sales": "3",
+  "must_not_claim": [
+    "Do not infer causes, profit, stock levels or customer behaviour.",
+    "Do not treat absent dates as zero-sales days or assume opening days.",
+    "Describe these as recorded sales within the supplied scope.",
+    "No ticket count or average ticket value; rows aggregate multiple sales."
+  ],
+  "expected_behaviour": "Analyse product sales; do not request tickets unless needed for an optional question."
+}
