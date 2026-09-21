@@ -62,6 +62,40 @@ def main():
     execution.add_argument('--execution', type=uuid.UUID, required=True)
     recover = commands.add_parser('recover-executions')
     recover.add_argument('--business', type=uuid.UUID, required=True)
+    for name in ('agent-start', 'agent-show', 'agent-resume', 'agent-answer'):
+        command = commands.add_parser(name, help='Step 1.4: provisional planning and persistent owner questions.')
+        command.add_argument('--business', type=uuid.UUID, required=True)
+        if name == 'agent-start':
+            command.add_argument('--analysis', type=uuid.UUID, required=True)
+            command.add_argument('--context-file', type=Path, required=True)
+            command.add_argument('--request-key', required=True)
+            command.add_argument('--model')
+        else:
+            command.add_argument('--session', type=uuid.UUID, required=True)
+        if name == 'agent-resume':
+            command.add_argument('--retry-model', action='store_true', help='Retry an interrupted model request that may already have been processed.')
+        if name == 'agent-answer':
+            command.add_argument('--question', type=uuid.UUID, required=True)
+            command.add_argument('--text', default='')
+            command.add_argument('--disposition', choices=['answered', 'unknown', 'declined'], default='answered')
+            command.add_argument('--request-key', required=True)
+    for name in ('agent-research', 'research-show', 'research-resume', 'agent-replan'):
+        command = commands.add_parser(name, help='Step 1.5: isolated Python investigations and candidate evidence.')
+        command.add_argument('--business', type=uuid.UUID, required=True)
+        if name in ('agent-research', 'agent-replan'):
+            command.add_argument('--session', type=uuid.UUID, required=True)
+            command.add_argument('--request-key', required=True)
+        else:
+            command.add_argument('--research', type=uuid.UUID, required=True)
+        if name == 'agent-research':
+            command.add_argument('--max-investigations', type=int, default=2)
+            command.add_argument('--investigation', action='append', default=[])
+            command.add_argument('--timeout', type=int, default=30)
+        elif name == 'research-resume':
+            command.add_argument('--retry-model', action='store_true')
+        elif name == 'agent-replan':
+            command.add_argument('--context-file', type=Path, required=True, help='Complete corrected owner context, replacing the previous context.')
+            command.add_argument('--model', help='Optional model override for the new planning session.')
     args = parser.parse_args()
     config = Config.load()
     try:
@@ -115,6 +149,44 @@ def main():
             emit(get_execution(config, args.business, args.execution))
         elif args.command == 'recover-executions':
             emit({'recovered': recover_executions(config, args.business)})
+        elif args.command in ('agent-research', 'research-show', 'research-resume', 'agent-replan'):
+            from .agent import research
+            from .agent import service as agent
+            from .agent.model import ModelClient, ModelSettings
+            if args.command == 'agent-research':
+                report = research.start(config, args.business, args.session, request_key=args.request_key,
+                                        max_investigations=args.max_investigations,
+                                        investigation_keys=args.investigation, python_timeout=args.timeout)
+            elif args.command == 'research-show':
+                report = research.show(config, args.business, args.research)
+            elif args.command == 'research-resume':
+                report = research.resume(config, args.business, args.research, retry_uncertain=args.retry_model)
+            else:
+                if args.context_file.stat().st_size > 48000:
+                    raise ValueError('Context file is too large.')
+                report = agent.replan(config, args.business, args.session, owner_context=args.context_file.read_text(),
+                                      request_key=args.request_key,
+                                      model=ModelClient(ModelSettings.load(args.model)) if args.model else None)
+            emit(report)
+            return 2 if report['status'] in ('failed', 'stale') else 0
+        elif args.command.startswith('agent-'):
+            from .agent import service as agent
+            from .agent.model import ModelClient, ModelSettings
+            if args.command == 'agent-start':
+                if args.context_file.stat().st_size > 48000:
+                    raise ValueError('Context file is too large.')
+                report = agent.start(config, args.business, args.analysis,
+                                     owner_context=args.context_file.read_text(), request_key=args.request_key,
+                                     model=ModelClient(ModelSettings.load(args.model)))
+            elif args.command == 'agent-show':
+                report = agent.show(config, args.business, args.session)
+            elif args.command == 'agent-resume':
+                report = agent.resume(config, args.business, args.session, retry_uncertain=args.retry_model)
+            else:
+                report = agent.answer(config, args.business, args.session, question_id=args.question,
+                                      text=args.text, disposition=args.disposition, request_key=args.request_key)
+            emit(report)
+            return 2 if report['status'] == 'failed' else 0
         return 0
     except psycopg.OperationalError:
         print('Cannot connect to PostgreSQL. Start scripts/dev/local_postgres.py or check DECISION_ROOM_DATABASE_URL.', file=sys.stderr)

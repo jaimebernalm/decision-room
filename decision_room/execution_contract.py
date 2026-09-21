@@ -60,7 +60,8 @@ def validate_result(raw, tables):
                 raise ValueError('Source record outside the authorized table.')
         covered.add(item['metric'])
     if covered != set(metrics):
-        raise ValueError('Every metric must have evidence.')
+        missing = ', '.join(sorted(set(metrics) - covered))[:1500]
+        raise ValueError('Every metric must have evidence. Missing: ' + missing)
     if not isinstance(notes, list) or len(notes) > 100 or any(not isinstance(n, str) or len(n) > 4000 for n in notes):
         raise ValueError('Invalid notes.')
     return {'verification': 'pending', **result}

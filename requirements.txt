@@ -4,3 +4,8 @@ et_xmlfile==2.0.0
 # MVP CSV ingestion and PostgreSQL metadata.
 duckdb==1.5.5
 psycopg[binary]==3.3.6
+# Step 1.4: durable planning agent and configurable model transport.
+langgraph==1.2.12
+langgraph-checkpoint-postgres==3.1.2
+pydantic==2.13.5
+httpx==0.28.1

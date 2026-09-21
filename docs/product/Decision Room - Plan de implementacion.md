@@ -1,7 +1,7 @@
 # Decision Room: plan de implementación por entregas
 
 **Fecha:** 18 de septiembre de 2026.  
-**Estado:** casos de referencia, ingesta CSV y ejecución aislada de Python implementados y comprobados el 21 de septiembre de 2026. PostgreSQL conserva metadatos y evidencia; los archivos son privados. Se probaron las 48 tablas de WWI juntas. Siguiente paso: 1.4, agente con preguntas y recuperación. Informe y evaluación del producto pendientes.  
+**Estado:** casos de referencia, ingesta CSV y ejecución aislada de Python implementados y comprobados el 21 de septiembre de 2026. PostgreSQL conserva metadatos y evidencia; los archivos son privados. Se probaron las 48 tablas de WWI juntas. El paso 1.4 tiene implementación experimental con LangGraph, preguntas y recuperación; falta superar la evaluación semántica del modelo. El paso 1.5 conecta Python generado, evidencia y recuperación; sus resultados siguen siendo candidatos. Revisor, informe y evaluación del producto pendientes.  
 **Propósito:** conservar la secuencia de trabajo, el motivo de cada paso y qué debemos poder comprobar antes de darlo por terminado.
 
 ## 1. Relación con el MVP
@@ -178,6 +178,10 @@ Revisar inicialmente los informes conforme al bloque 7, registrar las correccion
 
 **Avance del paso 1.3, 21 de septiembre de 2026:** ejecutor Docker dentro de Colima local, bibliotecas versionadas, entradas de solo lectura, sin red ni credenciales y límites de recursos. Nuevas estructuras de ejecuciones, resultados candidatos y artefactos con código, hashes y procedencia. Cálculo de referencia y cálculo sobre las 48 tablas WWI contrastados; recuperación y fallos deliberados comprobados. Ver [guía](../technical/sandbox.md), [plan técnico](../technical/sandbox-plan.md) e [informe](../validation/2026-09-21-sandbox-check.md).
 
-**Siguiente trabajo:** paso 1.4, conectar LangGraph y el agente principal con perfiles y muestras, interpretación, preguntas materiales, persistencia y pausa/reanudación. El ejecutor del paso 1.3 está disponible; todavía no decide qué investigar ni verifica conclusiones de negocio.
+**Avance del paso 1.4, 21 de septiembre de 2026:** agente principal con LangGraph, catálogo y perfiles, planes provisionales, preguntas materiales, respuestas desde terminal y checkpoints PostgreSQL. La recuperación se comprobó con procesos distintos y un modelo simulado. La prueba real con Qwen en LM Studio detectó una definición monetaria inventada, por lo que este paso no se considera aceptado todavía. Ver [guía y mapa de archivos](../technical/agent.md), [plan técnico](../technical/agent-plan.md) y [resultados con sus límites](../validation/2026-09-21-agent-check.md).
+
+**Avance del paso 1.5, 21 de septiembre de 2026:** por decisión del usuario se avanza con Python manteniendo abierto [DR-001](../validation/known-agent-errors.md). El principal elige investigaciones, genera y ejecuta código, recibe errores, registra candidatos y conserva evidencia. Cambiar el contexto invalida resultados anteriores y permite recalcular. Ver [guía](../technical/research.md), [plan técnico](../technical/research-plan.md) y [validación](../validation/2026-09-21-research-check.md).
+
+**Siguiente trabajo:** paso 1.6, comprobaciones, revisor e informe. Repetir la evaluación semántica de DR-001 sobre el recorrido integrado; comparar otro modelo si sigue fallando. Las pruebas del controlador y algunos cálculos correctos no cierran la evaluación de calidad del agente.
 
 La entrega 1 completa todavía no está terminada: funciona la ingesta persistente, pero falta el recorrido autónomo hasta el informe. Las comprobaciones realizadas validan los casos y la importación; las evaluaciones del agente siguen pendientes.

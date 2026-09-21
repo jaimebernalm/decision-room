@@ -60,9 +60,19 @@ Docker container inside a dedicated Colima VM, with fixed libraries, no network,
 read-only inputs, resource limits and durable calculation evidence. See the
 [sandbox guide](docs/technical/sandbox.md), [design plan](docs/technical/sandbox-plan.md) and
 [sandbox acceptance results](docs/validation/2026-09-21-sandbox-check.md).
-The next implementation step is the LangGraph agent, questions and recovery (1.4).
-Autonomous interpretation, report generation, Excel ingestion and the web UI
-are not implemented yet.
+The LangGraph planning agent (1.4) now has a configurable model connection,
+provisional interpretations, owner questions and PostgreSQL recovery. See the
+[agent guide](docs/technical/agent.md), [implementation plan](docs/technical/agent-plan.md)
+and [validation results](docs/validation/2026-09-21-agent-check.md). Infrastructure
+tests and real-model quality checks are separate; inspect the validation results
+before treating a model's proposals as usable.
+Generated Python investigation (1.5) now connects the same agent to the sandbox,
+with bounded correction, durable candidates and invalidation after owner context
+changes. See the [research guide](docs/technical/research.md) and
+[real-model checks](docs/validation/2026-09-21-research-check.md). Candidates remain
+unverified; [known interpretation errors](docs/validation/known-agent-errors.md)
+are still open. Reviewer/report generation, Excel ingestion and the web UI remain
+to be implemented.
 
 ## Python environment
 
@@ -73,14 +83,14 @@ itself is not a security sandbox for generated code.
 
 ```sh
 source .venv/bin/activate
-python -m pip install -r requirements.txt
+python -m pip install -r requirements.lock
 ```
 
 To recreate the environment on a machine with Python 3.12:
 
 ```sh
 python3.12 -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m pip install -r requirements.lock
 ```
 
 The extraction and streaming conversion use the Python standard library.
@@ -111,8 +121,9 @@ Check their data and numerical references with:
 .venv/bin/python scripts/checks/check_reference_cases.py
 ```
 
-The analysis agent is not implemented yet; this command validates the fixtures,
-not agent performance. Behaviour and report usefulness still need review.
+This command validates the fixtures, not agent performance. The real-model checks
+are in `scripts/checks/check_agent.py`; behaviour and report usefulness still need
+separate review.
 
 ## Repeat the conversion
 

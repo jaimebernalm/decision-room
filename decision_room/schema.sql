@@ -94,3 +94,110 @@ CREATE TABLE IF NOT EXISTS execution_artifacts (
 );
 CREATE INDEX IF NOT EXISTS executions_analysis_date ON executions(business_id, analysis_id, created_at DESC);
 INSERT INTO schema_versions(version) VALUES (2) ON CONFLICT DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS agent_sessions (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    analysis_id uuid NOT NULL,
+    request_key text NOT NULL,
+    request_sha256 text NOT NULL,
+    source_snapshot jsonb NOT NULL,
+    model_settings jsonb NOT NULL,
+    graph_version text NOT NULL,
+    status text NOT NULL CHECK (status IN ('new','running','waiting','ready','limited','failed')),
+    issue text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    FOREIGN KEY (business_id, analysis_id) REFERENCES analyses(business_id, id),
+    UNIQUE (business_id, analysis_id, request_key),
+    UNIQUE (business_id, id)
+);
+CREATE TABLE IF NOT EXISTS agent_revisions (
+    session_id uuid NOT NULL REFERENCES agent_sessions(id),
+    revision integer NOT NULL CHECK (revision > 0),
+    proposal jsonb NOT NULL,
+    inspected_table_ids jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (session_id, revision)
+);
+CREATE TABLE IF NOT EXISTS agent_questions (
+    id uuid PRIMARY KEY,
+    session_id uuid NOT NULL REFERENCES agent_sessions(id),
+    revision integer NOT NULL,
+    key text NOT NULL,
+    question jsonb NOT NULL,
+    UNIQUE (session_id, key),
+    FOREIGN KEY (session_id, revision) REFERENCES agent_revisions(session_id, revision)
+);
+CREATE TABLE IF NOT EXISTS agent_answers (
+    id uuid PRIMARY KEY,
+    question_id uuid NOT NULL UNIQUE REFERENCES agent_questions(id),
+    disposition text NOT NULL CHECK (disposition IN ('answered','unknown','declined')),
+    text text NOT NULL,
+    request_key text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS agent_calls (
+    id uuid PRIMARY KEY,
+    session_id uuid NOT NULL REFERENCES agent_sessions(id),
+    call_key text NOT NULL,
+    status text NOT NULL CHECK (status IN ('running','completed','failed','interrupted')),
+    prompt_version text NOT NULL,
+    output jsonb,
+    usage jsonb NOT NULL DEFAULT '{}',
+    issue text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    finished_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS agent_calls_session ON agent_calls(session_id, call_key);
+INSERT INTO schema_versions(version) VALUES (3) ON CONFLICT DO NOTHING;
+
+ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS supersedes_session_id uuid REFERENCES agent_sessions(id);
+ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS superseded_by uuid REFERENCES agent_sessions(id);
+ALTER TABLE agent_calls ADD COLUMN IF NOT EXISTS phase text NOT NULL DEFAULT 'planning';
+ALTER TABLE agent_calls ADD COLUMN IF NOT EXISTS scope text NOT NULL DEFAULT '';
+
+CREATE TABLE IF NOT EXISTS agent_research (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    session_id uuid NOT NULL,
+    analysis_id uuid NOT NULL,
+    plan_revision integer NOT NULL,
+    request_key text NOT NULL,
+    request_sha256 text NOT NULL,
+    knowledge_sha256 text NOT NULL,
+    snapshot jsonb NOT NULL,
+    options jsonb NOT NULL,
+    graph_version text NOT NULL,
+    status text NOT NULL CHECK (status IN ('new','running','completed','partial','failed','stale')),
+    issue text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    FOREIGN KEY (business_id,session_id) REFERENCES agent_sessions(business_id,id),
+    FOREIGN KEY (business_id,analysis_id) REFERENCES analyses(business_id,id),
+    FOREIGN KEY (session_id,plan_revision) REFERENCES agent_revisions(session_id,revision),
+    UNIQUE (session_id,request_key),
+    UNIQUE (business_id,id)
+);
+CREATE TABLE IF NOT EXISTS agent_research_steps (
+    research_id uuid NOT NULL REFERENCES agent_research(id),
+    step integer NOT NULL CHECK (step>0),
+    business_id uuid NOT NULL,
+    action jsonb NOT NULL,
+    execution_id uuid,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (research_id,step),
+    FOREIGN KEY (business_id,research_id) REFERENCES agent_research(business_id,id),
+    FOREIGN KEY (business_id,execution_id) REFERENCES executions(business_id,id)
+);
+CREATE TABLE IF NOT EXISTS agent_research_findings (
+    research_id uuid NOT NULL,
+    investigation_key text NOT NULL,
+    step integer NOT NULL,
+    status text NOT NULL CHECK (status IN ('candidate','blocked')),
+    summary text NOT NULL,
+    metric_keys jsonb NOT NULL,
+    PRIMARY KEY (research_id,investigation_key),
+    FOREIGN KEY (research_id,step) REFERENCES agent_research_steps(research_id,step)
+);
+INSERT INTO schema_versions(version) VALUES (4) ON CONFLICT DO NOTHING;

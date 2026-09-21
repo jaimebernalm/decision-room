@@ -23,11 +23,18 @@ mantiene en los archivos Markdown enlazados arriba.
 - [Ingesta CSV y PostgreSQL local](technical/ingestion.md).
 - [Uso del entorno aislado de Python](technical/sandbox.md).
 - [Diseño del entorno aislado](technical/sandbox-plan.md).
+- [Agente principal, preguntas y recuperación](technical/agent.md).
+- [Plan técnico del agente, paso 1.4](technical/agent-plan.md).
+- [Investigación con Python, paso 1.5](technical/research.md).
+- [Plan técnico de investigación](technical/research-plan.md).
 
 ## Comprobaciones realizadas
 
 - [Ingesta de las 48 tablas de WWI](validation/2026-09-21-ingestion-check.md).
 - [Aislamiento, cálculos y bibliotecas](validation/2026-09-21-sandbox-check.md).
+- [Pruebas del agente y límites del modelo local](validation/2026-09-21-agent-check.md).
+- [Investigaciones reales y pruebas de recuperación](validation/2026-09-21-research-check.md).
+- [Errores conocidos del agente](validation/known-agent-errors.md).
 
 Los documentos de investigación conservan sus fechas y contexto. El MVP y el
 plan de implementación determinan el alcance actual. Los comandos de las guías
