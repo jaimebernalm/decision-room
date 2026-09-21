@@ -27,6 +27,8 @@ mantiene en los archivos Markdown enlazados arriba.
 - [Plan técnico del agente, paso 1.4](technical/agent-plan.md).
 - [Investigación con Python, paso 1.5](technical/research.md).
 - [Plan técnico de investigación](technical/research-plan.md).
+- [Revisor, conversación e informe HTML](technical/review.md).
+- [Plan del paso 1.6](technical/review-plan.md).
 
 ## Comprobaciones realizadas
 
@@ -35,6 +37,7 @@ mantiene en los archivos Markdown enlazados arriba.
 - [Pruebas del agente y límites del modelo local](validation/2026-09-21-agent-check.md).
 - [Investigaciones reales y pruebas de recuperación](validation/2026-09-21-research-check.md).
 - [Errores conocidos del agente](validation/known-agent-errors.md).
+- [Pruebas del revisor y diálogo con el analista](validation/2026-09-21-review-check.md).
 
 Los documentos de investigación conservan sus fechas y contexto. El MVP y el
 plan de implementación determinan el alcance actual. Los comandos de las guías

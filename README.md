@@ -71,8 +71,13 @@ with bounded correction, durable candidates and invalidation after owner context
 changes. See the [research guide](docs/technical/research.md) and
 [real-model checks](docs/validation/2026-09-21-research-check.md). Candidates remain
 unverified; [known interpretation errors](docs/validation/known-agent-errors.md)
-are still open. Reviewer/report generation, Excel ingestion and the web UI remain
-to be implemented.
+are still open. Reviewer-led dialogue and private HTML reports (1.6) are now implemented; see
+the [review guide](docs/technical/review.md) and
+[validation](docs/validation/2026-09-21-review-check.md). The analyst can justify or
+correct findings, but only the reviewer can approve the exact report. An
+independent validation hold can block a mistaken approval; the real-model checks
+include an open reviewer failure (DR-002). Excel
+ingestion and the web UI remain to be implemented.
 
 ## Python environment
 

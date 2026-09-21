@@ -34,6 +34,8 @@ def mark_stale(db, session):
         _, _, key = knowledge(db, session)
         db.execute("""UPDATE agent_research SET status='stale',issue='Owner knowledge or plan changed.',updated_at=now()
             WHERE session_id=%s AND knowledge_sha256<>%s AND status<>'stale'""", (session['id'], key))
+        db.execute("""UPDATE agent_reviews SET status='stale',issue='Owner knowledge or plan changed.',updated_at=now()
+            WHERE session_id=%s AND knowledge_sha256<>%s AND status<>'stale'""", (session['id'], key))
 
 
 def start(config, business_id, session_id, *, request_key, max_investigations=2,

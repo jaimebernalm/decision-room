@@ -12,6 +12,8 @@ from .prompts import SYSTEM
 from ..execution_contract import strict_json
 from .research_contract import ResearchAction
 from .research_prompts import RESEARCH_SYSTEM
+from .review_contract import ReviewAction
+from .review_prompts import ANALYST_SYSTEM, REVIEWER_SYSTEM
 
 
 class ModelRequestUncertain(ValueError):
@@ -61,6 +63,12 @@ class ModelClient:
 
     def generate_research(self, context, correction=None):
         return self._generate(context, correction, RESEARCH_SYSTEM, ResearchAction.model_json_schema())
+
+    def generate_analyst_review(self, context, correction=None):
+        return self._generate(context, correction, ANALYST_SYSTEM, ReviewAction.model_json_schema())
+
+    def generate_reviewer(self, context, correction=None):
+        return self._generate(context, correction, REVIEWER_SYSTEM, ReviewAction.model_json_schema())
 
     @staticmethod
     def _action(content):

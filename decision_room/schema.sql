@@ -201,3 +201,64 @@ CREATE TABLE IF NOT EXISTS agent_research_findings (
     FOREIGN KEY (research_id,step) REFERENCES agent_research_steps(research_id,step)
 );
 INSERT INTO schema_versions(version) VALUES (4) ON CONFLICT DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS agent_reviews (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    session_id uuid NOT NULL,
+    analysis_id uuid NOT NULL,
+    research_id uuid NOT NULL,
+    request_key text NOT NULL,
+    request_sha256 text NOT NULL,
+    knowledge_sha256 text NOT NULL,
+    snapshot jsonb NOT NULL,
+    reviewer_settings jsonb NOT NULL,
+    options jsonb NOT NULL,
+    graph_version text NOT NULL,
+    status text NOT NULL CHECK (status IN ('new','running','waiting','approved','rejected','withdrawn','limited','failed','stale')),
+    issue text,
+    approved_sha256 text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    FOREIGN KEY (business_id,session_id) REFERENCES agent_sessions(business_id,id),
+    FOREIGN KEY (business_id,analysis_id) REFERENCES analyses(business_id,id),
+    FOREIGN KEY (business_id,research_id) REFERENCES agent_research(business_id,id),
+    UNIQUE (session_id,request_key),
+    UNIQUE (business_id,id)
+);
+CREATE TABLE IF NOT EXISTS agent_review_events (
+    review_id uuid NOT NULL REFERENCES agent_reviews(id),
+    step integer NOT NULL CHECK (step>0),
+    business_id uuid NOT NULL,
+    role text NOT NULL CHECK (role IN ('analyst','reviewer')),
+    action jsonb NOT NULL,
+    knowledge_sha256 text NOT NULL,
+    execution_id uuid,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (review_id,step),
+    FOREIGN KEY (business_id,review_id) REFERENCES agent_reviews(business_id,id),
+    FOREIGN KEY (business_id,execution_id) REFERENCES executions(business_id,id)
+);
+CREATE TABLE IF NOT EXISTS agent_review_answers (
+    id uuid PRIMARY KEY,
+    review_id uuid NOT NULL,
+    step integer NOT NULL,
+    disposition text NOT NULL CHECK (disposition IN ('answered','unknown','declined')),
+    text text NOT NULL,
+    request_key text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    FOREIGN KEY (review_id,step) REFERENCES agent_review_events(review_id,step),
+    UNIQUE (review_id,step),
+    UNIQUE (review_id,request_key)
+);
+CREATE INDEX IF NOT EXISTS agent_reviews_session ON agent_reviews(session_id);
+INSERT INTO schema_versions(version) VALUES (5) ON CONFLICT DO NOTHING;
+
+-- Independent operator validation can block an otherwise model-approved report.
+-- Keep the model's historical decision intact; corrections require a new review.
+CREATE TABLE IF NOT EXISTS agent_review_holds (
+    review_id uuid PRIMARY KEY REFERENCES agent_reviews(id),
+    reason text NOT NULL CHECK (length(trim(reason)) BETWEEN 1 AND 4000),
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+INSERT INTO schema_versions(version) VALUES (6) ON CONFLICT DO NOTHING;

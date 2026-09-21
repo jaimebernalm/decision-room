@@ -51,6 +51,7 @@ def _create_session(config, business_id, analysis_id, *, owner_context, request_
             db.execute('UPDATE agent_sessions SET superseded_by=%s WHERE id=%s', (row['id'], supersedes))
             db.execute('UPDATE agent_sessions SET supersedes_session_id=%s WHERE id=%s', (supersedes, row['id']))
             db.execute("UPDATE agent_research SET status='stale',issue='Owner context superseded.',updated_at=now() WHERE session_id=%s", (supersedes,))
+            db.execute("UPDATE agent_reviews SET status='stale',issue='Owner context superseded.',updated_at=now() WHERE session_id=%s", (supersedes,))
     return row
 
 

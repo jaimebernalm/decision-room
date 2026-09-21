@@ -5,7 +5,8 @@ investigaciones y pregunta por definiciones materiales. LangGraph conserva la
 pausa y permite continuar desde otro proceso. El resultado es provisional: no
 genera Python ni calcula métricas dentro de esta fase. La fase posterior del
 [paso 1.5](research.md) ya conecta esta sesión al sandbox y registra candidatos.
-Todavía no produce informes.
+El [paso 1.6](review.md) añade borradores estructurados, conversación con el revisor
+e informes HTML; la aprobación se guarda separada de esta planificación.
 
 ## Ubicación y responsabilidades
 

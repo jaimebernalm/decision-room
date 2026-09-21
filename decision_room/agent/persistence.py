@@ -11,6 +11,7 @@ from .context import fingerprint
 from .prompts import PROMPT_VERSION
 from .model import ModelRequestUncertain
 from .research_prompts import RESEARCH_PROMPT_VERSION
+from .review_prompts import REVIEW_PROMPT_VERSION
 
 GRAPH_VERSION = 'planning-v2'
 
@@ -52,6 +53,14 @@ def answers(db, session_id):
     records = db.execute('''SELECT a.id, q.key, q.question, a.disposition, a.text
         FROM agent_answers a JOIN agent_questions q ON q.id=a.question_id
         WHERE q.session_id=%s ORDER BY q.revision,q.key''', (session_id,)).fetchall()
+    review_records = db.execute('''SELECT a.id,a.disposition,a.text,e.action->>'question' AS question,
+        a.review_id,a.step FROM agent_review_answers a
+        JOIN agent_reviews r ON r.id=a.review_id
+        JOIN agent_review_events e ON e.review_id=a.review_id AND e.step=a.step
+        WHERE r.session_id=%s ORDER BY a.created_at,a.id''', (session_id,)).fetchall()
+    records += [{'id': r['id'], 'key': f'review_{r["review_id"].hex}_{r["step"]}',
+                 'question': {'text': r['question']}, 'disposition': r['disposition'], 'text': r['text']}
+                for r in review_records]
     return [{**r, 'id': str(r['id'])} for r in records]
 
 
@@ -74,7 +83,8 @@ def save_revision(db, session_id, revision, proposal, inspected):
 
 
 def model_call(db, session_id, model, context, correction, retry_uncertain, *, phase='planning', scope='', max_calls=20):
-    version = PROMPT_VERSION if phase == 'planning' else RESEARCH_PROMPT_VERSION
+    version = {'planning': PROMPT_VERSION, 'research': RESEARCH_PROMPT_VERSION,
+               'analyst_review': REVIEW_PROMPT_VERSION, 'reviewer': REVIEW_PROMPT_VERSION}[phase]
     identity = {'context': context, 'correction': correction, 'prompt': version}
     if phase != 'planning':
         identity.update(phase=phase, scope=scope)
@@ -97,8 +107,9 @@ def model_call(db, session_id, model, context, correction, retry_uncertain, *, p
     db.execute('''INSERT INTO agent_calls(id,session_id,call_key,status,prompt_version,phase,scope)
         VALUES (%s,%s,%s,'running',%s,%s,%s)''', (call_id, session_id, key, version, phase, scope))
     try:
-        output, usage = (model.generate(context, correction) if phase == 'planning'
-                         else model.generate_research(context, correction))
+        method = {'planning': 'generate', 'research': 'generate_research',
+                  'analyst_review': 'generate_analyst_review', 'reviewer': 'generate_reviewer'}[phase]
+        output, usage = getattr(model, method)(context, correction)
         db.execute("UPDATE agent_calls SET status='completed',output=%s,usage=%s,finished_at=now() WHERE id=%s",
                    (Jsonb(output), Jsonb(usage), call_id))
         return output

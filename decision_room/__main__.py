@@ -96,10 +96,50 @@ def main():
         elif name == 'agent-replan':
             command.add_argument('--context-file', type=Path, required=True, help='Complete corrected owner context, replacing the previous context.')
             command.add_argument('--model', help='Optional model override for the new planning session.')
+    for name in ('review-start', 'review-show', 'review-resume', 'review-answer', 'review-hold', 'report-export'):
+        command = commands.add_parser(name, help='Step 1.6: reviewer-led dialogue and private HTML report.')
+        command.add_argument('--business', type=uuid.UUID, required=True)
+        if name == 'review-start':
+            command.add_argument('--research', type=uuid.UUID, required=True)
+            command.add_argument('--request-key', required=True)
+            command.add_argument('--reviewer-model', help='Omit to use the analyst model in a separate reviewer role.')
+            command.add_argument('--max-review-rounds', type=int, default=4)
+        else:
+            command.add_argument('--review', type=uuid.UUID, required=True)
+        if name == 'review-resume':
+            command.add_argument('--retry-model', action='store_true')
+        if name == 'review-hold':
+            command.add_argument('--reason', required=True, help='Independent operator finding; preserves the model decision and blocks release.')
+        if name == 'review-answer':
+            command.add_argument('--step', type=int, required=True)
+            command.add_argument('--text', default='')
+            command.add_argument('--disposition', choices=['answered', 'unknown', 'declined'], default='answered')
+            command.add_argument('--request-key', required=True)
     args = parser.parse_args()
     config = Config.load()
     try:
-        if args.command == 'init':
+        if args.command.startswith('review-') or args.command == 'report-export':
+            from .agent import review
+            from .agent.model import ModelClient, ModelSettings
+            if args.command == 'review-start':
+                reviewer = ModelClient(ModelSettings.load(args.reviewer_model)) if args.reviewer_model else None
+                report = review.start(config, args.business, args.research, request_key=args.request_key,
+                                      reviewer=reviewer, max_review_rounds=args.max_review_rounds)
+            elif args.command == 'review-answer':
+                report = review.answer(config, args.business, args.review, step=args.step, text=args.text,
+                                       disposition=args.disposition, request_key=args.request_key)
+            elif args.command == 'review-resume':
+                report = review.resume(config, args.business, args.review, retry_uncertain=args.retry_model)
+            elif args.command == 'review-hold':
+                report = review.hold(config, args.business, args.review, reason=args.reason)
+            elif args.command == 'report-export':
+                from .report import export
+                report = export(config, args.business, args.review)
+            else:
+                report = review.show(config, args.business, args.review)
+            emit(report)
+            return 2 if report['status'] in ('failed', 'stale', 'held', 'rejected', 'withdrawn', 'limited') else 0
+        elif args.command == 'init':
             migrate(config)
             with connect(config) as db:
                 version = db.execute('SELECT max(version) AS version FROM schema_versions').fetchone()['version']

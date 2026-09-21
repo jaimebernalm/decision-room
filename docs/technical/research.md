@@ -2,8 +2,8 @@
 
 El agente principal puede elegir investigaciones de un plan guardado, escribir
 Python, ejecutarlo en el sandbox, examinar la salida y corregir errores. Registra
-resultados **candidatos**, con código y evidencia. El revisor y el informe del
-paso 1.6 todavía no están implementados.
+resultados **candidatos**, con código y evidencia. El [paso 1.6](review.md) añade
+el diálogo con el revisor y la exportación de informes HTML.
 
 El fallo de interpretación de `amount` se conserva como
 [DR-001](../validation/known-agent-errors.md). Se avanza para evaluar el conjunto;
@@ -97,7 +97,9 @@ Estados de la fase:
 - `stale`: una nueva definición, respuesta o revisión ha sustituido el conocimiento
   usado para calcular; esos resultados no son candidatos vigentes.
 
-Toda salida incluye `publishable=false` y `verification=pending_reviewer` o `stale`.
+Toda salida de investigación incluye `publishable=false` y
+`verification=pending_reviewer` o `stale`. La aprobación del informe se consulta
+por separado en el paso 1.6; no modifica retroactivamente el resultado de Python.
 El agente solo puede asociar un candidato a métricas existentes de la última
 ejecución correcta de esa investigación. La descripción del agente sigue siendo
 una afirmación que deberá examinar el revisor.
