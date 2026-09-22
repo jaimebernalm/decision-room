@@ -32,6 +32,8 @@ mantiene en los archivos Markdown enlazados arriba.
 - [Plan del paso 1.6](technical/review-plan.md).
 - [Informe del cliente y gráficos con evidencia](technical/client-report.md).
 - [Evaluación integrada y repeticiones, paso 1.7](technical/evaluation-plan.md).
+- [Aplicación web local, entrega 2](technical/web.md).
+- [Diseño y alcance de la experiencia web](technical/web-plan.md).
 
 ## Comprobaciones realizadas
 
@@ -43,6 +45,7 @@ mantiene en los archivos Markdown enlazados arriba.
 - [Pruebas del revisor y diálogo con el analista](validation/2026-09-21-review-check.md).
 - [Informe del cliente, gráficos y prueba real](validation/2026-09-21-client-report-check.md).
 - [Evaluación integrada del paso 1.7](validation/2026-09-21-evaluation-check.md).
+- [Pruebas web, recuperación y Computer Use](validation/2026-09-22-web-check.md).
 
 Los documentos de investigación conservan sus fechas y contexto. El MVP y el
 plan de implementación determinan el alcance actual. Los comandos de las guías

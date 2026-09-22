@@ -130,7 +130,7 @@ def resume(config, business_id, review_id, *, analyst=None, reviewer=None, execu
 
 
 def answer(config, business_id, review_id, *, step, text='', disposition='answered', request_key,
-           analyst=None, reviewer=None, executor=execute):
+           analyst=None, reviewer=None, executor=execute, retry_uncertain=False):
     _key(request_key)
     if disposition not in ('answered', 'unknown', 'declined') or len(text) > 6000 or (disposition == 'answered' and not text.strip()):
         raise ValueError('Provide a bounded answer or explicitly mark it unknown/declined.')
@@ -156,7 +156,7 @@ def answer(config, business_id, review_id, *, step, text='', disposition='answer
                 db.execute('UPDATE agent_reviews SET knowledge_sha256=%s,approved_sha256=NULL WHERE id=%s', (key, review_id))
                 mark_stale(db, session)
         run = db.execute('SELECT * FROM agent_reviews WHERE id=%s', (review_id,)).fetchone()
-        _drive(config, db, session, run, analyst=analyst, reviewer=reviewer, executor=executor)
+        _drive(config, db, session, run, analyst=analyst, reviewer=reviewer, executor=executor, retry_uncertain=retry_uncertain)
     return show(config, business_id, review_id)
 
 

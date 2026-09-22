@@ -13,6 +13,7 @@
 !.env.example
 !.env.*.example
 .envrc
+.web-access-key
 .credentials/
 credentials/
 secrets/

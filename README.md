@@ -77,7 +77,26 @@ the [review guide](docs/technical/review.md) and
 correct findings, but only the reviewer can approve the exact report. An
 independent validation hold can block a mistaken approval; the real-model checks
 include an open reviewer failure (DR-002). Excel
-ingestion and the web UI remain to be implemented.
+ingestion remains to be implemented. The local web workspace (delivery 2) is now
+implemented; see the [web guide](docs/technical/web.md).
+
+## Local web application
+
+Open the owner experience with the existing local Python environment, LM Studio
+model server and sandbox available:
+
+```sh
+.venv/bin/python scripts/dev/start_web.py
+```
+
+This starts local PostgreSQL and opens the authenticated workspace at
+`http://127.0.0.1:8787`. It includes previous web analyses, business context,
+CSV upload, actual agent questions, durable progress and reviewed reports with
+charts and evidence. `--model` selects another installed model. See the
+[web guide](docs/technical/web.md) for access, recovery and operational limits.
+The web workspace does not automatically import historical CLI evaluations.
+The agent's known analytical errors remain open; delivery 2 does not accept
+or certify the analytical quality of delivery 1.
 
 ## Python environment
 

@@ -343,3 +343,26 @@ esas referencias correctas sin corregir las métricas auxiliares. La evaluación
 del informe final de las métricas auxiliares e intermedias: una corrección limitada
 puede degradar resultados que antes eran correctos, aunque el agente diga que los
 ha conservado. No se reparó manualmente el programa.
+
+### DR-015: unidades y afirmaciones de cobertura no sustentadas en la prueba web
+
+**Estado: abierto; observado al validar la entrega 2 el 22 de septiembre.**
+
+El recorrido web real recibió `01-daily-sales/input/sales.csv`, preguntó por la
+base monetaria, conservó la respuesta tras reiniciar el servidor y completó
+investigación y revisión. Tras una devolución, el revisor aprobó un informe con
+dos gráficos. Los totales 34.137,85 y 39.646,25, la diferencia 5.508,40 y el
+16,135755… % coinciden con el CSV calculado independientemente con Decimal.
+
+Sin embargo, el informe presenta los 28 días del periodo como los días del mes
+de abril; utiliza euros sin que el archivo ni la respuesta confirmen moneda;
+y afirma que usar medias diarias daría un porcentaje de cambio distinto. Ambos
+periodos contienen 12 días, por lo que el porcentaje de cambio de la media es
+idéntico al del total. El revisor no detectó esas afirmaciones.
+
+Se aplicó `review.hold` conservando la aprobación histórica. La web retiró el
+informe del detalle y del filtro de informes disponibles, y denegó el acceso
+directo. No se modificaron manualmente el código generado ni el informe para
+rescatar el caso. Este hallazgo mantiene abierta la aceptación analítica de la
+entrega 1; la interfaz y su bloqueo se verifican por separado. Ver
+[validación de entrega 2](2026-09-22-web-check.md).

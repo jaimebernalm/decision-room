@@ -108,8 +108,15 @@ footer{padding:24px 48px;border-top:1px solid #d9e1d8;color:#52665f;font-size:12
 @media print{body,main{background:white}main{border:0;margin:0}header{background:white;color:#163e3b}.meta{color:#52665f}.finding,figure{break-inside:avoid}}
 '''
 
+EMBEDDED_CSS = '''
+body{background:#fffefa;font-size:14px}main{margin:0;border:0;border-radius:0}
+header{padding:30px}h1{font-size:32px}.content{padding:28px}footer{padding:24px 28px}
+@media(max-width:500px){header,.content,footer{padding:22px}h1{font-size:27px}
+.chart-label,.chart-number{font-size:30px}.tick{font-size:20px}}
+'''
 
-def render_client(data, exported_at):
+
+def render_client(data, exported_at, *, embedded=False):
     draft = data.get('report')
     ready = bool(data.get('publishable') and data.get('status') == 'approved' and draft)
     if ready:
@@ -149,4 +156,6 @@ def render_client(data, exported_at):
              'Esta copia refleja los datos y respuestas disponibles en la fecha indicada; no se actualiza automáticamente.</footer>']
     return ('<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
             '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src \'none\'; base-uri \'none\'; form-action \'none\'">'
-            f'<title>{e(title)} · Decision Room</title><style>{CSS}</style></head><body><main>' + ''.join(body) + '</main></body></html>')
+            f'<title>{e(title)} · Decision Room</title><style>{CSS}' +
+            (EMBEDDED_CSS if embedded else '') +
+            '</style></head><body><main>' + ''.join(body) + '</main></body></html>')

@@ -119,6 +119,16 @@ La base de datos crece con el recorrido: primero análisis y fuentes; después i
 
 ## 5. Entrega 2: recorrido web mínimo
 
+**Estado, 22 de septiembre de 2026:** implementada y comprobada como recorrido
+web local por petición del usuario, manteniendo abierta la aceptación analítica
+de la entrega 1. Incluye inicio, contexto, CSV, preguntas, ejecución duradera,
+recuperación, archivos e informe integrado. La prueba real llegó a aprobación
+por el modelo y permitió comprobar gráficos y evidencia; la revisión independiente
+retuvo después el informe por errores semánticos (DR-015). Se distingue el cierre
+de la implementación web del cierre de calidad del agente. Ver
+[guía de uso](../technical/web.md), [diseño](../technical/web-plan.md) y
+[resultados](../validation/2026-09-22-web-check.md).
+
 **Construir:** descripción del negocio, subida de archivos, preguntas con opciones y texto libre, progreso real, recuperación al volver, informe con resumen/secciones/evidencia y acceso restringido para pruebas. La web utiliza el sistema de la entrega 1; la lógica analítica continúa en el servicio Python.
 
 **Cierre:** una persona que no conoce el código puede completar el recorrido y localizar la fuente de una cifra sin terminal ni instrucciones técnicas.
@@ -189,3 +199,11 @@ Revisar inicialmente los informes conforme al bloque 7, registrar las correccion
 **Trabajo realizado, 22 de septiembre de 2026:** construida y ejecutada la evaluación del paso 1.7. Se implementaron el ejecutor reproducible, las referencias independientes y la rúbrica que distingue aprobación del modelo de aceptación. La matriz real aceptó 11 de 24 casos; la serie posterior con correcciones del controlador aceptó 6 de 9. Las tres correcciones del propietario invalidaron la aprobación anterior y recalcularon, pero solo uno de los tres informes nuevos pasó. Las 101 pruebas automatizadas pasan. Se conservan fallos, versiones, tiempos y evidencia. Ver [método y comandos](../technical/evaluation-plan.md) y [resultados de las pruebas](../validation/2026-09-21-evaluation-check.md). Solo se ha evaluado Qwen local; no se atribuyen resultados a otro modelo sin probarlo.
 
 La entrega 1 completa todavía no está aceptada: ya existe el recorrido interno desde la ingesta hasta un informe revisado, pero las pruebas del paso 1.7 todavía muestran fallos semánticos y de continuidad. La ejecución de la evaluación ha terminado; el criterio de aceptación sigue abierto. Las pruebas realizadas no equivalen a validación general del producto.
+
+**Avance de entrega 2, 22 de septiembre de 2026:** aplicación web local sobre el
+backend existente, con 117 pruebas automatizadas correctas y validación mediante
+Computer Use en escritorio y móvil. Se comprobaron las preguntas del modelo real,
+recuperación tras reiniciar el servidor, informe con gráficos y evidencia, y su
+retirada tras la detección independiente de DR-015. La aplicación queda utilizable
+para explorar la experiencia; no se acepta la calidad analítica ni se habilita el
+piloto comercial. Ver [validación](../validation/2026-09-22-web-check.md).
