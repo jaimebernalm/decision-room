@@ -1,0 +1,2 @@
+Extracto de prueba de actividad seleccionada, no de todo el negocio. Cada fila es una línea de venta y line_id es su identificador único. quantity son unidades y sales_ex_tax es el IMPORTE TOTAL de la línea sin impuestos y con descuentos ya reflejados; no es precio unitario. No se especifica moneda. No hay costes ni identificadores de ticket. Las fechas sin registros no significan ausencia de actividad.
+Las devoluciones se incluyen con unidades e importes negativos y line_id distinto. Calcula las ventas y unidades NETAS de las devoluciones. No elimines los negativos.

@@ -44,6 +44,13 @@ figures, unsupported claims and your verdict. Human review judges usefulness,
 wording and business sense. Known answers check arithmetic and regressions.
 These three cases do not cover Excel ingestion, joins, refunds or all MVP needs.
 
+The later [controlled data-quality cases](04-data-quality/README.md) add technical
+duplicates, missing amounts, a synthetic negative return and invalid dates or
+amounts. They are separate variants of cases 1 and 3, not additional source sales.
+Each variant has its own `input/` directory; the evaluator computes its reference
+with CSV/Decimal in `decision_room/evaluation/cases.py`. The original three-case
+rebuild and source-check commands below do not regenerate these variants.
+
 Money comparisons should match to 0.01 in the case's currency units; displayed
 percentage changes match to 0.01 percentage points. Counts and quantities match
 exactly. Periods are April 1–14 and April 15–28, inclusive. Missing dates remain

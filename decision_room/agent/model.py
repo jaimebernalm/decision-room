@@ -190,18 +190,53 @@ class ModelClient:
             for field in definition['properties'].values():
                 field.pop('default', None)
         series_choices = []
+        series_by_unit = {}
         for item in context.get('observations', []):
             if item.get('current') and item['status'] == 'completed' and item.get('result') and not item.get('result_omitted'):
-                keys = sorted(item['result'].get('series', {}))
-                if keys:
+                units = {}
+                for key, value in item['result'].get('series', {}).items():
+                    units.setdefault(value['unit'], []).append(key)
+                for unit, keys in sorted(units.items()):
                     branch = deepcopy(schema['$defs']['SeriesRef'])
                     branch['properties']['execution_id']['enum'] = [item['execution_id']]
-                    branch['properties']['series']['enum'] = keys
+                    branch['properties']['series']['enum'] = sorted(keys)
                     series_choices.append(branch)
+                    series_by_unit.setdefault(unit, []).append(branch)
+        original_chart = schema['$defs']['Chart']
+        scalar_chart = deepcopy(original_chart)
+        scalar_chart['properties']['series'] = {'type': 'null'}
+        scalar_chart['properties']['points']['minItems'] = 2
         if series_choices:
             schema['$defs']['SeriesRef'] = {'anyOf': series_choices}
+            charts = [scalar_chart]
+            for unit, references in sorted(series_by_unit.items()):
+                branch = deepcopy(original_chart)
+                branch['properties']['unit']['enum'] = [unit]
+                branch['properties']['series'] = {'anyOf': references}
+                branch['properties']['points']['maxItems'] = 0
+                charts.append(branch)
+            # Keep the source unit paired with its evidence, rather than offering
+            # invalid combinations and relying on a later correction turn.
+            schema['$defs']['Chart'] = {'anyOf': charts}
         else:
-            schema['$defs']['Chart']['properties']['series'] = {'type': 'null'}
+            schema['$defs']['Chart'] = scalar_chart
+        investigations = context.get('plan', {}).get('investigations', [])
+        if investigations:
+            ready = sorted(i['key'] for i in investigations if i['status'] == 'ready')
+            blocked = sorted(i['key'] for i in investigations if i['status'] != 'ready')
+            coverage = schema['$defs']['ReportDraft']['properties']['question_coverage']
+            coverage.update(minItems=len(ready), maxItems=len(investigations))
+            branches = []
+            for keys, statuses in ((ready, ['answered', 'unavailable']), (blocked, ['unavailable'])):
+                if not keys:
+                    continue
+                branch = deepcopy(schema['$defs']['QuestionCoverage'])
+                branch['properties']['investigation_key']['enum'] = keys
+                branch['properties']['status']['enum'] = statuses
+                if statuses == ['unavailable']:
+                    branch['properties']['claim_keys']['maxItems'] = 0
+                branches.append(branch)
+            schema['$defs']['QuestionCoverage'] = {'anyOf': branches}
         # Offer only the arity that each supported numerical operation accepts.
         # A combined numerator must be a saved metric, not an extra ratio operand.
         original_check = schema['$defs']['NumericCheck']
@@ -222,7 +257,7 @@ class ModelClient:
         original = schema['$defs']['MetricRef']
         for item in context['observations']:
             result = item.get('result')
-            if not item.get('current') or item['status'] != 'completed' or not result:
+            if not item.get('current') or item['status'] != 'completed' or not result or item.get('result_omitted'):
                 continue
             evidenced = {e['metric'] for e in result.get('evidence', [])}
             keys = sorted(set(result.get('metrics', {})) & evidenced)

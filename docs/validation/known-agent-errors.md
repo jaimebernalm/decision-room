@@ -366,3 +366,89 @@ directo. No se modificaron manualmente el código generado ni el informe para
 rescatar el caso. Este hallazgo mantiene abierta la aceptación analítica de la
 entrega 1; la interfaz y su bloqueo se verifican por separado. Ver
 [validación de entrega 2](2026-09-22-web-check.md).
+
+### DR-016: volver a preguntar una definición agregada y retirar resultados posibles
+
+En `luna-validation-01/products-renamed-1`, el contexto define cada fila como
+actividad total de un producto en una fecha. El plan y los dos primeros programas
+lo interpretan correctamente y calculan los importes por periodo y el ranking.
+El revisor vuelve a preguntar si el importe es total de fila. Ante la respuesta
+`unknown` de la evaluación a esa pregunta redundante, el diálogo retira los
+resultados monetarios y aprueba solo cantidades, con una limitación inexistente.
+La evaluación independiente retiene el informe conservando la aprobación original.
+
+En `products-renamed-3` la pregunta redundante aparece ya en planificación. La
+regla sobre importes ambiguos debe distinguir filas individuales sin base definida
+de agregados descritos por el propietario. Desconocer una respuesta adicional no
+revoca por sí solo una definición previa; una corrección explícita sí debe invalidar
+sus resultados. Los casos auténticamente ambiguos deben seguir preguntando.
+
+**Estado: observado con GPT-6 Luna; no se cierra por aprobar otros casos.**
+
+### DR-017: unidad del gráfico distinta de la unidad de su serie
+
+En `luna-validation-01/products-renamed-3`, el analista usa una unidad de gráfico
+que no coincide literalmente con `unidades registradas`, guardada en la serie.
+Ambos intentos de borrador fallan el contrato antes de llegar al revisor. No hay
+informe aprobado ni cifra incorrecta publicada, pero el recorrido queda bloqueado.
+
+La unidad de una serie referenciada ya existe en la evidencia. Debe preservarse
+la comprobación del servidor y evitar ofrecer al modelo combinaciones de serie y
+unidad incompatibles. **Estado: fallo reproducido; requiere comprobación posterior
+de la corrección con una identidad de lote nueva.**
+
+### DR-018: el contrato rechaza explicar una investigación bloqueada
+
+En `luna-validation-01/unknown-1`, el propietario no sabe si `amount` es precio
+unitario o total de fila. El agente mantiene el importe bloqueado y calcula
+correctamente las 59 unidades. Sus dos borradores incluyen `units_sold` como
+respondida y `total_sales_amount` como no disponible, con explicación y sin
+hallazgos monetarios. El contrato exige que la lista contenga exclusivamente las
+investigaciones listas, y rechaza ambas respuestas antes del revisor.
+
+**Es un rechazo excesivo del controlador**, no una invención de importe por el
+agente. Se debe exigir cubrir todas las investigaciones listas y permitir explicar
+las bloqueadas, sin admitir que estas se marquen respondidas, referencias ajenas,
+duplicados ni omisiones de trabajo disponible. La ejecución fallida se conserva;
+la corrección requiere pruebas de contrato y un lote real separado.
+
+### DR-019: series de un solo punto agotan los intentos de cálculo
+
+En `luna-validation-01/declined-3` el importe permanece correctamente bloqueado,
+pero los tres programas guardan una serie por producto con un solo punto. La
+validación rechaza la salida completa; el diagnóstico genérico recomienda agregar
+periodos, y el segundo intento reduce además siete fechas a un único mes. Se
+agota el presupuesto sin obtener un informe. Otros casos corrigen este error
+autónomamente, con llamadas y ejecuciones adicionales.
+
+Una sola categoría o periodo debe representarse con una métrica escalar, sin
+inventar puntos para completar un gráfico. Se prepara una instrucción explícita y
+un diagnóstico que distingue falta de puntos de exceso de puntos, manteniendo
+los límites y sin aumentar el presupuesto de intentos. La repetición posterior
+debe comprobar si evita el bucle; no se retocan los programas del lote original.
+
+### Comprobación posterior con Luna
+
+En el lote separado `luna-regression-02`, `products-renamed` pasa sus tres
+repeticiones sin preguntar de nuevo la definición agregada: mitigación de DR-016
+comprobada en ese escenario. Las tres repeticiones de precio unitario y las tres
+de total de fila siguen preguntando por la definición verdaderamente ausente y
+aplican fórmulas distintas correctamente.
+
+Las tres respuestas `unknown` y las tres `declined` terminan con informes
+parciales correctos: 59 unidades, sin suma monetaria, con la investigación de
+importe explicada como no disponible. Esto comprueba la corrección de DR-018;
+no se permite declarar respondida la parte bloqueada.
+
+DR-019 queda **mitigado parcialmente**: no se repite el agotamiento observado,
+pero `unit-price-2` y `declined-3` aún intentan exigir dos productos antes de
+recuperarse. Son programas generados que fallan por una condición innecesaria;
+no se retocan manualmente. La instrucción y el diagnóstico mejorados no garantizan
+que desaparezca todo intento ineficiente.
+
+Los 18 informes de esta repetición pasan la revisión independiente; las referencias
+de gráficos conservan la unidad guardada, sin nuevas incompatibilidades DR-017.
+El contrato del servidor sigue rechazando deliberadamente unidades distintas,
+evidencia obsoleta/omitida y mezclas de puntos con series en las pruebas de regresión.
+Esto comprueba el ajuste del esquema, no certifica la interpretación semántica de
+unidades arbitrarias. Ver [resultados y límites](2026-09-22-luna-validation.md).

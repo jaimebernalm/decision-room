@@ -242,14 +242,17 @@ def validate_coverage(report, context):
     """Require explicit coverage, without pretending to verify semantic truth."""
     investigations = context.get('plan', {}).get('investigations', [])
     expected = {i['key'] for i in investigations if i['status'] == 'ready'}
-    if not expected:
+    if not investigations:
         return
+    known = {i['key'] for i in investigations}
     entries = report.get('question_coverage', [])
     keys = [e['investigation_key'] for e in entries]
-    if len(set(keys)) != len(keys) or set(keys) != expected:
-        raise ValueError('question_coverage must address every ready investigation exactly once.')
+    if len(set(keys)) != len(keys) or not expected <= set(keys) or not set(keys) <= known:
+        raise ValueError('question_coverage must address every ready investigation exactly once, using only known investigations.')
     claims = {c['key'] for c in report['claims']}
     for entry in entries:
+        if entry['investigation_key'] not in expected and entry['status'] != 'unavailable':
+            raise ValueError('Blocked or not-possible investigations must remain unavailable.')
         if not set(entry['claim_keys']) <= claims or (entry['status'] == 'answered' and not entry['claim_keys']):
             raise ValueError('Answered investigations must link to existing report claims.')
         if entry['status'] == 'unavailable' and entry['claim_keys']:

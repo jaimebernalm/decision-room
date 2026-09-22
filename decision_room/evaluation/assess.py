@@ -48,30 +48,45 @@ def assess(state,report,oracle,assessment=None):
     draft=report.get('report') or {'claims':[],'charts':[]}
     cited={(r['execution_id'],r['metric']) for c in draft['claims'] for r in c['evidence']}
     cited.update((p['value']['execution_id'],p['value']['metric']) for c in draft.get('charts',[]) for p in c['points'])
+    cited.update((h['value']['execution_id'],h['value']['metric']) for h in draft.get('highlights',[]))
+    cited_series={(c['series']['execution_id'],c['series']['series']) for c in draft.get('charts',[]) if c.get('series')}
     observations={o['execution_id']:o for o in report.get('observations',[])}
+    def resolve(ref, require_cited):
+        obs=observations[ref['execution_id']]
+        if not obs.get('current') or obs['status']!='completed' or obs.get('result_omitted'):
+            raise ValueError('Unavailable evidence.')
+        if 'series' in ref:
+            if require_cited and (ref['execution_id'],ref['series']) not in cited_series:
+                raise ValueError('Series not cited.')
+            points=obs['result']['series'][ref['series']]['points']
+            found=[p['value'] for p in points if p['label']==ref['label']]
+            if len(found)!=1: raise ValueError('Series label missing or ambiguous.')
+            raw=found[0]
+        else:
+            if require_cited and (ref['execution_id'],ref['metric']) not in cited:
+                raise ValueError('Metric not cited.')
+            raw=obs['result']['metrics'][ref['metric']]
+        if type(raw) not in (str,int,float):raise ValueError('Not numeric.')
+        return Decimal(str(raw))
     bindings=assessment.get('bindings',{})
     for expected in oracle['required']:
         ref=bindings.get(expected)
         passed=False
         detail='A required numerical result must be saved, cited and independently matched.'
         if ref:
-            obs=observations.get(ref.get('execution_id'))
-            if obs and obs.get('current') and obs['status']=='completed' and (ref['execution_id'],ref['metric']) in cited:
-                try:
-                    raw=obs['result']['metrics'][ref['metric']]
-                    actual=Decimal(str(raw));target=Decimal(oracle['metrics'][expected])
-                    passed=actual.is_finite() and abs(actual-target)<=tolerance(expected)
-                    detail=f'Actual {actual}; independent reference {target}.'
-                except (KeyError,InvalidOperation,TypeError):pass
+            try:
+                actual=resolve(ref,True);target=Decimal(oracle['metrics'][expected])
+                passed=actual.is_finite() and abs(actual-target)<=tolerance(expected)
+                detail=f'Actual {actual}; independent reference {target}.'
+            except (KeyError,InvalidOperation,TypeError,ValueError):pass
         add('reference:'+expected,passed,detail)
     for expected,ref in bindings.items():
         if expected in oracle['required']:continue
-        obs=observations.get(ref.get('execution_id'))
         try:
-            actual=Decimal(str(obs['result']['metrics'][ref['metric']]))
+            actual=resolve(ref,False)
             target=Decimal(oracle['metrics'][expected])
-            passed=obs['current'] and obs['status']=='completed' and actual.is_finite() and abs(actual-target)<=tolerance(expected)
-        except (KeyError,TypeError,InvalidOperation):passed=False
+            passed=actual.is_finite() and abs(actual-target)<=tolerance(expected)
+        except (KeyError,TypeError,InvalidOperation,ValueError):passed=False
         add('additional:'+expected,passed,'Additional independently recomputed metric.')
     return {'accepted':all(c['passed'] for c in checks),'status':'passed' if all(c['passed'] for c in checks) else 'failed','checks':checks}
 

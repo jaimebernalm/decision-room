@@ -39,6 +39,41 @@ class EvaluationTests(unittest.TestCase):
         self.assertEqual(owner_reply('unit-price',{'text':'¿Es precio unitario o total de fila?'})[0],'answered')
         self.assertEqual(owner_reply('unit-price',{'text':'¿Qué moneda usas?'})[0],'unknown')
 
+    def test_quality_references_preserve_missing_and_negative_values(self):
+        duplicated=reference('duplicates')['metrics']
+        self.assertEqual(duplicated['sales'],'1220.00')
+        self.assertEqual(duplicated['quantity'],'59')
+        self.assertEqual(duplicated['duplicate_rows'],'1')
+        missing=reference('missing-values')['metrics']
+        self.assertEqual(missing['quantity'],'59')
+        self.assertEqual(missing['included_amount_rows'],'10')
+        self.assertEqual(missing['excluded_amount_rows'],'2')
+        self.assertEqual(missing['sales'],'870.00')
+        returns=reference('returns')['metrics']
+        self.assertEqual(returns['sales'],'1195.00')
+        self.assertEqual(returns['quantity'],'58')
+        self.assertEqual(reference('invalid-dates')['metrics']['excluded_amount_rows'],'3')
+        self.assertEqual(reference('invalid-dates')['metrics']['sales'],'69494.35')
+
+    def test_series_and_highlight_bindings_require_actual_cited_current_values(self):
+        state,report,oracle,assessment=self.case()
+        report['report']['claims']=[]
+        report['report']['charts']=[{'points':[], 'series':{'execution_id':'exec','series':'units'}}]
+        report['observations'][0]['result']['series']={'units':{'points':[{'label':'A','value':'59'},{'label':'B','value':'0'}]}}
+        assessment['bindings']['quantity']={'execution_id':'exec','series':'units','label':'A'}
+        self.assertTrue(assess(state,report,oracle,assessment)['accepted'])
+        for change in ('label','stale','not_cited','bool'):
+            args=deepcopy((state,report,oracle,assessment));r,a=args[1],args[3]
+            if change=='label':a['bindings']['quantity']['label']='missing'
+            elif change=='stale':r['observations'][0]['current']=False
+            elif change=='not_cited':r['report']['charts']=[]
+            else:r['observations'][0]['result']['series']['units']['points'][0]['value']=True
+            self.assertFalse(assess(*args)['accepted'])
+        state,report,oracle,assessment=self.case()
+        report['report']['highlights']=[{'value':assessment['bindings']['quantity']}]
+        report['report']['claims']=[]
+        self.assertTrue(assess(state,report,oracle,assessment)['accepted'])
+
     def case(self):
         ref={'execution_id':'exec','metric':'agent_chosen_name'}
         state={'status':'completed','resume_idempotent':True,'source_stable':True}

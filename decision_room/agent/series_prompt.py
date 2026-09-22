@@ -15,6 +15,11 @@ are YYYY-MM-DD, monthly YYYY-MM; dates ordered and unique. Category labels uniqu
 No null/NaN values and no invented zero for missing dates. At most 4 series,
 2–366 points each, 800 points total. Aggregate longer intervals in Python;
 bars/tables can display at most 36 points. Never silently truncate to fit a limit.
+Check the number of groups BEFORE including each series. A single product,
+category or period is a scalar metric, not a one-point series: omit that series
+and save its value and identity as evidenced scalar metrics. Do not duplicate or
+invent points. With zero groups explain the absence; aggregating further cannot
+fix a series that already has fewer than two points.
 The series evidence describes all its points; do NOT duplicate every point into
 scalar metrics. Keep scalar summaries for findings, highlights and checks.
 Series keys are NOT scalar metric_keys when recording a research candidate;

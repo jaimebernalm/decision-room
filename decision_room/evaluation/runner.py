@@ -19,6 +19,7 @@ from ..service import create_business, import_batch
 from ..agent import service, research, review
 from ..agent.model import ModelClient, ModelSettings
 from ..report import export
+from ..local_env import load_env
 
 
 def write(path, value):
@@ -62,7 +63,7 @@ def collect(config,state,directory):
     if state.get('session_id'):
         with connect(config) as db:
             calls=db.execute('SELECT phase,status,prompt_version,usage,issue,created_at,finished_at FROM agent_calls WHERE session_id=%s ORDER BY created_at',(state['session_id'],)).fetchall()
-            executions=db.execute('SELECT id,status,issue FROM executions WHERE business_id=%s ORDER BY created_at',(state['business_id'],)).fetchall()
+            executions=db.execute('SELECT id,status,issue,duration_seconds FROM executions WHERE business_id=%s ORDER BY created_at',(state['business_id'],)).fetchall()
         write(directory/'resources.json',{'calls':calls,'executions':executions,'monetary_cost':None})
 
 
@@ -229,13 +230,17 @@ def run_batch(directory,scenarios,repeats,settings,correction=None):
 
 def main():
     os.umask(0o077)
+    load_env(ROOT / '.env')
     parser=argparse.ArgumentParser(description=__doc__)
     sub=parser.add_subparsers(dest='command',required=True)
     p=sub.add_parser('worker');p.add_argument('directory',type=Path);p.add_argument('phase',choices=PHASES)
     p=sub.add_parser('correct');p.add_argument('source',type=Path);p.add_argument('directory',type=Path)
     p=sub.add_parser('run');p.add_argument('directory',type=Path);p.add_argument('--scenario',action='append',choices=SCENARIOS)
-    p.add_argument('--repeats',type=int,choices=range(1,4),default=3);p.add_argument('--model',default='qwen3.8-27b-splash')
-    p.add_argument('--protocol',choices=['lmstudio','lmstudio_structured','chat_completions'],default='lmstudio_structured')
+    p.add_argument('--repeats',type=int,choices=range(1,4),default=3);p.add_argument('--model',default=os.environ.get('DECISION_ROOM_AGENT_MODEL','qwen3.8-27b-splash'))
+    p.add_argument('--protocol',choices=['lmstudio','lmstudio_structured','chat_completions','openai'],default=os.environ.get('DECISION_ROOM_AGENT_PROTOCOL','lmstudio_structured'))
+    p.add_argument('--base-url',default=os.environ.get('DECISION_ROOM_AGENT_BASE_URL'))
+    p.add_argument('--reasoning',default=os.environ.get('DECISION_ROOM_AGENT_REASONING','off'))
+    p.add_argument('--max-output-tokens',type=int,default=int(os.environ.get('DECISION_ROOM_AGENT_MAX_OUTPUT_TOKENS','8192')))
     args=parser.parse_args()
     if args.command=='worker':sys.exit(worker(args.directory,args.phase))
     if args.command=='correct':
@@ -259,7 +264,9 @@ def main():
                     'description':'Same imported original columns; owner corrects unit price to row total.'}
         run_batch(directory,['line-total'],1,ModelSettings(**previous['model']),correction=correction)
         return
-    settings=ModelSettings(args.model,protocol=args.protocol,base_url='http://127.0.0.1:1234/'+('api/v1' if args.protocol=='lmstudio' else 'v1'),timeout_seconds=300)
+    default_url = 'https://api.openai.com/v1' if args.protocol == 'openai' else 'http://127.0.0.1:1234/'+('api/v1' if args.protocol=='lmstudio' else 'v1')
+    settings=ModelSettings(args.model,protocol=args.protocol,base_url=args.base_url or default_url,
+                           reasoning=args.reasoning,max_output_tokens=args.max_output_tokens,timeout_seconds=300)
     run_batch(args.directory.resolve(),args.scenario or list(SCENARIOS),args.repeats,settings)
 
 

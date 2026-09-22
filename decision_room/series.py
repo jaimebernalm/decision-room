@@ -28,8 +28,12 @@ def validate_series(series, tables):
         if not isinstance(item['unit'], str) or not 1 <= len(item['unit']) <= 80 or item['grain'] not in ('day', 'month', 'category'):
             raise ValueError('Invalid series unit or grain.')
         points = item['points']
-        if not isinstance(points, list) or not 2 <= len(points) <= 366:
-            raise ValueError('A series needs 2–366 points; aggregate longer periods.')
+        if not isinstance(points, list):
+            raise ValueError('Series points must be a list.')
+        if len(points) < 2:
+            raise ValueError(f'Series {key} has {len(points)} points; omit this series and use scalar metrics for a single group. Do not invent points.')
+        if len(points) > 366:
+            raise ValueError(f'Series {key} has {len(points)} points; aggregate longer periods to at most 366 points.')
         count += len(points)
         labels = []
         for point in points:

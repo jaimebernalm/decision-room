@@ -145,6 +145,13 @@ repetidos y dejar documentados los límites de la base. Después, ampliar por
 escenarios comprobables. La investigación web de contexto descrita abajo es una
 de esas ampliaciones; no se añade a la ronda de validación inicial.
 
+**Validación realizada, 22 de septiembre de 2026:** 27/36 aceptados en la matriz
+inicial de Luna; tras corregir preguntas redundantes y contratos del informe,
+18/18 en la repetición dirigida, 3/3 correcciones del propietario y recuperación
+de una sesión interrumpida. Pasan 141 pruebas automatizadas. La ronda previa
+queda terminada; persisten ineficiencias y límites de generalización que se
+mantienen explícitos al ampliar. Ver [resultados, costes y límites](../validation/2026-09-22-luna-validation.md).
+
 **Construir por escenarios completos:**
 
 - Excel `.xlsx`, varias hojas y selección de tablas.
@@ -252,7 +259,7 @@ Revisar inicialmente los informes conforme al bloque 7, registrar las correccion
 
 **Ampliación del paso 1.6:** separar el HTML interno del informe del cliente. Incorporar contexto de negocio, cobertura, interpretaciones, siguientes comprobaciones y gráficos de barras/líneas/tablas con valores provenientes de métricas guardadas. El revisor examina ese contenido antes de aprobarlo. Ver [contrato y presentación](../technical/client-report.md). La entrega 2 integra este informe en la aplicación web; no aplaza su contenido.
 
-**Trabajo realizado, 22 de septiembre de 2026:** construida y ejecutada la evaluación del paso 1.7. Se implementaron el ejecutor reproducible, las referencias independientes y la rúbrica que distingue aprobación del modelo de aceptación. La matriz real aceptó 11 de 24 casos; la serie posterior con correcciones del controlador aceptó 6 de 9. Las tres correcciones del propietario invalidaron la aprobación anterior y recalcularon, pero solo uno de los tres informes nuevos pasó. Las 101 pruebas automatizadas pasan. Se conservan fallos, versiones, tiempos y evidencia. Ver [método y comandos](../technical/evaluation-plan.md) y [resultados de las pruebas](../validation/2026-09-21-evaluation-check.md). Solo se ha evaluado Qwen local; no se atribuyen resultados a otro modelo sin probarlo.
+**Trabajo realizado, 22 de septiembre de 2026:** construida y ejecutada la evaluación del paso 1.7. Se implementaron el ejecutor reproducible, las referencias independientes y la rúbrica que distingue aprobación del modelo de aceptación. La matriz real aceptó 11 de 24 casos; la serie posterior con correcciones del controlador aceptó 6 de 9. Las tres correcciones del propietario invalidaron la aprobación anterior y recalcularon, pero solo uno de los tres informes nuevos pasó. Las 101 pruebas automatizadas pasan. Se conservan fallos, versiones, tiempos y evidencia. Ver [método y comandos](../technical/evaluation-plan.md) y [resultados de las pruebas](../validation/2026-09-21-evaluation-check.md). Hasta ese momento solo se había evaluado Qwen local; los resultados posteriores con Luna se documentan más abajo.
 
 La entrega 1 completa todavía no está aceptada: ya existe el recorrido interno desde la ingesta hasta un informe revisado, pero las pruebas del paso 1.7 todavía muestran fallos semánticos y de continuidad. La ejecución de la evaluación ha terminado; el criterio de aceptación sigue abierto. Las pruebas realizadas no equivalen a validación general del producto.
 
@@ -278,3 +285,16 @@ líneas y 219 productos produjo dos gráficos contrastados con referencias
 independientes en 72,82 segundos; el revisor devolvió el primer borrador y aprobó
 su corrección. Una prueba dirigida también rechazó un informe temporal incompleto.
 La aceptación general de 1.7 sigue abierta. Ver [validación y límites](../validation/2026-09-22-visual-report-check.md).
+
+**Validación previa a entrega 3, 22 de septiembre de 2026:** ampliados los casos
+de 1.7 a doce escenarios, con duplicados, importes ausentes, devoluciones y
+fechas/importes inválidos. La matriz inicial de Luna acepta 27/36; se conserva
+un informe retenido por retirada indebida de resultados monetarios. Se corrigen
+preguntas redundantes, emparejamiento de unidad/serie y cobertura de investigaciones
+bloqueadas, y se mejora la guía de series de un punto. La repetición dirigida
+acepta 18/18 y las correcciones del propietario 3/3; la recuperación real conserva
+las respuestas y la evidencia. Pasan 141 pruebas. La ronda queda completada y
+permite ampliar por escenarios; no equivale a aceptación general del MVP.
+DR-019 sigue parcialmente mitigado: hay intentos innecesarios recuperables.
+Ver [validación completa](../validation/2026-09-22-luna-validation.md) e
+[incidencias](../validation/known-agent-errors.md).

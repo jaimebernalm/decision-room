@@ -5,7 +5,7 @@ import unittest
 
 from decision_room.execution_contract import validate_result
 from decision_room.series import validate_series
-from decision_room.agent.review_contract import checks, validate
+from decision_room.agent.review_contract import checks, validate, validate_coverage
 from decision_room.agent.review_context import approval_digest
 from decision_room.client_report import render_client
 from test_client_report import sample
@@ -29,6 +29,42 @@ def report():
 
 
 class SeriesTests(unittest.TestCase):
+    def test_short_series_diagnostic_does_not_suggest_further_aggregation(self):
+        for count in (0, 1):
+            s = example(); s['daily']['points'] = s['daily']['points'][:count]
+            with self.assertRaisesRegex(ValueError, rf'daily.*{count}.*scalar'):
+                validate_series(s, {'sales': {}})
+        s = example(); s['daily']['points'] *= 184
+        with self.assertRaisesRegex(ValueError, 'aggregate'):
+            validate_series(s, {'sales': {}})
+
+    def test_blocked_coverage_can_explain_a_limit_but_cannot_claim_an_answer(self):
+        context = {'plan': {'investigations': [
+            {'key': 'units', 'status': 'ready'},
+            {'key': 'money', 'status': 'blocked'},
+            {'key': 'profit', 'status': 'not_possible'}]}}
+        answered = {'investigation_key': 'units', 'status': 'answered',
+                    'claim_keys': ['quantity'], 'explanation': 'Known units.'}
+        unavailable = {'investigation_key': 'money', 'status': 'unavailable',
+                       'claim_keys': [], 'explanation': 'Owner does not know amount basis.'}
+        draft = {'claims': [{'key': 'quantity'}], 'question_coverage': [answered]}
+        validate_coverage(draft, context)
+        draft['question_coverage'].append(unavailable)
+        validate_coverage(draft, context)
+        draft['question_coverage'].append(dict(unavailable, investigation_key='profit'))
+        validate_coverage(draft, context)
+        for entries in ([unavailable], [answered, answered],
+                        [answered, dict(unavailable, investigation_key='foreign')],
+                        [answered, dict(unavailable, status='answered', claim_keys=['quantity'])],
+                        [answered, dict(unavailable, claim_keys=['quantity'])]):
+            with self.subTest(entries=entries), self.assertRaises(ValueError):
+                validate_coverage(dict(draft, question_coverage=entries), context)
+        # No ready work does not permit claiming that blocked work was answered.
+        context['plan']['investigations'] = context['plan']['investigations'][1:]
+        validate_coverage(dict(draft, question_coverage=[unavailable]), context)
+        with self.assertRaises(ValueError):
+            validate_coverage(dict(draft, question_coverage=[dict(unavailable, status='answered', claim_keys=['quantity'])]), context)
+
     def test_saved_output_accepts_series_and_preserves_old_results(self):
         data = sample()['observations'][0]['result']
         data.update(schema_version=1, notes=[])
