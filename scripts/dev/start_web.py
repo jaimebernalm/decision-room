@@ -9,9 +9,12 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def main():
+    sys.path.insert(0, str(ROOT))
+    from decision_room.local_env import load_env
+    load_env(ROOT / '.env')
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--model', default=os.environ.get('DECISION_ROOM_AGENT_MODEL', 'qwen3.8-27b-splash'),
-                        help='Installed LM Studio model; defaults to the model used by this project.')
+                        help='Model identifier; defaults to the local .env or the project local model.')
     parser.add_argument('--port', type=int, default=8787)
     parser.add_argument('--no-open', action='store_true')
     args = parser.parse_args()

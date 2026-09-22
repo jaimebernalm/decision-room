@@ -35,8 +35,12 @@ Cerrar el navegador no detiene el servidor. Si el puerto pertenece a otra
 aplicación, utiliza otro, por ejemplo `--port 8788`. El lanzador no detiene el
 proceso que ya está escuchando.
 
-Los parámetros de proveedor siguen siendo los del [agente](agent.md). No se
-cargan automáticamente archivos `.env`. Sin modelo configurado se puede abrir
+Los parámetros de proveedor siguen siendo los del [agente](agent.md).
+`scripts/dev/start_web.py` carga el archivo privado `.env` del proyecto; las
+variables ya exportadas en el proceso tienen prioridad. Los comandos directos
+`python -m decision_room...` requieren exportar las variables explícitamente.
+Para OpenAI, consultar la [configuración del proveedor](agent.md#openai).
+Sin modelo configurado se puede abrir
 la interfaz y preparar un borrador, pero no iniciar análisis.
 
 El acceso inicial usa una clave generada en el almacenamiento privado

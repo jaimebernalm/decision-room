@@ -207,3 +207,10 @@ recuperación tras reiniciar el servidor, informe con gráficos y evidencia, y s
 retirada tras la detección independiente de DR-015. La aplicación queda utilizable
 para explorar la experiencia; no se acepta la calidad analítica ni se habilita el
 piloto comercial. Ver [validación](../validation/2026-09-22-web-check.md).
+
+**Prueba de proveedor, 22 de septiembre de 2026:** integración OpenAI con GPT-6
+Luna y recorrido web real sobre ventas diarias. Las 127 pruebas automatizadas
+pasan. El resumen coincide con las cifras independientes; la suma de llamadas
+al modelo baja a 72,27 segundos frente a 1.007,90 del recorrido local anterior,
+con menor contenido y sin gráfico. Esta prueba única no sustituye la matriz de
+1.7 ni cierra su aceptación. Ver [comparación y límites](../validation/2026-09-22-openai-check.md).

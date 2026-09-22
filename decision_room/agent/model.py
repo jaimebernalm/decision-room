@@ -46,19 +46,22 @@ class ModelSettings:
         url = urlsplit(self.base_url)
         if not self.model or len(self.model) > 200:
             raise ValueError('Set DECISION_ROOM_AGENT_MODEL or --model to an installed model ID.')
-        if self.protocol not in ('lmstudio', 'lmstudio_structured', 'chat_completions') or self.reasoning not in ('off', 'on', 'low', 'medium', 'high'):
+        if self.protocol not in ('lmstudio', 'lmstudio_structured', 'chat_completions', 'openai') or self.reasoning not in ('off', 'on', 'low', 'medium', 'high'):
             raise ValueError('Unsupported model protocol or reasoning setting.')
         if url.scheme not in ('http', 'https') or not url.hostname or url.username or url.password or url.query or url.fragment:
             raise ValueError('Invalid model API base URL. Credentials belong in the environment.')
         if url.scheme == 'http' and url.hostname not in ('127.0.0.1', 'localhost', '::1'):
             raise ValueError('Remote model endpoints require HTTPS.')
+        if self.protocol == 'openai' and (url.scheme, url.netloc, url.path.rstrip('/')) != ('https', 'api.openai.com', '/v1'):
+            raise ValueError('The openai protocol requires https://api.openai.com/v1.')
         if not 1 <= self.timeout_seconds <= 300 or not 256 <= self.max_output_tokens <= 16384:
             raise ValueError('Model timeout or output budget outside allowed limits.')
 
     @classmethod
     def load(cls, model=None):
         protocol = os.environ.get('DECISION_ROOM_AGENT_PROTOCOL', 'lmstudio_structured')
-        default_url = 'http://127.0.0.1:1234/api/v1' if protocol == 'lmstudio' else 'http://127.0.0.1:1234/v1'
+        default_url = ('https://api.openai.com/v1' if protocol == 'openai' else
+                       'http://127.0.0.1:1234/api/v1' if protocol == 'lmstudio' else 'http://127.0.0.1:1234/v1')
         return cls(model=model or os.environ.get('DECISION_ROOM_AGENT_MODEL', ''), protocol=protocol,
                    reasoning=os.environ.get('DECISION_ROOM_AGENT_REASONING', 'off'),
                    timeout_seconds=int(os.environ.get('DECISION_ROOM_AGENT_TIMEOUT', '180')),
@@ -259,6 +262,11 @@ class ModelClient:
                    'response_format': {'type': 'json_schema', 'json_schema': {
                        'name': 'decision_room_action', 'strict': True, 'schema': schema}}}
         endpoint = '/chat/completions'
+        if self.settings.protocol == 'openai':
+            payload.pop('temperature')
+            payload['max_completion_tokens'] = payload.pop('max_tokens')
+            payload['reasoning_effort'] = {'off': 'none', 'on': 'medium'}.get(self.settings.reasoning, self.settings.reasoning)
+            payload['store'] = False
         if self.settings.protocol == 'lmstudio_structured':
             # LM Studio compatibility API: schema-constrained output plus the
             # per-request reasoning switch, verified against the local server.
@@ -273,8 +281,11 @@ class ModelClient:
                        'reasoning': self.settings.reasoning, 'store': False, 'temperature': 0,
                        'max_output_tokens': self.settings.max_output_tokens}
         headers = {}
-        if key := os.environ.get('DECISION_ROOM_AGENT_API_KEY'):
+        key_name = 'OPENAI_API_KEY' if self.settings.protocol == 'openai' else 'DECISION_ROOM_AGENT_API_KEY'
+        if key := os.environ.get(key_name):
             headers['Authorization'] = 'Bearer ' + key
+        elif self.settings.protocol == 'openai':
+            raise ValueError('Set OPENAI_API_KEY in the private environment before using OpenAI.')
         try:
             # No proxy inheritance, redirects or automatic retries of billable calls.
             with httpx.Client(timeout=self.settings.timeout_seconds, trust_env=False) as client:
