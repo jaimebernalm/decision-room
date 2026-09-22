@@ -11,7 +11,7 @@ from psycopg.types.json import Jsonb
 
 from .. import service as ingestion
 from ..agent import service as planning, research, review
-from ..agent.model import ModelClient, ModelSettings
+from ..agent.model import ModelAPIError, ModelClient, ModelSettings
 from ..client_report import render_client
 from ..database import connect
 from ..execution import recover_executions
@@ -19,6 +19,25 @@ from ..storage import Storage
 
 MAX_UPLOAD = 20 * 1024**2
 LOG = logging.getLogger(__name__)
+
+
+def failure_message(error):
+    # Agent services wrap failures to persist stage diagnostics. Inspect the
+    # original typed exception, never copy arbitrary exception/server text to UI.
+    seen = set()
+    while error is not None and id(error) not in seen:
+        seen.add(id(error))
+        if isinstance(error, ModelAPIError):
+            return (
+                f'El servidor del modelo rechazó la petición (HTTP {error.status_code}). '
+                'Tus datos y respuestas están guardados. Revisa el estado del modelo en LM Studio '
+                'o en el servidor configurado. Si el motor ha fallado o no tiene memoria suficiente, '
+                'recupéralo antes de reintentar. Reintentar aquí reanuda el análisis, pero no reinicia el modelo.'
+            )
+        error = error.__cause__ or error.__context__
+    return ('El análisis se ha interrumpido. Tus datos y respuestas están guardados. '
+            'Comprueba que el modelo local y el motor de análisis están disponibles y reintenta '
+            'para continuar desde el último paso guardado.')
 
 
 class WebError(ValueError):
@@ -316,10 +335,10 @@ class Workspace:
                 self.update(job_id, status='waiting')
             else:
                 self.update(job_id, status='blocked', issue='La revisión no ha aprobado un informe para entregar. Tus archivos y respuestas siguen guardados. Puedes iniciar otro análisis con una pregunta más acotada.')
-        except Exception:
+        except Exception as error:
             LOG.exception('Web job %s failed', job_id)
             self.sync(job_id)
-            self.update(job_id, status='failed', issue='El análisis se ha interrumpido. Tus datos y respuestas están guardados. Comprueba que el modelo local y el motor de análisis están disponibles y reintenta para continuar desde el último paso guardado.')
+            self.update(job_id, status='failed', issue=failure_message(error))
 
     def work_once(self):
         # Session lock survives individual commits and prevents two workers claiming work.

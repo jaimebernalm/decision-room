@@ -15,7 +15,7 @@ from psycopg.conninfo import make_conninfo
 from decision_room.config import Config
 from decision_room.database import connect, migrate
 from decision_room.agent import review
-from decision_room.agent.model import ModelSettings, ModelRequestUncertain
+from decision_room.agent.model import ModelAPIError, ModelSettings, ModelRequestUncertain
 from decision_room.web.server import Server
 from decision_room.web.service import Workspace, WebError, MAX_UPLOAD
 from test_agent import ScriptedModel
@@ -265,6 +265,26 @@ class WebTests(unittest.TestCase):
         self.assertTrue(self.ws.row(job)['retry_uncertain'])
         with self.assertRaises(WebError):
             self.ws.retry(job)
+
+    def test_model_rejection_in_review_is_explained_and_retry_keeps_progress(self):
+        job = self.create()
+        self.ws.run_job(job)
+        self.answer(job)
+        with patch.object(WebModel, 'generate_analyst_review', side_effect=ModelAPIError(400)):
+            self.ws.run_job(job)
+        failed = self.ws.row(job)
+        self.assertEqual(failed['status'], 'failed')
+        self.assertIn('HTTP 400', self.ws.detail(job)['issue'])
+        self.assertIn('no reinicia el modelo', self.ws.detail(job)['issue'])
+        self.assertIsNotNone(failed['review_id'])
+        self.assertFalse(self.ws.work_once())  # No repeated requests until explicit retry.
+        self.ws.retry(job)
+        self.ws.run_job(job)
+        resumed = self.ws.row(job)
+        self.assertEqual(resumed['status'], 'waiting')
+        for key in ('analysis_id', 'session_id', 'research_id', 'review_id'):
+            self.assertEqual(failed[key], resumed[key])
+        self.assertEqual(len(self.ws.detail(job)['answers']), 1)
 
     def test_missing_evidence_blocks_only_affected_report(self):
         job = self.complete()

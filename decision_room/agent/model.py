@@ -21,6 +21,14 @@ class ModelRequestUncertain(ValueError):
     """The server may have processed a request whose response was not received."""
 
 
+class ModelAPIError(ValueError):
+    """An HTTP rejection with no untrusted response body in the diagnostic."""
+
+    def __init__(self, status_code):
+        self.status_code = status_code
+        super().__init__(f'Model API returned HTTP {status_code}; check its server logs.')
+
+
 @dataclass(frozen=True)
 class ModelSettings:
     model: str
@@ -228,7 +236,7 @@ class ModelClient:
                 with client.stream('POST', self.settings.base_url.rstrip('/') + endpoint,
                                    json=payload, headers=headers) as response:
                     if response.status_code != 200:
-                        raise ValueError(f'Model API returned HTTP {response.status_code}; check its server logs.')
+                        raise ModelAPIError(response.status_code)
                     body = bytearray()
                     for chunk in response.iter_bytes():
                         body.extend(chunk)

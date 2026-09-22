@@ -72,6 +72,13 @@ Los informes bloqueados, insuficiencia de datos y fallos técnicos se distinguen
 Un fallo ofrece reintento desde los checkpoints. Una revisión sin aprobación
 conserva el trabajo y explica que no se puede entregar un informe.
 
+Si el servidor del modelo rechaza una petición, la pantalla muestra el código
+HTTP sin exponer el contenido de su respuesta. El botón de reintento recupera
+el análisis guardado, pero no reinicia LM Studio. Si sus logs indican un motor
+averiado o memoria insuficiente, libera memoria y vuelve a cargar el modelo
+antes de reintentar. Que el modelo aparezca en la lista no garantiza que su
+motor esté respondiendo.
+
 ## Ejecución y recuperación
 
 `web_jobs` registra una clave idempotente de envío, contexto, archivo, identidades
