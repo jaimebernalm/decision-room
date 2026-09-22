@@ -29,6 +29,12 @@ DECISION_ROOM_AGENT_TIMEOUT=300 \
 ```
 
 Dirección predeterminada: `http://127.0.0.1:8787`. `--port` cambia el puerto.
+Si aparece «El puerto 8787 ya está en uso», puede que Decision Room siga
+funcionando desde un arranque anterior: abre esa dirección sin iniciar otra copia.
+Cerrar el navegador no detiene el servidor. Si el puerto pertenece a otra
+aplicación, utiliza otro, por ejemplo `--port 8788`. El lanzador no detiene el
+proceso que ya está escuchando.
+
 Los parámetros de proveedor siguen siendo los del [agente](agent.md). No se
 cargan automáticamente archivos `.env`. Sin modelo configurado se puede abrir
 la interfaz y preparar un borrador, pero no iniciar análisis.

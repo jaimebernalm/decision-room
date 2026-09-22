@@ -1,7 +1,9 @@
 """Start the local owner workspace without exposing it to the network."""
 import argparse
+import errno
 import logging
 import os
+import sys
 import threading
 import webbrowser
 
@@ -28,7 +30,17 @@ def main():
     except ValueError:
         settings = None
     workspace = Workspace(config, settings)
-    server = Server(workspace, args.port)
+    try:
+        server = Server(workspace, args.port)
+    except OSError as exc:
+        if exc.errno != errno.EADDRINUSE:
+            raise
+        sys.exit(
+            f'El puerto {args.port} ya está en uso.\n'
+            f'Si Decision Room ya está funcionando, abre http://127.0.0.1:{args.port}/\n'
+            'No hace falta arrancarlo otra vez. Si el puerto lo ocupa otra aplicación, '
+            'elige otro con --port.'
+        )
     thread = threading.Thread(target=workspace.worker, name='decision-room-worker', daemon=True)
     thread.start()
     print(f'Decision Room: {server.origin}', flush=True)
