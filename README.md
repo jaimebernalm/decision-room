@@ -164,3 +164,8 @@ arbitrary SQL Server backups. SQL Server is not installed or run by these script
 Client reports and internal execution logs are separate exports. See the
 [client report guide](docs/technical/client-report.md) for chart provenance,
 business explanations and publication rules (step 1.6).
+
+The [step 1.7 evaluation runner](docs/technical/evaluation-plan.md) executes the
+complete pipeline against eight scenarios with three repetitions, retains failures
+and requires an independent numeric and semantic assessment before acceptance.
+Generated batches and reports stay under ignored local storage.

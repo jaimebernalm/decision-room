@@ -73,6 +73,19 @@ def material(config, db, session, run):
 def model_context(materialized, role):
     context = deepcopy(materialized)
     context['role'] = role
+    # Keep every turn and every distinct payload, but send identical code/report
+    # only once. Explicit references point to full objects in this same request;
+    # this is lossless deduplication, not a generated memory summary.
+    observations = {item['execution_id']: item for item in context['observations']}
+    for event in context['conversation']:
+        action = event['action']
+        observed = observations.get(event.get('execution_id'))
+        if action.get('code') and observed and action['code'] == observed['code']:
+            action['code'] = ''
+            event['code_reference'] = {'execution_id': event['execution_id'], 'field': 'observations.code'}
+        if action.get('report') is not None and action['report'] == context['report']:
+            action['report'] = None
+            event['report_reference'] = 'report'
     for item in context['observations']:
         item['logs'] = {k: v[-3000:] if isinstance(v, str) else v for k, v in item['logs'].items()}
         item['logs_may_be_truncated'] = True

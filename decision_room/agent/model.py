@@ -1,6 +1,7 @@
 """A replaceable model boundary. No model access from the Python sandbox."""
 import json
 import os
+from copy import deepcopy
 from dataclasses import asdict, dataclass
 from urllib.parse import urlsplit
 
@@ -33,7 +34,7 @@ class ModelSettings:
         url = urlsplit(self.base_url)
         if not self.model or len(self.model) > 200:
             raise ValueError('Set DECISION_ROOM_AGENT_MODEL or --model to an installed model ID.')
-        if self.protocol not in ('lmstudio', 'chat_completions') or self.reasoning not in ('off', 'on', 'low', 'medium', 'high'):
+        if self.protocol not in ('lmstudio', 'lmstudio_structured', 'chat_completions') or self.reasoning not in ('off', 'on', 'low', 'medium', 'high'):
             raise ValueError('Unsupported model protocol or reasoning setting.')
         if url.scheme not in ('http', 'https') or not url.hostname or url.username or url.password or url.query or url.fragment:
             raise ValueError('Invalid model API base URL. Credentials belong in the environment.')
@@ -44,7 +45,7 @@ class ModelSettings:
 
     @classmethod
     def load(cls, model=None):
-        protocol = os.environ.get('DECISION_ROOM_AGENT_PROTOCOL', 'lmstudio')
+        protocol = os.environ.get('DECISION_ROOM_AGENT_PROTOCOL', 'lmstudio_structured')
         default_url = 'http://127.0.0.1:1234/api/v1' if protocol == 'lmstudio' else 'http://127.0.0.1:1234/v1'
         return cls(model=model or os.environ.get('DECISION_ROOM_AGENT_MODEL', ''), protocol=protocol,
                    reasoning=os.environ.get('DECISION_ROOM_AGENT_REASONING', 'off'),
@@ -59,16 +60,122 @@ class ModelClient:
         self.identity = asdict(settings)
 
     def generate(self, context, correction=None):
-        return self._generate(context, correction, SYSTEM, Action.model_json_schema())
+        schema = Action.model_json_schema()
+        if 'uninspected_table_ids' in context:
+            self._table_choices(schema['properties']['table_ids'], context['uninspected_table_ids'])
+        if 'catalog' in context:
+            self._table_choices(schema['$defs']['Investigation']['properties']['table_ids'],
+                                [t['id'] for t in context['catalog']])
+        if context.get('uninspected_table_ids') == []:
+            # Small uploads are already profiled before the first model turn.
+            # Do not offer an impossible inspect action to constrained decoding.
+            schema['properties']['action']['enum'] = ['propose']
+            schema['properties']['table_ids']['maxItems'] = 0
+            schema['properties']['proposal'] = {'$ref': '#/$defs/Proposal'}
+        return self._generate(context, correction, SYSTEM, schema)
 
     def generate_research(self, context, correction=None):
-        return self._generate(context, correction, RESEARCH_SYSTEM, ResearchAction.model_json_schema())
+        schema = ResearchAction.model_json_schema()
+        if 'plan' in context:
+            finished = {f['investigation_key'] for f in context['findings']}
+            unfinished = [i['key'] for i in context['plan']['investigations']
+                          if i['status'] == 'ready' and i['key'] not in finished]
+            latest = {o['investigation_key']: o for o in context['observations']}
+            allowed = ['execute', 'block'] if unfinished else []
+            if any(latest.get(key, {}).get('status') == 'completed' for key in unfinished):
+                allowed.append('record_candidate')
+            if not (latest.keys() - finished):
+                allowed.append('finish')
+            if allowed:
+                schema['properties']['action']['enum'] = allowed
+                schema['properties']['investigation_key']['enum'] = unfinished + ([''] if 'finish' in allowed else [])
+                if allowed == ['finish']:
+                    for key in ('code', 'investigation_key'):
+                        schema['properties'][key]['enum'] = ['']
+                    for key in ('table_ids', 'metric_keys'):
+                        schema['properties'][key]['maxItems'] = 0
+            if 'table_catalog' in context:
+                authorized = {t['id'] for t in context['table_catalog']}
+                pending_tables = {table_id for item in context['plan']['investigations']
+                                  if item['key'] in unfinished for table_id in item['table_ids']}
+                self._table_choices(schema['properties']['table_ids'], authorized & pending_tables)
+        return self._generate(context, correction, RESEARCH_SYSTEM, schema)
 
     def generate_analyst_review(self, context, correction=None):
-        return self._generate(context, correction, ANALYST_SYSTEM, ReviewAction.model_json_schema())
+        schema = ReviewAction.model_json_schema()
+        schema['properties']['action']['enum'] = self._review_actions(context, 'analyst', ['submit', 'execute', 'ask_owner', 'withdraw'])
+        self._review_references(schema, context)
+        return self._generate(context, correction, ANALYST_SYSTEM, schema)
 
     def generate_reviewer(self, context, correction=None):
-        return self._generate(context, correction, REVIEWER_SYSTEM, ReviewAction.model_json_schema())
+        schema = ReviewAction.model_json_schema()
+        allowed = ['revise', 'reject', 'ask_owner', 'execute']
+        new_execution = any(e['step'] > context.get('report_step', 0) and e['action']['action'] == 'execute'
+                            for e in context.get('conversation', []))
+        if context.get('report') and all(c['passed'] for c in context.get('checks', [])) and not new_execution:
+            allowed.append('approve')
+        schema['properties']['action']['enum'] = self._review_actions(context, 'reviewer', allowed)
+        self._review_references(schema, context)
+        return self._generate(context, correction, REVIEWER_SYSTEM, schema)
+
+    @staticmethod
+    def _table_choices(field, identifiers):
+        if identifiers:
+            field['items']['enum'] = sorted(set(identifiers))
+        else:
+            field['maxItems'] = 0
+
+    @classmethod
+    def _review_references(cls, schema, context):
+        # Offer only the arity that each supported numerical operation accepts.
+        # A combined numerator must be a saved metric, not an extra ratio operand.
+        original_check = schema['$defs']['NumericCheck']
+        shapes = []
+        for operations, minimum, maximum in [(['zero', 'nonnegative'], 0, 0),
+                                              (['equal'], 1, 1), (['sum'], 1, 16),
+                                              (['percent_change', 'ratio_percent'], 2, 2)]:
+            branch = deepcopy(original_check)
+            branch['properties']['operation']['enum'] = operations
+            branch['properties']['operands'].update(minItems=minimum, maxItems=maximum)
+            shapes.append(branch)
+        schema['$defs']['NumericCheck'] = {'anyOf': shapes}
+        if 'tables' in context:
+            cls._table_choices(schema['properties']['table_ids'], [t['id'] for t in context['tables']])
+        if 'observations' not in context:
+            return
+        choices = []
+        original = schema['$defs']['MetricRef']
+        for item in context['observations']:
+            result = item.get('result')
+            if not item.get('current') or item['status'] != 'completed' or not result:
+                continue
+            evidenced = {e['metric'] for e in result.get('evidence', [])}
+            keys = sorted(set(result.get('metrics', {})) & evidenced)
+            if not keys:
+                continue
+            branch = deepcopy(original)
+            branch['properties']['execution_id']['enum'] = [item['execution_id']]
+            branch['properties']['metric']['enum'] = keys
+            choices.append(branch)
+        if choices:
+            # Keep each execution paired with its own saved metrics. This prevents
+            # invented references, not wrong labels or business interpretations.
+            schema['$defs']['MetricRef'] = {'anyOf': choices}
+        else:
+            # A draft needs evidence. Keep execute/question/withdraw available,
+            # without constructing an invalid empty union or inventing a sentinel ID.
+            schema['properties']['report'] = {'type': 'null'}
+            schema['properties']['action']['enum'] = [action for action in schema['properties']['action']['enum']
+                                                     if action not in ('submit', 'approve')]
+
+    @staticmethod
+    def _review_actions(context, role, allowed):
+        budgets = context.get('budgets', {})
+        if budgets.get('python_used', {}).get(role, 0) >= budgets.get('max_python_per_role', 3):
+            allowed.remove('execute')
+        if budgets.get('questions_used', 0) >= budgets.get('max_questions', 3):
+            allowed.remove('ask_owner')
+        return allowed
 
     @staticmethod
     def _action(content):
@@ -99,6 +206,10 @@ class ModelClient:
                    'response_format': {'type': 'json_schema', 'json_schema': {
                        'name': 'decision_room_action', 'strict': True, 'schema': schema}}}
         endpoint = '/chat/completions'
+        if self.settings.protocol == 'lmstudio_structured':
+            # LM Studio compatibility API: schema-constrained output plus the
+            # per-request reasoning switch, verified against the local server.
+            payload['reasoning_effort'] = {'off': 'none', 'on': 'high'}.get(self.settings.reasoning, self.settings.reasoning)
         if self.settings.protocol == 'lmstudio':
             # Native API exposes the model's documented reasoning control. JSON is
             # validated by our contract; no grammar guarantee is claimed here.

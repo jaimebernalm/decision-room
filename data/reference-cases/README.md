@@ -1,9 +1,9 @@
 # Small reference cases
 
 These three examples define a small, checkable first target for Decision Room.
-They are evaluation inputs, not mandatory customer templates. The analyst and
-analysis runner have not been implemented, so passing the data checks below
-does not establish agent performance.
+They are evaluation inputs, not mandatory customer templates. The integrated analyst, reviewer and evaluation runner are now implemented.
+Passing the data checks below still does not establish agent performance; see
+the [evaluation procedure](../../docs/technical/evaluation-plan.md).
 
 The cases derive from Microsoft's fictional Wide World Importers wholesaler:
 April 1–28, 2016, products 1–8, excluding invoices flagged as credit notes.
@@ -25,7 +25,7 @@ Each directory contains:
 - Case 3 also has `evaluation/owner-responses.json`, which the evaluator uses to answer the agent's question.
 
 Do not give the agent this README, provenance, the original database, answer keys
-or owner answers before it asks. In the future runner, expose only the chosen
+or owner answers before it asks. The evaluation runner exposes only the chosen
 case's inputs. Avoid testing an agent with unrestricted access to this repo:
 it could read the answers. Cases 1 and 2 describe the same underlying activity
 and must be run separately, not added together.
@@ -61,8 +61,8 @@ From the repository root:
 This reads the original source exports and recomputes the expected answers
 with SQLite and integer cents, separately from the Decimal-based preparation
 script. It verifies all six CSVs and the numerical answer keys. It does **not**
-grade an agent's report, questions or reasoning. Those checks are manual until
-the analysis runner exists.
+grade an agent's report, questions or reasoning. The integrated evaluation runner checks cited numeric results, while an explicit
+independent assessment still reviews semantics and usefulness.
 
 ## Rebuild
 

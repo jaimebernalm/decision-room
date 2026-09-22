@@ -40,18 +40,28 @@ lms ps
 export DECISION_ROOM_AGENT_MODEL=qwen3.8-27b-splash
 ```
 
-El modelo del ejemplo debe estar instalado y cargado en LM Studio. Se usa su API
-nativa `http://127.0.0.1:1234/api/v1/chat` con `reasoning=off` y `store=false`.
-Se solicita JSON mediante el esquema y se valida en Python; esta ruta no promete
-muestreo restringido por gramática. La opción de razonamiento se aplica a cada
-petición, no cambia la configuración general del usuario. El modelo tiene que
-admitirla: consultar sus capacidades en `/api/v1/models`.
+El modelo del ejemplo debe estar instalado y cargado en LM Studio. El protocolo
+predeterminado `lmstudio_structured` usa `/v1/chat/completions`, JSON Schema y
+`reasoning_effort: none` cuando se configura `DECISION_ROOM_AGENT_REASONING=off`.
+La prueba local del paso 1.7 confirmó respuestas estructuradas con cero tokens de
+razonamiento. El formato no garantiza exactitud semántica. El protocolo nativo
+`lmstudio` sigue disponible con `/api/v1` y su control `reasoning`, pero únicamente
+valida el JSON recibido; no promete gramática restringida. Las sesiones existentes
+conservan su transporte y configuración originales.
+
+El [evaluador del paso 1.7](evaluation-plan.md) añade escenarios repetidos,
+referencias independientes y controles de acciones, identificadores y evidencia
+según el estado real de la sesión. Sus resúmenes separan aprobación del modelo
+y aceptación independiente.
 
 Esta configuración permite reproducir las pruebas locales; no es una recomendación
 de calidad. Consultar el [fallo semántico observado](../validation/2026-09-21-agent-check.md)
 antes de usar sus propuestas. `DECISION_ROOM_AGENT_TIMEOUT` permite ajustar el
 timeout entre 1 y 300 segundos; `DECISION_ROOM_AGENT_MAX_OUTPUT_TOKENS`, entre 256
-y 16.384 tokens. Los valores se conservan por sesión.
+y 16.384 tokens. Los valores se conservan por sesión. La evaluación local del
+paso 1.7 usa `DECISION_ROOM_AGENT_TIMEOUT=300`; el valor predeterminado sin
+configuración sigue siendo 180 s. Exportar explícitamente 300 para reproducir
+esa configuración con la CLI.
 
 Para un endpoint que implemente Chat Completions y JSON Schema:
 
@@ -65,7 +75,9 @@ La credencial opcional se lee de `DECISION_ROOM_AGENT_API_KEY`. Configurar su va
 fuera de Git. No se guarda en sesiones, checkpoints ni prompts. No se ha validado
 un proveedor externo con este proyecto: algunos requieren adaptar parámetros,
 autenticación o formato. Cambiar de modelo exige una nueva sesión y evaluación.
-`DECISION_ROOM_AGENT_REASONING` solo se aplica al protocolo nativo de LM Studio.
+`DECISION_ROOM_AGENT_REASONING` se aplica a `lmstudio` y `lmstudio_structured`.
+El protocolo genérico `chat_completions` no envía un parámetro de razonamiento
+específico del proveedor.
 
 El cliente del modelo vive en la aplicación, fuera del sandbox de Python sin red.
 Un servicio comercial puede usar un proveedor externo o alojar el modelo en un

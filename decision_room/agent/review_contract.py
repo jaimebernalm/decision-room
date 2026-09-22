@@ -1,6 +1,7 @@
 """Typed dialogue and mechanical evidence checks; never proof of business meaning."""
+import re
 from datetime import date
-from decimal import Decimal, InvalidOperation, localcontext
+from decimal import Decimal, InvalidOperation, localcontext, ROUND_HALF_UP
 from typing import Literal
 
 from pydantic import Field
@@ -48,7 +49,7 @@ class Chart(Strict):
 
 class NumericCheck(Strict):
     key: str = Field(pattern=r'^[a-z][a-z0-9_]{0,63}$')
-    operation: Literal['equal', 'sum', 'percent_change', 'zero', 'nonnegative']
+    operation: Literal['equal', 'sum', 'percent_change', 'ratio_percent', 'zero', 'nonnegative']
     actual: MetricRef
     operands: list[MetricRef] = Field(max_length=16)
     tolerance: str = Field(pattern=r'^0(?:\.\d{1,8})?$')
@@ -123,6 +124,7 @@ def checks(report, observations):
             result.append({'check': 'chart:' + chart['key'], 'passed': True, 'detail': 'Chart values resolve to finite, current saved metrics.'})
         except (ValueError, InvalidOperation, ArithmeticError) as error:
             result.append({'check': 'chart:' + chart['key'], 'passed': False, 'detail': str(error)})
+    verified_percentages = set()
     for check in report['checks']:
         try:
             with localcontext() as ctx:
@@ -143,15 +145,49 @@ def checks(report, observations):
                     if not values or (len(values) == 1 and check['actual'] == check['operands'][0]):
                         raise ValueError('sum needs operands other than just the same metric.')
                     expected = sum(values)
+                elif check['operation'] == 'ratio_percent':
+                    if len(values) != 2 or not values[1]:
+                        raise ValueError('ratio_percent requires [part, whole], with nonzero whole.')
+                    expected = values[0] / values[1] * 100
                 else:
                     if len(values) != 2 or not values[0]:
                         raise ValueError('percent_change requires [before, after], with nonzero before.')
                     expected = (values[1] - values[0]) / values[0] * 100
                 passed = (actual >= -Decimal(check['tolerance']) if check['operation'] == 'nonnegative'
                           else abs(actual - expected) <= Decimal(check['tolerance']))
+                if passed and check['operation'] in ('percent_change', 'ratio_percent'):
+                    # Compare displayed text against recomputed arithmetic, not merely
+                    # a stored value that passed an overly generous declared tolerance.
+                    verified_percentages.add(expected)
             result.append({'check': check['key'], 'passed': passed, 'detail': f'Actual {actual}; recomputed {expected}.'})
         except (ValueError, InvalidOperation, ArithmeticError) as error:
             result.append({'check': check['key'], 'passed': False, 'detail': str(error)})
+    def prose(value):
+        if isinstance(value, str):
+            yield value
+        elif isinstance(value, dict):
+            for item in value.values(): yield from prose(item)
+        elif isinstance(value, list):
+            for item in value: yield from prose(item)
+    for text in prose({k:v for k,v in report.items() if k != 'checks'}):
+        for match in re.finditer(r'(?<![\w.,])([-+]?\d[\d.,]*)\s*%', text):
+            raw = match.group(1)
+            if ',' in raw and '.' in raw:
+                decimal = ',' if raw.rfind(',') > raw.rfind('.') else '.'
+                raw = raw.replace('.' if decimal == ',' else ',', '').replace(decimal, '.')
+            else:
+                raw = raw.replace(',', '.')
+            try:
+                with localcontext() as ctx:
+                    ctx.prec = 120
+                    value = Decimal(raw)
+                    precision = Decimal(1).scaleb(value.as_tuple().exponent)
+                    passed = any(value == expected.quantize(precision, rounding=ROUND_HALF_UP)
+                                 for expected in verified_percentages)
+            except InvalidOperation:
+                passed = False
+            result.append({'check': 'percentage_text', 'passed': passed,
+                           'detail': match.group(0) + ': requires a matching recomputed percent_change/ratio_percent check.'})
     return result
 
 

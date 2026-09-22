@@ -108,7 +108,7 @@ def check(directory):
     db.close()
     print(f'PASS: 3 reference cases, 3 variants, source provenance and all numerical answer keys.')
     print(f'Recorded sales excluding tax: {cash(total)}; ambiguous amount: {cash(unit_total)} or {cash(row_total)} depending on the answer.')
-    print('Agent behaviour has not been tested: the analysis runner is not implemented yet.')
+    print('This command checks fixture data only. Run decision_room.evaluation.runner and independently assess its reports to evaluate agent behaviour.')
 
 
 if __name__ == '__main__':

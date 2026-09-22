@@ -11,7 +11,7 @@ from .persistence import model_call, answers
 from .review_context import approval_digest, material, model_context
 from .review_contract import validate
 
-REVIEW_GRAPH_VERSION = 'review-v5'
+REVIEW_GRAPH_VERSION = 'review-v7'
 
 
 class ReviewState(TypedDict):

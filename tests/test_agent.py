@@ -241,7 +241,7 @@ from decision_room.config import Config
         ids = [t['id'] for t in source['tables']]
         context = model_context(source, ids, [], None)
         output, _ = self.model.generate(context)
-        for protocol in ('lmstudio', 'chat_completions'):
+        for protocol in ('lmstudio', 'lmstudio_structured', 'chat_completions'):
             captured = []
             def handler(request):
                 captured.append(json.loads(request.content))
@@ -260,6 +260,10 @@ from decision_room.config import Config
                 self.assertEqual(captured[0]['reasoning'], 'off')
             else:
                 self.assertEqual(captured[0]['response_format']['type'], 'json_schema')
+                if protocol == 'lmstudio_structured':
+                    self.assertEqual(captured[0]['reasoning_effort'], 'none')
+                else:
+                    self.assertNotIn('reasoning_effort', captured[0])
         client = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(401, text='do not echo server secrets')))
         with patch('decision_room.agent.model.httpx.Client', return_value=client):
             with self.assertRaisesRegex(ValueError, 'HTTP 401') as error:
