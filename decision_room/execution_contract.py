@@ -5,6 +5,7 @@ import math
 import re
 
 from .docker_backend import LIMITS
+from .series import validate_series
 
 
 def strict_json(raw):
@@ -27,7 +28,7 @@ def strict_json(raw):
 
 def validate_result(raw, tables):
     result = strict_json(raw)
-    if not isinstance(result, dict) or set(result) != {'schema_version', 'metrics', 'evidence', 'notes'} or type(result['schema_version']) is not int or result['schema_version'] != 1:
+    if not isinstance(result, dict) or set(result) - {'schema_version', 'metrics', 'evidence', 'notes', 'series'} or not {'schema_version', 'metrics', 'evidence', 'notes'} <= set(result) or type(result['schema_version']) is not int or result['schema_version'] != 1:
         raise ValueError('Invalid result schema.')
     metrics, evidence, notes = result['metrics'], result['evidence'], result['notes']
     if not isinstance(metrics, dict) or not 1 <= len(metrics) <= 256:
@@ -64,6 +65,7 @@ def validate_result(raw, tables):
         raise ValueError('Every metric must have evidence. Missing: ' + missing)
     if not isinstance(notes, list) or len(notes) > 100 or any(not isinstance(n, str) or len(n) > 4000 for n in notes):
         raise ValueError('Invalid notes.')
+    validate_series(result.get('series', {}), tables)
     return {'verification': 'pending', **result}
 
 

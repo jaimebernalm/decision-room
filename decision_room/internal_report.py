@@ -37,6 +37,11 @@ def render(data, exported_at):
         for check in data['checks']:
             body.append(f'<li><strong>{"Correcta" if check["passed"] else "Pendiente"}</strong> · {e(check["check"])}: {e(check["detail"])}</li>')
         body.append('</ul><p>Estas comprobaciones no prueban por sí solas el significado de los datos.</p></details>')
+        if draft.get('question_coverage'):
+            body.append('<details><summary>Cobertura de las preguntas del análisis</summary><ul>')
+            for entry in draft['question_coverage']:
+                body.append(f'<li>{e(entry["investigation_key"])} · {e(entry["status"])}: {e(entry["explanation"])}</li>')
+            body.append('</ul></details>')
     body.append('<section><h2>Evidencia y cálculos</h2><p class="muted">Código, métricas y operaciones guardadas. Los resultados obsoletos se conservan para explicar el recorrido.</p>')
     for observation in data['observations']:
         payload = observation['result'] or {}
@@ -48,7 +53,13 @@ def render(data, exported_at):
         body.append('</tbody></table><h3>Operaciones y fuentes</h3><ul>')
         for item in payload.get('evidence', []):
             body.append(f'<li>{e(item["metric"])} · {e(", ".join(item["tables"]))}: {e(item["operation"])}</li>')
-        body.append('</ul><h3>Archivos utilizados</h3><ul>')
+        body.append('</ul>')
+        for key, series in payload.get('series', {}).items():
+            body.append(f'<details><summary>Serie {e(key)} · {len(series["points"])} valores · {e(series["unit"])}</summary>'
+                        f'<p>{e(series["evidence"]["operation"])}</p><table><thead><tr><th>Referencia</th><th>Valor guardado</th></tr></thead><tbody>')
+            body.extend(f'<tr><td>{e(p["label"])}</td><td>{e(p["value"])}</td></tr>' for p in series['points'])
+            body.append('</tbody></table></details>')
+        body.append('<h3>Archivos utilizados</h3><ul>')
         for alias, item in observation['inputs'].items():
             body.append(f'<li>{e(alias)} · {e(", ".join(item["original_names"]))} · {e(item["row_count"])} filas · SHA-256 {e(item["parquet_sha256"])}</li>')
         body.append(f'</ul><h3>Python guardado</h3><pre><code>{e(observation["code"])}</code></pre>')

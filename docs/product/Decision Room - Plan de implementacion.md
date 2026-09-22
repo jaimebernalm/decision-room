@@ -214,3 +214,11 @@ pasan. El resumen coincide con las cifras independientes; la suma de llamadas
 al modelo baja a 72,27 segundos frente a 1.007,90 del recorrido local anterior,
 con menor contenido y sin gráfico. Esta prueba única no sustituye la matriz de
 1.7 ni cierra su aceptación. Ver [comparación y límites](../validation/2026-09-22-openai-check.md).
+
+**Ampliación visual de entrega 2, 22 de septiembre de 2026:** series con evidencia
+guardadas desde Python, tarjetas y gráficos integrados, cobertura explícita de las
+investigaciones y revisión de utilidad. La prueba real con GPT-6 Luna sobre 36.331
+líneas y 219 productos produjo dos gráficos contrastados con referencias
+independientes en 72,82 segundos; el revisor devolvió el primer borrador y aprobó
+su corrección. Una prueba dirigida también rechazó un informe temporal incompleto.
+La aceptación general de 1.7 sigue abierta. Ver [validación y límites](../validation/2026-09-22-visual-report-check.md).

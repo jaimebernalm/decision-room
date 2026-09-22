@@ -183,6 +183,25 @@ class ModelClient:
 
     @classmethod
     def _review_references(cls, schema, context):
+        # Runtime defaults retain old reports; model output supplies all fields.
+        for name in ('ReportDraft', 'Chart'):
+            definition = schema['$defs'][name]
+            definition['required'] = list(definition['properties'])
+            for field in definition['properties'].values():
+                field.pop('default', None)
+        series_choices = []
+        for item in context.get('observations', []):
+            if item.get('current') and item['status'] == 'completed' and item.get('result') and not item.get('result_omitted'):
+                keys = sorted(item['result'].get('series', {}))
+                if keys:
+                    branch = deepcopy(schema['$defs']['SeriesRef'])
+                    branch['properties']['execution_id']['enum'] = [item['execution_id']]
+                    branch['properties']['series']['enum'] = keys
+                    series_choices.append(branch)
+        if series_choices:
+            schema['$defs']['SeriesRef'] = {'anyOf': series_choices}
+        else:
+            schema['$defs']['Chart']['properties']['series'] = {'type': 'null'}
         # Offer only the arity that each supported numerical operation accepts.
         # A combined numerator must be a saved metric, not an extra ratio operand.
         original_check = schema['$defs']['NumericCheck']

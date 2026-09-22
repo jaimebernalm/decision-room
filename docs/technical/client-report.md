@@ -33,12 +33,19 @@ ni conclusiones nuevas después de la aprobación.
 
 ## Gráficos y tablas
 
-Componentes disponibles: barras, líneas diarias y tablas. Cada punto contiene una
-referencia `{execution_id, metric}`, nunca un valor numérico escrito por el modelo.
+Componentes disponibles: tarjetas de cifras, barras, líneas diarias y tablas.
+Las tarjetas (`highlights`) referencian una métrica y un hallazgo. Los gráficos
+aparecen antes de los hallazgos y enlazan con su explicación y evidencia.
+Cada gráfico puede referenciar una serie completa mediante
+`series: {execution_id, series}`, con `points: []`. La aplicación conserva todos
+sus valores, etiquetas y unidad. Alternativamente, cada punto contiene una
+referencia `{execution_id, metric}`, con `series: null`, nunca un valor numérico escrito por el modelo.
 La aplicación resuelve y formatea la cifra desde la evidencia vigente. Cada gráfico
 pertenece a un hallazgo y declara unidad, título y explicación de cobertura.
 
-Límites: cuatro gráficos, hasta 36 puntos por gráfico y 72 puntos en total. Las
+Límites: cuatro gráficos. Las referencias escalares admiten hasta 36 puntos por
+gráfico y 72 en total; las series diarias admiten hasta 366 puntos y las barras o
+tablas hasta 36 categorías/periodos. Las
 líneas requieren fechas ISO únicas y ordenadas; se respetan las distancias reales
 entre fechas y se interrumpe la línea cuando falta un día. Para intervalos mensuales
 u otros agregados, usar barras o tablas en esta versión. Las barras incluyen cero
@@ -50,6 +57,28 @@ gráfico. Las fuentes citadas solo por gráficos también entran en la huella de
 aprobación. La correspondencia semántica de una etiqueta, unidad o recomendación
 sigue necesitando revisión; la validación estructural no demuestra esa corrección.
 Si no hay una comparación útil, el analista explica por qué no incluye gráficos.
+Que una serie todavía no se haya calculado no justifica omitir una visualización
+útil cuando los datos permiten obtenerla. El revisor debe pedir que se complete.
+
+### Guardar series desde Python
+
+`write_result(metrics, evidence=evidence, notes=notes, series=series)` conserva
+las métricas escalares y añade opcionalmente un diccionario de series. Cada una
+incluye `unit`, `grain` (`day`, `month` o `category`), `points` con `label`/`value`
+y `evidence` con `tables`/`operation`. Las operaciones deben explicar agregación,
+filtros y selección. Los valores son finitos; las etiquetas son únicas y las
+fechas están ordenadas. Máximo cuatro series por ejecución, 366 puntos por serie
+y 800 puntos en total. No se truncan silenciosamente: se debe agregar en Python.
+Los contextos conservan resultados hasta 64 KB, dentro del límite global de 200 KB.
+Al actualizar desde la versión anterior, reconstruir la imagen con
+`.venv/bin/python scripts/dev/local_sandbox.py build` para incorporar el nuevo
+argumento `series` de `dr_runtime.write_result`, y reiniciar el servidor web
+cuando no haya análisis en ejecución.
+
+`question_coverage` vincula cada investigación lista con los hallazgos que la
+responden o documenta que no se puede responder. El controlador exige todas las
+claves y referencias; el revisor comprueba la correspondencia semántica y el
+objetivo original. La existencia de ese campo no demuestra por sí sola utilidad.
 
 El HTML usa SVG construido por la aplicación y tablas de valores accesibles por
 teclado. No admite SVG, HTML, URLs o JavaScript generados por el modelo. No necesita
@@ -58,9 +87,10 @@ accesibles, estilos móviles e impresión. No se añaden vídeos ni dashboard al
 
 ## Compatibilidad y archivos
 
-El grafo pasa a `review-v5` y los prompts a `review-v4`. Las revisiones anteriores
-permanecen para auditoría y requieren una nueva revisión para publicar este contrato;
-no se convierte una aprobación antigua en aprobación del contenido nuevo.
+Esta ampliación usa prompts `review-v9` y `research-v6`, sin cambiar la estructura
+del grafo. Los campos nuevos conservan valores vacíos por defecto para leer los
+informes anteriores. Las nuevas respuestas del modelo los incluyen explícitamente.
+No se convierte una aprobación antigua en aprobación del contenido nuevo.
 
 - `decision_room/agent/review_contract.py`: contenido y comprobaciones.
 - `decision_room/agent/review_prompts.py`: instrucciones de negocio y revisión.
@@ -69,9 +99,10 @@ no se convierte una aprobación antigua en aprobación del contenido nuevo.
 - `decision_room/internal_report.py`: presentación del registro interno.
 - `decision_room/report.py`: exportación privada de ambas vistas y JSON.
 - `tests/test_client_report.py`: publicación, trazabilidad y representación.
+- `decision_room/series.py` y `tests/test_series.py`: contrato de series y regresiones.
 
-La entrega 2 integrará estos resultados en el recorrido web de subida, preguntas y
-consulta. El informe del paso 1.6 ya debe ser comprensible sin esa aplicación.
+La entrega 2 integra estos resultados en el recorrido web de subida, preguntas y
+consulta. Ver la [prueba con 36.331 filas](../validation/2026-09-22-visual-report-check.md).
 Las copias exportadas son instantáneas fechadas: no se revocan ni actualizan solas.
 
 

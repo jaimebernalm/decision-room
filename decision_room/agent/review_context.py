@@ -89,7 +89,7 @@ def model_context(materialized, role):
     for item in context['observations']:
         item['logs'] = {k: v[-3000:] if isinstance(v, str) else v for k, v in item['logs'].items()}
         item['logs_may_be_truncated'] = True
-        if item['result'] and len(encoded(item['result']).encode()) > 24000:
+        if item['result'] and len(encoded(item['result']).encode()) > 64000:
             item['result'] = None
             item['result_omitted'] = True
     # Full conversation is retained. Exceeding the budget pauses safely, rather
@@ -103,6 +103,9 @@ def approval_digest(materialized, knowledge):
     cited = {ref['execution_id'] for claim in materialized['report']['claims'] for ref in claim['evidence']}
     for chart in materialized['report'].get('charts', []):
         cited.update(point['value']['execution_id'] for point in chart['points'])
+        if chart.get('series'):
+            cited.add(chart['series']['execution_id'])
+    cited.update(h['value']['execution_id'] for h in materialized['report'].get('highlights', []))
     for check in materialized['report']['checks']:
         cited.update(ref['execution_id'] for ref in [check['actual'], *check['operands']])
     return fingerprint({'report': materialized['report'], 'knowledge': knowledge,

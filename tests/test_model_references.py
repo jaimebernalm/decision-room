@@ -90,6 +90,20 @@ class ModelReferenceTests(unittest.TestCase):
                               'questions_used': 3, 'max_questions': 3}
         self.assertEqual(self.schema('generate_analyst_review', context)['properties']['action']['enum'], ['withdraw'])
 
+    def test_series_pairs_and_new_fields_are_required_for_strict_output(self):
+        obs = lambda key,current: {'execution_id':key, 'current':current,'status':'completed',
+                                   'result':{'series':{'monthly':{}},'metrics':{'total':1},'evidence':[{'metric':'total'}]}}
+        context = {'observations':[obs('current',True),obs('old',False)]}
+        schema = self.schema('generate_analyst_review', context)
+        pairs = schema['$defs']['SeriesRef']['anyOf']
+        self.assertEqual(len(pairs),1)
+        self.assertEqual(pairs[0]['properties']['execution_id']['enum'],['current'])
+        self.assertEqual(pairs[0]['properties']['series']['enum'],['monthly'])
+        for name in ('Chart','ReportDraft'):
+            self.assertEqual(set(schema['$defs'][name]['required']),set(schema['$defs'][name]['properties']))
+        schema = self.schema('generate_analyst_review', {'observations':[]})
+        self.assertEqual(schema['$defs']['Chart']['properties']['series'],{'type':'null'})
+
 
 if __name__ == '__main__':
     unittest.main()

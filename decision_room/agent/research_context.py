@@ -31,9 +31,9 @@ def prompt_context(snapshot, observations, findings, options, turns):
         item = deepcopy(value)
         item['logs'] = {k: v[-4000:] if isinstance(v, str) else v for k, v in item['logs'].items()}
         item['logs_may_be_truncated'] = True
-        if item['result'] and len(encoded(item['result']).encode()) > 24000:
+        if item['result'] and len(encoded(item['result']).encode()) > 64000:
             item['result'] = {'verification': 'pending', 'metrics': {}, 'evidence': [],
-                              'notes': ['Result omitted from model context: exceeds 24 KB. Generate a more focused output.']}
+                              'notes': ['Result omitted from model context: exceeds 64 KB. Generate a more focused output.']}
             item['result_omitted'] = True
         feedback.append(item)
     result = {'phase': 'python_research', 'owner_context': snapshot['source']['owner_context'],
