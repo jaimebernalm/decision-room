@@ -416,16 +416,22 @@ function detail(data) {
   if (data.status === "waiting" && question) setupAnswer(data, question);
   if (document.querySelector("#retry"))
     document.querySelector("#retry").onclick = async (e) => {
-      e.currentTarget.disabled = true;
+      const button = e.currentTarget;
+      button.disabled = true;
+      button.textContent = "Comprobando modelo…";
+      document.querySelector("#retry-error").innerHTML = "";
       try {
         await api(`/api/jobs/${data.id}/retry`, { method: "POST", body: {} });
         state.signature = "";
         await pollDetail(data.id);
       } catch (error) {
-        document.querySelector("#retry-error").innerHTML = errorBox(
-          error.message,
-        );
-        document.querySelector("#retry").disabled = false;
+        if (button.isConnected) {
+          document.querySelector("#retry-error").innerHTML = errorBox(
+            error.message,
+          );
+          button.disabled = false;
+          button.innerHTML = "Reintentar análisis " + icon("arrow");
+        }
       }
     };
   const frame = document.querySelector("#report-frame");

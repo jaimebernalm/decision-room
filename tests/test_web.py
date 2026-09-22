@@ -15,7 +15,7 @@ from psycopg.conninfo import make_conninfo
 from decision_room.config import Config
 from decision_room.database import connect, migrate
 from decision_room.agent import review
-from decision_room.agent.model import ModelAPIError, ModelSettings, ModelRequestUncertain
+from decision_room.agent.model import ModelAPIError, ModelNotReady, ModelSettings, ModelRequestUncertain
 from decision_room.web.server import Server
 from decision_room.web.service import Workspace, WebError, MAX_UPLOAD
 from test_agent import ScriptedModel
@@ -278,6 +278,15 @@ class WebTests(unittest.TestCase):
         self.assertIn('no reinicia el modelo', self.ws.detail(job)['issue'])
         self.assertIsNotNone(failed['review_id'])
         self.assertFalse(self.ws.work_once())  # No repeated requests until explicit retry.
+        client, _ = self.http()
+        client.post('/api/login', json={'token': 'test-local-access'})
+        with patch.object(WebModel, 'check_ready', create=True, side_effect=ModelNotReady('El modelo no está cargado.')):
+            response = client.post(f'/api/jobs/{job}/retry', json={})
+        self.assertEqual(response.status_code, 409)
+        self.assertIn('no está cargado', response.json()['error'])
+        self.assertEqual(self.ws.row(job)['status'], 'failed')
+        self.assertFalse(self.ws.row(job)['retry_uncertain'])
+        self.assertFalse(self.ws.work_once())
         self.ws.retry(job)
         self.ws.run_job(job)
         resumed = self.ws.row(job)

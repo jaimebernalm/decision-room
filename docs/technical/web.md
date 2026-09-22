@@ -79,6 +79,13 @@ averiado o memoria insuficiente, libera memoria y vuelve a cargar el modelo
 antes de reintentar. Que el modelo aparezca en la lista no garantiza que su
 motor esté respondiendo.
 
+Antes de reintentar con LM Studio local, se consulta su lista de modelos cargados
+sin generar texto ni activar una carga automática. Si el modelo no está cargado
+o el servidor no responde, el trabajo permanece interrumpido y la web explica
+qué comprobar. Esta comprobación no garantiza que una inferencia posterior tenga
+éxito: el motor puede fallar después. Los demás proveedores conservan su flujo
+habitual de peticiones.
+
 ## Ejecución y recuperación
 
 `web_jobs` registra una clave idempotente de envío, contexto, archivo, identidades

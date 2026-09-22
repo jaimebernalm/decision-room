@@ -29,6 +29,10 @@ class ModelAPIError(ValueError):
         super().__init__(f'Model API returned HTTP {status_code}; check its server logs.')
 
 
+class ModelNotReady(ValueError):
+    """Safe owner-facing explanation from a read-only local readiness check."""
+
+
 @dataclass(frozen=True)
 class ModelSettings:
     model: str
@@ -66,6 +70,47 @@ class ModelClient:
     def __init__(self, settings):
         self.settings = settings
         self.identity = asdict(settings)
+
+    def check_ready(self):
+        """Check local LM Studio loading state without triggering model loading.
+
+        This is a necessary condition, not an inference health guarantee. Other
+        providers retain their existing request path and error handling.
+        """
+        url = urlsplit(self.settings.base_url)
+        if self.settings.protocol not in ('lmstudio', 'lmstudio_structured') or url.hostname not in ('127.0.0.1', 'localhost', '::1'):
+            return
+        headers = {}
+        if key := os.environ.get('DECISION_ROOM_AGENT_API_KEY'):
+            headers['Authorization'] = 'Bearer ' + key
+        try:
+            with httpx.Client(timeout=5, trust_env=False) as client:
+                with client.stream('GET', f'{url.scheme}://{url.netloc}/api/v1/models', headers=headers) as response:
+                    if response.status_code != 200:
+                        raise ModelNotReady('No se pudo comprobar el modelo local. Revisa que el servidor de LM Studio esté activo y permita el acceso.')
+                    body = bytearray()
+                    for chunk in response.iter_bytes():
+                        body.extend(chunk)
+                        if len(body) > 1024**2:
+                            raise ValueError('Model listing too large.')
+            models = strict_json(body)['models']
+            if not isinstance(models, list):
+                raise ValueError('Invalid model listing.')
+            for model in models:
+                instances = model.get('loaded_instances', [])
+                if not isinstance(instances, list) or any(not isinstance(i, dict) or not isinstance(i.get('id'), str) for i in instances):
+                    raise ValueError('Invalid loaded instances.')
+                if instances and (model.get('key') == self.settings.model or any(i.get('id') == self.settings.model for i in instances)):
+                    return
+        except ModelNotReady:
+            raise
+        except (httpx.HTTPError, ValueError, KeyError, TypeError, AttributeError):
+            raise ModelNotReady('No se pudo comprobar el modelo local. Abre LM Studio y comprueba que su servidor esté activo antes de reintentar.') from None
+        raise ModelNotReady(
+            'El modelo de este análisis no está cargado en LM Studio. Cárgalo antes de reintentar. '
+            'Si LM Studio indica falta de memoria, cierra aplicaciones que no necesites y vuelve a cargarlo. '
+            'El análisis sigue pausado y tus datos y respuestas están guardados.'
+        )
 
     def generate(self, context, correction=None):
         schema = Action.model_json_schema()

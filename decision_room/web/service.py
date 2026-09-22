@@ -11,7 +11,7 @@ from psycopg.types.json import Jsonb
 
 from .. import service as ingestion
 from ..agent import service as planning, research, review
-from ..agent.model import ModelAPIError, ModelClient, ModelSettings
+from ..agent.model import ModelAPIError, ModelClient, ModelNotReady, ModelSettings
 from ..client_report import render_client
 from ..database import connect
 from ..execution import recover_executions
@@ -235,6 +235,17 @@ class Workspace:
         return {'saved': True}
 
     def retry(self, job_id):
+        j = self.row(job_id)
+        if j['status'] != 'failed':
+            raise WebError('Solo se pueden reintentar los análisis con un fallo técnico.', 409)
+        model = self.model_factory(ModelSettings(**j['model_settings']))
+        try:
+            if check := getattr(model, 'check_ready', None):
+                check()
+        except ModelNotReady as error:
+            # Keep the job paused; a readiness request must never enqueue work
+            # or trigger LM Studio's automatic model-loading attempt.
+            raise WebError(str(error), 409) from None
         with connect(self.config) as db:
             row = db.execute("UPDATE web_jobs SET status='queued',issue=NULL,retry_uncertain=true,updated_at=now() WHERE id=%s AND status='failed' RETURNING id",
                              (identifier(job_id),)).fetchone()
