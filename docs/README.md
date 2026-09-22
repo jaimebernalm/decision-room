@@ -29,6 +29,7 @@ mantiene en los archivos Markdown enlazados arriba.
 - [Plan técnico de investigación](technical/research-plan.md).
 - [Revisor, conversación e informe HTML](technical/review.md).
 - [Plan del paso 1.6](technical/review-plan.md).
+- [Informe del cliente y gráficos con evidencia](technical/client-report.md).
 
 ## Comprobaciones realizadas
 
@@ -38,6 +39,7 @@ mantiene en los archivos Markdown enlazados arriba.
 - [Investigaciones reales y pruebas de recuperación](validation/2026-09-21-research-check.md).
 - [Errores conocidos del agente](validation/known-agent-errors.md).
 - [Pruebas del revisor y diálogo con el analista](validation/2026-09-21-review-check.md).
+- [Informe del cliente, gráficos y prueba real](validation/2026-09-21-client-report-check.md).
 
 Los documentos de investigación conservan sus fechas y contexto. El MVP y el
 plan de implementación determinan el alcance actual. Los comandos de las guías

@@ -37,3 +37,18 @@ Durante las pruebas reales se añadió un bloqueo independiente (`review-hold`):
 el revisor aprobó un informe incorrecto en DR-002. El bloqueo conserva su decisión
 histórica y evita presentar ese informe como disponible para entrega. Este control
 no se atribuye al revisor; la calidad del modelo sigue pendiente de evaluación.
+
+
+## Ampliación del paso 1.6: informe para el cliente
+
+1. Separar el registro interno persistente y su HTML del documento del cliente.
+2. Ampliar el contrato con contexto, cobertura, interpretación, siguiente
+   comprobación y explicación del cálculo para cada hallazgo.
+3. Incorporar barras, líneas diarias y tablas con referencias a métricas guardadas;
+   validar valores, vigencia y fechas y cubrir esas referencias en la aprobación.
+4. Hacer que el analista prepare el contenido y que el revisor examine también
+   las visualizaciones y la utilidad de las conclusiones antes de publicarlo.
+5. Probar publicación, bloqueo, evidencia, gráficos y escape; ejecutar un caso
+   con el modelo real y contrastar sus resultados con el CSV independientemente.
+
+Implementación y límites: [informe del cliente](client-report.md).

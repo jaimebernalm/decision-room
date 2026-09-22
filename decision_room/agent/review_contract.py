@@ -1,4 +1,5 @@
 """Typed dialogue and mechanical evidence checks; never proof of business meaning."""
+from datetime import date
 from decimal import Decimal, InvalidOperation, localcontext
 from typing import Literal
 
@@ -17,6 +18,32 @@ class Claim(Strict):
     title: str = Field(min_length=1, max_length=160)
     statement: str = Field(min_length=1, max_length=1800)
     evidence: list[MetricRef] = Field(min_length=1, max_length=12)
+    interpretation: str = Field(min_length=1, max_length=1200)
+    next_step: str = Field(max_length=1200)
+    method: str = Field(min_length=1, max_length=1200)
+
+
+class ReportScope(Strict):
+    business: str = Field(min_length=1, max_length=160)
+    question: str = Field(min_length=1, max_length=800)
+    period: str = Field(min_length=1, max_length=200)
+    coverage: str = Field(min_length=1, max_length=1200)
+
+
+class ChartPoint(Strict):
+    label: str = Field(min_length=1, max_length=100)
+    value: MetricRef
+
+
+class Chart(Strict):
+    key: str = Field(pattern=r'^[a-z][a-z0-9_]{0,63}$')
+    claim_key: str = Field(pattern=r'^[a-z][a-z0-9_]{0,63}$')
+    kind: Literal['bar', 'line', 'table']
+    title: str = Field(min_length=1, max_length=160)
+    unit: str = Field(min_length=1, max_length=80)
+    decimals: int = Field(ge=0, le=4)
+    caption: str = Field(min_length=1, max_length=1200)
+    points: list[ChartPoint] = Field(min_length=2, max_length=36)
 
 
 class NumericCheck(Strict):
@@ -30,6 +57,9 @@ class NumericCheck(Strict):
 class ReportDraft(Strict):
     title: str = Field(min_length=1, max_length=160)
     summary: str = Field(min_length=1, max_length=2400)
+    scope: ReportScope
+    charts: list[Chart] = Field(max_length=4)
+    no_chart_reason: str = Field(max_length=600)
     claims: list[Claim] = Field(min_length=1, max_length=6)
     limitations: list[str] = Field(min_length=1, max_length=12)
     checks: list[NumericCheck] = Field(max_length=16)
@@ -77,6 +107,22 @@ def checks(report, observations):
             result.append({'check': 'evidence:' + claim['key'], 'passed': True, 'detail': 'Saved, current metrics with source evidence.'})
         except ValueError as error:
             result.append({'check': 'evidence:' + claim['key'], 'passed': False, 'detail': str(error)})
+    for chart in report.get('charts', []):
+        try:
+            labels = [p['label'] for p in chart['points']]
+            if len(set(labels)) != len(labels):
+                raise ValueError('Chart labels must be unique.')
+            if chart['claim_key'] not in {c['key'] for c in report['claims']}:
+                raise ValueError('Chart must belong to an existing finding.')
+            if chart['kind'] == 'line':
+                dates = [date.fromisoformat(label) for label in labels]
+                if dates != sorted(dates) or any(d.isoformat() != label for d, label in zip(dates, labels)):
+                    raise ValueError('Line charts require ordered ISO dates.')
+            for point in chart['points']:
+                number(point['value'])
+            result.append({'check': 'chart:' + chart['key'], 'passed': True, 'detail': 'Chart values resolve to finite, current saved metrics.'})
+        except (ValueError, InvalidOperation, ArithmeticError) as error:
+            result.append({'check': 'chart:' + chart['key'], 'passed': False, 'detail': str(error)})
     for check in report['checks']:
         try:
             with localcontext() as ctx:
@@ -122,13 +168,18 @@ def validate(raw, role, context):
     if action.action == 'submit':
         if action.report is None:
             raise ValueError('submit requires the complete updated report, including unchanged claims and limitations.')
+        if not action.report.charts and not action.report.no_chart_reason.strip():
+            raise ValueError('Explain why no chart is useful for this report.')
+        chart_keys = [c.key for c in action.report.charts]
+        if len(chart_keys) != len(set(chart_keys)) or sum(len(c.points) for c in action.report.charts) > 72:
+            raise ValueError('Charts need unique keys and at most 72 points in total.')
         keys = [c.key for c in action.report.claims]
         check_keys = [c.key for c in action.report.checks]
         if len(keys) != len(set(keys)) or len(check_keys) != len(set(check_keys)):
             raise ValueError('Claim/check keys must be unique.')
         if any(len(s) > 1600 or not s.strip() for s in action.report.limitations):
             raise ValueError('Limitations must be nonempty, at most 1600 characters each.')
-        structural = [c for c in checks(action.report.model_dump(), context['observations']) if c['check'].startswith('evidence:')]
+        structural = [c for c in checks(action.report.model_dump(), context['observations']) if c['check'].startswith(('evidence:', 'chart:'))]
         if any(not c['passed'] for c in structural):
             raise ValueError('Draft references unavailable evidence: ' + str(structural)[:1000])
     elif action.report is not None:

@@ -55,11 +55,15 @@ class SeedFirstDraft(ModelClient):
         evidence = context['observations'][0]
         return {'action': 'submit', 'message': 'Presento el informe.', 'code': '', 'table_ids': [], 'question': '',
                 'report': {'title': 'Ventas registradas',
+                           'scope': {'business': 'Negocio analizado', 'question': 'Conocer las ventas registradas', 'period': 'Extracto aportado', 'coverage': 'Actividad seleccionada.'},
+                           'charts': [], 'no_chart_reason': 'Totales aislados sin comparación.',
                            'summary': 'Las ventas netas del extracto suman 257,50; se vendieron 59 unidades.',
                            'claims': [{'key': 'sales', 'title': 'Ventas del extracto',
                                        'statement': 'El propietario confirmó que amount es el total de cada fila. Su suma es 257,50, sin multiplicar por quantity.',
+                                       'interpretation': 'Ventas de la actividad seleccionada, no beneficio.', 'next_step': '', 'method': 'Suma de amount.',
                                        'evidence': [{'execution_id': evidence['execution_id'], 'metric': 'total'}]},
                                       {'key': 'units', 'title': 'Unidades', 'statement': 'Se registran 59 unidades vendidas.',
+                                       'interpretation': 'Volumen registrado.', 'next_step': '', 'method': 'Suma de quantity.',
                                        'evidence': [{'execution_id': evidence['execution_id'], 'metric': 'units'}]}],
                            'limitations': ['Solo actividad seleccionada; sin costes ni identificadores de ticket.'], 'checks': []}}, {'fixture_seed': True}
 

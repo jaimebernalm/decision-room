@@ -160,3 +160,7 @@ Then finish and verify the exports from the repository root:
 The converter handles the native data types in this particular BACPAC. It is
 not the production ingestion implementation and does not claim to import
 arbitrary SQL Server backups. SQL Server is not installed or run by these scripts.
+
+Client reports and internal execution logs are separate exports. See the
+[client report guide](docs/technical/client-report.md) for chart provenance,
+business explanations and publication rules (step 1.6).

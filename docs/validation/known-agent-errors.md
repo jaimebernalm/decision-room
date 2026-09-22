@@ -65,3 +65,18 @@ Antes de aceptar el recorrido: ampliar la evaluación y las comprobaciones de
 cifras derivadas en el texto, exigir trazabilidad de sus cálculos y evaluar otro
 modelo/revisor. No basta con añadir otra instrucción al prompt ni con que ambos
 roles coincidan. Ver [prueba completa](2026-09-21-review-check.md).
+
+## DR-003: mediana incorrecta con un número par de observaciones
+
+**Estado: abierto; observado en métricas auxiliares de la prueba del informe del cliente.**
+
+Qwen generó `sorted(vals)[len(vals)//2]` como mediana de doce ventas diarias.
+Ese cálculo toma el elemento central superior; la mediana convencional es el
+promedio de los dos centrales. Guardó 2.536,00 y 3.207,65 en vez de 2.491,30 y
+3.185,13 redondeados. La discrepancia se detectó comparando con el CSV mediante
+Decimal y `statistics.median`, fuera del contexto del modelo.
+
+El primer borrador que intentaba utilizar estas cifras era JSON mal formado y
+no obtuvo aprobación. No se atribuye al revisor la detección estadística: ese
+intento se detuvo antes de completar la revisión. Incluir este caso en la evaluación
+1.7. Ver [validación del informe del cliente](2026-09-21-client-report-check.md).

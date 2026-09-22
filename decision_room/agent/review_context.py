@@ -88,6 +88,8 @@ def model_context(materialized, role):
 
 def approval_digest(materialized, knowledge):
     cited = {ref['execution_id'] for claim in materialized['report']['claims'] for ref in claim['evidence']}
+    for chart in materialized['report'].get('charts', []):
+        cited.update(point['value']['execution_id'] for point in chart['points'])
     for check in materialized['report']['checks']:
         cited.update(ref['execution_id'] for ref in [check['actual'], *check['operands']])
     return fingerprint({'report': materialized['report'], 'knowledge': knowledge,

@@ -26,7 +26,10 @@ def draft(context, text='Total registrado en este extracto.'):
     available = [o for o in context['observations'] if o['current'] and o['status'] == 'completed']
     ref = {'execution_id': available[-1]['execution_id'], 'metric': 'total'}
     return {'title': 'Ventas seleccionadas', 'summary': text,
-            'claims': [{'key': 'sales', 'title': 'Ventas', 'statement': text, 'evidence': [ref]}],
+            'scope': {'business': 'Negocio de prueba', 'question': 'Conocer ventas', 'period': 'No consta', 'coverage': 'Solo este extracto.'},
+            'charts': [], 'no_chart_reason': 'Un total aislado no requiere gráfico.',
+            'claims': [{'key': 'sales', 'title': 'Ventas', 'statement': text, 'evidence': [ref],
+                        'interpretation': 'Actividad registrada, no beneficio.', 'next_step': '', 'method': 'Suma de cantidad por precio unitario.'}],
             'limitations': ['No representa todo el negocio.'], 'checks': []}
 
 
@@ -243,6 +246,13 @@ print(json.dumps(r,default=str))
         self.assertTrue(all(link.startswith('#') and link[1:] in parsed.ids for link in parsed.links))
         exported = export(self.config, self.business, r['id'])
         self.assertTrue(Path(exported['path']).is_file())
+        client = Path(exported['path']).read_text()
+        internal = Path(exported['internal_path']).read_text()
+        self.assertIn('La pregunta de negocio', client)
+        self.assertNotIn('Conversación entre analista', client)
+        self.assertIn('Conversación entre analista', internal)
+        self.assertEqual(Path(exported['path']).stat().st_mode & 0o777, 0o600)
+        self.assertEqual(Path(exported['internal_path']).stat().st_mode & 0o777, 0o600)
         service.replan(self.config, self.business, self.plan['id'], owner_context='Amount is row total.', request_key='new-context', model=self.model)
         r = review.show(self.config, self.business, r['id'])
         self.assertEqual(r['status'], 'stale')

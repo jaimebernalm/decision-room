@@ -31,7 +31,7 @@ def trace(config, business_id, review_id, directory):
             file.write_text(event['action']['code'])
             lines += [f'[Python generado, sin editar](<{file.resolve()}>).', '']
     exported = export(config, business_id, review_id)
-    lines += [f"[Abrir HTML](<{exported['path']}>).", '']
+    lines += [f"[Informe del cliente](<{exported['path']}>).", f"[Registro interno](<{exported['internal_path']}>).", '']
     (directory / 'trace.md').write_text('\n'.join(lines))
     (directory / 'export.json').write_text(json.dumps(exported, indent=2))
     return report, exported

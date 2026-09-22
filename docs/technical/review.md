@@ -190,3 +190,10 @@ exigiendo el ámbito de empresa; sus UUID no sustituyen la autenticación futura
 
 Ver [plan de este paso](review-plan.md), [validación](../validation/2026-09-21-review-check.md)
 y [errores conocidos](../validation/known-agent-errors.md).
+
+
+## Informe del cliente y registro interno
+
+La exportación separa `report.html` (cliente), `internal.html` (desarrollo) y
+`review.json` (auditoría). El contrato incluye gráficos y explicaciones de negocio
+revisados antes de la entrega. Ver [contenido, archivos y límites](client-report.md).
