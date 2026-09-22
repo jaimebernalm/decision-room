@@ -137,6 +137,14 @@ de la implementación web del cierre de calidad del agente. Ver
 
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
+**Orden acordado:** antes de incorporar nuevas capacidades, repetir la evaluación
+del recorrido actual con GPT-6 Luna sobre casos variados del paso 1.7, incluyendo
+datos problemáticos, ambigüedad, correcciones y recuperación. Registrar exactitud,
+utilidad del informe, preguntas, revisiones, tiempo y coste; corregir los fallos
+repetidos y dejar documentados los límites de la base. Después, ampliar por
+escenarios comprobables. La investigación web de contexto descrita abajo es una
+de esas ampliaciones; no se añade a la ronda de validación inicial.
+
 **Construir por escenarios completos:**
 
 - Excel `.xlsx`, varias hojas y selección de tablas.
@@ -145,10 +153,58 @@ de la implementación web del cierre de calidad del agente. Ver
 - Relaciones comprobables entre tablas y fuentes agregadas/detalladas de la misma actividad.
 - Corrección de interpretaciones, invalidación y recálculo de resultados dependientes.
 - Investigaciones adicionales cuando los datos más ricos las permiten.
+- Investigación web de contexto de negocio, comenzando por festivos y eventos
+  de una localidad y periodo concretos, con fuentes y límites verificables.
 
 **Cierre:** superar la matriz del MVP: continuar sin datos opcionales, profundizar al recibirlos, evitar duplicaciones, revisar conclusiones al cambiar premisas y entregar informes breves cuando corresponda. Cada capacidad se comprueba desde la interpretación hasta su explicación en el informe.
 
 **Por qué aquí:** ampliar una base completa permite localizar si un problema viene de la capacidad nueva o del recorrido básico. CSV primero es una secuencia de implementación, no un recorte del soporte Excel acordado para el MVP.
+
+### Investigación web de contexto de negocio
+
+**Estado:** ampliación acordada, pendiente de implementar y evaluar después de la
+ronda de validación del recorrido actual. No requiere construir primero toda la
+organización multiagente objetivo.
+
+**Objetivo:** investigar hechos externos pertinentes para las preguntas del
+negocio y contrastarlos con los datos aportados. Por ejemplo, comprobar si una
+variación de ventas coincide con un festivo local o un evento cercano. La
+información externa puede aportar contexto o sugerir una investigación; una
+coincidencia temporal no demuestra que el evento haya causado el cambio.
+
+**Primer escenario:** festivos y eventos públicos en una localidad durante las
+fechas del archivo. Pedir municipio, barrio o dirección solo con el nivel de
+precisión necesario y sin adivinar la ubicación. Distinguir fecha de publicación
+de la fuente y fecha del hecho; no aplicar eventos actuales a datos históricos.
+Si falta ubicación, no hay fuentes fiables o la búsqueda falla, continuar con el
+análisis del archivo y explicar qué contexto no se pudo comprobar.
+
+**Construir:** una herramienta acotada de búsqueda y consulta de fuentes públicas,
+preferentemente oficiales, fuera del sandbox de Python, que conserva su aislamiento
+sin red. Enviar a la búsqueda solo el contexto necesario, no el CSV ni cifras
+privadas del negocio. Tratar el contenido recuperado como información no confiable,
+nunca como instrucciones para los agentes. Fijar límites de consultas, tiempo y
+coste, y guardar resultados para recuperar el trabajo sin repetir búsquedas ya
+resueltas innecesariamente.
+
+Cada hecho externo debe conservar URL, fuente, fecha de consulta, fecha o periodo
+del hecho, ámbito geográfico y evidencia pertinente. El analista debe distinguir
+datos calculados, hechos externos documentados e hipótesis. El revisor comprueba
+la correspondencia de lugar y periodo, la solidez de las fuentes y que el informe
+no transforme asociaciones en causas. El informe muestra citas y limitaciones
+junto a las afirmaciones que dependen de esas fuentes.
+
+Esta capacidad encaja con el futuro agente de contexto de negocio: investigaría
+y entregaría hechos documentados al analista. Su separación en un agente propio
+se decidirá al evaluar la arquitectura, sin hacerla requisito de la primera prueba.
+
+**Comprobar antes de ampliar:** comparar el mismo caso con y sin contexto web;
+evaluar utilidad añadida, precisión geográfica y temporal, atribución de fuentes,
+tiempo y coste. Incluir un evento confirmado, otro municipio con un nombre similar,
+información histórica, fuentes contradictorias o ausentes y contenido con
+instrucciones maliciosas. El sistema debe expresar incertidumbre y continuar sin
+información opcional. Solo ampliar a otros factores de negocio cuando esta primera
+investigación aporte valor sin degradar la exactitud del informe.
 
 ## 7. Entrega 4: preparación operativa del piloto
 
