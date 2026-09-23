@@ -1,7 +1,7 @@
 # Entrega 2.5: ejecución incremental en siete pasos
 
 **Fecha:** 23 de septiembre de 2026.  
-**Estado:** pasos 2.5.1–2.5.4 completados y comprobados; pasos 2.5.5–2.5.7 pendientes. Véase la [validación del primer paso](../validation/2026-09-23-business-identity-check.md).  
+**Estado:** pasos 2.5.1–2.5.5 completados y comprobados; pasos 2.5.6–2.5.7 pendientes. Véase la [validación del primer paso](../validation/2026-09-23-business-identity-check.md).  
 **Referencias:** [alcance y criterios del plan](<../product/Decision Room - Plan de implementacion.md#51-entrega-25-memoria-del-negocio-y-experiencia-cotidiana>) y [diagnóstico y diseño de memoria/UX](business-memory-plan.md).
 
 ## Cómo ejecutar este plan
@@ -129,10 +129,10 @@ Solicitada el 23 de septiembre de 2026, antes de 2.5.4. PostgreSQL sigue siendo 
 
 **Incrementos, en orden:**
 
-- [ ] **A. Ficha consultable.** Añadir «Mi negocio» a la navegación actual y presentar Información, Datos y archivos, y Cambios. Separar hechos declarados, propuestas y dudas; mostrar origen y vigencia cuando sean relevantes. Los campos vacíos no bloquean el uso.
-- [ ] **B. Edición y retirada.** Conectar edición, confirmación de propuestas, resolución de conflictos y retirada al servicio de memoria existente. Mostrar guardado, fallo o conflicto concurrente; permitir volver a consultar el estado persistido. No escribir directamente desde la pantalla en una copia independiente del perfil.
-- [ ] **C. Alta de datos independiente de una pregunta.** Separar subir/preparar un CSV de generar un informe. Mostrar conjunto, versión, periodo y disponibilidad; reutilizarlo desde el chat. Un archivo repetido no duplica actividad. Si su relación con otra fuente no está clara, mantenerlo separado y solicitar selección antes del cálculo.
-- [ ] **D. Sustitución y efectos visibles.** Permitir elegir una nueva versión o un conjunto separado, conservando originales e informes históricos. Propagar correcciones sobre fuentes mediante las dependencias del paso 3; distinguir datos recién cargados de resultados ya recalculados.
+- [x] **A. Ficha consultable.** Añadir «Mi negocio» a la navegación actual y presentar Información, Datos y archivos, y Cambios. Separar hechos declarados, propuestas y dudas; mostrar origen y vigencia cuando sean relevantes. Los campos vacíos no bloquean el uso.
+- [x] **B. Edición y retirada.** Conectar edición, confirmación de propuestas, resolución de conflictos y retirada al servicio de memoria existente. Mostrar guardado, fallo o conflicto concurrente; permitir volver a consultar el estado persistido. No escribir directamente desde la pantalla en una copia independiente del perfil.
+- [x] **C. Alta de datos independiente de una pregunta.** Separar subir/preparar un CSV de generar un informe. Mostrar conjunto, versión, periodo y disponibilidad; reutilizarlo desde el chat. Un archivo repetido no duplica actividad. Si su relación con otra fuente no está clara, mantenerlo separado y solicitar selección antes del cálculo.
+- [x] **D. Sustitución y efectos visibles.** Permitir elegir una nueva versión o un conjunto separado, conservando originales e informes históricos. Propagar correcciones sobre fuentes mediante las dependencias del paso 3; distinguir datos recién cargados de resultados ya recalculados.
 
 **Zona de código:** interfaz y rutas web; servicios de negocio/memoria; [`service.py`](../../decision_room/service.py) y referencias de fuentes en el esquema. Conservar la separación entre lotes importados e investigaciones; un mismo lote puede respaldar varias preguntas.
 
@@ -140,11 +140,11 @@ Solicitada el 23 de septiembre de 2026, antes de 2.5.4. PostgreSQL sigue siendo 
 
 **Comprobaciones de cierre:** corregir desde ficha tiene el mismo efecto que desde chat; retirar evita reutilización; conflicto entre dos pestañas; archivos repetidos y solapados no se suman; nuevo archivo no altera la revisión anterior; fallo de carga conserva el resto. Comprobar visualmente origen, edición, errores y estados vacíos, además de ingesta y pruebas web.
 
-**Todavía pendiente:** composición del dashboard. Excel, combinación general de tablas y conectores siguen fuera de 2.5.
+**Cierre:** [contratos y recuperación](business-dossier.md), [pruebas y límites](../validation/2026-09-23-dossier-check.md). El dashboard ya está integrado; su cierre funcional corresponde a 2.5.6. Excel, combinación general de tablas y conectores siguen fuera de 2.5.
 
 ## 2.5.6. Dashboard y navegación cotidiana
 
-**Avance integrado:** la interfaz desarrollada en paralelo ya se conecta con el prompt, los chats persistentes y los informes de 2.5.4. Véase [el contrato de integración y sus límites](dashboard-ui.md). No cierra este paso: siguen pendientes 2.5.5, las preguntas con referencia estructurada a hallazgos y la validación de sus nuevos estados.
+**Avance integrado:** la interfaz desarrollada en paralelo ya se conecta con el prompt, los chats persistentes y los informes de 2.5.4. Véase [el contrato de integración y sus límites](dashboard-ui.md). No cierra este paso: siguen pendientes las preguntas con referencia estructurada a hallazgos y la validación conjunta del recorrido de 2.5.6. La ficha y los estados de versiones de 2.5.5 ya están integrados.
 
 **Resultado:** onboarding y visitas posteriores tienen recorridos distintos; el cliente vuelve a su negocio, pregunta y encuentra su trabajo anterior.
 

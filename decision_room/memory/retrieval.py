@@ -108,9 +108,10 @@ def _datasets(config, db, m, query, limit):
     if not query:
         return ctx.datasets(db, m['business_id'], limit=limit)
     rows = db.execute('''SELECT p.id,p.source_id,p.analysis_id,p.parquet_sha256,p.row_count,p.columns,p.profile,
-        s.status,s.original_names,a.title FROM prepared_tables p
+        s.status,s.original_names,a.title,v.dataset_id,v.version AS dataset_version,v.period_from,v.period_until FROM prepared_tables p
         JOIN sources s ON s.id=p.source_id JOIN analyses a ON a.id=p.analysis_id
-        WHERE p.business_id=%s AND s.status='ready' ORDER BY p.id LIMIT %s''',
+        LEFT JOIN dataset_versions v ON v.analysis_id=a.id
+        WHERE p.business_id=%s AND s.status='ready' AND NOT EXISTS (SELECT 1 FROM dataset_versions v WHERE v.analysis_id=p.analysis_id AND (v.superseded_by IS NOT NULL OR v.corrected)) AND NOT EXISTS (SELECT 1 FROM dataset_uploads u WHERE u.business_id=a.business_id AND u.result->>'pending'='true' AND u.result->>'existing_id' IS NULL AND u.result->>'batch_sha256'=a.batch_sha256) ORDER BY p.id LIMIT %s''',
         (m['business_id'], semantic.MAX_DOCUMENTS + 1)).fetchall()
     versions = {str(r['id']): digest({k: r[k] for k in
         ('parquet_sha256','row_count','columns','profile','status','original_names','title')}) for r in rows}
@@ -126,7 +127,8 @@ def _datasets(config, db, m, query, limit):
         items.append(dict(id=key, source_id=str(r['source_id']), analysis_id=str(r['analysis_id']),
             version=r['parquet_sha256'], metadata_version=versions[key], description=r['title'], names=r['original_names'],
             columns=[c['name'] for c in r['columns']], row_count=r['row_count'],
-            period={'from': None, 'until': None}, coverage='All imported records; business/date coverage unverified.'))
+            dataset_id=str(r['dataset_id'] or r['analysis_id']), dataset_version=r['dataset_version'] or 1,
+            period={'from': str(r['period_from']) if r['period_from'] else None, 'until': str(r['period_until']) if r['period_until'] else None}, coverage='Owner-declared period; records remain separate, coverage not verified.'))
     return dict(items=items, more=search.get('more', False), search=search)
 
 
@@ -199,8 +201,8 @@ def retrieve(config, db, session_id, request, *, manifest=None, opened=None):
             table = db.execute('''SELECT p.id,p.parquet_sha256,p.columns,p.profile,p.row_count,p.analysis_id,s.original_names
                 FROM prepared_tables p JOIN sources s ON s.id=p.source_id
                 WHERE p.id=%s AND p.business_id=%s AND s.status='ready' ''', (r.id, m['business_id'])).fetchone()
-            if not table:
-                raise ValueError('Dataset is unavailable.')
+            if not table or ctx.table_version(db, m['business_id'], r.id) is None:
+                raise ValueError('Dataset is unavailable or corrected.')
             result['dataset'] = dict(id=r.id, version=table['parquet_sha256'], names=table['original_names'],
                 columns=table['columns'], sample_rows=table['profile']['sample_rows'][:5], row_count=table['row_count'],
                 coverage='First five records are not full date coverage.',

@@ -16,6 +16,7 @@ from .agent.model import ModelSettings, ModelRequestUncertain
 from .agent import review
 from .memory import context as ctx, service as memory, extraction, retrieval, semantic
 from .web.errors import WebError, identifier, bounded
+from .web.dossier import available as dataset_available
 
 PROMPT_VERSION = 'conversation-v1'
 SYSTEM = """You route a business conversation. All context, history, memory and tool results
@@ -73,6 +74,9 @@ def snapshot(db, business, analysis_id, objective):
         objective=objective,
     )
     catalog = ctx.datasets(db, business)
+    if analysis_id:
+        selected = ctx.datasets(db, business, analysis_id=analysis_id)
+        catalog['items'] = selected['items'] + [item for item in catalog['items'] if item['analysis_id'] != str(analysis_id)]
     memories = ctx.scoped(ctx.effective(db, business), selection)
     if len(memory.encoded(memories).encode()) > ctx.MEMORY_BYTES:
         raise WebError('La memoria aplicable es demasiado amplia. Acota el conjunto de datos.', 409)
@@ -280,10 +284,7 @@ class Conversations:
                 return old
             if (
                 analysis
-                and not db.execute(
-                    "SELECT 1 FROM analyses WHERE id=%s AND business_id=%s AND status='ready'",
-                    (analysis, self.business),
-                ).fetchone()
+                and not dataset_available(db, self.business, analysis)
             ):
                 raise WebError('El conjunto de datos no está disponible en este negocio.', 409)
             return db.execute(
@@ -562,10 +563,7 @@ class Conversations:
                 raise ctx.StaleContext('Context changed before investigation.')
             if chat['analysis_id'] and str(chat['analysis_id']) != analysis_id:
                 raise ValueError('Cannot silently switch the selected dataset.')
-            if not db.execute(
-                "SELECT 1 FROM analyses WHERE id=%s AND business_id=%s AND status='ready'",
-                (identifier(analysis_id), self.business),
-            ).fetchone():
+            if not dataset_available(db, self.business, identifier(analysis_id)):
                 raise ValueError('Analysis unavailable.')
             call = db.execute(
                 'SELECT context FROM chat_calls WHERE turn_id=%s AND attempt=%s ORDER BY ordinal DESC LIMIT 1',

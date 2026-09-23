@@ -2,7 +2,7 @@
 
 **Estado:** interfaz de `feature/dashboard-ui` integrada con memoria, recuperación y
 conversaciones de `feature/business-memory-ux`. Este avance de 2.5.6 no cierra
-2.5.5 ni la evaluación integrada de 2.5.7.
+2.5.6 ni la evaluación integrada de 2.5.7. La ficha y versiones de 2.5.5 ya están implementadas.
 
 ## Recorridos conectados
 
@@ -24,22 +24,19 @@ conversaciones de `feature/business-memory-ux`. Este avance de 2.5.6 no cierra
   origen. Los resultados analíticos de chat aparecen en la biblioteca solamente
   después de solicitar su informe. Los cambios de memoria retiran resultados
   afectados también del dashboard.
-- **Mi negocio:** consulta y edición del perfil ya persistido, acceso a los CSV
-  aportados y cambio de negocio. «Analizar un CSV nuevo» abre la ingesta existente.
-  Los trabajos de chat reutilizan datos: no se cuentan como archivos nuevos ni
-  muestran un enlace de descarga que el backend rechazaría.
+- **Mi negocio:** ficha de memoria con información, archivos y cambios. Permite
+  editar, confirmar y retirar recuerdos, subir CSV sin investigar y elegir versiones.
+  Los originales se conservan, y las correcciones retiran resultados afectados.
+  Véase [el contrato de 2.5.5](business-dossier.md).
 - **Actualización:** Inicio consulta cambios de informes y chats; conserva el texto
-  y foco del prompt. Informes y Mi negocio actualizan sus listados. Una navegación
+  y foco del prompt. Informes actualiza su listado. La ficha se refresca al entrar o mediante «Actualizar ficha», para conservar las ediciones en curso. Una navegación
   nueva descarta respuestas tardías de rutas anteriores.
 
 ## Pendiente
 
-- **2.5.5:** ficha de memoria estructurada, edición/retirada de recuerdos, resolución
-  completa de propuestas/conflictos, carga de archivos independiente de análisis,
-  conjuntos y versiones explícitos. El perfil actual no sustituye esa ficha.
 - **Resto de 2.5.6:** «Preguntar sobre este hallazgo» con una referencia estructurada
-  a la revisión y al hallazgo exactos, y estados derivados de las nuevas versiones
-  de datos de 2.5.5. No se ofrece todavía un botón que prometa esa vinculación.
+  a la revisión y al hallazgo exactos, y validación conjunta del recorrido. Los
+  avisos de versiones anteriores ya se incorporan desde 2.5.5.
 - Los gráficos permiten consultar valores y evidencia; no ofrecen filtros que
   recalculen resultados. La aceptación funcional completa corresponde a 2.5.7.
 

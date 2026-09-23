@@ -93,26 +93,28 @@ def watch(rows, selection):
 def table_version(db, business_id, table_id):
     row = db.execute('''SELECT p.parquet_sha256,p.row_count,p.columns,p.profile,s.status,s.original_names,a.title
         FROM prepared_tables p JOIN sources s ON s.id=p.source_id JOIN analyses a ON a.id=p.analysis_id
-        WHERE p.business_id=%s AND p.id=%s''', (business_id, table_id)).fetchone()
+        WHERE p.business_id=%s AND p.id=%s AND NOT EXISTS (SELECT 1 FROM dataset_versions v WHERE v.analysis_id=p.analysis_id AND v.corrected)''', (business_id, table_id)).fetchone()
     return digest(row) if row and row['status'] == 'ready' else None
 
 
 def datasets(db, business_id, query='', limit=20, analysis_id=None):
     # Rank metadata in PostgreSQL; numbers remain in typed files for SQL/Python.
     rows = db.execute('''SELECT p.id,p.source_id,p.analysis_id,p.parquet_sha256,p.row_count,p.columns,
-        s.original_names,a.title,
+        s.original_names,a.title,v.dataset_id,v.version AS dataset_version,v.period_from,v.period_until,
         ts_rank(to_tsvector('spanish',a.title || ' ' || s.original_names::text || ' ' || p.columns::text),
                 plainto_tsquery('spanish',%s)) AS score
         FROM prepared_tables p JOIN sources s ON s.id=p.source_id JOIN analyses a ON a.id=p.analysis_id
-        WHERE p.business_id=%s AND s.status='ready' AND (%s::uuid IS NULL OR p.analysis_id=%s)
+        LEFT JOIN dataset_versions v ON v.analysis_id=a.id
+        WHERE p.business_id=%s AND s.status='ready' AND NOT EXISTS (SELECT 1 FROM dataset_versions v WHERE v.analysis_id=p.analysis_id AND (v.corrected OR (v.superseded_by IS NOT NULL AND p.analysis_id IS DISTINCT FROM %s::uuid))) AND NOT EXISTS (SELECT 1 FROM dataset_uploads u WHERE u.business_id=p.business_id AND u.result->>'pending'='true' AND u.result->>'existing_id' IS NULL AND u.result->>'batch_sha256'=a.batch_sha256) AND (%s::uuid IS NULL OR p.analysis_id=%s)
         AND (%s='' OR to_tsvector('spanish',a.title || ' ' || s.original_names::text || ' ' || p.columns::text)
              @@ plainto_tsquery('spanish',%s))
         ORDER BY score DESC,p.id LIMIT %s''',
-        (query, business_id, analysis_id, analysis_id, query, query, limit + 1)).fetchall()
+        (query, business_id, analysis_id, analysis_id, analysis_id, query, query, limit + 1)).fetchall()
     items = [dict(id=str(r['id']), source_id=str(r['source_id']), analysis_id=str(r['analysis_id']),
                   version=r['parquet_sha256'], description=r['title'], names=r['original_names'],
                   columns=[c['name'] for c in r['columns']], row_count=r['row_count'],
-                  period={'from': None, 'until': None}, coverage='All imported records; business/date coverage unverified.')
+                  dataset_id=str(r['dataset_id'] or r['analysis_id']), dataset_version=r['dataset_version'] or 1,
+                  period={'from': str(r['period_from']) if r['period_from'] else None, 'until': str(r['period_until']) if r['period_until'] else None}, coverage='Owner-declared period; records remain separate, coverage not verified.')
              for r in rows[:limit]]
     return {'items': items, 'more': len(rows) > limit}
 
@@ -165,7 +167,7 @@ def manifest(db, session_id):
 def source_current(db, business_id, saved):
     for table in saved['tables']:
         row = db.execute('''SELECT p.parquet_sha256,p.row_count,p.columns,p.profile,s.status,s.original_names
-            FROM prepared_tables p JOIN sources s ON s.id=p.source_id WHERE p.business_id=%s AND p.id=%s''',
+            FROM prepared_tables p JOIN sources s ON s.id=p.source_id WHERE p.business_id=%s AND p.id=%s AND NOT EXISTS (SELECT 1 FROM dataset_versions v WHERE v.analysis_id=p.analysis_id AND v.corrected)''',
                          (business_id, table['id'])).fetchone()
         if not row or row['status'] != 'ready' or row['parquet_sha256'] != table['sha256'] or row['row_count'] != table['row_count']:
             return False
@@ -175,6 +177,10 @@ def source_current(db, business_id, saved):
 
 
 def reason(db, session_id, seen=None):
+    corrected = db.execute('''SELECT 1 FROM agent_sessions s JOIN dataset_versions v ON v.analysis_id=s.analysis_id
+        WHERE s.id=%s AND v.corrected''', (session_id,)).fetchone()
+    if corrected:
+        return 'Source version corrected; select the replacement data for a new investigation.'
     m = manifest(db, session_id)
     if not m:
         return None  # Legacy history is preserved; resuming it requires explicit replanning.

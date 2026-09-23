@@ -205,6 +205,8 @@ class Workspace:
     def public(self, j):
         fields = ('id', 'business_id', 'title', 'business', 'context', 'goal', 'filename', 'byte_count', 'status', 'phase', 'created_at', 'updated_at', 'issue', 'origin')
         result = {key: j[key] for key in fields}
+        with connect(self.config) as db:
+            result['data_version'] = db.execute('SELECT version,superseded_by,corrected FROM dataset_versions WHERE analysis_id=%s AND business_id=%s', (j['analysis_id'], j['business_id'])).fetchone()
         if j['origin'] == 'chat':
             with connect(self.config) as db:
                 source = db.execute('SELECT conversation_id FROM chat_turns WHERE job_id=%s AND business_id=%s ORDER BY created_at LIMIT 1', (j['id'], j['business_id'])).fetchone()
@@ -254,7 +256,7 @@ class Workspace:
                     if content:
                         return {'reports': choices, 'selected_id': str(job['id']),
                                 'report': content, 'created_at': job['created_at'],
-                                'filename': job['filename']}
+                                'filename': job['filename'], 'data_version': item.get('data_version')}
             except ValueError:
                 # The review may be running or changing. Show no stale content.
                 continue
@@ -301,6 +303,9 @@ class Workspace:
             result.update(status=j['status'] if j['status'] in ('queued', 'running') else 'failed',
                           phase='planning', context_stale=True, questions=[], publishable=False,
                           issue='La memoria aplicable ha cambiado. Recalcula para revisar el informe con las definiciones actuales.')
+        if (result.get('data_version') or {}).get('corrected'):
+            result.update(status='blocked', publishable=False, questions=[],
+                          issue='Esta versión de datos se ha corregido. Abre Mi negocio y pregunta con la versión actual; el informe anterior se conserva como registro, pero no como resultado válido.')
         return result
 
     def reply(self, job_id, data):
@@ -335,6 +340,10 @@ class Workspace:
 
     def retry(self, job_id, *, _db=None):
         j = self.row(job_id)
+        from .dossier import available
+        with connect(self.config) as db:
+            if j['analysis_id'] and not available(db, j['business_id'], j['analysis_id']):
+                raise WebError('Los datos ya no están disponibles para recalcular. Selecciona la versión actual desde Mi negocio.', 409)
         from ..memory.context import reason
         with connect(self.config) as db:
             stale = j['session_id'] and reason(db, j['session_id'])

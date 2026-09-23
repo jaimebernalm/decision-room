@@ -136,9 +136,9 @@ class Handler(BaseHTTPRequestHandler):
             if mutation and (self.headers.get('Origin') != self.server.origin or self.headers.get('X-Decision-Room') != '1'):
                 raise WebError('La petición debe enviarse desde Decision Room.', 403)
             path = urlsplit(self.path).path
-            if not mutation and path in ('/', '/app.js', '/styles.css'):
-                name = {'/': 'index.html', '/app.js': 'app.js', '/styles.css': 'styles.css'}[path]
-                mime = {'/': 'text/html', '/app.js': 'text/javascript', '/styles.css': 'text/css'}[path]
+            if not mutation and path in ('/', '/app.js', '/dossier.js', '/styles.css'):
+                name = {'/': 'index.html', '/app.js': 'app.js', '/dossier.js': 'dossier.js', '/styles.css': 'styles.css'}[path]
+                mime = {'/': 'text/html', '/app.js': 'text/javascript', '/dossier.js': 'text/javascript', '/styles.css': 'text/css'}[path]
                 self.send(200, (STATIC / name).read_bytes(), mime + '; charset=utf-8')
                 return
             if mutation and path == '/api/login':
@@ -193,6 +193,20 @@ class Handler(BaseHTTPRequestHandler):
                     self.send(200,chats.report(chat_id,parts[4]),'text/html; charset=utf-8')
                     return
                 raise WebError('Operación de conversación no encontrada.',404)
+            from . import dossier
+            if path == '/api/business/dossier' and not mutation:
+                self.send(200, dossier.listing(ws))
+                return
+            if path == '/api/business/memory' and mutation:
+                self.send(200, dossier.change(ws, self.json_body()))
+                return
+            if path == '/api/datasets' and mutation:
+                self.send(200, dossier.upload(ws, *self.multipart()))
+                return
+            if path.startswith('/api/datasets/file/') and not mutation:
+                name, content = dossier.download(ws, path.rsplit('/', 1)[-1])
+                self.send(200, content, 'text/csv; charset=utf-8', {'Content-Disposition': "attachment; filename*=UTF-8''" + quote(name)})
+                return
             if mutation and path == '/api/memory/retry':
                 self.send(202, {'memory': ws.retry_memory(self.json_body())})
                 return

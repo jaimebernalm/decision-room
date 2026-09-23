@@ -533,3 +533,31 @@ ALTER TABLE semantic_chunks DROP CONSTRAINT IF EXISTS semantic_chunks_kind_check
 ALTER TABLE semantic_chunks ADD CONSTRAINT semantic_chunks_kind_check CHECK(kind IN ('dataset','memory','report','chat'));
 CREATE INDEX IF NOT EXISTS chat_turns_pending ON chat_turns(status,created_at);
 INSERT INTO schema_versions(version) VALUES (12) ON CONFLICT DO NOTHING;
+
+-- Immutable imported batches, grouped into explicit owner-selected versions.
+-- Batches imported before this feature remain implicit standalone version 1.
+CREATE TABLE IF NOT EXISTS dataset_versions (
+    business_id uuid NOT NULL,
+    analysis_id uuid PRIMARY KEY,
+    dataset_id uuid NOT NULL,
+    version integer NOT NULL CHECK(version > 0),
+    period_from date,
+    period_until date,
+    superseded_by uuid,
+    corrected boolean NOT NULL DEFAULT false,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE(business_id,dataset_id,version),
+    FOREIGN KEY(business_id,analysis_id) REFERENCES analyses(business_id,id),
+    FOREIGN KEY(business_id,dataset_id) REFERENCES analyses(business_id,id),
+    FOREIGN KEY(business_id,superseded_by) REFERENCES analyses(business_id,id),
+    CHECK(period_from IS NULL OR period_until IS NULL OR period_from <= period_until)
+);
+CREATE TABLE IF NOT EXISTS dataset_uploads (
+    business_id uuid NOT NULL REFERENCES businesses(id),
+    request_key uuid NOT NULL,
+    signature text NOT NULL,
+    result jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY(business_id,request_key)
+);
+INSERT INTO schema_versions(version) VALUES (13) ON CONFLICT DO NOTHING;

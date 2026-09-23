@@ -18,6 +18,7 @@ from decision_room.database import connect, migrate
 from decision_room.local_env import load_env
 from decision_room.agent.model import ModelSettings
 from decision_room.web.service import Workspace
+from decision_room.web import dossier
 from decision_room.conversations import Conversations
 from decision_room.service import import_batch
 from decision_room.memory import service as memory, extraction
@@ -29,6 +30,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--output', required=True)
     p.add_argument('--env-file', default='.env')
+    p.add_argument('--dossier', action='store_true', help='Exercise independent CSV upload and owner dossier edits.')
     args = p.parse_args()
     output = Path(args.output)
     output.mkdir(parents=True, exist_ok=False)
@@ -97,9 +99,10 @@ def main():
             print(summary['checks'][-1], flush=True)
             file = Path(directory) / 'ventas.csv'
             file.write_text('date,quantity,amount\n2026-06-01,2,10\n2026-06-02,3,20\n')
-            analysis = import_batch(config, b, [file], title='Ventas registradas en junio de 2026')[
-                'analysis'
-            ]['id']
+            analysis = (dossier.upload(ws, dict(business_id=str(b), request_key=str(uuid4()),
+                title='Ventas registradas en junio de 2026', mode='separate',
+                period_from='2026-06-01', period_until='2026-06-30'), file.name, file.read_bytes())['analysis_id']
+                if args.dossier else import_batch(config, b, [file], title='Ventas registradas en junio de 2026')['analysis']['id'])
             definition = dict(
                 topic='amount_basis',
                 kind='definition',
@@ -111,7 +114,10 @@ def main():
                 valid_until=None,
                 result_id=None,
             )
-            memory.change(config, b, action='declare', request_key='definition', content=definition)
+            if args.dossier:
+                dossier.change(ws, dict(business_id=str(b), action='declare', request_key='definition', content=definition))
+            else:
+                memory.change(config, b, action='declare', request_key='definition', content=definition)
             analytical = create(analysis)
             result = send(
                 analytical,
@@ -147,16 +153,20 @@ def main():
                 if 'abre' in a['content']['statement'].lower()
                 or 'abiert' in a['content']['statement'].lower()
             )
-            chats.resolve(
-                chat,
-                dict(
-                    business_id=str(b),
-                    request_key=str(uuid4()),
-                    fact_id=f['id'],
-                    revision=f['revision'],
-                    alternative=i,
-                ),
-            )
+            if args.dossier:
+                dossier.change(ws, dict(business_id=str(b), request_key=str(uuid4()), action='correct',
+                    fact_id=f['id'], expected_revision=f['revision'], content=f['alternatives'][i]['content']))
+            else:
+                chats.resolve(
+                    chat,
+                    dict(
+                        business_id=str(b),
+                        request_key=str(uuid4()),
+                        fact_id=f['id'],
+                        revision=f['revision'],
+                        alternative=i,
+                    ),
+                )
             updated = send(create(), '¿Cuál es ahora nuestro horario de los domingos?')
             assert any(
                 x['status'] == 'declared'
@@ -187,6 +197,19 @@ def main():
                 'Paraphrased historical hypothesis retrieved semantically with original message citation.'
             )
             print(summary['checks'][-1], flush=True)
+            if args.dossier:
+                replacement = dossier.upload(ws, dict(business_id=str(b), request_key=str(uuid4()),
+                    title='Ventas de junio corregidas', mode='correction', previous_id=str(analysis),
+                    period_from='2026-06-01', period_until='2026-06-30'), 'ventas-corregidas.csv',
+                    b'date,quantity,amount\n2026-06-01,2,20\n2026-06-02,3,20\n')
+                new_analysis = replacement['analysis_id']
+                dossier.change(ws, dict(business_id=str(b), action='declare', request_key='replacement-definition',
+                    content={**definition, 'scope_id': new_analysis}))
+                revised = send(create(new_analysis), 'Calcula el total vendido registrado en este archivo de junio de 2026. Usa las definiciones guardadas; no extrapoles.')
+                assert revised['response']['kind'] == 'evidence', revised
+                check_report(review.show(config, b, revised['response']['report_id']), '100')
+                assert not review.show(config, b, result['response']['report_id'])['publishable']
+                summary['checks'].append('Dossier CSV correction: new chat calculates reviewed total 100; original report is withheld.')
             with connect(config) as db:
                 history_events = db.execute(
                     "SELECT response FROM chat_retrievals WHERE request->>'tool'='search_chats'"

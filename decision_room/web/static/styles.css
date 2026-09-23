@@ -3123,3 +3123,26 @@ body { background: #ffffff; }
   .dashboard-compose { position: static; margin-top: 24px; }
   .dashboard-page { padding-bottom: 24px; }
 }
+
+/* Shared business dossier. */
+.dossier-tabs, .dossier-actions, .dossier-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.dossier-tabs { margin-bottom: 28px; }
+.dossier-meta { justify-content: space-between; color: var(--muted); font-size: 13px; }
+.dossier-card { background: #fff; border: 1px solid #e2e5e1; border-radius: 16px; padding: 24px; margin: 18px 0; overflow-wrap: anywhere; }
+.dossier-card h2 { font-size: 22px; margin: 0 0 16px; }
+.dossier-card p { line-height: 1.6; }
+.fact-statement { font-size: 18px; }
+.fact-origin { margin: 16px 0; font-size: 14px; }
+.fact-origin summary { cursor: pointer; }
+.fact-origin blockquote { border-left: 3px solid #bbc7ba; padding: 8px 16px; margin: 12px 0; white-space: pre-wrap; }
+.dossier-form { display: grid; gap: 18px; max-width: 720px; }
+.dossier-form label { display: grid; gap: 8px; font-size: 14px; }
+.dossier-form input, .dossier-form select, .dossier-form textarea { width: 100%; padding: 12px; border: 1px solid #ccd2ca; border-radius: 8px; font: inherit; background: white; color: #26352c; box-sizing: border-box; }
+.dossier-form label[hidden] { display: none; }
+.dossier-dates { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.dossier-form .dossier-checkbox { display: flex; align-items: center; }
+.dossier-checkbox input { width: auto; }
+.dossier-empty { padding: 28px 0; color: #657367; }
+#fact-error { color: #973f32; }
+#dossier-editor { scroll-margin-top: 24px; }
+@media (max-width: 600px) { .dossier-dates { grid-template-columns: 1fr; } .dossier-card { padding: 18px; } .dossier-tabs { gap: 6px; } .dossier-tabs .button { padding: 10px 12px; } }

@@ -1,7 +1,7 @@
 # Decision Room: plan de implementación por entregas
 
 **Fecha de actualización:** 23 de septiembre de 2026.  
-**Estado vigente:** entrega 2 implementada y comprobada como recorrido web local. La ronda de evaluación previa a ampliar cobertura terminó el 22 de septiembre, con correcciones y límites documentados; no equivale a aceptación general del MVP. La entrega 2.5 tiene los pasos 2.5.1–2.5.4 implementados y comprobados; los pasos 2.5.5–2.5.7 de memoria compartida y experiencia cotidiana siguen pendientes y preceden a la ampliación de cobertura de la entrega 3. Los resultados históricos de cada paso se conservan en la sección 10.  
+**Estado vigente:** entrega 2 implementada y comprobada como recorrido web local. La ronda de evaluación previa a ampliar cobertura terminó el 22 de septiembre, con correcciones y límites documentados; no equivale a aceptación general del MVP. La entrega 2.5 tiene los pasos 2.5.1–2.5.5 implementados y comprobados; los pasos 2.5.6–2.5.7 de memoria compartida y experiencia cotidiana siguen pendientes y preceden a la ampliación de cobertura de la entrega 3. Los resultados históricos de cada paso se conservan en la sección 10.  
 **Propósito:** conservar la secuencia de trabajo, el motivo de cada paso y qué debemos poder comprobar antes de darlo por terminado.
 
 ## 1. Relación con el MVP
@@ -197,7 +197,7 @@ y la [validación](../validation/2026-09-23-semantic-check.md).
 
 **Comprobar:** el primer acceso guía el onboarding y los siguientes abren Inicio; escribir desde Inicio crea un chat durable; una sugerencia es abordable con las capacidades/datos presentes; no se mezclan revisiones incompatibles. Verificar estados sin datos, análisis en curso, datos nuevos sin informe nuevo, informe retirado y fallo recuperable. Comprobar visualmente escritorio/móvil, foco, teclado y que el prompt no oculte contenido.
 
-**Avance integrado, 23 de septiembre:** se incorpora el dashboard desarrollado en paralelo y se conecta con los chats y la memoria hasta 2.5.4: prompt con primer mensaje durable, conversaciones reales en la barra lateral, biblioteca y acceso al chat de origen, edición del perfil y reutilización de informes vigentes. El orden se adelanta por disponibilidad de la interfaz; **2.5.5 sigue siendo el siguiente paso**. Quedan pendientes la vinculación estructurada de preguntas a hallazgos y los estados de versiones de datos antes de cerrar 2.5.6. Véase [integración del dashboard](../technical/dashboard-ui.md).
+**Avance integrado, 23 de septiembre:** se incorpora el dashboard desarrollado en paralelo y se conecta con los chats y la memoria hasta 2.5.4: prompt con primer mensaje durable, conversaciones reales en la barra lateral, biblioteca y acceso al chat de origen, edición del perfil y reutilización de informes vigentes. El orden se adelanta por disponibilidad de la interfaz; **2.5.5 se completó después de esta integración**, incluyendo los estados de versiones de datos. Quedan pendientes la vinculación estructurada de preguntas a hallazgos y la validación conjunta del recorrido antes de cerrar 2.5.6. Véase [integración del dashboard](../technical/dashboard-ui.md).
 
 ### 2.5.7. Evaluación integrada y cierre
 
@@ -391,3 +391,6 @@ Ver [validación completa](../validation/2026-09-22-luna-validation.md) e
 
 
 **Cierre de 2.5.4, 23 de septiembre de 2026:** conversaciones persistentes, memoria entre chats, antecedentes semánticos con referencias originales, investigación sobre datos existentes y respuestas breves basadas en evidencia revisada. Incluye aclaraciones, reintento explícito, conservación de intentos e informe vinculado bajo petición. El recorrido real con Luna comprueba un total de 80, explicación sin recalcular, corrección de memoria y recuperación de una hipótesis reformulada. Véanse [implementación](../technical/conversations.md) y [validación y límites](../validation/2026-09-23-conversations-check.md). El siguiente paso es **2.5.5: Mi negocio y datos reutilizables**.
+
+
+**Cierre de 2.5.5, 23 de septiembre de 2026:** ficha consultable y editable con origen, vigencia y revisiones; carga independiente de CSV, reenvíos exactos, conjuntos/versiones explícitos y conservación de originales. Una actualización conserva los informes históricos; una corrección retira los resultados afectados y requiere un cálculo nuevo. Pasan 241 pruebas Python, 7 JavaScript y 6 comprobaciones con Luna real, incluido el cambio de total revisado de 80 a 100 al corregir datos. Véanse [contratos](../technical/business-dossier.md) y [validación](../validation/2026-09-23-dossier-check.md). El siguiente paso es cerrar **2.5.6**.
