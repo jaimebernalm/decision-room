@@ -95,7 +95,37 @@ La memoria compartida no significa incluir todos los chats en cada llamada. Cons
 
 Empezar con selección por negocio, ámbito, estado, periodo y referencias, más búsqueda acotada en PostgreSQL cuando sea necesaria. Medir omisiones y ruido antes de introducir búsqueda semántica. Los resúmenes son ayudas reconstruibles con enlaces a sus fuentes; nunca autoridad superior al hecho corregido o retirado. Fuentes, mensajes recuperados y resúmenes se tratan como contenido, no como instrucciones que puedan modificar permisos o reglas del sistema.
 
-Cada turno/ejecución registra el manifiesto de contexto seleccionado. Planificador, analista y revisor deben recibir las mismas versiones relevantes. Los checkpoints fijan la versión con la que se inició el trabajo. Antes de publicar, comprobar que no hubo una corrección material concurrente; si la hubo, retirar la candidatura y replanificar/revisar lo afectado. Evitar mezclar mitades de dos versiones.
+### 4.1. RAG y relaciones entre datos, memoria e informes
+
+**Decisión acordada con el usuario, 23 de septiembre de 2026.** Aplicar este diseño al implementar 2.5.3 y conectar las conversaciones en 2.5.4. Es una decisión de implementación pendiente, no una capacidad ya disponible.
+
+Combinar recuperación dirigida por el agente, relaciones explícitas y búsqueda. La búsqueda semántica es una herramienta posible dentro de ese recorrido; no sustituye los originales ni exige convertir todas las tablas y mensajes en vectores. PostgreSQL mantiene la autoridad del estado y las relaciones; los datos tabulares conservan su estructura y se calculan mediante SQL/Python sobre las fuentes autorizadas.
+
+| Elemento | Representación para búsqueda | Original y relaciones que se conservan |
+|---|---|---|
+| Conjunto de datos/tablas | Descripción de contenido, columnas, significado, periodo, cobertura y limitaciones | Fuentes y tablas preparadas con identidad y versión; no vectorizar cada fila del CSV como requisito |
+| Memoria | Contenido de recuerdos individuales y metadatos de ámbito/vigencia | Hechos, revisiones, originales y estado en PostgreSQL |
+| Informes | Resumen, hallazgos y secciones con referencias | Informe/revisión, cálculos, evidencia y versiones de datos utilizados |
+| Chats, desde 2.5.4 | Fragmentos pertinentes con contexto suficiente para interpretar la conversación | Mensajes completos y ordenados, referencias a negocio, fuentes, recuerdos, investigaciones e informes |
+
+**Recorrido que debe construirse:**
+
+1. Entregar un contexto inicial pequeño: perfil, petición actual, restricciones materiales y catálogo resumido de datos disponibles. Con poca memoria, incluir todos los recuerdos aplicables antes de introducir una selección demasiado estrecha.
+2. Ofrecer herramientas acotadas para buscar conjuntos de datos, inspeccionar su estructura, consultar memoria aplicable, buscar antecedentes y abrir evidencia. El agente puede solicitar detalle adicional según lo que encuentre; los resultados iniciales incluyen descripciones y referencias estables.
+3. Resolver relaciones explícitas: una aclaración define una fuente/columna; una investigación utiliza una versión de datos; un informe deriva de esa investigación; un mensaje aporta un recuerdo o discute un resultado. Recuperar antecedentes ligados a esas relaciones, además del conocimiento general pertinente del negocio.
+4. No incorporar un chat entero por compartir una tabla. Seleccionar mensajes relacionados con el asunto y contexto adyacente cuando sea necesario. Compartir tabla tampoco acredita que una conclusión anterior sea aplicable al nuevo periodo o pregunta.
+5. Comprobar negocio y ámbito antes de recuperar contenido; verificar estado, vigencia y versión del original antes de entregarlo como contexto utilizable. Una coincidencia textual o semántica no acredita validez ni suficiencia. Distinguir antecedentes conversacionales de evidencia numérica revisada; calcular y revisar cuando hagan falta cifras nuevas.
+6. Registrar cada ampliación del contexto en el manifiesto, sin cambiar silenciosamente las versiones ya utilizadas. Las dudas y contradicciones materiales son obligatorias, aunque su similitud con la pregunta sea baja. Si el contexto imprescindible no cabe o hay ambigüedad material sobre fuentes/periodo, acotar o aclarar antes de continuar.
+
+**Introducción gradual de búsqueda semántica:** en 2.5.3 construir las referencias, descripciones, contrato de recuperación y búsqueda textual acotada en PostgreSQL. Preparar casos de preguntas reformuladas para medir omisiones y ruido. Añadir un índice semántico cuando esos resultados justifiquen su utilidad; no elegir proveedor ni motor vectorial como requisito previo. Registrar la decisión y los resultados de evaluación: no introducirlo ni aplazarlo silenciosamente.
+
+Si se añade ese índice, indexar descripciones y fragmentos seleccionados con identificador de origen y versión. Es una representación derivada y reconstruible. Corregir o retirar información debe actualizar o invalidar también sus resúmenes/fragmentos/indexaciones. Mientras se actualiza el índice, contrastar cada resultado recuperado con el original vigente para impedir reutilizar contenido obsoleto. Un fragmento de un mensaje original no puede reactivar un recuerdo retirado.
+
+**Reparto entre pasos:** 2.5.3 implementa el mecanismo con memoria, datos e informes existentes; 2.5.4 añade mensajes y fragmentos de chats mediante el mismo contrato. No crear un segundo buscador o una segunda memoria independientes para las conversaciones. La ficha de 2.5.5 muestra y modifica los mismos registros.
+
+### 4.2. Manifiesto y efectos de cambios
+
+Cada turno/ejecución registra el manifiesto de contexto seleccionado. Planificador, analista y revisor deben recibir las mismas versiones relevantes. Los checkpoints fijan la versión con la que se inició el trabajo. Antes de publicar, comprobar que no hubo una corrección material concurrente; si la hubo, retirar la candidatura y replanificar/revisar lo afectado. Evitar mezclar mitades de dos versiones. El manifiesto acredita qué contenido y versiones se entregaron al modelo, no qué utilizó internamente en su razonamiento. Registrar también reglas de selección, límites y contexto pendiente. Comprobar cambios relevantes en el ámbito seleccionado, incluida información nueva que todavía no aparecía en la lista de identificadores del manifiesto.
 
 Extender la invalidación actual, limitada a una sesión, a las dependencias del negocio:
 
