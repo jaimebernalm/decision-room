@@ -299,3 +299,39 @@ CREATE TABLE IF NOT EXISTS web_replies (
     PRIMARY KEY (job_id,request_key)
 );
 INSERT INTO schema_versions(version) VALUES (7) ON CONFLICT DO NOTHING;
+
+-- A local owner may explicitly select an existing web business. CLI evaluation
+-- businesses are never enrolled implicitly. Backfill only once, transactionally.
+CREATE TABLE IF NOT EXISTS web_businesses (
+    business_id uuid PRIMARY KEY REFERENCES businesses(id),
+    profile_revision integer NOT NULL DEFAULT 1 CHECK (profile_revision > 0),
+    onboarding_status text NOT NULL DEFAULT 'context_saved'
+        CHECK (onboarding_status IN ('context_saved','analysis_started')),
+    creation_key uuid UNIQUE,
+    creation_sha256 text,
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS web_workspace (
+    singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
+    active_business_id uuid REFERENCES web_businesses(business_id)
+);
+INSERT INTO web_workspace(singleton) VALUES (true) ON CONFLICT DO NOTHING;
+ALTER TABLE web_jobs ADD COLUMN IF NOT EXISTS business_name text;
+ALTER TABLE web_jobs ADD COLUMN IF NOT EXISTS business_revision integer;
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM schema_versions WHERE version=8) THEN
+        INSERT INTO web_businesses(business_id,onboarding_status)
+            SELECT DISTINCT business_id,'analysis_started' FROM web_jobs
+            ON CONFLICT DO NOTHING;
+        UPDATE web_jobs w SET business_name=b.name FROM businesses b
+            WHERE b.id=w.business_id AND w.business_name IS NULL;
+        -- A single historical web business is unambiguous. With several, leave
+        -- selection empty: names are not identities, including identical names.
+        UPDATE web_workspace SET active_business_id=(SELECT business_id FROM web_businesses LIMIT 1)
+            WHERE active_business_id IS NULL AND (SELECT count(*) FROM web_businesses)=1;
+        INSERT INTO schema_versions(version) VALUES (8);
+    END IF;
+END $$;
+ALTER TABLE web_jobs ALTER COLUMN business_name SET NOT NULL;
+CREATE INDEX IF NOT EXISTS web_jobs_business_date ON web_jobs(business_id,created_at DESC);

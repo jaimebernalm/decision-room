@@ -5,7 +5,7 @@ import logging
 import threading
 from dataclasses import asdict
 from pathlib import Path
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from psycopg.types.json import Jsonb
 
@@ -16,6 +16,8 @@ from ..client_report import render_client
 from ..database import connect
 from ..execution import recover_executions
 from ..storage import Storage
+from . import business as business_store
+from .errors import WebError, bounded, identifier
 
 MAX_UPLOAD = 20 * 1024**2
 LOG = logging.getLogger(__name__)
@@ -40,25 +42,6 @@ def failure_message(error):
             'para continuar desde el último paso guardado.')
 
 
-class WebError(ValueError):
-    def __init__(self, message, status=400):
-        super().__init__(message)
-        self.status = status
-
-
-def identifier(value):
-    try:
-        return UUID(str(value))
-    except (ValueError, TypeError):
-        raise WebError('Identificador no válido.') from None
-
-
-def bounded(value, label, limit, required=True):
-    if not isinstance(value, str) or len(value) > limit or (required and not value.strip()):
-        raise WebError(f'Revisa {label}: ' + (f'es obligatorio y admite hasta {limit} caracteres.' if required else f'admite hasta {limit} caracteres.'))
-    return value.strip()
-
-
 class Workspace:
     def __init__(self, config, settings=None, model_factory=ModelClient):
         self.config = config
@@ -66,13 +49,49 @@ class Workspace:
         self.model_factory = model_factory
         self.wake = threading.Event()
         self.stop = threading.Event()
+        self._scoped = False
+        self._business_id = None
+
+    def scoped(self, business_id):
+        """Pin a request/worker to one authorized business, even during selection changes."""
+        if business_id is not None:
+            with connect(self.config) as db:
+                business_store.profile(db, business_id)
+        scoped = Workspace(self.config, self.settings, self.model_factory)
+        scoped._scoped, scoped._business_id = True, business_id
+        scoped.wake, scoped.stop = self.wake, self.stop
+        return scoped
+
+    def business_id(self):
+        if self._scoped:
+            return self._business_id
+        current = business_store.state(self.config)['business']
+        return current['id'] if current else None
+
+    def save_business(self, data):
+        return business_store.save(self.config, data)
+
+    def select_business(self, data):
+        return business_store.select(self.config, data)
+
+    def state(self):
+        current = business_store.state(self.config)
+        business_id = current['business']['id'] if current['business'] else None
+        return {**current, 'configured': self.settings is not None,
+                'analyses': self.scoped(business_id).listing()}
 
     def create(self, data, filename, content):
         if not isinstance(data, dict):
             raise WebError('Los datos del análisis no son válidos.')
         key = identifier(data.get('request_key'))
-        name = bounded(data.get('business'), 'el nombre del negocio', 100)
-        context = bounded(data.get('context'), 'la descripción del negocio', 6000)
+        business = self.business_id()
+        if business is None or identifier(data.get('business_id')) != business:
+            raise WebError('Selecciona tu negocio antes de crear un análisis. Si ha cambiado, recarga la página.', 409)
+        revision = data.get('profile_revision')
+        if type(revision) is not int or revision < 1:
+            raise WebError('Vuelve a cargar el contexto de tu negocio.', 409)
+        if 'business' in data or 'context' in data:
+            raise WebError('Guarda el contexto desde el formulario del negocio antes de iniciar el análisis.', 409)
         goal = bounded(data.get('goal', ''), 'la pregunta', 2000, False)
         title = bounded(data.get('title') or goal or 'Exploración general', 'el título', 160)
         if not isinstance(filename, str) or '/' in filename or '\\' in filename or any(ord(c) < 32 for c in filename):
@@ -86,27 +105,35 @@ class Workspace:
             content.decode('utf-8-sig')
         except UnicodeDecodeError:
             raise WebError('Guarda el archivo como CSV UTF-8 y vuelve a subirlo.') from None
-        signature = hashlib.sha256(json.dumps([name, context, goal, title, filename], ensure_ascii=False).encode() + content).hexdigest()
         with connect(self.config) as db, db.transaction():
+            # Serialize profile edits/selection with capturing this job's snapshot.
+            selected = db.execute('SELECT active_business_id FROM web_workspace WHERE singleton FOR SHARE').fetchone()
+            if selected['active_business_id'] != business:
+                raise WebError('El negocio activo ha cambiado. Vuelve a abrir el formulario.', 409)
             db.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s, 7))', (str(key),))
-            old = db.execute('SELECT id,request_sha256 FROM web_jobs WHERE request_key=%s', (key,)).fetchone()
+            old = db.execute('SELECT * FROM web_jobs WHERE request_key=%s', (key,)).fetchone()
+            current = business_store.profile(db, business)
+            name, context = (old['business_name'], old['context']) if old else (current['name'], current['description'])
+            signature = hashlib.sha256(json.dumps([name, context, goal, title, filename], ensure_ascii=False).encode() + content).hexdigest()
             if old:
-                if old['request_sha256'] != signature:
+                if old['business_id'] != business or old['business_revision'] != revision or old['request_sha256'] != signature:
                     raise WebError('Este envío ya se guardó con otros datos. Inicia un nuevo análisis.', 409)
                 return {'id': str(old['id'])}
+            if current['profile_revision'] != revision:
+                raise WebError('El contexto del negocio ha cambiado. Recárgalo antes de iniciar otro análisis.', 409)
             if self.settings is None:
                 raise WebError('Falta configurar el modelo local. El borrador está guardado; podrás enviarlo cuando esté disponible.', 503)
-            job_id, business = uuid4(), uuid4()
+            job_id = uuid4()
             upload_key = f'{business}/web/{job_id}/{filename}'
             path = Storage(self.config.storage).path(business, upload_key)
             path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
             path.write_bytes(content)
             path.chmod(0o600)
             try:
-                db.execute('INSERT INTO businesses(id,name,description) VALUES (%s,%s,%s)', (business, name, context))
-                db.execute('''INSERT INTO web_jobs(id,request_key,request_sha256,business_id,title,context,goal,
-                    filename,upload_key,byte_count,model_settings,status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'queued')''',
-                    (job_id, key, signature, business, title, context, goal, filename, upload_key, len(content), Jsonb(asdict(self.settings))))
+                db.execute('''INSERT INTO web_jobs(id,request_key,request_sha256,business_id,business_name,business_revision,title,context,goal,
+                    filename,upload_key,byte_count,model_settings,status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'queued')''',
+                    (job_id, key, signature, business, name, revision, title, context, goal, filename, upload_key, len(content), Jsonb(asdict(self.settings))))
+                db.execute("UPDATE web_businesses SET onboarding_status='analysis_started',updated_at=now() WHERE business_id=%s", (business,))
             except BaseException:
                 path.unlink(missing_ok=True)
                 raise
@@ -115,8 +142,8 @@ class Workspace:
 
     def row(self, job_id):
         with connect(self.config) as db:
-            job = db.execute('SELECT w.*,b.name AS business FROM web_jobs w JOIN businesses b ON b.id=w.business_id WHERE w.id=%s',
-                             (identifier(job_id),)).fetchone()
+            job = db.execute('SELECT w.*,w.business_name AS business FROM web_jobs w WHERE w.id=%s AND w.business_id=%s',
+                             (identifier(job_id), self.business_id())).fetchone()
         if not job:
             raise WebError('No encontramos este análisis en tu espacio de trabajo.', 404)
         return job
@@ -125,15 +152,18 @@ class Workspace:
         allowed = {'status', 'phase', 'issue', 'pending_answer', 'retry_uncertain', 'analysis_id', 'session_id', 'research_id', 'review_id'}
         assert values.keys() <= allowed
         with connect(self.config) as db:
-            db.execute('UPDATE web_jobs SET ' + ','.join(f'{key}=%s' for key in values) + ',updated_at=now() WHERE id=%s',
-                       (*values.values(), job_id))
+            row = db.execute('UPDATE web_jobs SET ' + ','.join(f'{key}=%s' for key in values) + ',updated_at=now() WHERE id=%s AND business_id=%s RETURNING id',
+                             (*values.values(), job_id, self.business_id())).fetchone()
+            if not row:
+                raise WebError('Análisis no encontrado en el negocio activo.', 404)
 
     def sync(self, job_id):
         """Discover durable child IDs even if the process died before a call returned."""
         j = self.row(job_id)
+        # The imported batch is recovered by its content/preparation identity in
+        # run_job, never by "latest analysis" now that businesses can have many.
         with connect(self.config) as db:
             for field, table, where, params in [
-                ('analysis_id', 'analyses', 'business_id=%s', (j['business_id'],)),
                 ('session_id', 'agent_sessions', 'business_id=%s AND request_key=%s', (j['business_id'], 'web:' + str(j['id']))),
                 ('research_id', 'agent_research', 'business_id=%s AND request_key=%s', (j['business_id'], 'web:' + str(j['id']))),
                 ('review_id', 'agent_reviews', 'business_id=%s AND request_key=%s', (j['business_id'], 'web:' + str(j['id']))),
@@ -145,7 +175,7 @@ class Workspace:
         return self.row(job_id)
 
     def public(self, j):
-        fields = ('id', 'title', 'business', 'context', 'goal', 'filename', 'byte_count', 'status', 'phase', 'created_at', 'updated_at', 'issue')
+        fields = ('id', 'business_id', 'title', 'business', 'context', 'goal', 'filename', 'byte_count', 'status', 'phase', 'created_at', 'updated_at', 'issue')
         return {key: j[key] for key in fields}
 
     def review_state(self, j):
@@ -158,7 +188,8 @@ class Workspace:
 
     def listing(self):
         with connect(self.config) as db:
-            rows = db.execute('SELECT w.*,b.name AS business FROM web_jobs w JOIN businesses b ON b.id=w.business_id ORDER BY w.created_at DESC').fetchall()
+            rows = db.execute('SELECT w.*,w.business_name AS business FROM web_jobs w WHERE w.business_id=%s ORDER BY w.created_at DESC',
+                              (self.business_id(),)).fetchall()
         result = []
         for j in rows:
             item = self.public(j)
@@ -217,7 +248,8 @@ class Workspace:
                   'disposition': disposition, 'request_key': str(key)}
         questions = self.detail(job_id)['questions']
         with connect(self.config) as db, db.transaction():
-            job = db.execute('SELECT * FROM web_jobs WHERE id=%s FOR UPDATE', (identifier(job_id),)).fetchone()
+            job = db.execute('SELECT * FROM web_jobs WHERE id=%s AND business_id=%s FOR UPDATE',
+                             (identifier(job_id), self.business_id())).fetchone()
             if not job:
                 raise WebError('Análisis no encontrado.', 404)
             prior = db.execute('SELECT answer FROM web_replies WHERE job_id=%s AND request_key=%s', (job_id, key)).fetchone()
@@ -247,8 +279,8 @@ class Workspace:
             # or trigger LM Studio's automatic model-loading attempt.
             raise WebError(str(error), 409) from None
         with connect(self.config) as db:
-            row = db.execute("UPDATE web_jobs SET status='queued',issue=NULL,retry_uncertain=true,updated_at=now() WHERE id=%s AND status='failed' RETURNING id",
-                             (identifier(job_id),)).fetchone()
+            row = db.execute("UPDATE web_jobs SET status='queued',issue=NULL,retry_uncertain=true,updated_at=now() WHERE id=%s AND business_id=%s AND status='failed' RETURNING id",
+                             (identifier(job_id), j['business_id'])).fetchone()
         if not row:
             raise WebError('Solo se pueden reintentar los análisis con un fallo técnico.', 409)
         self.wake.set()
@@ -287,9 +319,16 @@ class Workspace:
                 recover_executions(self.config, b)
             if not j['analysis_id']:
                 self.update(job_id, phase='upload')
-                self.upload(job_id)  # Verify the persisted upload before the importer consumes it.
+                content = self.upload(job_id)[1]  # Verify before reuse or import.
                 path = Storage(self.config.storage).path(b, j['upload_key'])
-                data = ingestion.import_batch(self.config, b, [path], title=j['title'])
+                batch_hash, _ = ingestion.batch_metadata([hashlib.sha256(content).hexdigest()])
+                with connect(self.config) as db:
+                    existing = db.execute('SELECT id FROM analyses WHERE business_id=%s AND batch_sha256=%s',
+                                          (b, batch_hash)).fetchone()
+                # Reuse and verify the exact batch without changing the names
+                # in previous source snapshots. This upload keeps its own name.
+                data = (ingestion.resume(self.config, b, existing['id']) if existing else
+                        ingestion.import_batch(self.config, b, [path], title=j['title']))
             else:
                 data = ingestion.describe(self.config, b, j['analysis_id'])
                 if data['analysis']['status'] == 'importing':
@@ -356,10 +395,10 @@ class Workspace:
         with connect(self.config) as db:
             if not db.execute('SELECT pg_try_advisory_lock(87120938) AS locked').fetchone()['locked']:
                 return False
-            j = db.execute("SELECT id FROM web_jobs WHERE status IN ('queued','running') ORDER BY created_at LIMIT 1").fetchone()
+            j = db.execute("SELECT j.id,j.business_id FROM web_jobs j JOIN web_businesses b ON b.business_id=j.business_id WHERE status IN ('queued','running') ORDER BY created_at LIMIT 1").fetchone()
             if not j:
                 return False
-            self.run_job(j['id'])
+            self.scoped(j['business_id']).run_job(j['id'])
             return True
 
     def worker(self):

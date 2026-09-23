@@ -24,7 +24,6 @@ def main():
     config.storage.mkdir(parents=True, exist_ok=True, mode=0o700)
     logging.basicConfig(filename=config.storage / 'web.log', level=logging.INFO,
                         format='%(asctime)s %(levelname)s %(message)s')
-    migrate(config)
     try:
         settings = ModelSettings.load()
     except ValueError:
@@ -41,6 +40,13 @@ def main():
             'No hace falta arrancarlo otra vez. Si el puerto lo ocupa otra aplicación, '
             'elige otro con --port.'
         )
+    # Claim the port before upgrading the schema: a second launch must not
+    # migrate the database underneath an older server still using this port.
+    try:
+        migrate(config)
+    except BaseException:
+        server.server_close()
+        raise
     thread = threading.Thread(target=workspace.worker, name='decision-room-worker', daemon=True)
     thread.start()
     print(f'Decision Room: {server.origin}', flush=True)

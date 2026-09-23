@@ -70,13 +70,18 @@ class WebTests(unittest.TestCase):
         with connect(self.config) as db, db.transaction():
             db.execute('DELETE FROM web_replies')
             db.execute('DELETE FROM web_jobs')
+            db.execute('UPDATE web_workspace SET active_business_id=NULL')
+            db.execute('DELETE FROM web_businesses')
         self.ws = Workspace(self.config, SETTINGS, WebModel)
-        self.metadata = {'request_key': str(uuid4()), 'business': 'Test shop', 'context': 'unit price, selected sales only',
+        self.business = self.ws.save_business({'request_key': str(uuid4()), 'name': 'Test shop',
+                                              'description': 'unit price, selected sales only'})
+        self.metadata = {'request_key': str(uuid4()), 'business_id': str(self.business['id']), 'profile_revision': 1,
                          'goal': 'Understand sales', 'title': 'Web test'}
         self.csv = b'quantity,amount\n2,10\n3,20\n'
 
     def create(self, **changes):
-        return self.ws.create({**self.metadata, **changes}, 'sales.csv', self.csv)['id']
+        filename = changes.pop('filename', 'sales.csv')
+        return self.ws.create({**self.metadata, **changes}, filename, self.csv)['id']
 
     def http(self):
         server = Server(self.ws, 0, token='test-local-access')
@@ -353,6 +358,188 @@ class WebTests(unittest.TestCase):
         serialized = json.dumps(self.ws.detail(job), default=str)
         for private in ['source_snapshot', 'model_settings', 'upload_key', 'original_key', 'parquet_key', 'dsn']:
             self.assertNotIn('"' + private + '"', serialized)
+
+    def test_profile_saved_without_model_and_recovered_in_another_process(self):
+        import os
+        import subprocess
+        import sys
+        self.ws.settings = None
+        before = self.ws.state()['business']
+        self.assertEqual(before['onboarding_status'], 'context_saved')
+        env = {**os.environ, 'DECISION_ROOM_DATABASE_URL': self.config.dsn,
+               'DECISION_ROOM_STORAGE': str(self.config.storage)}
+        code = "from decision_room.config import Config; from decision_room.web.service import Workspace; import json; print(json.dumps(Workspace(Config.load()).state(),default=str))"
+        saved = json.loads(subprocess.check_output([sys.executable, '-c', code], env=env))
+        self.assertEqual(saved['business']['id'], str(before['id']))
+        self.assertEqual(saved['business']['description'], before['description'])
+        self.assertEqual(saved['analyses'], [])
+        self.assertFalse(saved['configured'])
+
+    def test_profile_retries_validation_and_concurrent_edit(self):
+        from concurrent.futures import ThreadPoolExecutor
+        update = {'business_id': str(self.business['id']), 'profile_revision': 1,
+                  'name': 'Changed name', 'description': 'Same store with updated context'}
+        def save(name):
+            try:
+                return self.ws.save_business({**update, 'name': name})
+            except WebError as error:
+                return error.status
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            outcomes = list(pool.map(save, ['First edit', 'Second edit']))
+        self.assertEqual(sum(isinstance(x, dict) for x in outcomes), 1)
+        self.assertIn(409, outcomes)
+        current = self.ws.state()['business']
+        repeated = self.ws.save_business({**update, 'name': current['name']})
+        self.assertEqual(repeated['profile_revision'], 2)
+        for invalid in [{'name': ''}, {'description': ''}, {'description': 'x' * 6001}]:
+            with self.assertRaises(WebError):
+                self.ws.save_business({**update, **invalid})
+
+    def test_edit_keeps_original_upload_context_and_pending_job_snapshot(self):
+        job = self.create()
+        old = self.ws.row(job)
+        current = self.ws.save_business({'business_id': str(self.business['id']), 'profile_revision': 1,
+                                        'name': 'Renamed shop', 'description': 'New general context'})
+        self.assertEqual(self.ws.upload(job)[1], self.csv)
+        self.assertEqual(self.create(), job)  # A retry keeps the original revision.
+        with self.assertRaises(WebError):
+            self.create(request_key=str(uuid4()))  # A stale new form cannot start work.
+        other = self.create(request_key=str(uuid4()), profile_revision=current['profile_revision'], goal='Different question')
+        self.assertEqual(self.ws.row(other)['business_id'], old['business_id'])
+        self.assertEqual(self.ws.row(other)['context'], 'New general context')
+        self.assertEqual(self.ws.row(job)['context'], old['context'])
+        self.ws.run_job(job)
+        with connect(self.config) as db:
+            source = db.execute('SELECT source_snapshot FROM agent_sessions WHERE id=%s',
+                                (self.ws.row(job)['session_id'],)).fetchone()['source_snapshot']
+        self.assertIn('Negocio: Test shop', source['owner_context'])
+        self.assertNotIn('New general context', source['owner_context'])
+
+    def test_two_completed_questions_reuse_one_batch_but_keep_separate_sessions(self):
+        first = self.complete()
+        self.metadata.update(request_key=str(uuid4()), goal='A second question', title='Another report')
+        second = self.complete()
+        a, b = self.ws.row(first), self.ws.row(second)
+        self.assertEqual(a['business_id'], b['business_id'])
+        self.assertEqual(a['analysis_id'], b['analysis_id'])
+        for key in ('session_id', 'research_id', 'review_id'):
+            self.assertNotEqual(a[key], b[key])
+        self.assertEqual(len(self.ws.listing()), 2)
+        self.assertTrue(self.ws.detail(first)['publishable'])
+        self.assertTrue(self.ws.detail(second)['publishable'])
+        self.assertIn('30.00', self.ws.report(first))
+        self.assertIn('30.00', self.ws.report(second))
+        self.assertEqual(self.ws.state()['business']['description'], self.business['description'])
+        self.assertEqual(self.ws.state()['business']['onboarding_status'], 'analysis_started')
+
+    def test_identical_upload_with_new_filename_keeps_prior_report_publishable(self):
+        first = self.complete()
+        second = self.create(request_key=str(uuid4()), filename='same-sales-renamed.csv')
+        self.ws.run_job(second)
+        self.assertEqual(self.ws.row(first)['analysis_id'], self.ws.row(second)['analysis_id'])
+        self.assertTrue(self.ws.detail(first)['publishable'])
+        self.assertIn('30.00', self.ws.report(first))
+        self.assertEqual(self.ws.upload(second)[0], 'same-sales-renamed.csv')
+
+    def test_recovery_uses_exact_batch_not_latest_for_same_business(self):
+        first = self.create()
+        self.ws.run_job(first)
+        from decision_room import service as ingestion
+        original = ingestion.import_batch
+        def import_then_crash(*args, **kwargs):
+            original(*args, **kwargs)
+            raise KeyboardInterrupt()
+        self.csv = b'quantity,amount\n1,90\n'
+        second = self.create(request_key=str(uuid4()), goal='New period')
+        with patch.object(ingestion, 'import_batch', side_effect=import_then_crash), self.assertRaises(KeyboardInterrupt):
+            self.ws.run_job(second)
+        self.assertIsNone(self.ws.row(second)['analysis_id'])
+        # A third, later batch is saved before the second job recovers.
+        third = self.ws.create({**self.metadata, 'request_key': str(uuid4())}, 'sales.csv', b'quantity,amount\n1,500\n')['id']
+        self.ws.run_job(third)
+        resumed = Workspace(self.config, SETTINGS, WebModel)
+        resumed.run_job(second)
+        self.assertEqual(resumed.detail(second)['files'][0]['row_count'], 1)
+        ids = {resumed.row(j)['analysis_id'] for j in (first, second, third)}
+        self.assertEqual(len(ids), 3)
+        with connect(self.config) as db:
+            self.assertEqual(db.execute('SELECT count(*) AS n FROM analyses WHERE business_id=%s',
+                                        (self.business['id'],)).fetchone()['n'], 3)
+
+    def test_business_selection_is_explicit_scoped_and_worker_continues_old_job(self):
+        first = self.create()
+        other = self.ws.save_business({'request_key': str(uuid4()), 'expected_active_id': str(self.business['id']),
+                                      'name': 'Test shop', 'description': 'A separate shop with the same name'})
+        self.assertNotEqual(other['id'], self.business['id'])
+        self.assertEqual(self.ws.listing(), [])
+        for operation in (self.ws.detail, self.ws.upload, self.ws.report, self.ws.retry):
+            with self.subTest(operation=operation.__name__), self.assertRaises(WebError) as caught:
+                operation(first)
+            self.assertEqual(caught.exception.status, 404)
+        with self.assertRaises(WebError):
+            self.ws.reply(first, {'request_key': str(uuid4()), 'text': 'answer'})
+        with self.assertRaises(WebError):
+            self.create()
+        self.assertTrue(self.ws.work_once())
+        self.assertEqual(self.ws.state()['business']['id'], other['id'])
+        self.ws.select_business({'business_id': str(self.business['id'])})
+        self.assertEqual(self.ws.detail(first)['status'], 'waiting')
+        self.assertEqual(self.ws.upload(first)[1], self.csv)
+        from decision_room.service import create_business
+        unrelated = create_business(self.config, 'Private CLI case')
+        with self.assertRaises(WebError):
+            self.ws.select_business({'business_id': str(unrelated['id'])})
+
+    def test_http_business_routes_and_every_job_route_respect_selection(self):
+        job = self.create()
+        client, _ = self.http()
+        self.assertEqual(client.post('/api/business/select', json={'business_id': str(self.business['id'])}).status_code, 401)
+        client.post('/api/login', json={'token': 'test-local-access'})
+        body = {'request_key': str(uuid4()), 'expected_active_id': str(self.business['id']),
+                'name': 'Another shop', 'description': 'A different business'}
+        saved = client.post('/api/business', json=body)
+        self.assertEqual(saved.status_code, 200)
+        self.assertEqual(client.post('/api/business', json=body).json(), saved.json())
+        for suffix in ('', '/file', '/report'):
+            self.assertEqual(client.get(f'/api/jobs/{job}{suffix}').status_code, 404)
+        self.assertEqual(client.post(f'/api/jobs/{job}/retry', json={}).status_code, 404)
+        self.assertEqual(client.post(f'/api/jobs/{job}/answers', json={'request_key': str(uuid4()), 'text': 'answer'}).status_code, 404)
+        self.assertEqual(client.get('/api/workspace').json()['analyses'], [])
+        self.assertEqual(client.post('/api/jobs', files={'metadata': (None, json.dumps(self.metadata)), 'file': ('sales.csv', self.csv)}).status_code, 409)
+        restored = client.post('/api/business/select', json={'business_id': str(self.business['id'])})
+        self.assertEqual(restored.status_code, 200)
+        self.assertEqual(client.get(f'/api/jobs/{job}/file').content, self.csv)
+        self.assertEqual(len(client.get('/api/workspace').json()['analyses']), 1)
+
+    def test_migrate_legacy_approved_report_keeps_evidence_and_checkpoints(self):
+        job = self.complete()
+        before = self.ws.row(job)
+        html = self.ws.report(job)
+        # Recreate the schema-7 boundary, keeping all analytical rows and files.
+        with connect(self.config) as db, db.transaction():
+            db.execute('DROP TABLE web_workspace')
+            db.execute('DROP TABLE web_businesses')
+            db.execute('ALTER TABLE web_jobs DROP COLUMN business_name, DROP COLUMN business_revision')
+            db.execute('DELETE FROM schema_versions WHERE version=8')
+        migrate(self.config)
+        resumed = Workspace(self.config, SETTINGS, WebModel)
+        after = resumed.row(job)
+        for field in ('business_id', 'analysis_id', 'session_id', 'research_id', 'review_id', 'upload_key', 'request_sha256'):
+            self.assertEqual(before[field], after[field])
+        self.assertEqual(resumed.report(job), html)
+        self.assertEqual(resumed.upload(job)[1], self.csv)
+        self.assertTrue(resumed.detail(job)['publishable'])
+
+    def test_second_server_does_not_migrate_under_running_app(self):
+        from decision_room.web import __main__ as web_main
+        _, server = self.http()
+        with patch('sys.argv', ['decision_room.web', '--port', str(server.server_port)]), \
+                patch.object(web_main.Config, 'load', return_value=self.config), \
+                patch.object(web_main.ModelSettings, 'load', return_value=SETTINGS), \
+                patch.object(web_main, 'migrate') as migrate_database, \
+                self.assertRaises(SystemExit):
+            web_main.main()
+        migrate_database.assert_not_called()
 
 
 if __name__ == '__main__':

@@ -1,7 +1,7 @@
 # Entrega 2.5: ejecución incremental en siete pasos
 
 **Fecha:** 23 de septiembre de 2026.  
-**Estado:** plan de ejecución; todos los pasos e incrementos están pendientes. No se ha cambiado código de la aplicación mediante este documento.  
+**Estado:** paso 2.5.1 completado y comprobado; pasos 2.5.2–2.5.7 pendientes. Véase la [validación del primer paso](../validation/2026-09-23-business-identity-check.md).  
 **Referencias:** [alcance y criterios del plan](<../product/Decision Room - Plan de implementacion.md#51-entrega-25-memoria-del-negocio-y-experiencia-cotidiana>) y [diagnóstico y diseño de memoria/UX](business-memory-plan.md).
 
 ## Cómo ejecutar este plan
@@ -30,10 +30,10 @@ Las comprobaciones acompañan a cada incremento. El paso 7 integra y amplía esa
 
 **Incrementos, en orden:**
 
-- [ ] **A. Identidad y migración.** Definir y persistir la vinculación del espacio local con el negocio activo y su estado de onboarding. Añadir la migración compatible con registros actuales. Ante varios negocios históricos, exigir una selección explícita para continuar; conservar el acceso a sus registros sin fusionarlos.
-- [ ] **B. Servicio y acceso.** Separar operaciones de crear/recuperar negocio, actualizar el contexto inicial y crear un trabajo. Resolver el negocio desde el espacio autorizado y comprobarlo en listados, detalle, respuestas, reintentos, informes y descargas. Una petición de otro ámbito no puede ejecutarse por conocer su identificador.
-- [ ] **C. Formulario actual adaptado.** Guardar nombre/descripción y avance del onboarding antes de ejecutar el análisis. Los siguientes análisis usan el negocio existente; el objetivo de una pregunta permanece en el trabajo y no sustituye la descripción del negocio. Mantener los límites de carga actuales.
-- [ ] **D. Compatibilidad y demostración.** Adaptar las pruebas del recorrido web y demostrar un primer análisis, un segundo objetivo del mismo negocio y recuperación tras reiniciar. Distinguir identidad del lote e identidad del trabajo: un CSV repetido puede reutilizar datos sin impedir investigar una pregunta diferente.
+- [x] **A. Identidad y migración.** Definir y persistir la vinculación del espacio local con el negocio activo y su estado de onboarding. Añadir la migración compatible con registros actuales. Ante varios negocios históricos, exigir una selección explícita para continuar; conservar el acceso a sus registros sin fusionarlos.
+- [x] **B. Servicio y acceso.** Separar operaciones de crear/recuperar negocio, actualizar el contexto inicial y crear un trabajo. Resolver el negocio desde el espacio autorizado y comprobarlo en listados, detalle, respuestas, reintentos, informes y descargas. Una petición de otro ámbito no puede ejecutarse por conocer su identificador.
+- [x] **C. Formulario actual adaptado.** Guardar nombre/descripción y avance del onboarding antes de ejecutar el análisis. Los siguientes análisis usan el negocio existente; el objetivo de una pregunta permanece en el trabajo y no sustituye la descripción del negocio. Mantener los límites de carga actuales.
+- [x] **D. Compatibilidad y demostración.** Adaptar las pruebas del recorrido web y demostrar un primer análisis, un segundo objetivo del mismo negocio y recuperación tras reiniciar. Distinguir identidad del lote e identidad del trabajo: un CSV repetido puede reutilizar datos sin impedir investigar una pregunta diferente.
 
 **Zona de código:** [`schema.sql`](../../decision_room/schema.sql), [`database.py`](../../decision_room/database.py), [`service.py`](../../decision_room/service.py), [`web/service.py`](../../decision_room/web/service.py), [`web/server.py`](../../decision_room/web/server.py) y el formulario de [`app.js`](../../decision_room/web/static/app.js).
 

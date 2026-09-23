@@ -34,7 +34,7 @@ mantiene en los archivos Markdown enlazados arriba.
 - [Evaluación integrada y repeticiones, paso 1.7](technical/evaluation-plan.md).
 - [Aplicación web local, entrega 2](technical/web.md).
 - [Diseño y alcance de la experiencia web](technical/web-plan.md).
-- [Memoria del negocio y experiencia cotidiana, entrega 2.5](technical/business-memory-plan.md): diagnóstico del código, diseño y evaluación previstos; pendiente de implementación.
+- [Memoria del negocio y experiencia cotidiana, entrega 2.5](technical/business-memory-plan.md): diagnóstico previo, diseño y evaluación previstos; identidad persistente implementada, resto pendiente.
 - [Ejecución incremental de los siete pasos de 2.5](technical/business-memory-implementation.md): incrementos, dependencias, archivos afectados y comprobaciones para implementar poco a poco.
 
 ## Comprobaciones realizadas
@@ -48,6 +48,8 @@ mantiene en los archivos Markdown enlazados arriba.
 - [Informe del cliente, gráficos y prueba real](validation/2026-09-21-client-report-check.md).
 - [Evaluación integrada del paso 1.7](validation/2026-09-21-evaluation-check.md).
 - [Pruebas web, recuperación y Computer Use](validation/2026-09-22-web-check.md).
+
+- [Validación del paso 2.5.1: negocio persistente](validation/2026-09-23-business-identity-check.md): migración, aislamiento, 155 pruebas y dos análisis con modelo real.
 
 Los documentos de investigación conservan sus fechas y contexto. El MVP y el
 plan de implementación determinan el alcance actual. Los comandos de las guías

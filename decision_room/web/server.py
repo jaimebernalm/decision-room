@@ -151,7 +151,13 @@ class Handler(BaseHTTPRequestHandler):
                 raise WebError('Introduce tu clave de acceso para abrir el espacio local.', 401)
             ws = self.server.workspace
             if not mutation and path == '/api/workspace':
-                self.send(200, {'configured': ws.settings is not None, 'analyses': ws.listing()})
+                self.send(200, ws.state())
+                return
+            if mutation and path == '/api/business':
+                self.send(200, {'business': ws.save_business(self.json_body())})
+                return
+            if mutation and path == '/api/business/select':
+                self.send(200, {'business': ws.select_business(self.json_body())})
                 return
             if not mutation and path == '/api/sample':
                 sample = ROOT / 'data/reference-cases/01-daily-sales/input/sales.csv'
@@ -160,6 +166,9 @@ class Handler(BaseHTTPRequestHandler):
                     sample = next((ROOT / 'data/reference-cases/01-daily-sales/input').glob('*.csv'))
                 self.send(200, sample.read_bytes(), 'text/csv; charset=utf-8', {'Content-Disposition': 'attachment; filename="ventas-ejemplo.csv"'})
                 return
+            # Pin this request. A selection change in another tab must not
+            # redirect a pending read/write to a different business halfway through.
+            ws = ws.scoped(ws.business_id())
             if mutation and path == '/api/jobs':
                 self.send(202, ws.create(*self.multipart()))
                 return

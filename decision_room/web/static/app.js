@@ -55,9 +55,11 @@ const state = {
   configured: true,
   filter: "all",
   search: "",
-  step: 1,
   file: null,
-  draft: store.get("dr-draft"),
+  draft: {},
+  business: null,
+  businesses: [],
+  draftBusiness: null,
   uploading: false,
   poll: null,
   signature: "",
@@ -130,11 +132,12 @@ async function api(path, { method = "GET", body } = {}) {
 }
 function shell(content, active = "home", crumb = "Vista general") {
   app.innerHTML = `<aside class="sidebar"><a class="brand" href="#home" aria-label="Decision Room, inicio"><span class="brand-mark">d<span>r</span></span><span>decision<span class="brand-light">room</span><small>UN ESPACIO PARA DECIDIR</small></span></a>
-    <div class="workspace-label"><span class="workspace-avatar">M</span><span>Mi espacio<small>Espacio de trabajo local</small></span><span class="local-dot"></span></div>
+    <div class="workspace-label"><span class="workspace-avatar">M</span><span>${esc(state.business?.name || "Mi espacio")}<small>Espacio de trabajo local</small></span><span class="local-dot"></span></div>
     <p class="nav-label">ESPACIO DE TRABAJO</p><nav aria-label="Principal">${[
       ["home", "home", "Vista general"],
       ["analyses", "grid", "Mis análisis"],
       ["files", "file", "Archivos"],
+      ["businesses", "grid", "Negocios guardados"],
     ]
       .map(
         ([route, i, label]) =>
@@ -227,20 +230,78 @@ function renderList() {
       : `<div class="empty"><span class="empty-icon">${icon("spark")}</span><div><h3>Tu primera buena pregunta empieza aquí.</h3><p>Sube un archivo y descubre qué puedes aprender de tu negocio.</p></div><a class="button secondary" href="#new">Crear mi primer análisis ${icon("arrow")}</a></div>`;
 }
 function saveDraft() {
-  store.set("dr-draft", state.draft);
+  store.set("dr-draft-" + state.business?.id, state.draft);
   state.requestKey = null;
 }
+function businessChooser() {
+  shell(`<div class="page-heading"><div><h1>Elige tu negocio.</h1><p>Los negocios guardados conservan sus propios análisis y archivos.</p></div><a class="button primary" href="#business-new">Crear otro negocio</a></div>
+    <section class="card form-card"><div id="business-error"></div>${state.businesses.length ? state.businesses.map(b => `<div class="review-context"><h2>${esc(b.name)}</h2><p>${b.analysis_count} análisis · ${fmtDate(b.created_at)} · ${esc(b.id.slice(0, 8))}</p><button class="button secondary" data-business="${esc(b.id)}">${b.id === state.business?.id ? "Abrir negocio activo" : "Continuar con este negocio"}</button></div>`).join("") : '<p>Todavía no has guardado un negocio.</p><a class="button primary" href="#business-new">Empezar</a>'}</section>`, "businesses", "Negocios guardados");
+  document.querySelectorAll("[data-business]").forEach(button => {
+    button.onclick = async () => {
+      button.disabled = true;
+      try {
+        await api("/api/business/select", { method: "POST", body: { business_id: button.dataset.business } });
+        location.hash = "#home";
+      } catch (error) {
+        document.querySelector("#business-error").innerHTML = errorBox(error.message);
+        button.disabled = false;
+      }
+    };
+  });
+}
+function businessForm(isNew = false) {
+  const current = isNew ? null : state.business;
+  const expectedActive = state.business?.id || null;
+  const draftKey = current ? "dr-profile-" + current.id : "dr-profile-new-" + (expectedActive || "empty");
+  const draft = store.get(draftKey, current ? { name: current.name, description: current.description, profile_revision: current.profile_revision } : {});
+  const creationKey = draft.request_key || crypto.randomUUID();
+  shell(`<a href="#businesses" class="back-link">${icon("back")} Negocios guardados</a><div class="page-heading"><div><h1>${current ? "Contexto de tu negocio." : "Empecemos por tu negocio."}</h1><p>${current ? "Los nuevos análisis usarán este contexto. Los anteriores conservan el suyo." : "Guarda esta información una vez. Podrás reutilizarla en tus próximos análisis."}</p></div></div>
+    <section class="card form-card"><form id="business-form"><label for="business">¿Cómo se llama tu negocio?</label><input id="business" name="name" maxlength="100" required autocomplete="organization" value="${esc(draft.name)}"><label for="context">Cuéntanos a qué te dedicas</label><textarea id="context" name="description" rows="5" maxlength="6000" required placeholder="Qué vendes y cómo funciona tu negocio…">${esc(draft.description)}</textarea><p class="field-help">El contexto se guarda al continuar, antes de subir un archivo. La pregunta de cada análisis se indicará después.</p><div id="business-error"></div><div class="form-actions"><a class="button ghost" href="#home">Volver</a><button class="button primary" type="submit">Guardar y continuar ${icon("arrow")}</button></div></form></section>`, "businesses", "Contexto del negocio");
+  const form = document.querySelector("#business-form");
+  const values = () => ({ ...Object.fromEntries(new FormData(form)), request_key: creationKey, profile_revision: draft.profile_revision ?? current?.profile_revision });
+  form.oninput = () => store.set(draftKey, values());
+  form.onsubmit = async event => {
+    event.preventDefault();
+    const button = form.querySelector("button[type=submit]");
+    if (button.disabled) return;
+    button.disabled = true;
+    const body = { ...values(), business_id: current?.id, expected_active_id: expectedActive };
+    store.set(draftKey, values());
+    try {
+      await api("/api/business", { method: "POST", body });
+      store.remove(draftKey);
+      if (location.hash === "#new") await route();
+      else location.hash = "#new";
+    } catch (error) {
+      document.querySelector("#business-error").innerHTML = errorBox(error.message) + '<a href="#business" id="reload-profile">Cargar el contexto guardado</a>';
+      document.querySelector("#reload-profile").onclick = async e => {
+        e.preventDefault();
+        store.remove(draftKey);
+        await route();
+      };
+      button.disabled = false;
+    }
+  };
+}
 function newAnalysis() {
+  if (!state.business) {
+    if (state.businesses.length) businessChooser();
+    else businessForm(true);
+    return;
+  }
+  const b = state.business;
   const d = state.draft;
-  shell(
-    `<a href="#home" class="back-link">${icon("back")} Volver a mis análisis</a><div class="page-heading form-heading"><div><p class="eyebrow">UN NUEVO PUNTO DE VISTA</p><h1>Empecemos por <em>tu negocio.</em></h1><p>No necesitas preparar un informe. Solo contarnos un poco y compartir tus datos.</p></div></div><div class="form-layout"><section class="card form-card"><ol class="form-steps"><li class="${state.step === 1 ? "current" : "complete"}"><span>${state.step > 1 ? icon("check") : "1"}</span> Contexto del negocio</li><li class="${state.step === 2 ? "current" : ""}"><span>2</span> Datos y revisión</li></ol><form id="new-form">
-    ${state.step === 1 ? `<div class="form-section"><h2>Las cifras necesitan contexto.</h2><p class="subtle">Ayúdanos a entender qué hay detrás de tu archivo.</p><label for="business">¿Cómo se llama tu negocio?</label><input id="business" name="business" value="${esc(d.business)}" maxlength="100" required placeholder="Por ejemplo, La Esquina Verde" autocomplete="organization"><label for="context">Cuéntanos a qué te dedicas <span>Obligatorio</span></label><textarea id="context" name="context" rows="4" maxlength="6000" required placeholder="Qué vendes, cómo funciona tu negocio y qué información recoge el archivo…">${esc(d.context)}</textarea><p class="field-help">Lo que tú sabes del negocio nos ayuda a no asumir lo que los datos no dicen.</p><fieldset><legend>¿Qué te gustaría averiguar?</legend><label class="choice ${d.mode !== "specific" ? "chosen" : ""}"><input type="radio" name="mode" value="general" ${d.mode !== "specific" ? "checked" : ""}><span><strong>Explorar mis datos</strong><small>Identificar patrones y observaciones que merezcan atención.</small></span>${icon("spark")}</label><label class="choice ${d.mode === "specific" ? "chosen" : ""}"><input type="radio" name="mode" value="specific" ${d.mode === "specific" ? "checked" : ""}><span><strong>Tengo una pregunta concreta</strong><small>Orientar el análisis hacia algo que quieres entender.</small></span>${icon("chat")}</label></fieldset><div id="goal-field" ${d.mode !== "specific" ? "hidden" : ""}><label for="goal">Tu pregunta</label><textarea id="goal" name="goal" rows="2" maxlength="160" ${d.mode === "specific" ? "required" : ""} placeholder="Por ejemplo, ¿cómo han cambiado mis ventas durante este mes?">${esc(d.goal)}</textarea></div></div>` : `<div class="form-section"><h2>Ahora, tus datos.</h2><p class="subtle">Un archivo es suficiente para empezar a hacer buenas preguntas.</p><label for="title">Nombre del análisis</label><input id="title" name="title" required maxlength="160" value="${esc(d.title || (d.mode === "specific" ? d.goal : "Exploración de " + (d.business || "mi negocio")))}"><div class="dropzone" id="dropzone"><span class="upload-icon">${icon("upload")}</span><h3>Arrastra tu CSV hasta aquí</h3><p>O selecciónalo desde tu equipo</p><label class="button secondary file-picker" for="csv">Elegir archivo CSV<input type="file" id="csv" accept=".csv,text/csv" aria-label="Elegir archivo CSV"></label><small>1 archivo CSV · UTF-8 · Máximo 20 MB</small></div><div id="selected-file"></div><div class="sample-row"><span>¿Solo quieres probar el recorrido?</span><button type="button" class="text-button" id="use-sample">Usar datos de ejemplo ${icon("arrow")}</button></div><div class="review-context"><span class="eyebrow">ESTE ES EL PUNTO DE PARTIDA</span><h3>${esc(d.business)}</h3><p>${esc(d.context)}</p><span class="goal-pill">${icon(d.mode === "specific" ? "chat" : "spark")}${esc(d.mode === "specific" ? d.goal : "Exploración general")}</span><button type="button" class="text-button" id="edit-context">Editar contexto</button></div><p class="field-help">Antes de calcular, revisaremos el archivo. Si hay algo importante que aclarar, te lo preguntaremos.</p></div>`}
-    <div id="form-error"></div><div class="form-actions"><span class="save-hint">${icon("check")} Borrador guardado en este navegador</span>${state.step === 2 ? '<button type="button" class="button ghost" id="previous">Atrás</button>' : ""}<button class="button primary" type="submit" ${state.uploading ? "disabled" : ""}>${state.step === 1 ? "Continuar" : state.uploading ? "Guardando archivo…" : "Empezar análisis"} ${icon("arrow")}</button></div></form></section><aside class="form-aside"><span class="aside-glyph">✳</span><h2>Una conversación<br>con tus datos.</h2><p>No hace falta tener todas las respuestas antes de empezar.</p><div class="aside-item">${icon("chat")}<div><strong>Preguntas con propósito</strong><p>Solo te pediremos aclaraciones que cambien la interpretación.</p></div></div><div class="aside-item">${icon("clock")}<div><strong>A tu ritmo</strong><p>Una vez enviado, puedes salir y volver. Guardamos cada respuesta.</p></div></div><div class="aside-item">${icon("shield")}<div><strong>Sin perder el contexto</strong><p>El informe conecta los hallazgos con tus archivos y aclaraciones.</p></div></div><div class="aside-footnote">PRIMERA VERSIÓN<br><span>Los resultados incluyen revisión automática. El análisis todavía puede cometer errores.</span></div></aside></div>`,
-    "analyses",
-    "Nuevo análisis",
-  );
+  shell(`<a href="#home" class="back-link">${icon("back")} Volver a mis análisis</a><div class="page-heading form-heading"><div><p class="eyebrow">UN NUEVO PUNTO DE VISTA</p><h1>Una nueva pregunta para <em>${esc(b.name)}.</em></h1><p>El contexto de tu negocio ya está guardado. Elige qué quieres entender y comparte tus datos.</p></div></div>
+    <div class="form-layout"><section class="card form-card"><form id="new-form"><div class="form-section"><div class="review-context"><span class="eyebrow">CONTEXTO GUARDADO</span><h3>${esc(b.name)}</h3><p>${esc(b.description)}</p><a class="text-button" href="#business">Editar contexto para próximos análisis</a></div>
+    <fieldset><legend>¿Qué te gustaría averiguar?</legend><label class="choice ${d.mode !== "specific" ? "chosen" : ""}"><input type="radio" name="mode" value="general" ${d.mode !== "specific" ? "checked" : ""}><span><strong>Explorar mis datos</strong><small>Identificar observaciones que merezcan atención.</small></span></label><label class="choice ${d.mode === "specific" ? "chosen" : ""}"><input type="radio" name="mode" value="specific" ${d.mode === "specific" ? "checked" : ""}><span><strong>Tengo una pregunta concreta</strong><small>Orientar este análisis hacia algo que quieres entender.</small></span></label></fieldset>
+    <div id="goal-field" ${d.mode !== "specific" ? "hidden" : ""}><label for="goal">Tu pregunta</label><textarea id="goal" name="goal" rows="2" maxlength="2000" ${d.mode === "specific" ? "required" : ""}>${esc(d.goal)}</textarea></div>
+    <label for="title">Nombre del análisis</label><input id="title" name="title" required maxlength="160" value="${esc(d.title || "Exploración de " + b.name)}">
+    <div class="dropzone" id="dropzone"><span class="upload-icon">${icon("upload")}</span><h3>Arrastra tu CSV hasta aquí</h3><p>O selecciónalo desde tu equipo</p><label class="button secondary file-picker" for="csv">Elegir archivo CSV<input type="file" id="csv" accept=".csv,text/csv" aria-label="Elegir archivo CSV"></label><small>1 archivo CSV · UTF-8 · Máximo 20 MB</small></div><div id="selected-file"></div>
+    <div class="sample-row"><span>¿Solo quieres probar el recorrido?</span><button type="button" class="text-button" id="use-sample">Usar datos de ejemplo ${icon("arrow")}</button></div><p class="field-help">Revisaremos el archivo y te preguntaremos por las aclaraciones necesarias para este análisis.</p></div>
+    <div id="form-error"></div><div class="form-actions"><span class="save-hint">${icon("check")} Contexto guardado en tu negocio</span><button class="button primary" type="submit">Empezar análisis ${icon("arrow")}</button></div></form></section>
+    <aside class="form-aside"><span class="aside-glyph">✳</span><h2>Tu negocio,<br>sin empezar de cero.</h2><p>Cada análisis conserva su pregunta, archivo y contexto. Puedes volver a los anteriores desde Mis análisis.</p><div class="aside-item">${icon("shield")}<div><strong>El contexto se conserva</strong><p>Puedes cerrar esta página y volver. Si todavía no has enviado el archivo, tendrás que seleccionarlo de nuevo.</p></div></div></aside></div>`, "analyses", "Nuevo análisis");
   const form = document.querySelector("#new-form");
-  form.addEventListener("input", (e) => {
+  form.oninput = e => {
     if (!e.target.name) return;
     state.draft[e.target.name] = e.target.value;
     saveDraft();
@@ -248,44 +309,22 @@ function newAnalysis() {
       const specific = e.target.value === "specific";
       document.querySelector("#goal-field").hidden = !specific;
       document.querySelector("#goal").required = specific;
-      document
-        .querySelectorAll(".choice")
-        .forEach((c) =>
-          c.classList.toggle("chosen", c.querySelector("input").checked),
-        );
+      document.querySelectorAll(".choice").forEach(c => c.classList.toggle("chosen", c.querySelector("input").checked));
     }
-  });
-  form.onsubmit = async (e) => {
-    e.preventDefault();
+  };
+  form.onsubmit = async event => {
+    event.preventDefault();
     if (state.uploading) return;
     for (const [key, value] of new FormData(form))
       if (key !== "csv" && typeof value === "string") state.draft[key] = value;
-    if (state.step === 1) {
-      saveDraft();
-      state.step = 2;
-      newAnalysis();
-      window.scrollTo(0, 0);
-      return;
-    }
     if (!state.file) {
-      document.querySelector("#form-error").innerHTML = errorBox(
-        "Selecciona un archivo CSV para empezar.",
-      );
+      document.querySelector("#form-error").innerHTML = errorBox("Selecciona un archivo CSV para empezar.");
       document.querySelector("#csv").focus();
       return;
     }
     state.requestKey ||= crypto.randomUUID();
     const body = new FormData();
-    body.append(
-      "metadata",
-      JSON.stringify({
-        request_key: state.requestKey,
-        business: state.draft.business,
-        context: state.draft.context,
-        goal: state.draft.mode === "specific" ? state.draft.goal : "",
-        title: state.draft.title,
-      }),
-    );
+    body.append("metadata", JSON.stringify({ request_key: state.requestKey, business_id: b.id, profile_revision: b.profile_revision, goal: state.draft.mode === "specific" ? state.draft.goal : "", title: state.draft.title }));
     body.append("file", state.file);
     state.uploading = true;
     const button = form.querySelector("button[type=submit]");
@@ -293,66 +332,37 @@ function newAnalysis() {
     button.textContent = "Guardando archivo…";
     try {
       const result = await api("/api/jobs", { method: "POST", body });
-      store.remove("dr-draft");
+      store.remove("dr-draft-" + b.id);
       state.draft = {};
       state.file = null;
-      state.step = 1;
       state.requestKey = null;
       location.hash = "#analysis/" + result.id;
     } catch (error) {
-      document.querySelector("#form-error").innerHTML = errorBox(error.message);
+      document.querySelector("#form-error").innerHTML = errorBox(error.message) + '<a href="#new" id="reload-analysis">Recargar contexto</a>';
+      document.querySelector("#reload-analysis").onclick = async e => { e.preventDefault(); await route(); };
       button.disabled = false;
       button.innerHTML = "Volver a intentar " + icon("arrow");
     } finally {
       state.uploading = false;
     }
   };
-  if (state.step === 2) {
-    document.querySelector("#previous").onclick = document.querySelector(
-      "#edit-context",
-    ).onclick = () => {
-      state.step = 1;
-      newAnalysis();
-    };
-    document.querySelector("#csv").onchange = (e) =>
-      chooseFile(e.target.files[0]);
-    const drop = document.querySelector("#dropzone");
-    ["dragenter", "dragover"].forEach((event) =>
-      drop.addEventListener(event, (e) => {
-        e.preventDefault();
-        drop.classList.add("dragging");
-      }),
-    );
-    ["dragleave", "drop"].forEach((event) =>
-      drop.addEventListener(event, (e) => {
-        e.preventDefault();
-        drop.classList.remove("dragging");
-      }),
-    );
-    drop.addEventListener("drop", (e) => {
-      if (e.dataTransfer.files.length !== 1)
-        document.querySelector("#form-error").innerHTML = errorBox(
-          "Selecciona un solo archivo CSV.",
-        );
-      else chooseFile(e.dataTransfer.files[0]);
-    });
-    document.querySelector("#use-sample").onclick = async () => {
-      try {
-        const response = await fetch("/api/sample");
-        if (!response.ok) throw new Error("No se pudo cargar el ejemplo.");
-        const blob = await response.blob();
-        chooseFile(
-          new File([blob], "ventas-ejemplo.csv", { type: "text/csv" }),
-        );
-        toast(
-          "Datos ficticios de ventas diarias. Revisa que el contexto describa este ejemplo.",
-        );
-      } catch (e) {
-        toast(e.message);
-      }
-    };
-    showFile();
-  }
+  document.querySelector("#csv").onchange = e => chooseFile(e.target.files[0]);
+  const drop = document.querySelector("#dropzone");
+  ["dragenter", "dragover"].forEach(event => drop.addEventListener(event, e => { e.preventDefault(); drop.classList.add("dragging"); }));
+  ["dragleave", "drop"].forEach(event => drop.addEventListener(event, e => { e.preventDefault(); drop.classList.remove("dragging"); }));
+  drop.addEventListener("drop", e => {
+    if (e.dataTransfer.files.length !== 1) document.querySelector("#form-error").innerHTML = errorBox("Selecciona un solo archivo CSV.");
+    else chooseFile(e.dataTransfer.files[0]);
+  });
+  document.querySelector("#use-sample").onclick = async () => {
+    try {
+      const response = await fetch("/api/sample");
+      if (!response.ok) throw new Error("No se pudo cargar el ejemplo.");
+      chooseFile(new File([await response.blob()], "ventas-ejemplo.csv", { type: "text/csv" }));
+      toast("Datos ficticios de ventas diarias. Revisa que el contexto describa este ejemplo.");
+    } catch (error) { toast(error.message); }
+  };
+  showFile();
 }
 function chooseFile(file) {
   if (!file) return;
@@ -592,7 +602,19 @@ async function route() {
     if (generation !== state.generation) return;
     state.analyses = data.analyses;
     state.configured = data.configured;
-    if (hash === "new") newAnalysis();
+    state.business = data.business;
+    state.businesses = data.businesses;
+    const activeId = data.business?.id || null;
+    if (state.draftBusiness !== activeId) {
+      state.draftBusiness = activeId;
+      state.draft = activeId ? store.get("dr-draft-" + activeId) : {};
+      state.file = null;
+      state.requestKey = null;
+    }
+    if (hash === "business-new") businessForm(true);
+    else if (hash === "businesses" || (!state.business && state.businesses.length)) businessChooser();
+    else if (hash === "business") businessForm(!state.business);
+    else if (hash === "new") newAnalysis();
     else if (hash.startsWith("analysis/")) {
       const id = hash.slice(9);
       await pollDetail(id);
@@ -605,6 +627,7 @@ async function route() {
         try {
           const next = await api("/api/workspace");
           if (generation !== state.generation) return;
+          if (next.business?.id !== state.business?.id || next.business?.profile_revision !== state.business?.profile_revision) { await route(); return; }
           if (
             JSON.stringify(next.analyses) !== JSON.stringify(state.analyses)
           ) {

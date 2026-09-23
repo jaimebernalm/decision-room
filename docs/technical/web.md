@@ -1,4 +1,4 @@
-# Aplicación web local · Entrega 2
+# Aplicación web local · Entrega 2 y paso 2.5.1
 
 La aplicación utiliza el backend existente: ingesta CSV, PostgreSQL, principal
 LangGraph, Python aislado en Docker y revisor. El diseño y alcance están en
@@ -33,7 +33,9 @@ Si aparece «El puerto 8787 ya está en uso», puede que Decision Room siga
 funcionando desde un arranque anterior: abre esa dirección sin iniciar otra copia.
 Cerrar el navegador no detiene el servidor. Si el puerto pertenece a otra
 aplicación, utiliza otro, por ejemplo `--port 8788`. El lanzador no detiene el
-proceso que ya está escuchando.
+proceso que ya está escuchando. Antes de actualizar el esquema, detener las
+instancias antiguas que usen la misma base, incluso si escuchan en otros puertos.
+El arranque comprueba el puerto antes de aplicar la migración transaccional.
 
 Los parámetros de proveedor siguen siendo los del [agente](agent.md).
 `scripts/dev/start_web.py` carga el archivo privado `.env` del proyecto; las
@@ -41,7 +43,7 @@ variables ya exportadas en el proceso tienen prioridad. Los comandos directos
 `python -m decision_room...` requieren exportar las variables explícitamente.
 Para OpenAI, consultar la [configuración del proveedor](agent.md#openai).
 Sin modelo configurado se puede abrir
-la interfaz y preparar un borrador, pero no iniciar análisis.
+la interfaz, guardar el negocio y preparar un borrador, pero no iniciar análisis.
 
 El acceso inicial usa una clave generada en el almacenamiento privado
 (`.local/storage/.web-access-key` por defecto). `--open` la pasa al navegador en
@@ -51,13 +53,19 @@ en la pantalla de acceso. No se debe publicar ni compartir ese archivo.
 
 ## Experiencia
 
-- **Vista general y Mis análisis:** búsqueda, estados y acceso al detalle. El
-  espacio web empieza vacío; las evaluaciones históricas por CLI no se incorporan
-  automáticamente. No se inventan informes de muestra ni métricas de negocio.
-- **Nuevo análisis:** contexto obligatorio, pregunta o exploración general,
+- **Negocio persistente:** guardar nombre y descripción antes de subir archivos.
+  Los siguientes análisis reutilizan ese perfil. Editarlo afecta a los nuevos
+  análisis; los anteriores conservan el contexto con el que se enviaron.
+- **Negocios guardados:** crear o seleccionar negocios separados. La selección
+  sobrevive a un reinicio. La migración conserva los negocios web anteriores;
+  si hay varios, pide elegir y no los fusiona por nombre.
+- **Vista general y Mis análisis:** búsqueda, estados y acceso al detalle del
+  negocio activo. Un negocio nuevo empieza vacío; las evaluaciones históricas
+  por CLI no se incorporan automáticamente. No se inventan métricas ni informes.
+- **Nuevo análisis:** perfil guardado, pregunta o exploración general,
   título y un CSV UTF-8 de hasta 20 MiB. Se puede usar el CSV público de ventas
   diarias de los casos de referencia; hay que describir su contexto ficticio.
-- **Borrador:** texto guardado en el navegador. Antes de enviar, un archivo debe
+- **Borrador:** texto guardado en el navegador por negocio. Antes de enviar, un archivo debe
   seleccionarse de nuevo tras cerrar o recargar. Después de enviar, original y
   estado quedan persistidos en el servidor.
 - **Preguntas:** se muestran las del principal o el revisor, con su motivo,
@@ -93,10 +101,12 @@ habitual de peticiones.
 ## Ejecución y recuperación
 
 `web_jobs` registra una clave idempotente de envío, contexto, archivo, identidades
-de las cuatro etapas, modelo, estado y respuesta pendiente. Cada análisis web
-crea su ámbito de negocio separado. Los archivos permanecen en almacenamiento
-privado; `web_jobs` no contiene filas CSV. `web_replies` conserva la idempotencia
-de los envíos de respuestas.
+de las cuatro etapas, modelo, estado y respuesta pendiente. `web_businesses`
+registra los negocios del propietario local, la revisión del perfil y el avance
+del onboarding; `web_workspace` conserva la selección activa. Un trabajo nuevo
+utiliza esa identidad y guarda una copia del nombre/contexto del momento de envío.
+Los archivos permanecen en almacenamiento privado; `web_jobs` no contiene filas
+CSV. `web_replies` conserva la idempotencia de los envíos de respuestas.
 
 El trabajador toma un advisory lock PostgreSQL exclusivo antes de seleccionar
 un trabajo en cola o interrumpido. No depende de una petición HTTP abierta.
@@ -104,6 +114,10 @@ Las claves estables `web:<job-id>` permiten descubrir una sesión, investigació
 o revisión ya guardada aunque se interrumpiera el proceso antes de enlazarla al
 registro web. Las respuestas se registran antes de ejecutar el siguiente paso.
 Los límites de llamadas, investigaciones y revisión siguen siendo los del backend.
+El trabajador mantiene el negocio de cada trabajo aunque cambie la selección.
+Un CSV repetido reutiliza el lote por su huella exacta de contenido/configuración,
+conserva sus fuentes y permite otra investigación independiente. La recuperación
+no enlaza un trabajo con el último lote del negocio por proximidad temporal.
 
 Un resultado incierto de una llamada al modelo no se repite automáticamente:
 se presenta como interrupción. El botón de reintento permite repetir esa llamada
@@ -124,7 +138,9 @@ las mutaciones; todas las rutas de datos, archivos e informes exigen cookie de
 acceso. Los recursos no se cachean, no se cargan recursos de terceros y se usa
 CSP. El contenido del agente se escapa; el informe está en un iframe sin scripts.
 La descarga se resuelve mediante el identificador del trabajo y su ámbito, nunca
-mediante una ruta de archivo suministrada por el cliente.
+mediante una ruta de archivo suministrada por el cliente. Listados, detalle,
+respuestas, reintentos, informes y originales comprueban el negocio seleccionado;
+conocer el identificador de un trabajo de otro negocio no permite acceder a él.
 
 Este acceso representa **un propietario local**, no un sistema multiusuario ni
 un despliegue público. La operación concurrente de comercios, límites operativos
@@ -133,10 +149,12 @@ El dashboard con filtros que recalculan métricas sigue fuera de esta entrega.
 
 ## Archivos y comprobaciones
 
+- `decision_room/web/business.py`: identidad, selección y edición del perfil con control de revisión.
 - `decision_room/web/service.py`: orquestación duradera y traducción al estado del producto.
 - `decision_room/web/server.py`: HTTP autenticado, límites y archivos privados.
 - `decision_room/web/static/`: frontend HTML, CSS y JavaScript sin dependencias de ejecución nuevas.
 - `scripts/dev/start_web.py`: apertura del espacio local.
+- `tests/test_business_migration.py`: transición desde esquema 7, selección y recuperación de migraciones fallidas.
 - `tests/test_web.py`: PostgreSQL y sandbox reales con roles controlados, fronteras HTTP y recuperación.
 
 ```sh
@@ -146,4 +164,5 @@ node --check decision_room/web/static/app.js
 ```
 
 Los tests usan bases PostgreSQL temporales y el sandbox local. Los resultados de
-Computer Use y modelo real se registran por separado en la validación de entrega 2.
+Computer Use y modelo real se registran por separado: véase la
+[validación de identidad persistente](../validation/2026-09-23-business-identity-check.md).
