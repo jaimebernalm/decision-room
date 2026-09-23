@@ -34,6 +34,7 @@ mantiene en los archivos Markdown enlazados arriba.
 - [Evaluación integrada y repeticiones, paso 1.7](technical/evaluation-plan.md).
 - [Aplicación web local, entrega 2](technical/web.md).
 - [Diseño y alcance de la experiencia web](technical/web-plan.md).
+- [Memoria del negocio y experiencia cotidiana, entrega 2.5](technical/business-memory-plan.md): diagnóstico del código, diseño y evaluación previstos; pendiente de implementación.
 
 ## Comprobaciones realizadas
 

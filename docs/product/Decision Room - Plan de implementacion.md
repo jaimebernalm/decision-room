@@ -1,14 +1,16 @@
 # Decision Room: plan de implementación por entregas
 
-**Fecha:** 18 de septiembre de 2026.  
-**Estado:** casos de referencia, ingesta CSV y ejecución aislada de Python implementados y comprobados el 21 de septiembre de 2026. PostgreSQL conserva metadatos y evidencia; los archivos son privados. Se probaron las 48 tablas de WWI juntas. El paso 1.4 tiene implementación experimental con LangGraph, preguntas y recuperación; falta superar la evaluación semántica del modelo. El paso 1.5 conecta Python generado, evidencia y recuperación; sus resultados siguen siendo candidatos. El paso 1.6 añade conversación persistente con revisor, controles e informe HTML privado. La matriz real del paso 1.7 se ha ejecutado y ha encontrado fallos semánticos y de continuidad; la entrega 1 todavía no está aceptada.  
+**Fecha de actualización:** 23 de septiembre de 2026.  
+**Estado vigente:** entrega 2 implementada y comprobada como recorrido web local. La ronda de evaluación previa a ampliar cobertura terminó el 22 de septiembre, con correcciones y límites documentados; no equivale a aceptación general del MVP. Se incorpora la entrega 2.5, pendiente de implementar, para memoria compartida del negocio y experiencia cotidiana antes de ampliar la cobertura de la entrega 3. Los resultados históricos de cada paso se conservan en la sección 10.  
 **Propósito:** conservar la secuencia de trabajo, el motivo de cada paso y qué debemos poder comprobar antes de darlo por terminado.
 
 ## 1. Relación con el MVP
 
 El [documento del MVP](<Decision Room - MVP.md>) define el alcance y las decisiones de los siete bloques. Este documento define el orden para construirlo. Los bloques funcionales no son entregas consecutivas de software: cada entrega combina partes de varios bloques.
 
-En este plan, **entrega 1** significa el primer recorrido interno completo; no equivale al MVP completo descrito en el otro documento. Las cinco entregas y la preparación conducen al MVP probado en un piloto privado.
+En este plan, **entrega 1** significa el primer recorrido interno completo; no equivale al MVP completo descrito en el otro documento. Las entregas 1, 2, 2.5, 3, 4 y 5 y la preparación conducen al MVP probado en un piloto privado.
+
+**Cambio de prioridad del 23 de septiembre de 2026:** adelantar negocio persistente, memoria entre conversaciones, chat posterior, Inicio con prompt y «Mi negocio». Se añade una entrega 2.5 para conservar las referencias existentes a las entregas 3–5, que pasan a ejecutarse después. Esta ampliación reemplaza su aplazamiento anterior; no reabre el cierre de implementación web de la entrega 2 ni incorpora PDF, automatización o predicciones.
 
 La [organización multiagente objetivo del producto completo](<Decision Room - Definicion del producto.md#186-organización-multiagente-del-producto-final>) separa negocio, analítica y revisión. Es una evolución posterior que deberá implementarse y compararse con el MVP. Los pasos 1.4–1.6 de este plan mantienen un agente principal que planifica y ejecuta, más un revisor; no se añade ahora otro agente al recorrido inicial.
 
@@ -25,6 +27,7 @@ Las entregas son hitos comprobables, no necesariamente despliegues públicos. El
 | Preparación | Casos de referencia y decisiones necesarias | Archivos, resultados esperados y estructuras mínimas | Saber qué significa que el sistema funcione |
 | 1 | Recorrido interno completo | Archivo → interpretación → pregunta si hace falta → Python → revisión → informe con evidencia | Probar el núcleo autónomo de principio a fin |
 | 2 | Recorrido web mínimo | Una persona completa el análisis desde el navegador | Detectar pronto problemas de comprensión y uso |
+| 2.5 | Memoria del negocio y experiencia cotidiana | Onboarding una vez → Inicio → chats con contexto compartido → «Mi negocio» editable → informes con evidencia | Resolver continuidad antes de ampliar formatos y capacidades |
 | 3 | Adaptación a archivos y situaciones distintas | Ampliar cobertura sin depender de una estructura concreta | Construir nuevas capacidades sobre un recorrido probado |
 | 4 | Preparación operativa del piloto | Versión privada con recuperación, aislamiento y límites comprobados | Comprobar el funcionamiento conjunto antes de usar datos reales |
 | 5 | Piloto con comercios y correcciones | Evidencia de comprensión, utilidad e intervención necesaria | Contrastar el producto con su público |
@@ -135,7 +138,65 @@ de la implementación web del cierre de calidad del agente. Ver
 
 **Por qué aquí:** comprobar pronto la comprensión de preguntas e informes. Se puede probar inicialmente con datos controlados sin considerarlo todavía listo para comercios.
 
+## 5.1. Entrega 2.5: memoria del negocio y experiencia cotidiana
+
+**Estado, 23 de septiembre de 2026:** alcance incorporado al plan por petición del usuario; implementación y evaluación pendientes. El [diagnóstico del código y diseño técnico](../technical/business-memory-plan.md) detalla estructuras, migración, mantenimiento de memoria, contexto del agente, UX y escenarios de aceptación.
+
+**Objetivo:** que el cliente tenga un negocio persistente y pueda volver a consultar, aportar contexto, actualizar datos y guardar informes sin repetir el onboarding. La memoria debe funcionar entre todos sus chats y análisis, con procedencia y ámbito, sin mezclar negocios ni presentar resultados antiguos como actuales.
+
+**Base reutilizable:** PostgreSQL, archivos privados, ámbitos de negocio, ejecución aislada, checkpoints, evidencia y revisión. Actualmente cada envío web crea un negocio distinto; el contexto y la invalidación se limitan a la sesión del análisis. Compartir memoria exige cambiar esas relaciones y su recuperación, además de la interfaz.
+
+**Alcance inicial:** un propietario y un negocio activo por espacio; conservar otros ámbitos históricos aislados. Chat libre sobre el negocio dentro de las capacidades verificables existentes, con reutilización de datos admitidos y subida manual de CSV. No se requiere cambiar de base de datos ni desplegar la organización multiagente futura.
+
+### 2.5.1. Identidad persistente y transición de los datos existentes
+
+**Construir:** separar creación del negocio, onboarding, análisis y trabajos de ejecución. Resolver el negocio autorizado en el servidor y reutilizarlo al crear trabajos; preparar las relaciones para conversaciones y fuentes. Conservar originales, evidencia, identificadores y checkpoints anteriores. Mantener ámbitos históricos separados; no fusionar negocios por nombre ni asociar automáticamente todas las pruebas locales al nuevo espacio.
+
+**Comprobar:** migraciones sobre una base vacía y otra con registros anteriores; dos análisis nuevos del mismo negocio comparten identidad sin perder su independencia; reinicio recupera el onboarding; listados, lecturas y mutaciones rechazan cruces entre dos negocios. Los trabajos históricos siguen siendo localizables y sus estados de publicación se conservan.
+
+### 2.5.2. Memoria versionada y mantenimiento desde el contexto del cliente
+
+**Construir:** hechos, prioridades, definiciones, disponibilidad y dudas con texto original, procedencia, revisiones, estado, ámbito y vigencia. Incorporar contexto del onboarding y respuestas explícitas mediante un servicio común, reutilizable después por el chat y «Mi negocio». Separar declaraciones, inferencias, propuestas y resultados calculados. Permitir corregir/retirar; resolver contradicciones materiales antes de usarlas. Registrar escrituras idempotentes y comprobar revisiones para evitar sobrescrituras concurrentes.
+
+**Comprobar:** declaración clara frente a hipótesis; horario con fecha de inicio; definición aplicable solo a un archivo; respuestas «no lo sé/no lo tengo»; dos cambios simultáneos; fallo y reintento del guardado. La información retirada deja de recuperarse como memoria activa y no reaparece desde un resumen o mensaje antiguo. El sistema no anuncia un cambio que no llegó a persistirse.
+
+### 2.5.3. Contexto compartido del agente y propagación de correcciones
+
+**Construir:** selección acotada de memoria, mensajes, fuentes y resultados pertinentes por negocio, pregunta y periodo. Registrar el manifiesto de versiones utilizado por planificador, analista y revisor. Integrar las versiones de memoria en la comprobación de vigencia y extender dependencias e invalidación entre sesiones, respuestas e informes. Conservar históricos sin reescribirlos y distinguir cambio futuro, dato nuevo y corrección de un error pasado. Revalidar las dependencias antes de publicar, también si el trabajo se interrumpió.
+
+**Comprobar:** dos sesiones reutilizan contexto sin repetir preguntas resueltas; una corrección material afecta a todas las dependencias conocidas, incluso en otra conversación; un cambio futuro no invalida un periodo previo sin motivo; una edición irrelevante no recalcula todo; los resultados retirados no vuelven a usarse como evidencia vigente. Probar selección con historial largo, datos de otro negocio y contenido adversarial recuperado. Si no se puede acotar el impacto, ampliar la revisión de forma explícita.
+
+### 2.5.4. Conversaciones del cliente conectadas al análisis
+
+**Construir:** conversaciones y mensajes persistentes, turnos recuperables y referencia al negocio, fuentes, memoria e investigaciones. Permitir explicar evidencia existente, aportar contexto, explorar una decisión o iniciar un cálculo; no exigir un informe ni un CSV nuevo por mensaje. Integrar cambios de memoria desde el chat con aviso/corrección para declaraciones claras y aclaración cuando haya ambigüedad material. Crear un informe independiente cuando se solicite, reutilizando evidencia vigente y revisando contenido nuevo. Mantener la conversación interna de revisión separada del chat del cliente.
+
+**Comprobar:** una pregunta breve obtiene respuesta con fuente y periodo; una pregunta nueva ejecuta y verifica el cálculo; una pregunta sin datos suficientes explica el límite; una declaración se utiliza en otro chat y al reabrir uno antiguo. Recargar/reintentar no duplica mensajes, hechos ni trabajos. Las respuestas nuevas no eluden las comprobaciones por presentarse en chat en vez de en un informe.
+
+### 2.5.5. «Mi negocio» y actualización de datos
+
+**Construir:** ficha progresiva y editable con información, prioridades, definiciones, fuentes/periodos y cambios; mostrar procedencia, vigencia y propuestas/conflictos donde ayuden. Las ediciones usan el mismo servicio de memoria del chat. Reutilizar archivos ya aceptados; permitir aportar otro CSV y seleccionar su uso sin iniciar otro negocio. Mantener conjuntos/versiones explícitos, detectar reenvíos exactos y aclarar sustitución o solapamiento; no implementar fusión universal de tablas.
+
+**Comprobar:** editar una definición tiene el mismo efecto desde la ficha que desde una aclaración; una corrección histórica retira los resultados afectados; el usuario encuentra el origen y alcance de lo guardado; un archivo nuevo no se agrega dos veces ni hace parecer actualizado un informe anterior. Sin datos suficientes se conserva el trabajo y se explica el siguiente paso.
+
+### 2.5.6. Inicio del negocio, informes y navegación cotidiana
+
+**Construir:** separar onboarding de visitas posteriores. Barra lateral con Inicio, Informes, Mi negocio, Nueva conversación y chats recientes. Inicio muestra un resumen, pocos hallazgos y gráficos respaldados, con periodo visible, detalle/evidencia y selección de revisión. Añadir prompt inferior y preguntas sugeridas pertinentes; enviar abre un chat y «Preguntar sobre esto» conserva la referencia al hallazgo. Biblioteca de informes con estados y vínculo a conversaciones; navegación adaptable a móvil y teclado.
+
+**Comprobar:** el primer acceso guía el onboarding y los siguientes abren Inicio; escribir desde Inicio crea un chat durable; una sugerencia es abordable con las capacidades/datos presentes; no se mezclan revisiones incompatibles. Verificar estados sin datos, análisis en curso, datos nuevos sin informe nuevo, informe retirado y fallo recuperable. Comprobar visualmente escritorio/móvil, foco, teclado y que el prompt no oculte contenido.
+
+### 2.5.7. Evaluación integrada y cierre
+
+**Ejecutar:** matriz de memoria y conversación con referencias independientes, pruebas de persistencia, aislamiento, concurrencia y recuperación, conversaciones con el modelo real y recorrido visual. Incluir regresión del flujo de la entrega 2 y medir repetición de preguntas, propagación de correcciones, exactitud, selección de contexto, latencia y consumo. Registrar resultados, versiones y límites; corregir fallos materiales antes del cierre.
+
+**Cierre:** una persona completa el onboarding una vez, pregunta desde Inicio, recibe evidencia, aporta información que otro chat reutiliza, la corrige desde «Mi negocio», ve revisados los resultados afectados, guarda un informe y recupera todo tras reiniciar. No se mezclan negocios, fuentes incompatibles ni versiones de contexto, y las respuestas no presentan hipótesis como hechos. Un dashboard dibujado o un único chat funcionando no cierran la entrega.
+
+**Orden de trabajo:** identidad → memoria → contexto y dependencias → conversación → ficha/datos → Inicio y navegación → evaluación integrada. Cada paso se comprueba, revisa y guarda en un commit local según `AGENTS.md`; no se marca completo por tener únicamente su diseño.
+
+**Fuera de 2.5:** PDF, Excel y combinación general de tablas, búsqueda web de contexto, predicciones, editor libre de dashboards, conectores, automatización, equipos y despliegue comercial. Continúan en su entrega o roadmap correspondiente. La memoria entre conversaciones y el Inicio interactivo acotado sí forman parte de 2.5.
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
+
+**Prioridad actualizada, 23 de septiembre de 2026:** iniciar las ampliaciones siguientes después de cerrar la entrega 2.5. La evaluación del 22 de septiembre descrita a continuación ya se realizó; no se presenta como trabajo pendiente ni sustituye la regresión exigida por los cambios de memoria y conversación.
 
 **Orden acordado:** antes de incorporar nuevas capacidades, repetir la evaluación
 del recorrido actual con GPT-6 Luna sobre casos variados del paso 1.7, incluyendo
@@ -237,10 +298,11 @@ Revisar inicialmente los informes conforme al bloque 7, registrar las correccion
 
 - Python generado y ejecución aislada pertenecen a la entrega 1, no a una ampliación posterior.
 - PostgreSQL es la opción inicial; se mantiene abierta la posibilidad de Convex tras comprobar la integración.
+- La entrega 2.5 mantiene PostgreSQL y almacenamiento privado; cambiar de proveedor no es un requisito de memoria compartida.
 - Revisor, comprobaciones y evidencia forman parte del primer recorrido completo.
 - Las pruebas acompañan cada paso; el control de calidad no se aplaza a la entrega 4.
 - El almacenamiento registra procedencia y versiones; no obliga a un esquema universal de ventas.
-- ML predictivo, chat libre posterior, PDF, dashboard avanzado, conectores y automatización periódica siguen fuera del MVP.
+- Chat posterior, memoria entre conversaciones, «Mi negocio» e Inicio interactivo acotado pasan a la entrega 2.5. ML predictivo, PDF, editor de dashboards/filtros abiertos, conectores y automatización periódica siguen fuera de esa ampliación.
 - Modelos, proveedores, entorno de ejecución, framework web, componentes reutilizables y límites numéricos se concretan cuando desbloquean la entrega correspondiente. No se fijan plazos sin estimar el trabajo y medir los primeros pasos.
 
 ## 10. Punto de inicio
@@ -298,3 +360,5 @@ permite ampliar por escenarios; no equivale a aceptación general del MVP.
 DR-019 sigue parcialmente mitigado: hay intentos innecesarios recuperables.
 Ver [validación completa](../validation/2026-09-22-luna-validation.md) e
 [incidencias](../validation/known-agent-errors.md).
+
+**Planificación de entrega 2.5, 23 de septiembre de 2026:** revisados esquema, creación de trabajos web, contexto de planificación/investigación/revisión, invalidación y navegación. Se añaden siete pasos para identidad persistente, memoria, contexto transversal, chat, «Mi negocio», Inicio y evaluación. Se actualizan alcance y definición del producto para adelantar estas capacidades. Este avance corresponde solo a análisis y documentación: ninguno de los pasos 2.5.1–2.5.7 está implementado o aceptado por esta actualización.
