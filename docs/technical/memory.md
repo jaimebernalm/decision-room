@@ -10,7 +10,7 @@
 
 ## Límites
 
-Desde 2.5.3 la memoria se incorpora a planificación, investigación y revisión mediante el [selector y manifiesto compartidos](context-retrieval.md), con invalidación entre sesiones. El chat llegará en 2.5.4 y la ficha completa en 2.5.5. Las operaciones del dominio serán reutilizables por esos puntos de entrada. El texto de una respuesta y su efecto en el análisis actual conservan el recorrido existente.
+Desde 2.5.3 la memoria se incorpora a planificación, investigación y revisión mediante el [selector y manifiesto compartidos](context-retrieval.md), con invalidación entre sesiones. El [chat de 2.5.4](conversations.md) ya reutiliza estas operaciones; la ficha completa llegará en 2.5.5. El texto de una respuesta y su efecto en el análisis actual conservan el recorrido existente.
 
 ## Contrato y almacenamiento
 
@@ -21,7 +21,7 @@ Desde 2.5.3 la memoria se incorpora a planificación, investigación y revisión
 
 El contenido distingue `context`, `priority`, `definition`, `availability`, `open_question` y `result_reference`. Este último solo guarda una referencia a una revisión del mismo negocio; la extracción de texto no puede fabricar resultados. Su publicación y reutilización se comprueban al abrir el original desde las herramientas de 2.5.3.
 
-Ámbitos actuales: negocio, lote de análisis y fuente. Una aclaración sobre un lote de un único archivo queda ligada a esa fuente; si hay varias, al lote completo. No se amplía automáticamente a todos los archivos ni se asigna por nombre. Los futuros chats podrán llamar al mismo servicio con un ámbito resuelto por el servidor; todavía no hay ámbito de conversación persistido.
+Ámbitos actuales: negocio, lote de análisis y fuente. Una aclaración sobre un lote de un único archivo queda ligada a esa fuente; si hay varias, al lote completo. No se amplía automáticamente a todos los archivos ni se asigna por nombre. Los chats llaman al mismo servicio con el ámbito de negocio o conjunto seleccionado, resuelto por el servidor. La conversación conserva el origen; no constituye una memoria separada.
 
 `temporal_scope` distingue fecha no indicada (`unspecified`), fecha conocida (`dated`) y restricción temporal sin resolver (`unresolved`). Las fechas son inclusivas. Una restricción ambigua queda como propuesta y exige corrección antes de confirmarse; no se inventa el año. La fecha de registro se conserva separada de la aplicación del hecho.
 

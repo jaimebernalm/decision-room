@@ -470,3 +470,66 @@ CREATE TABLE IF NOT EXISTS semantic_calls (
     finished_at timestamptz
 );
 INSERT INTO schema_versions(version) VALUES (11) ON CONFLICT DO NOTHING;
+
+-- Durable business conversations. A turn stores the owner message and its validated reply.
+CREATE UNIQUE INDEX IF NOT EXISTS web_jobs_business_identity ON web_jobs(business_id,id);
+CREATE TABLE IF NOT EXISTS chat_conversations (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL REFERENCES businesses(id),
+    request_key uuid NOT NULL,
+    title text NOT NULL,
+    analysis_id uuid,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE(business_id,id), UNIQUE(business_id,request_key),
+    FOREIGN KEY(business_id,analysis_id) REFERENCES analyses(business_id,id)
+);
+CREATE TABLE IF NOT EXISTS chat_turns (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    conversation_id uuid NOT NULL,
+    ordinal integer NOT NULL,
+    request_key uuid NOT NULL,
+    payload jsonb NOT NULL,
+    status text NOT NULL CHECK(status IN ('queued','routing','processing','waiting','completed','failed','blocked')),
+    model_settings jsonb NOT NULL,
+    memory_source_id uuid,
+    job_id uuid,
+    snapshot jsonb,
+    response jsonb,
+    issue text,
+    attempt integer NOT NULL DEFAULT 0,
+    report_requested boolean NOT NULL DEFAULT false,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE(conversation_id,ordinal), UNIQUE(conversation_id,request_key),
+    FOREIGN KEY(business_id,job_id) REFERENCES web_jobs(business_id,id),
+    FOREIGN KEY(business_id,conversation_id) REFERENCES chat_conversations(business_id,id),
+    FOREIGN KEY(business_id,memory_source_id) REFERENCES memory_sources(business_id,id)
+);
+CREATE TABLE IF NOT EXISTS chat_calls (
+    turn_id uuid NOT NULL REFERENCES chat_turns(id),
+    attempt integer NOT NULL,
+    ordinal integer NOT NULL,
+    prompt_version text NOT NULL,
+    context jsonb NOT NULL,
+    response jsonb,
+    usage jsonb,
+    status text NOT NULL CHECK(status IN ('running','completed','failed','uncertain')),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY(turn_id,attempt,ordinal)
+);
+CREATE TABLE IF NOT EXISTS chat_retrievals (
+    turn_id uuid NOT NULL REFERENCES chat_turns(id),
+    attempt integer NOT NULL,
+    ordinal integer NOT NULL,
+    request jsonb NOT NULL,
+    response jsonb NOT NULL,
+    dependencies jsonb NOT NULL,
+    PRIMARY KEY(turn_id,attempt,ordinal)
+);
+ALTER TABLE chat_turns ADD COLUMN IF NOT EXISTS response_history jsonb NOT NULL DEFAULT '[]';
+ALTER TABLE web_jobs ADD COLUMN IF NOT EXISTS origin text NOT NULL DEFAULT 'upload';
+ALTER TABLE semantic_chunks DROP CONSTRAINT IF EXISTS semantic_chunks_kind_check;
+ALTER TABLE semantic_chunks ADD CONSTRAINT semantic_chunks_kind_check CHECK(kind IN ('dataset','memory','report','chat'));
+CREATE INDEX IF NOT EXISTS chat_turns_pending ON chat_turns(status,created_at);
+INSERT INTO schema_versions(version) VALUES (12) ON CONFLICT DO NOTHING;

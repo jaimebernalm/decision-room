@@ -12,7 +12,7 @@ from .service import digest, encoded, lock
 
 class Request(BaseModel):
     model_config = ConfigDict(extra='forbid')
-    tool: Literal['search_datasets', 'inspect_dataset', 'search_memory', 'search_reports', 'open_report', 'open_evidence']
+    tool: Literal['search_datasets', 'inspect_dataset', 'search_memory', 'search_reports', 'open_report', 'open_evidence', 'search_chats']
     query: str = Field(max_length=300)
     id: str = Field(max_length=36)
     limit: int = Field(ge=1, le=10)
@@ -35,6 +35,8 @@ Tools: search_datasets(query) discovers business data from descriptions/names/co
 inspect_dataset(id) opens a discovered dataset profile and its scoped memory;
 search_memory(query,id) reads applicable memory (id may be a discovered table, or empty);
 search_reports(query,id) finds reviewed antecedents (id may be a discovered table, or empty);
+search_chats(query,id) finds historical owner messages and their preceding question (id optionally a table).
+These are historical quotations/hypotheses, never current declared memory; check current memory before use.
 open_report(id) opens a discovered report with provenance; open_evidence(id) opens a report's
 cited execution. Use empty query/id when unused; limit 1..10. Search metadata reports whether
 hybrid semantic+text search was used or only text (disabled/provider failure). Similarity is
@@ -81,6 +83,10 @@ def _compatible(db, m, run):
     a, b = m['selection'], other['selection']
     if not ctx.intersects(a['period'], b['period']):
         return False
+    # A chat with no chosen dataset may discover historical reports with their
+    # original scope; this does not authorize a new calculation or cross-batch reuse.
+    if a['analysis_id'] is None:
+        return True
     # Unknown periods cannot justify cross-dataset reuse. Same batch is an explicit link.
     return a['analysis_id'] == b['analysis_id'] or (all(a['period'].values()) and all(b['period'].values()))
 
@@ -127,7 +133,7 @@ def _datasets(config, db, m, query, limit):
 def _reports(config, db, m, scope, request):
     # Scope before embedding; report.show verifies approval, source integrity and
     # numerical evidence. No stale/held report prose is put in the search corpus.
-    rows = db.execute('''SELECT id FROM agent_reviews WHERE business_id=%s AND session_id<>%s
+    rows = db.execute('''SELECT id FROM agent_reviews WHERE business_id=%s AND session_id IS DISTINCT FROM %s
         AND status='approved' AND (%s::uuid IS NULL OR analysis_id=%s)
         ORDER BY created_at DESC,id LIMIT %s''',
         (m['business_id'], m['session_id'], scope['analysis_id'] if request.id else None,
@@ -156,10 +162,11 @@ def _reports(config, db, m, scope, request):
                 more_possible=len(docs) > len(keys), search=search), dependencies
 
 
-def retrieve(config, db, session_id, request):
+def retrieve(config, db, session_id, request, *, manifest=None, opened=None):
     r = Request.model_validate(request)
-    m = ctx.manifest(db, session_id)
-    ctx.ensure(db, session_id)
+    m = manifest or ctx.manifest(db, session_id)
+    if session_id:
+        ctx.ensure(db, session_id)
     dependencies = []
     if r.id:
         UUID(r.id)
@@ -199,6 +206,9 @@ def retrieve(config, db, session_id, request):
                 coverage='First five records are not full date coverage.',
                 authorized_for_current_execution=str(table['analysis_id']) == m['selection']['analysis_id'])
             dependencies.append(dict(kind='table', id=r.id, version=table['parquet_sha256'], metadata_version=ctx.table_version(db,m['business_id'],r.id)))
+    elif r.tool == 'search_chats':
+        from ..conversations import search_history
+        result, dependencies = search_history(config, db, m, r)
     elif r.tool == 'search_reports':
         scope = _scope(db, m, r.id)
         result, dependencies = _reports(config, db, m, scope, r)
@@ -210,7 +220,7 @@ def retrieve(config, db, session_id, request):
                       evidence_class='Reviewed historical result, not a new calculation.')
         dependencies.append(dict(kind='report', id=r.id, version=run['approved_sha256']))
     else:
-        opened = db.execute("SELECT response FROM context_retrievals WHERE session_id=%s AND request->>'tool'='open_report'", (session_id,)).fetchall()
+        opened = opened if opened is not None else db.execute("SELECT response FROM context_retrievals WHERE session_id=%s AND request->>'tool'='open_report'", (session_id,)).fetchall()
         parent = next((x['response'] for x in opened if r.id in x['response'].get('evidence_ids', [])), None)
         if not parent:
             raise ValueError('Open the applicable report before its evidence.')
@@ -220,7 +230,8 @@ def retrieve(config, db, session_id, request):
             raise ValueError('Evidence is no longer applicable.')
         result = evidence
         dependencies.append(dict(kind='report', id=str(run['id']), version=run['approved_sha256']))
-    ctx.ensure(db, session_id)
+    if session_id:
+        ctx.ensure(db, session_id)
     if len(encoded(result).encode()) > ctx.MEMORY_BYTES:
         raise ValueError('Retrieved context exceeds 48 KB. Narrow the request; required doubts were not truncated.')
     return json_safe(result), dependencies

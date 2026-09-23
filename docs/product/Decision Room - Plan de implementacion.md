@@ -1,7 +1,7 @@
 # Decision Room: plan de implementación por entregas
 
 **Fecha de actualización:** 23 de septiembre de 2026.  
-**Estado vigente:** entrega 2 implementada y comprobada como recorrido web local. La ronda de evaluación previa a ampliar cobertura terminó el 22 de septiembre, con correcciones y límites documentados; no equivale a aceptación general del MVP. La entrega 2.5 tiene los pasos 2.5.1–2.5.3 implementados y comprobados; los pasos 2.5.4–2.5.7 de memoria compartida y experiencia cotidiana siguen pendientes y preceden a la ampliación de cobertura de la entrega 3. Los resultados históricos de cada paso se conservan en la sección 10.  
+**Estado vigente:** entrega 2 implementada y comprobada como recorrido web local. La ronda de evaluación previa a ampliar cobertura terminó el 22 de septiembre, con correcciones y límites documentados; no equivale a aceptación general del MVP. La entrega 2.5 tiene los pasos 2.5.1–2.5.4 implementados y comprobados; los pasos 2.5.5–2.5.7 de memoria compartida y experiencia cotidiana siguen pendientes y preceden a la ampliación de cobertura de la entrega 3. Los resultados históricos de cada paso se conservan en la sección 10.  
 **Propósito:** conservar la secuencia de trabajo, el motivo de cada paso y qué debemos poder comprobar antes de darlo por terminado.
 
 ## 1. Relación con el MVP
@@ -140,9 +140,9 @@ de la implementación web del cierre de calidad del agente. Ver
 
 ## 5.1. Entrega 2.5: memoria del negocio y experiencia cotidiana
 
-**Estado, 23 de septiembre de 2026:** pasos 2.5.1–2.5.3 implementados y comprobados; resto de implementación y evaluación integrada pendientes. El [diagnóstico del código y diseño técnico](../technical/business-memory-plan.md) detalla estructuras, migración, mantenimiento de memoria, contexto del agente, UX y escenarios de aceptación.
+**Estado, 23 de septiembre de 2026:** pasos 2.5.1–2.5.4 implementados y comprobados; resto de implementación y evaluación integrada pendientes. El [diagnóstico del código y diseño técnico](../technical/business-memory-plan.md) detalla estructuras, migración, mantenimiento de memoria, contexto del agente, UX y escenarios de aceptación.
 
-**Guía para implementarlo poco a poco:** el [desglose de los siete pasos](../technical/business-memory-implementation.md) define cuatro incrementos por paso, dependencias, zonas de código, contratos de salida, demostraciones y pruebas. Ejecutar un paso por vez y registrar su validación y commit al cerrarlo. Los doce incrementos de 2.5.1–2.5.3 están completados; los restantes están pendientes; el paso 2.5.3 está probado con sesiones actuales y el chat se introduce después, en 2.5.4, sin dependencias circulares.
+**Guía para implementarlo poco a poco:** el [desglose de los siete pasos](../technical/business-memory-implementation.md) define cuatro incrementos por paso, dependencias, zonas de código, contratos de salida, demostraciones y pruebas. Ejecutar un paso por vez y registrar su validación y commit al cerrarlo. Los dieciséis incrementos de 2.5.1–2.5.4 están completados; los restantes están pendientes. El chat utiliza la memoria, selección de contexto y recuperación compartidas, sin duplicar sus mecanismos.
 
 **Objetivo:** que el cliente tenga un negocio persistente y pueda volver a consultar, aportar contexto, actualizar datos y guardar informes sin repetir el onboarding. La memoria debe funcionar entre todos sus chats y análisis, con procedencia y ámbito, sin mezclar negocios ni presentar resultados antiguos como actuales.
 
@@ -386,3 +386,6 @@ Ver [validación completa](../validation/2026-09-22-luna-validation.md) e
 **Cierre de 2.5.3, 23 de septiembre de 2026:** contexto inicial persistente, recuperación dirigida por el agente sobre datos/memoria/antecedentes, manifiesto de lo entregado y correcciones entre sesiones. Se comprueba vigencia al reanudar y publicar, se conservan periodos históricos y la web permite recalcular con la memoria actual. Pruebas automatizadas, casos reales y límites de búsqueda documentados en la [validación](../validation/2026-09-23-context-check.md). El chat se implementa a continuación en 2.5.4.
 
 **Cierre de ampliación semántica de 2.5.3, 23 de septiembre de 2026:** OpenAI embeddings + pgvector y búsqueda híbrida integrados en datos, memoria e informes, con caché versionada y degradación textual explícita. Pasan 214 pruebas; 60 búsquedas reales sitúan el esperado entre los tres primeros en todos los casos del corpus pequeño; Luna reutiliza un antecedente y respeta la corrección de 80 a 30. Ver [validación y límites](../validation/2026-09-23-semantic-check.md). El siguiente paso sigue siendo 2.5.4.
+
+
+**Cierre de 2.5.4, 23 de septiembre de 2026:** conversaciones persistentes, memoria entre chats, antecedentes semánticos con referencias originales, investigación sobre datos existentes y respuestas breves basadas en evidencia revisada. Incluye aclaraciones, reintento explícito, conservación de intentos e informe vinculado bajo petición. El recorrido real con Luna comprueba un total de 80, explicación sin recalcular, corrección de memoria y recuperación de una hipótesis reformulada. Véanse [implementación](../technical/conversations.md) y [validación y límites](../validation/2026-09-23-conversations-check.md). El siguiente paso es **2.5.5: Mi negocio y datos reutilizables**.

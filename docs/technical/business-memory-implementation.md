@@ -1,7 +1,7 @@
 # Entrega 2.5: ejecución incremental en siete pasos
 
 **Fecha:** 23 de septiembre de 2026.  
-**Estado:** pasos 2.5.1–2.5.3 completados y comprobados; pasos 2.5.4–2.5.7 pendientes. Véase la [validación del primer paso](../validation/2026-09-23-business-identity-check.md).  
+**Estado:** pasos 2.5.1–2.5.4 completados y comprobados; pasos 2.5.5–2.5.7 pendientes. Véase la [validación del primer paso](../validation/2026-09-23-business-identity-check.md).  
 **Referencias:** [alcance y criterios del plan](<../product/Decision Room - Plan de implementacion.md#51-entrega-25-memoria-del-negocio-y-experiencia-cotidiana>) y [diagnóstico y diseño de memoria/UX](business-memory-plan.md).
 
 ## Cómo ejecutar este plan
@@ -106,10 +106,10 @@ Solicitada el 23 de septiembre de 2026, antes de 2.5.4. PostgreSQL sigue siendo 
 
 **Incrementos, en orden:**
 
-- [ ] **A. Persistencia de conversaciones y turnos.** Crear conversaciones vinculadas al negocio y mensajes con identidad, orden, estado y referencias. Persistir el envío antes de procesarlo. Garantizar orden dentro de cada conversación y recuperación tras recargar, sin exigir ejecución paralela de varios chats.
-- [ ] **B. Primera conversación útil.** Añadir operaciones de crear/listar/abrir/enviar/reintentar y una vista básica en la web existente. Resolver explicaciones de evidencia vigente y aportaciones de contexto mediante los servicios de los pasos 2–3. Si todavía no se puede ejecutar una intención, mostrar su límite sin una respuesta ficticia.
-- [ ] **C. Investigación desde un mensaje.** Conectar selección de un conjunto de datos existente, planificación, aclaraciones, cálculo y revisión. Reutilizar el trabajador durable y los servicios analíticos; separar el trabajo de chat de la obligación actual de subir un CSV. Persistir las referencias entre turno, investigación y resultado.
-- [ ] **D. Respuesta breve e informe.** Definir contenido estructurado de respuesta y validación de afirmaciones, referencias y cifras. Las explicaciones que reutilizan evidencia no introducen cifras ni conclusiones nuevas sin comprobarlas. Añadir «Generar informe» como revisión vinculada al chat; no transformar automáticamente cada mensaje en un informe. Conectar el historial al selector del paso 3 mediante fragmentos con referencias a sus mensajes originales y contexto suficiente. Recuperar los mensajes pertinentes vinculados a datos, recuerdos o informes, sin cargar todo un chat por compartir una tabla ni crear una memoria paralela.
+- [x] **A. Persistencia de conversaciones y turnos.** Crear conversaciones vinculadas al negocio y mensajes con identidad, orden, estado y referencias. Persistir el envío antes de procesarlo. Garantizar orden dentro de cada conversación y recuperación tras recargar, sin exigir ejecución paralela de varios chats.
+- [x] **B. Primera conversación útil.** Añadir operaciones de crear/listar/abrir/enviar/reintentar y una vista básica en la web existente. Resolver explicaciones de evidencia vigente y aportaciones de contexto mediante los servicios de los pasos 2–3. Si todavía no se puede ejecutar una intención, mostrar su límite sin una respuesta ficticia.
+- [x] **C. Investigación desde un mensaje.** Conectar selección de un conjunto de datos existente, planificación, aclaraciones, cálculo y revisión. Reutilizar el trabajador durable y los servicios analíticos; separar el trabajo de chat de la obligación actual de subir un CSV. Persistir las referencias entre turno, investigación y resultado.
+- [x] **D. Respuesta breve e informe.** Definir contenido estructurado de respuesta y validación de afirmaciones, referencias y cifras. Las explicaciones que reutilizan evidencia no introducen cifras ni conclusiones nuevas sin comprobarlas. Añadir «Generar informe» como revisión vinculada al chat; no transformar automáticamente cada mensaje en un informe. Conectar el historial al selector del paso 3 mediante fragmentos con referencias a sus mensajes originales y contexto suficiente. Recuperar los mensajes pertinentes vinculados a datos, recuerdos o informes, sin cargar todo un chat por compartir una tabla ni crear una memoria paralela.
 
 **Zona de código:** esquema; servicio/contratos de conversación nuevos; [`web/service.py`](../../decision_room/web/service.py) y [`web/server.py`](../../decision_room/web/server.py); adaptadores del agente y revisión; vista básica de conversación en [`app.js`](../../decision_room/web/static/app.js). Reutilizar el renderizado controlado y escapado; el modelo no genera HTML ejecutable.
 
@@ -120,6 +120,8 @@ Solicitada el 23 de septiembre de 2026, antes de 2.5.4. PostgreSQL sigue siendo 
 **Comprobaciones adicionales de chats:** encontrar una aclaración anterior aunque se reformule la pregunta; recuperar el contexto que distinga una cita o hipótesis de una declaración; no mezclar conversaciones por similitud sin comprobar negocio y ámbito; impedir que un mensaje antiguo reactive información retirada.
 
 **Todavía pendiente:** diseño definitivo de navegación y gestión completa de archivos desde la ficha. Usar fuentes ya aceptadas basta para cerrar este paso.
+
+**Cierre:** [implementación y contratos](conversations.md), [pruebas y límites](../validation/2026-09-23-conversations-check.md).
 
 ## 2.5.5. «Mi negocio» y datos reutilizables
 

@@ -4,6 +4,7 @@ import json
 import logging
 import threading
 from dataclasses import asdict
+from contextlib import nullcontext
 from pathlib import Path
 from uuid import uuid4
 
@@ -214,7 +215,7 @@ class Workspace:
 
     def listing(self):
         with connect(self.config) as db:
-            rows = db.execute('SELECT w.*,w.business_name AS business FROM web_jobs w WHERE w.business_id=%s ORDER BY w.created_at DESC',
+            rows = db.execute("SELECT w.*,w.business_name AS business FROM web_jobs w WHERE w.business_id=%s AND (w.origin='upload' OR EXISTS (SELECT 1 FROM chat_turns t WHERE t.business_id=w.business_id AND (t.job_id=w.id OR t.response->>'report_id'=w.review_id::text) AND t.report_requested)) ORDER BY w.created_at DESC",
                               (self.business_id(),)).fetchall()
         result = []
         for j in rows:
@@ -299,7 +300,7 @@ class Workspace:
         self.wake.set()
         return {'saved': True}
 
-    def retry(self, job_id):
+    def retry(self, job_id, *, _db=None):
         j = self.row(job_id)
         from ..memory.context import reason
         with connect(self.config) as db:
@@ -314,7 +315,7 @@ class Workspace:
             # Keep the job paused; a readiness request must never enqueue work
             # or trigger LM Studio's automatic model-loading attempt.
             raise WebError(str(error), 409) from None
-        with connect(self.config) as db:
+        with (nullcontext(_db) if _db is not None else connect(self.config)) as db:
             row = db.execute("UPDATE web_jobs SET status='queued',issue=NULL,retry_uncertain=true,updated_at=now() WHERE id=%s AND business_id=%s AND (status='failed' OR %s) RETURNING id",
                              (identifier(job_id), j['business_id'], bool(stale))).fetchone()
         if not row:
@@ -337,6 +338,8 @@ class Workspace:
 
     def upload(self, job_id):
         j = self.row(job_id)
+        if j['origin'] == 'chat':
+            raise WebError('Esta conversación reutiliza un conjunto de datos existente.', 409)
         content = Storage(self.config.storage).path(j['business_id'], j['upload_key']).read_bytes()
         signature = hashlib.sha256(json.dumps([j['business'], j['context'], j['goal'], j['title'], j['filename']], ensure_ascii=False).encode() + content).hexdigest()
         if signature != j['request_sha256']:
@@ -447,7 +450,8 @@ class Workspace:
                 return False
             j = db.execute("SELECT j.id,j.business_id FROM web_jobs j JOIN web_businesses b ON b.business_id=j.business_id WHERE status IN ('queued','running') ORDER BY created_at LIMIT 1").fetchone()
             if not j:
-                return False
+                from ..conversations import work_once
+                return work_once(self, db)
             self.scoped(j['business_id']).run_job(j['id'])
             return True
 

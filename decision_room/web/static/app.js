@@ -137,6 +137,7 @@ function shell(content, active = "home", crumb = "Vista general") {
     <p class="nav-label">ESPACIO DE TRABAJO</p><nav aria-label="Principal">${[
       ["home", "home", "Vista general"],
       ["analyses", "grid", "Mis análisis"],
+      ["chats", "chat", "Conversaciones"],
       ["files", "file", "Archivos"],
       ["businesses", "grid", "Negocios guardados"],
     ]
@@ -620,6 +621,210 @@ async function pollDetail(id) {
     } else toast(e.message);
   }
 }
+function chatResponse(r) {
+  if (!r) return "";
+  if (r.kind === "evidence")
+    return `<h3>${esc(r.title)}</h3>${(r.metrics || []).map((m) => `<p><strong>${esc(m.metric)}: ${esc(m.value)}</strong></p>`).join("")}<p class="muted">${esc(r.scope?.period)} · ${esc(r.scope?.coverage)}</p>${r.claims.map((c) => `<section><h4>${esc(c.title)}</h4><p>${esc(c.statement)}</p><p>${esc(c.interpretation)}</p><details><summary>Cómo se ha comprobado</summary><p>${esc(c.method)}</p>${c.evidence.map((e) => `<p class="muted">Cálculo ${esc(e.execution_id)} · ${esc(e.metric)}</p>`).join("")}</details></section>`).join("")}<ul>${r.limitations.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`;
+  if (r.kind === "catalog")
+    return `<p>${esc(r.text)}</p>${r.items.map((x) => `<p><strong>${esc(x.description)}</strong> · ${esc(x.names.join(", "))}<br>${esc(x.columns.join(", "))}</p>`).join("") || "<p>No hay conjuntos disponibles todavía.</p>"}`;
+  if (r.kind === "history")
+    return `<p>${esc(r.text)}</p>${r.items.map((x) => `<blockquote>${x.preceding_question ? `<p>Pregunta: ${esc(x.preceding_question)}</p>` : ""}<p>${esc(x.text)}</p><a href="#chat/${esc(x.conversation_id)}">Abrir conversación original</a></blockquote>`).join("")}`;
+  if (r.kind === "memory" || (r.kind === "missing" && r.items))
+    return `<p>${esc(r.text)}</p>${r.items.length ? r.items.map((x) => `<p><strong>${esc({ declared: "Declarado", proposed: "Por confirmar", conflicted: "Hay una contradicción" }[x.status] || x.status)}</strong> · ${esc(x.content.statement)}<br><small>${esc({ business: "Compartido con el negocio", analysis: "Aplicable a este conjunto de datos", source: "Aplicable a este archivo" }[x.content.scope])}</small></p>`).join("") : "<p>Todavía no hay hechos declarados aplicables. Las preguntas y las hipótesis no se guardan como hechos confirmados.</p>"}`;
+  if (r.kind === "questions")
+    return r.questions
+      .map(
+        (q) => `<p><strong>${esc(q.text)}</strong></p><p>${esc(q.reason)}</p>`,
+      )
+      .join("");
+  return `<p>${esc(r.text)}</p>`;
+}
+async function chatsPage() {
+  const generation = state.generation;
+  const data = await api("/api/chats");
+  if (generation !== state.generation) return;
+  const datasets = [
+    ...new Map(data.datasets.items.map((t) => [t.analysis_id, t])).values(),
+  ];
+  shell(
+    `<div class="page-heading"><div><span class="eyebrow">TU NEGOCIO, CON CONTEXTO</span><h1>Conversaciones</h1><p>Pregunta sobre tus datos o añade algo que debamos recordar.</p></div></div>
+    <form class="card" id="create-chat"><h2>Empezar una conversación</h2><label>Título<input name="title" maxlength="160" placeholder="Una nueva pregunta" /></label><label>Datos para esta conversación<select name="analysis_id"><option value="">Dejar que el agente busque los datos</option>${datasets.map((t) => `<option value="${esc(t.analysis_id)}">${esc(t.description)} · ${esc(t.names.join(", "))}</option>`).join("")}</select></label>${data.datasets.more ? "<p>Hay más conjuntos: el agente puede buscarlos si dejas la selección automática.</p>" : ""}<button class="button primary" ${!state.business ? "disabled" : ""}>Nuevo chat ${icon("plus")}</button></form>
+    <div class="card-grid">${data.conversations.map((c) => `<a class="card" href="#chat/${esc(c.id)}"><h2>${esc(c.title)}</h2><p>${fmtDate(c.created_at)}</p><span>Abrir conversación ${icon("arrow")}</span></a>`).join("") || '<p class="empty">Aquí aparecerán tus conversaciones guardadas.</p>'}</div>`,
+    "chats",
+    "Conversaciones",
+  );
+  document
+    .querySelector("#create-chat")
+    .addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget,
+        button = form.querySelector("button");
+      const payload = {
+        business_id: state.business.id,
+        title: form.elements.title.value || "Nueva conversación",
+        analysis_id: form.elements.analysis_id.value,
+      };
+      const cacheKey = "dr-chat-create-" + state.business.id,
+        prior = store.get(cacheKey, null);
+      const request_key =
+        prior && JSON.stringify(prior.payload) === JSON.stringify(payload)
+          ? prior.key
+          : crypto.randomUUID();
+      store.set(cacheKey, { key: request_key, payload });
+      button.disabled = true;
+      try {
+        const chat = await api("/api/chats", {
+          method: "POST",
+          body: { ...payload, request_key },
+        });
+        store.remove(cacheKey);
+        location.hash = "chat/" + chat.id;
+      } catch (e) {
+        toast(e.message);
+        button.disabled = false;
+      }
+    });
+}
+async function chatPage(id) {
+  const generation = state.generation;
+  let current = null,
+    signature = "",
+    sending = false;
+  const draftKey = "dr-chat-draft-" + id;
+  shell(
+    `<div class="page-heading"><div><a href="#chats">← Conversaciones</a><h1 id="chat-title">Conversación</h1><p>El contexto del negocio se comparte entre conversaciones.</p></div><a class="button secondary" href="#chats">Nuevo chat</a></div>
+    <div id="chat-turns" aria-live="polite" aria-relevant="additions text"></div><div id="chat-conflicts"></div>
+    <form class="card chat-composer" id="chat-send"><label id="question-label" hidden>Aclaración pendiente<select id="chat-question"></select></label><label for="chat-message">Tu mensaje</label><textarea id="chat-message" rows="3" maxlength="6000" required placeholder="¿Qué quieres saber de tu negocio?"></textarea><div class="chat-suggestions"><button type="button" data-suggestion="¿Qué sabes de mi negocio?">Qué sabemos del negocio</button><button type="button" data-suggestion="¿Qué datos tenemos disponibles para analizar?">Explorar mis datos</button></div><button class="button primary" id="send-message">Enviar ${icon("arrow")}</button><p id="chat-status" class="muted"></p></form>`,
+    "chats",
+    "Conversación",
+  );
+  const textarea = document.querySelector("#chat-message");
+  textarea.value = store.get(draftKey, { text: "" }).text;
+  textarea.addEventListener("input", () =>
+    store.set(draftKey, { text: textarea.value, key: crypto.randomUUID() }),
+  );
+  document.querySelectorAll("[data-suggestion]").forEach((b) =>
+    b.addEventListener("click", () => {
+      textarea.value = b.dataset.suggestion;
+      textarea.dispatchEvent(new Event("input"));
+      textarea.focus();
+    }),
+  );
+  async function refresh() {
+    try {
+      const data = await api("/api/chats/" + encodeURIComponent(id));
+      if (generation !== state.generation) return;
+      current = data;
+      state.memory = data.memory;
+      renderMemory();
+      const next = JSON.stringify(data);
+      if (signature === next) return;
+      signature = next;
+      document.querySelector("#chat-title").textContent =
+        data.conversation.title;
+      document.querySelector("#chat-turns").innerHTML =
+        data.turns
+          .map(
+            (t, index) =>
+              `<article class="chat-turn"><div class="chat-owner"><strong>Tú</strong><p>${esc(t.payload.text)}</p></div><div class="card chat-answer"><strong>Decision Room</strong>${chatResponse(t.response)}${t.issue ? `<p class="notice">${esc(t.issue)}</p>` : ""}${["queued", "routing", "processing"].includes(t.status) ? '<p class="muted">Preparando y comprobando la respuesta… Puedes volver más tarde.</p>' : ""}${["failed", "stale"].includes(t.status) && index === data.turns.length - 1 ? `<button class="button secondary" data-retry="${esc(t.id)}">Reintentar con el contexto actual</button>` : ""}${t.response?.kind === "evidence" ? (t.report_requested ? `<a class="button secondary" target="_blank" rel="noopener" href="/api/chats/${esc(id)}/report/${esc(t.id)}">Abrir informe</a>` : `<button class="button secondary" data-report="${esc(t.id)}">Generar informe</button>`) : ""}</div></article>`,
+          )
+          .join("") ||
+        '<section class="card"><h2>¿Por dónde empezamos?</h2><p>Puedes preguntar por un resultado, pedir un cálculo o explicar cómo funciona tu negocio.</p></section>';
+      const conflicts = data.memory_items.filter(
+        (x) => x.status === "conflicted",
+      );
+      document.querySelector("#chat-conflicts").innerHTML = conflicts
+        .map(
+          (f) =>
+            `<section class="notice"><h3>Confirma qué debemos recordar</h3><p>Existe una contradicción con: ${esc(f.content.statement)}</p>${f.alternatives.map((a, i) => `<p>${esc(a.content.statement)}</p><button class="button secondary" data-fact="${esc(f.id)}" data-revision="${f.revision}" data-alternative="${i}">Usar esta versión como corrección</button>`).join("")}</section>`,
+        )
+        .join("");
+      const last = data.turns.at(-1),
+        busy =
+          last && ["queued", "routing", "processing"].includes(last.status);
+      document.querySelector("#send-message").disabled = !!busy || sending;
+      document.querySelector("#chat-status").textContent = busy
+        ? "Tu mensaje está guardado. Espera a que termine para continuar."
+        : "";
+      const questions = last?.status === "waiting" ? last.questions || [] : [];
+      document.querySelector("#question-label").hidden = !questions.length;
+      const selector = document.querySelector("#chat-question"),
+        old = selector.value;
+      selector.innerHTML = questions
+        .map((q) => `<option value="${esc(q.id)}">${esc(q.text)}</option>`)
+        .join("");
+      if (questions.some((q) => q.id === old)) selector.value = old;
+    } catch (e) {
+      if (generation === state.generation) toast(e.message);
+    }
+  }
+  document
+    .querySelector("#chat-send")
+    .addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (sending || !current) return;
+      sending = true;
+      document.querySelector("#send-message").disabled = true;
+      const draft = store.get(draftKey, {}),
+        key = draft.key || crypto.randomUUID(),
+        sentText = textarea.value;
+      store.set(draftKey, { text: sentText, key });
+      try {
+        await api("/api/chats/" + id + "/messages", {
+          method: "POST",
+          body: {
+            business_id: current.conversation.business_id,
+            request_key: key,
+            text: sentText,
+            question_id: document.querySelector("#chat-question").value,
+          },
+        });
+        if (textarea.value === sentText) {
+          store.remove(draftKey);
+          textarea.value = "";
+        }
+      } catch (e) {
+        toast(e.message);
+      } finally {
+        sending = false;
+        signature = "";
+        await refresh();
+      }
+    });
+  document.querySelector("#main").addEventListener("click", async (event) => {
+    const button = event.target.closest(
+      "[data-retry],[data-report],[data-fact]",
+    );
+    if (!button || !current) return;
+    button.disabled = true;
+    const action = button.dataset.retry
+      ? "retry"
+      : button.dataset.report
+        ? "report"
+        : "resolve";
+    try {
+      await api("/api/chats/" + id + "/" + action, {
+        method: "POST",
+        body: {
+          business_id: current.conversation.business_id,
+          turn_id: button.dataset.retry || button.dataset.report,
+          request_key: crypto.randomUUID(),
+          fact_id: button.dataset.fact,
+          revision: Number(button.dataset.revision),
+          alternative: Number(button.dataset.alternative),
+        },
+      });
+      signature = "";
+      await refresh();
+    } catch (e) {
+      toast(e.message);
+      button.disabled = false;
+    }
+  });
+  await refresh();
+  if (generation === state.generation) state.poll = setInterval(refresh, 3000);
+}
+
 async function route() {
   clearInterval(state.poll);
   state.generation++;
@@ -646,6 +851,8 @@ async function route() {
     else if (hash === "businesses" || (!state.business && state.businesses.length)) businessChooser();
     else if (hash === "business") businessForm(!state.business);
     else if (hash === "new") newAnalysis();
+    else if (hash === "chats") await chatsPage();
+    else if (hash.startsWith("chat/")) await chatPage(hash.slice(5));
     else if (hash.startsWith("analysis/")) {
       const id = hash.slice(9);
       await pollDetail(id);
@@ -653,7 +860,7 @@ async function route() {
     } else if (hash === "files") files();
     else if (hash === "how") how();
     else home(hash === "analyses");
-    if (!hash.startsWith("analysis/"))
+    if (!hash.startsWith("analysis/") && !hash.startsWith("chat/"))
       state.poll = setInterval(async () => {
         try {
           const next = await api("/api/workspace");

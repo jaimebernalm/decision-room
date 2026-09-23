@@ -1,6 +1,6 @@
 # Contexto compartido y recuperación del agente — 2.5.3
 
-Implementado el 23 de septiembre de 2026. [Validación inicial](../validation/2026-09-23-context-check.md) y [ampliación semántica](semantic-retrieval.md). Continúa el contrato de [memoria](memory.md) y deja preparado el adaptador de conversaciones de 2.5.4.
+Implementado el 23 de septiembre de 2026. [Validación inicial](../validation/2026-09-23-context-check.md) y [ampliación semántica](semantic-retrieval.md). Continúa el contrato de [memoria](memory.md) y se reutiliza desde las [conversaciones de 2.5.4](conversations.md).
 
 ## Punto de partida y ampliaciones
 
@@ -50,6 +50,6 @@ La web oculta el informe obsoleto y ofrece **Recalcular con la memoria actual**.
 
 La migración 10 añade tablas de contexto, carga de llamada y tipo de cambio temporal sin interpretar ni borrar los checkpoints anteriores. Los informes históricos sin manifiesto no se convierten en antecedentes reutilizables. Para reanudar esas sesiones se exige una replanificación explícita; una modificación de memoria retira conservadoramente sus informes porque no tienen dependencias suficientes. El historial sigue disponible para auditoría.
 
-La recuperación inicial utilizaba relaciones y búsqueda textual. Tras comprobar el fallo con sinónimos, el usuario solicitó incorporar semántica antes de 2.5.4. La migración 11 añade pgvector, caché derivada y registro de llamadas. Con activación explícita, las herramientas combinan texto y embeddings de OpenAI; registran modo, posiciones y versiones en la recuperación persistida. Una caída del proveedor conserva la búsqueda textual con diagnóstico. Véanse el [contrato semántico](semantic-retrieval.md) y su [validación](../validation/2026-09-23-semantic-check.md). La evaluación de fragmentos reales de chats sigue pendiente de 2.5.4.
+La recuperación inicial utilizaba relaciones y búsqueda textual. Tras comprobar el fallo con sinónimos, el usuario solicitó incorporar semántica antes de 2.5.4. La migración 11 añade pgvector, caché derivada y registro de llamadas. Con activación explícita, las herramientas combinan texto y embeddings de OpenAI; registran modo, posiciones y versiones en la recuperación persistida. Una caída del proveedor conserva la búsqueda textual con diagnóstico. Véanse el [contrato semántico](semantic-retrieval.md) y su [validación](../validation/2026-09-23-semantic-check.md). El paso 2.5.4 incorpora `search_chats` y comprueba recuperación semántica de un antecedente reformulado.
 
-Aún no hay mensajes persistentes de chat, panel «Mi negocio», nueva navegación ni combinación general de tablas. El contrato de selección y herramientas se reutilizará al añadir esos adaptadores, sin crear otra memoria.
+Las conversaciones persistentes ya reutilizan este selector y guardan las dependencias de sus antecedentes. Quedan pendientes el panel completo «Mi negocio», la navegación definitiva y la combinación general de tablas.

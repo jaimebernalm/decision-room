@@ -158,3 +158,20 @@ class BusinessMigrationTests(unittest.TestCase):
         with connect(self.config) as db:
             self.assertEqual(db.execute('SELECT count(*) n FROM schema_versions WHERE version=11').fetchone()['n'], 1)
             self.assertTrue(db.execute("SELECT 1 FROM pg_extension WHERE extname='vector'").fetchone())
+
+    def test_conversation_migration_rolls_back_and_preserves_legacy_jobs(self):
+        self.old_schema()
+        business, job, original = self.legacy_job()
+        with connect(self.config) as db:
+            db.execute(self.schema.split('-- Durable business conversations.')[0])
+        with patch('decision_room.database.Path.read_text', return_value=self.schema + '\nSELECT 1/0;'), self.assertRaises(DivisionByZero):
+            migrate(self.config)
+        with connect(self.config) as db:
+            self.assertIsNone(db.execute("SELECT to_regclass('chat_turns') AS t").fetchone()['t'])
+            self.assertFalse(db.execute('SELECT 1 FROM schema_versions WHERE version=12').fetchone())
+        migrate(self.config)
+        migrate(self.config)
+        self.assertEqual(Workspace(self.config).upload(job), ('sales.csv', original))
+        with connect(self.config) as db:
+            self.assertEqual(db.execute('SELECT count(*) n FROM schema_versions WHERE version=12').fetchone()['n'], 1)
+            self.assertEqual(db.execute('SELECT origin FROM web_jobs WHERE id=%s', (job,)).fetchone()['origin'], 'upload')

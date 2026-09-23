@@ -169,6 +169,30 @@ class Handler(BaseHTTPRequestHandler):
             # Pin this request. A selection change in another tab must not
             # redirect a pending read/write to a different business halfway through.
             ws = ws.scoped(ws.business_id())
+            if path == '/api/chats' or path.startswith('/api/chats/'):
+                from ..conversations import Conversations
+                chats = Conversations(ws)
+                parts = path.strip('/').split('/')
+                if len(parts) == 2:
+                    self.send(202 if mutation else 200, chats.create(self.json_body()) if mutation else chats.listing())
+                    return
+                chat_id = parts[2]
+                action = parts[3] if len(parts) == 4 else ''
+                if len(parts) == 3 and not mutation:
+                    self.send(200, chats.detail(chat_id))
+                    return
+                if mutation and action in ('messages','retry','report','resolve'):
+                    data = self.json_body()
+                    result = (chats.send(chat_id,data) if action == 'messages' else
+                              chats.resolve(chat_id,data) if action == 'resolve' else
+                              chats.retry(chat_id,data.get('turn_id'),data) if action == 'retry' else
+                              chats.report(chat_id,data.get('turn_id'),data))
+                    self.send(202,result)
+                    return
+                if not mutation and len(parts) == 5 and parts[3] == 'report':
+                    self.send(200,chats.report(chat_id,parts[4]),'text/html; charset=utf-8')
+                    return
+                raise WebError('Operación de conversación no encontrada.',404)
             if mutation and path == '/api/memory/retry':
                 self.send(202, {'memory': ws.retry_memory(self.json_body())})
                 return

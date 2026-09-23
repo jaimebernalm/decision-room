@@ -54,6 +54,14 @@ def _validate(db, source, response):
     return candidates
 
 
+def _chat_question_only(source):
+    # A question about an existing fact is not a new declaration or contradiction.
+    # Explicit unknown/declined analytical answers use their own capture path.
+    import re
+    text = source['payload']['text'].strip()
+    return source['origin_key'].startswith('chat_message:') and text.startswith('¿') and not re.sub(r'¿[^?]*\?', '', text).strip()
+
+
 def _apply(db, source):
     b, p = source['business_id'], source['payload']
     revision = lock(db, b)
@@ -66,7 +74,7 @@ def _apply(db, source):
         # The saved output is retained in memory_calls, but must be extracted
         # again with the corrected/withdrawn context on explicit retry.
         raise MemoryError('La memoria cambió durante la extracción. Reintenta con la revisión actual.')
-    candidates = _validate(db, source, source['response'])
+    candidates = [] if _chat_question_only(source) else _validate(db, source, source['response'])
     for item in candidates:
         content = item.content.model_dump(mode='json')
         facts = current(db, b)

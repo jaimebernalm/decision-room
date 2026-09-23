@@ -139,6 +139,21 @@ def create(db, session, request_period=None):
                    dataset_catalog=datasets(db, session['business_id'], analysis_id=session['analysis_id']),
                    authorized_source_ids=source_ids, authorized_analysis_id=str(session['analysis_id']),
                    pending_context='Other business datasets/reports available through retrieval. Unknown dates require checking before use.')
+    if session['request_key'].startswith('web:'):
+        import json
+        from ..conversations import fresh
+        from uuid import UUID
+        try:
+            job_id = UUID(session['request_key'][4:])
+        except ValueError:
+            job_id = None
+        job = db.execute("SELECT context FROM web_jobs WHERE id=%s AND business_id=%s AND origin='chat'", (job_id,session['business_id'])).fetchone()
+        if job and job['context']:
+            continuation = json.loads(job['context'])
+            if any(not fresh(db,dep['snapshot']) for dep in continuation['dependencies']):
+                raise StaleContext('Conversation history changed before planning; retry with current memory.')
+            initial['conversation_start'] = continuation['context']
+            initial['conversation_dependencies'] = continuation['dependencies']
     db.execute('''INSERT INTO context_manifests(session_id,business_id,selection,initial_context)
         VALUES (%s,%s,%s,%s)''', (session['id'], session['business_id'], Jsonb(selection), Jsonb(initial)))
 
@@ -192,7 +207,8 @@ def reason(db, session_id, seen=None):
         return 'Applicable business memory changed; replan with current definitions.'
     if not source_current(db, m['business_id'], selection['original_source']):
         return 'Source metadata changed; replan with current data.'
-    for event in db.execute('SELECT dependencies FROM context_retrievals WHERE session_id=%s', (session_id,)).fetchall():
+    events = db.execute('SELECT dependencies FROM context_retrievals WHERE session_id=%s', (session_id,)).fetchall()
+    for event in [dict(dependencies=m['initial_context'].get('conversation_dependencies', [])), *events]:
         for dep in event['dependencies']:
             if dep['kind'] == 'memory':
                 scope = {**selection, **dep['selection']}
@@ -200,6 +216,10 @@ def reason(db, session_id, seen=None):
                 available = {r['id'] for r in scoped(current_rows, scope)}
                 if watch(current_rows, scope) != dep['watch'] or not set(dep.get('priority_ids', [])) <= available:
                     return 'Retrieved memory changed; replan.'
+            elif dep['kind'] == 'chat':
+                from ..conversations import fresh
+                if not fresh(db, dep['snapshot'], ignore_origins=originals):
+                    return 'Retrieved conversation context changed; replan.'
             elif dep['kind'] == 'table':
                 if table_version(db, m['business_id'], dep['id']) != dep['metadata_version']:
                     return 'Retrieved dataset changed; replan.'
@@ -239,5 +259,5 @@ def delivered(db, session_id):
         raise StaleContext('Legacy session has no context manifest. Use agent-replan to preserve history and resume with current memory.')
     events = db.execute('''SELECT decision_key,ordinal,request,response FROM context_retrievals
         WHERE session_id=%s ORDER BY created_at,decision_key,ordinal''', (session_id,)).fetchall()
-    return dict(manifest_id=str(session_id), version=VERSION, **m['initial_context'], retrievals=events,
+    return dict(manifest_id=str(session_id), version=VERSION, **{k:v for k,v in m['initial_context'].items() if k != 'conversation_dependencies'}, retrievals=events,
                 selection_rules=m['selection']['rules'], limits=m['selection']['limits'])

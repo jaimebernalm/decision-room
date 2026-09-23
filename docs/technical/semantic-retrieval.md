@@ -3,7 +3,7 @@
 OpenAI genera embeddings; PostgreSQL con pgvector almacena el índice derivado. El
 agente conserva sus herramientas y decide cuándo buscar. El punto de partida y
 las dudas materiales siguen sujetos al [contrato de contexto](context-retrieval.md).
-Los chats se conectan en 2.5.4; esta ampliación busca datos, recuerdos e informes.
+Esta ampliación inicial busca datos, recuerdos e informes. Desde [2.5.4](conversations.md), `search_chats` usa el mismo índice para fragmentos históricos, tras filtrar negocio y ámbito y comprobar vigencia.
 
 ## Configuración y despliegue
 
