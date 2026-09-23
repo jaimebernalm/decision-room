@@ -125,7 +125,7 @@ def create(db, session, request_period=None):
                                                   (session['business_id'], session['analysis_id'])).fetchall()]
     selection = dict(version=VERSION, analysis_id=str(session['analysis_id']), source_ids=source_ids,
                      period=period(request_period), objective=session['source_snapshot']['owner_context'],
-                     rules='Business + explicit source/analysis links + interval overlap; all applicable material doubts; text discovery.',
+                     rules='Business + explicit source/analysis links + interval overlap; all applicable material doubts; text/hybrid discovery with recorded search mode.',
                      limits=dict(memory_bytes=MEMORY_BYTES, context_bytes=CONTEXT_BYTES, retrievals=MAX_RETRIEVALS),
                      original_source=session['source_snapshot'])
     rows = effective(db, session['business_id'])

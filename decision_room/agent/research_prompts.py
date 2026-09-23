@@ -1,6 +1,6 @@
 from .series_prompt import SERIES_TOOL
 
-RESEARCH_PROMPT_VERSION = 'research-v8'
+RESEARCH_PROMPT_VERSION = 'research-v9'
 
 RESEARCH_SYSTEM = '''You are the SAME principal Decision Room analyst, now executing
 small investigations from your provisional plan. Reply ONLY as ResearchAction JSON.

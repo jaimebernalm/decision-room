@@ -89,6 +89,17 @@ Las comprobaciones acompañan a cada incremento. El paso 7 integra y amplía esa
 
 **Todavía pendiente:** historial de chats y dashboard. La web actual debe seguir indicando correctamente los informes pendientes o retirados.
 
+### Ampliación 2.5.3: búsqueda semántica híbrida
+
+Solicitada el 23 de septiembre de 2026, antes de 2.5.4. PostgreSQL sigue siendo la autoridad; OpenAI genera embeddings y pgvector almacena el índice derivado.
+
+- [x] **A. Índice y proveedor.** Migración transaccional con pgvector, configuración explícita de embeddings, fragmentos acotados, caché por negocio/modelo/versión y registro de llamadas sin credenciales.
+- [x] **B. Recuperación híbrida.** Integrar búsqueda textual y vectorial en las herramientas existentes de datos, memoria e informes; filtrar ámbito/periodo y comprobar originales. Conservar dudas materiales y registrar modo, versiones y resultados en el manifiesto.
+- [x] **C. Mantenimiento y fallos.** Reconstruir derivados modificados al buscar, excluir versiones retiradas aunque queden vectores antiguos y ofrecer degradación textual explícita ante fallo del proveedor. Conservar replay de recuperaciones guardadas.
+- [x] **D. Validación.** Pruebas de aislamiento, cambios concurrentes, periodos, fallos y migración; evaluación real de paráfrasis y recorrido del agente; revisar, documentar límites y crear commit local.
+
+**Cierre:** [validación semántica](../validation/2026-09-23-semantic-check.md): 214 pruebas automatizadas, 60 búsquedas con embeddings reales y recorrido de Luna con corrección 80→30.
+
 ## 2.5.4. Conversaciones funcionales
 
 **Resultado:** una pantalla sencilla permite escribir, recibir una respuesta con evidencia y continuar o abrir otro chat sin repetir el contexto.

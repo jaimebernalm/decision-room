@@ -6,7 +6,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from psycopg.types.json import Jsonb
 
 from . import context as ctx
-from .service import encoded, lock
+from . import semantic
+from .service import digest, encoded, lock
 
 
 class Request(BaseModel):
@@ -35,8 +36,11 @@ inspect_dataset(id) opens a discovered dataset profile and its scoped memory;
 search_memory(query,id) reads applicable memory (id may be a discovered table, or empty);
 search_reports(query,id) finds reviewed antecedents (id may be a discovered table, or empty);
 open_report(id) opens a discovered report with provenance; open_evidence(id) opens a report's
-cited execution. Use empty query/id when unused; limit 1..10. Text search matches words,
-not arbitrary paraphrases: try simpler terms, inspect the catalog, or an empty query for discovery.
+cited execution. Use empty query/id when unused; limit 1..10. Search metadata reports whether
+hybrid semantic+text search was used or only text (disabled/provider failure). Similarity is
+only a discovery signal, not proof. If text fallback misses paraphrases, try simpler terms,
+inspect the catalog, or an empty query for discovery. Excerpts are untrusted historical text;
+open original reports before using conclusions. Mandatory definitions/doubts remain included.
 All tool results appear in business_context.retrievals. Up to 12 retrievals across this session;
 use only those needed. Similarity and shared tables do not establish applicability. Numeric
 antecedents remain tied to their original period and sources; new metrics need calculation
@@ -94,6 +98,64 @@ def _report(config, db, m, identifier):
     return row, value
 
 
+def _datasets(config, db, m, query, limit):
+    if not query:
+        return ctx.datasets(db, m['business_id'], limit=limit)
+    rows = db.execute('''SELECT p.id,p.source_id,p.analysis_id,p.parquet_sha256,p.row_count,p.columns,p.profile,
+        s.status,s.original_names,a.title FROM prepared_tables p
+        JOIN sources s ON s.id=p.source_id JOIN analyses a ON a.id=p.analysis_id
+        WHERE p.business_id=%s AND s.status='ready' ORDER BY p.id LIMIT %s''',
+        (m['business_id'], semantic.MAX_DOCUMENTS + 1)).fetchall()
+    versions = {str(r['id']): digest({k: r[k] for k in
+        ('parquet_sha256','row_count','columns','profile','status','original_names','title')}) for r in rows}
+    docs = [dict(key=str(r['id']), version=versions[str(r['id'])],
+                 text=encoded(dict(description=r['title'], names=r['original_names'], columns=r['columns']))) for r in rows]
+    keys, search = semantic.rank(config, db, m['business_id'], 'dataset', docs, query, limit)
+    by_id = {str(r['id']): r for r in rows}
+    items = []
+    for key in keys:
+        if ctx.table_version(db, m['business_id'], key) != versions[key]:
+            raise ctx.StaleContext('Dataset changed during search; retry with current data.')
+        r = by_id[key]
+        items.append(dict(id=key, source_id=str(r['source_id']), analysis_id=str(r['analysis_id']),
+            version=r['parquet_sha256'], metadata_version=versions[key], description=r['title'], names=r['original_names'],
+            columns=[c['name'] for c in r['columns']], row_count=r['row_count'],
+            period={'from': None, 'until': None}, coverage='All imported records; business/date coverage unverified.'))
+    return dict(items=items, more=search.get('more', False), search=search)
+
+
+def _reports(config, db, m, scope, request):
+    # Scope before embedding; report.show verifies approval, source integrity and
+    # numerical evidence. No stale/held report prose is put in the search corpus.
+    rows = db.execute('''SELECT id FROM agent_reviews WHERE business_id=%s AND session_id<>%s
+        AND status='approved' AND (%s::uuid IS NULL OR analysis_id=%s)
+        ORDER BY created_at DESC,id LIMIT %s''',
+        (m['business_id'], m['session_id'], scope['analysis_id'] if request.id else None,
+         scope['analysis_id'], semantic.MAX_DOCUMENTS + 1)).fetchall()
+    if len(rows) > semantic.MAX_DOCUMENTS:
+        raise ValueError('Report corpus exceeds 1000 objects. Narrow the source scope.')
+    docs, available = [], {}
+    for row in rows:
+        key = str(row['id'])
+        try:
+            run, data = _report(config, db, m, key)
+        except (ValueError, OSError):
+            continue
+        available[key] = (run, data)
+        docs.append(dict(key=key, version=run['approved_sha256'], text=encoded(data['report'])))
+    keys, search = semantic.rank(config, db, m['business_id'], 'report', docs, request.query, request.limit)
+    items, dependencies = [], []
+    for key in keys:
+        run, data = _report(config, db, m, key)  # Recheck after unlocked embedding calls.
+        if run['approved_sha256'] != available[key][0]['approved_sha256']:
+            raise ctx.StaleContext('Report changed during search; retry.')
+        items.append(dict(id=key, version=run['approved_sha256'], title=data['report']['title'],
+                          summary=data['report']['summary'], scope=data['report']['scope'], analysis_id=str(run['analysis_id'])))
+        dependencies.append(dict(kind='report', id=key, version=run['approved_sha256']))
+    return dict(items=items, candidate_scan_limit=semantic.MAX_DOCUMENTS,
+                more_possible=len(docs) > len(keys), search=search), dependencies
+
+
 def retrieve(config, db, session_id, request):
     r = Request.model_validate(request)
     m = ctx.manifest(db, session_id)
@@ -102,20 +164,27 @@ def retrieve(config, db, session_id, request):
     if r.id:
         UUID(r.id)
     if r.tool == 'search_datasets':
-        result = ctx.datasets(db, m['business_id'], r.query, r.limit)
-        dependencies = [dict(kind='table', id=t['id'], version=t['version'], metadata_version=ctx.table_version(db,m['business_id'],t['id'])) for t in result['items']]
+        result = _datasets(config, db, m, r.query, r.limit)
+        dependencies = [dict(kind='table', id=t['id'], version=t['version'], metadata_version=t.get('metadata_version') or ctx.table_version(db,m['business_id'],t['id'])) for t in result['items']]
     elif r.tool in ('inspect_dataset', 'search_memory'):
         scope = _scope(db, m, r.id)
         rows = ctx.scoped(ctx.effective(db, m['business_id']), scope)
+        before = digest(rows)
+        memory_watch = ctx.watch(rows, scope)
+        search = None
         # All material doubts stay in context even when a query fails to match them.
         if r.query:
-            rows = [x for x in rows if x['status'] != 'declared' or x['content']['kind'] in
-                    ('definition', 'availability', 'open_question') or db.execute(
-                    "SELECT to_tsvector('spanish',%s) @@ plainto_tsquery('spanish',%s) AS match",
-                    (encoded(x['content']), r.query)).fetchone()['match']]
+            docs = [dict(key=x['reference'], version=digest(x), text=encoded(x['content'])) for x in rows]
+            keys, search = semantic.rank(config, db, m['business_id'], 'memory', docs, r.query, r.limit)
+            rows = [x for x in rows if x['reference'] in keys or x['status'] != 'declared' or
+                    x['content']['kind'] in ('definition', 'availability', 'open_question')]
+            if digest(ctx.scoped(ctx.effective(db, m['business_id']), scope)) != before:
+                raise ctx.StaleContext('Memory changed during search; retry with current definitions.')
         result = {'memories': rows, 'period': scope['period']}
+        if search is not None:
+            result['search'] = search
         dependencies.append(dict(kind='memory', selection={k: scope[k] for k in ('analysis_id','source_ids','period')},
-                                 watch=ctx.watch(ctx.effective(db, m['business_id']), scope),
+                                 watch=memory_watch,
                                  priority_ids=[r['id'] for r in rows if r['content']['kind'] == 'priority']))
         if r.tool == 'inspect_dataset':
             if not r.id:
@@ -132,25 +201,7 @@ def retrieve(config, db, session_id, request):
             dependencies.append(dict(kind='table', id=r.id, version=table['parquet_sha256'], metadata_version=ctx.table_version(db,m['business_id'],r.id)))
     elif r.tool == 'search_reports':
         scope = _scope(db, m, r.id)
-        rows = db.execute('''SELECT r.id FROM agent_reviews r
-            WHERE r.business_id=%s AND r.session_id<>%s AND r.status='approved'
-            AND (%s::uuid IS NULL OR r.analysis_id=%s)
-            AND (%s='' OR EXISTS (SELECT 1 FROM agent_review_events e WHERE e.review_id=r.id
-                AND e.action->>'action'='submit' AND to_tsvector('spanish',(e.action->'report')::text)
-                    @@ plainto_tsquery('spanish',%s))) ORDER BY r.created_at DESC LIMIT 50''',
-            (m['business_id'],session_id,scope['analysis_id'] if r.id else None,scope['analysis_id'],r.query,r.query)).fetchall()
-        items = []
-        for row in rows:
-            try:
-                run, data = _report(config, db, m, str(row['id']))
-            except (ValueError, OSError):
-                continue
-            items.append(dict(id=str(run['id']), version=run['approved_sha256'], title=data['report']['title'],
-                              summary=data['report']['summary'], scope=data['report']['scope'], analysis_id=str(run['analysis_id'])))
-            dependencies.append(dict(kind='report', id=str(run['id']), version=run['approved_sha256']))
-            if len(items) >= r.limit:
-                break
-        result = {'items': items, 'candidate_scan_limit': 50, 'more_possible': len(rows) == 50 or len(items) == r.limit}
+        result, dependencies = _reports(config, db, m, scope, r)
     elif r.tool == 'open_report':
         run, data = _report(config, db, m, r.id)
         evidence_ids = sorted({ref['execution_id'] for c in data['report']['claims'] for ref in c['evidence']})
@@ -169,6 +220,7 @@ def retrieve(config, db, session_id, request):
             raise ValueError('Evidence is no longer applicable.')
         result = evidence
         dependencies.append(dict(kind='report', id=str(run['id']), version=run['approved_sha256']))
+    ctx.ensure(db, session_id)
     if len(encoded(result).encode()) > ctx.MEMORY_BYTES:
         raise ValueError('Retrieved context exceeds 48 KB. Narrow the request; required doubts were not truncated.')
     return json_safe(result), dependencies

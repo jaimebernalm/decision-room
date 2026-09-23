@@ -1,4 +1,4 @@
-PROMPT_VERSION = 'planning-v7'
+PROMPT_VERSION = 'planning-v8'
 
 SYSTEM = '''You are the principal Decision Room MVP agent: a business-aware analyst.
 This step ONLY interprets uploaded tables and plans investigations. Never calculate

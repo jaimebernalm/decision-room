@@ -1,6 +1,6 @@
 # Contexto compartido y recuperación del agente — 2.5.3
 
-Implementado el 23 de septiembre de 2026. [Validación](../validation/2026-09-23-context-check.md). Continúa el contrato de [memoria](memory.md) y deja preparado el adaptador de conversaciones de 2.5.4.
+Implementado el 23 de septiembre de 2026. [Validación inicial](../validation/2026-09-23-context-check.md) y [ampliación semántica](semantic-retrieval.md). Continúa el contrato de [memoria](memory.md) y deja preparado el adaptador de conversaciones de 2.5.4.
 
 ## Punto de partida y ampliaciones
 
@@ -12,7 +12,7 @@ El bucle de herramientas es común a planificación, investigación y revisión.
 
 | Herramienta | Resultado |
 |---|---|
-| `search_datasets` | Descripciones y referencias de tablas del negocio; búsqueda textual PostgreSQL en título, nombres y columnas |
+| `search_datasets` | Descripciones y referencias de tablas del negocio; búsqueda híbrida opcional en título, nombres y columnas |
 | `inspect_dataset` | Perfil acotado, versión, cobertura conocida/desconocida y memoria vinculada a esa fuente |
 | `search_memory` | Recuerdos aplicables al lote o a una tabla indicada; conserva definiciones, disponibilidad y dudas materiales aunque no coincidan con el texto buscado |
 | `search_reports` | Antecedentes aprobados, vigentes y compatibles con el periodo; puede limitarse a una tabla/lote |
@@ -30,7 +30,7 @@ Las referencias se comprueban antes de entregar contenido. Los resultados histó
 
 El manifiesto acredita entrega, no qué utilizó el modelo internamente. Cada fase recibe las mismas versiones iniciales y las ampliaciones previas. Una decisión interrumpida reproduce el contexto de su primera llamada y sus recuperaciones guardadas, sin cambiar claves por consultas posteriores de otros roles. Se conservan llamadas inciertas y el permiso explícito de reintento ya existente.
 
-Límites actuales: 48 KB de memoria/resultado de herramienta, 200 KB de contexto completo y 12 recuperaciones por sesión, dentro de los presupuestos de llamadas de cada fase. El catálogo inicial muestra hasta 20 tablas; las búsquedas muestran hasta 10 resultados por petición; los antecedentes examinan hasta 50 candidatos textuales recientes. Se indican resultados adicionales posibles. No hay paginación general ni compresión automática. Si el contexto material no cabe, se pausa con diagnóstico para acotar fuentes/periodo; no se eliminan dudas para ajustarlo al límite.
+Límites actuales: 48 KB de memoria/resultado de herramienta, 200 KB de contexto completo y 12 recuperaciones por sesión, dentro de los presupuestos de llamadas de cada fase. El catálogo inicial muestra hasta 20 tablas; las búsquedas muestran hasta 10 resultados por petición. La ampliación semántica admite hasta 1000 objetos y 512 fragmentos por búsqueda; cada buscador aporta hasta 50 candidatos a la combinación. Se indican resultados adicionales posibles. No hay paginación general ni compresión automática. Si el contexto material no cabe, se pausa con diagnóstico para acotar fuentes/periodo; no se eliminan dudas para ajustarlo al límite.
 
 ## Correcciones, tiempo y publicación
 
@@ -50,6 +50,6 @@ La web oculta el informe obsoleto y ofrece **Recalcular con la memoria actual**.
 
 La migración 10 añade tablas de contexto, carga de llamada y tipo de cambio temporal sin interpretar ni borrar los checkpoints anteriores. Los informes históricos sin manifiesto no se convierten en antecedentes reutilizables. Para reanudar esas sesiones se exige una replanificación explícita; una modificación de memoria retira conservadoramente sus informes porque no tienen dependencias suficientes. El historial sigue disponible para auditoría.
 
-La recuperación inicial usa relaciones y búsqueda textual. La evaluación registra un fallo con sinónimos y recuperación por catálogo; se aplaza el índice vectorial para este ámbito local pequeño, no se afirma equivalencia semántica. Antes de ampliar el historial se debe medir recuperación con el conjunto de conversaciones de 2.5.4 y añadir búsqueda semántica si no bastan las relaciones/catálogos. Los vectores serían derivados de descripciones y fragmentos, nunca una sustitución de originales ni una vectorización obligatoria de filas.
+La recuperación inicial utilizaba relaciones y búsqueda textual. Tras comprobar el fallo con sinónimos, el usuario solicitó incorporar semántica antes de 2.5.4. La migración 11 añade pgvector, caché derivada y registro de llamadas. Con activación explícita, las herramientas combinan texto y embeddings de OpenAI; registran modo, posiciones y versiones en la recuperación persistida. Una caída del proveedor conserva la búsqueda textual con diagnóstico. Véanse el [contrato semántico](semantic-retrieval.md) y su [validación](../validation/2026-09-23-semantic-check.md). La evaluación de fragmentos reales de chats sigue pendiente de 2.5.4.
 
 Aún no hay mensajes persistentes de chat, panel «Mi negocio», nueva navegación ni combinación general de tablas. El contrato de selección y herramientas se reutilizará al añadir esos adaptadores, sin crear otra memoria.

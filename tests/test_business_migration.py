@@ -143,3 +143,18 @@ class BusinessMigrationTests(unittest.TestCase):
         with connect(self.config) as db:
             self.assertEqual(db.execute('SELECT count(*) n FROM schema_versions WHERE version=10').fetchone()['n'],1)
             self.assertEqual(db.execute('SELECT count(*) n FROM web_jobs').fetchone()['n'],1)
+
+    def test_semantic_migration_rolls_back_extension_and_retry_is_idempotent(self):
+        with connect(self.config) as db:
+            db.execute(self.schema.split('-- Derived semantic cache.')[0])
+        with patch('decision_room.database.Path.read_text', return_value=self.schema + '\nSELECT 1/0;'), self.assertRaises(DivisionByZero):
+            migrate(self.config)
+        with connect(self.config) as db:
+            self.assertIsNone(db.execute("SELECT to_regclass('semantic_chunks') AS t").fetchone()['t'])
+            self.assertFalse(db.execute("SELECT 1 FROM pg_extension WHERE extname='vector'").fetchone())
+            self.assertFalse(db.execute('SELECT 1 FROM schema_versions WHERE version=11').fetchone())
+        migrate(self.config)
+        migrate(self.config)
+        with connect(self.config) as db:
+            self.assertEqual(db.execute('SELECT count(*) n FROM schema_versions WHERE version=11').fetchone()['n'], 1)
+            self.assertTrue(db.execute("SELECT 1 FROM pg_extension WHERE extname='vector'").fetchone())

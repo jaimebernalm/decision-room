@@ -438,3 +438,35 @@ CREATE TABLE IF NOT EXISTS context_retrievals (
 CREATE INDEX IF NOT EXISTS context_manifests_business ON context_manifests(business_id);
 ALTER TABLE agent_calls ADD COLUMN IF NOT EXISTS context_payload jsonb;
 INSERT INTO schema_versions(version) VALUES (10) ON CONFLICT DO NOTHING;
+
+-- Derived semantic cache. Originals and their current applicability remain authoritative.
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE TABLE IF NOT EXISTS semantic_chunks (
+    business_id uuid NOT NULL REFERENCES businesses(id),
+    kind text NOT NULL CHECK (kind IN ('dataset','memory','report')),
+    object_key text NOT NULL,
+    content_hash text NOT NULL,
+    model text NOT NULL,
+    dimensions integer NOT NULL CHECK (dimensions BETWEEN 256 AND 3072),
+    ordinal integer NOT NULL CHECK (ordinal >= 0),
+    fragment text NOT NULL,
+    embedding vector NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    CHECK (vector_dims(embedding)=dimensions),
+    PRIMARY KEY (business_id,kind,object_key,content_hash,model,dimensions,ordinal)
+);
+CREATE TABLE IF NOT EXISTS semantic_calls (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL REFERENCES businesses(id),
+    model text NOT NULL,
+    dimensions integer NOT NULL,
+    purpose text NOT NULL CHECK (purpose IN ('documents','query')),
+    input_hash text NOT NULL,
+    input_count integer NOT NULL,
+    status text NOT NULL CHECK (status IN ('running','completed','failed')),
+    usage jsonb,
+    issue text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    finished_at timestamptz
+);
+INSERT INTO schema_versions(version) VALUES (11) ON CONFLICT DO NOTHING;

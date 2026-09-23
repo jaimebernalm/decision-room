@@ -170,6 +170,11 @@ de la implementación web del cierre de calidad del agente. Ver
 
 **Decisión de recuperación acordada:** [RAG y relaciones explícitas](../technical/business-memory-plan.md#41-rag-y-relaciones-entre-datos-memoria-e-informes). Combinar contexto inicial acotado y herramientas de búsqueda/inspección para el agente. Preparar descripciones de datos y antecedentes vinculados; mantener originales estructurados y utilizar índices semánticos derivados solo cuando la evaluación lo justifique. Los chats se incorporan al mismo mecanismo en 2.5.4.
 
+**Ampliación semántica de 2.5.3:** tras evaluar omisiones con sinónimos, se incorpora
+búsqueda híbrida con embeddings de OpenAI y pgvector antes de 2.5.4. Mantiene
+versiones, filtros y comprobación de originales; véanse el [contrato](../technical/semantic-retrieval.md)
+y la [validación](../validation/2026-09-23-semantic-check.md).
+
 **Construir:** selección acotada de memoria, mensajes, fuentes y resultados pertinentes por negocio, pregunta y periodo. Registrar el manifiesto de versiones utilizado por planificador, analista y revisor. Integrar las versiones de memoria en la comprobación de vigencia y extender dependencias e invalidación entre sesiones, respuestas e informes. Conservar históricos sin reescribirlos y distinguir cambio futuro, dato nuevo y corrección de un error pasado. Revalidar las dependencias antes de publicar, también si el trabajo se interrumpió.
 
 **Comprobar:** dos sesiones reutilizan contexto sin repetir preguntas resueltas; una corrección material afecta a todas las dependencias conocidas, incluso en otra conversación; un cambio futuro no invalida un periodo previo sin motivo; una edición irrelevante no recalcula todo; los resultados retirados no vuelven a usarse como evidencia vigente. Probar selección con historial largo, datos de otro negocio y contenido adversarial recuperado. Si no se puede acotar el impacto, ampliar la revisión de forma explícita.
@@ -379,3 +384,5 @@ Ver [validación completa](../validation/2026-09-22-luna-validation.md) e
 
 
 **Cierre de 2.5.3, 23 de septiembre de 2026:** contexto inicial persistente, recuperación dirigida por el agente sobre datos/memoria/antecedentes, manifiesto de lo entregado y correcciones entre sesiones. Se comprueba vigencia al reanudar y publicar, se conservan periodos históricos y la web permite recalcular con la memoria actual. Pruebas automatizadas, casos reales y límites de búsqueda documentados en la [validación](../validation/2026-09-23-context-check.md). El chat se implementa a continuación en 2.5.4.
+
+**Cierre de ampliación semántica de 2.5.3, 23 de septiembre de 2026:** OpenAI embeddings + pgvector y búsqueda híbrida integrados en datos, memoria e informes, con caché versionada y degradación textual explícita. Pasan 214 pruebas; 60 búsquedas reales sitúan el esperado entre los tres primeros en todos los casos del corpus pequeño; Luna reutiliza un antecedente y respeta la corrección de 80 a 30. Ver [validación y límites](../validation/2026-09-23-semantic-check.md). El siguiente paso sigue siendo 2.5.4.
