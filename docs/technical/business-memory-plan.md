@@ -4,6 +4,8 @@
 **Estado:** diseño y secuencia de implementación; capacidades pendientes de construir y evaluar.  
 **Alcance:** negocio persistente, memoria compartida entre conversaciones, chat con evidencia, Inicio e interfaz «Mi negocio». Los pasos y criterios de cierre están en el [plan de implementación](<../product/Decision Room - Plan de implementacion.md#51-entrega-25-memoria-del-negocio-y-experiencia-cotidiana>).
 
+El [desglose de ejecución incremental](business-memory-implementation.md) concreta cada uno de los siete pasos en incrementos pequeños, zonas de código, contratos entre pasos, demostraciones y comprobaciones de cierre. Este documento conserva el diagnóstico y las reglas comunes del diseño.
+
 ## 1. Diagnóstico del código actual
 
 | Componente revisado | Comportamiento actual | Consecuencia para el uso habitual |

@@ -35,6 +35,7 @@ mantiene en los archivos Markdown enlazados arriba.
 - [Aplicación web local, entrega 2](technical/web.md).
 - [Diseño y alcance de la experiencia web](technical/web-plan.md).
 - [Memoria del negocio y experiencia cotidiana, entrega 2.5](technical/business-memory-plan.md): diagnóstico del código, diseño y evaluación previstos; pendiente de implementación.
+- [Ejecución incremental de los siete pasos de 2.5](technical/business-memory-implementation.md): incrementos, dependencias, archivos afectados y comprobaciones para implementar poco a poco.
 
 ## Comprobaciones realizadas
 

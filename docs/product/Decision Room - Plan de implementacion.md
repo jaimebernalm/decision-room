@@ -142,6 +142,8 @@ de la implementación web del cierre de calidad del agente. Ver
 
 **Estado, 23 de septiembre de 2026:** alcance incorporado al plan por petición del usuario; implementación y evaluación pendientes. El [diagnóstico del código y diseño técnico](../technical/business-memory-plan.md) detalla estructuras, migración, mantenimiento de memoria, contexto del agente, UX y escenarios de aceptación.
 
+**Guía para implementarlo poco a poco:** el [desglose de los siete pasos](../technical/business-memory-implementation.md) define cuatro incrementos por paso, dependencias, zonas de código, contratos de salida, demostraciones y pruebas. Ejecutar un paso por vez y registrar su validación y commit al cerrarlo. Todos sus incrementos están pendientes; el paso 2.5.3 se prueba con sesiones actuales y el chat se introduce después, en 2.5.4, sin dependencias circulares.
+
 **Objetivo:** que el cliente tenga un negocio persistente y pueda volver a consultar, aportar contexto, actualizar datos y guardar informes sin repetir el onboarding. La memoria debe funcionar entre todos sus chats y análisis, con procedencia y ámbito, sin mezclar negocios ni presentar resultados antiguos como actuales.
 
 **Base reutilizable:** PostgreSQL, archivos privados, ámbitos de negocio, ejecución aislada, checkpoints, evidencia y revisión. Actualmente cada envío web crea un negocio distinto; el contexto y la invalidación se limitan a la sesión del análisis. Compartir memoria exige cambiar esas relaciones y su recuperación, además de la interfaz.
