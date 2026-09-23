@@ -8,7 +8,7 @@ from email.parser import BytesParser
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import quote, urlsplit
+from urllib.parse import parse_qs, quote, urlsplit
 
 from ..config import ROOT
 from .service import MAX_UPLOAD, WebError
@@ -169,6 +169,10 @@ class Handler(BaseHTTPRequestHandler):
             # Pin this request. A selection change in another tab must not
             # redirect a pending read/write to a different business halfway through.
             ws = ws.scoped(ws.business_id())
+            if not mutation and path == '/api/dashboard':
+                requested = parse_qs(urlsplit(self.path).query).get('report', [None])
+                self.send(200, ws.dashboard(requested[0]))
+                return
             if mutation and path == '/api/jobs':
                 self.send(202, ws.create(*self.multipart()))
                 return

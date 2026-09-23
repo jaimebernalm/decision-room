@@ -17,6 +17,7 @@ from ..database import connect
 from ..execution import recover_executions
 from ..storage import Storage
 from . import business as business_store
+from .dashboard import projection as dashboard_projection
 from .errors import WebError, bounded, identifier
 
 MAX_UPLOAD = 20 * 1024**2
@@ -199,6 +200,32 @@ class Workspace:
                     item.update(status='blocked', phase='review', issue='El informe necesita una nueva revisión.')
             result.append(item)
         return result
+
+    def dashboard(self, selected=None):
+        """One currently publishable revision, scoped to the active business."""
+        reports = [item for item in self.listing() if item['status'] == 'completed']
+        choices = [{'id': str(item['id']), 'title': item['title'],
+                    'created_at': item['created_at']} for item in reports]
+        requested = identifier(selected) if selected else None
+        candidates = ([item for item in reports if item['id'] == requested] if requested else [])
+        candidates += [item for item in reports if item not in candidates]
+        from ..agent.persistence import session_lock
+        for item in candidates:
+            job = self.row(item['id'])
+            if not job['review_id'] or not job['session_id']:
+                continue
+            try:
+                with session_lock(self.config, job['business_id'], job['session_id']):
+                    reviewed = self.review_state(job)
+                    content = dashboard_projection(reviewed)
+                    if content:
+                        return {'reports': choices, 'selected_id': str(job['id']),
+                                'report': content, 'created_at': job['created_at'],
+                                'filename': job['filename']}
+            except ValueError:
+                # The review may be running or changing. Show no stale content.
+                continue
+        return {'reports': choices, 'selected_id': None, 'report': None}
 
     def detail(self, job_id):
         j = self.sync(job_id)

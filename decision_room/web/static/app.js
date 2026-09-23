@@ -58,6 +58,8 @@ const state = {
   file: null,
   draft: {},
   business: null,
+  dashboard: null,
+  selectedReport: null,
   businesses: [],
   draftBusiness: null,
   uploading: false,
@@ -133,19 +135,19 @@ async function api(path, { method = "GET", body } = {}) {
 function shell(content, active = "home", crumb = "Vista general") {
   app.innerHTML = `<aside class="sidebar"><a class="brand" href="#home" aria-label="Decision Room, inicio"><span class="brand-mark">d<span>r</span></span><span>decision<span class="brand-light">room</span><small>UN ESPACIO PARA DECIDIR</small></span></a>
     <div class="workspace-label"><span class="workspace-avatar">M</span><span>${esc(state.business?.name || "Mi espacio")}<small>Espacio de trabajo local</small></span><span class="local-dot"></span></div>
-    <p class="nav-label">ESPACIO DE TRABAJO</p><nav aria-label="Principal">${[
-      ["home", "home", "Vista general"],
-      ["analyses", "grid", "Mis análisis"],
-      ["files", "file", "Archivos"],
-      ["businesses", "grid", "Negocios guardados"],
+    <p class="nav-label">TU ESPACIO</p><nav aria-label="Principal">${[
+      ["home", "home", "Inicio"],
+      ["reports", "grid", "Informes"],
+      ["my-business", "file", "Mi negocio"],
     ]
       .map(
         ([route, i, label]) =>
-          `<a href="#${route}" class="nav-link ${active === route ? "active" : ""}" ${active === route ? 'aria-current="page"' : ""}>${icon(i)}${label}${route === "analyses" && state.analyses.length ? `<span class="nav-count">${state.analyses.length}</span>` : ""}</a>`,
+          `<a href="#${route}" class="nav-link ${active === route ? "active" : ""}" ${active === route ? 'aria-current="page"' : ""} title="${label}">${icon(i)}<span>${label}</span></a>`,
       )
       .join("")}</nav>
-    <a href="#new" class="button sidebar-create">${icon("plus")} Nuevo análisis</a>
-    <div class="sidebar-bottom"><div class="private-note">${icon("shield")}<strong>Tu espacio, en local</strong><p>Los archivos y el progreso se guardan en este equipo.</p></div><a class="nav-link" href="#how">${icon("help")} Cómo funciona</a><div class="profile"><span>ME</span><div>Mi espacio personal<small>Versión de pruebas</small></div></div></div></aside>
+    <a href="#new" class="button sidebar-create">${icon("plus")} Nueva pregunta</a>
+    <div class="sidebar-history"><p class="nav-label">CHATS</p><p class="history-empty">Aún no hay conversaciones.</p><p class="nav-label">ANÁLISIS RECIENTES</p>${state.analyses.slice(0, 6).map((a) => `<a class="history-link" href="#analysis/${esc(a.id)}" title="${esc(a.title)}">${icon("grid")}<span>${esc(a.title)}</span></a>`).join("") || '<p class="history-empty">Aún no hay análisis.</p>'}<a class="history-all" href="#analyses">Ver todos los análisis ${icon("arrow")}</a></div>
+    <div class="sidebar-bottom"><a class="nav-link" href="#how">${icon("help")}<span>Cómo funciona</span></a><div class="profile"><span>ME</span><div>Mi espacio personal<small>Versión de pruebas</small></div></div></div></aside>
     <div class="workspace"><header class="topbar"><span class="breadcrumb">Mi espacio <span>/</span> <b>${esc(crumb)}</b></span><span class="environment"><i></i> Entorno local <span class="beta">BETA</span></span></header><main id="main" tabindex="-1">${content}</main><footer class="page-footer"><span>Decision Room</span><span>De los datos a decisiones con contexto.</span></footer></div>`;
 }
 function errorBox(message) {
@@ -169,6 +171,73 @@ function login(error = "") {
 }
 function illustration() {
   return `<div class="hero-art" aria-hidden="true"><span class="art-orbit orbit-one"></span><span class="art-orbit orbit-two"></span><span class="art-star">✳</span><div class="art-source"><span class="art-icon">${icon("file")}</span><div>Tu negocio<small>Datos + contexto</small></div><span class="art-check">${icon("check")}</span></div><div class="art-connector"></div><div class="art-report"><span class="art-report-label">UNA VISIÓN MÁS CLARA ${icon("spark")}</span><div class="art-chart"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="art-lines"><i></i><i></i></div><span class="art-evidence">${icon("check")} Hallazgos con evidencia</span></div></div>`;
+}
+const reportLink = (id, claim) => `/api/jobs/${encodeURIComponent(id)}/report${claim ? `#finding-${encodeURIComponent(claim)}` : ""}`;
+function dashboardChart(chart, reportId) {
+  const values = chart.points.map((point) => Number(point.value));
+  const max = Math.max(1, ...values.map((value) => Math.abs(value)));
+  const canPlot = values.every(Number.isFinite) && values.length > 1;
+  let plot = "";
+  if (canPlot && chart.kind === "line") {
+    const first = Date.parse(chart.points[0].label);
+    const last = Date.parse(chart.points.at(-1).label);
+    const days = chart.points.map((point) => Date.parse(point.label));
+    const min = Math.min(0, ...values);
+    const high = Math.max(0, ...values);
+    const x = (i) => 24 + 552 * (days[i] - first) / (last - first || 1);
+    const y = (i) => 174 - 138 * (values[i] - min) / (high - min || 1);
+    const lines = values.slice(1).map((_, i) => days[i + 1] - days[i] === 86400000
+      ? `<line x1="${x(i)}" y1="${y(i)}" x2="${x(i + 1)}" y2="${y(i + 1)}"/>` : "").join("");
+    plot = `<svg class="dash-trend" viewBox="0 0 600 200" role="img" aria-label="${esc(chart.title)}"><path d="M24 174H576" class="dash-axis"/>${lines}${values.map((_, i) => `<circle cx="${x(i)}" cy="${y(i)}" r="3.5"><title>${esc(chart.points[i].label)}: ${esc(chart.points[i].formatted)} ${esc(chart.unit)}</title></circle>`).join("")}</svg><div class="dash-chart-ends"><span>${esc(chart.points[0].label)}</span><span>${esc(chart.points.at(-1).label)}</span></div>`;
+  } else if (canPlot && chart.kind === "bar") {
+    const diverging = values.some((value) => value < 0);
+    plot = `<div class="dash-bars">${chart.points.slice(0, 8).map((point, i) => {
+      const width = Math.max(2, Math.abs(values[i]) / max * (diverging ? 50 : 100));
+      const left = diverging ? (values[i] < 0 ? 50 - width : 50) : 0;
+      return `<div class="dash-bar"><span title="${esc(point.label)}">${esc(point.label)}</span><span class="dash-bar-track ${diverging ? "diverging" : ""}"><i class="${values[i] < 0 ? "negative" : ""}" style="left:${left}%;width:${width}%"></i></span><strong>${esc(point.formatted)}</strong></div>`;
+    }).join("")}</div>`;
+  }
+  return `<section class="dashboard-chart"><div class="dash-card-top"><span>${icon("grid")}</span><a href="${reportLink(reportId, chart.claim_key)}" target="_blank" rel="noopener" aria-label="Ver evidencia de ${esc(chart.title)}">Ver evidencia ${icon("arrow")}</a></div><h3>${esc(chart.title)}</h3><p class="dash-chart-unit">${esc(chart.unit)}</p>${plot}<p class="dash-chart-caption">${esc(chart.caption)}</p><details><summary>Ver valores</summary><div class="dash-values">${chart.points.map((point) => `<div><span>${esc(point.label)}</span><strong>${esc(point.formatted)}</strong></div>`).join("")}</div></details></section>`;
+}
+function dashboardHome() {
+  const data = state.dashboard || { report: null, reports: [] };
+  const report = data.report;
+  const active = state.analyses.find((a) => ["waiting", "running", "queued", "failed", "blocked"].includes(a.status));
+  const firstName = state.business?.name || "tu negocio";
+  const lead = report ? `<div class="dashboard-intro"><p class="eyebrow">INICIO · ${esc(firstName)}</p><h1>Lo que importa<br><em>para tu negocio.</em></h1><p>Una vista de tus hallazgos revisados, con los datos y el periodo a la vista.</p></div>` : `<div class="dashboard-intro"><p class="eyebrow">INICIO · ${esc(firstName)}</p><h1>Tu negocio,<br><em>con más claridad.</em></h1><p>${state.business ? "Aquí aparecerán los hallazgos cuando tengas un informe revisado." : "Cuéntanos tu negocio para empezar a entender tus datos."}</p></div>`;
+  const selector = report && data.reports.length > 1 ? `<label class="dashboard-select">Informe seleccionado<select id="dashboard-report">${data.reports.map((item) => `<option value="${esc(item.id)}" ${item.id === data.selected_id ? "selected" : ""}>${esc(item.title)} · ${fmtDate(item.created_at)}</option>`).join("")}</select></label>` : "";
+  const findings = report ? `<section class="dashboard-findings"><div class="dashboard-section-head"><div><p class="eyebrow">UNA MIRADA RÁPIDA</p><h2>Hallazgos que merecen atención</h2></div><a href="${reportLink(data.selected_id)}" target="_blank" rel="noopener">Abrir informe ${icon("arrow")}</a></div><p class="dashboard-summary">${esc(report.summary)}</p><div class="finding-grid">${report.claims.map((claim, index) => `<a class="finding-tile" href="${reportLink(data.selected_id, claim.key)}" target="_blank" rel="noopener"><span>0${index + 1} · HALLAZGO</span><h3>${esc(claim.title)}</h3><p>${esc(claim.statement)}</p><small>Ver detalle y evidencia ${icon("arrow")}</small></a>`).join("")}</div></section>` : `<section class="dashboard-empty"><span class="dashboard-empty-icon">${icon(state.business ? "grid" : "home")}</span><div><h2>${state.business ? active ? "Tu próximo hallazgo está en camino." : "Todavía no hay un informe disponible." : "Empecemos por tu negocio."}</h2><p>${state.business ? active ? "Puedes continuar el análisis en curso. Los resultados aparecerán aquí cuando superen la revisión." : "Crea un análisis con un CSV para descubrir qué merece tu atención." : "Guarda una breve descripción y después podrás añadir tus datos."}</p></div><a class="button primary" href="${state.business ? active ? `#analysis/${esc(active.id)}` : "#new" : "#business-new"}">${state.business ? active ? "Continuar análisis" : "Crear análisis" : "Empezar"} ${icon("arrow")}</a></section>`;
+  shell(`<div class="dashboard-page">${lead}${!state.configured ? '<p class="notice">El modelo aún no está configurado. Puedes guardar el contexto y preparar tu pregunta.</p>' : ""}${active ? `<a class="dashboard-activity" href="#analysis/${esc(active.id)}">${icon("clock")}<span><strong>${esc(active.title)}</strong><small>${statuses[active.status]?.[0] || esc(active.status)}</small></span>${icon("arrow")}</a>` : ""}${report ? `<div class="dashboard-report-meta"><div><span class="meta-mark">${icon("check")}</span><div><strong>${esc(report.title)}</strong><small>${esc(report.scope.period)} · ${esc(data.filename)} · ${fmtDate(data.created_at)}</small></div></div>${selector}</div>` : ""}${findings}${report?.highlights.length ? `<section class="dashboard-metrics" aria-label="Cifras clave">${report.highlights.map((item) => `<a class="metric-tile" href="${reportLink(data.selected_id, item.claim_key)}" target="_blank" rel="noopener"><span>${esc(item.label)}</span><strong>${esc(item.value)}</strong><small>${esc(item.unit)} ${icon("arrow")}</small></a>`).join("")}</section>` : ""}${report?.charts.length ? `<section class="dashboard-visuals"><div class="dashboard-section-head"><div><p class="eyebrow">TUS DATOS EN PERSPECTIVA</p><h2>Gráficos del informe</h2></div></div><div class="dash-chart-grid">${report.charts.map((chart) => dashboardChart(chart, data.selected_id)).join("")}</div></section>` : ""}${report ? `<div class="dashboard-coverage">${icon("shield")}<p><strong>Alcance de esta revisión</strong><br>${esc(report.scope.coverage)}</p></div>` : ""}<section class="dashboard-compose" aria-label="Haz una pregunta"><div class="dashboard-section-head"><div><p class="eyebrow">SIGUIENTE PASO</p><h2>¿Qué te gustaría entender?</h2></div></div>${state.business ? `<form id="dashboard-question"><label for="dashboard-prompt" class="sr-only">Escribe tu pregunta</label><textarea id="dashboard-prompt" maxlength="2000" rows="2" required placeholder="Pregunta algo sobre tu negocio o tus datos…">${esc(state.draft.mode === "specific" ? state.draft.goal || "" : "")}</textarea><button class="button primary" type="submit" aria-label="Continuar con esta pregunta">${icon("arrow")}</button></form><p class="composer-hint">Tu pregunta se guardará como borrador de análisis. En esta versión tendrás que elegir un CSV antes de enviarla.</p>` : `<a class="button primary" href="#business-new">Añadir mi negocio ${icon("arrow")}</a>`}</section></div>`, "home", "Inicio");
+  document.querySelector("#dashboard-report")?.addEventListener("change", async (event) => {
+    state.selectedReport = event.target.value;
+    try {
+      state.dashboard = await api("/api/dashboard?report=" + encodeURIComponent(state.selectedReport));
+      state.selectedReport = state.dashboard.selected_id;
+      dashboardHome();
+    } catch (error) { toast(error.message); }
+  });
+  document.querySelector("#dashboard-prompt")?.addEventListener("input", (event) => {
+    state.draft = { ...state.draft, mode: "specific", goal: event.target.value };
+    saveDraft();
+  });
+  document.querySelector("#dashboard-question")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const question = document.querySelector("#dashboard-prompt").value.trim();
+    if (!question) return;
+    state.draft = { ...state.draft, mode: "specific", goal: question,
+      title: question.slice(0, 160) };
+    saveDraft();
+    location.hash = "#new";
+  });
+}
+function reportsView() {
+  shell(`<div class="page-heading"><div><p class="eyebrow">TU BIBLIOTECA</p><h1>Informes y análisis</h1><p>Recupera una revisión o continúa un trabajo pendiente.</p></div><a class="button primary" href="#new">${icon("plus")} Nueva pregunta</a></div><div class="reports-list">${state.analyses.length ? state.analyses.map((a) => `<a class="report-list-item" href="#analysis/${esc(a.id)}"><span class="report-list-icon">${icon(a.status === "completed" ? "grid" : "clock")}</span><span><strong>${esc(a.title)}</strong><small>${esc(a.filename)} · ${fmtDate(a.created_at)}</small></span>${badge(a.status)}${icon("arrow")}</a>`).join("") : `<div class="dashboard-empty"><h2>Tu biblioteca está vacía.</h2><p>Los análisis y los informes revisados aparecerán aquí.</p><a class="button primary" href="#new">Crear un análisis</a></div>`}</div>`, "reports", "Informes");
+}
+function myBusiness() {
+  if (!state.business) { businessForm(true); return; }
+  const b = state.business;
+  const files = state.analyses;
+  shell(`<div class="page-heading"><div><p class="eyebrow">CONTEXTO DE TU ESPACIO</p><h1>Mi negocio</h1><p>Consulta lo que has contado y los archivos que has aportado.</p></div><a class="button primary" href="#business">${icon("plus")} Editar contexto</a></div><div class="business-grid"><section class="business-panel"><p class="eyebrow">INFORMACIÓN GUARDADA</p><h2>${esc(b.name)}</h2><p class="business-description">${esc(b.description)}</p><div class="business-panel-foot"><span>${icon("check")} Contexto declarado por ti</span><a href="#business">Editar ${icon("arrow")}</a></div></section><section class="business-panel"><p class="eyebrow">DATOS Y ARCHIVOS</p><h2>${files.length ? `${files.length} ${files.length === 1 ? "archivo en análisis" : "archivos en análisis"}` : "Todavía sin archivos"}</h2><p>${files.length ? "Consulta cada archivo junto al análisis en el que se utilizó." : "Añade un CSV cuando quieras explorar una pregunta."}</p>${files.slice(0, 4).map((a) => `<a class="business-file" href="#analysis/${esc(a.id)}">${icon("file")}<span>${esc(a.filename)} · ${fmtDate(a.created_at)}</span>${icon("arrow")}</a>`).join("")}<div class="business-panel-foot"><a href="#files">Ver todos los archivos ${icon("arrow")}</a></div></section></div><section class="context-ideas"><div><p class="eyebrow">COMPLETA EL CONTEXTO A TU RITMO</p><h2>¿Qué más podría ayudarnos a entender?</h2><p>Solo añade lo que sea relevante para tu negocio. Estas son ideas, no requisitos.</p></div><div class="idea-grid"><span>¿Dónde operas y a qué clientes atiendes?</span><span>¿Qué costes o límites influyen en tus decisiones?</span><span>¿Hay periodos o productos que debamos tratar de forma especial?</span></div><div class="context-actions"><a class="button secondary" href="#business">Añadir información ${icon("arrow")}</a><a href="#businesses">Cambiar de negocio ${icon("arrow")}</a></div></section>`, "my-business", "Mi negocio");
 }
 function home(compact = false) {
   const attention = state.analyses.filter((a) =>
@@ -255,7 +324,7 @@ function businessForm(isNew = false) {
   const draftKey = current ? "dr-profile-" + current.id : "dr-profile-new-" + (expectedActive || "empty");
   const draft = store.get(draftKey, current ? { name: current.name, description: current.description, profile_revision: current.profile_revision } : {});
   const creationKey = draft.request_key || crypto.randomUUID();
-  shell(`<a href="#businesses" class="back-link">${icon("back")} Negocios guardados</a><div class="page-heading"><div><h1>${current ? "Contexto de tu negocio." : "Empecemos por tu negocio."}</h1><p>${current ? "Los nuevos análisis usarán este contexto. Los anteriores conservan el suyo." : "Guarda esta información una vez. Podrás reutilizarla en tus próximos análisis."}</p></div></div>
+  shell(`<a href="${current ? "#my-business" : "#businesses"}" class="back-link">${icon("back")} ${current ? "Mi negocio" : "Negocios guardados"}</a><div class="page-heading"><div><h1>${current ? "Contexto de tu negocio." : "Empecemos por tu negocio."}</h1><p>${current ? "Los nuevos análisis usarán este contexto. Los anteriores conservan el suyo." : "Guarda esta información una vez. Podrás reutilizarla en tus próximos análisis."}</p></div></div>
     <section class="card form-card"><form id="business-form"><label for="business">¿Cómo se llama tu negocio?</label><input id="business" name="name" maxlength="100" required autocomplete="organization" value="${esc(draft.name)}"><label for="context">Cuéntanos a qué te dedicas</label><textarea id="context" name="description" rows="5" maxlength="6000" required placeholder="Qué vendes y cómo funciona tu negocio…">${esc(draft.description)}</textarea><p class="field-help">El contexto se guarda al continuar, antes de subir un archivo. La pregunta de cada análisis se indicará después.</p><div id="business-error"></div><div class="form-actions"><a class="button ghost" href="#home">Volver</a><button class="button primary" type="submit">Guardar y continuar ${icon("arrow")}</button></div></form></section>`, "businesses", "Contexto del negocio");
   const form = document.querySelector("#business-form");
   const values = () => ({ ...Object.fromEntries(new FormData(form)), request_key: creationKey, profile_revision: draft.profile_revision ?? current?.profile_revision });
@@ -270,8 +339,9 @@ function businessForm(isNew = false) {
     try {
       await api("/api/business", { method: "POST", body });
       store.remove(draftKey);
-      if (location.hash === "#new") await route();
-      else location.hash = "#new";
+      const next = current ? "#my-business" : "#new";
+      if (location.hash === next) await route();
+      else location.hash = next;
     } catch (error) {
       document.querySelector("#business-error").innerHTML = errorBox(error.message) + '<a href="#business" id="reload-profile">Cargar el contexto guardado</a>';
       document.querySelector("#reload-profile").onclick = async e => {
@@ -608,21 +678,30 @@ async function route() {
     if (state.draftBusiness !== activeId) {
       state.draftBusiness = activeId;
       state.draft = activeId ? store.get("dr-draft-" + activeId) : {};
+      state.selectedReport = null;
+      state.dashboard = null;
       state.file = null;
       state.requestKey = null;
     }
     if (hash === "business-new") businessForm(true);
     else if (hash === "businesses" || (!state.business && state.businesses.length)) businessChooser();
     else if (hash === "business") businessForm(!state.business);
+    else if (hash === "my-business") myBusiness();
     else if (hash === "new") newAnalysis();
     else if (hash.startsWith("analysis/")) {
       const id = hash.slice(9);
       await pollDetail(id);
       state.poll = setInterval(() => pollDetail(id), 3000);
     } else if (hash === "files") files();
+    else if (hash === "reports") reportsView();
     else if (hash === "how") how();
-    else home(hash === "analyses");
-    if (["home", "analyses", "files"].includes(hash))
+    else if (hash === "analyses") home(true);
+    else {
+      state.dashboard = await api("/api/dashboard" + (state.selectedReport ? "?report=" + encodeURIComponent(state.selectedReport) : ""));
+      state.selectedReport = state.dashboard.selected_id;
+      dashboardHome();
+    }
+    if (["home", "analyses", "files", "reports", "my-business"].includes(hash))
       state.poll = setInterval(async () => {
         try {
           const next = await api("/api/workspace");
@@ -632,8 +711,11 @@ async function route() {
             JSON.stringify(next.analyses) !== JSON.stringify(state.analyses)
           ) {
             state.analyses = next.analyses;
-            if (hash === "files") files();
-            else home(hash === "analyses");
+            if (hash === "home") await route();
+            else if (hash === "files") files();
+            else if (hash === "reports") reportsView();
+            else if (hash === "my-business") myBusiness();
+            else home(true);
           }
         } catch {}
       }, 5000);
@@ -645,7 +727,7 @@ async function route() {
         ? "Nuevo análisis"
         : hash.startsWith("analysis/")
           ? "Tu análisis"
-          : "Mi espacio");
+          : hash === "home" ? "Inicio" : hash === "my-business" ? "Mi negocio" : hash === "reports" ? "Informes" : "Mi espacio");
   } catch (e) {
     if (e.status === 401) login();
     else
