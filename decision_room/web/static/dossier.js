@@ -115,14 +115,10 @@ function bindDatasetUpload(dossier, business, generation, refresh) {
     } catch (error) { if (output.isConnected) output.textContent = error.message; button.disabled = false; }
   };
   document.querySelectorAll("[data-ask-dataset]").forEach(button => {
-    const key = crypto.randomUUID();
-    button.onclick = async () => {
-      button.disabled = true;
-      try {
-        const dataset = dossier.datasets.find(d => d.id === button.dataset.askDataset);
-        const chat = await api("/api/chats", {method: "POST", body: {business_id: business, request_key: key, analysis_id: dataset.id, title: dataset.title}});
-        if (generation === state.generation) location.hash = "#chat/" + chat.id;
-      } catch (error) { if (generation === state.generation) toast(error.message); button.disabled = false; }
+    button.onclick = () => {
+      const dataset = dossier.datasets.find(d => d.id === button.dataset.askDataset);
+      store.set(questionContextKey(), {analysis_id:dataset.id, label:`${dataset.title} · Versión ${dataset.version}`});
+      location.hash = "#ask";
     };
   });
 }

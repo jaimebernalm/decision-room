@@ -116,6 +116,90 @@ class ConversationTests(unittest.TestCase):
         self.assertEqual(turn['response']['kind'], 'evidence')
         return chat, turn
 
+    def test_finding_reference_is_scoped_durable_and_rechecked(self):
+        from decision_room.agent import review
+        chat, turn = self.complete()
+        response = turn['response']
+        reference = {k: response[k] for k in ('report_id', 'report_version')}
+        reference['claim_key'] = response['claims'][0]['key']
+        other = self.chat()
+        payload = dict(business_id=str(self.b), request_key=str(uuid4()), text='Explain this finding', finding_reference=reference)
+        saved = self.chats.send(other, payload)
+        self.assertEqual(saved, self.chats.send(other, payload))
+        with self.assertRaises(WebError):
+            self.chats.send(other, {**payload, 'finding_reference': {**reference, 'claim_key': 'different'}})
+        item = self.chats.detail(other)
+        selected = item['turns'][0]['payload']['finding_reference']
+        self.assertTrue(selected['source_ids'])
+        self.assertEqual(str(item['conversation']['analysis_id']), selected['analysis_id'])
+        self.assertEqual(item['dataset']['version'], 1)
+        seen = []
+        def explain(model, context, correction=None):
+            seen.append(context)
+            opened = next((e for e in context['retrievals'] if e['request']['tool'] == 'open_report'), None)
+            if opened:
+                return action('explain', report_id=reference['report_id'], claim_keys=[reference['claim_key']]), {}
+            return action('retrieve', retrieval=dict(tool='open_report', query='', id=reference['report_id'], limit=1)), {}
+        with patch.object(ChatModel, 'generate_chat', explain):
+            self.chats.run(saved['id'])
+        detail = self.chats.detail(other)['turns'][0]
+        self.assertEqual(detail['status'], 'completed', detail)
+        self.assertEqual(seen[0]['chat_context']['finding_reference'], selected)
+        self.assertEqual(detail['response']['claims'][0]['key'], reference['claim_key'])
+        self.assertIn('charts', detail['response'])
+        self.assertIn('highlights', detail['response'])
+        different = Path(self.temp.name) / 'other.csv'
+        different.write_text('quantity,amount\n1,99\n')
+        batch = import_batch(self.config, self.b, [different], title='Different data')['analysis']['id']
+        with self.assertRaises(WebError):
+            self.chats.send(self.chat(batch), {**payload, 'request_key': str(uuid4())})
+        for bad in ({**reference, 'report_version': 'changed'}, {**reference, 'claim_key': 'missing'}, {**reference, 'source_ids': ['injected']}):
+            with self.assertRaises(WebError):
+                self.chats.send(self.chat(), {**payload, 'request_key': str(uuid4()), 'finding_reference': bad})
+        # Another business cannot attach this review, even with its exact version.
+        business = self.ws.save_business(dict(request_key=str(uuid4()), name='Other synthetic shop', description='Independent', expected_active_id=str(self.b)))
+        isolated = Conversations(self.ws.scoped(business['id']))
+        isolated_chat = isolated.create(dict(business_id=str(business['id']), request_key=str(uuid4())))
+        with self.assertRaises(WebError):
+            isolated.send(isolated_chat['id'], {**payload, 'business_id': str(business['id'])})
+        # A new investigation carries the selected finding into the analyst manifest.
+        follow = self.send(other, 'Calculate from this finding', finding_reference=reference)
+        self.assertEqual(follow['status'], 'processing')
+        import json
+        context = json.loads(self.ws.scoped(self.b).row(follow['job_id'])['context'])
+        self.assertEqual(context['context']['finding_reference'], selected)
+        self.assertIn(dict(kind='report', id=reference['report_id'], version=reference['report_version']), context['dependencies'])
+        review.hold(self.config, self.b, response['report_id'], reason='Controlled withdrawal.')
+        self.assertEqual(self.chats.detail(other)['turns'][0]['status'], 'stale')
+        with self.assertRaises(WebError):
+            self.chats.send(self.chat(), {**payload, 'request_key': str(uuid4())})
+        self.assertEqual(saved, self.chats.send(other, payload))  # lost response remains recoverable
+
+    def test_daily_activity_distinguishes_unpublished_pending_and_withdrawn(self):
+        chat = self.chat(self.batch())
+        saved = self.chats.send(chat, dict(business_id=str(self.b), request_key=str(uuid4()), text='Calculate sales'))
+        dashboard = self.ws.dashboard()
+        self.assertEqual(dashboard['activity'][0]['status'], 'queued')
+        self.assertEqual(dashboard['activity'][0]['href'], '#chat/' + str(chat))
+        self.assertFalse(self.ws.listing())
+        self.chats.run(saved['id'])
+        self.assertEqual(self.ws.dashboard()['activity'][0]['status'], 'running')
+        self.ws.run_job(self.chats.detail(chat)['turns'][0]['job_id'])
+        self.chats.run(saved['id'])
+        self.assertEqual(self.ws.dashboard()['activity'][0]['status'], 'waiting')
+        finished, turn = self.complete()
+        self.assertEqual(self.ws.dashboard()['activity'][0]['status'], 'ready')
+        self.chats.report(finished, turn['id'], dict(business_id=str(self.b)))
+        dashboard = self.ws.dashboard()
+        self.assertEqual(dashboard['report_id'], turn['response']['report_id'])
+        self.assertEqual(dashboard['report_version'], turn['response']['report_version'])
+        from decision_room.agent import review
+        review.hold(self.config, self.b, turn['response']['report_id'], reason='Controlled withdrawal.')
+        dashboard = self.ws.dashboard()
+        self.assertIsNone(dashboard['report'])
+        self.assertEqual(dashboard['activity'][0]['status'], 'withdrawn')
+        self.assertEqual(self.ws.listing()[0]['presentation_status'], 'withdrawn')
+
     def test_memory_shared_and_correction_hides_old_answers(self):
         chat = self.chat()
         first = self.send(chat, 'Cerramos los domingos.')

@@ -78,6 +78,10 @@ const statuses = {
   completed: ["Informe disponible", "green"],
   failed: ["Interrumpido", "red"],
   blocked: ["Necesita atención", "amber"],
+  outdated: ["Contexto cambiado · revisar respuesta", "amber"],
+  historical: ["Versión anterior", "quiet"],
+  withdrawn: ["Informe retirado", "amber"],
+  ready: ["Respuesta revisada · pendiente de guardar informe", "green"],
 };
 const phases = {
   upload: "Preparando tu archivo",
@@ -149,7 +153,7 @@ function shell(content, active = "home", crumb = "Vista general") {
           `<a href="#${route}" class="nav-link ${active === route ? "active" : ""}" ${active === route ? 'aria-current="page"' : ""} title="${label}">${icon(i)}<span>${label}</span></a>`,
       )
       .join("")}<a href="#chats" class="nav-link mobile-chats" title="Conversaciones" aria-label="Conversaciones">${icon("chat")}</a></nav>
-    <a href="#chats" class="button sidebar-create">${icon("plus")} Nueva pregunta</a>
+    <a href="#ask" class="button sidebar-create">${icon("plus")} Nueva pregunta</a>
     <div class="sidebar-history"><p class="nav-label">CHATS</p>${state.chats.slice(0, 6).map((c) => `<a class="history-link" href="#chat/${esc(c.id)}">${icon("chat")}<span>${esc(c.title)}</span></a>`).join("") || '<p class="history-empty">Aún no hay conversaciones.</p>'}<a class="history-all" href="#chats">Ver conversaciones ${icon("arrow")}</a><p class="nav-label">ANÁLISIS RECIENTES</p>${state.analyses.slice(0, 6).map((a) => `<a class="history-link" href="#analysis/${esc(a.id)}" title="${esc(a.title)}">${icon("grid")}<span>${esc(a.title)}</span></a>`).join("") || '<p class="history-empty">Aún no hay análisis.</p>'}<a class="history-all" href="#analyses">Ver todos los análisis ${icon("arrow")}</a></div>
     <div class="sidebar-bottom"><a class="nav-link" href="#how">${icon("help")}<span>Cómo funciona</span></a><div class="profile"><span>ME</span><div>Mi espacio personal<small>Versión de pruebas</small></div></div></div></aside>
     <div class="workspace"><header class="topbar"><span class="breadcrumb">Mi espacio <span>/</span> <b>${esc(crumb)}</b></span><span class="environment"><i></i> Entorno local <span class="beta">BETA</span></span></header><main id="main" tabindex="-1"><div id="memory-status" aria-live="polite"></div>${content}</main><footer class="page-footer"><span>Decision Room</span><span>De los datos a decisiones con contexto.</span></footer></div>`;
@@ -164,8 +168,8 @@ function renderMemory() {
     ? "Tu texto está guardado, pero hay cambios que no se han incorporado a la memoria."
     : m.pending ? "Tu texto está guardado. La preparación de la memoria está pendiente."
     : m.needs_review ? `Memoria procesada: ${m.needs_review} ${m.needs_review === 1 ? "recuerdo pendiente" : "recuerdos pendientes"} de confirmar o aclarar.`
-    : m.applied ? "Contexto procesado para la memoria del negocio." : "";
-  box.innerHTML = message ? `<div class="notice"><p>${esc(message)}</p>${m.uncertain ? '<p>Se interrumpió una petición al modelo. Reintentar puede repetir esa petición.</p>' : ""}${failed ? '<button type="button" class="button secondary" id="retry-memory">Reintentar memoria</button>' : ""}<span id="memory-error"></span></div>` : "";
+    : "";
+  box.innerHTML = message ? `<div class="notice memory-notice"><p>${esc(message)} ${m.needs_review ? '<a href="#my-business">Revisar en Mi negocio</a>' : ""}</p>${m.uncertain ? '<p>Se interrumpió una petición al modelo. Reintentar puede repetir esa petición.</p>' : ""}${failed ? '<button type="button" class="button secondary" id="retry-memory">Reintentar memoria</button>' : ""}<span id="memory-error"></span></div>` : "";
   const retry = document.querySelector("#retry-memory");
   if (retry) retry.onclick = async () => {
     retry.disabled = true;
@@ -204,7 +208,7 @@ function illustration() {
   return `<div class="hero-art" aria-hidden="true"><span class="art-orbit orbit-one"></span><span class="art-orbit orbit-two"></span><span class="art-star">✳</span><div class="art-source"><span class="art-icon">${icon("file")}</span><div>Tu negocio<small>Datos + contexto</small></div><span class="art-check">${icon("check")}</span></div><div class="art-connector"></div><div class="art-report"><span class="art-report-label">UNA VISIÓN MÁS CLARA ${icon("spark")}</span><div class="art-chart"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="art-lines"><i></i><i></i></div><span class="art-evidence">${icon("check")} Hallazgos con evidencia</span></div></div>`;
 }
 const reportLink = (id, claim) => `/api/jobs/${encodeURIComponent(id)}/report${claim ? `#finding-${encodeURIComponent(claim)}` : ""}`;
-function dashboardChart(chart, reportId) {
+function dashboardChart(chart, reportId, evidenceLink = null) {
   const values = chart.points.map((point) => Number(point.value));
   const max = Math.max(1, ...values.map((value) => Math.abs(value)));
   const canPlot = values.every(Number.isFinite) && values.length > 1;
@@ -228,20 +232,27 @@ function dashboardChart(chart, reportId) {
       return `<div class="dash-bar"><span title="${esc(point.label)}">${esc(point.label)}</span><span class="dash-bar-track ${diverging ? "diverging" : ""}"><i class="${values[i] < 0 ? "negative" : ""}" style="left:${left}%;width:${width}%"></i></span><strong>${esc(point.formatted)}</strong></div>`;
     }).join("")}</div>`;
   }
-  return `<section class="dashboard-chart"><div class="dash-card-top"><span>${icon("grid")}</span><a href="${reportLink(reportId, chart.claim_key)}" target="_blank" rel="noopener" aria-label="Ver evidencia de ${esc(chart.title)}">Ver evidencia ${icon("arrow")}</a></div><h3>${esc(chart.title)}</h3><p class="dash-chart-unit">${esc(chart.unit)}</p>${plot}<p class="dash-chart-caption">${esc(chart.caption)}</p><details><summary>Ver valores</summary><div class="dash-values">${chart.points.map((point) => `<div><span>${esc(point.label)}</span><strong>${esc(point.formatted)}</strong></div>`).join("")}</div></details></section>`;
+  return `<section class="dashboard-chart"><div class="dash-card-top"><span>${icon("grid")}</span>${reportId || evidenceLink ? `<a href="${reportId ? reportLink(reportId, chart.claim_key) : location.hash}" ${evidenceLink ? `data-evidence-anchor="${esc(evidenceLink.slice(1))}"` : ""} ${reportId ? 'target="_blank" rel="noopener"' : ""} aria-label="Ver evidencia de ${esc(chart.title)}">Ver evidencia ${icon("arrow")}</a>` : ""}</div><h3>${esc(chart.title)}</h3><p class="dash-chart-unit">${esc(chart.unit)}</p>${plot}<p class="dash-chart-caption">${esc(chart.caption)}</p><details><summary>Ver valores</summary><div class="dash-values">${chart.points.map((point) => `<div><span>${esc(point.label)}</span><strong>${esc(point.formatted)}</strong></div>`).join("")}</div></details></section>`;
 }
 function dashboardDraftKey() {
   return "dr-home-prompt-" + state.business.id;
 }
-async function launchDashboardChat(text) {
+function shortChatTitle(text) {
+  const clean = text.replace(/\s+/g, " ").trim();
+  if (clean.length <= 64) return clean;
+  const prefix = clean.slice(0, 61);
+  return prefix.slice(0, prefix.lastIndexOf(" ") > 30 ? prefix.lastIndexOf(" ") : 61) + "…";
+}
+function questionContextKey() { return "dr-question-context-" + state.business.id; }
+async function launchDashboardChat(text, context = {}) {
   if (state.launching) return;
   if (!state.configured) throw new Error("Configura el modelo antes de enviar mensajes.");
   const businessId = state.business.id, generation = state.generation;
   const cacheKey = "dr-home-send-" + businessId;
-  const payload = { business_id: businessId, title: text.slice(0, 160), analysis_id: "" };
+  const payload = { business_id: businessId, title: shortChatTitle(text), analysis_id: context.analysis_id || "" };
   const previous = store.get(cacheKey, null);
-  const pending = previous?.text === text ? previous : {
-    text, payload, key: crypto.randomUUID(), messageKey: crypto.randomUUID()
+  const pending = previous?.text === text && JSON.stringify(previous.context || {}) === JSON.stringify(context) ? previous : {
+    text, context, payload, key: crypto.randomUUID(), messageKey: crypto.randomUUID()
   };
   store.set(cacheKey, pending);
   state.launching = true;
@@ -252,14 +263,17 @@ async function launchDashboardChat(text) {
     pending.chatId = chat.id;
     store.set(cacheKey, pending);
     const draftKey = "dr-chat-draft-" + chat.id;
-    store.set(draftKey, { text, key: pending.messageKey });
+    store.set(draftKey, { text, key: pending.messageKey, finding_reference: context.finding_reference });
     await api("/api/chats/" + chat.id + "/messages", {
-      method: "POST", body: { business_id: businessId, text, request_key: pending.messageKey }
+      method: "POST", body: { business_id: businessId, text, request_key: pending.messageKey, ...(context.finding_reference ? {finding_reference: context.finding_reference} : {}) }
     });
     if (store.get(draftKey, {}).key === pending.messageKey) store.remove(draftKey);
     store.remove(cacheKey);
     const homeKey = "dr-home-prompt-" + businessId;
-    if (store.get(homeKey, "") === text) store.remove(homeKey);
+    if (store.get(homeKey, "") === text) {
+      store.remove(homeKey);
+      if (JSON.stringify(store.get("dr-question-context-" + businessId, {})) === JSON.stringify(context)) store.remove("dr-question-context-" + businessId);
+    }
     if (generation === state.generation) location.hash = "#chat/" + chat.id;
     return chat;
   } finally { state.launching = false; }
@@ -268,53 +282,80 @@ function dashboardSuggestions() {
   return ["¿Qué sabes de mi negocio?", ...(state.datasets.items.length
     ? ["¿Qué datos tenemos disponibles para analizar?"] : [])];
 }
+function questionComposer() {
+  const context = store.get(questionContextKey(), {});
+  return `<section class="dashboard-compose" aria-label="Haz una pregunta"><h2>¿Qué te gustaría entender?</h2>${context.label ? `<p class="question-context">${esc(context.label)} <button type="button" id="clear-question-context" class="text-button">Quitar selección</button></p>` : ""}<form id="dashboard-question"><label for="dashboard-prompt" class="sr-only">Escribe tu pregunta</label><textarea id="dashboard-prompt" maxlength="6000" rows="2" required placeholder="Pregunta algo sobre tu negocio o tus datos…">${esc(store.get(dashboardDraftKey(), ""))}</textarea><button class="button primary" type="submit" aria-label="Enviar pregunta">${icon("arrow")}</button></form><div class="chat-suggestions">${dashboardSuggestions().map(q => `<button type="button" data-home-suggestion="${esc(q)}">${esc(q)}</button>`).join("")}</div><div id="dashboard-error" role="alert"></div><p class="composer-hint">Tu pregunta abre un chat con el contexto del negocio.</p></section>`;
+}
+function bindQuestionComposer() {
+  const prompt = document.querySelector("#dashboard-prompt");
+  if (!prompt) return;
+  prompt.addEventListener("input", () => store.set(dashboardDraftKey(), prompt.value));
+  document.querySelector("#clear-question-context")?.addEventListener("click", () => {
+    store.remove(questionContextKey());
+    document.querySelector(".question-context")?.remove();
+    prompt.focus();
+  });
+  document.querySelectorAll("[data-home-suggestion]").forEach(button => button.onclick = () => {
+    prompt.value = button.dataset.homeSuggestion;
+    prompt.dispatchEvent(new Event("input")); prompt.focus();
+  });
+  document.querySelector("#dashboard-question").onsubmit = async event => {
+    event.preventDefault();
+    const text = prompt.value.trim();
+    if (state.launching || !text) return;
+    const button = event.currentTarget.querySelector("button[type=submit]"), error = document.querySelector("#dashboard-error");
+    store.set(dashboardDraftKey(), text); button.disabled = true; error.textContent = "";
+    try { await launchDashboardChat(text, store.get(questionContextKey(), {})); }
+    catch (e) { error.textContent = e.message; }
+    finally { button.disabled = false; }
+  };
+}
+function activityMarkup(items) {
+  return items.map(item => `<a class="dashboard-activity" href="${esc(item.href)}">${icon(["running", "queued"].includes(item.status) ? "clock" : "chat")}<span><strong>${esc(shortChatTitle(item.title))}</strong><small>${esc(statuses[item.status]?.[0] || item.status)}</small></span>${icon("arrow")}</a>`).join("");
+}
 function dashboardHome() {
-  const data = state.dashboard || { report: null, reports: [] };
-  const report = data.report;
-  const active = state.analyses.find((a) => ["waiting", "running", "queued", "failed", "blocked"].includes(a.status));
-  const firstName = state.business?.name || "tu negocio";
-  const lead = report ? `<div class="dashboard-intro"><p class="eyebrow">INICIO · ${esc(firstName)}</p><h1>Lo que importa<br><em>para tu negocio.</em></h1><p>Una vista de tus hallazgos revisados, con los datos y el periodo a la vista.</p></div>` : `<div class="dashboard-intro"><p class="eyebrow">INICIO · ${esc(firstName)}</p><h1>Tu negocio,<br><em>con más claridad.</em></h1><p>${state.business ? "Aquí aparecerán los hallazgos cuando tengas un informe revisado." : "Cuéntanos tu negocio para empezar a entender tus datos."}</p></div>`;
-  const selector = report && data.reports.length > 1 ? `<label class="dashboard-select">Informe seleccionado<select id="dashboard-report">${data.reports.map((item) => `<option value="${esc(item.id)}" ${item.id === data.selected_id ? "selected" : ""}>${esc(item.title)} · ${fmtDate(item.created_at)}</option>`).join("")}</select></label>` : "";
-  const findings = report ? `<section class="dashboard-findings"><div class="dashboard-section-head"><div><p class="eyebrow">UNA MIRADA RÁPIDA</p><h2>Hallazgos que merecen atención</h2></div><a href="${reportLink(data.selected_id)}" target="_blank" rel="noopener">Abrir informe ${icon("arrow")}</a></div><p class="dashboard-summary">${esc(report.summary)}</p><div class="finding-grid">${report.claims.map((claim, index) => `<a class="finding-tile" href="${reportLink(data.selected_id, claim.key)}" target="_blank" rel="noopener"><span>0${index + 1} · HALLAZGO</span><h3>${esc(claim.title)}</h3><p>${esc(claim.statement)}</p><small>Ver detalle y evidencia ${icon("arrow")}</small></a>`).join("")}</div></section>` : `<section class="dashboard-empty"><span class="dashboard-empty-icon">${icon(state.business ? "grid" : "home")}</span><div><h2>${state.business ? active ? "Tu próximo hallazgo está en camino." : "Todavía no hay un informe disponible." : "Empecemos por tu negocio."}</h2><p>${state.business ? active ? "Puedes continuar el análisis en curso. Los resultados aparecerán aquí cuando superen la revisión." : "Puedes empezar conversando sobre tu negocio o analizar un CSV nuevo." : "Guarda una breve descripción y después podrás añadir tus datos."}</p></div><a class="button primary" href="${state.business ? active ? `#analysis/${esc(active.id)}` : "#chats" : "#business-new"}">${state.business ? active ? "Continuar análisis" : "Abrir un chat" : "Empezar"} ${icon("arrow")}</a></section>`;
-  shell(`<div class="dashboard-page">${lead}${!state.configured ? '<p class="notice">El modelo aún no está configurado. Puedes guardar el contexto y preparar tu pregunta.</p>' : ""}${active ? `<a class="dashboard-activity" href="#analysis/${esc(active.id)}">${icon("clock")}<span><strong>${esc(active.title)}</strong><small>${statuses[active.status]?.[0] || esc(active.status)}</small></span>${icon("arrow")}</a>` : ""}${report ? `<div class="dashboard-report-meta"><div><span class="meta-mark">${icon("check")}</span><div><strong>${esc(report.title)}</strong><small>${esc(report.scope.period)} · ${esc(data.filename)} · ${fmtDate(data.created_at)}</small></div></div>${selector}</div>${data.data_version?.superseded_by ? '<p class="notice">Este informe usa una versión anterior. Los datos nuevos aún no se han recalculado. <a href="#my-business">Ver datos</a></p>' : ""}` : ""}${findings}${report?.highlights.length ? `<section class="dashboard-metrics" aria-label="Cifras clave">${report.highlights.map((item) => `<a class="metric-tile" href="${reportLink(data.selected_id, item.claim_key)}" target="_blank" rel="noopener"><span>${esc(item.label)}</span><strong>${esc(item.value)}</strong><small>${esc(item.unit)} ${icon("arrow")}</small></a>`).join("")}</section>` : ""}${report?.charts.length ? `<section class="dashboard-visuals"><div class="dashboard-section-head"><div><p class="eyebrow">TUS DATOS EN PERSPECTIVA</p><h2>Gráficos del informe</h2></div></div><div class="dash-chart-grid">${report.charts.map((chart) => dashboardChart(chart, data.selected_id)).join("")}</div></section>` : ""}${report ? `<div class="dashboard-coverage">${icon("shield")}<p><strong>Alcance de esta revisión</strong><br>${esc(report.scope.coverage)}</p></div>` : ""}<section class="dashboard-compose" aria-label="Haz una pregunta"><div class="dashboard-section-head"><div><p class="eyebrow">SIGUIENTE PASO</p><h2>¿Qué te gustaría entender?</h2></div></div>${state.business ? `<form id="dashboard-question"><label for="dashboard-prompt" class="sr-only">Escribe tu pregunta</label><textarea id="dashboard-prompt" maxlength="6000" rows="2" required placeholder="Pregunta algo sobre tu negocio o tus datos…">${esc(store.get(dashboardDraftKey(), ""))}</textarea><button class="button primary" type="submit" aria-label="Enviar pregunta">${icon("arrow")}</button></form><div class="chat-suggestions">${dashboardSuggestions().map((q) => `<button type="button" data-home-suggestion="${esc(q)}">${esc(q)}</button>`).join("")}</div><div id="dashboard-error" role="alert"></div><p class="composer-hint">Se abrirá un chat con el contexto de tu negocio. Puedes reutilizar los datos que ya has compartido.</p>` : `<a class="button primary" href="#business-new">Añadir mi negocio ${icon("arrow")}</a>`}</section></div>`, "home", "Inicio");
-  document.querySelector("#dashboard-report")?.addEventListener("change", async (event) => {
-    const generation = state.generation;
-    state.selectedReport = event.target.value;
-    event.target.disabled = true;
+  const data = state.dashboard || { report: null, reports: [] }, report = data.report;
+  const activity = data.activity || [];
+  const running = activity.some(a => ["queued", "running"].includes(a.status));
+  const withdrawn = activity.some(a => a.status === "withdrawn");
+  const empty = !state.business ? ["Empecemos por tu negocio.", "Guarda una breve descripción para empezar.", "#business-new", "Empezar"]
+    : running ? ["Estamos preparando tu respuesta.", "Puedes seguir el progreso en tu conversación o análisis.", activity.find(a => ["queued", "running"].includes(a.status)).href, "Ver progreso"]
+    : withdrawn ? ["El informe anterior se ha retirado.", "Cambió su contexto o evidencia. Elige los datos vigentes para hacer una nueva pregunta.", "#files", "Revisar datos"]
+    : ["Todavía no hay un informe disponible.", "Pregunta con tus datos o guarda como informe una respuesta revisada del chat.", "#ask", "Hacer una pregunta"];
+  const selector = report && data.reports.length > 1 ? `<label class="dashboard-select">Informe seleccionado<select id="dashboard-report">${data.reports.map(item => `<option value="${esc(item.id)}" ${item.id === data.selected_id ? "selected" : ""}>${esc(item.title)} · ${fmtDate(item.created_at)}</option>`).join("")}</select></label>` : "";
+  const findings = report ? `<section class="dashboard-findings"><div class="dashboard-section-head"><h2>Hallazgos revisados</h2><a href="${reportLink(data.selected_id)}" target="_blank" rel="noopener">Abrir informe ${icon("arrow")}</a></div><p class="dashboard-summary">${esc(report.summary)}</p><div class="finding-grid">${report.claims.map((claim,index) => `<article class="finding-tile"><span>0${index+1} · HALLAZGO</span><h3>${esc(claim.title)}</h3><p>${esc(claim.statement)}</p><a href="${reportLink(data.selected_id,claim.key)}" target="_blank" rel="noopener">Ver detalle y evidencia ${icon("arrow")}</a><button type="button" class="button secondary" data-ask-finding="${esc(claim.key)}">Preguntar sobre este hallazgo</button></article>`).join("")}</div></section>` : `<section class="dashboard-empty"><div><h2>${empty[0]}</h2><p>${empty[1]}</p></div><a class="button primary" href="${empty[2]}">${empty[3]} ${icon("arrow")}</a></section>`;
+  shell(`<div class="dashboard-page"><div class="dashboard-intro"><div><p class="eyebrow">${esc(state.business?.name || "TU ESPACIO")}</p><h1>Tu negocio, <em>con claridad.</em></h1></div>${state.business ? '<button class="button secondary" id="focus-question">Hacer una pregunta</button>' : ""}</div>${!state.configured ? '<p class="notice">El modelo aún no está configurado. Puedes preparar tu pregunta.</p>' : ""}${activity.length ? `<details class="daily-activity" ${!report ? "open" : ""}><summary>Actividad y pendientes · ${activity.length}</summary>${activityMarkup(activity)}</details>` : ""}${report ? `<div class="dashboard-report-meta"><div><span class="meta-mark">${icon("check")}</span><div><strong>${esc(report.title)}</strong><small>${esc(report.scope.period)} · ${data.data_version ? `Versión ${esc(data.data_version.version)} · ` : ""}${fmtDate(data.created_at)}</small></div></div>${selector}</div>${data.data_version?.superseded_by ? '<p class="notice">Este informe usa una versión anterior. Los datos nuevos aún no se han recalculado. <a href="#files">Ver datos</a></p>' : ""}` : ""}${findings}${report?.highlights.length ? `<section class="dashboard-metrics" aria-label="Cifras clave">${report.highlights.map(item => `<a class="metric-tile" href="${reportLink(data.selected_id,item.claim_key)}" target="_blank" rel="noopener"><span>${esc(item.label)}</span><strong>${esc(item.value)}</strong><small>${esc(item.unit)}</small></a>`).join("")}</section>` : ""}${report?.charts.length ? `<section class="dashboard-visuals"><h2>Gráficos del informe</h2><div class="dash-chart-grid">${report.charts.map(chart => dashboardChart(chart,data.selected_id)).join("")}</div></section>` : ""}${report ? `<div class="dashboard-coverage"><p><strong>Alcance de esta revisión</strong><br>${esc(report.scope.coverage)}</p></div>` : ""}${state.business ? questionComposer() : ""}</div>`, "home", "Inicio");
+  bindQuestionComposer();
+  document.querySelector("#focus-question")?.addEventListener("click", () => document.querySelector("#dashboard-prompt").focus());
+  document.querySelectorAll("[data-ask-finding]").forEach(button => button.onclick = () => {
+    const claim = report.claims.find(c => c.key === button.dataset.askFinding);
+    store.set(questionContextKey(), {analysis_id: data.analysis_id, finding_reference: {report_id:data.report_id, report_version:data.report_version, claim_key:claim.key}, label:`Hallazgo: ${claim.title} · ${report.scope.period}`});
+    if (!store.get(dashboardDraftKey(), "")) store.set(dashboardDraftKey(), `Explícame el hallazgo «${claim.title}».`);
+    location.hash = "#ask";
+  });
+  document.querySelector("#dashboard-report")?.addEventListener("change", async event => {
+    const generation = state.generation; state.selectedReport = event.target.value; event.target.disabled = true;
     try {
       const dashboard = await api("/api/dashboard?report=" + encodeURIComponent(state.selectedReport));
       if (generation !== state.generation) return;
-      state.dashboard = dashboard;
-      state.selectedReport = dashboard.selected_id;
-      dashboardHome();
-    } catch (error) { toast(error.message); event.target.disabled = false; }
-  });
-  const prompt = document.querySelector("#dashboard-prompt");
-  prompt?.addEventListener("input", () => store.set(dashboardDraftKey(), prompt.value));
-  document.querySelectorAll("[data-home-suggestion]").forEach(button => {
-    button.addEventListener("click", () => {
-      prompt.value = button.dataset.homeSuggestion;
-      prompt.dispatchEvent(new Event("input"));
-      prompt.focus();
-    });
-  });
-  document.querySelector("#dashboard-question")?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (state.launching) return;
-    const text = prompt.value.trim();
-    if (!text) return;
-    const button = event.currentTarget.querySelector("button[type=submit]");
-    const errorBox = document.querySelector("#dashboard-error");
-    store.set(dashboardDraftKey(), text);
-    button.disabled = true;
-    errorBox.textContent = "";
-    try { await launchDashboardChat(text); }
-    catch (error) { errorBox.textContent = error.message; }
-    finally { button.disabled = false; }
+      state.dashboard = dashboard; state.selectedReport = dashboard.selected_id; dashboardHome();
+      document.querySelector("#dashboard-report")?.focus();
+    } catch(error) { toast(error.message); event.target.disabled = false; }
   });
 }
+function reportState(item) {
+  return item.presentation_status || (item.status === "completed" && item.data_version?.superseded_by ? "historical" : item.status);
+}
 function reportsView() {
-  shell(`<div class="page-heading"><div><p class="eyebrow">TU BIBLIOTECA</p><h1>Informes y análisis</h1><p>Recupera una revisión o continúa un trabajo pendiente.</p></div><a class="button primary" href="#chats">${icon("plus")} Nueva pregunta</a></div><div class="reports-list">${state.analyses.length ? state.analyses.map((a) => `<a class="report-list-item" href="#analysis/${esc(a.id)}"><span class="report-list-icon">${icon(a.status === "completed" ? "grid" : "clock")}</span><span><strong>${esc(a.title)}</strong><small>${esc(a.filename)} · ${fmtDate(a.created_at)}${a.data_version?.superseded_by ? " · Datos de una versión anterior" : ""}</small></span>${badge(a.status)}${icon("arrow")}</a>${a.conversation_id ? `<a class="text-button report-chat-link" href="#chat/${esc(a.conversation_id)}">Abrir conversación de este informe ${icon("chat")}</a>` : ""}`).join("") : `<div class="dashboard-empty"><h2>Tu biblioteca está vacía.</h2><p>Los análisis y los informes revisados aparecerán aquí.</p><a class="button primary" href="#new">Crear un análisis</a></div>`}</div>`, "reports", "Informes");
+  shell(`<div class="page-heading"><div><p class="eyebrow">TU BIBLIOTECA</p><h1>Informes y análisis</h1><p>Recupera una revisión o continúa un trabajo pendiente.</p></div><a class="button primary" href="#ask">${icon("plus")} Nueva pregunta</a></div><div class="report-filters"><label>Buscar informes<input id="report-search" type="search" value="${esc(state.reportSearch || "")}" placeholder="Título o archivo"></label><label>Estado<select id="report-filter">${[["all","Todos"],["completed","Disponibles"],["historical","Versiones anteriores"],["pending","En curso o pendientes"],["withdrawn","Retirados"],["failed","Interrumpidos"]].map(([key,label]) => `<option value="${key}" ${state.reportFilter === key ? "selected" : ""}>${label}</option>`).join("")}</select></label></div><div class="reports-list" id="report-items"></div>`, "reports", "Informes");
+  function render() {
+    const query = (state.reportSearch || "").toLocaleLowerCase(), filter = state.reportFilter || "all";
+    const items = state.analyses.filter(a => `${a.title} ${a.filename}`.toLocaleLowerCase().includes(query) && (filter === "all" || reportState(a) === filter || (filter === "pending" && ["running","queued","waiting","blocked"].includes(reportState(a)))));
+    document.querySelector("#report-items").innerHTML = items.length ? items.map(a => `<a class="report-list-item" href="#analysis/${esc(a.id)}"><span class="report-list-icon">${icon(a.status === "completed" ? "grid" : "clock")}</span><span><strong>${esc(shortChatTitle(a.title))}</strong><small>${esc(a.filename)} · ${fmtDate(a.created_at)}${a.data_version ? ` · Versión ${a.data_version.version}` : ""}</small></span>${badge(reportState(a))}${icon("arrow")}</a>${a.conversation_id ? `<a class="text-button report-chat-link" href="#chat/${esc(a.conversation_id)}">Abrir conversación de este informe ${icon("chat")}</a>` : ""}`).join("") : state.analyses.length ? '<p class="empty">No hay informes que coincidan con estos filtros.</p>' : '<div class="dashboard-empty"><div><h2>Tu biblioteca está vacía.</h2><p>Guarda como informe una respuesta revisada del chat para encontrarla aquí.</p></div><a class="button primary" href="#ask">Hacer una pregunta</a><a href="#files">Añadir datos</a></div>';
+  }
+  document.querySelector("#report-search").oninput = event => {state.reportSearch=event.target.value;render();};
+  document.querySelector("#report-filter").onchange = event => {state.reportFilter=event.target.value;render();};
+  render();
 }
 async function myBusiness() { await dossierPage(); }
 function home(compact = false) {
@@ -734,10 +775,10 @@ async function pollDetail(id) {
     } else toast(e.message);
   }
 }
-function chatResponse(r) {
+function chatResponse(r, anchor = "response") {
   if (!r) return "";
   if (r.kind === "evidence")
-    return `<h3>${esc(r.title)}</h3>${(r.metrics || []).map((m) => `<p><strong>${esc(m.metric)}: ${esc(m.value)}</strong></p>`).join("")}<p class="muted">${esc(r.scope?.period)} · ${esc(r.scope?.coverage)}</p>${r.claims.map((c) => `<section><h4>${esc(c.title)}</h4><p>${esc(c.statement)}</p><p>${esc(c.interpretation)}</p><details><summary>Cómo se ha comprobado</summary><p>${esc(c.method)}</p>${c.evidence.map((e) => `<p class="muted">Cálculo ${esc(e.execution_id)} · ${esc(e.metric)}</p>`).join("")}</details></section>`).join("")}<ul>${r.limitations.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`;
+    return `<h3>${esc(r.title)}</h3>${r.highlights?.length ? `<div class="dashboard-metrics">${r.highlights.map(h => `<div class="metric-tile"><span>${esc(h.label)}</span><strong>${esc(h.value)}</strong><small>${esc(h.unit)}</small></div>`).join("")}</div>` : ""}<p class="muted">${esc(r.scope?.period)} · ${esc(r.scope?.coverage)}</p>${r.claims.map(c => `<section id="${esc(anchor)}-${esc(c.key)}"><h4>${esc(c.title)}</h4><p>${esc(c.statement)}</p><p>${esc(c.interpretation)}</p><details><summary>Cómo se ha comprobado</summary><p>${esc(c.method)}</p></details></section>`).join("")}<div class="dash-chart-grid">${(r.charts || []).map(c => dashboardChart(c, null, `#${anchor}-${c.claim_key}`)).join("")}</div><ul>${r.limitations.map(x => `<li>${esc(x)}</li>`).join("")}</ul>`;
   if (r.kind === "catalog")
     return `<p>${esc(r.text)}</p>${r.items.map((x) => `<p><strong>${esc(x.description)}</strong> · ${esc(x.names.join(", "))}<br>${esc(x.columns.join(", "))}</p>`).join("") || "<p>No hay conjuntos disponibles todavía.</p>"}`;
   if (r.kind === "history")
@@ -754,53 +795,8 @@ function chatResponse(r) {
 }
 async function chatsPage() {
   if (!state.business) { businessForm(true); return; }
-  const generation = state.generation;
-  const data = await api("/api/chats");
-  if (generation !== state.generation) return;
-  if (data.business_id !== state.business.id) { await route(); return; }
-  state.chats = data.conversations;
-  state.datasets = data.datasets;
-  const datasets = [
-    ...new Map(data.datasets.items.map((t) => [t.analysis_id, t])).values(),
-  ];
-  shell(
-    `<div class="page-heading"><div><span class="eyebrow">TU NEGOCIO, CON CONTEXTO</span><h1>Conversaciones</h1><p>Pregunta sobre tus datos o añade algo que debamos recordar.</p></div></div>
-    <form class="card" id="create-chat"><h2>Empezar una conversación</h2><label>Título<input name="title" maxlength="160" placeholder="Una nueva pregunta" /></label><label>Datos para esta conversación<select name="analysis_id"><option value="">Dejar que el agente busque los datos</option>${datasets.map((t) => `<option value="${esc(t.analysis_id)}">${esc(t.description)} · ${esc(t.names.join(", "))}</option>`).join("")}</select></label>${data.datasets.more ? "<p>Hay más conjuntos: el agente puede buscarlos si dejas la selección automática.</p>" : ""}<button class="button primary" ${!state.business ? "disabled" : ""}>Nuevo chat ${icon("plus")}</button></form>
-    <div class="card-grid">${data.conversations.map((c) => `<a class="card" href="#chat/${esc(c.id)}"><h2>${esc(c.title)}</h2><p>${fmtDate(c.created_at)}</p><span>Abrir conversación ${icon("arrow")}</span></a>`).join("") || '<p class="empty">Aquí aparecerán tus conversaciones guardadas.</p>'}</div>`,
-    "chats",
-    "Conversaciones",
-  );
-  document
-    .querySelector("#create-chat")
-    .addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const form = event.currentTarget,
-        button = form.querySelector("button");
-      const payload = {
-        business_id: state.business.id,
-        title: form.elements.title.value || "Nueva conversación",
-        analysis_id: form.elements.analysis_id.value,
-      };
-      const cacheKey = "dr-chat-create-" + state.business.id,
-        prior = store.get(cacheKey, null);
-      const request_key =
-        prior && JSON.stringify(prior.payload) === JSON.stringify(payload)
-          ? prior.key
-          : crypto.randomUUID();
-      store.set(cacheKey, { key: request_key, payload });
-      button.disabled = true;
-      try {
-        const chat = await api("/api/chats", {
-          method: "POST",
-          body: { ...payload, request_key },
-        });
-        store.remove(cacheKey);
-        location.hash = "chat/" + chat.id;
-      } catch (e) {
-        toast(e.message);
-        button.disabled = false;
-      }
-    });
+  shell(`<div class="page-heading"><div><p class="eyebrow">TU NEGOCIO, CON CONTEXTO</p><h1>${location.hash === "#ask" ? "Nueva pregunta" : "Conversaciones"}</h1><p>Pregunta sobre tus datos o añade algo que debamos recordar.</p></div></div>${questionComposer()}<div class="card-grid">${state.chats.map(c => `<a class="card" href="#chat/${esc(c.id)}"><h2>${esc(shortChatTitle(c.title))}</h2><p>${fmtDate(c.created_at)}</p><span>Abrir conversación ${icon("arrow")}</span></a>`).join("") || '<p class="empty">Aquí aparecerán tus conversaciones guardadas.</p>'}</div>`, "chats", "Conversaciones");
+  bindQuestionComposer();
 }
 async function chatPage(id) {
   const generation = state.generation;
@@ -809,8 +805,8 @@ async function chatPage(id) {
     sending = false;
   const draftKey = "dr-chat-draft-" + id;
   shell(
-    `<div class="page-heading"><div><a href="#chats">← Conversaciones</a><h1 id="chat-title">Conversación</h1><p>El contexto del negocio se comparte entre conversaciones.</p></div><a class="button secondary" href="#chats">Nuevo chat</a></div>
-    <div id="chat-turns" aria-live="polite" aria-relevant="additions text"></div><div id="chat-conflicts"></div>
+    `<div class="page-heading"><div><a href="#chats">← Conversaciones</a><h1 id="chat-title">Conversación</h1><p>El contexto del negocio se comparte entre conversaciones.</p></div><a class="button secondary" href="#ask">Nueva pregunta</a></div>
+    <p id="chat-dataset" class="question-context"></p><div id="chat-turns" aria-live="polite" aria-relevant="additions text"></div><div id="chat-conflicts"></div>
     <form class="card chat-composer" id="chat-send"><label id="question-label" hidden>Aclaración pendiente<select id="chat-question"></select></label><label for="chat-message">Tu mensaje</label><textarea id="chat-message" rows="3" maxlength="6000" required placeholder="¿Qué quieres saber de tu negocio?"></textarea><div class="chat-suggestions"><button type="button" data-suggestion="¿Qué sabes de mi negocio?">Qué sabemos del negocio</button><button type="button" data-suggestion="¿Qué datos tenemos disponibles para analizar?">Explorar mis datos</button></div><button class="button primary" id="send-message">Enviar ${icon("arrow")}</button><p id="chat-status" class="muted"></p></form>`,
     "chats",
     "Conversación",
@@ -818,7 +814,7 @@ async function chatPage(id) {
   const textarea = document.querySelector("#chat-message");
   textarea.value = store.get(draftKey, { text: "" }).text;
   textarea.addEventListener("input", () =>
-    store.set(draftKey, { text: textarea.value, key: crypto.randomUUID() }),
+    store.set(draftKey, { ...store.get(draftKey, {}), text: textarea.value, key: crypto.randomUUID() }),
   );
   document.querySelectorAll("[data-suggestion]").forEach((b) =>
     b.addEventListener("click", () => {
@@ -838,12 +834,13 @@ async function chatPage(id) {
       if (signature === next) return;
       signature = next;
       document.querySelector("#chat-title").textContent =
-        data.conversation.title;
+        shortChatTitle(data.conversation.title);
+      document.querySelector("#chat-dataset").innerHTML = data.dataset ? `${esc(data.dataset.title)} · Versión ${esc(data.dataset.version)}${data.dataset.corrected ? " · Corregida: elige los datos vigentes" : data.dataset.superseded_by ? " · Hay una versión posterior" : ""} · <a href="#files">Ver datos</a>` : "Datos: el agente buscará los conjuntos pertinentes.";
       document.querySelector("#chat-turns").innerHTML =
         data.turns
           .map(
             (t, index) =>
-              `<article class="chat-turn"><div class="chat-owner"><strong>Tú</strong><p>${esc(t.payload.text)}</p></div><div class="card chat-answer"><strong>Decision Room</strong>${chatResponse(t.response)}${t.issue ? `<p class="notice">${esc(t.issue)}</p>` : ""}${["queued", "routing", "processing"].includes(t.status) ? '<p class="muted">Preparando y comprobando la respuesta… Puedes volver más tarde.</p>' : ""}${["failed", "stale"].includes(t.status) && index === data.turns.length - 1 ? `<button class="button secondary" data-retry="${esc(t.id)}">Reintentar con el contexto actual</button>` : ""}${t.response?.kind === "evidence" ? (t.report_requested ? `<a class="button secondary" target="_blank" rel="noopener" href="/api/chats/${esc(id)}/report/${esc(t.id)}">Abrir informe</a>` : `<button class="button secondary" data-report="${esc(t.id)}">Generar informe</button>`) : ""}</div></article>`,
+              `<article class="chat-turn"><div class="chat-owner"><strong>Tú</strong><p>${esc(t.payload.text)}</p></div><div class="card chat-answer"><strong>Decision Room</strong>${t.payload.finding_reference ? `<p class="question-context">Sobre: ${esc(t.payload.finding_reference.title)} · ${esc(t.payload.finding_reference.period)}</p>` : ""}${chatResponse(t.response, `turn-${t.id}`)}${t.issue ? `<p class="notice">${esc(t.issue)}</p>` : ""}${["queued", "routing", "processing"].includes(t.status) ? '<p class="muted">Preparando y comprobando la respuesta… Puedes volver más tarde.</p>' : ""}${["failed", "stale", "blocked"].includes(t.status) && index === data.turns.length - 1 ? `<button class="button secondary" data-retry="${esc(t.id)}">Reintentar con el contexto actual</button>` : ""}${t.response?.kind === "evidence" ? (t.report_requested ? `<a class="button secondary" target="_blank" rel="noopener" href="/api/chats/${esc(id)}/report/${esc(t.id)}">Abrir informe</a>` : `<button class="button secondary" data-report="${esc(t.id)}">Generar informe</button>`) : ""}</div></article>`,
           )
           .join("") ||
         '<section class="card"><h2>¿Por dónde empezamos?</h2><p>Puedes preguntar por un resultado, pedir un cálculo o explicar cómo funciona tu negocio.</p></section>';
@@ -885,7 +882,7 @@ async function chatPage(id) {
       const draft = store.get(draftKey, {}),
         key = draft.key || crypto.randomUUID(),
         sentText = textarea.value;
-      store.set(draftKey, { text: sentText, key });
+      store.set(draftKey, { ...draft, text: sentText, key });
       try {
         await api("/api/chats/" + id + "/messages", {
           method: "POST",
@@ -893,6 +890,7 @@ async function chatPage(id) {
             business_id: current.conversation.business_id,
             request_key: key,
             text: sentText,
+            ...(draft.finding_reference ? {finding_reference:draft.finding_reference} : {}),
             question_id: document.querySelector("#chat-question").value,
           },
         });
@@ -910,9 +908,10 @@ async function chatPage(id) {
     });
   document.querySelector("#main").addEventListener("click", async (event) => {
     const button = event.target.closest(
-      "[data-retry],[data-report],[data-fact]",
+      "[data-retry],[data-report],[data-fact],[data-evidence-anchor]",
     );
     if (!button || !current) return;
+    if (button.dataset.evidenceAnchor) { event.preventDefault(); const section = document.getElementById(button.dataset.evidenceAnchor); section?.setAttribute("tabindex", "-1"); section?.focus(); return; }
     button.disabled = true;
     const action = button.dataset.retry
       ? "retry"
@@ -974,10 +973,11 @@ async function route() {
     }
     if (hash === "business-new") businessForm(true);
     else if (hash === "businesses" || (!state.business && state.businesses.length)) businessChooser();
+    else if (!state.business) businessForm(true);
     else if (hash === "business") businessForm(!state.business);
     else if (hash === "my-business") await myBusiness();
     else if (hash === "new") newAnalysis();
-    else if (hash === "chats") await chatsPage();
+    else if (hash === "chats" || hash === "ask") await chatsPage();
     else if (hash.startsWith("chat/")) await chatPage(hash.slice(5));
     else if (hash.startsWith("analysis/")) {
       const id = hash.slice(9);
@@ -995,7 +995,7 @@ async function route() {
       dashboardHome();
     }
     if (generation !== state.generation) return;
-    if (["home", "analyses", "reports"].includes(hash))
+    if (state.business && ["home", "analyses", "reports"].includes(hash))
       state.poll = setInterval(async () => {
         try {
           const next = await api("/api/workspace");
@@ -1018,16 +1018,20 @@ async function route() {
             state.chats = chats.conversations;
             state.datasets = chats.datasets;
             if (changed) {
-              const focused = document.activeElement?.id === "dashboard-prompt";
+              const focused = document.activeElement?.id;
+              const activityOpen = document.querySelector(".daily-activity")?.open;
               const start = document.activeElement?.selectionStart, end = document.activeElement?.selectionEnd;
               state.dashboard = dashboard;
               state.selectedReport = dashboard.selected_id;
               state.analyses = next.analyses;
               state.memory = next.memory;
               dashboardHome();
+              const activity = document.querySelector(".daily-activity");
+              if (activity && activityOpen != null) activity.open = activityOpen;
               if (focused) {
-                const prompt = document.querySelector("#dashboard-prompt");
-                prompt?.focus(); prompt?.setSelectionRange(start, end);
+                const control = document.getElementById(focused);
+                control?.focus({preventScroll:true});
+                if (control?.tagName === "TEXTAREA") control.setSelectionRange(start, end);
               }
             }
           }
@@ -1041,14 +1045,19 @@ async function route() {
             state.analyses = next.analyses;
             if (hash === "home") { if (!state.launching) dashboardHome(); }
             else if (hash === "files") await files();
-            else if (hash === "reports") reportsView();
+            else if (hash === "reports") {
+              const focused = document.activeElement?.id, start = document.activeElement?.selectionStart;
+              reportsView(); const control = document.getElementById(focused);
+              control?.focus({preventScroll:true}); if (control?.type === "search") control.setSelectionRange(start, start);
+            }
             else if (hash === "my-business") await myBusiness();
             else home(true);
           }
         } catch {}
       }, 5000);
     window.scrollTo(0, 0);
-    document.querySelector("#main")?.focus({ preventScroll: true });
+    if (hash === "ask") document.querySelector("#dashboard-prompt")?.focus();
+    else document.querySelector("#main")?.focus({ preventScroll: true });
     document.title =
       "Decision Room — " +
       (hash === "new"

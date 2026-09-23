@@ -2984,7 +2984,7 @@ body { background: #ffffff; }
 .dashboard-section-head > a:hover { text-decoration: underline; }
 .dashboard-section-head > a .icon { width: 14px; height: 14px; }
 .dashboard-summary { color: #485e50; font-size: 15px; line-height: 1.7; max-width: 870px; white-space: pre-line; margin-bottom: 24px; }
-.finding-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; }
+.finding-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; }
 .finding-tile, .metric-tile, .dashboard-chart, .business-panel { background: #f4f8f3; border-radius: 18px; border: 0; }
 .finding-tile { padding: 24px; min-height: 220px; display: flex; flex-direction: column; transition: background .15s, transform .15s; }
 .finding-tile:hover, .metric-tile:hover { background: #e7f0e5; transform: translateY(-2px); }
@@ -3146,3 +3146,47 @@ body { background: #ffffff; }
 #fact-error { color: #973f32; }
 #dossier-editor { scroll-margin-top: 24px; }
 @media (max-width: 600px) { .dossier-dates { grid-template-columns: 1fr; } .dossier-card { padding: 18px; } .dossier-tabs { gap: 6px; } .dossier-tabs .button { padding: 10px 12px; } }
+
+/* Daily workspace: the question always occupies its own space, including with a keyboard. */
+.dashboard-page { padding-bottom: 24px; }
+.dashboard-intro { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 8px 0 18px; }
+.dashboard-intro h1 { font-size: clamp(26px, 3vw, 38px); letter-spacing: -1px; line-height: 1.2; margin: 0; }
+.dashboard-intro .eyebrow { margin-bottom: 8px; }
+.dashboard-compose { position: static; margin: 24px 0; max-width: none; padding: 18px; backdrop-filter: none; box-shadow: none; }
+.dashboard-compose h2 { font-size: 18px; margin: 0 0 12px; }
+.dashboard-report-meta { margin: 0 0 20px; padding: 14px 18px; }
+.dashboard-summary { margin-bottom: 16px; }
+.dashboard-section-head { margin-bottom: 12px; }
+.dashboard-section-head h2, .dashboard-visuals > h2 { font-size: 22px; }
+.dashboard-visuals { margin-top: 24px; }
+.finding-tile { display: flex; flex-direction: column; gap: 12px; }
+.finding-tile h3, .finding-tile p { margin: 0; }
+.finding-tile > a { font-size: 13px; color: var(--green); }
+.finding-tile > a .icon { width: 14px; height: 14px; }
+.finding-tile > .button { margin-top: auto; align-self: flex-start; white-space: normal; text-align: left; }
+.memory-notice { padding: 8px 14px; font-size: 13px; }
+.memory-notice p { margin: 0; }
+.daily-activity { margin: 0 0 18px; padding: 10px 16px; }
+.daily-activity summary { cursor: pointer; font-size: 13px; }
+.daily-activity .dashboard-activity { margin: 10px 0 0; }
+.daily-activity strong { overflow-wrap: anywhere; }
+.question-context { border-left: 3px solid var(--green); padding: 8px 12px; font-size: 13px; line-height: 1.5; background: #f2f7f1; overflow-wrap: anywhere; }
+.question-context .text-button { margin-left: 8px; }
+#chat-title { font-size: clamp(24px, 3vw, 36px); overflow-wrap: anywhere; line-height: 1.2; }
+.chat-answer .dashboard-metrics { margin: 12px 0; }
+.chat-answer .metric-tile { padding: 14px; }
+.chat-answer .dash-chart-grid { margin-top: 18px; }
+.chat-answer section[id] { scroll-margin-top: 20px; }
+.chat-answer h4 { font-size: 16px; margin: 18px 0 8px; }
+.report-filters { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+.report-filters label { display: grid; gap: 6px; font-size: 13px; flex: 1 1 220px; }
+.report-filters input, .report-filters select { width: 100%; padding: 12px; border: 1px solid #d9e4da; border-radius: 10px; background: white; color: var(--ink); }
+@media (max-width: 600px) {
+  .dashboard-intro { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .dashboard-intro h1 { font-size: 28px; }
+  .dashboard-compose { padding: 12px; }
+  #dashboard-prompt, .chat-composer textarea { font-size: 16px; }
+  .dashboard-metrics { grid-template-columns: 1fr; }
+  .report-list-item { flex-wrap: wrap; }
+  .report-list-item > span:nth-child(2) { flex-basis: calc(100% - 64px); }
+}

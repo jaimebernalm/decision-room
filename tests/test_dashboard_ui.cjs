@@ -20,7 +20,7 @@ function fixture() {
     }
   };
   vm.createContext(sandbox);
-  vm.runInContext(source + '\nstate.business={id:"business-a"}; globalThis.ui={state,store,launchDashboardChat,dashboardSuggestions};', sandbox);
+  vm.runInContext(source + '\nstate.business={id:"business-a"}; globalThis.ui={state,store,launchDashboardChat,dashboardSuggestions,shortChatTitle,chatResponse,reportState};', sandbox);
   return {sandbox, ...sandbox.ui, calls, chats, messages, values};
 }
 test('dashboard creates a chat and sends the original message without CSV', async () => {
@@ -82,4 +82,52 @@ test('suggestions reflect available data without inventing metrics', () => {
   f.state.datasets={items:[{analysis_id:'a'}]}; assert.equal(f.dashboardSuggestions().length,2);
   f.state.dashboard={report:{title:'Ventas revisadas'}};
   assert.equal(f.dashboardSuggestions().length,2);
+});
+
+test('finding context survives a lost send and is not merged with another finding', async () => {
+  const f=fixture(), original=f.sandbox.fetch;
+  const context={analysis_id:'dataset-v2', finding_reference:{report_id:'review',report_version:'sha',claim_key:'sales'}, label:'Sales'};
+  let failed=false;
+  f.sandbox.fetch=async (url, opts) => {
+    if(url.endsWith('/messages') && !failed) {failed=true;f.sandbox.fail=url;}
+    return original(url,opts);
+  };
+  await assert.rejects(f.launchDashboardChat('Explain this', context));
+  await f.launchDashboardChat('Explain this', context);
+  assert.equal(f.chats.size,1); assert.equal(f.messages.size,1);
+  assert.equal(f.calls[0].data.analysis_id,'dataset-v2');
+  assert.deepEqual(f.calls[1].data.finding_reference,context.finding_reference);
+  await f.launchDashboardChat('Explain this', {...context, finding_reference:{...context.finding_reference,claim_key:'cost'}});
+  assert.equal(f.chats.size,2);
+});
+test('chat titles are short without losing the full submitted question', async () => {
+  const f=fixture(), question='Analiza las ventas de septiembre y compara los resultados de cada una de las categorías disponibles.';
+  await f.launchDashboardChat(question);
+  assert.ok(f.calls[0].data.title.length <= 64);
+  assert.equal(f.calls[1].data.text,question);
+  assert.ok(f.calls[0].data.title.endsWith('…'));
+});
+test('chat renders reviewed labels and formatting instead of raw metrics', () => {
+  const f=fixture();
+  const html=f.chatResponse({kind:'evidence',title:'Ventas',metrics:[{metric:'technical_total_eur',value:'1255.0000000000'}],highlights:[{label:'Ventas netas',value:'1.255,00',unit:'EUR'}],scope:{},claims:[],charts:[],limitations:[]});
+  assert.ok(html.includes('Ventas netas'));assert.ok(html.includes('1.255,00'));
+  assert.ok(!html.includes('technical_total_eur'));assert.ok(!html.includes('1255.0000000000'));
+});
+test('withdrawn reports are distinct from pending and historical reports', () => {
+  const f=fixture();
+  assert.equal(f.reportState({status:'blocked',presentation_status:'withdrawn'}),'withdrawn');
+  assert.equal(f.reportState({status:'completed',data_version:{superseded_by:'v3'}}),'historical');
+  assert.equal(f.reportState({status:'waiting'}),'waiting');
+});
+test('first access keeps onboarding in place until a business is saved', async () => {
+  const f=fixture(); let timers=0;
+  f.sandbox.clearInterval=()=>{};
+  f.sandbox.setInterval=()=>{timers++;};
+  f.sandbox.window={scrollTo:()=>{}};
+  f.sandbox.document={querySelector:()=>({setAttribute:()=>{},focus:()=>{}})};
+  f.sandbox.fetch=async url => ({ok:true,json:async()=>url==='/api/workspace' ? {analyses:[],configured:false,business:null,businesses:[],memory:{}} : {business_id:null,conversations:[],datasets:{items:[]}}});
+  vm.runInContext('businessForm = () => {globalThis.onboarded=true;}; globalThis.runRoute=route;',f.sandbox);
+  await f.sandbox.runRoute();
+  assert.equal(f.sandbox.onboarded,true);
+  assert.equal(timers,0);
 });

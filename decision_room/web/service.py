@@ -231,13 +231,46 @@ class Workspace:
             if j['status'] == 'completed' and j['review_id']:
                 current = self.review_state(j)
                 if not current['publishable']:
-                    item.update(status='blocked', phase='review', issue='El informe necesita una nueva revisión.')
+                    item.update(status='blocked', presentation_status='withdrawn', phase='review', issue='Informe retirado: necesita un nuevo cálculo y revisión.')
             result.append(item)
         return result
 
+    def daily_activity(self, listing):
+        """Latest chat turns, including work not yet published as a report."""
+        from ..conversations import Conversations, dependencies_current, reviewed
+        items = []
+        with connect(self.config) as db:
+            rows = db.execute("""SELECT t.*,c.title FROM chat_conversations c
+                JOIN LATERAL (SELECT * FROM chat_turns WHERE conversation_id=c.id ORDER BY ordinal DESC LIMIT 1) t ON true
+                WHERE c.business_id=%s AND (t.status!='completed' OR t.response->>'kind'='evidence')
+                ORDER BY t.updated_at DESC LIMIT 12""", (self.business_id(),)).fetchall()
+            chats = Conversations(self)
+            for turn in rows:
+                status, response = turn['status'], turn['response'] or {}
+                if response.get('kind') == 'evidence':
+                    r = reviewed(self.config, self.business_id(), response['report_id'], db)
+                    if not r['publishable'] or r['approved_sha256'] != response.get('report_version'):
+                        status = 'stale'
+                if not turn['job_id'] and turn['snapshot'] and not dependencies_current(self.config, db, turn['snapshot'], chats.events(db, turn)):
+                    status = 'stale'
+                if status == 'waiting' and turn['job_id'] and self.detail(turn['job_id']).get('context_stale'):
+                    status = 'stale'
+                if status == 'completed':
+                    if not turn['report_requested'] and response.get('kind') == 'evidence':
+                        status = 'ready'
+                    else:
+                        continue
+                status = {'routing': 'running', 'processing': 'running', 'stale': 'withdrawn' if response.get('kind') == 'evidence' else 'outdated'}.get(status, status)
+                items.append(dict(title=turn['title'], status=status, href='#chat/' + str(turn['conversation_id']), created_at=turn['updated_at']))
+        items += [dict(title=x['title'], status=x.get('presentation_status', x['status']), href='#analysis/' + str(x['id']), created_at=x['created_at'])
+                  for x in listing if x['origin'] != 'chat' and x['status'] != 'completed']
+        return sorted(items, key=lambda x: x['created_at'], reverse=True)[:5]
+
     def dashboard(self, selected=None):
         """One currently publishable revision, scoped to the active business."""
-        reports = [item for item in self.listing() if item['status'] == 'completed']
+        listing = self.listing()
+        activity = self.daily_activity(listing)
+        reports = [item for item in listing if item['status'] == 'completed']
         choices = [{'id': str(item['id']), 'title': item['title'],
                     'created_at': item['created_at']} for item in reports]
         requested = identifier(selected) if selected else None
@@ -254,13 +287,15 @@ class Workspace:
                     reviewed = self.review_state(job, _db=db)
                     content = dashboard_projection(reviewed)
                     if content:
-                        return {'reports': choices, 'selected_id': str(job['id']),
+                        return {'reports': choices, 'activity': activity, 'report_id': str(reviewed['id']),
+                                'report_version': reviewed['approved_sha256'], 'analysis_id': str(job['analysis_id']),
+                                'selected_id': str(job['id']),
                                 'report': content, 'created_at': job['created_at'],
                                 'filename': job['filename'], 'data_version': item.get('data_version')}
             except ValueError:
                 # The review may be running or changing. Show no stale content.
                 continue
-        return {'reports': choices, 'selected_id': None, 'report': None}
+        return {'reports': choices, 'activity': activity, 'selected_id': None, 'report': None}
 
     def detail(self, job_id):
         j = self.sync(job_id)
