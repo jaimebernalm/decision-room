@@ -144,6 +144,8 @@ Solicitada el 23 de septiembre de 2026, antes de 2.5.4. PostgreSQL sigue siendo 
 
 ## 2.5.6. Dashboard y navegación cotidiana
 
+**Avance integrado:** la interfaz desarrollada en paralelo ya se conecta con el prompt, los chats persistentes y los informes de 2.5.4. Véase [el contrato de integración y sus límites](dashboard-ui.md). No cierra este paso: siguen pendientes 2.5.5, las preguntas con referencia estructurada a hallazgos y la validación de sus nuevos estados.
+
 **Resultado:** onboarding y visitas posteriores tienen recorridos distintos; el cliente vuelve a su negocio, pregunta y encuentra su trabajo anterior.
 
 **Incrementos, en orden:**

@@ -19,6 +19,7 @@ from ..execution import recover_executions
 from ..storage import Storage
 from ..memory import service as memory, extraction as memory_extraction
 from . import business as business_store
+from .dashboard import projection as dashboard_projection
 from .errors import WebError, bounded, identifier
 
 MAX_UPLOAD = 20 * 1024**2
@@ -202,8 +203,13 @@ class Workspace:
         return j
 
     def public(self, j):
-        fields = ('id', 'business_id', 'title', 'business', 'context', 'goal', 'filename', 'byte_count', 'status', 'phase', 'created_at', 'updated_at', 'issue')
-        return {key: j[key] for key in fields}
+        fields = ('id', 'business_id', 'title', 'business', 'context', 'goal', 'filename', 'byte_count', 'status', 'phase', 'created_at', 'updated_at', 'issue', 'origin')
+        result = {key: j[key] for key in fields}
+        if j['origin'] == 'chat':
+            with connect(self.config) as db:
+                source = db.execute('SELECT conversation_id FROM chat_turns WHERE job_id=%s AND business_id=%s ORDER BY created_at LIMIT 1', (j['id'], j['business_id'])).fetchone()
+            result['conversation_id'] = source['conversation_id'] if source else None
+        return result
 
     def review_state(self, j, *, _db=None):
         try:
@@ -226,6 +232,33 @@ class Workspace:
                     item.update(status='blocked', phase='review', issue='El informe necesita una nueva revisión.')
             result.append(item)
         return result
+
+    def dashboard(self, selected=None):
+        """One currently publishable revision, scoped to the active business."""
+        reports = [item for item in self.listing() if item['status'] == 'completed']
+        choices = [{'id': str(item['id']), 'title': item['title'],
+                    'created_at': item['created_at']} for item in reports]
+        requested = identifier(selected) if selected else None
+        candidates = ([item for item in reports if item['id'] == requested] if requested else [])
+        candidates += [item for item in reports if item not in candidates]
+        from ..agent.persistence import session_lock
+        for item in candidates:
+            job = self.row(item['id'])
+            if not job['review_id'] or not job['session_id']:
+                continue
+            try:
+                with session_lock(self.config, job['business_id'], job['session_id']) as (db, _), db.transaction():
+                    memory.lock(db, job['business_id'])
+                    reviewed = self.review_state(job, _db=db)
+                    content = dashboard_projection(reviewed)
+                    if content:
+                        return {'reports': choices, 'selected_id': str(job['id']),
+                                'report': content, 'created_at': job['created_at'],
+                                'filename': job['filename']}
+            except ValueError:
+                # The review may be running or changing. Show no stale content.
+                continue
+        return {'reports': choices, 'selected_id': None, 'report': None}
 
     def detail(self, job_id):
         j = self.sync(job_id)

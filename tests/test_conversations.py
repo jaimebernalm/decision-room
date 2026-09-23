@@ -162,11 +162,19 @@ class ConversationTests(unittest.TestCase):
     def test_reviewed_calculation_explanation_and_explicit_report(self):
         chat, t = self.complete()
         self.assertFalse(self.ws.listing())
+        self.assertIsNone(self.ws.dashboard()["report"])
         with self.assertRaises(WebError):
             self.chats.report(chat, t['id'])
         self.chats.report(chat, t['id'], dict(business_id=str(self.b)))
         self.assertIn('Ventas', self.chats.report(chat, t['id']))
         self.assertEqual(len(self.ws.listing()), 1)
+        listed = self.ws.listing()[0]
+        self.assertEqual(listed['origin'], 'chat')
+        self.assertEqual(str(listed['conversation_id']), str(chat))
+        self.assertEqual(self.ws.dashboard()['selected_id'], str(listed['id']))
+        detail = self.ws.detail(listed['id'])
+        self.assertEqual(str(detail['conversation_id']), str(chat))
+        self.assertEqual(detail['origin'], 'chat')
         explanation = self.send(chat, 'Explain the existing result')
         self.assertEqual(explanation['response']['claims'], t['response']['claims'])
         self.assertEqual(explanation['response']['report_id'], t['response']['report_id'])
@@ -185,6 +193,7 @@ class ConversationTests(unittest.TestCase):
             content=content('Amount is not defined.', kind='open_question'),
         )
         self.assertEqual(self.chats.detail(chat)['turns'][-1]['status'], 'stale')
+        self.assertIsNone(self.ws.dashboard()['report'])
         with self.assertRaises(WebError):
             self.chats.report(chat, t['id'])
 

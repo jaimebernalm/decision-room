@@ -59,6 +59,11 @@ const state = {
   draft: {},
   business: null,
   memory: {},
+  dashboard: null,
+  selectedReport: null,
+  chats: [],
+  datasets: { items: [], more: false },
+  launching: false,
   businesses: [],
   draftBusiness: null,
   uploading: false,
@@ -134,20 +139,19 @@ async function api(path, { method = "GET", body } = {}) {
 function shell(content, active = "home", crumb = "Vista general") {
   app.innerHTML = `<aside class="sidebar"><a class="brand" href="#home" aria-label="Decision Room, inicio"><span class="brand-mark">d<span>r</span></span><span>decision<span class="brand-light">room</span><small>UN ESPACIO PARA DECIDIR</small></span></a>
     <div class="workspace-label"><span class="workspace-avatar">M</span><span>${esc(state.business?.name || "Mi espacio")}<small>Espacio de trabajo local</small></span><span class="local-dot"></span></div>
-    <p class="nav-label">ESPACIO DE TRABAJO</p><nav aria-label="Principal">${[
-      ["home", "home", "Vista general"],
-      ["analyses", "grid", "Mis análisis"],
-      ["chats", "chat", "Conversaciones"],
-      ["files", "file", "Archivos"],
-      ["businesses", "grid", "Negocios guardados"],
+    <p class="nav-label">TU ESPACIO</p><nav aria-label="Principal">${[
+      ["home", "home", "Inicio"],
+      ["reports", "grid", "Informes"],
+      ["my-business", "file", "Mi negocio"],
     ]
       .map(
         ([route, i, label]) =>
-          `<a href="#${route}" class="nav-link ${active === route ? "active" : ""}" ${active === route ? 'aria-current="page"' : ""}>${icon(i)}${label}${route === "analyses" && state.analyses.length ? `<span class="nav-count">${state.analyses.length}</span>` : ""}</a>`,
+          `<a href="#${route}" class="nav-link ${active === route ? "active" : ""}" ${active === route ? 'aria-current="page"' : ""} title="${label}">${icon(i)}<span>${label}</span></a>`,
       )
-      .join("")}</nav>
-    <a href="#new" class="button sidebar-create">${icon("plus")} Nuevo análisis</a>
-    <div class="sidebar-bottom"><div class="private-note">${icon("shield")}<strong>Tu espacio, en local</strong><p>Los archivos y el progreso se guardan en este equipo.</p></div><a class="nav-link" href="#how">${icon("help")} Cómo funciona</a><div class="profile"><span>ME</span><div>Mi espacio personal<small>Versión de pruebas</small></div></div></div></aside>
+      .join("")}<a href="#chats" class="nav-link mobile-chats" title="Conversaciones" aria-label="Conversaciones">${icon("chat")}</a></nav>
+    <a href="#chats" class="button sidebar-create">${icon("plus")} Nueva pregunta</a>
+    <div class="sidebar-history"><p class="nav-label">CHATS</p>${state.chats.slice(0, 6).map((c) => `<a class="history-link" href="#chat/${esc(c.id)}">${icon("chat")}<span>${esc(c.title)}</span></a>`).join("") || '<p class="history-empty">Aún no hay conversaciones.</p>'}<a class="history-all" href="#chats">Ver conversaciones ${icon("arrow")}</a><p class="nav-label">ANÁLISIS RECIENTES</p>${state.analyses.slice(0, 6).map((a) => `<a class="history-link" href="#analysis/${esc(a.id)}" title="${esc(a.title)}">${icon("grid")}<span>${esc(a.title)}</span></a>`).join("") || '<p class="history-empty">Aún no hay análisis.</p>'}<a class="history-all" href="#analyses">Ver todos los análisis ${icon("arrow")}</a></div>
+    <div class="sidebar-bottom"><a class="nav-link" href="#how">${icon("help")}<span>Cómo funciona</span></a><div class="profile"><span>ME</span><div>Mi espacio personal<small>Versión de pruebas</small></div></div></div></aside>
     <div class="workspace"><header class="topbar"><span class="breadcrumb">Mi espacio <span>/</span> <b>${esc(crumb)}</b></span><span class="environment"><i></i> Entorno local <span class="beta">BETA</span></span></header><main id="main" tabindex="-1"><div id="memory-status" aria-live="polite"></div>${content}</main><footer class="page-footer"><span>Decision Room</span><span>De los datos a decisiones con contexto.</span></footer></div>`;
   renderMemory();
 }
@@ -198,6 +202,125 @@ function login(error = "") {
 }
 function illustration() {
   return `<div class="hero-art" aria-hidden="true"><span class="art-orbit orbit-one"></span><span class="art-orbit orbit-two"></span><span class="art-star">✳</span><div class="art-source"><span class="art-icon">${icon("file")}</span><div>Tu negocio<small>Datos + contexto</small></div><span class="art-check">${icon("check")}</span></div><div class="art-connector"></div><div class="art-report"><span class="art-report-label">UNA VISIÓN MÁS CLARA ${icon("spark")}</span><div class="art-chart"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="art-lines"><i></i><i></i></div><span class="art-evidence">${icon("check")} Hallazgos con evidencia</span></div></div>`;
+}
+const reportLink = (id, claim) => `/api/jobs/${encodeURIComponent(id)}/report${claim ? `#finding-${encodeURIComponent(claim)}` : ""}`;
+function dashboardChart(chart, reportId) {
+  const values = chart.points.map((point) => Number(point.value));
+  const max = Math.max(1, ...values.map((value) => Math.abs(value)));
+  const canPlot = values.every(Number.isFinite) && values.length > 1;
+  let plot = "";
+  if (canPlot && chart.kind === "line") {
+    const first = Date.parse(chart.points[0].label);
+    const last = Date.parse(chart.points.at(-1).label);
+    const days = chart.points.map((point) => Date.parse(point.label));
+    const min = Math.min(0, ...values);
+    const high = Math.max(0, ...values);
+    const x = (i) => 24 + 552 * (days[i] - first) / (last - first || 1);
+    const y = (i) => 174 - 138 * (values[i] - min) / (high - min || 1);
+    const lines = values.slice(1).map((_, i) => days[i + 1] - days[i] === 86400000
+      ? `<line x1="${x(i)}" y1="${y(i)}" x2="${x(i + 1)}" y2="${y(i + 1)}"/>` : "").join("");
+    plot = `<svg class="dash-trend" viewBox="0 0 600 200" role="img" aria-label="${esc(chart.title)}"><path d="M24 174H576" class="dash-axis"/>${lines}${values.map((_, i) => `<circle cx="${x(i)}" cy="${y(i)}" r="3.5"><title>${esc(chart.points[i].label)}: ${esc(chart.points[i].formatted)} ${esc(chart.unit)}</title></circle>`).join("")}</svg><div class="dash-chart-ends"><span>${esc(chart.points[0].label)}</span><span>${esc(chart.points.at(-1).label)}</span></div>`;
+  } else if (canPlot && chart.kind === "bar") {
+    const diverging = values.some((value) => value < 0);
+    plot = `<div class="dash-bars">${chart.points.slice(0, 8).map((point, i) => {
+      const width = Math.max(2, Math.abs(values[i]) / max * (diverging ? 50 : 100));
+      const left = diverging ? (values[i] < 0 ? 50 - width : 50) : 0;
+      return `<div class="dash-bar"><span title="${esc(point.label)}">${esc(point.label)}</span><span class="dash-bar-track ${diverging ? "diverging" : ""}"><i class="${values[i] < 0 ? "negative" : ""}" style="left:${left}%;width:${width}%"></i></span><strong>${esc(point.formatted)}</strong></div>`;
+    }).join("")}</div>`;
+  }
+  return `<section class="dashboard-chart"><div class="dash-card-top"><span>${icon("grid")}</span><a href="${reportLink(reportId, chart.claim_key)}" target="_blank" rel="noopener" aria-label="Ver evidencia de ${esc(chart.title)}">Ver evidencia ${icon("arrow")}</a></div><h3>${esc(chart.title)}</h3><p class="dash-chart-unit">${esc(chart.unit)}</p>${plot}<p class="dash-chart-caption">${esc(chart.caption)}</p><details><summary>Ver valores</summary><div class="dash-values">${chart.points.map((point) => `<div><span>${esc(point.label)}</span><strong>${esc(point.formatted)}</strong></div>`).join("")}</div></details></section>`;
+}
+function dashboardDraftKey() {
+  return "dr-home-prompt-" + state.business.id;
+}
+async function launchDashboardChat(text) {
+  if (state.launching) return;
+  if (!state.configured) throw new Error("Configura el modelo antes de enviar mensajes.");
+  const businessId = state.business.id, generation = state.generation;
+  const cacheKey = "dr-home-send-" + businessId;
+  const payload = { business_id: businessId, title: text.slice(0, 160), analysis_id: "" };
+  const previous = store.get(cacheKey, null);
+  const pending = previous?.text === text ? previous : {
+    text, payload, key: crypto.randomUUID(), messageKey: crypto.randomUUID()
+  };
+  store.set(cacheKey, pending);
+  state.launching = true;
+  try {
+    const chat = pending.chatId ? { id: pending.chatId } : await api("/api/chats", {
+      method: "POST", body: { ...pending.payload, request_key: pending.key }
+    });
+    pending.chatId = chat.id;
+    store.set(cacheKey, pending);
+    const draftKey = "dr-chat-draft-" + chat.id;
+    store.set(draftKey, { text, key: pending.messageKey });
+    await api("/api/chats/" + chat.id + "/messages", {
+      method: "POST", body: { business_id: businessId, text, request_key: pending.messageKey }
+    });
+    if (store.get(draftKey, {}).key === pending.messageKey) store.remove(draftKey);
+    store.remove(cacheKey);
+    const homeKey = "dr-home-prompt-" + businessId;
+    if (store.get(homeKey, "") === text) store.remove(homeKey);
+    if (generation === state.generation) location.hash = "#chat/" + chat.id;
+    return chat;
+  } finally { state.launching = false; }
+}
+function dashboardSuggestions() {
+  return ["¿Qué sabes de mi negocio?", ...(state.datasets.items.length
+    ? ["¿Qué datos tenemos disponibles para analizar?"] : [])];
+}
+function dashboardHome() {
+  const data = state.dashboard || { report: null, reports: [] };
+  const report = data.report;
+  const active = state.analyses.find((a) => ["waiting", "running", "queued", "failed", "blocked"].includes(a.status));
+  const firstName = state.business?.name || "tu negocio";
+  const lead = report ? `<div class="dashboard-intro"><p class="eyebrow">INICIO · ${esc(firstName)}</p><h1>Lo que importa<br><em>para tu negocio.</em></h1><p>Una vista de tus hallazgos revisados, con los datos y el periodo a la vista.</p></div>` : `<div class="dashboard-intro"><p class="eyebrow">INICIO · ${esc(firstName)}</p><h1>Tu negocio,<br><em>con más claridad.</em></h1><p>${state.business ? "Aquí aparecerán los hallazgos cuando tengas un informe revisado." : "Cuéntanos tu negocio para empezar a entender tus datos."}</p></div>`;
+  const selector = report && data.reports.length > 1 ? `<label class="dashboard-select">Informe seleccionado<select id="dashboard-report">${data.reports.map((item) => `<option value="${esc(item.id)}" ${item.id === data.selected_id ? "selected" : ""}>${esc(item.title)} · ${fmtDate(item.created_at)}</option>`).join("")}</select></label>` : "";
+  const findings = report ? `<section class="dashboard-findings"><div class="dashboard-section-head"><div><p class="eyebrow">UNA MIRADA RÁPIDA</p><h2>Hallazgos que merecen atención</h2></div><a href="${reportLink(data.selected_id)}" target="_blank" rel="noopener">Abrir informe ${icon("arrow")}</a></div><p class="dashboard-summary">${esc(report.summary)}</p><div class="finding-grid">${report.claims.map((claim, index) => `<a class="finding-tile" href="${reportLink(data.selected_id, claim.key)}" target="_blank" rel="noopener"><span>0${index + 1} · HALLAZGO</span><h3>${esc(claim.title)}</h3><p>${esc(claim.statement)}</p><small>Ver detalle y evidencia ${icon("arrow")}</small></a>`).join("")}</div></section>` : `<section class="dashboard-empty"><span class="dashboard-empty-icon">${icon(state.business ? "grid" : "home")}</span><div><h2>${state.business ? active ? "Tu próximo hallazgo está en camino." : "Todavía no hay un informe disponible." : "Empecemos por tu negocio."}</h2><p>${state.business ? active ? "Puedes continuar el análisis en curso. Los resultados aparecerán aquí cuando superen la revisión." : "Puedes empezar conversando sobre tu negocio o analizar un CSV nuevo." : "Guarda una breve descripción y después podrás añadir tus datos."}</p></div><a class="button primary" href="${state.business ? active ? `#analysis/${esc(active.id)}` : "#chats" : "#business-new"}">${state.business ? active ? "Continuar análisis" : "Abrir un chat" : "Empezar"} ${icon("arrow")}</a></section>`;
+  shell(`<div class="dashboard-page">${lead}${!state.configured ? '<p class="notice">El modelo aún no está configurado. Puedes guardar el contexto y preparar tu pregunta.</p>' : ""}${active ? `<a class="dashboard-activity" href="#analysis/${esc(active.id)}">${icon("clock")}<span><strong>${esc(active.title)}</strong><small>${statuses[active.status]?.[0] || esc(active.status)}</small></span>${icon("arrow")}</a>` : ""}${report ? `<div class="dashboard-report-meta"><div><span class="meta-mark">${icon("check")}</span><div><strong>${esc(report.title)}</strong><small>${esc(report.scope.period)} · ${esc(data.filename)} · ${fmtDate(data.created_at)}</small></div></div>${selector}</div>` : ""}${findings}${report?.highlights.length ? `<section class="dashboard-metrics" aria-label="Cifras clave">${report.highlights.map((item) => `<a class="metric-tile" href="${reportLink(data.selected_id, item.claim_key)}" target="_blank" rel="noopener"><span>${esc(item.label)}</span><strong>${esc(item.value)}</strong><small>${esc(item.unit)} ${icon("arrow")}</small></a>`).join("")}</section>` : ""}${report?.charts.length ? `<section class="dashboard-visuals"><div class="dashboard-section-head"><div><p class="eyebrow">TUS DATOS EN PERSPECTIVA</p><h2>Gráficos del informe</h2></div></div><div class="dash-chart-grid">${report.charts.map((chart) => dashboardChart(chart, data.selected_id)).join("")}</div></section>` : ""}${report ? `<div class="dashboard-coverage">${icon("shield")}<p><strong>Alcance de esta revisión</strong><br>${esc(report.scope.coverage)}</p></div>` : ""}<section class="dashboard-compose" aria-label="Haz una pregunta"><div class="dashboard-section-head"><div><p class="eyebrow">SIGUIENTE PASO</p><h2>¿Qué te gustaría entender?</h2></div></div>${state.business ? `<form id="dashboard-question"><label for="dashboard-prompt" class="sr-only">Escribe tu pregunta</label><textarea id="dashboard-prompt" maxlength="6000" rows="2" required placeholder="Pregunta algo sobre tu negocio o tus datos…">${esc(store.get(dashboardDraftKey(), ""))}</textarea><button class="button primary" type="submit" aria-label="Enviar pregunta">${icon("arrow")}</button></form><div class="chat-suggestions">${dashboardSuggestions().map((q) => `<button type="button" data-home-suggestion="${esc(q)}">${esc(q)}</button>`).join("")}</div><div id="dashboard-error" role="alert"></div><p class="composer-hint">Se abrirá un chat con el contexto de tu negocio. Puedes reutilizar los datos que ya has compartido.</p>` : `<a class="button primary" href="#business-new">Añadir mi negocio ${icon("arrow")}</a>`}</section></div>`, "home", "Inicio");
+  document.querySelector("#dashboard-report")?.addEventListener("change", async (event) => {
+    const generation = state.generation;
+    state.selectedReport = event.target.value;
+    event.target.disabled = true;
+    try {
+      const dashboard = await api("/api/dashboard?report=" + encodeURIComponent(state.selectedReport));
+      if (generation !== state.generation) return;
+      state.dashboard = dashboard;
+      state.selectedReport = dashboard.selected_id;
+      dashboardHome();
+    } catch (error) { toast(error.message); event.target.disabled = false; }
+  });
+  const prompt = document.querySelector("#dashboard-prompt");
+  prompt?.addEventListener("input", () => store.set(dashboardDraftKey(), prompt.value));
+  document.querySelectorAll("[data-home-suggestion]").forEach(button => {
+    button.addEventListener("click", () => {
+      prompt.value = button.dataset.homeSuggestion;
+      prompt.dispatchEvent(new Event("input"));
+      prompt.focus();
+    });
+  });
+  document.querySelector("#dashboard-question")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (state.launching) return;
+    const text = prompt.value.trim();
+    if (!text) return;
+    const button = event.currentTarget.querySelector("button[type=submit]");
+    const errorBox = document.querySelector("#dashboard-error");
+    store.set(dashboardDraftKey(), text);
+    button.disabled = true;
+    errorBox.textContent = "";
+    try { await launchDashboardChat(text); }
+    catch (error) { errorBox.textContent = error.message; }
+    finally { button.disabled = false; }
+  });
+}
+function reportsView() {
+  shell(`<div class="page-heading"><div><p class="eyebrow">TU BIBLIOTECA</p><h1>Informes y análisis</h1><p>Recupera una revisión o continúa un trabajo pendiente.</p></div><a class="button primary" href="#chats">${icon("plus")} Nueva pregunta</a></div><div class="reports-list">${state.analyses.length ? state.analyses.map((a) => `<a class="report-list-item" href="#analysis/${esc(a.id)}"><span class="report-list-icon">${icon(a.status === "completed" ? "grid" : "clock")}</span><span><strong>${esc(a.title)}</strong><small>${esc(a.filename)} · ${fmtDate(a.created_at)}</small></span>${badge(a.status)}${icon("arrow")}</a>${a.conversation_id ? `<a class="text-button report-chat-link" href="#chat/${esc(a.conversation_id)}">Abrir conversación de este informe ${icon("chat")}</a>` : ""}`).join("") : `<div class="dashboard-empty"><h2>Tu biblioteca está vacía.</h2><p>Los análisis y los informes revisados aparecerán aquí.</p><a class="button primary" href="#new">Crear un análisis</a></div>`}</div>`, "reports", "Informes");
+}
+function myBusiness() {
+  if (!state.business) { businessForm(true); return; }
+  const b = state.business;
+  const files = state.analyses.filter(a => a.origin === "upload");
+  shell(`<div class="page-heading"><div><p class="eyebrow">CONTEXTO DE TU ESPACIO</p><h1>Mi negocio</h1><p>Consulta lo que has contado y los archivos que has aportado.</p></div><a class="button primary" href="#business">${icon("plus")} Editar contexto</a></div><div class="business-grid"><section class="business-panel"><p class="eyebrow">INFORMACIÓN GUARDADA</p><h2>${esc(b.name)}</h2><p class="business-description">${esc(b.description)}</p><div class="business-panel-foot"><span>${icon("check")} Contexto declarado por ti</span><a href="#business">Editar ${icon("arrow")}</a></div></section><section class="business-panel"><p class="eyebrow">DATOS Y ARCHIVOS</p><h2>${files.length ? `${files.length} ${files.length === 1 ? "archivo en análisis" : "archivos en análisis"}` : "Todavía sin archivos"}</h2><p>${files.length ? "Consulta cada archivo junto al análisis en el que se utilizó." : "Añade un CSV cuando quieras explorar una pregunta."}</p>${files.slice(0, 4).map((a) => `<a class="business-file" href="#analysis/${esc(a.id)}">${icon("file")}<span>${esc(a.filename)} · ${fmtDate(a.created_at)}</span>${icon("arrow")}</a>`).join("")}<div class="business-panel-foot"><a href="#files">Ver todos los archivos ${icon("arrow")}</a><a href="#new">Analizar un CSV nuevo ${icon("plus")}</a></div></section></div><section class="context-ideas"><div><p class="eyebrow">COMPLETA EL CONTEXTO A TU RITMO</p><h2>¿Qué más podría ayudarnos a entender?</h2><p>Solo añade lo que sea relevante para tu negocio. Estas son ideas, no requisitos.</p></div><div class="idea-grid"><span>¿Dónde operas y a qué clientes atiendes?</span><span>¿Qué costes o límites influyen en tus decisiones?</span><span>¿Hay periodos o productos que debamos tratar de forma especial?</span></div><div class="context-actions"><a class="button secondary" href="#business">Añadir información ${icon("arrow")}</a><a href="#businesses">Cambiar de negocio ${icon("arrow")}</a></div></section>`, "my-business", "Mi negocio");
 }
 function home(compact = false) {
   const attention = state.analyses.filter((a) =>
@@ -284,8 +407,8 @@ function businessForm(isNew = false) {
   const draftKey = current ? "dr-profile-" + current.id : "dr-profile-new-" + (expectedActive || "empty");
   const draft = store.get(draftKey, current ? { name: current.name, description: current.description, profile_revision: current.profile_revision } : {});
   const creationKey = draft.request_key || crypto.randomUUID();
-  shell(`<a href="#businesses" class="back-link">${icon("back")} Negocios guardados</a><div class="page-heading"><div><h1>${current ? "Contexto de tu negocio." : "Empecemos por tu negocio."}</h1><p>${current ? "Los nuevos análisis usarán este contexto. Los anteriores conservan el suyo." : "Guarda esta información una vez. Podrás reutilizarla en tus próximos análisis."}</p></div></div>
-    <section class="card form-card"><form id="business-form"><label for="business">¿Cómo se llama tu negocio?</label><input id="business" name="name" maxlength="100" required autocomplete="organization" value="${esc(draft.name)}"><label for="context">Cuéntanos a qué te dedicas</label><textarea id="context" name="description" rows="5" maxlength="6000" required placeholder="Qué vendes y cómo funciona tu negocio…">${esc(draft.description)}</textarea><p class="field-help">El contexto se guarda al continuar, antes de subir un archivo. La pregunta de cada análisis se indicará después.</p><div id="business-error"></div><div class="form-actions"><a class="button ghost" href="#home">Volver</a><button class="button primary" type="submit">Guardar y continuar ${icon("arrow")}</button></div></form></section>`, "businesses", "Contexto del negocio");
+  shell(`<a href="${current ? "#my-business" : "#businesses"}" class="back-link">${icon("back")} ${current ? "Mi negocio" : "Negocios guardados"}</a><div class="page-heading"><div><h1>${current ? "Contexto de tu negocio." : "Empecemos por tu negocio."}</h1><p>${current ? "El contexto se comparte con tus conversaciones. Los resultados afectados por un cambio necesitarán revisión." : "Guarda esta información una vez. Podrás reutilizarla en tus próximos análisis."}</p></div></div>
+    <section class="card form-card"><form id="business-form"><label for="business">¿Cómo se llama tu negocio?</label><input id="business" name="name" maxlength="100" required autocomplete="organization" value="${esc(draft.name)}"><label for="context">Cuéntanos a qué te dedicas</label><textarea id="context" name="description" rows="5" maxlength="6000" required placeholder="Qué vendes y cómo funciona tu negocio…">${esc(draft.description)}</textarea><p class="field-help">Guarda el contexto y empieza a conversar. Podrás añadir datos cuando los necesites.</p><div id="business-error"></div><div class="form-actions"><a class="button ghost" href="#home">Volver</a><button class="button primary" type="submit">Guardar y continuar ${icon("arrow")}</button></div></form></section>`, "businesses", "Contexto del negocio");
   const form = document.querySelector("#business-form");
   const values = () => ({ ...Object.fromEntries(new FormData(form)), request_key: creationKey, profile_revision: draft.profile_revision ?? current?.profile_revision });
   form.oninput = () => store.set(draftKey, values());
@@ -299,8 +422,9 @@ function businessForm(isNew = false) {
     try {
       await api("/api/business", { method: "POST", body });
       store.remove(draftKey);
-      if (location.hash === "#new") await route();
-      else location.hash = "#new";
+      const next = current ? "#my-business" : "#home";
+      if (location.hash === next) await route();
+      else location.hash = next;
     } catch (error) {
       document.querySelector("#business-error").innerHTML = errorBox(error.message) + '<a href="#business" id="reload-profile">Cargar el contexto guardado</a>';
       document.querySelector("#reload-profile").onclick = async e => {
@@ -448,7 +572,7 @@ function detail(data) {
     center = `<section class="card status-card"><div class="working-symbol">${icon("spark")}</div><p class="eyebrow">${data.status === "queued" ? "TODO LISTO PARA EMPEZAR" : "ESTAMOS TRABAJANDO EN ELLO"}</p><h2>${data.status === "queued" ? "Tu análisis está en cola." : phases[data.phase]}</h2><p>${{ upload: "Estamos preparando el archivo y comprobando su estructura.", planning: "El agente está revisando tus datos y el contexto. Si falta una definición importante, te preguntará aquí.", research: "El agente está realizando los cálculos que pueden responder a tu pregunta.", review: "Estamos contrastando las conclusiones con los cálculos y su evidencia.", done: "Estamos preparando la presentación de tu informe." }[data.phase]}</p>${data.activity ? `<p class="progress-update">${esc(data.activity)}</p>` : ""}<div class="live-note"><span class="pulse-dot"></span> El estado se actualiza automáticamente</div><div class="leave-note">${icon("shield")} Puedes cerrar esta página. El análisis continúa mientras el servidor local siga encendido.</div></section>`;
   }
   shell(
-    `<a class="back-link" href="#analyses">${icon("back")} Todos mis análisis</a><div class="page-heading detail-heading"><div><p class="eyebrow">${esc(data.business)} <span> / </span> ${fmtDate(data.created_at)}</p><h1>${esc(data.title)}</h1></div>${badge(data.status)}</div><div class="detail-layout"><div class="detail-main">${center}${data.interpretations.length && !data.publishable ? `<details class="card interpretation-card"><summary>Lo que estamos entendiendo de tus datos <span>Interpretación provisional</span></summary>${data.interpretations.map((i) => `<p><span class="interpretation-label">${{ observed: "Observado", inferred: "Por comprobar", confirmed: "Confirmado", unresolved: "Por aclarar" }[i.status]}</span>${esc(i.text)}</p>`).join("")}</details>` : ""}${data.answers.length ? `<details class="card answer-history"><summary>Tus aclaraciones guardadas <span>${data.answers.length}</span></summary>${data.answers.map((a) => `<p>${icon("check")}${esc(a.disposition === "answered" ? a.text : a.disposition === "unknown" ? "No tengo esa información." : "Prefiero no responder.")}</p>`).join("")}</details>` : ""}</div><aside class="detail-aside"><section class="card timeline"><p class="eyebrow">EL RECORRIDO</p>${progressSteps(data)}</section><section class="card source-card"><p class="eyebrow">PUNTO DE PARTIDA</p><span class="source-file">${icon("file")}<strong>${esc(data.filename)}</strong></span><small>${size(data.byte_count)}${data.files[0]?.row_count != null ? " · " + data.files[0].row_count.toLocaleString("es-ES") + " filas" : ""}</small><a class="text-button" href="/api/jobs/${data.id}/file">Descargar original ${icon("download")}</a><hr><h3>${data.goal ? "Tu pregunta" : "Exploración general"}</h3><p>${esc(data.goal || "Identificar lo que merece atención en los datos disponibles.")}</p><details><summary>Contexto del negocio</summary><p>${esc(data.context)}</p></details></section><p class="saved-at">${icon("check")} Guardado en tu espacio local</p></aside></div>`,
+    `<a class="back-link" href="#analyses">${icon("back")} Todos mis análisis</a><div class="page-heading detail-heading"><div><p class="eyebrow">${esc(data.business)} <span> / </span> ${fmtDate(data.created_at)}</p><h1>${esc(data.title)}</h1></div>${badge(data.status)}</div><div class="detail-layout"><div class="detail-main">${center}${data.interpretations.length && !data.publishable ? `<details class="card interpretation-card"><summary>Lo que estamos entendiendo de tus datos <span>Interpretación provisional</span></summary>${data.interpretations.map((i) => `<p><span class="interpretation-label">${{ observed: "Observado", inferred: "Por comprobar", confirmed: "Confirmado", unresolved: "Por aclarar" }[i.status]}</span>${esc(i.text)}</p>`).join("")}</details>` : ""}${data.answers.length ? `<details class="card answer-history"><summary>Tus aclaraciones guardadas <span>${data.answers.length}</span></summary>${data.answers.map((a) => `<p>${icon("check")}${esc(a.disposition === "answered" ? a.text : a.disposition === "unknown" ? "No tengo esa información." : "Prefiero no responder.")}</p>`).join("")}</details>` : ""}</div><aside class="detail-aside"><section class="card timeline"><p class="eyebrow">EL RECORRIDO</p>${progressSteps(data)}</section><section class="card source-card"><p class="eyebrow">PUNTO DE PARTIDA</p><span class="source-file">${icon("file")}<strong>${esc(data.filename)}</strong></span><small>${size(data.byte_count)}${data.files[0]?.row_count != null ? " · " + data.files[0].row_count.toLocaleString("es-ES") + " filas" : ""}</small>${data.origin === "upload" ? `<a class="text-button" href="/api/jobs/${data.id}/file">Descargar original ${icon("download")}</a>` : `<p>Datos reutilizados de tu negocio.</p>${data.conversation_id ? `<a class="text-button" href="#chat/${esc(data.conversation_id)}">Volver a la conversación ${icon("chat")}</a>` : ""}`}<hr><h3>${data.goal ? "Tu pregunta" : "Exploración general"}</h3><p>${esc(data.goal || "Identificar lo que merece atención en los datos disponibles.")}</p><details><summary>Contexto del negocio</summary><p>${esc(data.context)}</p></details></section><p class="saved-at">${icon("check")} Guardado en tu espacio local</p></aside></div>`,
     "analyses",
     "Detalle del análisis",
   );
@@ -555,8 +679,9 @@ function setupAnswer(data, question) {
   };
 }
 function files() {
+  const uploads = state.analyses.filter(a => a.origin === "upload");
   shell(
-    `<div class="page-heading"><div><p class="eyebrow">TUS FUENTES, A MANO</p><h1>Archivos<span class="title-dot">.</span></h1><p>Cada original se conserva junto al análisis al que pertenece.</p></div><a class="button primary" href="#new">${icon("plus")} Nuevo análisis</a></div><section class="card files-list">${state.analyses.length ? state.analyses.map((a) => `<div class="file-row"><span class="file-symbol">${icon("file")}</span><div><strong>${esc(a.filename)}</strong><small>${esc(a.business)} · ${size(a.byte_count)} · ${fmtDate(a.created_at)}</small></div><a class="text-button" href="#analysis/${a.id}">Ver análisis ${icon("arrow")}</a><a class="icon-button" href="/api/jobs/${a.id}/file" aria-label="Descargar ${esc(a.filename)}">${icon("download")}</a></div>`).join("") : `<div class="empty"><span class="empty-icon">${icon("file")}</span><div><h3>Aquí estarán tus archivos.</h3><p>Crea tu primer análisis para añadir un CSV a tu espacio.</p></div><a class="button secondary" href="#new">Crear análisis</a></div>`}</section>`,
+    `<div class="page-heading"><div><p class="eyebrow">TUS FUENTES, A MANO</p><h1>Archivos<span class="title-dot">.</span></h1><p>Cada original se conserva junto al análisis al que pertenece.</p></div><a class="button primary" href="#new">${icon("plus")} Nuevo análisis</a></div><section class="card files-list">${uploads.length ? uploads.map((a) => `<div class="file-row"><span class="file-symbol">${icon("file")}</span><div><strong>${esc(a.filename)}</strong><small>${esc(a.business)} · ${size(a.byte_count)} · ${fmtDate(a.created_at)}</small></div><a class="text-button" href="#analysis/${a.id}">Ver análisis ${icon("arrow")}</a><a class="icon-button" href="/api/jobs/${a.id}/file" aria-label="Descargar ${esc(a.filename)}">${icon("download")}</a></div>`).join("") : `<div class="empty"><span class="empty-icon">${icon("file")}</span><div><h3>Aquí estarán tus archivos.</h3><p>Crea tu primer análisis para añadir un CSV a tu espacio.</p></div><a class="button secondary" href="#new">Crear análisis</a></div>`}</section>`,
     "files",
     "Archivos",
   );
@@ -567,7 +692,7 @@ function how() {
       [
         "01",
         "Comparte tu punto de partida",
-        "Describe tu negocio, elige una pregunta o una exploración general y sube un CSV. No hace falta reorganizarlo en una plantilla.",
+        "Describe tu negocio una vez y pregunta desde Inicio. Puedes consultar el contexto, reutilizar datos o analizar un CSV nuevo desde Mi negocio.",
       ],
       [
         "02",
@@ -591,7 +716,7 @@ function how() {
       )
       .join(
         "",
-      )}</div><section class="notice"><strong>Una primera versión para explorar la experiencia.</strong><p>Esta versión se ejecuta en tu equipo y utiliza el modelo configurado por el operador. Los archivos y el progreso se guardan localmente. La calidad analítica sigue en evaluación: la revisión automática puede no detectar todos los errores. Los filtros analíticos y los archivos Excel llegarán en una ampliación posterior.</p></section><a class="button primary" href="#new">Empezar mi análisis ${icon("arrow")}</a>`,
+      )}</div><section class="notice"><strong>Una primera versión para explorar la experiencia.</strong><p>Esta versión se ejecuta en tu equipo y utiliza el modelo configurado por el operador. Los archivos y el progreso se guardan localmente. La calidad analítica sigue en evaluación: la revisión automática puede no detectar todos los errores. Los filtros analíticos y los archivos Excel llegarán en una ampliación posterior.</p></section><a class="button primary" href="#chats">Empezar una conversación ${icon("arrow")}</a>`,
     "",
     "Cómo funciona",
   );
@@ -640,9 +765,13 @@ function chatResponse(r) {
   return `<p>${esc(r.text)}</p>`;
 }
 async function chatsPage() {
+  if (!state.business) { businessForm(true); return; }
   const generation = state.generation;
   const data = await api("/api/chats");
   if (generation !== state.generation) return;
+  if (data.business_id !== state.business.id) { await route(); return; }
+  state.chats = data.conversations;
+  state.datasets = data.datasets;
   const datasets = [
     ...new Map(data.datasets.items.map((t) => [t.analysis_id, t])).values(),
   ];
@@ -828,6 +957,7 @@ async function chatPage(id) {
 async function route() {
   clearInterval(state.poll);
   state.generation++;
+  document.querySelector("#main")?.setAttribute("inert", "");
   document.querySelector("#live-status").textContent = "";
   state.signature = "";
   const generation = state.generation;
@@ -840,16 +970,24 @@ async function route() {
     state.business = data.business;
     state.businesses = data.businesses;
     state.memory = data.memory;
+    const chats = await api("/api/chats");
+    if (generation !== state.generation) return;
+    if (chats.business_id !== (state.business?.id || null)) { await route(); return; }
+    state.chats = chats.conversations;
+    state.datasets = chats.datasets;
     const activeId = data.business?.id || null;
     if (state.draftBusiness !== activeId) {
       state.draftBusiness = activeId;
       state.draft = activeId ? store.get("dr-draft-" + activeId) : {};
+      state.selectedReport = null;
+      state.dashboard = null;
       state.file = null;
       state.requestKey = null;
     }
     if (hash === "business-new") businessForm(true);
     else if (hash === "businesses" || (!state.business && state.businesses.length)) businessChooser();
     else if (hash === "business") businessForm(!state.business);
+    else if (hash === "my-business") myBusiness();
     else if (hash === "new") newAnalysis();
     else if (hash === "chats") await chatsPage();
     else if (hash.startsWith("chat/")) await chatPage(hash.slice(5));
@@ -858,17 +996,52 @@ async function route() {
       await pollDetail(id);
       state.poll = setInterval(() => pollDetail(id), 3000);
     } else if (hash === "files") files();
+    else if (hash === "reports") reportsView();
     else if (hash === "how") how();
-    else home(hash === "analyses");
-    if (!hash.startsWith("analysis/") && !hash.startsWith("chat/"))
+    else if (hash === "analyses") home(true);
+    else {
+      const dashboard = await api("/api/dashboard" + (state.selectedReport ? "?report=" + encodeURIComponent(state.selectedReport) : ""));
+      if (generation !== state.generation) return;
+      state.dashboard = dashboard;
+      state.selectedReport = state.dashboard.selected_id;
+      dashboardHome();
+    }
+    if (generation !== state.generation) return;
+    if (["home", "analyses", "files", "reports", "my-business"].includes(hash))
       state.poll = setInterval(async () => {
         try {
           const next = await api("/api/workspace");
           if (generation !== state.generation) return;
-          const listPage = ["home", "analyses", "files"].includes(hash);
+          const listPage = ["home", "analyses", "files", "reports", "my-business"].includes(hash);
           if (next.business?.id !== state.business?.id || next.business?.profile_revision !== state.business?.profile_revision) {
             if (listPage) await route();
             return;
+          }
+          if (hash === "home" && !state.launching) {
+            const selected = state.selectedReport;
+            const [dashboard, chats] = await Promise.all([
+              api("/api/dashboard" + (state.selectedReport ? "?report=" + encodeURIComponent(state.selectedReport) : "")),
+              api("/api/chats")
+            ]);
+            if (generation !== state.generation) return;
+            if (selected !== state.selectedReport || state.launching) return;
+            if (chats.business_id !== (state.business?.id || null)) { await route(); return; }
+            const changed = JSON.stringify(dashboard) !== JSON.stringify(state.dashboard) || JSON.stringify(chats.conversations) !== JSON.stringify(state.chats);
+            state.chats = chats.conversations;
+            state.datasets = chats.datasets;
+            if (changed) {
+              const focused = document.activeElement?.id === "dashboard-prompt";
+              const start = document.activeElement?.selectionStart, end = document.activeElement?.selectionEnd;
+              state.dashboard = dashboard;
+              state.selectedReport = dashboard.selected_id;
+              state.analyses = next.analyses;
+              state.memory = next.memory;
+              dashboardHome();
+              if (focused) {
+                const prompt = document.querySelector("#dashboard-prompt");
+                prompt?.focus(); prompt?.setSelectionRange(start, end);
+              }
+            }
           }
           if (JSON.stringify(next.memory) !== JSON.stringify(state.memory)) {
             state.memory = next.memory;
@@ -878,8 +1051,11 @@ async function route() {
             listPage && JSON.stringify(next.analyses) !== JSON.stringify(state.analyses)
           ) {
             state.analyses = next.analyses;
-            if (hash === "files") files();
-            else home(hash === "analyses");
+            if (hash === "home") { if (!state.launching) dashboardHome(); }
+            else if (hash === "files") files();
+            else if (hash === "reports") reportsView();
+            else if (hash === "my-business") myBusiness();
+            else home(true);
           }
         } catch {}
       }, 5000);
@@ -891,8 +1067,9 @@ async function route() {
         ? "Nuevo análisis"
         : hash.startsWith("analysis/")
           ? "Tu análisis"
-          : "Mi espacio");
+          : hash === "home" ? "Inicio" : hash === "my-business" ? "Mi negocio" : hash === "reports" ? "Informes" : "Mi espacio");
   } catch (e) {
+    if (generation !== state.generation) return;
     if (e.status === 401) login();
     else
       shell(

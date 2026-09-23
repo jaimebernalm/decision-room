@@ -197,6 +197,8 @@ y la [validación](../validation/2026-09-23-semantic-check.md).
 
 **Comprobar:** el primer acceso guía el onboarding y los siguientes abren Inicio; escribir desde Inicio crea un chat durable; una sugerencia es abordable con las capacidades/datos presentes; no se mezclan revisiones incompatibles. Verificar estados sin datos, análisis en curso, datos nuevos sin informe nuevo, informe retirado y fallo recuperable. Comprobar visualmente escritorio/móvil, foco, teclado y que el prompt no oculte contenido.
 
+**Avance integrado, 23 de septiembre:** se incorpora el dashboard desarrollado en paralelo y se conecta con los chats y la memoria hasta 2.5.4: prompt con primer mensaje durable, conversaciones reales en la barra lateral, biblioteca y acceso al chat de origen, edición del perfil y reutilización de informes vigentes. El orden se adelanta por disponibilidad de la interfaz; **2.5.5 sigue siendo el siguiente paso**. Quedan pendientes la vinculación estructurada de preguntas a hallazgos y los estados de versiones de datos antes de cerrar 2.5.6. Véase [integración del dashboard](../technical/dashboard-ui.md).
+
 ### 2.5.7. Evaluación integrada y cierre
 
 **Ejecutar:** matriz de memoria y conversación con referencias independientes, pruebas de persistencia, aislamiento, concurrencia y recuperación, conversaciones con el modelo real y recorrido visual. Incluir regresión del flujo de la entrega 2 y medir repetición de preguntas, propagación de correcciones, exactitud, selección de contexto, latencia y consumo. Registrar resultados, versiones y límites; corregir fallos materiales antes del cierre.

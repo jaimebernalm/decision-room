@@ -255,6 +255,7 @@ class Conversations:
     def listing(self):
         with connect(self.config) as db:
             return dict(
+                business_id=self.business,
                 conversations=db.execute(
                     'SELECT * FROM chat_conversations WHERE business_id=%s ORDER BY created_at DESC',
                     (self.business,),
