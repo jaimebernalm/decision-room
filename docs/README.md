@@ -7,6 +7,7 @@
 - [Definición del producto](<product/Decision Room - Definicion del producto.md>).
 - [Organización multiagente del producto final](<product/Decision Room - Definicion del producto.md#186-organización-multiagente-del-producto-final>): negocio, analítica y revisión; evolución posterior al MVP.
 - [Servicios y diferenciación](<product/Decision Room - Servicios y diferenciacion.md>).
+- [Ideas e integraciones posibles](<product/Decision Room - Ideas e integraciones posibles.md>): propuestas pendientes de evaluación, sin compromiso de implementación.
 
 El borrador Word inicial se conserva localmente; la documentación pública se
 mantiene en los archivos Markdown enlazados arriba.
@@ -31,6 +32,8 @@ mantiene en los archivos Markdown enlazados arriba.
 - [Plan del paso 1.6](technical/review-plan.md).
 - [Informe del cliente y gráficos con evidencia](technical/client-report.md).
 - [Evaluación integrada y repeticiones, paso 1.7](technical/evaluation-plan.md).
+- [Aplicación web local, entrega 2](technical/web.md).
+- [Diseño y alcance de la experiencia web](technical/web-plan.md).
 
 ## Comprobaciones realizadas
 
@@ -42,6 +45,7 @@ mantiene en los archivos Markdown enlazados arriba.
 - [Pruebas del revisor y diálogo con el analista](validation/2026-09-21-review-check.md).
 - [Informe del cliente, gráficos y prueba real](validation/2026-09-21-client-report-check.md).
 - [Evaluación integrada del paso 1.7](validation/2026-09-21-evaluation-check.md).
+- [Pruebas web, recuperación y Computer Use](validation/2026-09-22-web-check.md).
 
 Los documentos de investigación conservan sus fechas y contexto. El MVP y el
 plan de implementación determinan el alcance actual. Los comandos de las guías

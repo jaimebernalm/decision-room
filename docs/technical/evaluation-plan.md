@@ -25,7 +25,7 @@
    bloquear informes materialmente incorrectos. No declarar aceptada la entrega 1
    mientras existan fallos obligatorios pendientes.
 
-No se añaden agentes, servicios externos ni un esquema universal para los datos.
+No se añaden roles de agentes, investigación web ni un esquema universal para los datos.
 Los resultados esperados y respuestas de evaluación nunca se envían al modelo
 salvo la respuesta concreta que el propietario da al contestar su pregunta.
 La adaptación multiarchivo y Excel continúa en la entrega 3.
@@ -34,7 +34,7 @@ La adaptación multiarchivo y Excel continúa en la entrega 3.
 
 | Archivo | Responsabilidad |
 |---|---|
-| `decision_room/evaluation/cases.py` | Ocho escenarios, entradas del agente y referencias independientes con CSV/Decimal. |
+| `decision_room/evaluation/cases.py` | Doce escenarios, entradas del agente y referencias independientes con CSV/Decimal. |
 | `decision_room/evaluation/runner.py` | Ejecutar las fases en procesos separados, conservar estados y errores, responder preguntas de prueba y comprobar correcciones del propietario. |
 | `decision_room/evaluation/assess.py` | Contrastar métricas, exigir la rúbrica independiente y generar el resumen JSON/HTML. |
 | `tests/test_evaluation.py` | Probar que el evaluador rechaza resultados incorrectos, sin revisión o sin evidencia vigente. |
@@ -72,7 +72,8 @@ Con PostgreSQL, el sandbox y LM Studio disponibles:
 .venv/bin/python -m decision_room.evaluation.assess .local/evaluation/batch-01
 ```
 
-La matriz completa ejecuta ocho escenarios tres veces. Cada repetición crea una
+La matriz original ejecutaba ocho escenarios tres veces; la ampliación con Luna
+descrita abajo ejecuta doce. Cada repetición crea una
 empresa y sesión nuevas. El manifiesto conserva los hashes del código, CSV,
 contexto y referencia, y la configuración del modelo. La carpeta debe permanecer
 privada. `STOP` en la carpeta del lote detiene el ejecutor entre fases; repetir el
@@ -177,3 +178,43 @@ registra cualquier fallo adicional de recuperación. No reintenta una llamada de
 resultado incierto. Los resúmenes mantienen los tokens conocidos y el número de
 llamadas sin uso informado; el total exacto queda desconocido si falta información.
 Las duraciones recuperadas que solo se conocen como mínimo se muestran con ≥.
+
+## Validación con GPT-6 Luna antes de entrega 3
+
+El ejecutor carga el `.env` privado y admite `openai`, su endpoint HTTPS,
+razonamiento y límite de salida. Los valores quedan fijados en el manifiesto;
+la clave solo se hereda en el entorno de los procesos, nunca en los registros.
+El Python generado sigue ejecutándose localmente, sin red ni credenciales.
+
+```sh
+.venv/bin/python -m decision_room.evaluation.runner run .local/evaluation/luna-validation-01 \
+  --model gpt-6-luna --protocol openai --reasoning low --max-output-tokens 16384
+```
+
+Esta ampliación conserva los ocho escenarios anteriores y añade `duplicates`,
+`missing-values`, `returns` e `invalid-dates`, derivados de los fixtures públicos
+y documentados en `data/reference-cases/04-data-quality/README.md`. La matriz
+actual completa tiene **12 escenarios por tres repeticiones: 36 recorridos**.
+Los totales anteriores de ocho escenarios describen la matriz histórica local.
+Las incidencias se definen en el contexto sin facilitar resultados esperados:
+duplicados técnicos por identificador, importes desconocidos, devoluciones
+negativas y exclusión explícita de filas con fecha o importe inválidos.
+
+Las asociaciones independientes pueden referenciar una métrica escalar o un punto
+de una serie mediante `{execution_id, series, label}`. La serie debe estar citada
+por un gráfico del informe y ser vigente. Las tarjetas también cuentan como citas
+de métricas. Esto no acepta automáticamente la narrativa, las etiquetas o la
+utilidad: se conserva la rúbrica independiente para cada recorrido.
+
+Tras la matriz de Luna, los esquemas de gráfico emparejan la serie con su unidad
+guardada; los gráficos de escalares siguen siendo posibles. La cobertura exige
+cada investigación lista y permite explicar una bloqueada solo como no disponible
+y sin hallazgos de respuesta. El servidor sigue rechazando referencias obsoletas,
+unidades distintas, claves ajenas y omisiones. No se convierten datos ni se
+corrigen cifras automáticamente para hacer pasar un informe.
+
+Las instrucciones distinguen agregados definidos por el propietario de importes
+por artículo sin base conocida. Para una sola categoría se pide una métrica
+escalar; el diagnóstico de series indica si faltan puntos o sobran. Las versiones
+son `planning-v6`, `research-v7` y `review-v10`. La validación de estas correcciones
+se registra en un lote separado, conservando intactos los fallos iniciales.

@@ -22,7 +22,9 @@ def connect():
     return db
 
 
-def write_result(metrics, *, evidence, notes=None):
+def write_result(metrics, *, evidence, notes=None, series=None):
     """Write a candidate result. The controller validates structure, not truth."""
     result = {'schema_version': 1, 'metrics': metrics, 'evidence': evidence, 'notes': notes or []}
+    if series is not None:
+        result['series'] = series
     Path('/output/result.json').write_text(json.dumps(result, ensure_ascii=False, allow_nan=False) + '\n')

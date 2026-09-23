@@ -22,7 +22,7 @@ from decision_room.service import create_business, import_batch
 from decision_room.agent import service
 from decision_room.agent.context import model_context, snapshot
 from decision_room.agent.contracts import validate_action
-from decision_room.agent.model import ModelClient, ModelSettings
+from decision_room.agent.model import ModelAPIError, ModelClient, ModelSettings
 from decision_room.agent.persistence import session_lock
 
 
@@ -264,11 +264,13 @@ from decision_room.config import Config
                     self.assertEqual(captured[0]['reasoning_effort'], 'none')
                 else:
                     self.assertNotIn('reasoning_effort', captured[0])
-        client = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(401, text='do not echo server secrets')))
-        with patch('decision_room.agent.model.httpx.Client', return_value=client):
-            with self.assertRaisesRegex(ValueError, 'HTTP 401') as error:
-                ModelClient(ModelSettings('test')).generate(context)
-            self.assertNotIn('server secrets', str(error.exception))
+        for status in (400, 401, 503):
+            client = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(status, text='do not echo server secrets')))
+            with patch('decision_room.agent.model.httpx.Client', return_value=client):
+                with self.assertRaisesRegex(ModelAPIError, f'HTTP {status}') as error:
+                    ModelClient(ModelSettings('test')).generate(context)
+                self.assertEqual(error.exception.status_code, status)
+                self.assertNotIn('server secrets', str(error.exception))
         self.assertEqual(ModelClient._action('```json\n{"action":"finish"}\n```'), {'action': 'finish'})
         invalid = ModelClient._action('{"code": "unescaped\nnewline"}')
         self.assertIn('invalid_model_output', invalid)

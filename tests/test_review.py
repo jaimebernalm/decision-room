@@ -26,6 +26,9 @@ def draft(context, text='Total registrado en este extracto.'):
     available = [o for o in context['observations'] if o['current'] and o['status'] == 'completed']
     ref = {'execution_id': available[-1]['execution_id'], 'metric': 'total'}
     return {'title': 'Ventas seleccionadas', 'summary': text,
+            'question_coverage': [{'investigation_key': i['key'], 'status': 'answered', 'claim_keys': ['sales'],
+                                   'explanation': 'La suma responde a esta investigación de prueba.'}
+                                  for i in context.get('plan', {}).get('investigations', []) if i['status'] == 'ready'],
             'scope': {'business': 'Negocio de prueba', 'question': 'Conocer ventas', 'period': 'No consta', 'coverage': 'Solo este extracto.'},
             'charts': [], 'no_chart_reason': 'Un total aislado no requiere gráfico.',
             'claims': [{'key': 'sales', 'title': 'Ventas', 'statement': text, 'evidence': [ref],

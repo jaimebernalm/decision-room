@@ -262,3 +262,40 @@ CREATE TABLE IF NOT EXISTS agent_review_holds (
     created_at timestamptz NOT NULL DEFAULT now()
 );
 INSERT INTO schema_versions(version) VALUES (6) ON CONFLICT DO NOTHING;
+
+-- Local web workspace; private uploads and graph checkpoints remain separate.
+CREATE TABLE IF NOT EXISTS web_jobs (
+    id uuid PRIMARY KEY,
+    request_key uuid NOT NULL UNIQUE,
+    request_sha256 text NOT NULL,
+    business_id uuid NOT NULL REFERENCES businesses(id),
+    analysis_id uuid,
+    session_id uuid,
+    research_id uuid,
+    review_id uuid,
+    title text NOT NULL,
+    context text NOT NULL,
+    goal text NOT NULL,
+    filename text NOT NULL,
+    upload_key text NOT NULL,
+    byte_count bigint NOT NULL,
+    model_settings jsonb NOT NULL,
+    status text NOT NULL CHECK (status IN ('queued','running','waiting','completed','blocked','failed')),
+    phase text NOT NULL DEFAULT 'upload' CHECK (phase IN ('upload','planning','research','review','done')),
+    issue text,
+    pending_answer jsonb,
+    retry_uncertain boolean NOT NULL DEFAULT false,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    FOREIGN KEY (business_id,analysis_id) REFERENCES analyses(business_id,id),
+    FOREIGN KEY (business_id,session_id) REFERENCES agent_sessions(business_id,id),
+    FOREIGN KEY (business_id,research_id) REFERENCES agent_research(business_id,id),
+    FOREIGN KEY (business_id,review_id) REFERENCES agent_reviews(business_id,id)
+);
+CREATE TABLE IF NOT EXISTS web_replies (
+    job_id uuid NOT NULL REFERENCES web_jobs(id),
+    request_key uuid NOT NULL,
+    answer jsonb NOT NULL,
+    PRIMARY KEY (job_id,request_key)
+);
+INSERT INTO schema_versions(version) VALUES (7) ON CONFLICT DO NOTHING;

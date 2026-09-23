@@ -16,6 +16,10 @@ SCENARIOS = {
     'line-total': ('03-ambiguous-amount', True, 'line_total'),
     'unknown': ('03-ambiguous-amount', False, 'unknown'),
     'declined': ('03-ambiguous-amount', True, 'declined'),
+    'duplicates': ('04-data-quality/duplicates', False, None),
+    'missing-values': ('04-data-quality/missing-values', False, None),
+    'returns': ('04-data-quality/returns', False, None),
+    'invalid-dates': ('04-data-quality/invalid-dates', False, None),
 }
 
 
@@ -34,6 +38,27 @@ def reference(scenario):
     case, _, answer = SCENARIOS[scenario]
     with (CASES / case / 'input/sales.csv').open(encoding='utf-8-sig', newline='') as file:
         rows = list(csv.DictReader(file))
+    if case.startswith('04-data-quality/'):
+        original_count = len(rows)
+        if scenario == 'duplicates':
+            rows = list({r['line_id']: r for r in rows}.values())
+        valid = []
+        for row in rows:
+            try:
+                date.fromisoformat(row['date'])
+                value = Decimal(row['sales_ex_tax'])
+                if not value.is_finite(): continue
+                valid.append(value)
+            except (ValueError, ArithmeticError):
+                pass
+        metrics = {'sales': money(sum(valid)), 'input_rows': str(original_count),
+                   'included_amount_rows': str(len(valid)), 'excluded_amount_rows': str(len(rows)-len(valid)),
+                   'duplicate_rows': str(original_count-len(rows))}
+        required = ['sales']
+        if scenario != 'invalid-dates':
+            metrics['quantity'] = str(sum(Decimal(r['quantity']) for r in rows))
+            required.append('quantity')
+        return {'required': required, 'metrics': metrics, 'basis': 'explicit_line_total_or_daily_total'}
     if case == '03-ambiguous-amount':
         result = {'quantity': str(sum(Decimal(r['quantity']) for r in rows))}
         if answer in ('unit_price', 'line_total'):

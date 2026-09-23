@@ -47,6 +47,7 @@ class ModelReferenceTests(unittest.TestCase):
             observation('second', True, 'completed', ['daily'], ['daily']),
             observation('old', False, 'completed', ['old_metric'], ['old_metric']),
             observation('failed', True, 'failed', ['invalid'], ['invalid']),
+            dict(observation('partial', True, 'completed', ['hidden'], ['hidden']), result_omitted=True),
             {'execution_id': 'omitted', 'current': True, 'status': 'completed', 'result': None}]}
         for method in ['generate_analyst_review', 'generate_reviewer']:
             with self.subTest(method=method):
@@ -89,6 +90,67 @@ class ModelReferenceTests(unittest.TestCase):
         context['budgets'] = {'python_used': {'analyst': 3}, 'max_python_per_role': 3,
                               'questions_used': 3, 'max_questions': 3}
         self.assertEqual(self.schema('generate_analyst_review', context)['properties']['action']['enum'], ['withdraw'])
+
+    def test_series_pairs_and_new_fields_are_required_for_strict_output(self):
+        obs = lambda key,current: {'execution_id':key, 'current':current,'status':'completed',
+                                   'result':{'series':{'monthly':{'unit':'units'}},'metrics':{'total':1},'evidence':[{'metric':'total'}]}}
+        context = {'observations':[obs('current',True),obs('old',False)]}
+        schema = self.schema('generate_analyst_review', context)
+        pairs = schema['$defs']['SeriesRef']['anyOf']
+        self.assertEqual(len(pairs),1)
+        self.assertEqual(pairs[0]['properties']['execution_id']['enum'],['current'])
+        self.assertEqual(pairs[0]['properties']['series']['enum'],['monthly'])
+        definitions = [schema['$defs']['ReportDraft'], *schema['$defs']['Chart']['anyOf']]
+        for definition in definitions:
+            self.assertEqual(set(definition['required']),set(definition['properties']))
+        schema = self.schema('generate_analyst_review', {'observations':[]})
+        self.assertEqual(schema['$defs']['Chart']['properties']['series'],{'type':'null'})
+
+    def test_chart_choices_pair_saved_units_with_their_exact_execution_and_series(self):
+        def observation(key, unit, **overrides):
+            return {'execution_id': key, 'current': True, 'status': 'completed',
+                    'result': {'series': {'same_key': {'unit': unit}},
+                               'metrics': {'total': 1}, 'evidence': [{'metric': 'total'}]}, **overrides}
+        context = {'observations': [observation('money', 'moneda no especificada'),
+                                   observation('count', 'unidades'),
+                                   observation('old', 'obsolete', current=False),
+                                   observation('failed', 'failed', status='failed'),
+                                   observation('omitted', 'omitted', result_omitted=True)]}
+        for method in ('generate_analyst_review', 'generate_reviewer'):
+            schema = self.schema(method, context)
+            branches = schema['$defs']['Chart']['anyOf']
+            scalar = [b for b in branches if b['properties']['series'] == {'type': 'null'}]
+            self.assertEqual(len(scalar), 1)
+            self.assertEqual(scalar[0]['properties']['points']['minItems'], 2)
+            pairs = set()
+            for branch in branches:
+                props = branch['properties']
+                if props['series'] == {'type': 'null'}: continue
+                self.assertEqual(props['points']['maxItems'], 0)
+                for ref in props['series']['anyOf']:
+                    pairs.update((execution, key, unit)
+                                 for execution in ref['properties']['execution_id']['enum']
+                                 for key in ref['properties']['series']['enum']
+                                 for unit in props['unit']['enum'])
+            self.assertEqual(pairs, {('money', 'same_key', 'moneda no especificada'),
+                                     ('count', 'same_key', 'unidades')})
+
+    def test_coverage_schema_allows_blocked_explanations_without_answers(self):
+        context = {'plan': {'investigations': [{'key': 'units', 'status': 'ready'},
+                                               {'key': 'money', 'status': 'blocked'},
+                                               {'key': 'profit', 'status': 'not_possible'}]}}
+        schema = self.schema('generate_analyst_review', context)
+        field = schema['$defs']['ReportDraft']['properties']['question_coverage']
+        self.assertEqual((field['minItems'], field['maxItems']), (1, 3))
+        pairs = set()
+        for branch in schema['$defs']['QuestionCoverage']['anyOf']:
+            props = branch['properties']
+            pairs.update((key, status) for key in props['investigation_key']['enum']
+                         for status in props['status']['enum'])
+            if 'answered' not in props['status']['enum']:
+                self.assertEqual(props['claim_keys']['maxItems'], 0)
+        self.assertEqual(pairs, {('units', 'answered'), ('units', 'unavailable'),
+                                 ('money', 'unavailable'), ('profit', 'unavailable')})
 
 
 if __name__ == '__main__':

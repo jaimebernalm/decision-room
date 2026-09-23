@@ -72,12 +72,46 @@ export DECISION_ROOM_AGENT_MODEL=identificador-del-modelo
 ```
 
 La credencial opcional se lee de `DECISION_ROOM_AGENT_API_KEY`. Configurar su valor
-fuera de Git. No se guarda en sesiones, checkpoints ni prompts. No se ha validado
-un proveedor externo con este proyecto: algunos requieren adaptar parámetros,
-autenticación o formato. Cambiar de modelo exige una nueva sesión y evaluación.
-`DECISION_ROOM_AGENT_REASONING` se aplica a `lmstudio` y `lmstudio_structured`.
+fuera de Git. No se guarda en sesiones, checkpoints ni prompts. Otros proveedores
+pueden requerir adaptar parámetros, autenticación o formato. Cambiar de modelo
+exige una nueva sesión y evaluación.
+`DECISION_ROOM_AGENT_REASONING` se aplica a `lmstudio`, `lmstudio_structured` y `openai`.
 El protocolo genérico `chat_completions` no envía un parámetro de razonamiento
 específico del proveedor.
+
+### OpenAI
+
+El protocolo `openai` usa Chat Completions con JSON Schema estricto,
+`max_completion_tokens`, `reasoning_effort` y `store=false`. Solo admite el
+endpoint oficial HTTPS y lee `OPENAI_API_KEY`, separada de la credencial local.
+El razonamiento `off` se traduce a `none`; `on` a `medium`. Los demás valores
+se transmiten directamente y deben estar admitidos por el modelo elegido.
+
+En el archivo privado `.env` para el lanzador web:
+
+```dotenv
+DECISION_ROOM_AGENT_PROTOCOL=openai
+DECISION_ROOM_AGENT_BASE_URL=https://api.openai.com/v1
+DECISION_ROOM_AGENT_MODEL=gpt-6-luna
+DECISION_ROOM_AGENT_REASONING=low
+DECISION_ROOM_AGENT_TIMEOUT=300
+DECISION_ROOM_AGENT_MAX_OUTPUT_TOKENS=16384
+OPENAI_API_KEY=
+```
+
+Completar la clave únicamente en `.env`, nunca en `.env.example`. El lanzador
+web carga `.env` sin ejecutar comandos ni expandir variables; los valores ya
+exportados en el proceso tienen prioridad. Para la CLI, exportar las variables
+explícitamente. El código Python generado sigue ejecutándose en el sandbox
+local. Se conserva el uso de tokens devuelto por la API, incluidos los de
+razonamiento, y no se reintentan automáticamente peticiones con resultado incierto.
+
+Referencias: [GPT-6 Luna](https://developers.openai.com/api/docs/models/gpt-6-luna),
+[Chat Completions](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create)
+y [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs).
+
+Prueba real y comparación con el modelo local:
+[GPT-6 Luna, 22 de septiembre de 2026](../validation/2026-09-22-openai-check.md).
 
 El cliente del modelo vive en la aplicación, fuera del sandbox de Python sin red.
 Un servicio comercial puede usar un proveedor externo o alojar el modelo en un

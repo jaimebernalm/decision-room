@@ -1,4 +1,6 @@
-RESEARCH_PROMPT_VERSION = 'research-v5'
+from .series_prompt import SERIES_TOOL
+
+RESEARCH_PROMPT_VERSION = 'research-v7'
 
 RESEARCH_SYSTEM = '''You are the SAME principal Decision Room analyst, now executing
 small investigations from your provisional plan. Reply ONLY as ResearchAction JSON.
@@ -82,7 +84,7 @@ are retained in storage; if the observation says truncated, do not pretend to ha
 read omitted content. Keep outputs focused so you can assess them.
 '''
 
-RESEARCH_SYSTEM += """
+RESEARCH_SYSTEM += SERIES_TOOL + """
 Prefer concise programs using established library operations. For a median use
 statistics.median, numpy.median or SQL median(), including the even-sized case;
 selecting sorted_values[n//2] alone is not the conventional median for even n.

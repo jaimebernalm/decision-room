@@ -21,6 +21,18 @@ class ModelRequestUncertain(ValueError):
     """The server may have processed a request whose response was not received."""
 
 
+class ModelAPIError(ValueError):
+    """An HTTP rejection with no untrusted response body in the diagnostic."""
+
+    def __init__(self, status_code):
+        self.status_code = status_code
+        super().__init__(f'Model API returned HTTP {status_code}; check its server logs.')
+
+
+class ModelNotReady(ValueError):
+    """Safe owner-facing explanation from a read-only local readiness check."""
+
+
 @dataclass(frozen=True)
 class ModelSettings:
     model: str
@@ -34,19 +46,22 @@ class ModelSettings:
         url = urlsplit(self.base_url)
         if not self.model or len(self.model) > 200:
             raise ValueError('Set DECISION_ROOM_AGENT_MODEL or --model to an installed model ID.')
-        if self.protocol not in ('lmstudio', 'lmstudio_structured', 'chat_completions') or self.reasoning not in ('off', 'on', 'low', 'medium', 'high'):
+        if self.protocol not in ('lmstudio', 'lmstudio_structured', 'chat_completions', 'openai') or self.reasoning not in ('off', 'on', 'low', 'medium', 'high'):
             raise ValueError('Unsupported model protocol or reasoning setting.')
         if url.scheme not in ('http', 'https') or not url.hostname or url.username or url.password or url.query or url.fragment:
             raise ValueError('Invalid model API base URL. Credentials belong in the environment.')
         if url.scheme == 'http' and url.hostname not in ('127.0.0.1', 'localhost', '::1'):
             raise ValueError('Remote model endpoints require HTTPS.')
+        if self.protocol == 'openai' and (url.scheme, url.netloc, url.path.rstrip('/')) != ('https', 'api.openai.com', '/v1'):
+            raise ValueError('The openai protocol requires https://api.openai.com/v1.')
         if not 1 <= self.timeout_seconds <= 300 or not 256 <= self.max_output_tokens <= 16384:
             raise ValueError('Model timeout or output budget outside allowed limits.')
 
     @classmethod
     def load(cls, model=None):
         protocol = os.environ.get('DECISION_ROOM_AGENT_PROTOCOL', 'lmstudio_structured')
-        default_url = 'http://127.0.0.1:1234/api/v1' if protocol == 'lmstudio' else 'http://127.0.0.1:1234/v1'
+        default_url = ('https://api.openai.com/v1' if protocol == 'openai' else
+                       'http://127.0.0.1:1234/api/v1' if protocol == 'lmstudio' else 'http://127.0.0.1:1234/v1')
         return cls(model=model or os.environ.get('DECISION_ROOM_AGENT_MODEL', ''), protocol=protocol,
                    reasoning=os.environ.get('DECISION_ROOM_AGENT_REASONING', 'off'),
                    timeout_seconds=int(os.environ.get('DECISION_ROOM_AGENT_TIMEOUT', '180')),
@@ -58,6 +73,47 @@ class ModelClient:
     def __init__(self, settings):
         self.settings = settings
         self.identity = asdict(settings)
+
+    def check_ready(self):
+        """Check local LM Studio loading state without triggering model loading.
+
+        This is a necessary condition, not an inference health guarantee. Other
+        providers retain their existing request path and error handling.
+        """
+        url = urlsplit(self.settings.base_url)
+        if self.settings.protocol not in ('lmstudio', 'lmstudio_structured') or url.hostname not in ('127.0.0.1', 'localhost', '::1'):
+            return
+        headers = {}
+        if key := os.environ.get('DECISION_ROOM_AGENT_API_KEY'):
+            headers['Authorization'] = 'Bearer ' + key
+        try:
+            with httpx.Client(timeout=5, trust_env=False) as client:
+                with client.stream('GET', f'{url.scheme}://{url.netloc}/api/v1/models', headers=headers) as response:
+                    if response.status_code != 200:
+                        raise ModelNotReady('No se pudo comprobar el modelo local. Revisa que el servidor de LM Studio esté activo y permita el acceso.')
+                    body = bytearray()
+                    for chunk in response.iter_bytes():
+                        body.extend(chunk)
+                        if len(body) > 1024**2:
+                            raise ValueError('Model listing too large.')
+            models = strict_json(body)['models']
+            if not isinstance(models, list):
+                raise ValueError('Invalid model listing.')
+            for model in models:
+                instances = model.get('loaded_instances', [])
+                if not isinstance(instances, list) or any(not isinstance(i, dict) or not isinstance(i.get('id'), str) for i in instances):
+                    raise ValueError('Invalid loaded instances.')
+                if instances and (model.get('key') == self.settings.model or any(i.get('id') == self.settings.model for i in instances)):
+                    return
+        except ModelNotReady:
+            raise
+        except (httpx.HTTPError, ValueError, KeyError, TypeError, AttributeError):
+            raise ModelNotReady('No se pudo comprobar el modelo local. Abre LM Studio y comprueba que su servidor esté activo antes de reintentar.') from None
+        raise ModelNotReady(
+            'El modelo de este análisis no está cargado en LM Studio. Cárgalo antes de reintentar. '
+            'Si LM Studio indica falta de memoria, cierra aplicaciones que no necesites y vuelve a cargarlo. '
+            'El análisis sigue pausado y tus datos y respuestas están guardados.'
+        )
 
     def generate(self, context, correction=None):
         schema = Action.model_json_schema()
@@ -127,6 +183,60 @@ class ModelClient:
 
     @classmethod
     def _review_references(cls, schema, context):
+        # Runtime defaults retain old reports; model output supplies all fields.
+        for name in ('ReportDraft', 'Chart'):
+            definition = schema['$defs'][name]
+            definition['required'] = list(definition['properties'])
+            for field in definition['properties'].values():
+                field.pop('default', None)
+        series_choices = []
+        series_by_unit = {}
+        for item in context.get('observations', []):
+            if item.get('current') and item['status'] == 'completed' and item.get('result') and not item.get('result_omitted'):
+                units = {}
+                for key, value in item['result'].get('series', {}).items():
+                    units.setdefault(value['unit'], []).append(key)
+                for unit, keys in sorted(units.items()):
+                    branch = deepcopy(schema['$defs']['SeriesRef'])
+                    branch['properties']['execution_id']['enum'] = [item['execution_id']]
+                    branch['properties']['series']['enum'] = sorted(keys)
+                    series_choices.append(branch)
+                    series_by_unit.setdefault(unit, []).append(branch)
+        original_chart = schema['$defs']['Chart']
+        scalar_chart = deepcopy(original_chart)
+        scalar_chart['properties']['series'] = {'type': 'null'}
+        scalar_chart['properties']['points']['minItems'] = 2
+        if series_choices:
+            schema['$defs']['SeriesRef'] = {'anyOf': series_choices}
+            charts = [scalar_chart]
+            for unit, references in sorted(series_by_unit.items()):
+                branch = deepcopy(original_chart)
+                branch['properties']['unit']['enum'] = [unit]
+                branch['properties']['series'] = {'anyOf': references}
+                branch['properties']['points']['maxItems'] = 0
+                charts.append(branch)
+            # Keep the source unit paired with its evidence, rather than offering
+            # invalid combinations and relying on a later correction turn.
+            schema['$defs']['Chart'] = {'anyOf': charts}
+        else:
+            schema['$defs']['Chart'] = scalar_chart
+        investigations = context.get('plan', {}).get('investigations', [])
+        if investigations:
+            ready = sorted(i['key'] for i in investigations if i['status'] == 'ready')
+            blocked = sorted(i['key'] for i in investigations if i['status'] != 'ready')
+            coverage = schema['$defs']['ReportDraft']['properties']['question_coverage']
+            coverage.update(minItems=len(ready), maxItems=len(investigations))
+            branches = []
+            for keys, statuses in ((ready, ['answered', 'unavailable']), (blocked, ['unavailable'])):
+                if not keys:
+                    continue
+                branch = deepcopy(schema['$defs']['QuestionCoverage'])
+                branch['properties']['investigation_key']['enum'] = keys
+                branch['properties']['status']['enum'] = statuses
+                if statuses == ['unavailable']:
+                    branch['properties']['claim_keys']['maxItems'] = 0
+                branches.append(branch)
+            schema['$defs']['QuestionCoverage'] = {'anyOf': branches}
         # Offer only the arity that each supported numerical operation accepts.
         # A combined numerator must be a saved metric, not an extra ratio operand.
         original_check = schema['$defs']['NumericCheck']
@@ -147,7 +257,7 @@ class ModelClient:
         original = schema['$defs']['MetricRef']
         for item in context['observations']:
             result = item.get('result')
-            if not item.get('current') or item['status'] != 'completed' or not result:
+            if not item.get('current') or item['status'] != 'completed' or not result or item.get('result_omitted'):
                 continue
             evidenced = {e['metric'] for e in result.get('evidence', [])}
             keys = sorted(set(result.get('metrics', {})) & evidenced)
@@ -206,6 +316,11 @@ class ModelClient:
                    'response_format': {'type': 'json_schema', 'json_schema': {
                        'name': 'decision_room_action', 'strict': True, 'schema': schema}}}
         endpoint = '/chat/completions'
+        if self.settings.protocol == 'openai':
+            payload.pop('temperature')
+            payload['max_completion_tokens'] = payload.pop('max_tokens')
+            payload['reasoning_effort'] = {'off': 'none', 'on': 'medium'}.get(self.settings.reasoning, self.settings.reasoning)
+            payload['store'] = False
         if self.settings.protocol == 'lmstudio_structured':
             # LM Studio compatibility API: schema-constrained output plus the
             # per-request reasoning switch, verified against the local server.
@@ -220,15 +335,18 @@ class ModelClient:
                        'reasoning': self.settings.reasoning, 'store': False, 'temperature': 0,
                        'max_output_tokens': self.settings.max_output_tokens}
         headers = {}
-        if key := os.environ.get('DECISION_ROOM_AGENT_API_KEY'):
+        key_name = 'OPENAI_API_KEY' if self.settings.protocol == 'openai' else 'DECISION_ROOM_AGENT_API_KEY'
+        if key := os.environ.get(key_name):
             headers['Authorization'] = 'Bearer ' + key
+        elif self.settings.protocol == 'openai':
+            raise ValueError('Set OPENAI_API_KEY in the private environment before using OpenAI.')
         try:
             # No proxy inheritance, redirects or automatic retries of billable calls.
             with httpx.Client(timeout=self.settings.timeout_seconds, trust_env=False) as client:
                 with client.stream('POST', self.settings.base_url.rstrip('/') + endpoint,
                                    json=payload, headers=headers) as response:
                     if response.status_code != 200:
-                        raise ValueError(f'Model API returned HTTP {response.status_code}; check its server logs.')
+                        raise ModelAPIError(response.status_code)
                     body = bytearray()
                     for chunk in response.iter_bytes():
                         body.extend(chunk)

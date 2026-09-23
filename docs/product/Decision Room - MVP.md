@@ -660,3 +660,13 @@ Se estudiará qué base existente encaja una vez fijado el recorrido y los requi
 El orden es: preparación → recorrido interno completo → web mínima → ampliación de cobertura → preparación operativa → piloto. Dentro de la entrega 1: caso y estructuras → persistencia e ingesta → Python aislado → agente con preguntas y recuperación → investigación autónoma → revisión e informe → variedad de casos. Las evaluaciones acompañan el primer código. Proveedores, modelos, componentes reutilizables y criterios ejecutables se concretarán al abordar cada entrega.
 
 LangGraph, el reparto de responsabilidades, las tecnologías analíticas, el diseño inicial de persistencia, el informe e interfaz mínima y la estrategia de evaluación y despliegue quedan acordados. PostgreSQL se mantiene como opción inicial con cambio a Convex abierto tras comprobar la integración. Los pasos implementados se distinguen arriba del alcance todavía planificado; las pruebas de infraestructura no demuestran autonomía, calidad del informe ni utilidad comercial.
+
+
+**Avance web, 22 de septiembre de 2026:** por decisión del usuario se construyó
+la entrega 2 sin cerrar los fallos analíticos conocidos de la entrega 1. La
+aplicación local permite completar el recorrido desde el navegador, recuperar
+preguntas y progreso, y consultar informes publicables con evidencia. Las 117
+pruebas automatizadas y Computer Use verifican la integración. Un caso con el
+modelo real completó el flujo, pero su informe fue retenido al detectar DR-015;
+no se confunde la interfaz funcional con la aceptación de sus conclusiones.
+Ver [guía web](../technical/web.md) y [validación](../validation/2026-09-22-web-check.md).

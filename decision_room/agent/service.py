@@ -145,7 +145,7 @@ def resume(config, business_id, session_id, *, model=None, retry_uncertain=False
 
 
 def answer(config, business_id, session_id, *, question_id, text='', disposition='answered',
-           request_key, model=None):
+           request_key, model=None, retry_uncertain=False):
     _key(request_key)
     if disposition not in ('answered', 'unknown', 'declined') or len(text) > 6000:
         raise ValueError('Invalid answer disposition or answer exceeds 6,000 characters.')
@@ -165,5 +165,5 @@ def answer(config, business_id, session_id, *, question_id, text='', disposition
                 raise ValueError('This session was superseded; answer in its successor.')
             db.execute('''INSERT INTO agent_answers(id,question_id,disposition,text,request_key)
                 VALUES (%s,%s,%s,%s,%s)''', (uuid4(), question_id, disposition, text, request_key))
-        _drive(config, db, session, model)
+        _drive(config, db, session, model, retry_uncertain)
     return show(config, business_id, session_id)

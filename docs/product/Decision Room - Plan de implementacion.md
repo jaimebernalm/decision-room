@@ -119,6 +119,16 @@ La base de datos crece con el recorrido: primero análisis y fuentes; después i
 
 ## 5. Entrega 2: recorrido web mínimo
 
+**Estado, 22 de septiembre de 2026:** implementada y comprobada como recorrido
+web local por petición del usuario, manteniendo abierta la aceptación analítica
+de la entrega 1. Incluye inicio, contexto, CSV, preguntas, ejecución duradera,
+recuperación, archivos e informe integrado. La prueba real llegó a aprobación
+por el modelo y permitió comprobar gráficos y evidencia; la revisión independiente
+retuvo después el informe por errores semánticos (DR-015). Se distingue el cierre
+de la implementación web del cierre de calidad del agente. Ver
+[guía de uso](../technical/web.md), [diseño](../technical/web-plan.md) y
+[resultados](../validation/2026-09-22-web-check.md).
+
 **Construir:** descripción del negocio, subida de archivos, preguntas con opciones y texto libre, progreso real, recuperación al volver, informe con resumen/secciones/evidencia y acceso restringido para pruebas. La web utiliza el sistema de la entrega 1; la lógica analítica continúa en el servicio Python.
 
 **Cierre:** una persona que no conoce el código puede completar el recorrido y localizar la fuente de una cifra sin terminal ni instrucciones técnicas.
@@ -126,6 +136,21 @@ La base de datos crece con el recorrido: primero análisis y fuentes; después i
 **Por qué aquí:** comprobar pronto la comprensión de preguntas e informes. Se puede probar inicialmente con datos controlados sin considerarlo todavía listo para comercios.
 
 ## 6. Entrega 3: adaptación y ampliación de cobertura
+
+**Orden acordado:** antes de incorporar nuevas capacidades, repetir la evaluación
+del recorrido actual con GPT-6 Luna sobre casos variados del paso 1.7, incluyendo
+datos problemáticos, ambigüedad, correcciones y recuperación. Registrar exactitud,
+utilidad del informe, preguntas, revisiones, tiempo y coste; corregir los fallos
+repetidos y dejar documentados los límites de la base. Después, ampliar por
+escenarios comprobables. La investigación web de contexto descrita abajo es una
+de esas ampliaciones; no se añade a la ronda de validación inicial.
+
+**Validación realizada, 22 de septiembre de 2026:** 27/36 aceptados en la matriz
+inicial de Luna; tras corregir preguntas redundantes y contratos del informe,
+18/18 en la repetición dirigida, 3/3 correcciones del propietario y recuperación
+de una sesión interrumpida. Pasan 141 pruebas automatizadas. La ronda previa
+queda terminada; persisten ineficiencias y límites de generalización que se
+mantienen explícitos al ampliar. Ver [resultados, costes y límites](../validation/2026-09-22-luna-validation.md).
 
 **Construir por escenarios completos:**
 
@@ -135,10 +160,58 @@ La base de datos crece con el recorrido: primero análisis y fuentes; después i
 - Relaciones comprobables entre tablas y fuentes agregadas/detalladas de la misma actividad.
 - Corrección de interpretaciones, invalidación y recálculo de resultados dependientes.
 - Investigaciones adicionales cuando los datos más ricos las permiten.
+- Investigación web de contexto de negocio, comenzando por festivos y eventos
+  de una localidad y periodo concretos, con fuentes y límites verificables.
 
 **Cierre:** superar la matriz del MVP: continuar sin datos opcionales, profundizar al recibirlos, evitar duplicaciones, revisar conclusiones al cambiar premisas y entregar informes breves cuando corresponda. Cada capacidad se comprueba desde la interpretación hasta su explicación en el informe.
 
 **Por qué aquí:** ampliar una base completa permite localizar si un problema viene de la capacidad nueva o del recorrido básico. CSV primero es una secuencia de implementación, no un recorte del soporte Excel acordado para el MVP.
+
+### Investigación web de contexto de negocio
+
+**Estado:** ampliación acordada, pendiente de implementar y evaluar después de la
+ronda de validación del recorrido actual. No requiere construir primero toda la
+organización multiagente objetivo.
+
+**Objetivo:** investigar hechos externos pertinentes para las preguntas del
+negocio y contrastarlos con los datos aportados. Por ejemplo, comprobar si una
+variación de ventas coincide con un festivo local o un evento cercano. La
+información externa puede aportar contexto o sugerir una investigación; una
+coincidencia temporal no demuestra que el evento haya causado el cambio.
+
+**Primer escenario:** festivos y eventos públicos en una localidad durante las
+fechas del archivo. Pedir municipio, barrio o dirección solo con el nivel de
+precisión necesario y sin adivinar la ubicación. Distinguir fecha de publicación
+de la fuente y fecha del hecho; no aplicar eventos actuales a datos históricos.
+Si falta ubicación, no hay fuentes fiables o la búsqueda falla, continuar con el
+análisis del archivo y explicar qué contexto no se pudo comprobar.
+
+**Construir:** una herramienta acotada de búsqueda y consulta de fuentes públicas,
+preferentemente oficiales, fuera del sandbox de Python, que conserva su aislamiento
+sin red. Enviar a la búsqueda solo el contexto necesario, no el CSV ni cifras
+privadas del negocio. Tratar el contenido recuperado como información no confiable,
+nunca como instrucciones para los agentes. Fijar límites de consultas, tiempo y
+coste, y guardar resultados para recuperar el trabajo sin repetir búsquedas ya
+resueltas innecesariamente.
+
+Cada hecho externo debe conservar URL, fuente, fecha de consulta, fecha o periodo
+del hecho, ámbito geográfico y evidencia pertinente. El analista debe distinguir
+datos calculados, hechos externos documentados e hipótesis. El revisor comprueba
+la correspondencia de lugar y periodo, la solidez de las fuentes y que el informe
+no transforme asociaciones en causas. El informe muestra citas y limitaciones
+junto a las afirmaciones que dependen de esas fuentes.
+
+Esta capacidad encaja con el futuro agente de contexto de negocio: investigaría
+y entregaría hechos documentados al analista. Su separación en un agente propio
+se decidirá al evaluar la arquitectura, sin hacerla requisito de la primera prueba.
+
+**Comprobar antes de ampliar:** comparar el mismo caso con y sin contexto web;
+evaluar utilidad añadida, precisión geográfica y temporal, atribución de fuentes,
+tiempo y coste. Incluir un evento confirmado, otro municipio con un nombre similar,
+información histórica, fuentes contradictorias o ausentes y contenido con
+instrucciones maliciosas. El sistema debe expresar incertidumbre y continuar sin
+información opcional. Solo ampliar a otros factores de negocio cuando esta primera
+investigación aporte valor sin degradar la exactitud del informe.
 
 ## 7. Entrega 4: preparación operativa del piloto
 
@@ -186,6 +259,42 @@ Revisar inicialmente los informes conforme al bloque 7, registrar las correccion
 
 **Ampliación del paso 1.6:** separar el HTML interno del informe del cliente. Incorporar contexto de negocio, cobertura, interpretaciones, siguientes comprobaciones y gráficos de barras/líneas/tablas con valores provenientes de métricas guardadas. El revisor examina ese contenido antes de aprobarlo. Ver [contrato y presentación](../technical/client-report.md). La entrega 2 integra este informe en la aplicación web; no aplaza su contenido.
 
-**Trabajo realizado, 22 de septiembre de 2026:** construida y ejecutada la evaluación del paso 1.7. Se implementaron el ejecutor reproducible, las referencias independientes y la rúbrica que distingue aprobación del modelo de aceptación. La matriz real aceptó 11 de 24 casos; la serie posterior con correcciones del controlador aceptó 6 de 9. Las tres correcciones del propietario invalidaron la aprobación anterior y recalcularon, pero solo uno de los tres informes nuevos pasó. Las 101 pruebas automatizadas pasan. Se conservan fallos, versiones, tiempos y evidencia. Ver [método y comandos](../technical/evaluation-plan.md) y [resultados de las pruebas](../validation/2026-09-21-evaluation-check.md). Solo se ha evaluado Qwen local; no se atribuyen resultados a otro modelo sin probarlo.
+**Trabajo realizado, 22 de septiembre de 2026:** construida y ejecutada la evaluación del paso 1.7. Se implementaron el ejecutor reproducible, las referencias independientes y la rúbrica que distingue aprobación del modelo de aceptación. La matriz real aceptó 11 de 24 casos; la serie posterior con correcciones del controlador aceptó 6 de 9. Las tres correcciones del propietario invalidaron la aprobación anterior y recalcularon, pero solo uno de los tres informes nuevos pasó. Las 101 pruebas automatizadas pasan. Se conservan fallos, versiones, tiempos y evidencia. Ver [método y comandos](../technical/evaluation-plan.md) y [resultados de las pruebas](../validation/2026-09-21-evaluation-check.md). Hasta ese momento solo se había evaluado Qwen local; los resultados posteriores con Luna se documentan más abajo.
 
 La entrega 1 completa todavía no está aceptada: ya existe el recorrido interno desde la ingesta hasta un informe revisado, pero las pruebas del paso 1.7 todavía muestran fallos semánticos y de continuidad. La ejecución de la evaluación ha terminado; el criterio de aceptación sigue abierto. Las pruebas realizadas no equivalen a validación general del producto.
+
+**Avance de entrega 2, 22 de septiembre de 2026:** aplicación web local sobre el
+backend existente, con 117 pruebas automatizadas correctas y validación mediante
+Computer Use en escritorio y móvil. Se comprobaron las preguntas del modelo real,
+recuperación tras reiniciar el servidor, informe con gráficos y evidencia, y su
+retirada tras la detección independiente de DR-015. La aplicación queda utilizable
+para explorar la experiencia; no se acepta la calidad analítica ni se habilita el
+piloto comercial. Ver [validación](../validation/2026-09-22-web-check.md).
+
+**Prueba de proveedor, 22 de septiembre de 2026:** integración OpenAI con GPT-6
+Luna y recorrido web real sobre ventas diarias. Las 127 pruebas automatizadas
+pasan. El resumen coincide con las cifras independientes; la suma de llamadas
+al modelo baja a 72,27 segundos frente a 1.007,90 del recorrido local anterior,
+con menor contenido y sin gráfico. Esta prueba única no sustituye la matriz de
+1.7 ni cierra su aceptación. Ver [comparación y límites](../validation/2026-09-22-openai-check.md).
+
+**Ampliación visual de entrega 2, 22 de septiembre de 2026:** series con evidencia
+guardadas desde Python, tarjetas y gráficos integrados, cobertura explícita de las
+investigaciones y revisión de utilidad. La prueba real con GPT-6 Luna sobre 36.331
+líneas y 219 productos produjo dos gráficos contrastados con referencias
+independientes en 72,82 segundos; el revisor devolvió el primer borrador y aprobó
+su corrección. Una prueba dirigida también rechazó un informe temporal incompleto.
+La aceptación general de 1.7 sigue abierta. Ver [validación y límites](../validation/2026-09-22-visual-report-check.md).
+
+**Validación previa a entrega 3, 22 de septiembre de 2026:** ampliados los casos
+de 1.7 a doce escenarios, con duplicados, importes ausentes, devoluciones y
+fechas/importes inválidos. La matriz inicial de Luna acepta 27/36; se conserva
+un informe retenido por retirada indebida de resultados monetarios. Se corrigen
+preguntas redundantes, emparejamiento de unidad/serie y cobertura de investigaciones
+bloqueadas, y se mejora la guía de series de un punto. La repetición dirigida
+acepta 18/18 y las correcciones del propietario 3/3; la recuperación real conserva
+las respuestas y la evidencia. Pasan 141 pruebas. La ronda queda completada y
+permite ampliar por escenarios; no equivale a aceptación general del MVP.
+DR-019 sigue parcialmente mitigado: hay intentos innecesarios recuperables.
+Ver [validación completa](../validation/2026-09-22-luna-validation.md) e
+[incidencias](../validation/known-agent-errors.md).

@@ -7,6 +7,7 @@ from typing import Literal
 from pydantic import Field
 
 from .contracts import Strict
+from ..series import saved_series, numeric
 
 
 class MetricRef(Strict):
@@ -36,6 +37,26 @@ class ChartPoint(Strict):
     value: MetricRef
 
 
+class SeriesRef(Strict):
+    execution_id: str = Field(max_length=36)
+    series: str = Field(min_length=1, max_length=100)
+
+
+class Highlight(Strict):
+    label: str = Field(min_length=1, max_length=80)
+    value: MetricRef
+    unit: str = Field(min_length=1, max_length=80)
+    decimals: int = Field(ge=0, le=4)
+    claim_key: str = Field(pattern=r'^[a-z][a-z0-9_]{0,63}$')
+
+
+class QuestionCoverage(Strict):
+    investigation_key: str = Field(min_length=1, max_length=64)
+    status: Literal['answered', 'unavailable']
+    claim_keys: list[str] = Field(max_length=6)
+    explanation: str = Field(min_length=1, max_length=800)
+
+
 class Chart(Strict):
     key: str = Field(pattern=r'^[a-z][a-z0-9_]{0,63}$')
     claim_key: str = Field(pattern=r'^[a-z][a-z0-9_]{0,63}$')
@@ -44,7 +65,8 @@ class Chart(Strict):
     unit: str = Field(min_length=1, max_length=80)
     decimals: int = Field(ge=0, le=4)
     caption: str = Field(min_length=1, max_length=1200)
-    points: list[ChartPoint] = Field(min_length=2, max_length=36)
+    points: list[ChartPoint] = Field(max_length=36)
+    series: SeriesRef | None = None
 
 
 class NumericCheck(Strict):
@@ -64,6 +86,8 @@ class ReportDraft(Strict):
     claims: list[Claim] = Field(min_length=1, max_length=6)
     limitations: list[str] = Field(min_length=1, max_length=12)
     checks: list[NumericCheck] = Field(max_length=16)
+    highlights: list[Highlight] = Field(default_factory=list, max_length=4)
+    question_coverage: list[QuestionCoverage] = Field(default_factory=list, max_length=8)
 
 
 class ReviewAction(Strict):
@@ -110,7 +134,24 @@ def checks(report, observations):
             result.append({'check': 'evidence:' + claim['key'], 'passed': False, 'detail': str(error)})
     for chart in report.get('charts', []):
         try:
-            labels = [p['label'] for p in chart['points']]
+            if chart.get('series'):
+                if chart['points']:
+                    raise ValueError('Use a saved series OR individual points, never both.')
+                series = saved_series(observations, chart['series'])
+                if chart['unit'] != series['unit']:
+                    raise ValueError('Chart unit must match the saved series unit.')
+                if chart['kind'] == 'line' and series['grain'] != 'day':
+                    raise ValueError('Line charts require daily series; use bars for months.')
+                points = series['points']
+                for point in points:
+                    numeric(point['value'])
+            else:
+                points = chart['points']
+                for point in points:
+                    number(point['value'])
+            if not 2 <= len(points) <= (366 if chart['kind'] == 'line' else 36):
+                raise ValueError('Use 2–366 daily points or 2–36 categories/periods; aggregate in Python.')
+            labels = [p['label'] for p in points]
             if len(set(labels)) != len(labels):
                 raise ValueError('Chart labels must be unique.')
             if chart['claim_key'] not in {c['key'] for c in report['claims']}:
@@ -119,11 +160,17 @@ def checks(report, observations):
                 dates = [date.fromisoformat(label) for label in labels]
                 if dates != sorted(dates) or any(d.isoformat() != label for d, label in zip(dates, labels)):
                     raise ValueError('Line charts require ordered ISO dates.')
-            for point in chart['points']:
-                number(point['value'])
             result.append({'check': 'chart:' + chart['key'], 'passed': True, 'detail': 'Chart values resolve to finite, current saved metrics.'})
         except (ValueError, InvalidOperation, ArithmeticError) as error:
             result.append({'check': 'chart:' + chart['key'], 'passed': False, 'detail': str(error)})
+    for index, highlight in enumerate(report.get('highlights', [])):
+        try:
+            number(highlight['value'])
+            if highlight['claim_key'] not in {c['key'] for c in report['claims']}:
+                raise ValueError('Highlight must belong to an existing finding.')
+            result.append({'check': f'highlight:{index}', 'passed': True, 'detail': 'Saved numeric evidence.'})
+        except (ValueError, InvalidOperation, ArithmeticError) as error:
+            result.append({'check': f'highlight:{index}', 'passed': False, 'detail': str(error)})
     verified_percentages = set()
     for check in report['checks']:
         try:
@@ -191,6 +238,27 @@ def checks(report, observations):
     return result
 
 
+def validate_coverage(report, context):
+    """Require explicit coverage, without pretending to verify semantic truth."""
+    investigations = context.get('plan', {}).get('investigations', [])
+    expected = {i['key'] for i in investigations if i['status'] == 'ready'}
+    if not investigations:
+        return
+    known = {i['key'] for i in investigations}
+    entries = report.get('question_coverage', [])
+    keys = [e['investigation_key'] for e in entries]
+    if len(set(keys)) != len(keys) or not expected <= set(keys) or not set(keys) <= known:
+        raise ValueError('question_coverage must address every ready investigation exactly once, using only known investigations.')
+    claims = {c['key'] for c in report['claims']}
+    for entry in entries:
+        if entry['investigation_key'] not in expected and entry['status'] != 'unavailable':
+            raise ValueError('Blocked or not-possible investigations must remain unavailable.')
+        if not set(entry['claim_keys']) <= claims or (entry['status'] == 'answered' and not entry['claim_keys']):
+            raise ValueError('Answered investigations must link to existing report claims.')
+        if entry['status'] == 'unavailable' and entry['claim_keys']:
+            raise ValueError('Unavailable investigations need a limitation, not answer claims.')
+
+
 def validate(raw, role, context):
     if isinstance(raw, dict):
         # Local models sometimes omit inapplicable empty fields. Supplying only
@@ -204,6 +272,7 @@ def validate(raw, role, context):
     if action.action == 'submit':
         if action.report is None:
             raise ValueError('submit requires the complete updated report, including unchanged claims and limitations.')
+        validate_coverage(action.report.model_dump(), context)
         if not action.report.charts and not action.report.no_chart_reason.strip():
             raise ValueError('Explain why no chart is useful for this report.')
         chart_keys = [c.key for c in action.report.charts]
@@ -215,7 +284,7 @@ def validate(raw, role, context):
             raise ValueError('Claim/check keys must be unique.')
         if any(len(s) > 1600 or not s.strip() for s in action.report.limitations):
             raise ValueError('Limitations must be nonempty, at most 1600 characters each.')
-        structural = [c for c in checks(action.report.model_dump(), context['observations']) if c['check'].startswith(('evidence:', 'chart:'))]
+        structural = [c for c in checks(action.report.model_dump(), context['observations']) if c['check'].startswith(('evidence:', 'chart:', 'highlight:'))]
         if any(not c['passed'] for c in structural):
             raise ValueError('Draft references unavailable evidence: ' + str(structural)[:1000])
     elif action.report is not None:
@@ -240,6 +309,7 @@ def validate(raw, role, context):
     if action.action == 'approve':
         if not context['report'] or not all(c['passed'] for c in context['checks']):
             raise ValueError('Cannot approve a missing report or one with failed mechanical checks.')
+        validate_coverage(context['report'], context)
         # A new reviewer execution must be incorporated by the analyst before
         # approval so that its evidence or a failed check cannot be silently lost.
         draft_step = context['report_step']
