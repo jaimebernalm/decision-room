@@ -1,4 +1,4 @@
-# Aplicación web local · Entrega 2 y paso 2.5.1
+# Aplicación web local · Entrega 2 y pasos 2.5.1–2.5.2
 
 La aplicación utiliza el backend existente: ingesta CSV, PostgreSQL, principal
 LangGraph, Python aislado en Docker y revisor. El diseño y alcance están en
@@ -56,6 +56,10 @@ en la pantalla de acceso. No se debe publicar ni compartir ese archivo.
 - **Negocio persistente:** guardar nombre y descripción antes de subir archivos.
   Los siguientes análisis reutilizan ese perfil. Editarlo afecta a los nuevos
   análisis; los anteriores conservan el contexto con el que se enviaron.
+- **Memoria:** el perfil y las nuevas aclaraciones quedan pendientes de extracción
+  después de guardar el original. La interfaz muestra procesamiento, propuestas
+  pendientes y fallos, con reintento explícito. La reutilización de recuerdos
+  por el agente llegará en 2.5.3; véase el [contrato de memoria](memory.md).
 - **Negocios guardados:** crear o seleccionar negocios separados. La selección
   sobrevive a un reinicio. La migración conserva los negocios web anteriores;
   si hay varios, pide elegir y no los fusiona por nombre.
@@ -166,3 +170,5 @@ node --check decision_room/web/static/app.js
 Los tests usan bases PostgreSQL temporales y el sandbox local. Los resultados de
 Computer Use y modelo real se registran por separado: véase la
 [validación de identidad persistente](../validation/2026-09-23-business-identity-check.md).
+
+El cierre de memoria versionada se documenta en la [validación de 2.5.2](../validation/2026-09-23-memory-check.md).

@@ -106,6 +106,24 @@ class BusinessMigrationTests(unittest.TestCase):
         with connect(self.config) as db:
             self.assertIsNone(db.execute("SELECT to_regclass('web_businesses') AS table_name").fetchone()['table_name'])
             self.assertFalse(db.execute('SELECT 1 FROM schema_versions WHERE version=8').fetchone())
+            self.assertIsNone(db.execute("SELECT to_regclass('memory_sources') AS table_name").fetchone()['table_name'])
             self.assertEqual(db.execute('SELECT business_id FROM web_jobs WHERE id=%s', (job,)).fetchone()['business_id'], business)
         migrate(self.config)
+        self.assertEqual(Workspace(self.config).upload(job)[1], content)
+
+    def test_schema_nine_preserves_profile_as_pending_original_without_old_answers(self):
+        self.old_schema()
+        business, job, content = self.legacy_job()
+        schema_eight = self.schema.split('-- Durable original text')[0]
+        with connect(self.config) as db:
+            db.execute(schema_eight)
+        migrate(self.config)
+        migrate(self.config)
+        with connect(self.config) as db:
+            sources = db.execute('SELECT * FROM memory_sources').fetchall()
+            self.assertEqual(len(sources), 1)
+            self.assertEqual(sources[0]['business_id'], business)
+            self.assertEqual(sources[0]['status'], 'pending')
+            self.assertEqual(sources[0]['payload']['text'], 'Historical context')
+            self.assertEqual(db.execute('SELECT count(*) AS n FROM memory_facts').fetchone()['n'], 0)
         self.assertEqual(Workspace(self.config).upload(job)[1], content)

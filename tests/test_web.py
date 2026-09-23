@@ -30,6 +30,9 @@ class WebModel(DialogueModel):
         super().__init__('owner')
         self.identity = asdict(settings)
 
+    def generate_memory(self, context, correction=None):
+        return {"candidates": []}, {}
+
     def generate(self, context, correction=None):
         data, usage = ScriptedModel.generate(self, context, correction)
         data['proposal']['investigations'] = data['proposal']['investigations'][:1]
@@ -540,6 +543,77 @@ class WebTests(unittest.TestCase):
                 self.assertRaises(SystemExit):
             web_main.main()
         migrate_database.assert_not_called()
+
+    def test_new_answers_capture_memory_atomically_and_worker_recovers(self):
+        from decision_room.memory import extraction
+        job = self.create()
+        self.ws.run_job(job)
+        self.answer(job)
+        # A failed queue insert also rolls back the planning answer; the web
+        # reply remains durable and retryable, without a misleading memory save.
+        with patch('decision_room.agent.service.capture_answer', side_effect=RuntimeError('queue unavailable')):
+            self.ws.run_job(job)
+        row = self.ws.row(job)
+        self.assertEqual(row['status'], 'failed')
+        self.assertIsNotNone(row['pending_answer'])
+        with connect(self.config) as db:
+            count = db.execute('SELECT count(*) AS n FROM agent_answers a JOIN agent_questions q ON q.id=a.question_id WHERE q.session_id=%s', (row['session_id'],)).fetchone()['n']
+        self.assertEqual(count, 0)
+        self.ws.retry(job)
+        self.ws.run_job(job)
+        self.assertEqual(self.ws.detail(job)['phase'], 'review')
+        self.answer(job, 'Amount is row total.')
+        with patch('decision_room.agent.review.capture_answer', side_effect=RuntimeError('queue unavailable')):
+            self.ws.run_job(job)
+        row = self.ws.row(job)
+        with connect(self.config) as db:
+            self.assertEqual(db.execute('SELECT count(*) AS n FROM agent_review_answers WHERE review_id=%s', (row['review_id'],)).fetchone()['n'], 0)
+        self.ws.retry(job)
+        self.ws.run_job(job)
+        self.assertTrue(self.ws.detail(job)['publishable'])
+        with connect(self.config) as db:
+            sources = db.execute('SELECT * FROM memory_sources WHERE business_id=%s ORDER BY created_at', (self.business['id'],)).fetchall()
+        self.assertEqual([s['payload']['kind'] for s in sources], ['profile', 'planning_answer', 'review_answer'])
+        self.assertEqual([s['payload']['text'] for s in sources][1:], ['unit price', 'Amount is row total.'])
+        self.assertTrue(all(s['payload']['default_scope'] == 'source' for s in sources[1:]))
+        self.assertEqual(self.ws.state()['memory']['pending'], 3)
+        restarted = Workspace(self.config, SETTINGS, WebModel)
+        for _ in range(3):
+            self.assertTrue(extraction.work_once(self.config, WebModel, SETTINGS))
+        self.assertEqual(restarted.state()['memory']['pending'], 0)
+        self.assertEqual(restarted.state()['memory']['applied'], 3)
+        self.assertFalse(extraction.work_once(self.config, WebModel, SETTINGS))
+        self.assertTrue(restarted.detail(job)['publishable'])
+
+    def test_memory_retry_http_only_retries_active_business(self):
+        with connect(self.config) as db:
+            db.execute("UPDATE memory_sources SET status='failed' WHERE business_id=%s", (self.business['id'],))
+        other = self.ws.save_business({'request_key': str(uuid4()), 'expected_active_id': str(self.business['id']),
+                                      'name': 'Other shop', 'description': 'Separate context'})
+        with connect(self.config) as db:
+            db.execute("UPDATE memory_sources SET status='uncertain' WHERE business_id=%s", (other['id'],))
+        client, _ = self.http()
+        self.assertEqual(client.post('/api/memory/retry', json={}).status_code, 401)
+        client.post('/api/login', json={'token': 'test-local-access'})
+        self.assertEqual(client.post('/api/memory/retry', json={'business_id': str(self.business['id'])}).status_code, 409)
+        self.assertEqual(client.post('/api/memory/retry', json={'business_id': str(other['id'])}).status_code, 202)
+        with connect(self.config) as db:
+            self.assertEqual(db.execute('SELECT status FROM memory_sources WHERE business_id=%s', (self.business['id'],)).fetchone()['status'], 'failed')
+            self.assertEqual(db.execute('SELECT status FROM memory_sources WHERE business_id=%s', (other['id'],)).fetchone()['status'], 'pending')
+
+    def test_memory_migration_preserves_old_answers_without_reinterpreting_them(self):
+        job = self.complete()
+        report = self.ws.report(job)
+        with connect(self.config) as db, db.transaction():
+            db.execute('DROP TABLE memory_commands,memory_calls,memory_revisions,memory_facts,memory_heads,memory_sources')
+            db.execute('DELETE FROM schema_versions WHERE version=9')
+        migrate(self.config)
+        with connect(self.config) as db:
+            sources = db.execute('SELECT payload FROM memory_sources').fetchall()
+        self.assertEqual(len(sources), 1)
+        self.assertEqual(sources[0]['payload']['kind'], 'profile')
+        self.assertEqual(len(self.ws.detail(job)['answers']), 2)
+        self.assertEqual(self.ws.report(job), report)
 
 
 if __name__ == '__main__':

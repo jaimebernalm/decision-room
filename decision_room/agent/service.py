@@ -6,6 +6,7 @@ from langsmith import tracing_context
 from psycopg.types.json import Jsonb
 
 from ..database import connect
+from ..memory.service import capture_answer
 from .context import fingerprint, snapshot
 from .graph import build
 from .model import ModelClient, ModelSettings
@@ -163,7 +164,11 @@ def answer(config, business_id, session_id, *, question_id, text='', disposition
         else:
             if session['superseded_by']:
                 raise ValueError('This session was superseded; answer in its successor.')
-            db.execute('''INSERT INTO agent_answers(id,question_id,disposition,text,request_key)
-                VALUES (%s,%s,%s,%s,%s)''', (uuid4(), question_id, disposition, text, request_key))
+            with db.transaction():
+                answer_id = uuid4()
+                db.execute('''INSERT INTO agent_answers(id,question_id,disposition,text,request_key)
+                    VALUES (%s,%s,%s,%s,%s)''', (answer_id, question_id, disposition, text, request_key))
+                capture_answer(db, session, answer_id, kind='planning_answer', text=text,
+                               question=question['question']['text'], disposition=disposition)
         _drive(config, db, session, model, retry_uncertain)
     return show(config, business_id, session_id)

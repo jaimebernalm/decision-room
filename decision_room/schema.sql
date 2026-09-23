@@ -335,3 +335,80 @@ BEGIN
 END $$;
 ALTER TABLE web_jobs ALTER COLUMN business_name SET NOT NULL;
 CREATE INDEX IF NOT EXISTS web_jobs_business_date ON web_jobs(business_id,created_at DESC);
+
+-- Durable original text and append-only memory revisions. No checkpoint dependency.
+CREATE TABLE IF NOT EXISTS memory_heads (
+    business_id uuid PRIMARY KEY REFERENCES businesses(id),
+    revision integer NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS memory_sources (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL REFERENCES businesses(id),
+    origin_key text NOT NULL,
+    payload jsonb NOT NULL,
+    status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','extracting','extracted','applied','failed','uncertain','superseded')),
+    response jsonb,
+    context_revision integer,
+    issue text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (business_id,origin_key),
+    UNIQUE (business_id,id)
+);
+CREATE TABLE IF NOT EXISTS memory_facts (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL REFERENCES businesses(id),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (business_id,id)
+);
+CREATE TABLE IF NOT EXISTS memory_revisions (
+    business_id uuid NOT NULL,
+    fact_id uuid NOT NULL,
+    revision integer NOT NULL,
+    business_revision integer NOT NULL,
+    content jsonb NOT NULL,
+    status text NOT NULL CHECK (status IN ('proposed','declared','conflicted','withdrawn','superseded')),
+    source_id uuid NOT NULL,
+    quote text NOT NULL,
+    alternatives jsonb NOT NULL DEFAULT '[]',
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (fact_id,revision),
+    FOREIGN KEY (business_id,fact_id) REFERENCES memory_facts(business_id,id),
+    FOREIGN KEY (business_id,source_id) REFERENCES memory_sources(business_id,id)
+);
+CREATE TABLE IF NOT EXISTS memory_commands (
+    business_id uuid NOT NULL REFERENCES businesses(id),
+    request_key text NOT NULL,
+    signature text NOT NULL,
+    result jsonb NOT NULL,
+    PRIMARY KEY (business_id,request_key)
+);
+CREATE TABLE IF NOT EXISTS memory_calls (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    source_id uuid NOT NULL,
+    model_settings jsonb NOT NULL,
+    prompt_version text NOT NULL,
+    context jsonb NOT NULL,
+    response jsonb,
+    usage jsonb,
+    status text NOT NULL CHECK (status IN ('running','completed','failed','uncertain')),
+    issue text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    finished_at timestamptz,
+    FOREIGN KEY (business_id,source_id) REFERENCES memory_sources(business_id,id)
+);
+CREATE INDEX IF NOT EXISTS memory_sources_pending ON memory_sources(status,created_at);
+CREATE INDEX IF NOT EXISTS memory_revisions_business ON memory_revisions(business_id,fact_id,revision DESC);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM schema_versions WHERE version=9) THEN
+        INSERT INTO memory_sources(id,business_id,origin_key,payload)
+            SELECT b.id,b.id,'profile:' || w.profile_revision,
+                jsonb_build_object('kind','profile','text',b.description,'question','',
+                    'disposition','answered','default_scope','business','scope_id',NULL,
+                    'allow_business',true,'profile_revision',w.profile_revision)
+            FROM web_businesses w JOIN businesses b ON b.id=w.business_id;
+        INSERT INTO schema_versions(version) VALUES (9);
+    END IF;
+END $$;

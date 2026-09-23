@@ -58,6 +58,7 @@ const state = {
   file: null,
   draft: {},
   business: null,
+  memory: {},
   businesses: [],
   draftBusiness: null,
   uploading: false,
@@ -146,7 +147,34 @@ function shell(content, active = "home", crumb = "Vista general") {
       .join("")}</nav>
     <a href="#new" class="button sidebar-create">${icon("plus")} Nuevo análisis</a>
     <div class="sidebar-bottom"><div class="private-note">${icon("shield")}<strong>Tu espacio, en local</strong><p>Los archivos y el progreso se guardan en este equipo.</p></div><a class="nav-link" href="#how">${icon("help")} Cómo funciona</a><div class="profile"><span>ME</span><div>Mi espacio personal<small>Versión de pruebas</small></div></div></div></aside>
-    <div class="workspace"><header class="topbar"><span class="breadcrumb">Mi espacio <span>/</span> <b>${esc(crumb)}</b></span><span class="environment"><i></i> Entorno local <span class="beta">BETA</span></span></header><main id="main" tabindex="-1">${content}</main><footer class="page-footer"><span>Decision Room</span><span>De los datos a decisiones con contexto.</span></footer></div>`;
+    <div class="workspace"><header class="topbar"><span class="breadcrumb">Mi espacio <span>/</span> <b>${esc(crumb)}</b></span><span class="environment"><i></i> Entorno local <span class="beta">BETA</span></span></header><main id="main" tabindex="-1"><div id="memory-status" aria-live="polite"></div>${content}</main><footer class="page-footer"><span>Decision Room</span><span>De los datos a decisiones con contexto.</span></footer></div>`;
+  renderMemory();
+}
+function renderMemory() {
+  const box = document.querySelector("#memory-status");
+  if (!box || !state.business) return;
+  const m = state.memory || {};
+  const failed = m.failed || m.uncertain;
+  const message = failed
+    ? "Tu texto está guardado, pero hay cambios que no se han incorporado a la memoria."
+    : m.pending ? "Tu texto está guardado. La preparación de la memoria está pendiente."
+    : m.needs_review ? `Memoria procesada: ${m.needs_review} ${m.needs_review === 1 ? "recuerdo pendiente" : "recuerdos pendientes"} de confirmar o aclarar.`
+    : m.applied ? "Contexto procesado para la memoria del negocio." : "";
+  box.innerHTML = message ? `<div class="notice"><p>${esc(message)}</p>${m.uncertain ? '<p>Se interrumpió una petición al modelo. Reintentar puede repetir esa petición.</p>' : ""}${failed ? '<button type="button" class="button secondary" id="retry-memory">Reintentar memoria</button>' : ""}<span id="memory-error"></span></div>` : "";
+  const retry = document.querySelector("#retry-memory");
+  if (retry) retry.onclick = async () => {
+    retry.disabled = true;
+    try {
+      const response = await api("/api/memory/retry", {method: "POST", body: {business_id: state.business.id}});
+      state.memory = response.memory;
+      renderMemory();
+    } catch (error) {
+      if (retry.isConnected) {
+        document.querySelector("#memory-error").textContent = error.message;
+        retry.disabled = false;
+      }
+    }
+  };
 }
 function errorBox(message) {
   return `<div class="error-message" role="alert">${esc(message)}</div>`;
@@ -570,8 +598,10 @@ function how() {
 async function pollDetail(id) {
   const generation = state.generation;
   try {
-    const data = await api("/api/jobs/" + encodeURIComponent(id));
+    const {memory, ...data} = await api("/api/jobs/" + encodeURIComponent(id));
     if (generation !== state.generation) return;
+    state.memory = memory;
+    renderMemory();
     const signature = JSON.stringify(data);
     if (signature !== state.signature) {
       state.signature = signature;
@@ -604,6 +634,7 @@ async function route() {
     state.configured = data.configured;
     state.business = data.business;
     state.businesses = data.businesses;
+    state.memory = data.memory;
     const activeId = data.business?.id || null;
     if (state.draftBusiness !== activeId) {
       state.draftBusiness = activeId;
@@ -622,14 +653,22 @@ async function route() {
     } else if (hash === "files") files();
     else if (hash === "how") how();
     else home(hash === "analyses");
-    if (["home", "analyses", "files"].includes(hash))
+    if (!hash.startsWith("analysis/"))
       state.poll = setInterval(async () => {
         try {
           const next = await api("/api/workspace");
           if (generation !== state.generation) return;
-          if (next.business?.id !== state.business?.id || next.business?.profile_revision !== state.business?.profile_revision) { await route(); return; }
+          const listPage = ["home", "analyses", "files"].includes(hash);
+          if (next.business?.id !== state.business?.id || next.business?.profile_revision !== state.business?.profile_revision) {
+            if (listPage) await route();
+            return;
+          }
+          if (JSON.stringify(next.memory) !== JSON.stringify(state.memory)) {
+            state.memory = next.memory;
+            renderMemory();
+          }
           if (
-            JSON.stringify(next.analyses) !== JSON.stringify(state.analyses)
+            listPage && JSON.stringify(next.analyses) !== JSON.stringify(state.analyses)
           ) {
             state.analyses = next.analyses;
             if (hash === "files") files();

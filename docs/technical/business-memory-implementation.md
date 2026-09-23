@@ -1,7 +1,7 @@
 # Entrega 2.5: ejecución incremental en siete pasos
 
 **Fecha:** 23 de septiembre de 2026.  
-**Estado:** paso 2.5.1 completado y comprobado; pasos 2.5.2–2.5.7 pendientes. Véase la [validación del primer paso](../validation/2026-09-23-business-identity-check.md).  
+**Estado:** pasos 2.5.1 y 2.5.2 completados y comprobados; pasos 2.5.3–2.5.7 pendientes. Véase la [validación del primer paso](../validation/2026-09-23-business-identity-check.md).  
 **Referencias:** [alcance y criterios del plan](<../product/Decision Room - Plan de implementacion.md#51-entrega-25-memoria-del-negocio-y-experiencia-cotidiana>) y [diagnóstico y diseño de memoria/UX](business-memory-plan.md).
 
 ## Cómo ejecutar este plan
@@ -45,14 +45,16 @@ Las comprobaciones acompañan a cada incremento. El paso 7 integra y amplía esa
 
 ## 2.5.2. Memoria versionada y corregible
 
+**Cierre:** [implementación y validación](../validation/2026-09-23-memory-check.md); [contrato y guía del servicio](memory.md).
+
 **Resultado:** el sistema puede mantener conocimiento del negocio independientemente de una sesión del agente.
 
 **Incrementos, en orden:**
 
-- [ ] **A. Contrato y persistencia.** Definir hechos y revisiones con contenido, tipo, origen, ámbito, estado, fecha de registro y vigencia conocida o desconocida. Distinguir declaraciones, propuestas, dudas y referencias a resultados. Las revisiones anteriores permanecen identificables.
-- [ ] **B. Operaciones de mantenimiento.** Implementar proponer, confirmar/declarar, corregir, retirar, consultar vigentes e historial. Validar ámbito y revisión esperada; rechazar una sobrescritura concurrente y hacer idempotentes los reintentos. Una retirada registra también qué contenido de origen no debe volver a activar el recuerdo.
-- [ ] **C. Entrada desde onboarding y aclaraciones.** Conservar el texto original y extraer candidatos mediante un contrato estructurado del modelo. El servicio valida y decide la transición permitida. Declaraciones claras pueden guardarse; una inferencia o contradicción material queda pendiente. No convertir automáticamente respuestas antiguas en reglas generales.
-- [ ] **D. Recuperación de cambios pendientes.** Conservar la relación entre respuesta del cliente y actualización de memoria, aunque falle la extracción o la persistencia. Reintentar sin duplicar hechos ni respuestas; mostrar aviso de guardado solo tras completar la operación.
+- [x] **A. Contrato y persistencia.** Definir hechos y revisiones con contenido, tipo, origen, ámbito, estado, fecha de registro y vigencia conocida o desconocida. Distinguir declaraciones, propuestas, dudas y referencias a resultados. Las revisiones anteriores permanecen identificables.
+- [x] **B. Operaciones de mantenimiento.** Implementar proponer, confirmar/declarar, corregir, retirar, consultar vigentes e historial. Validar ámbito y revisión esperada; rechazar una sobrescritura concurrente y hacer idempotentes los reintentos. Una retirada registra también qué contenido de origen no debe volver a activar el recuerdo.
+- [x] **C. Entrada desde onboarding y aclaraciones.** Conservar el texto original y extraer candidatos mediante un contrato estructurado del modelo. El servicio valida y decide la transición permitida. Declaraciones claras pueden guardarse; una inferencia o contradicción material queda pendiente. No convertir automáticamente respuestas antiguas en reglas generales.
+- [x] **D. Recuperación de cambios pendientes.** Conservar la relación entre respuesta del cliente y actualización de memoria, aunque falle la extracción o la persistencia. Reintentar sin duplicar hechos ni respuestas; mostrar aviso de guardado solo tras completar la operación.
 
 **Zona de código:** esquema; un módulo de dominio de memoria separado de la web; contratos/prompts y entrada del modelo en [`agent/model.py`](../../decision_room/agent/model.py); registro de respuestas en [`agent/service.py`](../../decision_room/agent/service.py) y [`agent/review.py`](../../decision_room/agent/review.py). Los nombres de los módulos nuevos se fijarán al implementar.
 

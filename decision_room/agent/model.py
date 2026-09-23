@@ -115,6 +115,10 @@ class ModelClient:
             'El análisis sigue pausado y tus datos y respuestas están guardados.'
         )
 
+    def generate_memory(self, context, correction=None):
+        from ..memory.contracts import Extraction, SYSTEM as MEMORY_SYSTEM
+        return self._generate(context, correction, MEMORY_SYSTEM, Extraction.model_json_schema())
+
     def generate(self, context, correction=None):
         schema = Action.model_json_schema()
         if 'uninspected_table_ids' in context:

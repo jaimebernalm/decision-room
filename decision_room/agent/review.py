@@ -6,6 +6,7 @@ from langsmith import tracing_context
 from psycopg.types.json import Jsonb
 
 from ..database import connect
+from ..memory.service import capture_answer
 from ..execution import execute
 from .context import fingerprint, snapshot as source_snapshot
 from .model import ModelClient, ModelSettings
@@ -150,8 +151,11 @@ def answer(config, business_id, review_id, *, step, text='', disposition='answer
             if run['status'] != 'waiting':
                 raise ValueError('Review must be waiting for this owner answer.')
             with db.transaction():
+                answer_id = uuid4()
                 db.execute('''INSERT INTO agent_review_answers(id,review_id,step,disposition,text,request_key)
-                    VALUES (%s,%s,%s,%s,%s,%s)''', (uuid4(), review_id, step, disposition, text, request_key))
+                    VALUES (%s,%s,%s,%s,%s,%s)''', (answer_id, review_id, step, disposition, text, request_key))
+                capture_answer(db, session, answer_id, kind='review_answer', text=text,
+                               question=question['action']['question'], disposition=disposition)
                 _, _, key = knowledge(db, session)
                 db.execute('UPDATE agent_reviews SET knowledge_sha256=%s,approved_sha256=NULL WHERE id=%s', (key, review_id))
                 mark_stale(db, session)

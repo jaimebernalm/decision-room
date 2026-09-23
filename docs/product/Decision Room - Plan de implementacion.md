@@ -1,7 +1,7 @@
 # Decision Room: plan de implementación por entregas
 
 **Fecha de actualización:** 23 de septiembre de 2026.  
-**Estado vigente:** entrega 2 implementada y comprobada como recorrido web local. La ronda de evaluación previa a ampliar cobertura terminó el 22 de septiembre, con correcciones y límites documentados; no equivale a aceptación general del MVP. La entrega 2.5 tiene el paso 2.5.1 implementado y comprobado; los pasos 2.5.2–2.5.7 de memoria compartida y experiencia cotidiana siguen pendientes y preceden a la ampliación de cobertura de la entrega 3. Los resultados históricos de cada paso se conservan en la sección 10.  
+**Estado vigente:** entrega 2 implementada y comprobada como recorrido web local. La ronda de evaluación previa a ampliar cobertura terminó el 22 de septiembre, con correcciones y límites documentados; no equivale a aceptación general del MVP. La entrega 2.5 tiene los pasos 2.5.1 y 2.5.2 implementados y comprobados; los pasos 2.5.3–2.5.7 de memoria compartida y experiencia cotidiana siguen pendientes y preceden a la ampliación de cobertura de la entrega 3. Los resultados históricos de cada paso se conservan en la sección 10.  
 **Propósito:** conservar la secuencia de trabajo, el motivo de cada paso y qué debemos poder comprobar antes de darlo por terminado.
 
 ## 1. Relación con el MVP
@@ -140,9 +140,9 @@ de la implementación web del cierre de calidad del agente. Ver
 
 ## 5.1. Entrega 2.5: memoria del negocio y experiencia cotidiana
 
-**Estado, 23 de septiembre de 2026:** paso 2.5.1 implementado y comprobado; resto de implementación y evaluación integrada pendientes. El [diagnóstico del código y diseño técnico](../technical/business-memory-plan.md) detalla estructuras, migración, mantenimiento de memoria, contexto del agente, UX y escenarios de aceptación.
+**Estado, 23 de septiembre de 2026:** pasos 2.5.1 y 2.5.2 implementados y comprobados; resto de implementación y evaluación integrada pendientes. El [diagnóstico del código y diseño técnico](../technical/business-memory-plan.md) detalla estructuras, migración, mantenimiento de memoria, contexto del agente, UX y escenarios de aceptación.
 
-**Guía para implementarlo poco a poco:** el [desglose de los siete pasos](../technical/business-memory-implementation.md) define cuatro incrementos por paso, dependencias, zonas de código, contratos de salida, demostraciones y pruebas. Ejecutar un paso por vez y registrar su validación y commit al cerrarlo. Los cuatro incrementos de 2.5.1 están completados; los restantes están pendientes; el paso 2.5.3 se prueba con sesiones actuales y el chat se introduce después, en 2.5.4, sin dependencias circulares.
+**Guía para implementarlo poco a poco:** el [desglose de los siete pasos](../technical/business-memory-implementation.md) define cuatro incrementos por paso, dependencias, zonas de código, contratos de salida, demostraciones y pruebas. Ejecutar un paso por vez y registrar su validación y commit al cerrarlo. Los ocho incrementos de 2.5.1–2.5.2 están completados; los restantes están pendientes; el paso 2.5.3 se prueba con sesiones actuales y el chat se introduce después, en 2.5.4, sin dependencias circulares.
 
 **Objetivo:** que el cliente tenga un negocio persistente y pueda volver a consultar, aportar contexto, actualizar datos y guardar informes sin repetir el onboarding. La memoria debe funcionar entre todos sus chats y análisis, con procedencia y ámbito, sin mezclar negocios ni presentar resultados antiguos como actuales.
 
@@ -159,6 +159,8 @@ de la implementación web del cierre de calidad del agente. Ver
 **Comprobar:** migraciones sobre una base vacía y otra con registros anteriores; dos análisis nuevos del mismo negocio comparten identidad sin perder su independencia; reinicio recupera el onboarding; listados, lecturas y mutaciones rechazan cruces entre dos negocios. Los trabajos históricos siguen siendo localizables y sus estados de publicación se conservan.
 
 ### 2.5.2. Memoria versionada y mantenimiento desde el contexto del cliente
+
+**Completado, 23 de septiembre de 2026:** [cambios, pruebas y límites](../validation/2026-09-23-memory-check.md).
 
 **Construir:** hechos, prioridades, definiciones, disponibilidad y dudas con texto original, procedencia, revisiones, estado, ámbito y vigencia. Incorporar contexto del onboarding y respuestas explícitas mediante un servicio común, reutilizable después por el chat y «Mi negocio». Separar declaraciones, inferencias, propuestas y resultados calculados. Permitir corregir/retirar; resolver contradicciones materiales antes de usarlas. Registrar escrituras idempotentes y comprobar revisiones para evitar sobrescrituras concurrentes.
 
@@ -368,3 +370,5 @@ Ver [validación completa](../validation/2026-09-22-luna-validation.md) e
 **Planificación de entrega 2.5, 23 de septiembre de 2026:** revisados esquema, creación de trabajos web, contexto de planificación/investigación/revisión, invalidación y navegación. Se añaden siete pasos para identidad persistente, memoria, contexto transversal, chat, «Mi negocio», Inicio y evaluación. Se actualizan alcance y definición del producto para adelantar estas capacidades. Este avance corresponde solo a análisis y documentación: ninguno de los pasos 2.5.1–2.5.7 está implementado o aceptado por esta actualización.
 
 **Cierre de 2.5.1, 23 de septiembre de 2026:** identidad y selección persistentes, perfil guardado antes del análisis, migración compatible y rutas limitadas al negocio activo. Dos preguntas reales reutilizaron negocio y lote con cifras verificadas independientemente; perfil e informes sobrevivieron a reinicio y cambio de negocio. Pasan 155 pruebas automatizadas, sintaxis JavaScript y revisión de diferencias. Los pasos 2.5.2–2.5.7 siguen pendientes. Ver [validación y alcance](../validation/2026-09-23-business-identity-check.md).
+
+**Cierre de 2.5.2, 23 de septiembre de 2026:** memoria estructurada en PostgreSQL, revisiones, corrección/retirada, extracción desde perfil y nuevas aclaraciones, recuperación y estado web. Pasan 181 pruebas y 24/24 escenarios de extracción real tras corregir el tratamiento de fechas ambiguas. Se conservan resultados previos y límites; reutilización en el agente, chat y ficha siguen pendientes. Ver [validación](../validation/2026-09-23-memory-check.md).

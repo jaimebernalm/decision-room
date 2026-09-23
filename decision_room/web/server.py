@@ -169,6 +169,9 @@ class Handler(BaseHTTPRequestHandler):
             # Pin this request. A selection change in another tab must not
             # redirect a pending read/write to a different business halfway through.
             ws = ws.scoped(ws.business_id())
+            if mutation and path == '/api/memory/retry':
+                self.send(202, {'memory': ws.retry_memory(self.json_body())})
+                return
             if mutation and path == '/api/jobs':
                 self.send(202, ws.create(*self.multipart()))
                 return

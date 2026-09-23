@@ -16,6 +16,7 @@ from ..client_report import render_client
 from ..database import connect
 from ..execution import recover_executions
 from ..storage import Storage
+from ..memory import service as memory, extraction as memory_extraction
 from . import business as business_store
 from .errors import WebError, bounded, identifier
 
@@ -69,7 +70,9 @@ class Workspace:
         return current['id'] if current else None
 
     def save_business(self, data):
-        return business_store.save(self.config, data)
+        saved = business_store.save(self.config, data)
+        self.wake.set()
+        return saved
 
     def select_business(self, data):
         return business_store.select(self.config, data)
@@ -78,7 +81,18 @@ class Workspace:
         current = business_store.state(self.config)
         business_id = current['business']['id'] if current['business'] else None
         return {**current, 'configured': self.settings is not None,
-                'analyses': self.scoped(business_id).listing()}
+                'analyses': self.scoped(business_id).listing(),
+                'memory': memory.status(self.config, business_id)}
+
+    def retry_memory(self, data):
+        business_id = self.business_id()
+        if business_id is None:
+            raise WebError('Selecciona un negocio antes de reintentar.', 409)
+        if not isinstance(data, dict) or identifier(data.get('business_id')) != business_id:
+            raise WebError('El negocio activo ha cambiado. Recarga la página antes de reintentar.', 409)
+        memory_extraction.retry(self.config, business_id)
+        self.wake.set()
+        return memory.status(self.config, business_id)
 
     def create(self, data, filename, content):
         if not isinstance(data, dict):
@@ -205,6 +219,7 @@ class Workspace:
         result = {**self.public(j), 'questions': [], 'answers': [], 'interpretations': [], 'files': [], 'publishable': False,
                   'activity': ''}
         b = j['business_id']
+        result['memory'] = memory.status(self.config, b)
         if j['analysis_id']:
             data = ingestion.describe(self.config, b, j['analysis_id'])
             result['files'] = [{k: f[k] for k in ('original_names', 'status', 'row_count', 'column_count')} for f in data['files']]
@@ -405,6 +420,8 @@ class Workspace:
         while not self.stop.is_set():
             try:
                 if self.work_once():
+                    continue
+                if self.settings and memory_extraction.work_once(self.config, self.model_factory, self.settings):
                     continue
             except Exception:
                 LOG.exception('Web worker unavailable')

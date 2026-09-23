@@ -4,6 +4,7 @@ import json
 from uuid import uuid4
 
 from ..database import connect
+from ..memory.service import capture
 from .errors import WebError, bounded, identifier
 
 
@@ -70,7 +71,10 @@ def save(config, data):
             db.execute('INSERT INTO web_businesses(business_id,creation_key,creation_sha256) VALUES (%s,%s,%s)',
                        (business_id, key, signature))
             db.execute('UPDATE web_workspace SET active_business_id=%s WHERE singleton', (business_id,))
-        return profile(db, business_id)
+        saved = profile(db, business_id)
+        capture(db, business_id, f"profile:{saved['profile_revision']}", kind='profile',
+                text=saved['description'], allow_business=True, profile_revision=saved['profile_revision'])
+        return saved
 
 
 def select(config, data):
