@@ -185,16 +185,28 @@ class Workspace:
                 if not j[field]:
                     found = db.execute(f'SELECT id FROM {table} WHERE {where} ORDER BY created_at DESC LIMIT 1', params).fetchone()
                     if found:
+                        if field != 'session_id':
+                            parent = db.execute(f'SELECT session_id FROM {table} WHERE id=%s', (found['id'],)).fetchone()
+                            if parent['session_id'] != j['session_id']:
+                                continue
                         self.update(job_id, **{field: found['id']})
-        return self.row(job_id)
+                        j[field] = found['id']
+        j = self.row(job_id)
+        if j['session_id']:
+            with connect(self.config) as db:
+                next_id = db.execute('SELECT superseded_by FROM agent_sessions WHERE id=%s', (j['session_id'],)).fetchone()['superseded_by']
+                if next_id:
+                    self.update(job_id, session_id=next_id, research_id=None, review_id=None, pending_answer=None, phase='planning')
+                    return self.sync(job_id)
+        return j
 
     def public(self, j):
         fields = ('id', 'business_id', 'title', 'business', 'context', 'goal', 'filename', 'byte_count', 'status', 'phase', 'created_at', 'updated_at', 'issue')
         return {key: j[key] for key in fields}
 
-    def review_state(self, j):
+    def review_state(self, j, *, _db=None):
         try:
-            return review.show(self.config, j['business_id'], j['review_id'])
+            return review.show(self.config, j['business_id'], j['review_id'], _db=_db)
         except (OSError, ValueError):
             # One missing or changed evidence file must not hide the whole workspace.
             LOG.exception('Cannot read evidence for web job %s', j['id'])
@@ -226,6 +238,8 @@ class Workspace:
         if j['session_id']:
             plan = planning.show(self.config, b, j['session_id'])
             result['questions'] = [{'id': q['id'], 'phase': 'planning', 'text': q['text'], 'reason': q['reason'], 'options': q['options']} for q in plan['questions']]
+            if plan.get('context_stale'):
+                result.update(status='failed', phase='planning', issue='La memoria aplicable ha cambiado. Reintenta para recalcular con las definiciones actuales.', questions=[])
             result['answers'] = [{'text': a['text'], 'disposition': a['disposition'], 'question': a.get('question', '')} for a in plan['answers']]
             if plan['revisions']:
                 result['interpretations'] = [{'text': i['statement'], 'status': i['status']} for i in plan['revisions'][-1]['proposal']['interpretations']]
@@ -249,6 +263,10 @@ class Workspace:
                 result.update(status='blocked', phase='review', issue='La revisión independiente ha bloqueado este informe. ' + data['independent_hold']['reason'])
             if data.get('unavailable'):
                 result.update(status='blocked', phase='review', issue='No podemos recuperar toda la evidencia de este análisis. Conservamos sus datos de registro, pero el informe no está disponible. Revisa el almacenamiento local o crea otro análisis.')
+        if j['session_id'] and plan.get('context_stale'):
+            result.update(status=j['status'] if j['status'] in ('queued', 'running') else 'failed',
+                          phase='planning', context_stale=True, questions=[], publishable=False,
+                          issue='La memoria aplicable ha cambiado. Recalcula para revisar el informe con las definiciones actuales.')
         return result
 
     def reply(self, job_id, data):
@@ -283,7 +301,10 @@ class Workspace:
 
     def retry(self, job_id):
         j = self.row(job_id)
-        if j['status'] != 'failed':
+        from ..memory.context import reason
+        with connect(self.config) as db:
+            stale = j['session_id'] and reason(db, j['session_id'])
+        if j['status'] != 'failed' and not stale:
             raise WebError('Solo se pueden reintentar los análisis con un fallo técnico.', 409)
         model = self.model_factory(ModelSettings(**j['model_settings']))
         try:
@@ -294,8 +315,8 @@ class Workspace:
             # or trigger LM Studio's automatic model-loading attempt.
             raise WebError(str(error), 409) from None
         with connect(self.config) as db:
-            row = db.execute("UPDATE web_jobs SET status='queued',issue=NULL,retry_uncertain=true,updated_at=now() WHERE id=%s AND business_id=%s AND status='failed' RETURNING id",
-                             (identifier(job_id), j['business_id'])).fetchone()
+            row = db.execute("UPDATE web_jobs SET status='queued',issue=NULL,retry_uncertain=true,updated_at=now() WHERE id=%s AND business_id=%s AND (status='failed' OR %s) RETURNING id",
+                             (identifier(job_id), j['business_id'], bool(stale))).fetchone()
         if not row:
             raise WebError('Solo se pueden reintentar los análisis con un fallo técnico.', 409)
         self.wake.set()
@@ -307,8 +328,9 @@ class Workspace:
             raise WebError('El informe todavía no está disponible.', 409)
         # Export uses the same parent lock; approval is rechecked on every request.
         from ..agent.persistence import session_lock
-        with session_lock(self.config, j['business_id'], j['session_id']):
-            data = self.review_state(j)
+        with session_lock(self.config, j['business_id'], j['session_id']) as (db, _), db.transaction():
+            memory.lock(db, j['business_id'])
+            data = self.review_state(j, _db=db)
             if not data['publishable']:
                 raise WebError('Este informe no ha superado la revisión o ha quedado desactualizado.', 409)
             return render_client(data, data['updated_at'].strftime('%d/%m/%Y, %H:%M %Z'), embedded=True)
@@ -328,6 +350,19 @@ class Workspace:
         retry = j['retry_uncertain']
         self.update(job_id, status='running', issue=None)
         try:
+            if j['session_id']:
+                from ..memory.context import reason
+                with connect(self.config) as db:
+                    stale = reason(db, j['session_id'])
+                if stale:
+                    # Create the successor before driving it; sync recovers this link after a crash.
+                    from ..agent.service import _create_session
+                    from ..agent.persistence import session_lock
+                    with session_lock(self.config, b, j['session_id']):
+                        successor = _create_session(self.config, b, j['analysis_id'], owner_context=j['goal'] or 'Exploración general de la actividad disponible.',
+                            request_key='web-replan:' + str(j['session_id']), model=model, supersedes=j['session_id'])
+                    self.update(job_id, session_id=successor['id'], research_id=None, review_id=None, pending_answer=None, phase='planning')
+                    j = self.sync(job_id)
             with connect(self.config) as db:
                 abandoned = db.execute("SELECT 1 FROM executions WHERE business_id=%s AND status IN ('preparing','running') LIMIT 1", (b,)).fetchone()
             if abandoned:
@@ -363,7 +398,7 @@ class Workspace:
                 if j['session_id']:
                     plan = planning.resume(self.config, b, j['session_id'], model=model, retry_uncertain=retry)
                 else:
-                    context = f"Negocio: {j['business']}\n{j['context']}\nObjetivo: {j['goal'] or 'Exploración general de la actividad disponible.'}"
+                    context = j['goal'] or 'Exploración general de la actividad disponible.'
                     plan = planning.start(self.config, b, j['analysis_id'], owner_context=context, request_key=key, model=model)
                 self.update(job_id, session_id=plan['id'])
                 if plan['questions']:
@@ -419,9 +454,9 @@ class Workspace:
     def worker(self):
         while not self.stop.is_set():
             try:
-                if self.work_once():
-                    continue
                 if self.settings and memory_extraction.work_once(self.config, self.model_factory, self.settings):
+                    continue
+                if self.work_once():
                     continue
             except Exception:
                 LOG.exception('Web worker unavailable')

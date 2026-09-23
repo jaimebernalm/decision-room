@@ -19,7 +19,7 @@ class State(TypedDict):
     turns: int
 
 
-def build(db, session, model, saver, retry_uncertain=False):
+def build(db, session, model, saver, retry_uncertain=False, config=None):
     source, session_id = session['source_snapshot'], session['id']
 
     def reason(state):
@@ -28,9 +28,10 @@ def build(db, session, model, saver, retry_uncertain=False):
         context = model_context(source, state['inspected'], state['answers'], state['proposal'])
         correction = None
         for attempt in range(2):
-            raw = model_call(db, session_id, model, context, correction, retry_uncertain)
+            raw = model_call(db, session_id, model, context, correction, retry_uncertain, config=config)
             try:
-                action = validate_action(raw, source, state['inspected'], state['answers'], state['proposal'])
+                from ..memory.context import delivered
+                action = validate_action(raw, {**source, 'business_context': delivered(db, session_id)}, state['inspected'], state['answers'], state['proposal'])
                 if state['revision'] >= 3 and (action.get('proposal') or {}).get('questions'):
                     raise ValueError('Question budget exhausted; express remaining unknowns as limitations and blocked work.')
                 return {'action': action, 'turns': state['turns'] + 1}

@@ -415,7 +415,7 @@ class WebTests(unittest.TestCase):
         with connect(self.config) as db:
             source = db.execute('SELECT source_snapshot FROM agent_sessions WHERE id=%s',
                                 (self.ws.row(job)['session_id'],)).fetchone()['source_snapshot']
-        self.assertIn('Negocio: Test shop', source['owner_context'])
+        self.assertEqual(source['owner_context'], old['goal'] or 'Exploración general de la actividad disponible.')
         self.assertNotIn('New general context', source['owner_context'])
 
     def test_two_completed_questions_reuse_one_batch_but_keep_separate_sessions(self):
@@ -614,6 +614,71 @@ class WebTests(unittest.TestCase):
         self.assertEqual(sources[0]['payload']['kind'], 'profile')
         self.assertEqual(len(self.ws.detail(job)['answers']), 2)
         self.assertEqual(self.ws.report(job), report)
+
+
+    def test_memory_correction_replans_web_job_and_preserves_old_report(self):
+        from test_context_memory import MemoryAwareModel
+        from test_memory import content
+        from decision_room.memory import service as memory
+        from decision_room.service import import_batch
+        class Model(MemoryAwareModel):
+            def __init__(self, settings):
+                super().__init__()
+                self.identity=asdict(settings)
+        self.ws.model_factory=Model
+        job=self.create()
+        row=self.ws.row(job)
+        data=import_batch(self.config,self.business['id'],[self.config.storage/row['upload_key']])
+        source=str(data['files'][0]['source_id'])
+        value=content('Amount is unit price. Quantity is units.',topic='amount_basis',kind='definition',scope='source',scope_id=source)
+        fact=memory.change(self.config,self.business['id'],action='declare',request_key='base',content=value)
+        self.ws.run_job(job)
+        self.assertTrue(self.ws.detail(job)['publishable'])
+        original=self.ws.row(job)
+        memory.change(self.config,self.business['id'],action='correct',request_key='correct',fact_id=fact['fact_id'],expected_revision=1,
+                      content={**value,'statement':'Amount is row total. Quantity is units.'})
+        self.assertFalse(self.ws.detail(job)['publishable'])
+        self.assertTrue(self.ws.detail(job)['context_stale'])
+        with self.assertRaises(WebError):
+            self.ws.report(job)
+        self.ws.retry(job)
+        self.assertEqual(self.ws.detail(job)['status'], 'queued')  # Keep the browser polling during replanning.
+        self.ws.run_job(job)
+        updated=self.ws.row(job)
+        self.assertNotEqual(updated['session_id'],original['session_id'])
+        self.assertNotEqual(updated['review_id'],original['review_id'])
+        self.assertTrue(self.ws.detail(job)['publishable'])
+        self.assertFalse(review.show(self.config,self.business['id'],original['review_id'])['publishable'])
+        self.ws.sync(job)
+        self.assertEqual(self.ws.row(job)['review_id'],updated['review_id'])
+        with connect(self.config) as db:
+            totals=db.execute('SELECT result FROM executions WHERE business_id=%s ORDER BY created_at',(self.business['id'],)).fetchall()
+        self.assertEqual(totals[0]['result']['metrics']['total'],'80.0000')
+        self.assertEqual(totals[-1]['result']['metrics']['total'],'30.00')
+
+    def test_web_replan_recovers_successor_after_process_interruption(self):
+        from decision_room.memory import service as memory
+        from test_memory import content
+        job=self.create()
+        self.ws.run_job(job)
+        original=self.ws.row(job)
+        memory.change(self.config,self.business['id'],action='declare',request_key='new-context',content=content())
+        self.ws.retry(job)
+        update=self.ws.update
+        def crash(job_id,**values):
+            if values.get('session_id') and values['session_id']!=original['session_id']:
+                raise KeyboardInterrupt
+            return update(job_id,**values)
+        with patch.object(self.ws,'update',side_effect=crash),self.assertRaises(KeyboardInterrupt):
+            self.ws.run_job(job)
+        recovered=Workspace(self.config,SETTINGS,WebModel)
+        row=recovered.sync(job)
+        self.assertNotEqual(row['session_id'],original['session_id'])
+        self.assertIsNone(row['review_id'])
+        recovered.run_job(job)
+        self.assertEqual(recovered.detail(job)['status'],'waiting')
+        with connect(self.config) as db:
+            self.assertEqual(db.execute('SELECT count(*) n FROM agent_sessions WHERE business_id=%s',(self.business['id'],)).fetchone()['n'],2)
 
 
 if __name__ == '__main__':

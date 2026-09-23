@@ -1,11 +1,14 @@
 """Business-scoped entry points for persistent review, owner replies and reports."""
 from uuid import uuid4
+from contextlib import nullcontext
 
 from langgraph.types import Command
 from langsmith import tracing_context
 from psycopg.types.json import Jsonb
 
 from ..database import connect
+from ..memory import context as memory_context
+from ..memory.service import lock as memory_lock
 from ..memory.service import capture_answer
 from ..execution import execute
 from .context import fingerprint, snapshot as source_snapshot
@@ -25,7 +28,7 @@ def _key(key):
 def _stale(config, db, session, run):
     _, _, current_key = knowledge(db, session)
     current_source = source_snapshot(config, session['business_id'], session['analysis_id'], session['source_snapshot']['owner_context'])
-    return bool(session['superseded_by'] or run['status'] == 'stale' or run['graph_version'] != REVIEW_GRAPH_VERSION
+    return bool(memory_context.reason(db, session['id']) or session['superseded_by'] or run['status'] == 'stale' or run['graph_version'] != REVIEW_GRAPH_VERSION
                 or current_key != run['knowledge_sha256']
                 or fingerprint(current_source) != fingerprint(run['snapshot']['source']))
 
@@ -40,6 +43,7 @@ def start(config, business_id, research_id, *, request_key, analyst=None, review
     if not research:
         raise ValueError('Research does not belong to this business.')
     with session_lock(config, business_id, research['session_id']) as (db, session):
+        memory_context.ensure(db, session['id'])
         research = db.execute('SELECT * FROM agent_research WHERE id=%s', (research_id,)).fetchone()
         _, _, key = knowledge(db, session)
         if session['superseded_by'] or research['status'] == 'stale' or research['knowledge_sha256'] != key:
@@ -108,10 +112,14 @@ def _drive(config, db, session, run, *, analyst=None, reviewer=None, executor=ex
             state = graph.get_state(setting)
             status = 'waiting' if any(t.interrupts for t in state.tasks) else state.values['outcome']
             issue = 'Review budget reached; no approval.' if status == 'limited' else state.values['action'].get('message')
-            db.execute('UPDATE agent_reviews SET status=%s,issue=%s,updated_at=now() WHERE id=%s', (status, issue, run['id']))
+            with db.transaction():
+                memory_lock(db, session['business_id'])
+                memory_context.ensure(db, session['id'])
+                db.execute('UPDATE agent_reviews SET status=%s,issue=%s,updated_at=now() WHERE id=%s', (status, issue, run['id']))
     except Exception as error:
         issue = str(error)[:2400] if isinstance(error, ValueError) else type(error).__name__
-        db.execute("UPDATE agent_reviews SET status='failed',issue=%s,updated_at=now() WHERE id=%s", (issue, run['id']))
+        status = 'stale' if isinstance(error, memory_context.StaleContext) else 'failed'
+        db.execute("UPDATE agent_reviews SET status=%s,issue=%s,updated_at=now() WHERE id=%s", (status, issue, run['id']))
         raise ValueError(f'Review {run["id"]} failed: {issue}') from None
 
 
@@ -164,11 +172,14 @@ def answer(config, business_id, review_id, *, step, text='', disposition='answer
     return show(config, business_id, review_id)
 
 
-def show(config, business_id, review_id):
-    with connect(config) as db:
+def show(config, business_id, review_id, *, _db=None):
+    with (nullcontext(_db) if _db is not None else connect(config)) as db, db.transaction():
         run = db.execute('SELECT * FROM agent_reviews WHERE id=%s AND business_id=%s', (review_id, business_id)).fetchone()
         if not run:
             raise ValueError('Review does not belong to this business.')
+        memory_lock(db, business_id)
+        # A writer may have committed while we waited for the business lock.
+        run = db.execute('SELECT * FROM agent_reviews WHERE id=%s AND business_id=%s', (review_id, business_id)).fetchone()
         session = db.execute('SELECT * FROM agent_sessions WHERE id=%s', (run['session_id'],)).fetchone()
         stale = _stale(config, db, session, run)
         context = material(config, db, session, run)
@@ -189,6 +200,8 @@ def show(config, business_id, review_id):
                 'planning_history': context['planning_history'],
                 'conversation': context['conversation'], 'owner_answers': context['owner_answers'],
                 'pending_questions': pending if not stale else [], 'model_calls': calls,
+                'context_manifest': memory_context.manifest(db, session['id']),
+                'context_retrievals': db.execute('SELECT request,response,created_at FROM context_retrievals WHERE session_id=%s ORDER BY created_at', (session['id'],)).fetchall(),
                 'remaining_plan': run['snapshot']['proposal']['investigations']}
 
 

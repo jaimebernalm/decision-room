@@ -9,7 +9,7 @@ class Strict(BaseModel):
 
 
 class Reference(Strict):
-    kind: Literal['table', 'column', 'owner_context', 'answer']
+    kind: Literal['table', 'column', 'owner_context', 'answer', 'memory']
     id: str = Field(max_length=100)
     column: str = Field(max_length=256)
 
@@ -77,6 +77,15 @@ def validate_action(raw, snapshot, inspected, answers, previous=None):
     if set(question_keys) & answered.keys():
         raise ValueError('Do not repeat answered, unknown or declined questions.')
 
+    shared = snapshot.get('business_context', {})
+    records = {r['reference']: r for r in shared.get('memories', [])}
+    for event in shared.get('retrievals', []):
+        records.update({r['reference']: r for r in event['response'].get('memories', [])})
+    memories = dict(records)
+    for row in records.values():
+        if sum(r['id'] == row['id'] for r in records.values()) == 1:
+            memories[row['id']] = row  # Compatibility only when the revision is unambiguous.
+
     def references(refs):
         for ref in refs:
             if ref.kind in ('table', 'column'):
@@ -84,6 +93,12 @@ def validate_action(raw, snapshot, inspected, answers, previous=None):
                     raise ValueError('Interpret only tables whose profiles have been inspected.')
                 if ref.kind == 'column' and ref.column not in tables[ref.id]['column_names']:
                     raise ValueError('Unknown column reference.')
+            elif ref.kind == 'memory':
+                if ref.id not in memories or ref.column:
+                    raise ValueError('Unknown delivered memory reference.')
+                c = memories[ref.id]['content']
+                if (c['scope'] == 'source' and c['scope_id'] not in shared.get('authorized_source_ids', [])) or (c['scope'] == 'analysis' and c['scope_id'] != shared.get('authorized_analysis_id')):
+                    raise ValueError('Memory definition does not apply to this analysis.')
             elif ref.kind == 'owner_context':
                 if ref.id != 'owner_context' or not snapshot['owner_context']:
                     raise ValueError('No owner context available.')
@@ -93,7 +108,7 @@ def validate_action(raw, snapshot, inspected, answers, previous=None):
     for item in proposal.interpretations:
         references(item.references)
         if item.status == 'confirmed' and not any(
-            r.kind == 'owner_context' or (r.kind == 'answer' and answer_ids[r.id]['disposition'] == 'answered')
+            r.kind == 'owner_context' or (r.kind == 'memory' and memories[r.id]['status'] == 'declared' and memories[r.id]['content']['temporal_scope'] != 'unresolved' and memories[r.id]['content']['kind'] not in ('result_reference', 'open_question')) or (r.kind == 'answer' and answer_ids[r.id]['disposition'] == 'answered')
             for r in item.references
         ):
             raise ValueError('Confirmed definitions require owner context or an actual answer.')

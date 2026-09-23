@@ -1,7 +1,7 @@
 # Entrega 2.5: ejecución incremental en siete pasos
 
 **Fecha:** 23 de septiembre de 2026.  
-**Estado:** pasos 2.5.1 y 2.5.2 completados y comprobados; pasos 2.5.3–2.5.7 pendientes. Véase la [validación del primer paso](../validation/2026-09-23-business-identity-check.md).  
+**Estado:** pasos 2.5.1–2.5.3 completados y comprobados; pasos 2.5.4–2.5.7 pendientes. Véase la [validación del primer paso](../validation/2026-09-23-business-identity-check.md).  
 **Referencias:** [alcance y criterios del plan](<../product/Decision Room - Plan de implementacion.md#51-entrega-25-memoria-del-negocio-y-experiencia-cotidiana>) y [diagnóstico y diseño de memoria/UX](business-memory-plan.md).
 
 ## Cómo ejecutar este plan
@@ -66,16 +66,18 @@ Las comprobaciones acompañan a cada incremento. El paso 7 integra y amplía esa
 
 ## 2.5.3. Memoria utilizada por el agente y correcciones entre sesiones
 
+**Cierre:** [implementación y validación](../validation/2026-09-23-context-check.md); [contrato de selección, herramientas y vigencia](context-retrieval.md).
+
 **Resultado:** una segunda investigación utiliza información pertinente del negocio; una corrección invalida los resultados afectados aunque procedan de otra sesión.
 
 **Decisión que debe aplicarse:** [RAG y relaciones entre datos, memoria e informes](business-memory-plan.md#41-rag-y-relaciones-entre-datos-memoria-e-informes). Recuperación dirigida por el agente con relaciones explícitas y búsqueda; los índices semánticos serán derivados y se incorporarán según evaluación, sin vectorizar cada fila ni sustituir los originales.
 
 **Incrementos, en orden:**
 
-- [ ] **A. Selección y manifiesto de contexto.** Seleccionar perfil, hechos, dudas, fuentes y resultados según negocio, objetivo y periodo. Guardar identificadores/versiones utilizados, reglas de selección y límites. Preparar catálogo con descripciones/columnas/periodos/cobertura y relaciones entre recuerdos, fuentes, investigaciones e informes. Empezar con referencias, filtros y búsqueda textual; evaluar omisiones con preguntas reformuladas antes de exigir búsqueda vectorial.
-- [ ] **B. Integración con el recorrido actual.** Incorporar el manifiesto en planificación, investigación y revisión, manteniendo las mismas versiones relevantes. Mantener el contexto libre del objetivo actual separado de los hechos del negocio. Ofrecer herramientas acotadas para que el agente busque candidatos, inspeccione datos y abra antecedentes/evidencia; registrar cada ampliación del contexto. Registrar qué fuentes y definiciones respaldan cada resultado reutilizable.
-- [ ] **C. Propagación de cambios.** Extender la invalidación por sesión a dependencias entre sesiones. Distinguir corrección histórica, nuevo dato y cambio futuro; conservar resultados históricos válidos. Bloquear reutilización/publicación de los afectados hasta su revisión. Si no se conoce bien el alcance, ampliar la revisión.
-- [ ] **D. Carrera de publicación y recuperación.** Comprobar versiones al reanudar y justo antes de publicar; una corrección durante el cálculo no puede dejar publicada una respuesta obsoleta. Replanificar el trabajo afectado usando los mecanismos actuales y conservar la evidencia anterior.
+- [x] **A. Selección y manifiesto de contexto.** Seleccionar perfil, hechos, dudas, fuentes y resultados según negocio, objetivo y periodo. Guardar identificadores/versiones utilizados, reglas de selección y límites. Preparar catálogo con descripciones/columnas/periodos/cobertura y relaciones entre recuerdos, fuentes, investigaciones e informes. Empezar con referencias, filtros y búsqueda textual; evaluar omisiones con preguntas reformuladas antes de exigir búsqueda vectorial.
+- [x] **B. Integración con el recorrido actual.** Incorporar el manifiesto en planificación, investigación y revisión, manteniendo las mismas versiones relevantes. Mantener el contexto libre del objetivo actual separado de los hechos del negocio. Ofrecer herramientas acotadas para que el agente busque candidatos, inspeccione datos y abra antecedentes/evidencia; registrar cada ampliación del contexto. Registrar qué fuentes y definiciones respaldan cada resultado reutilizable.
+- [x] **C. Propagación de cambios.** Extender la invalidación por sesión a dependencias entre sesiones. Distinguir corrección histórica, nuevo dato y cambio futuro; conservar resultados históricos válidos. Bloquear reutilización/publicación de los afectados hasta su revisión. Si no se conoce bien el alcance, ampliar la revisión.
+- [x] **D. Carrera de publicación y recuperación.** Comprobar versiones al reanudar y justo antes de publicar; una corrección durante el cálculo no puede dejar publicada una respuesta obsoleta. Replanificar el trabajo afectado usando los mecanismos actuales y conservar la evidencia anterior.
 
 **Zona de código:** [`agent/context.py`](../../decision_room/agent/context.py), [`agent/research_context.py`](../../decision_room/agent/research_context.py), [`agent/review_context.py`](../../decision_room/agent/review_context.py), [`agent/research.py`](../../decision_room/agent/research.py), [`agent/review.py`](../../decision_room/agent/review.py), el servicio de memoria y las consultas web de resultados publicables.
 

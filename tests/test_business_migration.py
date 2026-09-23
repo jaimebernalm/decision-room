@@ -127,3 +127,19 @@ class BusinessMigrationTests(unittest.TestCase):
             self.assertEqual(sources[0]['payload']['text'], 'Historical context')
             self.assertEqual(db.execute('SELECT count(*) AS n FROM memory_facts').fetchone()['n'], 0)
         self.assertEqual(Workspace(self.config).upload(job)[1], content)
+
+    def test_context_migration_failure_rolls_back_and_retry_preserves_legacy(self):
+        self.old_schema()
+        self.legacy_job()
+        with connect(self.config) as db:
+            db.execute(self.schema.split('-- Shared, immutable starting context')[0])
+        with patch('decision_room.database.Path.read_text', return_value=self.schema + '\nSELECT 1/0;'), self.assertRaises(DivisionByZero):
+            migrate(self.config)
+        with connect(self.config) as db:
+            self.assertFalse(db.execute('SELECT 1 FROM schema_versions WHERE version=10').fetchone())
+            self.assertIsNone(db.execute("SELECT to_regclass('context_manifests') AS t").fetchone()['t'])
+        migrate(self.config)
+        migrate(self.config)
+        with connect(self.config) as db:
+            self.assertEqual(db.execute('SELECT count(*) n FROM schema_versions WHERE version=10').fetchone()['n'],1)
+            self.assertEqual(db.execute('SELECT count(*) n FROM web_jobs').fetchone()['n'],1)

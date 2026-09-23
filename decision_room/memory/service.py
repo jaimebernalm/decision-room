@@ -82,13 +82,15 @@ def current(db, business_id):
         WHERE business_id=%s ORDER BY fact_id,revision DESC''', (business_id,)).fetchall()
 
 
-def append(db, business_id, fact_id, content, status, source_id, quote, alternatives=None):
+def append(db, business_id, fact_id, content, status, source_id, quote, alternatives=None, change_kind='historical'):
     revision = db.execute('''UPDATE memory_heads SET revision=revision+1 WHERE business_id=%s
         RETURNING revision''', (business_id,)).fetchone()['revision']
     latest = db.execute('SELECT coalesce(max(revision),0)+1 AS n FROM memory_revisions WHERE fact_id=%s', (fact_id,)).fetchone()['n']
-    db.execute('''INSERT INTO memory_revisions(business_id,fact_id,revision,business_revision,content,status,source_id,quote,alternatives)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)''',
-               (business_id, fact_id, latest, revision, Jsonb(content), status, source_id, quote, Jsonb(alternatives or [])))
+    db.execute('''INSERT INTO memory_revisions(business_id,fact_id,revision,business_revision,content,status,source_id,quote,alternatives,change_kind)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)''',
+               (business_id, fact_id, latest, revision, Jsonb(content), status, source_id, quote, Jsonb(alternatives or []), change_kind))
+    from .context import invalidate
+    invalidate(db, business_id)
     return {'fact_id': str(fact_id), 'revision': latest, 'business_revision': revision, 'status': status}
 
 
@@ -115,7 +117,7 @@ def validate_content(db, business_id, data):
 
 
 def change(config, business_id, *, action, request_key, content=None, fact_id=None, expected_revision=None,
-           original_text='', reason=''):
+           original_text='', reason='', change_kind='historical'):
     """Explicit owner operations, shared by future onboarding/chat/profile adapters."""
     if action not in ('propose', 'declare', 'confirm', 'correct', 'withdraw'):
         raise MemoryError('Operación de memoria no válida.', 400)
@@ -123,8 +125,13 @@ def change(config, business_id, *, action, request_key, content=None, fact_id=No
         raise MemoryError('Clave de petición no válida.', 400)
     if not isinstance(reason, str) or len(reason) > 2000:
         raise MemoryError('Motivo fuera de límites.', 400)
-    signature = digest(dict(action=action, content=content, fact_id=fact_id, expected_revision=expected_revision,
-                            original_text=original_text, reason=reason))
+    if change_kind not in ('historical', 'future') or (change_kind == 'future' and action != 'correct'):
+        raise MemoryError('Un cambio futuro requiere corregir un recuerdo con fecha de inicio.', 400)
+    identity = dict(action=action, content=content, fact_id=fact_id, expected_revision=expected_revision,
+                    original_text=original_text, reason=reason)
+    if change_kind != 'historical':
+        identity['change_kind'] = change_kind
+    signature = digest(identity)
     with connect(config) as db, db.transaction():
         lock(db, business_id)
         old_command = db.execute('SELECT * FROM memory_commands WHERE business_id=%s AND request_key=%s', (business_id, request_key)).fetchone()
@@ -164,11 +171,16 @@ def change(config, business_id, *, action, request_key, content=None, fact_id=No
             if action == 'confirm' and value['temporal_scope'] == 'unresolved':
                 raise MemoryError('Aclara la fecha mediante una corrección antes de confirmar.')
             status = 'withdrawn' if action == 'withdraw' else ('proposed' if value['temporal_scope'] == 'unresolved' else 'declared')
+        if change_kind == 'future' and (not value['valid_from'] or value['valid_from'] == '0001-01-01' or prior['status'] != 'declared' or
+                (value['scope'], value['scope_id'], value['topic']) !=
+                (prior['content']['scope'], prior['content']['scope_id'], prior['content']['topic']) or
+                (prior['content']['valid_from'] and value['valid_from'] <= prior['content']['valid_from'])):
+            raise MemoryError('El cambio futuro necesita fecha posterior, tema/ámbito conservados y un recuerdo declarado.', 400)
         text = original_text or reason or value['statement']
         source = capture(db, business_id, 'manual:' + request_key, text=text, kind='manual',
                          default_scope=value['scope'], scope_id=value['scope_id'])
         db.execute("UPDATE memory_sources SET status='applied' WHERE id=%s", (source['id'],))
-        result = append(db, business_id, fact_id, value, status, source['id'], text)
+        result = append(db, business_id, fact_id, value, status, source['id'], text, change_kind=change_kind)
         db.execute('INSERT INTO memory_commands(business_id,request_key,signature,result) VALUES (%s,%s,%s,%s)',
                    (business_id, request_key, signature, Jsonb(result)))
         return result
@@ -196,7 +208,11 @@ def read(config, business_id, *, history=False, fact_id=None, applicable_on=None
                 raise MemoryError('El recuerdo no pertenece a este negocio.', 404)
         if applicable_on is not None:
             day = date.fromisoformat(str(applicable_on)).isoformat()
-            rows = [r for r in rows if r['status'] == 'declared' and r['content']['temporal_scope'] != 'unresolved' and
+            from .context import effective, intersects
+            applicable = {(r['id'], r['revision']) for r in effective(db, business_id)
+                          if intersects(r['period'], {'from': day, 'until': day})}
+            rows = db.execute('SELECT * FROM memory_revisions WHERE business_id=%s ORDER BY business_revision', (business_id,)).fetchall()
+            rows = [r for r in rows if (str(r['fact_id']), r['revision']) in applicable and (fact_id is None or str(r['fact_id']) == str(fact_id)) and r['status'] == 'declared' and r['content']['temporal_scope'] != 'unresolved' and
                     (not r['content']['valid_from'] or r['content']['valid_from'] <= day) and
                     (not r['content']['valid_until'] or r['content']['valid_until'] >= day) and
                     (r['content']['scope'] == 'business' or

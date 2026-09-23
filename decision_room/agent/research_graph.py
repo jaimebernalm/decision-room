@@ -42,7 +42,7 @@ def build(config, db, session, run, model, saver, *, retry_uncertain=False, exec
         correction = None
         for attempt in range(2):
             raw = model_call(db, session['id'], model, context, correction, retry_uncertain,
-                             phase='research', scope=str(run_id), max_calls=options['max_model_calls'])
+                             config=config, phase='research', scope=str(run_id), max_calls=options['max_model_calls'])
             try:
                 action = validate_research_action(raw, snapshot, results, recorded, options)
                 if action['action'] == 'record_candidate':
@@ -66,11 +66,13 @@ def build(config, db, session, run, model, saver, *, retry_uncertain=False, exec
         return {'turn': step, 'action': action}
 
     def python(state):
+        from ..memory.context import ensure
+        ensure(db, session['id'])
         action = state['action']
         selected = {t['alias']: t['id'] for t in snapshot['tables'] if t['id'] in action['table_ids']}
         definition = {'owner_context': snapshot['source']['owner_context'], 'answers': snapshot['answers'],
                       'provisional_interpretations': snapshot['proposal']['interpretations'],
-                      'plan_revision': run['plan_revision'], 'knowledge_sha256': run['knowledge_sha256']}
+                      'plan_revision': run['plan_revision'], 'knowledge_sha256': run['knowledge_sha256'], 'context_manifest_id': str(session['id'])}
         result = executor(config, session['business_id'], session['analysis_id'], code=action['code'], tables=selected,
                           definitions=definition, request_key=f'research:{run_id}:{state["turn"]}',
                           timeout=options['python_timeout'])

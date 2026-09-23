@@ -1,7 +1,7 @@
 # Entrega 2.5: memoria del negocio y experiencia cotidiana
 
 **Fecha:** 23 de septiembre de 2026.  
-**Estado:** paso 2.5.1 implementado y [comprobado](../validation/2026-09-23-business-identity-check.md); paso 2.5.2 de memoria versionada también [comprobado](../validation/2026-09-23-memory-check.md); pasos 2.5.3–2.5.7 pendientes de construir y evaluar.  
+**Estado:** paso 2.5.1 implementado y [comprobado](../validation/2026-09-23-business-identity-check.md); paso 2.5.2 de memoria versionada también [comprobado](../validation/2026-09-23-memory-check.md); paso 2.5.3 de contexto compartido [comprobado](../validation/2026-09-23-context-check.md); pasos 2.5.4–2.5.7 pendientes de construir y evaluar.  
 **Alcance:** negocio persistente, memoria compartida entre conversaciones, chat con evidencia, Inicio e interfaz «Mi negocio». Los pasos y criterios de cierre están en el [plan de implementación](<../product/Decision Room - Plan de implementacion.md#51-entrega-25-memoria-del-negocio-y-experiencia-cotidiana>).
 
 El [desglose de ejecución incremental](business-memory-implementation.md) concreta cada uno de los siete pasos en incrementos pequeños, zonas de código, contratos entre pasos, demostraciones y comprobaciones de cierre. Este documento conserva el diagnóstico y las reglas comunes del diseño.
@@ -97,7 +97,7 @@ Empezar con selección por negocio, ámbito, estado, periodo y referencias, más
 
 ### 4.1. RAG y relaciones entre datos, memoria e informes
 
-**Decisión acordada con el usuario, 23 de septiembre de 2026.** Aplicar este diseño al implementar 2.5.3 y conectar las conversaciones en 2.5.4. Es una decisión de implementación pendiente, no una capacidad ya disponible.
+**Decisión acordada con el usuario, 23 de septiembre de 2026.** Aplicar este diseño al implementar 2.5.3 y conectar las conversaciones en 2.5.4. La base con datos, memoria e informes está implementada en 2.5.3: véanse el [contrato](context-retrieval.md) y la [validación](../validation/2026-09-23-context-check.md). El adaptador de chats sigue pendiente en 2.5.4.
 
 Combinar recuperación dirigida por el agente, relaciones explícitas y búsqueda. La búsqueda semántica es una herramienta posible dentro de ese recorrido; no sustituye los originales ni exige convertir todas las tablas y mensajes en vectores. PostgreSQL mantiene la autoridad del estado y las relaciones; los datos tabulares conservan su estructura y se calculan mediante SQL/Python sobre las fuentes autorizadas.
 

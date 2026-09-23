@@ -1,7 +1,7 @@
 # Decision Room: plan de implementación por entregas
 
 **Fecha de actualización:** 23 de septiembre de 2026.  
-**Estado vigente:** entrega 2 implementada y comprobada como recorrido web local. La ronda de evaluación previa a ampliar cobertura terminó el 22 de septiembre, con correcciones y límites documentados; no equivale a aceptación general del MVP. La entrega 2.5 tiene los pasos 2.5.1 y 2.5.2 implementados y comprobados; los pasos 2.5.3–2.5.7 de memoria compartida y experiencia cotidiana siguen pendientes y preceden a la ampliación de cobertura de la entrega 3. Los resultados históricos de cada paso se conservan en la sección 10.  
+**Estado vigente:** entrega 2 implementada y comprobada como recorrido web local. La ronda de evaluación previa a ampliar cobertura terminó el 22 de septiembre, con correcciones y límites documentados; no equivale a aceptación general del MVP. La entrega 2.5 tiene los pasos 2.5.1–2.5.3 implementados y comprobados; los pasos 2.5.4–2.5.7 de memoria compartida y experiencia cotidiana siguen pendientes y preceden a la ampliación de cobertura de la entrega 3. Los resultados históricos de cada paso se conservan en la sección 10.  
 **Propósito:** conservar la secuencia de trabajo, el motivo de cada paso y qué debemos poder comprobar antes de darlo por terminado.
 
 ## 1. Relación con el MVP
@@ -140,9 +140,9 @@ de la implementación web del cierre de calidad del agente. Ver
 
 ## 5.1. Entrega 2.5: memoria del negocio y experiencia cotidiana
 
-**Estado, 23 de septiembre de 2026:** pasos 2.5.1 y 2.5.2 implementados y comprobados; resto de implementación y evaluación integrada pendientes. El [diagnóstico del código y diseño técnico](../technical/business-memory-plan.md) detalla estructuras, migración, mantenimiento de memoria, contexto del agente, UX y escenarios de aceptación.
+**Estado, 23 de septiembre de 2026:** pasos 2.5.1–2.5.3 implementados y comprobados; resto de implementación y evaluación integrada pendientes. El [diagnóstico del código y diseño técnico](../technical/business-memory-plan.md) detalla estructuras, migración, mantenimiento de memoria, contexto del agente, UX y escenarios de aceptación.
 
-**Guía para implementarlo poco a poco:** el [desglose de los siete pasos](../technical/business-memory-implementation.md) define cuatro incrementos por paso, dependencias, zonas de código, contratos de salida, demostraciones y pruebas. Ejecutar un paso por vez y registrar su validación y commit al cerrarlo. Los ocho incrementos de 2.5.1–2.5.2 están completados; los restantes están pendientes; el paso 2.5.3 se prueba con sesiones actuales y el chat se introduce después, en 2.5.4, sin dependencias circulares.
+**Guía para implementarlo poco a poco:** el [desglose de los siete pasos](../technical/business-memory-implementation.md) define cuatro incrementos por paso, dependencias, zonas de código, contratos de salida, demostraciones y pruebas. Ejecutar un paso por vez y registrar su validación y commit al cerrarlo. Los doce incrementos de 2.5.1–2.5.3 están completados; los restantes están pendientes; el paso 2.5.3 está probado con sesiones actuales y el chat se introduce después, en 2.5.4, sin dependencias circulares.
 
 **Objetivo:** que el cliente tenga un negocio persistente y pueda volver a consultar, aportar contexto, actualizar datos y guardar informes sin repetir el onboarding. La memoria debe funcionar entre todos sus chats y análisis, con procedencia y ámbito, sin mezclar negocios ni presentar resultados antiguos como actuales.
 
@@ -376,3 +376,6 @@ Ver [validación completa](../validation/2026-09-22-luna-validation.md) e
 **Cierre de 2.5.2, 23 de septiembre de 2026:** memoria estructurada en PostgreSQL, revisiones, corrección/retirada, extracción desde perfil y nuevas aclaraciones, recuperación y estado web. Pasan 181 pruebas y 24/24 escenarios de extracción real tras corregir el tratamiento de fechas ambiguas. Se conservan resultados previos y límites; reutilización en el agente, chat y ficha siguen pendientes. Ver [validación](../validation/2026-09-23-memory-check.md).
 
 **Decisión de arquitectura registrada, 23 de septiembre de 2026:** acordada recuperación dirigida por el agente, relaciones explícitas entre fuentes, recuerdos, investigaciones, informes y futuros mensajes, y búsqueda gradual sobre descripciones/fragmentos. Se concretan el tratamiento de índices derivados, manifiestos y controles de vigencia, y se añaden comprobaciones de cierre a 2.5.3–2.5.4. Este cambio solo registra el diseño para su aplicación posterior; no implementa ni cierra esos pasos.
+
+
+**Cierre de 2.5.3, 23 de septiembre de 2026:** contexto inicial persistente, recuperación dirigida por el agente sobre datos/memoria/antecedentes, manifiesto de lo entregado y correcciones entre sesiones. Se comprueba vigencia al reanudar y publicar, se conservan periodos históricos y la web permite recalcular con la memoria actual. Pruebas automatizadas, casos reales y límites de búsqueda documentados en la [validación](../validation/2026-09-23-context-check.md). El chat se implementa a continuación en 2.5.4.

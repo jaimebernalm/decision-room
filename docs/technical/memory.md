@@ -10,7 +10,7 @@
 
 ## Límites
 
-La memoria no se añade aún a planificación, investigación ni revisión: selección de contexto e invalidación entre sesiones corresponden a 2.5.3. El chat llegará en 2.5.4 y la ficha completa en 2.5.5. Las operaciones del dominio serán reutilizables por esos puntos de entrada. El texto de una respuesta y su efecto en el análisis actual conservan el recorrido existente.
+Desde 2.5.3 la memoria se incorpora a planificación, investigación y revisión mediante el [selector y manifiesto compartidos](context-retrieval.md), con invalidación entre sesiones. El chat llegará en 2.5.4 y la ficha completa en 2.5.5. Las operaciones del dominio serán reutilizables por esos puntos de entrada. El texto de una respuesta y su efecto en el análisis actual conservan el recorrido existente.
 
 ## Contrato y almacenamiento
 
@@ -19,7 +19,7 @@ La memoria no se añade aún a planificación, investigación ni revisión: sele
 - `memory_commands`: clave idempotente, firma de petición y resultado. Repetir la misma petición devuelve su resultado; cambiarla conservando la clave se rechaza.
 - `memory_calls`: modelo, versión del prompt, contexto enviado, respuesta, consumo, estado y tiempos de cada llamada. La información queda en PostgreSQL privado; no se publica en Git.
 
-El contenido distingue `context`, `priority`, `definition`, `availability`, `open_question` y `result_reference`. Este último solo guarda una referencia a una revisión del mismo negocio; la extracción de texto no puede fabricar resultados. Su publicación y reutilización deben comprobarse en 2.5.3.
+El contenido distingue `context`, `priority`, `definition`, `availability`, `open_question` y `result_reference`. Este último solo guarda una referencia a una revisión del mismo negocio; la extracción de texto no puede fabricar resultados. Su publicación y reutilización se comprueban al abrir el original desde las herramientas de 2.5.3.
 
 Ámbitos actuales: negocio, lote de análisis y fuente. Una aclaración sobre un lote de un único archivo queda ligada a esa fuente; si hay varias, al lote completo. No se amplía automáticamente a todos los archivos ni se asigna por nombre. Los futuros chats podrán llamar al mismo servicio con un ámbito resuelto por el servidor; todavía no hay ámbito de conversación persistido.
 
@@ -38,7 +38,7 @@ Estados: propuesto, declarado por el cliente, en conflicto, retirado y sustituid
 | `correct` | Identidad, revisión esperada y contenido completo corregido; conserva el anterior y puede restaurar explícitamente un recuerdo retirado |
 | `withdraw` | Identidad y revisión esperada; lo retira de consultas vigentes y conserva su historial |
 
-`read` consulta el estado actual o el historial. `applicable_on`, `analysis_id` y `source_id` permiten comprobar fechas y ámbitos; no constituyen todavía el selector de contexto del agente. No se permite solicitar el historial como si fuera memoria vigente. Los adaptadores resuelven el negocio autorizado antes de llamar al dominio.
+`read` consulta el estado actual o el historial. `applicable_on`, `analysis_id` y `source_id` permiten comprobar fechas y ámbitos; son operaciones de dominio; el selector del agente se describe en el contrato de 2.5.3. No se permite solicitar el historial como si fuera memoria vigente. Los adaptadores resuelven el negocio autorizado antes de llamar al dominio.
 
 La retirada conserva una marca por tema, ámbito y periodo: una extracción automática posterior no reactiva ese recuerdo aunque reescriba la frase. Para restaurarlo hace falta una corrección explícita. La marca se conserva incluso tras esa restauración para impedir que vuelva a entrar contenido antiguo automáticamente. Retirar un recuerdo no elimina el texto ni los archivos originales.
 
@@ -46,7 +46,7 @@ La retirada conserva una marca por tema, ámbito y periodo: una extracción auto
 
 El perfil y su fuente pendiente se guardan en una transacción. Lo mismo ocurre con cada nueva aclaración del principal o revisor: si falla el registro de memoria, la respuesta analítica tampoco queda guardada a medias; la respuesta web pendiente permite reintentar. Una respuesta ya existente anterior a la migración no se extrae por el mero hecho de reanudar su sesión.
 
-El trabajador web atiende análisis y después fuentes pendientes de los negocios de su espacio. No procesa las fuentes de evaluaciones o negocios CLI ajenos al espacio. Para las aclaraciones conserva el proveedor/modelo de la sesión; para el perfil usa la configuración web. Sin modelo se conserva la cola. El dominio también permite procesar una fuente explícitamente, con el modelo suministrado por el llamador.
+Desde 2.5.3 el trabajador web procesa primero las fuentes pendientes de los negocios de su espacio y después los análisis, para disponer de la memoria antes de planificar. No procesa las fuentes de evaluaciones o negocios CLI ajenos al espacio. Para las aclaraciones conserva el proveedor/modelo de la sesión; para el perfil usa la configuración web. Sin modelo se conserva la cola. El dominio también permite procesar una fuente explícitamente, con el modelo suministrado por el llamador.
 
 La extracción tiene un máximo de 20 candidatos por llamada y admite hasta 200 recuerdos actuales como contexto, incluyendo retirados y conflictos. Si se supera ese límite, falla de forma recuperable sin truncar recuerdos. Exige citas literales, referencias del mismo negocio y ámbito permitido. Definiciones de archivos sin archivo identificado no se convierten en reglas del negocio.
 
@@ -66,3 +66,8 @@ git diff --check
 ```
 
 El ejecutor real utiliza ocho casos ficticios, una base temporal independiente y el proveedor configurado en `.env`. Conserva cada repetición y sus llamadas en el directorio indicado; requiere PostgreSQL y acceso al modelo, sin cargar datos privados de trabajo. Ver los [resultados y límites del cierre](../validation/2026-09-23-memory-check.md).
+
+
+## Integración con el agente desde 2.5.3
+
+La memoria ya se entrega mediante un [manifiesto compartido y herramientas de recuperación](context-retrieval.md). Las correcciones invalidan sesiones afectadas y bloquean sus informes; la web permite replanificar conservando el historial. `change` admite `change_kind="future"` para conservar la aplicación anterior de un recuerdo hasta el día previo a `valid_from`; el valor predeterminado `historical` corrige el pasado. La consulta `read(..., applicable_on=...)` utiliza esos mismos intervalos. Chat y edición de la ficha continúan pendientes.

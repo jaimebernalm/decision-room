@@ -412,3 +412,29 @@ BEGIN
         INSERT INTO schema_versions(version) VALUES (9);
     END IF;
 END $$;
+
+-- Shared, immutable starting context plus append-only retrieval observations.
+ALTER TABLE memory_revisions ADD COLUMN IF NOT EXISTS change_kind text NOT NULL DEFAULT 'historical'
+    CHECK (change_kind IN ('historical','future'));
+CREATE TABLE IF NOT EXISTS context_manifests (
+    session_id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    selection jsonb NOT NULL,
+    initial_context jsonb NOT NULL,
+    stale_reason text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    FOREIGN KEY (business_id,session_id) REFERENCES agent_sessions(business_id,id)
+);
+CREATE TABLE IF NOT EXISTS context_retrievals (
+    session_id uuid NOT NULL REFERENCES context_manifests(session_id),
+    decision_key text NOT NULL,
+    ordinal integer NOT NULL CHECK (ordinal > 0),
+    request jsonb NOT NULL,
+    response jsonb NOT NULL,
+    dependencies jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (session_id,decision_key,ordinal)
+);
+CREATE INDEX IF NOT EXISTS context_manifests_business ON context_manifests(business_id);
+ALTER TABLE agent_calls ADD COLUMN IF NOT EXISTS context_payload jsonb;
+INSERT INTO schema_versions(version) VALUES (10) ON CONFLICT DO NOTHING;
