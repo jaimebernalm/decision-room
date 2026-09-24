@@ -165,9 +165,9 @@ function renderMemory() {
   const m = state.memory || {};
   const failed = m.failed || m.uncertain;
   const message = failed
-    ? "Tu texto está guardado, pero hay cambios que no se han incorporado a la memoria."
-    : m.pending ? "Tu texto está guardado. La preparación de la memoria está pendiente."
-    : m.needs_review ? `Memoria procesada: ${m.needs_review} ${m.needs_review === 1 ? "recuerdo pendiente" : "recuerdos pendientes"} de confirmar o aclarar.`
+    ? "Guardé tus cambios, pero aún no he podido incorporarlos a la memoria."
+    : m.pending ? "Guardé tus cambios. Estoy incorporándolos a la memoria…"
+    : m.needs_review ? `Hay ${m.needs_review} ${m.needs_review === 1 ? "dato" : "datos"} de tu negocio por confirmar o aclarar.`
     : "";
   box.innerHTML = message ? `<div class="notice memory-notice"><p>${esc(message)} ${m.needs_review ? '<a href="#my-business">Revisar en Mi negocio</a>' : ""}</p>${m.uncertain ? '<p>Se interrumpió una petición al modelo. Reintentar puede repetir esa petición.</p>' : ""}${failed ? '<button type="button" class="button secondary" id="retry-memory">Reintentar memoria</button>' : ""}<span id="memory-error"></span></div>` : "";
   const retry = document.querySelector("#retry-memory");
@@ -783,8 +783,11 @@ function chatResponse(r, anchor = "response") {
     return `<p>${esc(r.text)}</p>${r.items.map((x) => `<p><strong>${esc(x.description)}</strong> · ${esc(x.names.join(", "))}<br>${esc(x.columns.join(", "))}</p>`).join("") || "<p>No hay conjuntos disponibles todavía.</p>"}`;
   if (r.kind === "history")
     return `<p>${esc(r.text)}</p>${r.items.map((x) => `<blockquote>${x.preceding_question ? `<p>Pregunta: ${esc(x.preceding_question)}</p>` : ""}<p>${esc(x.text)}</p><a href="#chat/${esc(x.conversation_id)}">Abrir conversación original</a></blockquote>`).join("")}`;
-  if (r.kind === "memory" || (r.kind === "missing" && r.items))
-    return `<p>${esc(r.text)}</p>${r.items.length ? r.items.map((x) => `<p><strong>${esc({ declared: "Declarado", proposed: "Por confirmar", conflicted: "Hay una contradicción" }[x.status] || x.status)}</strong> · ${esc(x.content.statement)}<br><small>${esc({ business: "Compartido con el negocio", analysis: "Aplicable a este conjunto de datos", source: "Aplicable a este archivo" }[x.content.scope])}</small></p>`).join("") : "<p>Todavía no hay hechos declarados aplicables. Las preguntas y las hipótesis no se guardan como hechos confirmados.</p>"}`;
+  if (r.kind === "memory") {
+    const legacy = r.text === "El mensaje está guardado. Estos son los recuerdos aplicables y su estado.";
+    const intro = legacy ? (r.items?.length ? "Esto es lo que tenía guardado en ese momento:" : "En ese momento todavía no encontraba información del negocio que pudiera utilizar.") : r.text;
+    return `<p>${esc(intro)}</p>${r.items?.length ? `<ul>${r.items.map((x) => `<li>${x.status === "declared" ? "" : `<strong>${esc({ proposed: "Por confirmar", conflicted: "Hay versiones diferentes" }[x.status] || x.status)}: </strong>`}${esc(x.content.statement)}${x.content.scope === "business" ? "" : `<br><small>${esc({ analysis: "Sobre este conjunto de datos", source: "Sobre este archivo" }[x.content.scope])}</small>`}</li>`).join("")}</ul>` : ""}`;
+  }
   if (r.kind === "questions")
     return r.questions
       .map(

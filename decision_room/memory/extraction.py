@@ -1,6 +1,7 @@
 """Durable extraction queue with explicit recovery of uncertain model calls."""
 from uuid import uuid4
 
+from pydantic import ValidationError
 from psycopg.types.json import Jsonb
 
 from ..database import connect
@@ -60,6 +61,13 @@ def _chat_question_only(source):
     import re
     text = source['payload']['text'].strip()
     return source['origin_key'].startswith('chat_message:') and text.startswith('¿') and not re.sub(r'¿[^?]*\?', '', text).strip()
+
+
+def _validation_hint(error):
+    if isinstance(error, ValidationError):
+        return '; '.join(f"{'.'.join(map(str, item['loc']))}: {item['msg']}"
+                         for item in error.errors(include_input=False))[:1000]
+    return str(error)[:1000]
 
 
 def _apply(db, source):
@@ -148,6 +156,29 @@ def process(config, business_id, source_id, model):
                                    (Jsonb(response), Jsonb(usage), call_id))
                     db.execute("UPDATE memory_sources SET status='extracted',response=%s,updated_at=now() WHERE id=%s", (Jsonb(response), source_id))
             source = db.execute('SELECT * FROM memory_sources WHERE id=%s', (source_id,)).fetchone()
+            if call_id and not _chat_question_only(source):
+                try:
+                    _validate(db, source, source['response'])
+                except (ValidationError, MemoryError) as error:
+                    # A schema-constrained model can still return an invalid
+                    # scope or citation. Keep the first response for audit and
+                    # make one bounded correction call before surfacing a failure.
+                    correction = _validation_hint(error)
+                    corrected_context = {**context, 'previous_response': source['response']}
+                    call_id = uuid4()
+                    with db.transaction():
+                        db.execute("UPDATE memory_sources SET status='extracting',updated_at=now() WHERE id=%s", (source_id,))
+                        db.execute('''INSERT INTO memory_calls(id,business_id,source_id,model_settings,prompt_version,context,status)
+                            VALUES (%s,%s,%s,%s,%s,%s,'running')''',
+                                   (call_id, business_id, source_id, Jsonb(model.identity), PROMPT_VERSION,
+                                    Jsonb({**corrected_context, 'validation_issue': correction})))
+                    response, usage = model.generate_memory(corrected_context, correction=correction)
+                    with db.transaction():
+                        db.execute("UPDATE memory_calls SET status='completed',response=%s,usage=%s,finished_at=now() WHERE id=%s",
+                                   (Jsonb(response), Jsonb(usage), call_id))
+                        db.execute("UPDATE memory_sources SET status='extracted',response=%s,updated_at=now() WHERE id=%s",
+                                   (Jsonb(response), source_id))
+                    source = db.execute('SELECT * FROM memory_sources WHERE id=%s', (source_id,)).fetchone()
             with db.transaction():
                 _apply(db, source)
         except Exception as error:

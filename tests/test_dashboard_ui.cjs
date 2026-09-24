@@ -113,6 +113,18 @@ test('chat renders reviewed labels and formatting instead of raw metrics', () =>
   assert.ok(html.includes('Ventas netas'));assert.ok(html.includes('1.255,00'));
   assert.ok(!html.includes('technical_total_eur'));assert.ok(!html.includes('1255.0000000000'));
 });
+test('memory answer reads naturally and does not add a technical empty-state paragraph', () => {
+  const f=fixture();
+  const empty=f.chatResponse({kind:'memory',text:'He revisado la información y aún no encuentro nada.',items:[]});
+  assert.ok(empty.includes('He revisado'));
+  assert.ok(!empty.includes('hechos declarados'));
+  const facts=f.chatResponse({kind:'memory',text:'Esto es lo que sé:',items:[{status:'declared',content:{statement:'Cerramos los domingos.',scope:'business'}}]});
+  assert.ok(facts.includes('Cerramos los domingos.'));
+  assert.ok(!facts.includes('Declarado'));
+  const previous=f.chatResponse({kind:'memory',text:'El mensaje está guardado. Estos son los recuerdos aplicables y su estado.',items:[]});
+  assert.ok(previous.includes('En ese momento'));
+  assert.ok(!previous.includes('recuerdos aplicables'));
+});
 test('withdrawn reports are distinct from pending and historical reports', () => {
   const f=fixture();
   assert.equal(f.reportState({status:'blocked',presentation_status:'withdrawn'}),'withdrawn');

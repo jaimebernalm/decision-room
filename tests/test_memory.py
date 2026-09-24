@@ -310,11 +310,42 @@ print(read(replace(Config.load(),dsn=args['dsn']),args['business'])[0]['status']
     def test_model_contract_uses_existing_provider_boundary(self):
         model = ModelClient(ModelSettings(model='test-only'))
         with patch.object(model, '_generate', return_value=({'candidates': []}, {})) as generate:
-            model.generate_memory({'source': {}})
+            model.generate_memory({'source': {'default_scope': 'business', 'scope_id': None,
+                                              'allow_business': True}})
         schema = generate.call_args.args[-1]
         self.assertFalse(schema['additionalProperties'])
         self.assertEqual(schema['required'], ['candidates'])
         self.assertIn('untrusted', generate.call_args.args[2])
+        fields = schema['$defs']['Content']['properties']
+        self.assertEqual(fields['scope']['enum'], ['business'])
+        self.assertEqual(fields['scope_id'], {'type': 'null'})
+        self.assertNotIn('definition', fields['kind']['enum'])
+        self.assertNotIn('result_reference', fields['kind']['enum'])
+
+    def test_invalid_business_scope_is_corrected_automatically(self):
+        source = self.capture('Cerramos los domingos.', allow_business=True)
+        invalid = candidate(scope='source', scope_id=None)
+        valid = candidate()
+
+        class CorrectingModel:
+            identity = {'model': 'correction-test-only'}
+            calls = []
+
+            def generate_memory(self, context, correction=None):
+                self.calls.append((context, correction))
+                return {'candidates': [valid if correction else invalid]}, {}
+
+        model = CorrectingModel()
+        extraction.process(self.config, self.b, source['id'], model)
+        self.assertEqual(self.source(source)['status'], 'applied')
+        self.assertEqual(len(memory.read(self.config, self.b)), 1)
+        self.assertEqual(len(model.calls), 2)
+        self.assertIn('scope', model.calls[1][1])
+        self.assertIn('previous_response', model.calls[1][0])
+        with connect(self.config) as db:
+            calls = db.execute('SELECT status FROM memory_calls WHERE source_id=%s ORDER BY created_at',
+                               (source['id'],)).fetchall()
+        self.assertEqual([row['status'] for row in calls], ['completed', 'completed'])
 
     def test_hypothesis_does_not_displace_current_declared_schedule(self):
         self.change(action='declare', content=content())

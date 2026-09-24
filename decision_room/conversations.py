@@ -240,6 +240,22 @@ def brief(data, keys=None):
     )
 
 
+def memory_reply(profile, items, progress):
+    name = profile['name']
+    if any(item['status'] == 'declared' for item in items):
+        return f'Esto es lo que me has contado sobre {name}:'
+    if items:
+        return f'Tengo información sobre {name}, pero todavía necesita una aclaración antes de que pueda darla por buena:'
+    if progress['failed'] or progress['uncertain']:
+        return (f'He guardado lo que me contaste sobre {name}, pero aún no he podido incorporarlo a lo que sé del negocio. '
+                'Puedes reintentar la preparación de la memoria y volver a preguntarme.')
+    if progress['pending']:
+        return (f'He guardado lo que me contaste sobre {name} y todavía lo estoy preparando. '
+                'Vuelve a preguntarme en un momento.')
+    return (f'He revisado la información guardada sobre {name} y todavía no encuentro nada que pueda contarte con seguridad. '
+            'Si me cuentas a qué se dedica tu negocio o añades datos en Mi negocio, podré ayudarte mejor.')
+
+
 class Conversations:
     def __init__(self, workspace):
         self.ws = workspace
@@ -885,10 +901,12 @@ class Conversations:
                             text='Antecedentes de conversaciones. Son citas históricas, no hechos confirmados actuales.',
                         )
                     elif action.action == 'remember':
+                        items = turn['snapshot']['memories']
                         response = dict(
                             kind='memory',
-                            text='El mensaje está guardado. Estos son los recuerdos aplicables y su estado.',
-                            items=turn['snapshot']['memories'],
+                            text=memory_reply(turn['snapshot']['profile'], items,
+                                              memory.status(self.config, self.business)),
+                            items=items,
                         )
                     elif action.action == 'clarify':
                         # A question cannot smuggle an unreviewed numerical answer.
@@ -901,8 +919,7 @@ class Conversations:
                     else:
                         response = dict(
                             kind='missing',
-                            text='No hay información suficiente para completar esa respuesta. Puedes aclarar lo que falta o aportar más datos. Esto es lo que tenemos declarado:',
-                            items=turn['snapshot']['memories'],
+                            text='He revisado la información disponible, pero todavía no encuentro lo necesario para responderte con seguridad. Si me das más contexto o añades datos, podré intentarlo de nuevo.',
                         )
                     with db.transaction():
                         memory.lock(db, self.business)

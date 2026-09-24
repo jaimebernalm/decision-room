@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 from uuid import uuid4
 
-from decision_room.conversations import Conversations, search_history, snapshot
+from decision_room.conversations import Conversations, memory_reply, search_history, snapshot
 from decision_room.database import connect
 from decision_room.service import import_batch
 from decision_room.memory import service as memory, retrieval
@@ -231,6 +231,19 @@ class ConversationTests(unittest.TestCase):
         final = self.send(chat, 'Memory?')
         self.assertEqual(final['response']['items'][0]['content']['statement'], 'Abrimos los domingos.')
         self.assertEqual(final['response']['items'][0]['status'], 'declared')
+
+    def test_memory_answer_uses_current_facts_and_plain_language(self):
+        chat = self.chat()
+        empty = self.send(chat, 'Memory?')
+        self.assertEqual(empty['response']['kind'], 'memory')
+        self.assertNotIn('recuerdos aplicables', empty['response']['text'])
+        self.assertNotIn('hechos declarados', empty['response']['text'])
+        self.send(chat, 'Cerramos los domingos.')
+        answer = self.send(chat, 'Memory?')
+        self.assertIn('Fictional chat shop', answer['response']['text'])
+        self.assertEqual(answer['response']['items'][0]['content']['statement'], 'Cerramos los domingos.')
+        self.assertIn('todavía no encuentro', memory_reply({'name': 'Tienda'}, [],
+            {'pending': 0, 'failed': 0, 'uncertain': 0}))
 
     def test_send_is_persisted_idempotent_and_serial(self):
         chat = self.chat()
