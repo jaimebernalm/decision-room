@@ -185,6 +185,11 @@ y la [validación](../validation/2026-09-23-semantic-check.md).
 
 **Comprobar:** una pregunta breve obtiene respuesta con fuente y periodo; una pregunta nueva ejecuta y verifica el cálculo; una pregunta sin datos suficientes explica el límite; una declaración se utiliza en otro chat y al reabrir uno antiguo. Recargar/reintentar no duplica mensajes, hechos ni trabajos. Las respuestas nuevas no eluden las comprobaciones por presentarse en chat en vez de en un informe.
 
+**Corrección de pertinencia, 24 de septiembre:** respuestas de fecha y capacidades,
+consulta de información reciente sin iniciar un análisis innecesario y explicación
+breve antes de la evidencia desplegable. Se comprueban los casos observados con
+modelo real, navegador y regresión automatizada. Véase la [validación y límites](../validation/2026-09-24-conversation-relevance-check.md).
+
 ### 2.5.5. «Mi negocio» y actualización de datos
 
 **Construir:** ficha progresiva y editable con información, prioridades, definiciones, fuentes/periodos y cambios; mostrar procedencia, vigencia y propuestas/conflictos donde ayuden. Las ediciones usan el mismo servicio de memoria del chat. Reutilizar archivos ya aceptados; permitir aportar otro CSV y seleccionar su uso sin iniciar otro negocio. Mantener conjuntos/versiones explícitos, detectar reenvíos exactos y aclarar sustitución o solapamiento; no implementar fusión universal de tablas.

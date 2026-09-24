@@ -3252,6 +3252,10 @@ body { background: #ffffff; }
 .new-chat-list a .icon:last-child { width: 14px; height: 14px; }
 .new-chat-all { display: inline-flex; align-items: center; gap: 8px; margin: 14px 12px 0; color: var(--green); font-size: 12px; }
 .new-chat-all .icon { width: 14px; height: 14px; }
+.chat-evidence { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; }
+.chat-evidence > summary { cursor: pointer; color: var(--green); font-weight: 600; }
+.chat-evidence[open] > summary { margin-bottom: 20px; }
+.chat-source { font-size: 12px; }
 .composer-in-motion { transform-origin: top left; animation: composer-travel 480ms cubic-bezier(.22, 1, .36, 1) both; }
 @keyframes composer-travel {
   from { transform: var(--composer-start); opacity: .96; }

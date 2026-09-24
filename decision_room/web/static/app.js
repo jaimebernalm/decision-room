@@ -807,8 +807,10 @@ function chatResponse(r, anchor = "response", ownerText = "") {
   if (!r) return "";
   if (r.kind === "memory" && shortGreeting(ownerText))
     return `<p>¡Hola! ¿Qué te gustaría saber o investigar sobre ${esc(state.business?.name || "tu negocio")}?</p>`;
-  if (r.kind === "evidence")
-    return `<h3>${esc(r.title)}</h3>${r.highlights?.length ? `<div class="dashboard-metrics">${r.highlights.map(h => `<div class="metric-tile"><span>${esc(h.label)}</span><strong>${esc(h.value)}</strong><small>${esc(h.unit)}</small></div>`).join("")}</div>` : ""}<p class="muted">${esc(r.scope?.period)} · ${esc(r.scope?.coverage)}</p>${r.claims.map(c => `<section id="${esc(anchor)}-${esc(c.key)}"><h4>${esc(c.title)}</h4><p>${esc(c.statement)}</p><p>${esc(c.interpretation)}</p><details><summary>Cómo se ha comprobado</summary><p>${esc(c.method)}</p></details></section>`).join("")}<div class="dash-chart-grid">${(r.charts || []).map(c => dashboardChart(c, null, `#${anchor}-${c.claim_key}`)).join("")}</div><ul>${r.limitations.map(x => `<li>${esc(x)}</li>`).join("")}</ul>`;
+  if (r.kind === "evidence") {
+    const paragraphs = r.paragraphs?.length ? r.paragraphs : r.claims.flatMap(c => [c.statement, c.interpretation]).filter(Boolean);
+    return `${paragraphs.map(text => `<p>${esc(text)}</p>`).join("")}<p class="muted chat-source">Fuente: ${esc(r.title)}${r.scope?.period ? ` · ${esc(r.scope.period)}` : ""}</p><details class="chat-evidence"><summary>Ver datos y evidencia</summary><h3>${esc(r.title)}</h3>${r.highlights?.length ? `<div class="dashboard-metrics">${r.highlights.map(h => `<div class="metric-tile"><span>${esc(h.label)}</span><strong>${esc(h.value)}</strong><small>${esc(h.unit)}</small></div>`).join("")}</div>` : ""}<p class="muted">${esc(r.scope?.period)} · ${esc(r.scope?.coverage)}</p>${r.claims.map(c => `<section id="${esc(anchor)}-${esc(c.key)}"><h4>${esc(c.title)}</h4><p>${esc(c.statement)}</p><p>${esc(c.interpretation)}</p><details><summary>Cómo se ha comprobado</summary><p>${esc(c.method)}</p></details></section>`).join("")}<div class="dash-chart-grid">${(r.charts || []).map(c => dashboardChart(c, null, `#${anchor}-${c.claim_key}`)).join("")}</div><ul>${r.limitations.map(x => `<li>${esc(x)}</li>`).join("")}</ul></details>`;
+  }
   if (r.kind === "catalog")
     return `<p>${esc(r.text)}</p>${r.items.map((x) => `<p><strong>${esc(x.description)}</strong> · ${esc(x.names.join(", "))}<br>${esc(x.columns.join(", "))}</p>`).join("") || "<p>No hay conjuntos disponibles todavía.</p>"}`;
   if (r.kind === "history")

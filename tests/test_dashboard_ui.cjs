@@ -109,9 +109,11 @@ test('chat titles are short without losing the full submitted question', async (
 });
 test('chat renders reviewed labels and formatting instead of raw metrics', () => {
   const f=fixture();
-  const html=f.chatResponse({kind:'evidence',title:'Ventas',metrics:[{metric:'technical_total_eur',value:'1255.0000000000'}],highlights:[{label:'Ventas netas',value:'1.255,00',unit:'EUR'}],scope:{},claims:[],charts:[],limitations:[]});
+  const html=f.chatResponse({kind:'evidence',title:'Ventas',paragraphs:['Se suman los importes <sin repetir filas>.'],metrics:[{metric:'technical_total_eur',value:'1255.0000000000'}],highlights:[{label:'Ventas netas',value:'1.255,00',unit:'EUR'}],scope:{},claims:[],charts:[],limitations:[]});
   assert.ok(html.includes('Ventas netas'));assert.ok(html.includes('1.255,00'));
   assert.ok(!html.includes('technical_total_eur'));assert.ok(!html.includes('1255.0000000000'));
+  assert.ok(html.indexOf('Se suman los importes &lt;sin repetir filas&gt;') < html.indexOf('<details'));
+  assert.ok(html.includes('<details class="chat-evidence"><summary>Ver datos y evidencia</summary>'));
 });
 test('memory answer reads naturally and does not add a technical empty-state paragraph', () => {
   const f=fixture();

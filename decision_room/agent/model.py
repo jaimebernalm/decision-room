@@ -117,7 +117,12 @@ class ModelClient:
 
     def generate_chat(self, context, correction=None):
         from ..conversations import Action, SYSTEM
-        return self._generate(context, correction, SYSTEM, Action.model_json_schema())
+        schema = Action.model_json_schema()
+        # Stored v2 actions keep defaults; new provider responses name every field.
+        schema['required'] = list(schema['properties'])
+        for field in schema['properties'].values():
+            field.pop('default', None)
+        return self._generate(context, correction, SYSTEM, schema)
 
     def generate_memory(self, context, correction=None):
         from ..memory.contracts import Extraction, SYSTEM as MEMORY_SYSTEM

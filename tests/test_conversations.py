@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 from uuid import uuid4
 
-from decision_room.conversations import Conversations, memory_reply, search_history, snapshot
+from decision_room.conversations import Conversations, memory_reply, search_history, snapshot, direct_question
 from decision_room.greetings import is_greeting
 from decision_room.database import connect
 from decision_room.service import import_batch
@@ -139,7 +139,8 @@ class ConversationTests(unittest.TestCase):
             seen.append(context)
             opened = next((e for e in context['retrievals'] if e['request']['tool'] == 'open_report'), None)
             if opened:
-                return action('explain', report_id=reference['report_id'], claim_keys=[reference['claim_key']]), {}
+                # Even an empty model selection cannot broaden an explicit finding.
+                return action('explain', report_id=reference['report_id'], claim_keys=[]), {}
             return action('retrieve', retrieval=dict(tool='open_report', query='', id=reference['report_id'], limit=1)), {}
         with patch.object(ChatModel, 'generate_chat', explain):
             self.chats.run(saved['id'])
@@ -147,6 +148,7 @@ class ConversationTests(unittest.TestCase):
         self.assertEqual(detail['status'], 'completed', detail)
         self.assertEqual(seen[0]['chat_context']['finding_reference'], selected)
         self.assertEqual(detail['response']['claims'][0]['key'], reference['claim_key'])
+        self.assertEqual(len(detail['response']['claims']), 1)
         self.assertIn('charts', detail['response'])
         self.assertIn('highlights', detail['response'])
         different = Path(self.temp.name) / 'other.csv'
@@ -312,6 +314,65 @@ class ConversationTests(unittest.TestCase):
         self.assertIsNone(self.ws.dashboard()['report'])
         with self.assertRaises(WebError):
             self.chats.report(chat, t['id'])
+
+    def test_clock_answer_is_grounded_durable_and_does_not_extract_memory(self):
+        chat = self.chat()
+        clock = dict(server_time='2026-09-24T10:42:00+02:00', timezone='CEST', web_access=False)
+        with patch('decision_room.conversations.runtime_context', return_value=clock), \
+                patch.object(ChatModel, 'generate_chat', side_effect=AssertionError('Clock needs no model')):
+            turn = self.send(chat, '¿Qué día es hoy?')
+        self.assertEqual(turn['response']['kind'], 'answer')
+        self.assertIn('jueves, 24 de septiembre de 2026', turn['response']['text'])
+        self.assertIn('UTC+0200', turn['response']['text'])
+        with connect(self.config) as db:
+            row = db.execute('SELECT memory_source_id,job_id FROM chat_turns WHERE id=%s', (turn['id'],)).fetchone()
+            self.assertIsNone(row['memory_source_id'])
+            self.assertIsNone(row['job_id'])
+        memory.change(self.config, self.b, action='declare', request_key='clock-unrelated-change', content=content())
+        self.assertEqual(self.chats.detail(chat)['turns'][0]['response'], turn['response'])
+        self.assertIsNone(direct_question('¿Qué día es hoy y cuánto vendimos?'))
+        self.assertIsNone(direct_question('¿Qué ha pasado hoy en mi negocio?'))
+
+    def test_conversational_fallback_and_capabilities_do_not_dump_memory(self):
+        for kind in ('capabilities', 'unavailable'):
+            with patch.object(ChatModel, 'generate_chat', return_value=(action('respond', reply_kind=kind), {})):
+                turn = self.send(self.chat(), '¿Puedes buscar las noticias de hoy?')
+            self.assertEqual(turn['status'], 'completed', turn)
+            self.assertEqual(turn['response']['kind'], 'answer')
+            self.assertIn('internet', turn['response']['text'])
+            self.assertNotIn('items', turn['response'])
+
+    def test_method_and_recency_answers_survive_refresh_without_new_jobs(self):
+        chat, original = self.complete()
+        report_id = original['response']['report_id']
+        def explain(mode):
+            def generate(model, context, correction=None):
+                if context['retrievals']:
+                    return action('explain', report_id=report_id, answer_mode=mode), {}
+                # A copied question is unused in a lookup and must not abort it.
+                return action('retrieve', retrieval=dict(tool='open_report', query='', id=report_id, limit=1), question=context['message']['text']), {}
+            return generate
+        for mode, question in (('method', '¿Cómo se ha calculado?'), ('recency', '¿Qué es lo último que ha pasado?')):
+            with patch.object(ChatModel, 'generate_chat', explain(mode)):
+                turn = self.send(chat, question)
+            response = turn['response']
+            self.assertEqual(turn['status'], 'completed', turn)
+            self.assertEqual(response['answer_mode'], mode)
+            self.assertIsNone(turn['job_id'])
+            if mode == 'method':
+                self.assertIn(original['response']['claims'][0]['method'], response['paragraphs'])
+            else:
+                self.assertIn(original['response']['scope']['period'], response['paragraphs'][0])
+                self.assertIn('No me permite confirmar', response['paragraphs'][1])
+            self.assertEqual(self.chats.detail(chat)['turns'][-1]['response'], response)
+
+    def test_recency_without_review_does_not_invent_coverage_from_samples(self):
+        self.batch()
+        with patch.object(ChatModel, 'generate_chat', return_value=(action('catalog', answer_mode='recency'), {})):
+            turn = self.send(self.chat(), '¿Qué es lo último que ha pasado?')
+        self.assertEqual(turn['status'], 'completed', turn)
+        self.assertIsNone(turn['job_id'])
+        self.assertIn('todavía no tengo un resultado revisado', turn['response']['text'])
 
     def test_uncertain_request_never_automatically_repeated(self):
         chat = self.chat()
