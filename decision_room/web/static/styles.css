@@ -3036,16 +3036,6 @@ body { background: #ffffff; }
 .dashboard-empty p { margin: 0; color: var(--muted); }
 .dashboard-empty .button { margin-left: auto; }
 .dashboard-empty-icon { display: grid; place-items: center; width: 60px; height: 60px; border-radius: 18px; background: #e4eee3; color: var(--green); flex: none; }
-.dashboard-compose { position: fixed; z-index: 8; bottom: 16px; left: 296px; right: 46px; max-width: 1180px; margin: auto; padding: 15px 18px; background: #edf5ecf2; box-shadow: 0 12px 34px #1a40251e; border-radius: 18px; backdrop-filter: blur(12px); }
-.dashboard-compose .dashboard-section-head { margin-bottom: 8px; }
-.dashboard-compose .dashboard-section-head .eyebrow { display: none; }
-.dashboard-compose .dashboard-section-head h2 { font-size: 17px; }
-#dashboard-question { display: flex; align-items: flex-end; gap: 12px; background: white; padding: 10px; border-radius: 16px; }
-#dashboard-prompt { flex: 1; min-width: 0; padding: 10px 12px; border: 0; background: transparent; resize: vertical; font-size: 14px; }
-#dashboard-prompt:focus-visible { outline: 0; }
-#dashboard-question:focus-within { outline: 2px solid #4d9270; }
-#dashboard-question .button { width: 42px; height: 42px; padding: 0; flex: none; }
-.composer-hint { font-size: 11px; color: #6e7e70; margin: 10px 4px 0; line-height: 1.5; }
 .reports-list { display: grid; gap: 10px; }
 .report-list-item { display: flex; align-items: center; gap: 17px; padding: 18px; background: #f4f8f3; border-radius: 15px; transition: background .15s; }
 .report-list-item:hover { background: #e7f0e6; }
@@ -3077,9 +3067,6 @@ body { background: #ffffff; }
   .dash-chart-grid { grid-template-columns: 1fr; }
   .business-grid { grid-template-columns: 1fr; }
 }
-@media (max-width: 1180px) {
-  .dashboard-compose { left: 246px; right: 30px; }
-}
 @media (max-width: 760px) {
   .sidebar { background: #f6f9f5; }
   .sidebar-history { display: none; }
@@ -3092,7 +3079,6 @@ body { background: #ffffff; }
   .finding-grid { grid-template-columns: 1fr; }
   .finding-tile { min-height: 0; }
   .idea-grid { grid-template-columns: 1fr; }
-  .dashboard-compose { left: 99px; right: 25px; }
 }
 @media (max-width: 560px) {
   .sidebar { border-color: #e9eee8; }
@@ -3101,11 +3087,6 @@ body { background: #ffffff; }
   .dashboard-section-head { align-items: flex-start; flex-direction: column; }
   .dashboard-empty { align-items: flex-start; flex-direction: column; padding: 24px; }
   .dashboard-empty .button { margin: 0; }
-  .dashboard-compose { left: 12px; right: 12px; bottom: 10px; padding: 12px; }
-  .dashboard-compose .dashboard-section-head { margin-bottom: 5px; }
-  .dashboard-compose .dashboard-section-head h2 { font-size: 15px; }
-  #dashboard-prompt { padding: 7px; font-size: 13px; }
-  .composer-hint { font-size: 10px; }
   .dashboard-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .metric-tile { padding: 16px; }
   .metric-tile strong { font-size: 23px; }
@@ -3119,11 +3100,6 @@ body { background: #ffffff; }
 @media (max-width: 760px) {
   .mobile-chats { display: flex; }
 }
-@media (max-height: 600px) {
-  .dashboard-compose { position: static; margin-top: 24px; }
-  .dashboard-page { padding-bottom: 24px; }
-}
-
 /* Shared business dossier. */
 .dossier-tabs, .dossier-actions, .dossier-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .dossier-tabs { margin-bottom: 28px; }
@@ -3152,8 +3128,6 @@ body { background: #ffffff; }
 .dashboard-intro { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 8px 0 18px; }
 .dashboard-intro h1 { font-size: clamp(26px, 3vw, 38px); letter-spacing: -1px; line-height: 1.2; margin: 0; }
 .dashboard-intro .eyebrow { margin-bottom: 8px; }
-.dashboard-compose { position: static; margin: 24px 0; max-width: none; padding: 18px; backdrop-filter: none; box-shadow: none; }
-.dashboard-compose h2 { font-size: 18px; margin: 0 0 12px; }
 .dashboard-report-meta { margin: 0 0 20px; padding: 14px 18px; }
 .dashboard-summary { margin-bottom: 16px; }
 .dashboard-section-head { margin-bottom: 12px; }
@@ -3186,9 +3160,80 @@ body { background: #ffffff; }
 @media (max-width: 600px) {
   .dashboard-intro { align-items: flex-start; flex-direction: column; gap: 12px; }
   .dashboard-intro h1 { font-size: 28px; }
-  .dashboard-compose { padding: 12px; }
   #dashboard-prompt, .chat-composer textarea { font-size: 16px; }
   .dashboard-metrics { grid-template-columns: 1fr; }
   .report-list-item { flex-wrap: wrap; }
   .report-list-item > span:nth-child(2) { flex-basis: calc(100% - 64px); }
+}
+
+/* One compact question bar stays above the workspace content on every page. */
+#main:has(.dashboard-compose),
+#main:has(.chat-composer) { padding-bottom: 190px; }
+.dashboard-compose,
+.chat-composer {
+  position: fixed;
+  z-index: 20;
+  bottom: max(18px, env(safe-area-inset-bottom));
+  left: calc(250px + (100vw - 250px) / 2);
+  right: auto;
+  transform: translateX(-50%);
+  width: min(720px, calc(100vw - 250px - 48px));
+  max-width: none;
+  margin: 0;
+  padding: 11px 13px;
+  box-sizing: border-box;
+  border: 1px solid #d8e5d9;
+  border-radius: 23px;
+  background: rgba(255, 255, 255, .98);
+  box-shadow: 0 12px 42px rgba(24, 63, 43, .18), 0 2px 8px rgba(24, 63, 43, .07);
+  backdrop-filter: blur(14px);
+}
+.dashboard-compose:focus-within,
+.chat-composer:focus-within { border-color: #90b59c; box-shadow: 0 13px 44px rgba(24, 63, 43, .2), 0 0 0 3px rgba(65, 130, 91, .12); }
+#dashboard-question { display: block; padding: 0; background: transparent; border-radius: 0; }
+#dashboard-question:focus-within { outline: 0; }
+.composer-input-row { display: flex; align-items: flex-end; gap: 8px; }
+#dashboard-prompt,
+#chat-message {
+  display: block;
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  min-height: 30px;
+  max-height: 180px;
+  box-sizing: border-box;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.45;
+  resize: none;
+  overflow-y: hidden;
+}
+#dashboard-prompt:focus-visible,
+#chat-message:focus-visible { outline: 0; }
+.composer-input-row .button { display: grid; place-items: center; flex: none; width: 36px; height: 36px; padding: 0; border-radius: 50%; }
+.composer-input-row .button .icon { width: 18px; height: 18px; }
+.dashboard-compose .chat-suggestions,
+.chat-composer .chat-suggestions { margin: 8px 0 0; padding: 0 8px 2px; gap: 6px; }
+.dashboard-compose .chat-suggestions button,
+.chat-composer .chat-suggestions button { padding: 5px 9px; border-color: #dce7dd; background: #f6faf6; color: #44634d; font-size: 11px; }
+.dashboard-compose .question-context { margin: 0 7px 7px; padding: 5px 9px; border-radius: 5px; font-size: 11px; }
+#dashboard-error,
+#chat-status { margin: 0; padding: 0 8px; font-size: 11px; }
+#dashboard-error:not(:empty),
+#chat-status:not(:empty) { padding-top: 8px; }
+.chat-composer #question-label { margin: 0 8px 8px; font-size: 12px; }
+.chat-composer #chat-question { margin: 5px 0 0; padding: 8px; }
+@media (max-width: 1180px) {
+  .dashboard-compose,
+  .chat-composer { left: calc(216px + (100vw - 216px) / 2); width: min(720px, calc(100vw - 216px - 32px)); }
+}
+@media (max-width: 560px) {
+  .dashboard-compose,
+  .chat-composer { left: 12px; right: 12px; bottom: max(10px, env(safe-area-inset-bottom)); transform: none; width: auto; padding: 9px 10px; border-radius: 18px; }
+  .dashboard-compose .chat-suggestions button,
+  .chat-composer .chat-suggestions button { font-size: 10px; }
 }

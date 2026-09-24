@@ -141,6 +141,7 @@ async function api(path, { method = "GET", body } = {}) {
   return data;
 }
 function shell(content, active = "home", crumb = "Vista general") {
+  const floatingQuestion = state.business && !location.hash.startsWith("#chat/");
   app.innerHTML = `<aside class="sidebar"><a class="brand" href="#home" aria-label="Decision Room, inicio"><span class="brand-mark">d<span>r</span></span><span>decision<span class="brand-light">room</span><small>UN ESPACIO PARA DECIDIR</small></span></a>
     <div class="workspace-label"><span class="workspace-avatar">M</span><span>${esc(state.business?.name || "Mi espacio")}<small>Espacio de trabajo local</small></span><span class="local-dot"></span></div>
     <p class="nav-label">TU ESPACIO</p><nav aria-label="Principal">${[
@@ -156,8 +157,9 @@ function shell(content, active = "home", crumb = "Vista general") {
     <a href="#ask" class="button sidebar-create">${icon("plus")} Nueva pregunta</a>
     <div class="sidebar-history"><p class="nav-label">CHATS</p>${state.chats.slice(0, 6).map((c) => `<a class="history-link" href="#chat/${esc(c.id)}">${icon("chat")}<span>${esc(c.title)}</span></a>`).join("") || '<p class="history-empty">Aún no hay conversaciones.</p>'}<a class="history-all" href="#chats">Ver conversaciones ${icon("arrow")}</a><p class="nav-label">ANÁLISIS RECIENTES</p>${state.analyses.slice(0, 6).map((a) => `<a class="history-link" href="#analysis/${esc(a.id)}" title="${esc(a.title)}">${icon("grid")}<span>${esc(a.title)}</span></a>`).join("") || '<p class="history-empty">Aún no hay análisis.</p>'}<a class="history-all" href="#analyses">Ver todos los análisis ${icon("arrow")}</a></div>
     <div class="sidebar-bottom"><a class="nav-link" href="#how">${icon("help")}<span>Cómo funciona</span></a><div class="profile"><span>ME</span><div>Mi espacio personal<small>Versión de pruebas</small></div></div></div></aside>
-    <div class="workspace"><header class="topbar"><span class="breadcrumb">Mi espacio <span>/</span> <b>${esc(crumb)}</b></span><span class="environment"><i></i> Entorno local <span class="beta">BETA</span></span></header><main id="main" tabindex="-1"><div id="memory-status" aria-live="polite"></div>${content}</main><footer class="page-footer"><span>Decision Room</span><span>De los datos a decisiones con contexto.</span></footer></div>`;
+    <div class="workspace"><header class="topbar"><span class="breadcrumb">Mi espacio <span>/</span> <b>${esc(crumb)}</b></span><span class="environment"><i></i> Entorno local <span class="beta">BETA</span></span></header><main id="main" tabindex="-1"><div id="memory-status" aria-live="polite"></div>${content}${floatingQuestion ? questionComposer() : ""}</main><footer class="page-footer"><span>Decision Room</span><span>De los datos a decisiones con contexto.</span></footer></div>`;
   renderMemory();
+  if (floatingQuestion) bindQuestionComposer();
 }
 function renderMemory() {
   const box = document.querySelector("#memory-status");
@@ -284,12 +286,34 @@ function dashboardSuggestions() {
 }
 function questionComposer() {
   const context = store.get(questionContextKey(), {});
-  return `<section class="dashboard-compose" aria-label="Haz una pregunta"><h2>¿Qué te gustaría entender?</h2>${context.label ? `<p class="question-context">${esc(context.label)} <button type="button" id="clear-question-context" class="text-button">Quitar selección</button></p>` : ""}<form id="dashboard-question"><label for="dashboard-prompt" class="sr-only">Escribe tu pregunta</label><textarea id="dashboard-prompt" maxlength="6000" rows="2" required placeholder="Pregunta algo sobre tu negocio o tus datos…">${esc(store.get(dashboardDraftKey(), ""))}</textarea><button class="button primary" type="submit" aria-label="Enviar pregunta">${icon("arrow")}</button></form><div class="chat-suggestions">${dashboardSuggestions().map(q => `<button type="button" data-home-suggestion="${esc(q)}">${esc(q)}</button>`).join("")}</div><div id="dashboard-error" role="alert"></div><p class="composer-hint">Tu pregunta abre un chat con el contexto del negocio.</p></section>`;
+  const draft = store.get(dashboardDraftKey(), "");
+  return `<section class="dashboard-compose" aria-label="Haz una pregunta">${context.label ? `<p class="question-context">${esc(context.label)} <button type="button" id="clear-question-context" class="text-button">Quitar selección</button></p>` : ""}<form id="dashboard-question"><div class="composer-input-row"><label for="dashboard-prompt" class="sr-only">Escribe tu pregunta</label><textarea id="dashboard-prompt" maxlength="6000" rows="1" required placeholder="Pregunta lo que quieras…">${esc(draft)}</textarea><button class="button primary" type="submit" aria-label="Enviar pregunta">${icon("arrow")}</button></div><div class="chat-suggestions" id="dashboard-suggestions" ${draft.trim() ? "hidden" : ""}>${dashboardSuggestions().map(q => `<button type="button" data-home-suggestion="${esc(q)}">${esc(q)}</button>`).join("")}</div><p id="dashboard-error" role="alert"></p></form></section>`;
+}
+function resizeComposer(textarea) {
+  textarea.style.height = "auto";
+  textarea.style.height = `${Math.min(textarea.scrollHeight, 180)}px`;
+  textarea.style.overflowY = textarea.scrollHeight > 180 ? "auto" : "hidden";
+}
+function bindComposerKeys(textarea, form) {
+  textarea.addEventListener("keydown", event => {
+    if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+    event.preventDefault();
+    if (textarea.value.trim()) form.requestSubmit();
+  });
 }
 function bindQuestionComposer() {
   const prompt = document.querySelector("#dashboard-prompt");
   if (!prompt) return;
-  prompt.addEventListener("input", () => store.set(dashboardDraftKey(), prompt.value));
+  const form = document.querySelector("#dashboard-question");
+  const suggestions = document.querySelector("#dashboard-suggestions");
+  const sync = () => {
+    store.set(dashboardDraftKey(), prompt.value);
+    suggestions.hidden = !!prompt.value.trim();
+    resizeComposer(prompt);
+  };
+  prompt.addEventListener("input", sync);
+  bindComposerKeys(prompt, form);
+  resizeComposer(prompt);
   document.querySelector("#clear-question-context")?.addEventListener("click", () => {
     store.remove(questionContextKey());
     document.querySelector(".question-context")?.remove();
@@ -299,7 +323,7 @@ function bindQuestionComposer() {
     prompt.value = button.dataset.homeSuggestion;
     prompt.dispatchEvent(new Event("input")); prompt.focus();
   });
-  document.querySelector("#dashboard-question").onsubmit = async event => {
+  form.onsubmit = async event => {
     event.preventDefault();
     const text = prompt.value.trim();
     if (state.launching || !text) return;
@@ -324,8 +348,7 @@ function dashboardHome() {
     : ["Todavía no hay un informe disponible.", "Pregunta con tus datos o guarda como informe una respuesta revisada del chat.", "#ask", "Hacer una pregunta"];
   const selector = report && data.reports.length > 1 ? `<label class="dashboard-select">Informe seleccionado<select id="dashboard-report">${data.reports.map(item => `<option value="${esc(item.id)}" ${item.id === data.selected_id ? "selected" : ""}>${esc(item.title)} · ${fmtDate(item.created_at)}</option>`).join("")}</select></label>` : "";
   const findings = report ? `<section class="dashboard-findings"><div class="dashboard-section-head"><h2>Hallazgos revisados</h2><a href="${reportLink(data.selected_id)}" target="_blank" rel="noopener">Abrir informe ${icon("arrow")}</a></div><p class="dashboard-summary">${esc(report.summary)}</p><div class="finding-grid">${report.claims.map((claim,index) => `<article class="finding-tile"><span>0${index+1} · HALLAZGO</span><h3>${esc(claim.title)}</h3><p>${esc(claim.statement)}</p><a href="${reportLink(data.selected_id,claim.key)}" target="_blank" rel="noopener">Ver detalle y evidencia ${icon("arrow")}</a><button type="button" class="button secondary" data-ask-finding="${esc(claim.key)}">Preguntar sobre este hallazgo</button></article>`).join("")}</div></section>` : `<section class="dashboard-empty"><div><h2>${empty[0]}</h2><p>${empty[1]}</p></div><a class="button primary" href="${empty[2]}">${empty[3]} ${icon("arrow")}</a></section>`;
-  shell(`<div class="dashboard-page"><div class="dashboard-intro"><div><p class="eyebrow">${esc(state.business?.name || "TU ESPACIO")}</p><h1>Tu negocio, <em>con claridad.</em></h1></div>${state.business ? '<button class="button secondary" id="focus-question">Hacer una pregunta</button>' : ""}</div>${!state.configured ? '<p class="notice">El modelo aún no está configurado. Puedes preparar tu pregunta.</p>' : ""}${activity.length ? `<details class="daily-activity" ${!report ? "open" : ""}><summary>Actividad y pendientes · ${activity.length}</summary>${activityMarkup(activity)}</details>` : ""}${report ? `<div class="dashboard-report-meta"><div><span class="meta-mark">${icon("check")}</span><div><strong>${esc(report.title)}</strong><small>${esc(report.scope.period)} · ${data.data_version ? `Versión ${esc(data.data_version.version)} · ` : ""}${fmtDate(data.created_at)}</small></div></div>${selector}</div>${data.data_version?.superseded_by ? '<p class="notice">Este informe usa una versión anterior. Los datos nuevos aún no se han recalculado. <a href="#files">Ver datos</a></p>' : ""}` : ""}${findings}${report?.highlights.length ? `<section class="dashboard-metrics" aria-label="Cifras clave">${report.highlights.map(item => `<a class="metric-tile" href="${reportLink(data.selected_id,item.claim_key)}" target="_blank" rel="noopener"><span>${esc(item.label)}</span><strong>${esc(item.value)}</strong><small>${esc(item.unit)}</small></a>`).join("")}</section>` : ""}${report?.charts.length ? `<section class="dashboard-visuals"><h2>Gráficos del informe</h2><div class="dash-chart-grid">${report.charts.map(chart => dashboardChart(chart,data.selected_id)).join("")}</div></section>` : ""}${report ? `<div class="dashboard-coverage"><p><strong>Alcance de esta revisión</strong><br>${esc(report.scope.coverage)}</p></div>` : ""}${state.business ? questionComposer() : ""}</div>`, "home", "Inicio");
-  bindQuestionComposer();
+  shell(`<div class="dashboard-page"><div class="dashboard-intro"><div><p class="eyebrow">${esc(state.business?.name || "TU ESPACIO")}</p><h1>Tu negocio, <em>con claridad.</em></h1></div>${state.business ? '<button class="button secondary" id="focus-question">Hacer una pregunta</button>' : ""}</div>${!state.configured ? '<p class="notice">El modelo aún no está configurado. Puedes preparar tu pregunta.</p>' : ""}${activity.length ? `<details class="daily-activity" ${!report ? "open" : ""}><summary>Actividad y pendientes · ${activity.length}</summary>${activityMarkup(activity)}</details>` : ""}${report ? `<div class="dashboard-report-meta"><div><span class="meta-mark">${icon("check")}</span><div><strong>${esc(report.title)}</strong><small>${esc(report.scope.period)} · ${data.data_version ? `Versión ${esc(data.data_version.version)} · ` : ""}${fmtDate(data.created_at)}</small></div></div>${selector}</div>${data.data_version?.superseded_by ? '<p class="notice">Este informe usa una versión anterior. Los datos nuevos aún no se han recalculado. <a href="#files">Ver datos</a></p>' : ""}` : ""}${findings}${report?.highlights.length ? `<section class="dashboard-metrics" aria-label="Cifras clave">${report.highlights.map(item => `<a class="metric-tile" href="${reportLink(data.selected_id,item.claim_key)}" target="_blank" rel="noopener"><span>${esc(item.label)}</span><strong>${esc(item.value)}</strong><small>${esc(item.unit)}</small></a>`).join("")}</section>` : ""}${report?.charts.length ? `<section class="dashboard-visuals"><h2>Gráficos del informe</h2><div class="dash-chart-grid">${report.charts.map(chart => dashboardChart(chart,data.selected_id)).join("")}</div></section>` : ""}${report ? `<div class="dashboard-coverage"><p><strong>Alcance de esta revisión</strong><br>${esc(report.scope.coverage)}</p></div>` : ""}</div>`, "home", "Inicio");
   document.querySelector("#focus-question")?.addEventListener("click", () => document.querySelector("#dashboard-prompt").focus());
   document.querySelectorAll("[data-ask-finding]").forEach(button => button.onclick = () => {
     const claim = report.claims.find(c => c.key === button.dataset.askFinding);
@@ -804,8 +827,7 @@ function chatResponse(r, anchor = "response", ownerText = "") {
 }
 async function chatsPage() {
   if (!state.business) { businessForm(true); return; }
-  shell(`<div class="page-heading"><div><p class="eyebrow">TU NEGOCIO, CON CONTEXTO</p><h1>${location.hash === "#ask" ? "Nueva pregunta" : "Conversaciones"}</h1><p>Pregunta sobre tus datos o añade algo que debamos recordar.</p></div></div>${questionComposer()}<div class="card-grid">${state.chats.map(c => `<a class="card" href="#chat/${esc(c.id)}"><h2>${esc(shortChatTitle(c.title))}</h2><p>${fmtDate(c.created_at)}</p><span>Abrir conversación ${icon("arrow")}</span></a>`).join("") || '<p class="empty">Aquí aparecerán tus conversaciones guardadas.</p>'}</div>`, "chats", "Conversaciones");
-  bindQuestionComposer();
+  shell(`<div class="page-heading"><div><p class="eyebrow">TU NEGOCIO, CON CONTEXTO</p><h1>${location.hash === "#ask" ? "Nueva pregunta" : "Conversaciones"}</h1><p>Pregunta sobre tus datos o añade algo que debamos recordar.</p></div></div><div class="card-grid">${state.chats.map(c => `<a class="card" href="#chat/${esc(c.id)}"><h2>${esc(shortChatTitle(c.title))}</h2><p>${fmtDate(c.created_at)}</p><span>Abrir conversación ${icon("arrow")}</span></a>`).join("") || '<p class="empty">Aquí aparecerán tus conversaciones guardadas.</p>'}</div>`, "chats", "Conversaciones");
 }
 async function chatPage(id) {
   const generation = state.generation;
@@ -816,15 +838,24 @@ async function chatPage(id) {
   shell(
     `<div class="page-heading"><div><a href="#chats">← Conversaciones</a><h1 id="chat-title">Conversación</h1><p>El contexto del negocio se comparte entre conversaciones.</p></div><a class="button secondary" href="#ask">Nueva pregunta</a></div>
     <p id="chat-dataset" class="question-context"></p><div id="chat-turns" aria-live="polite" aria-relevant="additions text"></div><div id="chat-conflicts"></div>
-    <form class="card chat-composer" id="chat-send"><label id="question-label" hidden>Aclaración pendiente<select id="chat-question"></select></label><label for="chat-message">Tu mensaje</label><textarea id="chat-message" rows="3" maxlength="6000" required placeholder="¿Qué quieres saber de tu negocio?"></textarea><div class="chat-suggestions"><button type="button" data-suggestion="¿Qué sabes de mi negocio?">Qué sabemos del negocio</button><button type="button" data-suggestion="¿Qué datos tenemos disponibles para analizar?">Explorar mis datos</button></div><button class="button primary" id="send-message">Enviar ${icon("arrow")}</button><p id="chat-status" class="muted"></p></form>`,
+    <form class="chat-composer" id="chat-send"><label id="question-label" hidden>Aclaración pendiente<select id="chat-question"></select></label><div class="composer-input-row"><label for="chat-message" class="sr-only">Tu mensaje</label><textarea id="chat-message" rows="1" maxlength="6000" required placeholder="Pregunta lo que quieras…"></textarea><button class="button primary" id="send-message" aria-label="Enviar mensaje">${icon("arrow")}</button></div><div class="chat-suggestions" id="chat-suggestions"><button type="button" data-suggestion="¿Qué sabes de mi negocio?">Qué sabemos del negocio</button><button type="button" data-suggestion="¿Qué datos tenemos disponibles para analizar?">Explorar mis datos</button></div><p id="chat-status" class="muted" aria-live="polite"></p></form>`,
     "chats",
     "Conversación",
   );
   const textarea = document.querySelector("#chat-message");
   textarea.value = store.get(draftKey, { text: "" }).text;
-  textarea.addEventListener("input", () =>
-    store.set(draftKey, { ...store.get(draftKey, {}), text: textarea.value, key: crypto.randomUUID() }),
-  );
+  const chatForm = document.querySelector("#chat-send");
+  const chatSuggestions = document.querySelector("#chat-suggestions");
+  const syncChatComposer = () => {
+    chatSuggestions.hidden = !!textarea.value.trim();
+    resizeComposer(textarea);
+  };
+  textarea.addEventListener("input", () => {
+    store.set(draftKey, { ...store.get(draftKey, {}), text: textarea.value, key: crypto.randomUUID() });
+    syncChatComposer();
+  });
+  bindComposerKeys(textarea, chatForm);
+  syncChatComposer();
   document.querySelectorAll("[data-suggestion]").forEach((b) =>
     b.addEventListener("click", () => {
       textarea.value = b.dataset.suggestion;
@@ -906,6 +937,7 @@ async function chatPage(id) {
         if (textarea.value === sentText) {
           store.remove(draftKey);
           textarea.value = "";
+          syncChatComposer();
         }
       } catch (e) {
         toast(e.message);
