@@ -64,15 +64,17 @@ def revision(db, business):
     return row['revision'] if row else 0
 
 
+def selected_sources(db, business, analysis_id):
+    return [str(r['id']) for r in db.execute(
+        'SELECT id FROM sources WHERE business_id=%s AND analysis_id=%s',
+        (business, analysis_id),
+    ).fetchall()]
+
+
 def snapshot(db, business, analysis_id, objective):
     selection = dict(
         analysis_id=str(analysis_id) if analysis_id else None,
-        source_ids=[
-            str(r['id'])
-            for r in db.execute(
-                'SELECT id FROM sources WHERE business_id=%s AND analysis_id=%s', (business, analysis_id)
-            ).fetchall()
-        ],
+        source_ids=selected_sources(db, business, analysis_id),
         period=ctx.period(),
         objective=objective,
     )
@@ -472,7 +474,7 @@ class Conversations:
                     ctx.effective(db, self.business),
                     {
                         'analysis_id': str(chat['analysis_id']) if chat['analysis_id'] else None,
-                        'source_ids': [],
+                        'source_ids': selected_sources(db, self.business, chat['analysis_id']),
                         'period': ctx.period(),
                     },
                 ),

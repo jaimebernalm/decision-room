@@ -188,7 +188,9 @@ class ConversationTests(unittest.TestCase):
         self.chats.run(saved['id'])
         self.assertEqual(self.ws.dashboard()['activity'][0]['status'], 'waiting')
         finished, turn = self.complete()
-        self.assertEqual(self.ws.dashboard()['activity'][0]['status'], 'ready')
+        activity = self.ws.dashboard()['activity']
+        self.assertEqual(activity[0]['status'], 'waiting')
+        self.assertEqual(next(x for x in activity if x['href'] == '#chat/' + str(finished))['status'], 'ready')
         self.chats.report(finished, turn['id'], dict(business_id=str(self.b)))
         dashboard = self.ws.dashboard()
         self.assertEqual(dashboard['report_id'], turn['response']['report_id'])
@@ -197,7 +199,7 @@ class ConversationTests(unittest.TestCase):
         review.hold(self.config, self.b, turn['response']['report_id'], reason='Controlled withdrawal.')
         dashboard = self.ws.dashboard()
         self.assertIsNone(dashboard['report'])
-        self.assertEqual(dashboard['activity'][0]['status'], 'withdrawn')
+        self.assertEqual(next(x for x in dashboard['activity'] if x['href'] == '#chat/' + str(finished))['status'], 'withdrawn')
         self.assertEqual(self.ws.listing()[0]['presentation_status'], 'withdrawn')
 
     def test_memory_shared_and_correction_hides_old_answers(self):

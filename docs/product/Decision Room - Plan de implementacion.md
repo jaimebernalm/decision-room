@@ -1,7 +1,7 @@
 # Decision Room: plan de implementación por entregas
 
 **Fecha de actualización:** 23 de septiembre de 2026.  
-**Estado vigente:** entrega 2 implementada y comprobada como recorrido web local. La ronda de evaluación previa a ampliar cobertura terminó el 22 de septiembre, con correcciones y límites documentados; no equivale a aceptación general del MVP. La entrega 2.5 tiene los pasos 2.5.1–2.5.6 implementados y comprobados; el paso 2.5.7 de evaluación integrada sigue pendiente y precede a la ampliación de cobertura de la entrega 3. Los resultados históricos de cada paso se conservan en la sección 10.  
+**Estado vigente:** entrega 2 implementada y comprobada como recorrido web local. La ronda de evaluación previa a ampliar cobertura terminó el 22 de septiembre, con correcciones y límites documentados; no equivale a aceptación general del MVP. La entrega 2.5 tiene los pasos 2.5.1–2.5.7 implementados y comprobados dentro del alcance local; su evaluación integrada se cerró el 24 de septiembre antes de ampliar la cobertura de la entrega 3. Los resultados históricos de cada paso se conservan en la sección 10.  
 **Propósito:** conservar la secuencia de trabajo, el motivo de cada paso y qué debemos poder comprobar antes de darlo por terminado.
 
 ## 1. Relación con el MVP
@@ -207,6 +207,8 @@ y la [validación](../validation/2026-09-23-semantic-check.md).
 
 **Cierre:** una persona completa el onboarding una vez, pregunta desde Inicio, recibe evidencia, aporta información que otro chat reutiliza, la corrige desde «Mi negocio», ve revisados los resultados afectados, guarda un informe y recupera todo tras reiniciar. No se mezclan negocios, fuentes incompatibles ni versiones de contexto, y las respuestas no presentan hipótesis como hechos. Un dashboard dibujado o un único chat funcionando no cierran la entrega.
 
+**Cierre, 24 de septiembre:** evaluación integrada con 23 comprobaciones HTTP y modelo real, 24 casos de memoria, 30 consultas semánticas y 12 escenarios analíticos revisados independientemente. Se corrigen conflictos de fuente ocultos en el chat y trabajos pendientes ocultos en Inicio. Pasan 245 pruebas Python y 12 JavaScript; comprobados onboarding, edición concurrente, versiones históricas, caída/reenvío y recuperación desde otro proceso. Véanse [resultados, versiones y límites](../validation/2026-09-24-integrated-check.md).
+
 **Orden de trabajo:** identidad → memoria → contexto y dependencias → conversación → ficha/datos → Inicio y navegación → evaluación integrada. Cada paso se comprueba, revisa y guarda en un commit local según `AGENTS.md`; no se marca completo por tener únicamente su diseño.
 
 **Fuera de 2.5:** PDF, Excel y combinación general de tablas, búsqueda web de contexto, predicciones, editor libre de dashboards, conectores, automatización, equipos y despliegue comercial. Continúan en su entrega o roadmap correspondiente. La memoria entre conversaciones y el Inicio interactivo acotado sí forman parte de 2.5.
@@ -399,3 +401,5 @@ Ver [validación completa](../validation/2026-09-22-luna-validation.md) e
 
 
 **Cierre de 2.5.6, 23 de septiembre de 2026:** Inicio y navegación cotidiana completos dentro del alcance local: preguntas vinculadas a revisión/hallazgo/fuentes, chat con gráficos y versión de datos, actividad real previa al informe, biblioteca filtrable y compositor sin ocultar resultados. Se valida con 243 pruebas Python, 12 JavaScript y recorrido con Luna sobre un informe histórico v2, sin cambiar a v3 ni crear otro cálculo. Se corrige también el refresco que reemplazaba el onboarding. Véase [validación](../validation/2026-09-23-daily-ux-check.md). El siguiente paso es **2.5.7**, evaluación integrada.
+
+**Cierre de 2.5.7, 24 de septiembre de 2026:** completada la evaluación integrada y corregidos los dos fallos de presentación reproducidos. Memoria y antecedentes entre chats, selección de datos, invalidación por corrección, cifras y series independientes, aislamiento y recuperación comprobados con Luna real y navegador; 245 pruebas Python y 12 JavaScript pasan. El alcance local de la entrega 2.5 queda cerrado. Véase [validación integrada](../validation/2026-09-24-integrated-check.md); la ampliación de cobertura de la entrega 3 sigue pendiente.

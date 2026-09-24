@@ -243,7 +243,8 @@ class Workspace:
             rows = db.execute("""SELECT t.*,c.title FROM chat_conversations c
                 JOIN LATERAL (SELECT * FROM chat_turns WHERE conversation_id=c.id ORDER BY ordinal DESC LIMIT 1) t ON true
                 WHERE c.business_id=%s AND (t.status!='completed' OR t.response->>'kind'='evidence')
-                ORDER BY t.updated_at DESC LIMIT 12""", (self.business_id(),)).fetchall()
+                ORDER BY (t.status IN ('queued','routing','processing','waiting','failed','blocked','stale')) DESC,
+                         t.updated_at DESC LIMIT 12""", (self.business_id(),)).fetchall()
             chats = Conversations(self)
             for turn in rows:
                 status, response = turn['status'], turn['response'] or {}
@@ -264,7 +265,7 @@ class Workspace:
                 items.append(dict(title=turn['title'], status=status, href='#chat/' + str(turn['conversation_id']), created_at=turn['updated_at']))
         items += [dict(title=x['title'], status=x.get('presentation_status', x['status']), href='#analysis/' + str(x['id']), created_at=x['created_at'])
                   for x in listing if x['origin'] != 'chat' and x['status'] != 'completed']
-        return sorted(items, key=lambda x: x['created_at'], reverse=True)[:5]
+        return sorted(items, key=lambda x: (x['status'] in ('queued', 'running', 'waiting', 'failed', 'blocked'), x['created_at']), reverse=True)[:5]
 
     def dashboard(self, selected=None):
         """One currently publishable revision, scoped to the active business."""
