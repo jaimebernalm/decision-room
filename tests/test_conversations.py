@@ -250,19 +250,59 @@ class ConversationTests(unittest.TestCase):
 
     def test_short_greeting_uses_business_context_without_listing_it(self):
         self.assertTrue(is_greeting('  ¡Hola! '))
+        self.assertTrue(is_greeting('hola buenos dias'))
+        self.assertTrue(is_greeting('¡Hola! ¿Qué tal?'))
+        self.assertTrue(is_greeting('Buenas tardes'))
         self.assertFalse(is_greeting('Hola, ¿qué sabes de mi negocio?'))
+        self.assertFalse(is_greeting('dime buenos dias al menos tmb no? jajaj'))
         self.send(self.chat(), 'Cerramos los domingos.')
         chat = self.chat()
         with (patch.object(ChatModel, 'generate_memory', side_effect=AssertionError('greeting extraction')),
               patch.object(ChatModel, 'generate_chat', side_effect=AssertionError('greeting routing'))):
-            turn = self.send(chat, 'hola')
+            turn = self.send(chat, 'hola buenos dias')
         self.assertEqual(turn['status'], 'completed')
         self.assertEqual(turn['response']['kind'], 'greeting')
         self.assertIn('Fictional chat shop', turn['response']['text'])
         self.assertIn('¿Qué te gustaría', turn['response']['text'])
+        self.assertIn('¡Hola, buenos días!', turn['response']['text'])
         self.assertNotIn('Cerramos los domingos', turn['response']['text'])
         with connect(self.config) as db:
             self.assertFalse(db.execute('SELECT 1 FROM chat_calls WHERE turn_id=%s', (turn['id'],)).fetchone())
+
+    def test_router_sees_both_sides_and_can_repair_a_missed_greeting(self):
+        chat = self.chat()
+        with patch.object(ChatModel, 'generate_chat', return_value=(action('respond', reply_kind='help'), {})):
+            first = self.send(chat, 'Can you help me?')
+        # Stored v3 behavior: an incorrect thanks reply is still in the conversation.
+        with patch.object(ChatModel, 'generate_chat', return_value=(action('respond', reply_kind='thanks'), {})):
+            second = self.send(chat, 'dime buenos dias al menos tmb no? jajaj')
+        seen = []
+        def repair(model, context, correction=None):
+            seen.append(context)
+            return action('respond', reply_kind='greeting_repair'), {}
+        with patch.object(ChatModel, 'generate_chat', repair):
+            third = self.send(chat, 'como?')
+        dialogue = seen[0]['recent_dialogue']
+        self.assertEqual([d['assistant']['text'] for d in dialogue], [first['response']['text'], second['response']['text']])
+        self.assertEqual(dialogue[-1]['owner'], 'dime buenos dias al menos tmb no? jajaj')
+        self.assertEqual(third['status'], 'completed', third)
+        self.assertIn('¡Buenos días! Perdona', third['response']['text'])
+        self.assertNotIn('De nada', third['response']['text'])
+
+    def test_dialogue_does_not_restore_withdrawn_business_facts(self):
+        chat = self.chat()
+        first = self.send(chat, 'Cerramos los domingos.')
+        fact = first['response']['items'][0]
+        memory.change(self.config, self.b, action='withdraw', request_key='withdraw-dialogue-fact',
+                      fact_id=fact['id'], expected_revision=fact['revision'])
+        seen = []
+        def answer(model, context, correction=None):
+            seen.append(context)
+            return action('missing'), {}
+        with patch.object(ChatModel, 'generate_chat', answer):
+            self.send(chat, '¿Qué dijiste antes?')
+        self.assertEqual(seen[0]['recent_dialogue'], [])
+        self.assertEqual(seen[0]['recent_owner_messages'], [])
 
     def test_send_is_persisted_idempotent_and_serial(self):
         chat = self.chat()

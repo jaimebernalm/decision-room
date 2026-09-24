@@ -190,6 +190,10 @@ consulta de información reciente sin iniciar un análisis innecesario y explica
 breve antes de la evidencia desplegable. Se comprueban los casos observados con
 modelo real, navegador y regresión automatizada. Véase la [validación y límites](../validation/2026-09-24-conversation-relevance-check.md).
 
+**Corrección de continuidad, 24 de septiembre:** se incluyen las respuestas previas
+del asistente en el contexto reciente y se distinguen saludos, cortesía y
+agradecimientos. Véase la [validación del diálogo](../validation/2026-09-24-dialogue-context-check.md).
+
 ### 2.5.5. «Mi negocio» y actualización de datos
 
 **Construir:** ficha progresiva y editable con información, prioridades, definiciones, fuentes/periodos y cambios; mostrar procedencia, vigencia y propuestas/conflictos donde ayuden. Las ediciones usan el mismo servicio de memoria del chat. Reutilizar archivos ya aceptados; permitir aportar otro CSV y seleccionar su uso sin iniciar otro negocio. Mantener conjuntos/versiones explícitos, detectar reenvíos exactos y aclarar sustitución o solapamiento; no implementar fusión universal de tablas.
