@@ -51,6 +51,11 @@ en la pantalla de acceso. No se debe publicar ni compartir ese archivo.
 
 ## Experiencia
 
+- **Primera visita:** la presentación lleva al acceso local. Tras entrar, un
+  espacio sin perfil ni análisis pide nombre y descripción breve del negocio.
+  El perfil queda en PostgreSQL y se propone como contexto de los siguientes
+  análisis. Los espacios que ya tienen análisis entran directamente; estos
+  conservan el contexto que se guardó con cada envío.
 - **Vista general y Mis análisis:** búsqueda, estados y acceso al detalle. El
   espacio web empieza vacío; las evaluaciones históricas por CLI no se incorporan
   automáticamente. No se inventan informes de muestra ni métricas de negocio.
@@ -97,6 +102,12 @@ de las cuatro etapas, modelo, estado y respuesta pendiente. Cada análisis web
 crea su ámbito de negocio separado. Los archivos permanecen en almacenamiento
 privado; `web_jobs` no contiene filas CSV. `web_replies` conserva la idempotencia
 de los envíos de respuestas.
+
+`web_workspace_profile` contiene el nombre, contexto y fecha de finalización
+del onboarding de este propietario local. `/api/workspace` devuelve ese estado
+solo después de autenticar; `/api/onboarding` lo guarda por primera vez. El
+perfil orienta el formulario, pero cada análisis conserva su propia copia del
+contexto enviado para mantener la interpretación histórica.
 
 El trabajador toma un advisory lock PostgreSQL exclusivo antes de seleccionar
 un trabajo en cola o interrumpido. No depende de una petición HTTP abierta.

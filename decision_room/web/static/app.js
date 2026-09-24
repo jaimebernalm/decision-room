@@ -53,6 +53,7 @@ const store = {
 const state = {
   analyses: [],
   configured: true,
+  profile: null,
   filter: "all",
   search: "",
   step: 1,
@@ -148,6 +149,10 @@ function shell(content, active = "home", crumb = "Vista general") {
 function errorBox(message) {
   return `<div class="error-message" role="alert">${esc(message)}</div>`;
 }
+function landing() {
+  app.innerHTML = `<main id="main" class="landing" tabindex="-1"><header class="landing-header"><a class="brand" href="#" aria-label="Decision Room, inicio"><span class="brand-mark">d<span>r</span></span><span>decision<span class="brand-light">room</span></span></a><a class="button secondary" href="#login">Entrar a mi espacio ${icon("arrow")}</a></header><section class="landing-hero"><div><p class="eyebrow"><span class="tiny-line"></span> CLARIDAD PARA TU NEGOCIO</p><h1>Entiende lo que cuentan <em>tus datos.</em></h1><p>Comparte cómo funciona tu negocio y un archivo de ventas. Decision Room te ayuda a encontrar hallazgos, aclarar dudas y comprobar de dónde sale cada cifra.</p><a class="button primary" href="#login">Empezar ${icon("arrow")}</a><span class="landing-note">Versión de pruebas · Disponible en este equipo</span></div>${illustration()}</section><section class="landing-steps" aria-label="Cómo funciona"><div><span>01</span><h2>Cuéntanos tu negocio</h2><p>Una descripción breve ayuda a interpretar tus ventas con el contexto correcto.</p></div><div><span>02</span><h2>Comparte tus datos</h2><p>Empieza con un CSV. Te preguntaremos solo lo necesario para entenderlo.</p></div><div><span>03</span><h2>Explora los hallazgos</h2><p>Lee el informe y abre la evidencia que respalda cada cifra.</p></div></section><footer class="landing-footer">Decision Room · Tus datos y análisis se guardan en este equipo.</footer></main>`;
+  document.title = "Decision Room — Entiende tu negocio";
+}
 function login(error = "") {
   app.innerHTML = `<main class="login"><a class="brand" href="#"><span class="brand-mark">d<span>r</span></span><span>decision<span class="brand-light">room</span></span></a><section class="card"><p class="eyebrow">TU ESPACIO PRIVADO</p><h1>Bienvenido a<br><em>Decision Room.</em></h1><p>Un lugar para entender los datos de tu negocio y decidir con más claridad.</p><form id="login-form"><label for="access">Clave de acceso local</label><input id="access" name="access" type="password" autocomplete="current-password" required><div id="login-error">${error ? errorBox(error) : ""}</div><button class="button primary" type="submit">Entrar a mi espacio ${icon("arrow")}</button></form><details><summary>¿Dónde está mi clave?</summary><p>Abre la aplicación con <code>python -m decision_room.web --open</code> desde el entorno del proyecto. También puedes usar la clave del archivo privado <code>.web-access-key</code> en el almacenamiento local.</p></details></section><p class="subtle">${icon("shield")} Acceso restringido · Solo en este equipo</p></main>`;
   document.querySelector("#login-form").onsubmit = async (event) => {
@@ -163,6 +168,35 @@ function login(error = "") {
       document.querySelector("#login-error").innerHTML = errorBox(e.message);
     }
   };
+  document.title = "Decision Room — Acceso";
+}
+function onboarding() {
+  app.innerHTML = `<main id="main" class="onboarding" tabindex="-1"><a class="brand" href="#home"><span class="brand-mark">d<span>r</span></span><span>decision<span class="brand-light">room</span></span></a><div class="onboarding-layout"><section><p class="eyebrow"><span class="tiny-line"></span> PRIMER PASO</p><h1>Empecemos por <em>tu negocio.</em></h1><p>Cuéntanos brevemente qué vendes y cómo funciona tu actividad. Guardaremos este contexto para tus próximos análisis.</p><div class="onboarding-example"><strong>Por ejemplo</strong><p>«Tengo una papelería. Vendemos material escolar y artículos de regalo, y registramos cada venta en la caja».</p></div></section><section class="card onboarding-card"><p class="eyebrow">TU CONTEXTO</p><h2>Lo esencial para empezar</h2><form id="onboarding-form"><label for="business">Nombre del negocio</label><input id="business" name="business" maxlength="100" required autocomplete="organization" placeholder="Por ejemplo, La Esquina Verde"><label for="context">¿Qué ofrece tu negocio y cómo funciona en el día a día?</label><textarea id="context" name="context" rows="6" maxlength="6000" required placeholder="Qué vendes, cómo registras las ventas y cualquier detalle que debamos conocer…"></textarea><p class="field-help">No hace falta explicarlo todo ahora. Podrás ajustar el contexto de cada análisis.</p><div id="onboarding-error"></div><button class="button primary" type="submit">Guardar y continuar ${icon("arrow")}</button></form></section></div><p class="subtle">${icon("shield")} Tu contexto se guarda en este espacio local.</p></main>`;
+  const form = document.querySelector("#onboarding-form");
+  form.onsubmit = async (event) => {
+    event.preventDefault();
+    const button = form.querySelector("button[type=submit]");
+    button.disabled = true;
+    try {
+      const result = await api("/api/onboarding", { method: "POST", body: {
+        business: form.elements.namedItem("business").value,
+        context: form.elements.namedItem("context").value,
+      } });
+      state.profile = result.profile;
+      state.draft.business ||= result.profile.business_name;
+      state.draft.context ||= result.profile.business_context;
+      saveDraft();
+      location.hash = "#new";
+    } catch (error) {
+      if (error.status === 409) {
+        await route();
+        return;
+      }
+      document.querySelector("#onboarding-error").innerHTML = errorBox(error.message);
+      button.disabled = false;
+    }
+  };
+  document.title = "Decision Room — Tu negocio";
 }
 function illustration() {
   return `<div class="hero-art" aria-hidden="true"><span class="art-orbit orbit-one"></span><span class="art-orbit orbit-two"></span><span class="art-star">✳</span><div class="art-source"><span class="art-icon">${icon("file")}</span><div>Tu negocio<small>Datos + contexto</small></div><span class="art-check">${icon("check")}</span></div><div class="art-connector"></div><div class="art-report"><span class="art-report-label">UNA VISIÓN MÁS CLARA ${icon("spark")}</span><div class="art-chart"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="art-lines"><i></i><i></i></div><span class="art-evidence">${icon("check")} Hallazgos con evidencia</span></div></div>`;
@@ -592,7 +626,15 @@ async function route() {
     if (generation !== state.generation) return;
     state.analyses = data.analyses;
     state.configured = data.configured;
-    if (hash === "new") newAnalysis();
+    state.profile = data.profile;
+    if (!data.onboarding_complete) {
+      onboarding();
+      return;
+    }
+    state.draft.business ||= state.profile?.business_name;
+    state.draft.context ||= state.profile?.business_context;
+    if (hash === "landing") landing();
+    else if (hash === "new") newAnalysis();
     else if (hash.startsWith("analysis/")) {
       const id = hash.slice(9);
       await pollDetail(id);
@@ -624,7 +666,10 @@ async function route() {
           ? "Tu análisis"
           : "Mi espacio");
   } catch (e) {
-    if (e.status === 401) login();
+    if (e.status === 401) {
+      if (hash === "login") login();
+      else landing();
+    }
     else
       shell(
         `<section class="card status-card"><h1>Tu espacio está en pausa.</h1><p>${esc(e.message)}</p><button class="button primary" id="reconnect">Volver a conectar</button></section>`,

@@ -299,3 +299,12 @@ CREATE TABLE IF NOT EXISTS web_replies (
     PRIMARY KEY (job_id,request_key)
 );
 INSERT INTO schema_versions(version) VALUES (7) ON CONFLICT DO NOTHING;
+
+-- One owner per local web installation. This is product setup state, not a browser flag.
+CREATE TABLE IF NOT EXISTS web_workspace_profile (
+    id smallint PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+    business_name text NOT NULL CHECK (length(trim(business_name)) BETWEEN 1 AND 100),
+    business_context text NOT NULL CHECK (length(trim(business_context)) BETWEEN 1 AND 6000),
+    completed_at timestamptz NOT NULL DEFAULT now()
+);
+INSERT INTO schema_versions(version) VALUES (8) ON CONFLICT DO NOTHING;

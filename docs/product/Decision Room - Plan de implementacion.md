@@ -119,6 +119,24 @@ La base de datos crece con el recorrido: primero análisis y fuentes; después i
 
 ## 5. Entrega 2: recorrido web mínimo
 
+### 2.1. Primera visita y contexto reutilizable
+
+**Construir:** una presentación inicial, un paso breve para describir el negocio y
+un estado de onboarding guardado en el servidor. Quien ya tiene análisis entra
+directamente a su espacio. El contexto guardado sirve de punto de partida para
+nuevos análisis y puede ajustarse en cada envío.
+
+**Comprobar:** una instalación nueva ve el formulario una vez; al reiniciar o
+cambiar de navegador recupera su estado; las instalaciones con análisis previos
+conservan su acceso; ningún dato de onboarding se expone sin la clave local.
+
+Este paso mejora la experiencia de la web local. La cuenta multiusuario y el
+despliegue para comercios siguen perteneciendo a la preparación operativa.
+
+**Estado, 24 de septiembre de 2026:** primer recorrido implementado y comprobado
+con pruebas de la API web y revisión visual en navegador. El perfil persistente
+identifica el espacio local; todavía no identifica personas individuales.
+
 **Estado, 22 de septiembre de 2026:** implementada y comprobada como recorrido
 web local por petición del usuario, manteniendo abierta la aceptación analítica
 de la entrega 1. Incluye inicio, contexto, CSV, preguntas, ejecución duradera,

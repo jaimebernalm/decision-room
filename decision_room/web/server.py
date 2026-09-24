@@ -151,7 +151,13 @@ class Handler(BaseHTTPRequestHandler):
                 raise WebError('Introduce tu clave de acceso para abrir el espacio local.', 401)
             ws = self.server.workspace
             if not mutation and path == '/api/workspace':
-                self.send(200, {'configured': ws.settings is not None, 'analyses': ws.listing()})
+                analyses = ws.listing()
+                profile = ws.profile()
+                self.send(200, {'configured': ws.settings is not None, 'analyses': analyses,
+                                'profile': profile, 'onboarding_complete': bool(profile or analyses)})
+                return
+            if mutation and path == '/api/onboarding':
+                self.send(200, {'profile': ws.complete_onboarding(self.json_body())})
                 return
             if not mutation and path == '/api/sample':
                 sample = ROOT / 'data/reference-cases/01-daily-sales/input/sales.csv'

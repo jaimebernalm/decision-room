@@ -70,6 +70,7 @@ class WebTests(unittest.TestCase):
         with connect(self.config) as db, db.transaction():
             db.execute('DELETE FROM web_replies')
             db.execute('DELETE FROM web_jobs')
+            db.execute('DELETE FROM web_workspace_profile')
         self.ws = Workspace(self.config, SETTINGS, WebModel)
         self.metadata = {'request_key': str(uuid4()), 'business': 'Test shop', 'context': 'unit price, selected sales only',
                          'goal': 'Understand sales', 'title': 'Web test'}
@@ -77,6 +78,32 @@ class WebTests(unittest.TestCase):
 
     def create(self, **changes):
         return self.ws.create({**self.metadata, **changes}, 'sales.csv', self.csv)['id']
+
+    def test_onboarding_is_persisted_for_the_local_workspace(self):
+        client, _ = self.http()
+        self.assertEqual(client.post('/api/onboarding', json=self.metadata).status_code, 401)
+        client.post('/api/login', json={'token': 'test-local-access'})
+        first = client.get('/api/workspace').json()
+        self.assertFalse(first['onboarding_complete'])
+        self.assertIsNone(first['profile'])
+        self.assertEqual(client.post('/api/onboarding', json=self.metadata, headers={'Origin': 'https://outside.test'}).status_code, 403)
+        self.assertEqual(client.post('/api/onboarding', json={'business': '', 'context': 'Store'}).status_code, 400)
+        response = client.post('/api/onboarding', json={'business': '  Test shop  ', 'context': '  We sell stationery.  '})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['profile']['business_name'], 'Test shop')
+        reopened = Workspace(self.config, SETTINGS, WebModel)
+        self.assertEqual(reopened.profile()['business_context'], 'We sell stationery.')
+        self.assertTrue(client.get('/api/workspace').json()['onboarding_complete'])
+        self.assertEqual(client.post('/api/onboarding', json={'business': 'Test shop', 'context': 'We sell stationery.'}).status_code, 200)
+        self.assertEqual(client.post('/api/onboarding', json={'business': 'Other', 'context': 'Other shop'}).status_code, 409)
+
+    def test_existing_analyses_skip_first_visit_onboarding(self):
+        self.create()
+        client, _ = self.http()
+        client.post('/api/login', json={'token': 'test-local-access'})
+        workspace = client.get('/api/workspace').json()
+        self.assertTrue(workspace['onboarding_complete'])
+        self.assertIsNone(workspace['profile'])
 
     def http(self):
         server = Server(self.ws, 0, token='test-local-access')

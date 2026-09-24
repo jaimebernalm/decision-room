@@ -67,6 +67,24 @@ class Workspace:
         self.wake = threading.Event()
         self.stop = threading.Event()
 
+    def profile(self):
+        with connect(self.config) as db:
+            row = db.execute('SELECT business_name, business_context, completed_at FROM web_workspace_profile WHERE id=1').fetchone()
+        return row
+
+    def complete_onboarding(self, data):
+        if not isinstance(data, dict):
+            raise WebError('Los datos del negocio no son válidos.')
+        name = bounded(data.get('business'), 'el nombre del negocio', 100)
+        context = bounded(data.get('context'), 'la descripción del negocio', 6000)
+        with connect(self.config) as db, db.transaction():
+            db.execute('''INSERT INTO web_workspace_profile(id,business_name,business_context)
+                VALUES (1,%s,%s) ON CONFLICT (id) DO NOTHING''', (name, context))
+            profile = db.execute('SELECT business_name, business_context, completed_at FROM web_workspace_profile WHERE id=1').fetchone()
+            if profile['business_name'] != name or profile['business_context'] != context:
+                raise WebError('Este espacio ya tiene un contexto inicial. Abre tu espacio para continuar.', 409)
+            return profile
+
     def create(self, data, filename, content):
         if not isinstance(data, dict):
             raise WebError('Los datos del análisis no son válidos.')

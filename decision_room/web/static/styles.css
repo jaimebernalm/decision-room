@@ -1923,6 +1923,161 @@ label.choice {
 .login code {
   overflow-wrap: anywhere;
 }
+.landing,
+.onboarding {
+  min-height: 100vh;
+  max-width: 1280px;
+  margin: auto;
+  padding: 32px clamp(22px, 5vw, 76px);
+}
+.landing-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+}
+.landing-hero {
+  min-height: 540px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 1fr);
+  align-items: center;
+  gap: 40px;
+}
+.landing-hero h1 {
+  max-width: 650px;
+  font-size: clamp(48px, 6vw, 82px);
+}
+.landing-hero p:not(.eyebrow) {
+  max-width: 520px;
+  font-size: 16px;
+  color: var(--muted);
+}
+.landing-hero .button {
+  margin-top: 15px;
+}
+.landing-note {
+  display: block;
+  margin-top: 18px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.landing-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  padding: 36px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.landing-steps > div {
+  padding: 12px 24px 12px 0;
+}
+.landing-steps span {
+  color: var(--orange);
+  font: 25px var(--serif);
+}
+.landing-steps h2 {
+  margin-top: 18px;
+}
+.landing-steps p,
+.landing-footer {
+  color: var(--muted);
+}
+.landing-footer {
+  padding: 28px 0;
+  font-size: 11px;
+}
+.onboarding > .brand {
+  margin-bottom: 70px;
+}
+.onboarding-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 480px);
+  align-items: start;
+  gap: clamp(35px, 8vw, 110px);
+}
+.onboarding-layout > section:first-child {
+  padding-top: 45px;
+}
+.onboarding-layout h1 {
+  font-size: clamp(42px, 5vw, 68px);
+}
+.onboarding-layout > section:first-child > p:not(.eyebrow) {
+  max-width: 500px;
+  font-size: 16px;
+  color: var(--muted);
+}
+.onboarding-example {
+  max-width: 500px;
+  margin-top: 45px;
+  padding: 22px 25px;
+  border-left: 3px solid var(--orange);
+  background: var(--pale);
+}
+.onboarding-example p {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+.onboarding-card {
+  padding: 36px;
+}
+.onboarding-card input,
+.onboarding-card textarea {
+  display: block;
+  width: 100%;
+  padding: 13px 15px;
+  border: 1px solid #dbe1d0;
+  background: var(--white);
+}
+.onboarding-card .button {
+  margin-top: 20px;
+}
+.onboarding > .subtle {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 35px;
+}
+.onboarding > .subtle .icon {
+  width: 16px;
+  height: 16px;
+}
+@media (max-width: 760px) {
+  .landing-hero,
+  .onboarding-layout {
+    grid-template-columns: 1fr;
+  }
+  .landing-hero {
+    padding: 70px 0 40px;
+  }
+  .landing-hero .hero-art {
+    display: none;
+  }
+  .landing-steps {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .onboarding > .brand {
+    margin-bottom: 30px;
+  }
+  .onboarding-layout > section:first-child {
+    padding-top: 0;
+  }
+  .onboarding-example {
+    margin-top: 20px;
+  }
+}
+@media (max-width: 560px) {
+  .landing-header .brand {
+    font-size: 17px;
+  }
+  .landing-header .button {
+    padding: 10px;
+  }
+  .onboarding-card {
+    padding: 25px;
+  }
+}
 .boot {
   min-height: 100vh;
   display: flex;
