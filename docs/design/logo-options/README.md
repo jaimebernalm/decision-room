@@ -5,7 +5,7 @@ Propuestas en PNG para explorar la identidad visual antes de pasar el símbolo e
 | Opción | Doble lectura |
 | --- | --- |
 | [01 · Colaboración](01-colaboracion.png) | Dos partes se acercan; el espacio central forma una idea compartida. |
-| [02 · Chispa](02-chispa.png) | Dos formas construyen una chispa en el espacio vacío: una conclusión que surge del intercambio. |
-| [03 · Apoyo](03-apoyo.png) | Una curva sostiene una idea; también puede leerse como un espacio abierto para decidir. |
+| [02 · Chispa](02-chispa.png) | Las formas se orientan en vertical y dejan una chispa en el espacio vacío: una conclusión que surge del intercambio. |
+| [03 · Apoyo](03-apoyo.png) | Una curva sostiene un círculo, que puede leerse como una idea o una persona acompañada. |
 
 Las imágenes son exploraciones raster de 1254 × 1254 píxeles sobre fondo blanco. Al elegir una, conviene ajustar proporciones y comprobarla a 24 y 32 píxeles durante su vectorización.
