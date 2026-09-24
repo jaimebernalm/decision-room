@@ -347,6 +347,19 @@ print(read(replace(Config.load(),dsn=args['dsn']),args['business'])[0]['status']
                                (source['id'],)).fetchall()
         self.assertEqual([row['status'] for row in calls], ['completed', 'completed'])
 
+    def test_greeting_is_applied_without_model_or_new_fact(self):
+        with connect(self.config) as db, db.transaction():
+            source = memory.capture(db, self.b, 'chat_message:' + str(uuid4()),
+                                    kind='manual', text='¡Hola!')
+        model = MemoryModel([candidate()])
+        extraction.process(self.config, self.b, source['id'], model)
+        self.assertEqual(self.source(source)['status'], 'applied')
+        self.assertEqual(model.calls, 0)
+        self.assertEqual(memory.read(self.config, self.b), [])
+        with connect(self.config) as db:
+            self.assertFalse(db.execute('SELECT 1 FROM memory_calls WHERE source_id=%s',
+                                        (source['id'],)).fetchone())
+
     def test_hypothesis_does_not_displace_current_declared_schedule(self):
         self.change(action='declare', content=content())
         source = self.capture('Estamos pensando en abrir los domingos.')

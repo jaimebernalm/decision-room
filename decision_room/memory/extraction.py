@@ -6,6 +6,7 @@ from psycopg.types.json import Jsonb
 
 from ..database import connect
 from ..agent.model import ModelRequestUncertain
+from ..greetings import is_greeting
 from .contracts import Extraction, PROMPT_VERSION
 from .service import (MemoryError, append, current, digest, lock, overlap, same_subject,
                       validate_content)
@@ -55,12 +56,14 @@ def _validate(db, source, response):
     return candidates
 
 
-def _chat_question_only(source):
-    # A question about an existing fact is not a new declaration or contradiction.
+def _chat_without_facts(source):
+    # A greeting or pure question is not a new declaration or contradiction.
     # Explicit unknown/declined analytical answers use their own capture path.
     import re
     text = source['payload']['text'].strip()
-    return source['origin_key'].startswith('chat_message:') and text.startswith('¿') and not re.sub(r'¿[^?]*\?', '', text).strip()
+    return source['origin_key'].startswith('chat_message:') and (
+        is_greeting(text) or text.startswith('¿') and not re.sub(r'¿[^?]*\?', '', text).strip()
+    )
 
 
 def _validation_hint(error):
@@ -82,7 +85,7 @@ def _apply(db, source):
         # The saved output is retained in memory_calls, but must be extracted
         # again with the corrected/withdrawn context on explicit retry.
         raise MemoryError('La memoria cambió durante la extracción. Reintenta con la revisión actual.')
-    candidates = [] if _chat_question_only(source) else _validate(db, source, source['response'])
+    candidates = [] if _chat_without_facts(source) else _validate(db, source, source['response'])
     for item in candidates:
         content = item.content.model_dump(mode='json')
         facts = current(db, b)
@@ -139,13 +142,15 @@ def process(config, business_id, source_id, model):
                     rev = lock(db, business_id)
                     context = _context(db, source)
                     db.execute("UPDATE memory_sources SET status='extracting',context_revision=%s,response=NULL,issue=NULL,updated_at=now() WHERE id=%s", (rev, source_id))
-                    if source['payload']['disposition'] == 'answered':
+                    if source['payload']['disposition'] == 'answered' and not _chat_without_facts(source):
                         call_id = uuid4()
                         db.execute('''INSERT INTO memory_calls(id,business_id,source_id,model_settings,prompt_version,context,status)
                             VALUES (%s,%s,%s,%s,%s,%s,'running')''',
                                    (call_id, business_id, source_id, Jsonb(model.identity), PROMPT_VERSION, Jsonb(context)))
                 if call_id:
                     response, usage = model.generate_memory(context)
+                elif source['payload']['disposition'] == 'answered':
+                    response, usage = {'candidates': []}, {}
                 else:
                     response, usage = _unanswered(source), {}
                 # Commit response independently: a later application failure never
@@ -156,7 +161,7 @@ def process(config, business_id, source_id, model):
                                    (Jsonb(response), Jsonb(usage), call_id))
                     db.execute("UPDATE memory_sources SET status='extracted',response=%s,updated_at=now() WHERE id=%s", (Jsonb(response), source_id))
             source = db.execute('SELECT * FROM memory_sources WHERE id=%s', (source_id,)).fetchone()
-            if call_id and not _chat_question_only(source):
+            if call_id and not _chat_without_facts(source):
                 try:
                     _validate(db, source, source['response'])
                 except (ValidationError, MemoryError) as error:

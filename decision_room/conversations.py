@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from psycopg.types.json import Jsonb
 
 from .database import connect
+from .greetings import is_greeting
 from .agent.model import ModelSettings, ModelRequestUncertain
 from .agent import review
 from .memory import context as ctx, service as memory, extraction, retrieval, semantic
@@ -254,6 +255,21 @@ def memory_reply(profile, items, progress):
                 'Vuelve a preguntarme en un momento.')
     return (f'He revisado la información guardada sobre {name} y todavía no encuentro nada que pueda contarte con seguridad. '
             'Si me cuentas a qué se dedica tu negocio o añades datos en Mi negocio, podré ayudarte mejor.')
+
+
+def greeting_reply(manifest):
+    name = manifest['profile']['name']
+    has_context = any(item['status'] == 'declared' for item in manifest['memories'])
+    has_data = bool(manifest['catalog']['items'])
+    if has_context and has_data:
+        text = f'¡Hola! Tengo presente lo que me has contado sobre {name} y veo tus datos. ¿Qué te gustaría averiguar hoy?'
+    elif has_context:
+        text = f'¡Hola! Ya tengo presente lo que me has contado sobre {name}. ¿Qué te gustaría saber o investigar?'
+    elif has_data:
+        text = f'¡Hola! Veo los datos de {name}. ¿Qué te gustaría investigar con ellos?'
+    else:
+        text = f'¡Hola! ¿Qué te gustaría saber sobre {name}? También puedes contarme más del negocio o añadir datos para analizarlos.'
+    return dict(kind='greeting', text=text)
 
 
 class Conversations:
@@ -741,6 +757,14 @@ class Conversations:
                             "UPDATE chat_turns SET snapshot=%s,status='routing' WHERE id=%s",
                             (Jsonb(turn['snapshot']), turn_id),
                         )
+                if (is_greeting(turn['payload']['text']) and not turn['payload'].get('question_id')
+                        and not turn['payload'].get('finding_reference')):
+                    with db.transaction():
+                        memory.lock(db, self.business)
+                        if not dependencies_current(self.config, db, turn['snapshot'], []):
+                            raise ctx.StaleContext('Context changed before greeting.')
+                        self._save(db, turn, 'completed', greeting_reply(turn['snapshot']))
+                    return
                 for ordinal in range(ctx.MAX_RETRIEVALS + 1):
                     events = self.events(db, turn)
                     if not dependencies_current(self.config, db, turn['snapshot'], events):

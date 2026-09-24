@@ -9,6 +9,7 @@ from unittest.mock import patch
 from uuid import uuid4
 
 from decision_room.conversations import Conversations, memory_reply, search_history, snapshot
+from decision_room.greetings import is_greeting
 from decision_room.database import connect
 from decision_room.service import import_batch
 from decision_room.memory import service as memory, retrieval
@@ -245,6 +246,22 @@ class ConversationTests(unittest.TestCase):
         self.assertIn('todavía no encuentro', memory_reply({'name': 'Tienda'}, [],
             {'pending': 0, 'failed': 0, 'uncertain': 0}))
 
+    def test_short_greeting_uses_business_context_without_listing_it(self):
+        self.assertTrue(is_greeting('  ¡Hola! '))
+        self.assertFalse(is_greeting('Hola, ¿qué sabes de mi negocio?'))
+        self.send(self.chat(), 'Cerramos los domingos.')
+        chat = self.chat()
+        with (patch.object(ChatModel, 'generate_memory', side_effect=AssertionError('greeting extraction')),
+              patch.object(ChatModel, 'generate_chat', side_effect=AssertionError('greeting routing'))):
+            turn = self.send(chat, 'hola')
+        self.assertEqual(turn['status'], 'completed')
+        self.assertEqual(turn['response']['kind'], 'greeting')
+        self.assertIn('Fictional chat shop', turn['response']['text'])
+        self.assertIn('¿Qué te gustaría', turn['response']['text'])
+        self.assertNotIn('Cerramos los domingos', turn['response']['text'])
+        with connect(self.config) as db:
+            self.assertFalse(db.execute('SELECT 1 FROM chat_calls WHERE turn_id=%s', (turn['id'],)).fetchone())
+
     def test_send_is_persisted_idempotent_and_serial(self):
         chat = self.chat()
         payload = dict(business_id=str(self.b), request_key=str(uuid4()), text='Hello')
@@ -256,7 +273,7 @@ class ConversationTests(unittest.TestCase):
         with self.assertRaises(WebError):
             self.chats.send(chat, {**payload, 'request_key': str(uuid4())})
         self.chats.run(results[0]['id'])
-        self.assertEqual(self.chats.detail(chat)['turns'][0]['response']['kind'], 'missing')
+        self.assertEqual(self.chats.detail(chat)['turns'][0]['response']['kind'], 'greeting')
 
     def test_reviewed_calculation_explanation_and_explicit_report(self):
         chat, t = self.complete()
@@ -299,7 +316,7 @@ class ConversationTests(unittest.TestCase):
     def test_uncertain_request_never_automatically_repeated(self):
         chat = self.chat()
         with patch.object(ChatModel, 'generate_chat', side_effect=ModelRequestUncertain('test')) as model:
-            t = self.send(chat, 'Hello')
+            t = self.send(chat, 'Can you help me?')
             self.assertEqual(t['status'], 'failed')
             self.chats.run(t['id'])
             self.assertEqual(model.call_count, 1)
@@ -384,7 +401,7 @@ class ConversationTests(unittest.TestCase):
 
     def test_cached_model_output_recovers_without_second_request(self):
         chat = self.chat()
-        payload = dict(business_id=str(self.b), request_key=str(uuid4()), text='Hello')
+        payload = dict(business_id=str(self.b), request_key=str(uuid4()), text='Can you help me?')
         t = self.chats.send(chat, payload)['id']
         with patch.object(self.chats, '_save', side_effect=SystemExit('simulated process exit')):
             with self.assertRaises(SystemExit):
@@ -438,7 +455,7 @@ class ConversationTests(unittest.TestCase):
     def test_two_retry_clicks_only_authorize_one_attempt(self):
         chat = self.chat()
         with patch.object(ChatModel, 'generate_chat', side_effect=ModelRequestUncertain('test')):
-            t = self.send(chat, 'Hello')
+            t = self.send(chat, 'Can you help me?')
 
         def retry(_):
             try:

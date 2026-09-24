@@ -125,6 +125,13 @@ test('memory answer reads naturally and does not add a technical empty-state par
   assert.ok(previous.includes('En ese momento'));
   assert.ok(!previous.includes('recuerdos aplicables'));
 });
+test('an earlier greeting does not display a memory dump', () => {
+  const f=fixture(); f.state.business.name='Papelería Bruma';
+  const html=f.chatResponse({kind:'memory',text:'Esto es lo que me has contado sobre Papelería Bruma:',items:[{status:'declared',content:{statement:'Vende cuadernos.',scope:'business'}}]},'response','hola');
+  assert.ok(html.includes('¡Hola!'));
+  assert.ok(html.includes('Papelería Bruma'));
+  assert.ok(!html.includes('Vende cuadernos'));
+});
 test('withdrawn reports are distinct from pending and historical reports', () => {
   const f=fixture();
   assert.equal(f.reportState({status:'blocked',presentation_status:'withdrawn'}),'withdrawn');

@@ -775,8 +775,14 @@ async function pollDetail(id) {
     } else toast(e.message);
   }
 }
-function chatResponse(r, anchor = "response") {
+function shortGreeting(value) {
+  const normalized = String(value ?? "").toLocaleLowerCase("es").replace(/[¡!¿?.,\s]+/g, " ").trim();
+  return ["hola", "holi", "buenas", "buen día", "buenos días", "buenas tardes", "buenas noches", "qué tal", "que tal", "hey", "hello", "hi"].includes(normalized);
+}
+function chatResponse(r, anchor = "response", ownerText = "") {
   if (!r) return "";
+  if (r.kind === "memory" && shortGreeting(ownerText))
+    return `<p>¡Hola! ¿Qué te gustaría saber o investigar sobre ${esc(state.business?.name || "tu negocio")}?</p>`;
   if (r.kind === "evidence")
     return `<h3>${esc(r.title)}</h3>${r.highlights?.length ? `<div class="dashboard-metrics">${r.highlights.map(h => `<div class="metric-tile"><span>${esc(h.label)}</span><strong>${esc(h.value)}</strong><small>${esc(h.unit)}</small></div>`).join("")}</div>` : ""}<p class="muted">${esc(r.scope?.period)} · ${esc(r.scope?.coverage)}</p>${r.claims.map(c => `<section id="${esc(anchor)}-${esc(c.key)}"><h4>${esc(c.title)}</h4><p>${esc(c.statement)}</p><p>${esc(c.interpretation)}</p><details><summary>Cómo se ha comprobado</summary><p>${esc(c.method)}</p></details></section>`).join("")}<div class="dash-chart-grid">${(r.charts || []).map(c => dashboardChart(c, null, `#${anchor}-${c.claim_key}`)).join("")}</div><ul>${r.limitations.map(x => `<li>${esc(x)}</li>`).join("")}</ul>`;
   if (r.kind === "catalog")
@@ -843,7 +849,7 @@ async function chatPage(id) {
         data.turns
           .map(
             (t, index) =>
-              `<article class="chat-turn"><div class="chat-owner"><strong>Tú</strong><p>${esc(t.payload.text)}</p></div><div class="card chat-answer"><strong>Decision Room</strong>${t.payload.finding_reference ? `<p class="question-context">Sobre: ${esc(t.payload.finding_reference.title)} · ${esc(t.payload.finding_reference.period)}</p>` : ""}${chatResponse(t.response, `turn-${t.id}`)}${t.issue ? `<p class="notice">${esc(t.issue)}</p>` : ""}${["queued", "routing", "processing"].includes(t.status) ? '<p class="muted">Preparando y comprobando la respuesta… Puedes volver más tarde.</p>' : ""}${["failed", "stale", "blocked"].includes(t.status) && index === data.turns.length - 1 ? `<button class="button secondary" data-retry="${esc(t.id)}">Reintentar con el contexto actual</button>` : ""}${t.response?.kind === "evidence" ? (t.report_requested ? `<a class="button secondary" target="_blank" rel="noopener" href="/api/chats/${esc(id)}/report/${esc(t.id)}">Abrir informe</a>` : `<button class="button secondary" data-report="${esc(t.id)}">Generar informe</button>`) : ""}</div></article>`,
+              `<article class="chat-turn"><div class="chat-owner"><strong>Tú</strong><p>${esc(t.payload.text)}</p></div><div class="card chat-answer"><strong>Decision Room</strong>${t.payload.finding_reference ? `<p class="question-context">Sobre: ${esc(t.payload.finding_reference.title)} · ${esc(t.payload.finding_reference.period)}</p>` : ""}${chatResponse(t.response, `turn-${t.id}`, t.payload.text)}${t.issue ? `<p class="notice">${esc(t.issue)}</p>` : ""}${["queued", "routing", "processing"].includes(t.status) ? '<p class="muted">Preparando y comprobando la respuesta… Puedes volver más tarde.</p>' : ""}${["failed", "stale", "blocked"].includes(t.status) && index === data.turns.length - 1 ? `<button class="button secondary" data-retry="${esc(t.id)}">Reintentar con el contexto actual</button>` : ""}${t.response?.kind === "evidence" ? (t.report_requested ? `<a class="button secondary" target="_blank" rel="noopener" href="/api/chats/${esc(id)}/report/${esc(t.id)}">Abrir informe</a>` : `<button class="button secondary" data-report="${esc(t.id)}">Generar informe</button>`) : ""}</div></article>`,
           )
           .join("") ||
         '<section class="card"><h2>¿Por dónde empezamos?</h2><p>Puedes preguntar por un resultado, pedir un cálculo o explicar cómo funciona tu negocio.</p></section>';
