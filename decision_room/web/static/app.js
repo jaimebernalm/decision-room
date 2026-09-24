@@ -141,7 +141,8 @@ async function api(path, { method = "GET", body } = {}) {
   return data;
 }
 function shell(content, active = "home", crumb = "Vista general") {
-  const floatingQuestion = state.business && !location.hash.startsWith("#chat/");
+  const hasQuestionComposer = state.business && !location.hash.startsWith("#chat/");
+  const centeredQuestion = location.hash === "#ask";
   app.innerHTML = `<aside class="sidebar"><a class="brand" href="#home" aria-label="Decision Room, inicio"><span class="brand-mark">d<span>r</span></span><span>decision<span class="brand-light">room</span><small>UN ESPACIO PARA DECIDIR</small></span></a>
     <div class="workspace-label"><span class="workspace-avatar">M</span><span>${esc(state.business?.name || "Mi espacio")}<small>Espacio de trabajo local</small></span><span class="local-dot"></span></div>
     <p class="nav-label">TU ESPACIO</p><nav aria-label="Principal">${[
@@ -154,12 +155,12 @@ function shell(content, active = "home", crumb = "Vista general") {
           `<a href="#${route}" class="nav-link ${active === route ? "active" : ""}" ${active === route ? 'aria-current="page"' : ""} title="${label}">${icon(i)}<span>${label}</span></a>`,
       )
       .join("")}<a href="#chats" class="nav-link mobile-chats" title="Conversaciones" aria-label="Conversaciones">${icon("chat")}</a></nav>
-    <a href="#ask" class="button sidebar-create">${icon("plus")} Nueva pregunta</a>
+    <a href="#ask" class="button sidebar-create">${icon("plus")} Nuevo chat</a>
     <div class="sidebar-history"><p class="nav-label">CHATS</p>${state.chats.slice(0, 6).map((c) => `<a class="history-link" href="#chat/${esc(c.id)}">${icon("chat")}<span>${esc(c.title)}</span></a>`).join("") || '<p class="history-empty">Aún no hay conversaciones.</p>'}<a class="history-all" href="#chats">Ver conversaciones ${icon("arrow")}</a><p class="nav-label">ANÁLISIS RECIENTES</p>${state.analyses.slice(0, 6).map((a) => `<a class="history-link" href="#analysis/${esc(a.id)}" title="${esc(a.title)}">${icon("grid")}<span>${esc(a.title)}</span></a>`).join("") || '<p class="history-empty">Aún no hay análisis.</p>'}<a class="history-all" href="#analyses">Ver todos los análisis ${icon("arrow")}</a></div>
     <div class="sidebar-bottom"><a class="nav-link" href="#how">${icon("help")}<span>Cómo funciona</span></a><div class="profile"><span>ME</span><div>Mi espacio personal<small>Versión de pruebas</small></div></div></div></aside>
-    <div class="workspace"><header class="topbar"><span class="breadcrumb">Mi espacio <span>/</span> <b>${esc(crumb)}</b></span><span class="environment"><i></i> Entorno local <span class="beta">BETA</span></span></header><main id="main" tabindex="-1"><div id="memory-status" aria-live="polite"></div>${content}${floatingQuestion ? questionComposer() : ""}</main><footer class="page-footer"><span>Decision Room</span><span>De los datos a decisiones con contexto.</span></footer></div>`;
+    <div class="workspace"><header class="topbar"><span class="breadcrumb">Mi espacio <span>/</span> <b>${esc(crumb)}</b></span><span class="environment"><i></i> Entorno local <span class="beta">BETA</span></span></header><main id="main" class="${centeredQuestion ? "new-chat-page" : ""}" tabindex="-1"><div id="memory-status" aria-live="polite"></div>${content}${hasQuestionComposer && !centeredQuestion ? questionComposer() : ""}</main><footer class="page-footer"><span>Decision Room</span><span>De los datos a decisiones con contexto.</span></footer></div>`;
   renderMemory();
-  if (floatingQuestion) bindQuestionComposer();
+  if (hasQuestionComposer) bindQuestionComposer();
 }
 function renderMemory() {
   const box = document.querySelector("#memory-status");
@@ -287,7 +288,7 @@ function dashboardSuggestions() {
 function questionComposer() {
   const context = store.get(questionContextKey(), {});
   const draft = store.get(dashboardDraftKey(), "");
-  return `<section class="dashboard-compose" aria-label="Haz una pregunta">${context.label ? `<p class="question-context">${esc(context.label)} <button type="button" id="clear-question-context" class="text-button">Quitar selección</button></p>` : ""}<form id="dashboard-question"><div class="composer-input-row"><label for="dashboard-prompt" class="sr-only">Escribe tu pregunta</label><textarea id="dashboard-prompt" maxlength="6000" rows="1" required placeholder="Pregunta lo que quieras…">${esc(draft)}</textarea><button class="button primary" type="submit" aria-label="Enviar pregunta">${icon("arrow")}</button></div><div class="chat-suggestions" id="dashboard-suggestions" ${draft.trim() ? "hidden" : ""}>${dashboardSuggestions().map(q => `<button type="button" data-home-suggestion="${esc(q)}">${esc(q)}</button>`).join("")}</div><p id="dashboard-error" role="alert"></p></form></section>`;
+  return `<section class="dashboard-compose ${location.hash === "#ask" ? "new-chat-compose" : ""}" aria-label="Haz una pregunta"><form id="dashboard-question"><div class="composer-card">${context.label ? `<p class="question-context">${esc(context.label)} <button type="button" id="clear-question-context" class="text-button">Quitar selección</button></p>` : ""}<div class="composer-input-row"><label for="dashboard-prompt" class="sr-only">Escribe tu pregunta</label><textarea id="dashboard-prompt" maxlength="6000" rows="1" required placeholder="Pregunta lo que quieras…">${esc(draft)}</textarea><button class="button primary" type="submit" aria-label="Enviar pregunta">${icon("arrow")}</button></div><p id="dashboard-error" role="alert"></p></div><div class="chat-suggestions" id="dashboard-suggestions" ${draft.trim() ? "hidden" : ""}>${dashboardSuggestions().map(q => `<button type="button" data-home-suggestion="${esc(q)}">${esc(q)}</button>`).join("")}</div></form></section>`;
 }
 function resizeComposer(textarea) {
   textarea.style.height = "auto";
@@ -370,7 +371,7 @@ function reportState(item) {
   return item.presentation_status || (item.status === "completed" && item.data_version?.superseded_by ? "historical" : item.status);
 }
 function reportsView() {
-  shell(`<div class="page-heading"><div><p class="eyebrow">TU BIBLIOTECA</p><h1>Informes y análisis</h1><p>Recupera una revisión o continúa un trabajo pendiente.</p></div><a class="button primary" href="#ask">${icon("plus")} Nueva pregunta</a></div><div class="report-filters"><label>Buscar informes<input id="report-search" type="search" value="${esc(state.reportSearch || "")}" placeholder="Título o archivo"></label><label>Estado<select id="report-filter">${[["all","Todos"],["completed","Disponibles"],["historical","Versiones anteriores"],["pending","En curso o pendientes"],["withdrawn","Retirados"],["failed","Interrumpidos"]].map(([key,label]) => `<option value="${key}" ${state.reportFilter === key ? "selected" : ""}>${label}</option>`).join("")}</select></label></div><div class="reports-list" id="report-items"></div>`, "reports", "Informes");
+  shell(`<div class="page-heading"><div><p class="eyebrow">TU BIBLIOTECA</p><h1>Informes y análisis</h1><p>Recupera una revisión o continúa un trabajo pendiente.</p></div><a class="button primary" href="#ask">${icon("plus")} Nuevo chat</a></div><div class="report-filters"><label>Buscar informes<input id="report-search" type="search" value="${esc(state.reportSearch || "")}" placeholder="Título o archivo"></label><label>Estado<select id="report-filter">${[["all","Todos"],["completed","Disponibles"],["historical","Versiones anteriores"],["pending","En curso o pendientes"],["withdrawn","Retirados"],["failed","Interrumpidos"]].map(([key,label]) => `<option value="${key}" ${state.reportFilter === key ? "selected" : ""}>${label}</option>`).join("")}</select></label></div><div class="reports-list" id="report-items"></div>`, "reports", "Informes");
   function render() {
     const query = (state.reportSearch || "").toLocaleLowerCase(), filter = state.reportFilter || "all";
     const items = state.analyses.filter(a => `${a.title} ${a.filename}`.toLocaleLowerCase().includes(query) && (filter === "all" || reportState(a) === filter || (filter === "pending" && ["running","queued","waiting","blocked"].includes(reportState(a)))));
@@ -827,7 +828,12 @@ function chatResponse(r, anchor = "response", ownerText = "") {
 }
 async function chatsPage() {
   if (!state.business) { businessForm(true); return; }
-  shell(`<div class="page-heading"><div><p class="eyebrow">TU NEGOCIO, CON CONTEXTO</p><h1>${location.hash === "#ask" ? "Nueva pregunta" : "Conversaciones"}</h1><p>Pregunta sobre tus datos o añade algo que debamos recordar.</p></div></div><div class="card-grid">${state.chats.map(c => `<a class="card" href="#chat/${esc(c.id)}"><h2>${esc(shortChatTitle(c.title))}</h2><p>${fmtDate(c.created_at)}</p><span>Abrir conversación ${icon("arrow")}</span></a>`).join("") || '<p class="empty">Aquí aparecerán tus conversaciones guardadas.</p>'}</div>`, "chats", "Conversaciones");
+  if (location.hash === "#ask") {
+    const recent = state.chats.slice(0, 6);
+    shell(`<div class="new-chat-landing"><div class="new-chat-heading"><p class="eyebrow">${esc(state.business.name)}</p><h1>¿Qué te gustaría entender hoy?</h1></div>${questionComposer()}<section class="new-chat-recent" aria-label="Conversaciones anteriores"><h2>Conversaciones anteriores</h2>${recent.length ? `<div class="new-chat-list">${recent.map(c => `<a href="#chat/${esc(c.id)}">${icon("chat")}<span>${esc(shortChatTitle(c.title))}</span>${icon("arrow")}</a>`).join("")}</div><a class="new-chat-all" href="#chats">Ver todas las conversaciones ${icon("arrow")}</a>` : '<p>Aquí encontrarás tus chats cuando empieces a conversar.</p>'}</section></div>`, "chats", "Nuevo chat");
+    return;
+  }
+  shell(`<div class="page-heading"><div><p class="eyebrow">TU NEGOCIO, CON CONTEXTO</p><h1>Conversaciones</h1><p>Retoma un chat o empieza uno nuevo.</p></div><a class="button secondary" href="#ask">Nuevo chat</a></div><div class="card-grid">${state.chats.map(c => `<a class="card" href="#chat/${esc(c.id)}"><h2>${esc(shortChatTitle(c.title))}</h2><p>${fmtDate(c.created_at)}</p><span>Abrir conversación ${icon("arrow")}</span></a>`).join("") || '<p class="empty">Aquí aparecerán tus conversaciones guardadas.</p>'}</div>`, "chats", "Conversaciones");
 }
 async function chatPage(id) {
   const generation = state.generation;
@@ -836,9 +842,9 @@ async function chatPage(id) {
     sending = false;
   const draftKey = "dr-chat-draft-" + id;
   shell(
-    `<div class="page-heading"><div><a href="#chats">← Conversaciones</a><h1 id="chat-title">Conversación</h1><p>El contexto del negocio se comparte entre conversaciones.</p></div><a class="button secondary" href="#ask">Nueva pregunta</a></div>
+    `<div class="page-heading"><div><a href="#chats">← Conversaciones</a><h1 id="chat-title">Conversación</h1><p>El contexto del negocio se comparte entre conversaciones.</p></div><a class="button secondary" href="#ask">Nuevo chat</a></div>
     <p id="chat-dataset" class="question-context"></p><div id="chat-turns" aria-live="polite" aria-relevant="additions text"></div><div id="chat-conflicts"></div>
-    <form class="chat-composer" id="chat-send"><label id="question-label" hidden>Aclaración pendiente<select id="chat-question"></select></label><div class="composer-input-row"><label for="chat-message" class="sr-only">Tu mensaje</label><textarea id="chat-message" rows="1" maxlength="6000" required placeholder="Pregunta lo que quieras…"></textarea><button class="button primary" id="send-message" aria-label="Enviar mensaje">${icon("arrow")}</button></div><div class="chat-suggestions" id="chat-suggestions"><button type="button" data-suggestion="¿Qué sabes de mi negocio?">Qué sabemos del negocio</button><button type="button" data-suggestion="¿Qué datos tenemos disponibles para analizar?">Explorar mis datos</button></div><p id="chat-status" class="muted" aria-live="polite"></p></form>`,
+    <form class="chat-composer" id="chat-send"><div class="composer-card"><label id="question-label" hidden>Aclaración pendiente<select id="chat-question"></select></label><div class="composer-input-row"><label for="chat-message" class="sr-only">Tu mensaje</label><textarea id="chat-message" rows="1" maxlength="6000" required placeholder="Pregunta lo que quieras…"></textarea><button class="button primary" id="send-message" aria-label="Enviar mensaje">${icon("arrow")}</button></div><p id="chat-status" class="muted" aria-live="polite"></p></div><div class="chat-suggestions" id="chat-suggestions"><button type="button" data-suggestion="¿Qué sabes de mi negocio?">Qué sabemos del negocio</button><button type="button" data-suggestion="¿Qué datos tenemos disponibles para analizar?">Explorar mis datos</button></div></form>`,
     "chats",
     "Conversación",
   );
@@ -1105,7 +1111,7 @@ async function route() {
         ? "Nuevo análisis"
         : hash.startsWith("analysis/")
           ? "Tu análisis"
-          : hash === "home" ? "Inicio" : hash === "my-business" ? "Mi negocio" : hash === "reports" ? "Informes" : "Mi espacio");
+        : hash === "home" ? "Inicio" : hash === "my-business" ? "Mi negocio" : hash === "reports" ? "Informes" : hash === "ask" ? "Nuevo chat" : "Mi espacio");
   } catch (e) {
     if (generation !== state.generation) return;
     if (e.status === 401) login();
