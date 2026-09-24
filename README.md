@@ -98,6 +98,14 @@ The web workspace does not automatically import historical CLI evaluations.
 The agent's known analytical errors remain open; delivery 2 does not accept
 or certify the analytical quality of delivery 1.
 
+Shared business context now supports optional hybrid retrieval using OpenAI
+embeddings and PostgreSQL's `vector` extension. Schema 11 requires pgvector on
+the PostgreSQL server (the bundled Postgres.app includes it). To enable retrieval,
+set `DECISION_ROOM_SEMANTIC_SEARCH=true` and `OPENAI_API_KEY` in the private `.env`;
+restart the web worker. Embeddings use their own OpenAI endpoint even if the
+agent uses a local model. See [semantic retrieval](docs/technical/semantic-retrieval.md)
+for setup, limits, maintenance and reproducible evaluations.
+
 ## Python environment
 
 A Python 3.12 development environment exists at `.venv/`, ignored by Git.

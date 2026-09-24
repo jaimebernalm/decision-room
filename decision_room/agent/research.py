@@ -5,6 +5,8 @@ from langsmith import tracing_context
 from psycopg.types.json import Jsonb
 
 from ..database import connect
+from ..memory import context as memory_context
+from ..memory.service import lock as memory_lock
 from ..execution import execute, get_execution
 from .context import fingerprint, snapshot as source_snapshot
 from .model import ModelClient, ModelSettings
@@ -22,8 +24,12 @@ def knowledge(db, session):
     if not revision:
         raise ValueError('The agent must save a provisional plan before researching.')
     owner_answers = answers(db, session['id'])
-    key = fingerprint({'revision': revision['revision'], 'proposal': revision['proposal'],
-                       'answers': owner_answers, 'source': session['source_snapshot']})
+    shared = memory_context.manifest(db, session['id'])
+    identity = {'revision': revision['revision'], 'proposal': revision['proposal'],
+                'answers': owner_answers, 'source': session['source_snapshot']}
+    if shared:
+        identity['business_context'] = shared['initial_context']
+    key = fingerprint(identity)
     return revision, owner_answers, key
 
 
@@ -50,6 +56,7 @@ def start(config, business_id, session_id, *, request_key, max_investigations=2,
     with session_lock(config, business_id, session_id) as (db, session):
         if session['superseded_by']:
             raise ValueError('This planning session was superseded; use the new session.')
+        memory_context.ensure(db, session['id'])
         revision, owner_answers, key = knowledge(db, session)
         plan = {**revision['proposal'], 'investigations': [i for i in revision['proposal']['investigations']
                                                        if not keys or i['key'] in keys]}
@@ -78,6 +85,7 @@ def start(config, business_id, session_id, *, request_key, max_investigations=2,
 
 def _drive(config, db, session, run, *, model=None, executor=execute, retry_uncertain=False):
     try:
+        memory_context.ensure(db, session['id'])
         _, _, current_key = knowledge(db, session)
         current_source = source_snapshot(config, session['business_id'], session['analysis_id'], session['source_snapshot']['owner_context'])
         if session['superseded_by'] or current_key != run['knowledge_sha256'] or fingerprint(current_source) != fingerprint(session['source_snapshot']):
@@ -101,10 +109,13 @@ def _drive(config, db, session, run, *, model=None, executor=execute, retry_unce
             candidates = {f['investigation_key'] for f in findings(db, run['id']) if f['status'] == 'candidate'}
             all_work = {i['key'] for i in run['snapshot']['proposal']['investigations']}
             status = 'completed' if all_work <= candidates else 'partial'
-            db.execute('UPDATE agent_research SET status=%s,issue=%s,updated_at=now() WHERE id=%s',
-                       (status, state.values['stop_reason'], run['id']))
+            with db.transaction():
+                memory_lock(db, session['business_id'])
+                memory_context.ensure(db, session['id'])
+                db.execute('UPDATE agent_research SET status=%s,issue=%s,updated_at=now() WHERE id=%s',
+                           (status, state.values['stop_reason'], run['id']))
     except Exception as error:
-        status = 'stale' if isinstance(error, StaleResearch) else 'failed'
+        status = 'stale' if isinstance(error, (StaleResearch, memory_context.StaleContext)) else 'failed'
         issue = str(error)[:2000] if isinstance(error, ValueError) else type(error).__name__
         db.execute('UPDATE agent_research SET status=%s,issue=%s,updated_at=now() WHERE id=%s', (status, issue, run['id']))
         raise ValueError(f'Research {run["id"]} {status}: {issue}') from None
@@ -128,7 +139,7 @@ def show(config, business_id, research_id):
             raise ValueError('Research does not belong to this business.')
         session = db.execute('SELECT * FROM agent_sessions WHERE id=%s', (run['session_id'],)).fetchone()
         _, _, current_key = knowledge(db, session)
-        stale = bool(session['superseded_by'] or current_key != run['knowledge_sha256'] or run['status'] == 'stale')
+        stale = bool(memory_context.reason(db, session['id']) or session['superseded_by'] or current_key != run['knowledge_sha256'] or run['status'] == 'stale')
         history, recorded = steps(db, research_id), findings(db, research_id)
         for item in history:
             if item['execution_id']:

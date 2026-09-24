@@ -1,6 +1,6 @@
 from .series_prompt import SERIES_TOOL
 
-REVIEW_PROMPT_VERSION = 'review-v10'
+REVIEW_PROMPT_VERSION = 'review-v13'
 
 COMMON = '''You are part of Decision Room's bounded analyst/reviewer dialogue.
 Return ONLY ReviewAction JSON, every field present. Human-facing prose in Spanish.

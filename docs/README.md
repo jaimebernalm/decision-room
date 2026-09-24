@@ -34,6 +34,12 @@ mantiene en los archivos Markdown enlazados arriba.
 - [Evaluación integrada y repeticiones, paso 1.7](technical/evaluation-plan.md).
 - [Aplicación web local, entrega 2](technical/web.md).
 - [Diseño y alcance de la experiencia web](technical/web-plan.md).
+- [Memoria del negocio y experiencia cotidiana, entrega 2.5](technical/business-memory-plan.md): identidad, memoria versionada y contexto compartido implementados; chats y nueva experiencia pendientes.
+- [Ejecución incremental de los siete pasos de 2.5](technical/business-memory-implementation.md): incrementos, dependencias, archivos afectados y comprobaciones para implementar poco a poco.
+
+- [Memoria versionada, contrato y recuperación](technical/memory.md).
+- [Contexto compartido, herramientas y manifiesto](technical/context-retrieval.md).
+- [Búsqueda híbrida con OpenAI embeddings y pgvector](technical/semantic-retrieval.md).
 
 ## Comprobaciones realizadas
 
@@ -46,6 +52,12 @@ mantiene en los archivos Markdown enlazados arriba.
 - [Informe del cliente, gráficos y prueba real](validation/2026-09-21-client-report-check.md).
 - [Evaluación integrada del paso 1.7](validation/2026-09-21-evaluation-check.md).
 - [Pruebas web, recuperación y Computer Use](validation/2026-09-22-web-check.md).
+
+- [Validación del paso 2.5.1: negocio persistente](validation/2026-09-23-business-identity-check.md): migración, aislamiento, 155 pruebas y dos análisis con modelo real.
+
+- [Validación del paso 2.5.2: memoria versionada](validation/2026-09-23-memory-check.md): 181 pruebas, extracción real y recuperación web.
+- [Validación del paso 2.5.3: contexto compartido](validation/2026-09-23-context-check.md).
+- [Validación de la ampliación semántica](validation/2026-09-23-semantic-check.md): paráfrasis, pgvector, mantenimiento y recorrido real con Luna.
 
 Los documentos de investigación conservan sus fechas y contexto. El MVP y el
 plan de implementación determinan el alcance actual. Los comandos de las guías

@@ -33,6 +33,15 @@ def require_analysis(db, business_id, analysis_id):
     return row
 
 
+def batch_metadata(hashes, delimiter=None):
+    """Stable identity of data and preparation, independent of upload filenames."""
+    preparation = {'format_version': FORMAT_VERSION, 'delimiter': delimiter,
+                   'encoding': 'utf-8-sig', 'all_columns_text': True}
+    batch_hash = hashlib.sha256(json.dumps({'hashes': sorted(set(hashes)), 'preparation': preparation},
+                                          sort_keys=True).encode()).hexdigest()
+    return batch_hash, preparation
+
+
 def import_batch(config, business_id, paths, title='CSV upload', delimiter=None, progress=None):
     paths = [Path(p).resolve() for p in paths]
     if not paths or len(paths) > config.max_files:
@@ -54,10 +63,7 @@ def import_batch(config, business_id, paths, title='CSV upload', delimiter=None,
             grouped[item['sha256']]['original_names'] = sorted(set(grouped[item['sha256']]['original_names'] + item['original_names']))
         else:
             grouped[item['sha256']] = item
-    preparation = {'format_version': FORMAT_VERSION, 'delimiter': delimiter,
-                   'encoding': 'utf-8-sig', 'all_columns_text': True}
-    batch_hash = hashlib.sha256(json.dumps({'hashes': sorted(grouped), 'preparation': preparation},
-                                          sort_keys=True).encode()).hexdigest()
+    batch_hash, preparation = batch_metadata(grouped, delimiter)
     with connect(config) as db, db.transaction():
         created = db.execute('''INSERT INTO analyses(id,business_id,title,batch_sha256,status)
             VALUES (%s,%s,%s,%s,'importing') ON CONFLICT (business_id,batch_sha256) DO NOTHING RETURNING id''',

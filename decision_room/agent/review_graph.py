@@ -41,7 +41,7 @@ def build(config, db, session, run, analyst, reviewer, saver, *, executor=execut
         correction = None
         for attempt in range(2):
             raw = model_call(db, session['id'], model, context, correction, retry_uncertain,
-                             phase='analyst_review' if state['role'] == 'analyst' else 'reviewer',
+                             config=config, phase='analyst_review' if state['role'] == 'analyst' else 'reviewer',
                              scope=str(run['id']), max_calls=run['options']['max_calls_per_role'])
             try:
                 action = validate(raw, state['role'], context)
@@ -60,13 +60,15 @@ def build(config, db, session, run, analyst, reviewer, saver, *, executor=execut
         return {'turn': step, 'action': action}
 
     def python(state):
+        from ..memory.context import ensure
+        ensure(db, session['id'])
         current = fresh()
         action = state['action']
         tables = {t['alias']: t['id'] for t in run['snapshot']['tables'] if t['id'] in action['table_ids']}
         result = executor(config, session['business_id'], session['analysis_id'], code=action['code'], tables=tables,
                           definitions={'owner_context': run['snapshot']['source']['owner_context'],
                                        'answers': answers(db, session['id']), 'knowledge_sha256': current['knowledge_sha256'],
-                                       'review_id': str(run['id']), 'role': state['role']},
+                                       'context_manifest_id': str(session['id']), 'review_id': str(run['id']), 'role': state['role']},
                           request_key=f'review:{run["id"]}:{state["turn"]}', timeout=run['options']['python_timeout'])
         db.execute('UPDATE agent_review_events SET execution_id=%s WHERE review_id=%s AND step=%s',
                    (result['id'], run['id'], state['turn']))
@@ -90,6 +92,8 @@ def build(config, db, session, run, analyst, reviewer, saver, *, executor=execut
             return {}
         status = {'approve': 'approved', 'reject': 'rejected', 'withdraw': 'withdrawn'}[state['action']['action']]
         if status == 'approved':
+            from ..memory.context import ensure
+            ensure(db, session['id'])
             current = fresh()
             context = material(config, db, session, current)
             # Revalidate on replay before storing approval of this exact content.

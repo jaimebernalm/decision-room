@@ -7,7 +7,7 @@ from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from psycopg.types.json import Jsonb
 
 from ..database import connect
-from .context import fingerprint
+from .context import fingerprint, encoded
 from .prompts import PROMPT_VERSION
 from .model import ModelRequestUncertain
 from .research_prompts import RESEARCH_PROMPT_VERSION
@@ -82,7 +82,7 @@ def save_revision(db, session_id, revision, proposal, inspected):
                         question['key'], Jsonb(question)))
 
 
-def model_call(db, session_id, model, context, correction, retry_uncertain, *, phase='planning', scope='', max_calls=20):
+def _model_call(db, session_id, model, context, correction, retry_uncertain, *, phase='planning', scope='', max_calls=20):
     version = {'planning': PROMPT_VERSION, 'research': RESEARCH_PROMPT_VERSION,
                'analyst_review': REVIEW_PROMPT_VERSION, 'reviewer': REVIEW_PROMPT_VERSION}[phase]
     identity = {'context': context, 'correction': correction, 'prompt': version}
@@ -104,8 +104,8 @@ def model_call(db, session_id, model, context, correction, retry_uncertain, *, p
     if count >= max_calls:
         raise ValueError(f'Session model-call budget exhausted ({max_calls}). Inspect the saved state before starting another session.')
     call_id = uuid4()
-    db.execute('''INSERT INTO agent_calls(id,session_id,call_key,status,prompt_version,phase,scope)
-        VALUES (%s,%s,%s,'running',%s,%s,%s)''', (call_id, session_id, key, version, phase, scope))
+    db.execute('''INSERT INTO agent_calls(id,session_id,call_key,status,prompt_version,phase,scope,context_payload)
+        VALUES (%s,%s,%s,'running',%s,%s,%s,%s)''', (call_id, session_id, key, version, phase, scope, Jsonb(context)))
     try:
         method = {'planning': 'generate', 'research': 'generate_research',
                   'analyst_review': 'generate_analyst_review', 'reviewer': 'generate_reviewer'}[phase]
@@ -120,3 +120,45 @@ def model_call(db, session_id, model, context, correction, retry_uncertain, *, p
         db.execute("UPDATE agent_calls SET status='failed',issue=%s,finished_at=now() WHERE id=%s",
                    (type(error).__name__, call_id))
         raise
+
+
+def model_call(db, session_id, model, context, correction, retry_uncertain, *, config=None,
+               phase='planning', scope='', max_calls=20):
+    from ..memory import context as memory_context, retrieval
+    from ..memory.service import lock
+    decision = fingerprint(dict(context=context, correction=correction, phase=phase, scope=scope))
+    # Replay from the decision's original context, including exactly the events it saw.
+    # Later phase retrievals must not change the key of an already completed decision.
+    ordinal = 1
+    existing = db.execute("SELECT context_payload FROM agent_calls WHERE session_id=%s AND context_payload->>'decision_key'=%s ORDER BY created_at LIMIT 1",
+                          (session_id, decision)).fetchone()
+    baseline = existing['context_payload']['business_context'] if existing else None
+    while True:
+        with db.transaction():
+            m = memory_context.manifest(db, session_id)
+            if not m:
+                raise memory_context.StaleContext('Legacy checkpoint requires agent-replan.')
+            lock(db, m['business_id'])
+            memory_context.ensure(db, session_id)
+            if baseline is None:
+                baseline = memory_context.delivered(db, session_id)
+            business_context = dict(baseline)
+            additions = db.execute("SELECT decision_key,ordinal,request,response FROM context_retrievals WHERE session_id=%s AND decision_key=%s AND ordinal<%s ORDER BY ordinal",
+                                   (session_id, decision, ordinal)).fetchall()
+            business_context['retrievals'] = baseline['retrievals'] + additions
+            payload = {**context, 'business_context': business_context, 'decision_key': decision}
+            if len(encoded(payload).encode()) > memory_context.CONTEXT_BYTES:
+                raise ValueError('Model context exceeds 200 KB. Narrow the investigation; no material context was silently dropped.')
+        output = _model_call(db, session_id, model, payload, correction, retry_uncertain,
+                             phase=phase, scope=scope, max_calls=max_calls)
+        memory_context.ensure(db, session_id)
+        if output.get('action') != 'retrieve':
+            if output.get('retrieval') is not None:
+                return {'invalid_model_output': 'Only retrieve may contain a retrieval request.'}
+            return {k: v for k, v in output.items() if k != 'retrieval'}
+        if config is None:
+            raise ValueError('Retrieval requires application configuration.')
+        if any(output.get(k) for k in ('proposal', 'code', 'table_ids', 'report', 'metric_keys', 'question', 'investigation_key')):
+            return {'invalid_model_output': 'retrieve requires empty action fields and a retrieval request.'}
+        retrieval.save(config, db, session_id, decision, ordinal, output.get('retrieval'))
+        ordinal += 1

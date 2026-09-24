@@ -6,6 +6,8 @@ from langsmith import tracing_context
 from psycopg.types.json import Jsonb
 
 from ..database import connect
+from ..memory.service import capture_answer
+from ..memory import context as memory_context
 from .context import fingerprint, snapshot
 from .graph import build
 from .model import ModelClient, ModelSettings
@@ -17,10 +19,12 @@ def _key(value):
         raise ValueError('Request key must contain 1–200 characters.')
 
 
-def _create_session(config, business_id, analysis_id, *, owner_context, request_key, model, supersedes=None):
+def _create_session(config, business_id, analysis_id, *, owner_context, request_key, model, supersedes=None, request_period=None):
     _key(request_key)
     source = snapshot(config, business_id, analysis_id, owner_context)
     identity = {'source': source, 'model': model.identity, 'graph': GRAPH_VERSION}
+    if request_period is not None:
+        identity['period'] = memory_context.period(request_period)
     if supersedes:
         identity['supersedes'] = str(supersedes)
     request_hash = fingerprint(identity)
@@ -31,12 +35,17 @@ def _create_session(config, business_id, analysis_id, *, owner_context, request_
             ON CONFLICT (business_id,analysis_id,request_key) DO NOTHING RETURNING *''',
                          (uuid4(), business_id, analysis_id, request_key, request_hash,
                           Jsonb(source), Jsonb(model.identity), GRAPH_VERSION)).fetchone()
+        created = row is not None
         if not row:
             row = db.execute('''SELECT * FROM agent_sessions
                 WHERE business_id=%s AND analysis_id=%s AND request_key=%s''',
                              (business_id, analysis_id, request_key)).fetchone()
         if row['request_sha256'] != request_hash:
             raise ValueError('Request key already used with different data, context or model.')
+        if created:
+            memory_context.create(db, row, request_period)
+        elif not memory_context.manifest(db, row['id']):
+            raise ValueError('Legacy checkpoint needs agent-replan; cannot attach new context to an old execution.')
         if supersedes:
             old = db.execute('SELECT * FROM agent_sessions WHERE id=%s AND business_id=%s AND analysis_id=%s FOR UPDATE',
                              (supersedes, business_id, analysis_id)).fetchone()
@@ -55,16 +64,19 @@ def _create_session(config, business_id, analysis_id, *, owner_context, request_
     return row
 
 
-def start(config, business_id, analysis_id, *, owner_context, request_key, model):
-    row = _create_session(config, business_id, analysis_id, owner_context=owner_context, request_key=request_key, model=model)
+def start(config, business_id, analysis_id, *, owner_context, request_key, model, request_period=None):
+    row = _create_session(config, business_id, analysis_id, owner_context=owner_context, request_key=request_key, model=model, request_period=request_period)
     return resume(config, business_id, row['id'], model=model)
 
 
-def replan(config, business_id, session_id, *, owner_context, request_key, model=None):
-    with session_lock(config, business_id, session_id) as (_, session):
+def replan(config, business_id, session_id, *, owner_context, request_key, model=None, request_period=None):
+    with session_lock(config, business_id, session_id) as (db, session):
         model = model or ModelClient(ModelSettings(**session['model_settings']))
+        previous = memory_context.manifest(db, session_id)
+        if request_period is None and previous:
+            request_period = previous['selection']['period']
         row = _create_session(config, business_id, session['analysis_id'], owner_context=owner_context,
-                              request_key=request_key, model=model, supersedes=session['id'])
+                              request_key=request_key, model=model, supersedes=session['id'], request_period=request_period)
     return resume(config, business_id, row['id'], model=model)
 
 
@@ -79,7 +91,9 @@ def show(config, business_id, session_id):
             ORDER BY revision''', (session_id,)).fetchall()
         calls = db.execute('''SELECT id,status,prompt_version,phase,scope,usage,issue,created_at,finished_at
             FROM agent_calls WHERE session_id=%s ORDER BY created_at''', (session_id,)).fetchall()
-        return {**row, 'verification': 'provisional_not_computed', 'revisions': revisions,
+        context_issue = memory_context.reason(db, session_id)
+        return {**row, 'context_stale': bool(context_issue), 'context_issue': context_issue,
+                'context_manifest': memory_context.manifest(db, session_id), 'verification': 'provisional_not_computed', 'revisions': revisions,
                 'questions': [{'id': str(q['id']), **q['question']} for q in pending(db, session_id)],
                 'answers': answers(db, session_id), 'model_calls': calls,
                 'cost': {'amount': None, 'note': 'Tokens recorded when supplied; no provider pricing assumed.'}}
@@ -90,6 +104,9 @@ def _drive(config, db, session, model=None, retry_uncertain=False):
     if session['superseded_by']:
         raise ValueError('This session was superseded; use its successor.')
     try:
+        memory_context.ensure(db, session_id)
+        if not memory_context.manifest(db, session_id):
+            raise ValueError('Legacy checkpoint needs agent-replan before resuming with business memory.')
         from .research import mark_stale
         mark_stale(db, session)
         if session['graph_version'] != GRAPH_VERSION:
@@ -103,7 +120,7 @@ def _drive(config, db, session, model=None, retry_uncertain=False):
         if model.identity != session['model_settings']:
             raise ValueError('Resume must use the original model settings; start a new session to compare models.')
         with checkpointer(config) as saver, tracing_context(enabled=False):
-            graph = build(db, session, model, saver, retry_uncertain)
+            graph = build(db, session, model, saver, retry_uncertain, config=config)
             run_config = {'configurable': {'thread_id': str(session_id)}, 'recursion_limit': 64}
             state = graph.get_state(run_config)
             waiting = any(task.interrupts for task in state.tasks)
@@ -130,7 +147,11 @@ def _drive(config, db, session, model=None, retry_uncertain=False):
             else:
                 proposal = state.values['proposal']
                 status = 'limited' if any(i['status'] != 'ready' for i in proposal['investigations']) else 'ready'
-            db.execute('UPDATE agent_sessions SET status=%s,issue=NULL,updated_at=now() WHERE id=%s', (status, session_id))
+            with db.transaction():
+                from ..memory.service import lock
+                lock(db, session['business_id'])
+                memory_context.ensure(db, session_id)
+                db.execute('UPDATE agent_sessions SET status=%s,issue=NULL,updated_at=now() WHERE id=%s', (status, session_id))
     except Exception as error:
         # Known validation errors are useful, unexpected errors get a safe class name.
         issue = str(error)[:2000] if isinstance(error, ValueError) else type(error).__name__
@@ -163,7 +184,11 @@ def answer(config, business_id, session_id, *, question_id, text='', disposition
         else:
             if session['superseded_by']:
                 raise ValueError('This session was superseded; answer in its successor.')
-            db.execute('''INSERT INTO agent_answers(id,question_id,disposition,text,request_key)
-                VALUES (%s,%s,%s,%s,%s)''', (uuid4(), question_id, disposition, text, request_key))
+            with db.transaction():
+                answer_id = uuid4()
+                db.execute('''INSERT INTO agent_answers(id,question_id,disposition,text,request_key)
+                    VALUES (%s,%s,%s,%s,%s)''', (answer_id, question_id, disposition, text, request_key))
+                capture_answer(db, session, answer_id, kind='planning_answer', text=text,
+                               question=question['question']['text'], disposition=disposition)
         _drive(config, db, session, model, retry_uncertain)
     return show(config, business_id, session_id)

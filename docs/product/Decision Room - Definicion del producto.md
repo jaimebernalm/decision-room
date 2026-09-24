@@ -1,14 +1,14 @@
 # Decision Room: definición del producto y experiencia de uso
 
-**Actualizado:** 21 de septiembre de 2026.  
+**Actualizado:** 23 de septiembre de 2026.  
 **Estado:** visión del producto completo y organización multiagente objetivo; su implementación y evaluación siguen el alcance acotado del MVP.  
-**Base:** decisiones de experiencia del 15 de septiembre, selección de segmento y propuesta funcional del 17 de septiembre, y separación futura de negocio, analítica y revisión acordada el 21 de septiembre. Esta versión actualiza la definición anterior.
+**Base:** decisiones de experiencia del 15 de septiembre, selección de segmento del 17, organización multiagente futura del 21 y continuidad del negocio, memoria compartida y UX cotidiana acordadas el 23 de septiembre. Esta versión actualiza la definición anterior.
 
 Este documento define la experiencia del cliente: cómo empieza, qué aporta, qué recibe y por qué vuelve. Recoge las decisiones acordadas y señala las propuestas de diseño pendientes. La guía de investigación, las capacidades, la diferenciación y sus criterios de validación se concretan en [Servicios y diferenciación](<Decision Room - Servicios y diferenciacion.md>). La sección 18.6 define los roles y la colaboración multiagente del producto final. Las tecnologías y la secuencia de construcción se concretan en el MVP y su plan de implementación.
 
 **Principio transversal:** autonomía para decidir qué investigar, con resultados comprobables. La guía base orienta un plan que se adapta a los datos y respuestas del cliente. Se puede ofrecer valor con información agregada, profundizar con detalle y ampliar la investigación cuando existan datos y herramientas verificables.
 
-**Alcance actualizado de implementación:** la primera entrega se define en [MVP y primera entrega](<Decision Room - MVP.md>): descripción, archivo compatible, aclaraciones y un informe en una página sencilla. Ese documento prevalece para el MVP inmediato. El chat posterior, el PDF, el dashboard avanzado y el seguimiento descritos aquí siguen en la experiencia objetivo, pero no son requisitos de esa primera entrega.
+**Alcance actualizado de implementación:** el recorrido web mínimo de la entrega 2 está implementado. La siguiente prioridad es la entrega 2.5 del [plan](<Decision Room - Plan de implementacion.md#51-entrega-25-memoria-del-negocio-y-experiencia-cotidiana>): negocio persistente, memoria entre conversaciones, chat, «Mi negocio» e Inicio con prompt. Los pasos 2.5.1–2.5.2 de identidad persistente y memoria versionada están implementados y comprobados; su uso transversal por el agente, conversaciones y nueva navegación siguen pendientes. [MVP y primera entrega](<Decision Room - MVP.md>) conserva el alcance del primer recorrido y recoge esta ampliación. PDF, dashboard libremente configurable y seguimiento de decisiones siguen en el roadmap.
 
 Los textos de pantalla y ejemplos son ilustrativos, no resultados validados ni promesas de rendimiento.
 
@@ -65,14 +65,15 @@ No se presupone qué programas utilizan estos negocios. Habrá que investigarlo 
 | Datos adicionales | Pedirlos con un beneficio concreto; si no se aportan, continuar con lo disponible |
 | Apertura del informe | Primero hallazgos y explicación breve; después cifras y gráficos |
 | Navegación | Resumen y secciones según los datos disponibles |
-| Dashboard | Presentación interactiva del mismo informe |
+| Dashboard / Inicio | Página de regreso al negocio con hallazgos y gráficos de una revisión identificada, evidencia y acceso a conversar |
 | PDF | Botón «Descargar como PDF», con la misma información sustantiva |
-| Chat | Después del primer análisis, para preguntas concretas y exploración de decisiones |
+| Chat | Conversaciones persistentes del negocio desde Inicio o un hallazgo; pueden explicar, investigar o generar un informe |
 | Evidencia | Mostrar de dónde salen las afirmaciones del informe y del chat |
 | Regreso | Conversar o actualizar datos y generar otra revisión |
 | Seguimiento propuesto | Guardar un hallazgo para revisar, con nota manual opcional; comparar al actualizar |
-| Contexto guardado | Descripción y aclaraciones reutilizables del onboarding |
-| Aprender contexto desde el chat | Mejora futura, no requisito inicial |
+| Contexto guardado | Memoria versionada compartida entre onboarding, conversaciones, análisis y «Mi negocio», con ámbito y vigencia |
+| Aprender contexto desde el chat | Incluido en 2.5: declaraciones claras con aviso/corrección; inferencias o contradicciones materiales requieren aclaración |
+| Mi negocio | Ficha progresiva y editable, archivos/periodos y cambios de memoria |
 | Datos enriquecidos | Exploraciones históricas adicionales si son verificables; módulos completos de margen/inventario en ampliaciones |
 | Predicciones | Ampliación acotada de ventas/unidades, con evaluación e incertidumbre |
 | Automatización | Posterior a validar la utilidad del recorrido manual |
@@ -204,9 +205,9 @@ No se recoge información sobre empleados, horarios o costes simplemente por com
 
 ### 6.2. Respuestas persistentes y corregibles
 
-La descripción y las aclaraciones se guardan como información organizada y consultable del negocio. No quedan únicamente en una lista de preguntas y respuestas.
+La descripción y las aclaraciones se guardan como información organizada y consultable del negocio. No quedan únicamente en una lista de preguntas y respuestas. En la entrega 2.5 esta memoria se comparte entre todas sus conversaciones y análisis; cada ejecución selecciona la parte aplicable y registra sus versiones.
 
-El usuario puede corregirlas desde un espacio sencillo. Cuando importa para el análisis histórico, se aclara desde cuándo aplica un cambio. El horario de hoy no se aplica automáticamente a todo el pasado.
+El usuario puede corregirlas desde «Mi negocio», una ficha que reúne información del negocio, prioridades, definiciones, datos/archivos y cambios. Se completa progresivamente, sin exigir un formulario exhaustivo. Permite consultar el origen y estado de una información, corregirla o retirarla de la memoria activa. Cuando importa para el análisis histórico, se aclara desde cuándo aplica un cambio. El horario de hoy no se aplica automáticamente a todo el pasado.
 
 Las preguntas pendientes deben seguir teniendo una utilidad clara. Se pueden posponer y no deben reaparecer insistentemente sin una razón nueva.
 
@@ -220,11 +221,13 @@ No se fabrica un informe largo para aparentar valor cuando no existe una base ú
 
 ## 7. Informe interactivo: resumen y secciones
 
-### 7.1. Un solo análisis
+### 7.1. Inicio del negocio e informes individuales
 
-El dashboard es la presentación interactiva del informe. No se construye como un producto independiente ni como un editor libre de gráficos.
+**Decisión del 23 de septiembre de 2026:** Inicio pasa a ser la página cotidiana del negocio. Presenta un resumen, pocos hallazgos y gráficos respaldados por una revisión identificada; permite explorar detalle, evidencia y preguntar. Los informes individuales se conservan en su biblioteca con tema, periodo, fuentes y estado. Inicio no genera una interpretación paralela ni combina automáticamente métricas de revisiones incompatibles.
 
-La navegación acordada es **resumen y secciones**. La propuesta funcional incluye ventas y productos, devoluciones y descuentos cuando sean interpretables, y asuntos guardados para revisar. La distribución visual sigue pendiente.
+La barra lateral contiene **Inicio, Informes, Mi negocio, Nueva conversación y chats recientes**. En Inicio hay un prompt inferior visible y preguntas sugeridas pertinentes. Enviar una pregunta crea un chat del mismo negocio; «Preguntar sobre esto» conserva el contexto del hallazgo. Dentro de cada informe se mantiene la navegación por resumen y secciones según los datos disponibles. Los detalles visuales se comprobarán en escritorio y móvil.
+
+El Inicio de 2.5 permite explorar resultados existentes y seleccionar revisiones. Una interacción que requiere cifras nuevas inicia una investigación comprobada. No incluye un editor libre de gráficos ni filtros universales. Los asuntos guardados para seguimiento continúan en el roadmap.
 
 ### 7.2. Identificación y acciones
 
@@ -262,7 +265,7 @@ Cada sección ofrece:
 
 Si solo hay ventas, no se rellena una sección de rentabilidad con suposiciones. Se explica en un lugar pertinente qué falta.
 
-No se necesita personalización libre de paneles, widgets ni múltiples dashboards sectoriales para el MVP.
+No se necesita personalización libre de paneles, widgets ni múltiples dashboards sectoriales para el MVP ni para la entrega 2.5.
 
 ### 7.5. Detalle y comprobación
 
@@ -313,11 +316,11 @@ La acción descarga el documento; no requiere envío por correo, publicación ni
 
 ### 9.1. Papel y acceso
 
-El chat es parte del producto inicial y comparte el contexto disponible: negocio, archivos del análisis, aclaraciones, métricas y hallazgos.
+El chat se implementará en la entrega 2.5 y comparte memoria del negocio entre conversaciones: contexto aplicable, fuentes seleccionadas, aclaraciones, métricas y hallazgos vigentes. Cada conversación tiene su propio historial; compartir memoria no implica incluir todos los mensajes de todos los chats en cada respuesta.
 
 El usuario puede hacer una pregunta libre o iniciar una consulta desde un hallazgo. No debe volver a explicar su empresa ni copiar lo ya aportado.
 
-Se propone mantenerlo accesible desde el informe y abrirlo con el contexto seleccionado al pulsar «Preguntar sobre esto». Su ubicación visual exacta queda pendiente.
+Se abre desde el prompt de Inicio, «Nueva conversación», un chat reciente o «Preguntar sobre esto» en un hallazgo. Las preguntas sugeridas reflejan las fuentes y capacidades disponibles. Una conversación puede resolver una duda breve, iniciar una investigación o generar un informe independiente; no exige describir de nuevo el negocio ni aportar otro archivo.
 
 ### 9.2. Amplitud acordada
 
@@ -346,20 +349,20 @@ Una orientación general no se presenta como un hecho demostrado sobre ese negoc
 
 Debe indicar la revisión o periodo utilizado cuando afecte a la respuesta. Hablar hoy con el agente no significa que tenga datos de hoy.
 
-La conversación no reescribe silenciosamente el informe. Los análisis adicionales, si la capacidad existe, se distinguen de la revisión publicada. La forma de incorporarlos posteriormente queda por definir.
+La conversación no reescribe silenciosamente el informe. Los análisis adicionales se distinguen de la revisión publicada; cuando el usuario pide un informe, se guarda una revisión independiente vinculada a la conversación, con evidencia y comprobaciones. Las respuestas breves también deben sostener sus afirmaciones; el chat no evita la revisión de cálculos o conclusiones nuevas.
 
-### 9.4. Actualizar conocimiento desde el chat: futuro
+### 9.4. Actualizar conocimiento desde el chat: entrega 2.5
 
-En el MVP, el chat consulta el contexto guardado del onboarding y las aclaraciones. **Convertir una conversación en cambios persistentes del perfil queda para una fase posterior.**
+El chat, el onboarding y «Mi negocio» alimentan la misma memoria versionada. Se guardan hechos útiles con fuente, ámbito, estado y fecha de aplicación cuando corresponda. Una declaración clara de bajo impacto puede incorporarse con un aviso visible y opción de corregir/retirar; una edición explícita de la ficha no requiere volver a confirmar lo mismo. Solo se anuncia el guardado cuando ha terminado correctamente.
 
-Ejemplo futuro:
+Ejemplo:
 
 > «Desde septiembre cerramos los lunes».  
-> «¿Guardo ese horario para las próximas revisiones, a partir de septiembre?»
+> «He guardado que cerráis los lunes desde septiembre». La ficha permite corregir la fecha o retirar el dato.
 
-El sistema propondría el cambio para confirmarlo. No alteraría silenciosamente informes anteriores.
+Si falta una fecha relevante, hay una contradicción material o la interpretación inferida cambia cálculos, se pide aclaración antes de aplicarla. «Estamos pensando en cerrar los lunes» es una posibilidad, no un horario confirmado. «Este archivo incluye impuestos» se limita a esa fuente hasta comprobar otro ámbito.
 
-Mientras esa función no exista, el chat no debe afirmar que ha actualizado el perfil permanentemente a partir de un mensaje. Las correcciones persistentes se hacen en el espacio previsto para la información del negocio.
+Las correcciones se propagan a las próximas respuestas de todos los chats y marcan los resultados afectados para revisión. El historial conserva las versiones anteriores y su estado, sin servir conclusiones invalidadas como evidencia vigente. Retirar un hecho evita su reutilización en memoria, aunque borrar el mensaje o el archivo original sea una acción diferente. Mientras esta función esté pendiente de implementación, la web no debe afirmar que ya recuerda cambios entre conversaciones.
 
 ## 10. Regreso y actualización
 
@@ -367,7 +370,7 @@ Mientras esa función no exista, el chat no debe afirmar que ha actualizado el p
 
 El dueño puede volver a preguntar sin aportar datos nuevos, o actualizar la información y obtener otra revisión.
 
-Se propone entrar al último análisis con dos acciones visibles: **«Preguntar al agente»** y **«Actualizar datos»**. La distribución de pantalla no está cerrada.
+Al volver se abre **Inicio del negocio**, con el resumen disponible, su periodo, el prompt y acceso a los chats, informes y «Mi negocio». Se puede preguntar sin datos nuevos o actualizar archivos desde «Mi negocio» y generar otra revisión. Si hay varias revisiones, la seleccionada queda identificada; si no hay una publicable, se explica el estado y el siguiente paso.
 
 No se repite el onboarding para conversar ni se exige un archivo nuevo para usar el chat.
 
@@ -536,7 +539,7 @@ No se necesitan enlaces públicos, envío automático a terceros ni colaboració
 
 ## 17. Alcance del producto inicial ampliado
 
-Este apartado conserva el alcance más amplio definido antes de acotar la primera entrega. Para construir y dar por terminado el MVP inmediato, aplicar [MVP y primera entrega](<Decision Room - MVP.md>), que aplaza chat posterior, PDF y seguimiento.
+Este apartado conserva la visión ampliada. Para construir, aplicar [MVP y primera entrega](<Decision Room - MVP.md>) y el plan: chat posterior, memoria compartida e Inicio se adelantan a 2.5; PDF y seguimiento permanecen aplazados.
 
 ### 17.1. Núcleo acordado
 
@@ -554,6 +557,7 @@ Este apartado conserva el alcance más amplio definido antes de acotar la primer
 12. Regreso para conversar o actualizar manualmente los datos.
 13. Estados claros de errores, datos insuficientes y revisiones pendientes.
 14. Propuesta nueva: guardar explícitamente un asunto para revisar, con nota opcional y recuperación al actualizar.
+15. Memoria compartida con procedencia y vigencia, mantenida desde onboarding, conversaciones y «Mi negocio»; prioridad de entrega 2.5.
 
 El desarrollo puede dividirse en entregas. Ese orden no convierte el chat o el PDF en funciones descartadas del producto acordado.
 
@@ -565,7 +569,6 @@ La guía de investigación está definida en Servicios y diferenciación y el MV
 - Ingesta universal de papel, fotos, documentos, correo o audio.
 - Plantillas generadas y herramientas para comenzar a registrar actividad.
 - Sincronización automática con archivos o servicios.
-- Cambios persistentes de contexto propuestos desde el chat.
 - Informes programados, avisos y envíos automáticos.
 - Módulos completos de margen e inventario: ampliaciones especializadas. No excluye una exploración histórica adicional si hay información y herramientas verificables.
 - Predicciones y simulaciones cuantitativas abiertas.
@@ -577,7 +580,7 @@ Conversar sobre una decisión sí cabe en el chat inicial. Predecir numéricamen
 
 ## 18. Roadmap de experiencia
 
-Estas mejoras quedan registradas sin fechas. La prioridad funcional propuesta es desarrollar capacidades especializadas de margen/inventario, previsiones condicionadas a evaluación y automatización tras demostrar recurrencia. Esto no impide aprovechar antes datos enriquecidos para una exploración histórica que las herramientas ya permitan ejecutar y comprobar. La ayuda de exportación puede adelantarse si los pilotos muestran que es el principal obstáculo.
+La prioridad inmediata es completar memoria compartida y experiencia cotidiana en la entrega 2.5. Las ampliaciones siguientes quedan registradas sin fechas: capacidades especializadas de margen/inventario, previsiones condicionadas a evaluación y automatización tras demostrar recurrencia. Esto no impide aprovechar antes datos enriquecidos para una exploración histórica que las herramientas ya permitan ejecutar y comprobar. La ayuda de exportación puede adelantarse si los pilotos muestran que es el principal obstáculo.
 
 ### 18.1. Ayudar a obtener y registrar datos
 
@@ -590,7 +593,7 @@ El objetivo es ampliar el acceso progresivamente. Las primeras guías y conexion
 
 ### 18.2. Completar contexto desde el chat
 
-Detectar información nueva, proponer guardarla y pedir una confirmación breve con fecha de aplicación cuando corresponda. Las conversaciones mejorarían las próximas revisiones sin cambiar silenciosamente el pasado.
+Adelantado a la entrega 2.5, según la sección 9.4. Detectar información útil y mantenerla con procedencia, ámbito, vigencia, correcciones y retirada. Pedir aclaración cuando sea material, sin repetir confirmaciones sobre ediciones explícitas. Las conversaciones mejoran las próximas revisiones sin cambiar silenciosamente el pasado.
 
 ### 18.3. Automatizar continuidad, en etapas posteriores
 
@@ -668,7 +671,10 @@ Por ejemplo, ante «vendo más unidades pero ingreso menos», negocio pide separ
 | Repite o solapa archivos | No se duplica silenciosamente la actividad |
 | Hay datos nuevos sin informe nuevo | La interfaz distingue ambos estados |
 | Cambia el contexto actual | Los informes anteriores conservan sus supuestos |
-| Da un dato nuevo al chat en el MVP | No se afirma una actualización permanente inexistente |
+| Da un dato claro y útil al chat en 2.5 | Se guarda con procedencia/ámbito, se muestra el cambio y otro chat puede usarlo |
+| Plantea una hipótesis o una definición contradictoria | No se transforma automáticamente en un hecho confirmado |
+| Corrige o retira memoria desde «Mi negocio» | El cambio afecta a las próximas respuestas y se revisan los resultados dependientes |
+| Reabre un chat antiguo | Conserva el historial y los turnos nuevos consultan la memoria vigente aplicable |
 | Falla el proceso o falta toda base útil | Hay explicación y siguiente paso sin perder el trabajo aceptado |
 
 Son criterios de producto, no una prescripción de arquitectura o infraestructura de pruebas.
@@ -696,9 +702,9 @@ Si cada archivo exige ayuda manual continua, habrá que reducir el formato admit
 ### 20.2. Decisiones de UX todavía abiertas
 
 - Registro e inicio de sesión.
-- Distribución visual de resumen, secciones y chat.
+- Detalle visual de Inicio, informes, «Mi negocio», prompt y chats; su estructura de navegación ya está acordada para 2.5.
 - Cantidad de preguntas por tanda y presentación del progreso.
-- Consulta y conservación de conversaciones y revisiones.
+- Detalles de presentación del historial de conversaciones, revisiones y cambios de memoria, previstos en 2.5.
 - Reglas comprensibles de sustitución o incorporación de archivos.
 - Diseño y detalle estático de evidencia en el PDF.
 - Política de conservación y borrado.
@@ -763,6 +769,15 @@ El orden operativo de estas decisiones está en la sección 8 del MVP. Se empiez
 - El revisor examina cálculos y contenido; el controlador conserva los permisos, presupuestos y condiciones de publicación.
 - Informe y dashboard utilizan contenido estructurado y componentes de presentación de la aplicación.
 - El MVP mantiene su agente principal con revisor. La separación futura se implementará y comparará con esa referencia antes de consolidar su despliegue.
+
+### 21.5. Memoria compartida y experiencia cotidiana del 23 de septiembre de 2026
+
+- Se distingue onboarding de uso habitual: el negocio persiste y no se vuelve a explicar en cada análisis.
+- Inicio se convierte en la página de regreso con hallazgos y gráficos respaldados, prompt y preguntas sugeridas; Informes conserva las revisiones individuales.
+- La barra lateral incorpora «Mi negocio» y conversaciones recientes.
+- Se adelanta la actualización de contexto desde chat: hechos versionados con procedencia, ámbito y vigencia, correcciones visibles y contradicciones resueltas antes de usarlas.
+- Se comparte memoria entre conversaciones y se selecciona el contexto necesario para cada ejecución; una corrección puede afectar a resultados de varios chats.
+- Se mantiene PostgreSQL y almacenamiento privado. Se añade la entrega 2.5 antes de las entregas 3–5, sin afirmar que estas capacidades estén construidas.
 
 ## 22. Experiencia objetivo
 

@@ -1,8 +1,8 @@
 # Decision Room: MVP y primera entrega
 
-**Fecha de actualización:** 18 de septiembre de 2026.  
+**Fecha de actualización:** 23 de septiembre de 2026.  
 **Avance del 21 de septiembre de 2026:** implementadas la ingesta CSV persistente, Python aislado, agente con recuperación, investigación, diálogo de revisión e informe HTML. El informe del cliente se separa del registro interno e incorpora gráficos con evidencia y explicaciones de negocio. Las pruebas del controlador pasan; la calidad general de los modelos y el recorrido web siguen pendientes. El detalle vigente está en el [plan de implementación](<Decision Room - Plan de implementacion.md>) y la [guía del informe](../technical/client-report.md). Las notas de aprobación de bloques conservan su contexto de diseño del día 18.  
-**Estado:** alcance funcional y arquitectura acordados; recorrido interno implementado hasta el paso 1.6, con evaluación semántica todavía abierta. La evaluación del paso 1.7 ha comprobado variedad y repetibilidad y ha encontrado fallos que impiden aceptar todavía la entrega 1. La aplicación web corresponde a la entrega 2. PostgreSQL sigue siendo la opción inicial; el ejecutor usa Docker dentro de Colima local y conserva evidencia privada.  
+**Estado vigente:** entrega 2 implementada como recorrido web local y ronda de evaluación previa a ampliaciones completada el 22 de septiembre, con límites documentados. Se acuerda una entrega 2.5 para negocio persistente, memoria compartida, chat e Inicio antes de ampliar cobertura en la entrega 3. Los pasos 2.5.1–2.5.2 de identidad persistente y memoria versionada están implementados y comprobados; los pasos 2.5.3–2.5.7 siguen pendientes. PostgreSQL y los archivos privados se mantienen; el detalle y los resultados están en el plan.  
 **Propósito:** completar y comprobar un análisis que se adapta a los datos de cada tienda, desde su recepción hasta un informe útil y verificable.
 
 ## 1. Qué consideramos el MVP
@@ -15,7 +15,9 @@ La guía de análisis es un punto de partida. No existe una lista cerrada de sei
 
 Este es el **MVP de la primera entrega**. Permite probar el sistema y la utilidad del primer resultado con un alcance pequeño. No implica que la demanda comercial o la disposición a pagar estén validadas.
 
-Los documentos anteriores describen un producto más amplio, con dashboard interactivo, PDF, chat posterior y seguimiento. Esas capacidades siguen en la visión del producto, pero **no son requisitos de esta entrega**. Si una referencia anterior al «MVP» incluye esas funciones, este documento prevalece para el alcance de implementación inmediato.
+El primer recorrido de archivo a informe conserva su alcance. **Por decisión del 23 de septiembre de 2026, el siguiente alcance de implementación es la entrega 2.5:** negocio persistente, memoria entre conversaciones, chat posterior, «Mi negocio» editable e Inicio con hallazgos, gráficos, prompt y preguntas sugeridas. Se construye después de la entrega 2 y antes de la ampliación de cobertura de la entrega 3. PDF, seguimiento de decisiones, automatización y paneles personalizables continúan aplazados.
+
+Las referencias de los bloques originales a excluir el chat o terminar en una página sencilla describen la primera entrega. Para la ampliación vigente prevalecen los pasos 2.5.1–2.5.7 del [plan](<Decision Room - Plan de implementacion.md#51-entrega-25-memoria-del-negocio-y-experiencia-cotidiana>) y su [diseño de memoria y UX](../technical/business-memory-plan.md). Las notas de aprobación y validación conservan su fecha; esta ampliación no certifica capacidades todavía pendientes.
 
 Documentos relacionados:
 
@@ -154,16 +156,19 @@ Esta sección define necesidades lógicas. La opción inicial de persistencia y 
 | Ejecución y resultados | Saber qué datos, reglas, filtros y cálculos produjeron cada cifra |
 | Comprobaciones y límites de ejecución | Saber qué verificaciones pasaron, qué resultados se retiraron y por qué terminó el análisis |
 | Informe generado | Recuperar la revisión junto con su periodo, fuentes, supuestos y limitaciones |
+| Memoria compartida del negocio (2.5) | Reutilizar hechos y definiciones aplicables entre chats, con origen, estado, vigencia, revisiones y retirada |
+| Conversaciones del cliente (2.5) | Recuperar mensajes y trabajos, vincularlos a fuentes e informes y distinguirlos del diálogo interno del revisor |
+| Contexto y dependencias entre sesiones (2.5) | Identificar versiones utilizadas y retirar/revisar resultados afectados por una corrección en cualquier chat o en «Mi negocio» |
 
 Se distingue lo inferido por el sistema de lo confirmado por el usuario. Cuando una aclaración tiene aplicación temporal, se conserva ese alcance.
 
-Las correcciones pueden dar lugar a un análisis nuevo sin reescribir silenciosamente el anterior. La persistencia permite recuperar trabajo y evidencia; no obliga a construir todavía una interfaz completa de historial ni importaciones incrementales.
+Las correcciones pueden dar lugar a un análisis nuevo sin reescribir silenciosamente el anterior. La entrega 2.5 añade consulta de conversaciones, informes y cambios de memoria; la importación incremental general sigue aplazada. Un resultado corregido conserva su origen histórico, pero deja de presentarse o reutilizarse como vigente.
 
 ## 6. Qué queda fuera de esta entrega
 
 - Predicciones y machine learning predictivo.
 - Gestión integral de margen/inventario, beneficio neto y recomendaciones de compra. Un análisis histórico o descriptivo adicional con costes o existencias puede entrar si hay datos y herramientas verificables; no es un módulo obligatorio para terminar esta entrega ni una capacidad prometida universalmente.
-- Chat libre después del informe. Las preguntas guiadas para interpretar el archivo sí forman parte del MVP.
+- Chat libre después del informe en el recorrido inicial; se incorpora ahora mediante la entrega 2.5. Las preguntas guiadas para interpretar el archivo siguen formando parte del primer recorrido.
 - Exportación PDF: la primera salida es la página sencilla.
 - Dashboard avanzado, filtros abiertos y paneles personalizables.
 - Guardar decisiones y darles seguimiento entre periodos.
@@ -372,7 +377,7 @@ Ofrecer una base pequeña de herramientas y funciones propias: acceso a datos y 
 
 El agente puede proponer transformaciones y cálculos nuevos, pero no omitir los controles de ejecución, el registro de evidencia ni las condiciones de publicación. Un script sin errores no demuestra que su interpretación o sus cálculos sean correctos.
 
-Python facilita futuras capacidades de ML y nuevos cálculos desde el chat; no incorpora predicciones ni chat posterior al alcance del MVP. El futuro chat podrá reutilizar resultados verificados sin ejecutar código nuevo para cada pregunta.
+Python permite nuevos cálculos desde el chat de la entrega 2.5, sin incorporar predicciones. El chat también podrá reutilizar resultados verificados vigentes sin ejecutar código nuevo para cada pregunta; las cifras nuevas mantienen los controles de evidencia y revisión.
 
 #### D. Tecnología inicial
 
@@ -425,6 +430,8 @@ No copiar todas las filas de cada Excel a la base de datos de la aplicación ni 
 
 #### B. PostgreSQL inicial y alternativa Convex
 
+**Decisión para la entrega 2.5, 23 de septiembre:** mantener PostgreSQL y almacenamiento privado y ampliar el modelo de negocio/contexto existente. La alternativa evaluada a continuación conserva su carácter de referencia; no se abre una migración de proveedor como parte de esta entrega.
+
 La preferencia inicial por PostgreSQL se apoya en su integración documentada con los checkpoints de LangGraph y en poder utilizar un servicio de base de datos para la aplicación y la recuperación, con tablas separadas. Se pueden combinar relaciones estables con campos JSON para información variable, sin dejar de validar su estructura.
 
 Convex sigue siendo una alternativa seria por sus funciones de backend y actualización reactiva de la interfaz. La integración de PostgreSQL con LangGraph es una ventaja, pero no debe decidir por sí sola el backend completo. No se presupone que Convex sea incompatible con un servicio Python.
@@ -439,7 +446,7 @@ Guardar el texto original de cada respuesta y su interpretación estructurada: s
 
 Ejemplo: «Desde julio, los importes exportados ya incluyen el descuento» se aplica a las exportaciones y fechas indicadas, no automáticamente a archivos anteriores o de otro sistema. Confirmado por el usuario no equivale a comprobado contra los registros; conservar y resolver las discrepancias materiales.
 
-El historial de conversación sirve de respaldo, pero no es la única memoria. Las preguntas pendientes y las respuestas de no disponibilidad se conservan para evitar repeticiones.
+El historial de conversación sirve de respaldo, pero no es la única memoria. Las preguntas pendientes y las respuestas de no disponibilidad se conservan para evitar repeticiones. La entrega 2.5 implementará esta memoria a nivel de negocio, con mantenimiento desde onboarding, chat y «Mi negocio», control de contradicciones y retirada, y recuperación selectiva para cada turno. Los checkpoints de una sesión no sustituyen ese conocimiento compartido.
 
 #### D. Versiones, dependencias e incorporación de fuentes
 
@@ -539,7 +546,7 @@ Los valores se obtienen de resultados verificados, evitando que el modelo los vu
 | No hay base para ninguna conclusión | Bloqueo explicado y datos o aclaraciones necesarios |
 | No hay cambios relevantes | Informe breve sin alertas artificiales |
 
-Terminado significa concluido para el alcance declarado, no conocimiento completo del negocio. Mantener fuera de esta entrega PDF, chat libre posterior, filtros abiertos y configuración de dashboards. La navegación por secciones y la evidencia desplegable aportan la interacción del MVP.
+Terminado significa concluido para el alcance declarado, no conocimiento completo del negocio. El primer recorrido termina en el informe; la entrega 2.5 añade chat posterior, memoria compartida e Inicio interactivo acotado. PDF, filtros abiertos y configuración de dashboards siguen fuera de esa ampliación. La navegación por secciones y la evidencia desplegable se conservan.
 
 #### G. Comprobación de la experiencia
 

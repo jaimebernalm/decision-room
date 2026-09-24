@@ -115,6 +115,14 @@ class ModelClient:
             'El análisis sigue pausado y tus datos y respuestas están guardados.'
         )
 
+    def generate_chat(self, context, correction=None):
+        from ..conversations import Action, SYSTEM
+        return self._generate(context, correction, SYSTEM, Action.model_json_schema())
+
+    def generate_memory(self, context, correction=None):
+        from ..memory.contracts import Extraction, SYSTEM as MEMORY_SYSTEM
+        return self._generate(context, correction, MEMORY_SYSTEM, Extraction.model_json_schema())
+
     def generate(self, context, correction=None):
         schema = Action.model_json_schema()
         if 'uninspected_table_ids' in context:
@@ -127,7 +135,8 @@ class ModelClient:
             # Do not offer an impossible inspect action to constrained decoding.
             schema['properties']['action']['enum'] = ['propose']
             schema['properties']['table_ids']['maxItems'] = 0
-            schema['properties']['proposal'] = {'$ref': '#/$defs/Proposal'}
+            if not context.get('business_context'):
+                schema['properties']['proposal'] = {'$ref': '#/$defs/Proposal'}
         return self._generate(context, correction, SYSTEM, schema)
 
     def generate_research(self, context, correction=None):
@@ -306,6 +315,10 @@ class ModelClient:
             return {'invalid_model_output': str(error), 'raw_message_excerpt': content[:12000]}
 
     def _generate(self, context, correction, system, schema):
+        if context.get('business_context'):
+            from ..memory.retrieval import schema_for, INSTRUCTIONS
+            schema = schema_for(schema)
+            system += INSTRUCTIONS
         messages = [{'role': 'system', 'content': system},
                     {'role': 'user', 'content': encoded(context)}]
         if correction:
