@@ -59,6 +59,7 @@ const state = {
   step: 1,
   file: null,
   draft: store.get("dr-draft"),
+  onboardingDraft: store.get("dr-onboarding-draft"),
   uploading: false,
   poll: null,
   signature: "",
@@ -171,10 +172,22 @@ function login(error = "") {
   document.title = "Decision Room — Acceso";
 }
 function onboarding() {
-  app.innerHTML = `<main id="main" class="onboarding" tabindex="-1"><a class="brand" href="#home"><span class="brand-mark">d<span>r</span></span><span>decision<span class="brand-light">room</span></span></a><div class="onboarding-layout"><section><p class="eyebrow"><span class="tiny-line"></span> PRIMER PASO</p><h1>Empecemos por <em>tu negocio.</em></h1><p>Cuéntanos brevemente qué vendes y cómo funciona tu actividad. Guardaremos este contexto para tus próximos análisis.</p><div class="onboarding-example"><strong>Por ejemplo</strong><p>«Tengo una papelería. Vendemos material escolar y artículos de regalo, y registramos cada venta en la caja».</p></div></section><section class="card onboarding-card"><p class="eyebrow">TU CONTEXTO</p><h2>Lo esencial para empezar</h2><form id="onboarding-form"><label for="business">Nombre del negocio</label><input id="business" name="business" maxlength="100" required autocomplete="organization" placeholder="Por ejemplo, La Esquina Verde"><label for="context">¿Qué ofrece tu negocio y cómo funciona en el día a día?</label><textarea id="context" name="context" rows="6" maxlength="6000" required placeholder="Qué vendes, cómo registras las ventas y cualquier detalle que debamos conocer…"></textarea><p class="field-help">No hace falta explicarlo todo ahora. Podrás ajustar el contexto de cada análisis.</p><div id="onboarding-error"></div><button class="button primary" type="submit">Guardar y continuar ${icon("arrow")}</button></form></section></div><p class="subtle">${icon("shield")} Tu contexto se guarda en este espacio local.</p></main>`;
+  app.innerHTML = `<main id="main" class="onboarding" tabindex="-1"><a class="brand" href="#home"><span class="brand-mark">d<span>r</span></span><span>decision<span class="brand-light">room</span></span></a><div class="onboarding-layout"><section><p class="eyebrow"><span class="tiny-line"></span> PRIMER PASO</p><h1>Empecemos por <em>tu negocio.</em></h1><p>Cuéntanos brevemente qué vendes y cómo funciona tu actividad. Guardaremos este contexto para tus próximos análisis.</p><div class="onboarding-example"><strong>Por ejemplo</strong><p>«Tengo una papelería. Vendemos material escolar y artículos de regalo, y registramos cada venta en la caja».</p></div></section><section class="card onboarding-card"><p class="eyebrow">TU CONTEXTO</p><h2>Lo esencial para empezar</h2><form id="onboarding-form"><label for="business">Nombre del negocio</label><input id="business" name="business" maxlength="100" required autocomplete="organization" value="${esc(state.onboardingDraft.business)}" placeholder="Por ejemplo, La Esquina Verde"><label for="context">¿Qué ofrece tu negocio y cómo funciona en el día a día?</label><textarea id="context" name="context" rows="6" maxlength="6000" required placeholder="Qué vendes, cómo registras las ventas y cualquier detalle que debamos conocer…">${esc(state.onboardingDraft.context)}</textarea><p class="field-help">No hace falta explicarlo todo ahora. Podrás ajustar el contexto de cada análisis.</p><div id="onboarding-error"></div><button class="button primary" type="submit">Guardar y continuar ${icon("arrow")}</button></form></section></div><p class="subtle">${icon("shield")} Tu contexto se guarda en este espacio local.</p></main>`;
   const form = document.querySelector("#onboarding-form");
+  form.addEventListener("input", () => {
+    state.onboardingDraft = {
+      business: form.elements.namedItem("business").value,
+      context: form.elements.namedItem("context").value,
+    };
+    store.set("dr-onboarding-draft", state.onboardingDraft);
+  });
   form.onsubmit = async (event) => {
     event.preventDefault();
+    state.onboardingDraft = {
+      business: form.elements.namedItem("business").value,
+      context: form.elements.namedItem("context").value,
+    };
+    store.set("dr-onboarding-draft", state.onboardingDraft);
     const button = form.querySelector("button[type=submit]");
     button.disabled = true;
     try {
@@ -183,6 +196,8 @@ function onboarding() {
         context: form.elements.namedItem("context").value,
       } });
       state.profile = result.profile;
+      store.remove("dr-onboarding-draft");
+      state.onboardingDraft = {};
       state.draft.business ||= result.profile.business_name;
       state.draft.context ||= result.profile.business_context;
       saveDraft();
@@ -190,6 +205,10 @@ function onboarding() {
     } catch (error) {
       if (error.status === 409) {
         await route();
+        return;
+      }
+      if (error.status === 401) {
+        login(error.message);
         return;
       }
       document.querySelector("#onboarding-error").innerHTML = errorBox(error.message);

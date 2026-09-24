@@ -97,6 +97,23 @@ class WebTests(unittest.TestCase):
         self.assertEqual(client.post('/api/onboarding', json={'business': 'Test shop', 'context': 'We sell stationery.'}).status_code, 200)
         self.assertEqual(client.post('/api/onboarding', json={'business': 'Other', 'context': 'Other shop'}).status_code, 409)
 
+    def test_local_servers_on_different_ports_keep_separate_sessions(self):
+        client, first = self.http()
+        second = Server(self.ws, 0, token='other-local-access')
+        thread = threading.Thread(target=second.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(second.server_close)
+        self.addCleanup(second.shutdown)
+        login = client.post('/api/login', json={'token': 'test-local-access'})
+        self.assertIn(f'dr_session_{first.server_port}=', login.headers['set-cookie'])
+        self.assertEqual(client.get('/api/workspace').status_code, 200)
+        self.assertEqual(client.get(second.origin + '/api/workspace').status_code, 401)
+        login = client.post(second.origin + '/api/login', json={'token': 'other-local-access'},
+                            headers={'Origin': second.origin})
+        self.assertIn(f'dr_session_{second.server_port}=', login.headers['set-cookie'])
+        self.assertEqual(client.get(second.origin + '/api/workspace').status_code, 200)
+        self.assertEqual(client.get('/api/workspace').status_code, 200)
+
     def test_existing_analyses_skip_first_visit_onboarding(self):
         self.create()
         client, _ = self.http()
@@ -336,7 +353,7 @@ class WebTests(unittest.TestCase):
         connection = HTTPConnection('127.0.0.1', server.server_port, timeout=5)
         self.addCleanup(connection.close)
         connection.putrequest('POST', '/api/jobs')
-        for key, value in {'Origin': server.origin, 'X-Decision-Room': '1', 'Cookie': 'dr_session=test-local-access',
+        for key, value in {'Origin': server.origin, 'X-Decision-Room': '1', 'Cookie': f'{server.cookie_name}=test-local-access',
                            'Content-Type': 'multipart/form-data; boundary=test', 'Content-Length': str(MAX_UPLOAD + 50_001)}.items():
             connection.putheader(key, value)
         connection.endheaders()

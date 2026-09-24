@@ -55,7 +55,8 @@ en la pantalla de acceso. No se debe publicar ni compartir ese archivo.
   espacio sin perfil ni análisis pide nombre y descripción breve del negocio.
   El perfil queda en PostgreSQL y se propone como contexto de los siguientes
   análisis. Los espacios que ya tienen análisis entran directamente; estos
-  conservan el contexto que se guardó con cada envío.
+  conservan el contexto que se guardó con cada envío. El formulario inicial
+  conserva el texto en este navegador si caduca el acceso antes de guardarlo.
 - **Vista general y Mis análisis:** búsqueda, estados y acceso al detalle. El
   espacio web empieza vacío; las evaluaciones históricas por CLI no se incorporan
   automáticamente. No se inventan informes de muestra ni métricas de negocio.
@@ -136,6 +137,9 @@ acceso. Los recursos no se cachean, no se cargan recursos de terceros y se usa
 CSP. El contenido del agente se escapa; el informe está en un iframe sin scripts.
 La descarga se resuelve mediante el identificador del trabajo y su ámbito, nunca
 mediante una ruta de archivo suministrada por el cliente.
+La cookie de acceso incluye el puerto local en su nombre: el navegador comparte
+las cookies de `127.0.0.1` entre puertos y, sin esa separación, una vista de
+prueba puede invalidar la sesión de la aplicación principal.
 
 Este acceso representa **un propietario local**, no un sistema multiusuario ni
 un despliegue público. La operación concurrente de comercios, límites operativos
