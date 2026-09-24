@@ -3252,6 +3252,17 @@ body { background: #ffffff; }
 .new-chat-list a .icon:last-child { width: 14px; height: 14px; }
 .new-chat-all { display: inline-flex; align-items: center; gap: 8px; margin: 14px 12px 0; color: var(--green); font-size: 12px; }
 .new-chat-all .icon { width: 14px; height: 14px; }
+.composer-in-motion { transform-origin: top left; animation: composer-travel 480ms cubic-bezier(.22, 1, .36, 1) both; }
+@keyframes composer-travel {
+  from { transform: var(--composer-start); opacity: .96; }
+  to { transform: var(--composer-end); opacity: 1; }
+}
+.new-chat-page.is-arriving .new-chat-heading { animation: new-chat-appear 260ms 150ms ease-out both; }
+.new-chat-page.is-arriving .new-chat-recent { animation: new-chat-appear 260ms 220ms ease-out both; }
+@keyframes new-chat-appear {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 @media (max-width: 1180px) {
   .dashboard-compose,
   .chat-composer { left: calc(216px + (100vw - 216px) / 2); width: min(720px, calc(100vw - 216px - 32px)); }
@@ -3265,4 +3276,9 @@ body { background: #ffffff; }
   .new-chat-compose { width: 100%; padding: 0; margin-top: 24px; }
   .new-chat-landing { min-height: calc(100dvh - 180px); padding: 30px 0 48px; }
   .new-chat-recent { margin-top: 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .composer-in-motion,
+  .new-chat-page.is-arriving .new-chat-heading,
+  .new-chat-page.is-arriving .new-chat-recent { animation: none; }
 }

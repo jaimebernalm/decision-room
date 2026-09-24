@@ -988,7 +988,43 @@ async function chatPage(id) {
   if (generation === state.generation) state.poll = setInterval(refresh, 3000);
 }
 
-async function route() {
+function composerBounds() {
+  const card = document.querySelector(".dashboard-compose .composer-card, .chat-composer .composer-card");
+  const rect = card?.getBoundingClientRect();
+  return rect ? { left: rect.left, top: rect.top, width: rect.width } : null;
+}
+function animateComposerRoute(origin, fromCentered, toCentered) {
+  if (!origin || fromCentered === toCentered || window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return;
+  const composer = document.querySelector(".dashboard-compose, .chat-composer");
+  const card = composer?.querySelector(".composer-card");
+  if (!card) return;
+  const target = card.getBoundingClientRect();
+  const dx = origin.left - target.left, dy = origin.top - target.top;
+  const scale = origin.width / target.width;
+  composer.style.setProperty("--composer-start", `${toCentered ? "" : "translateX(-50%) "}translate3d(${dx}px, ${dy}px, 0) scale(${scale})`);
+  composer.style.setProperty("--composer-end", toCentered ? "none" : "translateX(-50%)");
+  composer.classList.add("composer-in-motion");
+  composer.addEventListener("animationend", event => {
+    if (event.target === composer) {
+      composer.classList.remove("composer-in-motion");
+      composer.style.removeProperty("--composer-start");
+      composer.style.removeProperty("--composer-end");
+    }
+  }, { once: true });
+  if (toCentered) {
+    document.querySelector("#main")?.classList.add("is-arriving");
+  }
+}
+const composerTransitionKey = "dr-composer-transition";
+function takeComposerTransition() {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(composerTransitionKey));
+    sessionStorage.removeItem(composerTransitionKey);
+    if (location.hash === "#ask" && saved?.origin && Date.now() - saved.at < 2000) return saved;
+  } catch {}
+  return { origin: composerBounds(), fromCentered: !!document.querySelector("#main.new-chat-page") };
+}
+async function route(transition = {}) {
   clearInterval(state.poll);
   state.generation++;
   document.querySelector("#main")?.setAttribute("inert", "");
@@ -1105,6 +1141,7 @@ async function route() {
     window.scrollTo(0, 0);
     if (hash === "ask") document.querySelector("#dashboard-prompt")?.focus();
     else document.querySelector("#main")?.focus({ preventScroll: true });
+    animateComposerRoute(transition.origin, transition.fromCentered, hash === "ask");
     document.title =
       "Decision Room — " +
       (hash === "new"
@@ -1122,7 +1159,14 @@ async function route() {
     document.querySelector("#reconnect")?.addEventListener("click", route);
   }
 }
-window.addEventListener("hashchange", route);
+window.addEventListener("hashchange", () => route(takeComposerTransition()));
+app.addEventListener("click", event => {
+  const link = event.target.closest?.('a[href="#ask"]');
+  if (!link || location.hash === "#ask" || event.defaultPrevented || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  const origin = composerBounds();
+  if (!origin) return;
+  try { sessionStorage.setItem(composerTransitionKey, JSON.stringify({ origin, fromCentered: false, at: Date.now() })); } catch {}
+});
 document.querySelector(".skip").addEventListener("click", (event) => {
   event.preventDefault();
   document.querySelector("#main")?.focus();
@@ -1138,5 +1182,5 @@ document.querySelector(".skip").addEventListener("click", (event) => {
       return;
     }
   }
-  await route();
+  await route(takeComposerTransition());
 })();
