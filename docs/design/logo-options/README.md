@@ -1,12 +1,11 @@
 # Opciones de logo de Decision Room
 
-Cuatro símbolos originales y monocromos para sustituir el monograma «dr». Todos usan el verde de la interfaz (`#1c493c`), fondo transparente y un área de 64 × 64 unidades. Los SVG se pueden escalar para cabecera, barra lateral y favicon sin perder nitidez.
+Propuestas en PNG para explorar la identidad visual antes de pasar el símbolo elegido a SVG. Las tres usan formas gruesas, verde oscuro sobre blanco y una composición plana, sin sombras ni volumen. No se han aplicado todavía a la interfaz.
 
-| Opción | Idea | Archivo |
-| --- | --- | --- |
-| 01 · Umbral | Un espacio abierto que invita a entrar y tomar una decisión. | `01-umbral.svg` |
-| 02 · Foco | Cuatro esquinas enfocan el dato central. | `02-foco.svg` |
-| 03 · Ruta | Una ruta que se bifurca en alternativas. | `03-ruta.svg` |
-| 04 · Diálogo | Dos paneles frente a frente representan el análisis y la conversación. | `04-dialogo.svg` |
+| Opción | Doble lectura |
+| --- | --- |
+| [01 · Colaboración](01-colaboracion.png) | Dos partes se acercan; el espacio central forma una idea compartida. |
+| [02 · Chispa](02-chispa.png) | Dos formas construyen una chispa en el espacio vacío: una conclusión que surge del intercambio. |
+| [03 · Apoyo](03-apoyo.png) | Una curva sostiene una idea; también puede leerse como un espacio abierto para decidir. |
 
-La lámina `comparativa.svg` muestra las cuatro opciones a tamaño grande y pequeño. Son propuestas para elegir; aún no sustituyen el símbolo de la aplicación.
+Las imágenes son exploraciones raster de 1254 × 1254 píxeles sobre fondo blanco. Al elegir una, conviene ajustar proporciones y comprobarla a 24 y 32 píxeles durante su vectorización.
