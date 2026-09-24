@@ -131,3 +131,32 @@ test('first access keeps onboarding in place until a business is saved', async (
   assert.equal(f.sandbox.onboarded,true);
   assert.equal(timers,0);
 });
+
+test('public entry opens the landing and the access link opens local login', async () => {
+  const f=fixture();
+  f.sandbox.clearInterval=()=>{};
+  f.sandbox.document={querySelector:selector=>selector==='#reconnect' ? null : {setAttribute:()=>{},focus:()=>{}}};
+  vm.runInContext(`api=async()=>{throw Object.assign(new Error('Access required'),{status:401})};
+    landing=()=>{globalThis.screen='landing'}; login=()=>{globalThis.screen='login'};
+    globalThis.runRoute=route;`,f.sandbox);
+  await f.sandbox.runRoute();
+  assert.equal(f.sandbox.screen,'landing');
+  f.sandbox.location.hash='#login';
+  await f.sandbox.runRoute();
+  assert.equal(f.sandbox.screen,'login');
+});
+
+test('a saved business opens the current dashboard', async () => {
+  const f=fixture();
+  f.sandbox.clearInterval=()=>{};
+  f.sandbox.setInterval=()=>{};
+  f.sandbox.window={scrollTo:()=>{}};
+  f.sandbox.document={querySelector:()=>({setAttribute:()=>{},focus:()=>{},textContent:''})};
+  vm.runInContext(`api=async path=>path==='/api/workspace'
+      ? {analyses:[],configured:false,business:{id:'business-a'},businesses:[],memory:{}}
+      : path==='/api/chats' ? {business_id:'business-a',conversations:[],datasets:{items:[]}}
+      : {selected_id:null,report:null};
+    dashboardHome=()=>{globalThis.screen='dashboard'}; globalThis.runRoute=route;`,f.sandbox);
+  await f.sandbox.runRoute();
+  assert.equal(f.sandbox.screen,'dashboard');
+});

@@ -38,6 +38,7 @@ class Server(ThreadingHTTPServer):
         self.token = token or access_key(workspace.config)
         super().__init__(('127.0.0.1', port), Handler)
         self.origin = f'http://127.0.0.1:{self.server_port}'
+        self.cookie_name = f'dr_session_{self.server_port}'
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -73,7 +74,8 @@ class Handler(BaseHTTPRequestHandler):
         cookie = SimpleCookie()
         try:
             cookie.load(self.headers.get('Cookie', ''))
-            value = cookie['dr_session'].value if 'dr_session' in cookie else ''
+            name = self.server.cookie_name
+            value = cookie[name].value if name in cookie else ''
             return hmac.compare_digest(value, self.server.token)
         except Exception:
             return False
@@ -145,7 +147,7 @@ class Handler(BaseHTTPRequestHandler):
                 token = self.json_body().get('token', '')
                 if not isinstance(token, str) or not hmac.compare_digest(token, self.server.token):
                     raise WebError('La clave de acceso no es correcta.', 401)
-                self.send(200, {'ok': True}, headers={'Set-Cookie': f'dr_session={self.server.token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000'})
+                self.send(200, {'ok': True}, headers={'Set-Cookie': f'{self.server.cookie_name}={self.server.token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000'})
                 return
             if not self.authenticated():
                 raise WebError('Introduce tu clave de acceso para abrir el espacio local.', 401)

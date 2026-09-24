@@ -326,7 +326,7 @@ class WebTests(unittest.TestCase):
         connection = HTTPConnection('127.0.0.1', server.server_port, timeout=5)
         self.addCleanup(connection.close)
         connection.putrequest('POST', '/api/jobs')
-        for key, value in {'Origin': server.origin, 'X-Decision-Room': '1', 'Cookie': 'dr_session=test-local-access',
+        for key, value in {'Origin': server.origin, 'X-Decision-Room': '1', 'Cookie': f'{server.cookie_name}=test-local-access',
                            'Content-Type': 'multipart/form-data; boundary=test', 'Content-Length': str(MAX_UPLOAD + 50_001)}.items():
             connection.putheader(key, value)
         connection.endheaders()
@@ -342,9 +342,14 @@ class WebTests(unittest.TestCase):
         self.assertEqual(client.post('/api/login', json={'token': 'test-local-access'}, headers={'Origin': 'https://outside.test'}).status_code, 403)
         response = client.post('/api/login', json={'token': 'test-local-access'})
         self.assertEqual(response.status_code, 200)
+        self.assertIn(server.cookie_name + '=', response.headers['set-cookie'])
         self.assertIn('HttpOnly', response.headers['set-cookie'])
         self.assertIn('SameSite=Strict', response.headers['set-cookie'])
         self.assertEqual(client.get('/api/workspace').status_code, 200)
+        other_client, other_server = self.http()
+        self.assertNotEqual(server.cookie_name, other_server.cookie_name)
+        other_client.cookies.update(client.cookies)
+        self.assertEqual(other_client.get('/api/workspace').status_code, 401)
         self.assertIsNone(client.get('/api/dashboard').json()['report'])
         self.assertEqual(client.get('/api/workspace', headers={'Host': 'outside.test'}).status_code, 403)
         self.assertEqual(client.post('/api/jobs', content=b'x', headers={'X-Decision-Room': ''}).status_code, 403)

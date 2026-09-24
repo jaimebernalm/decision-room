@@ -49,7 +49,17 @@ El acceso inicial usa una clave generada en el almacenamiento privado
 (`.local/storage/.web-access-key` por defecto). `--open` la pasa al navegador en
 un fragmento que se intercambia por una cookie HttpOnly y se retira enseguida de
 la URL; no entra en URLs HTTP ni logs de acceso. La clave también se puede pegar
-en la pantalla de acceso. No se debe publicar ni compartir ese archivo.
+en la pantalla de acceso. Cada puerto local usa una cookie propia, para poder
+comparar dos vistas de pruebas sin compartir su sesión. No se debe publicar ni
+compartir ese archivo.
+
+Al abrir la web sin sesión se muestra la landing. «Iniciar sesión» y «Empezar en
+este equipo» llevan al acceso con clave local. Después, si no hay negocio
+guardado, se pide nombre y descripción; «Guardar y continuar» crea el negocio
+persistente y abre el Inicio con el dashboard actual. Las visitas posteriores
+van directamente al Inicio del negocio activo. El registro por correo y las
+cuentas de usuario aún no están implementados; esta entrada es para la versión
+local de pruebas.
 
 ## Experiencia
 

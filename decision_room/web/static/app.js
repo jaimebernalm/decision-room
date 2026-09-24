@@ -188,8 +188,13 @@ function renderMemory() {
 function errorBox(message) {
   return `<div class="error-message" role="alert">${esc(message)}</div>`;
 }
+function landing() {
+  app.innerHTML = `<main id="main" class="landing" tabindex="-1"><header class="landing-header"><a class="brand" href="#home" aria-label="Decision Room, inicio"><span class="brand-mark">d<span>r</span></span><span>decision<span class="brand-light">room</span></span></a><a class="button secondary" href="#login">Iniciar sesión ${icon("arrow")}</a></header><section class="landing-hero"><div><p class="eyebrow"><span class="tiny-line"></span> CLARIDAD PARA TU NEGOCIO</p><h1>Entiende lo que cuentan <em>tus datos.</em></h1><p>Describe tu negocio una sola vez. Después podrás conversar sobre tus datos, explorar hallazgos y comprobar la evidencia de cada respuesta.</p><a class="button primary" href="#login">Empezar en este equipo ${icon("arrow")}</a><span class="landing-note">Versión local de pruebas · Las cuentas por correo todavía no están disponibles.</span></div>${illustration()}</section><section class="landing-steps" aria-label="Cómo funciona"><div><span>01</span><h2>Cuéntanos tu negocio</h2><p>Guardamos tu contexto para que puedas retomarlo en próximas visitas.</p></div><div><span>02</span><h2>Pregunta y comparte datos</h2><p>Abre una conversación y añade un CSV cuando necesites analizar cifras.</p></div><div><span>03</span><h2>Decide con evidencia</h2><p>Consulta tu Inicio, los informes y las fuentes detrás de cada hallazgo.</p></div></section><footer class="landing-footer">Decision Room · Tu espacio de pruebas se guarda en este equipo.</footer></main>`;
+  document.title = "Decision Room — Entiende tu negocio";
+}
 function login(error = "") {
   app.innerHTML = `<main class="login"><a class="brand" href="#"><span class="brand-mark">d<span>r</span></span><span>decision<span class="brand-light">room</span></span></a><section class="card"><p class="eyebrow">TU ESPACIO PRIVADO</p><h1>Bienvenido a<br><em>Decision Room.</em></h1><p>Un lugar para entender los datos de tu negocio y decidir con más claridad.</p><form id="login-form"><label for="access">Clave de acceso local</label><input id="access" name="access" type="password" autocomplete="current-password" required><div id="login-error">${error ? errorBox(error) : ""}</div><button class="button primary" type="submit">Entrar a mi espacio ${icon("arrow")}</button></form><details><summary>¿Dónde está mi clave?</summary><p>Abre la aplicación con <code>python -m decision_room.web --open</code> desde el entorno del proyecto. También puedes usar la clave del archivo privado <code>.web-access-key</code> en el almacenamiento local.</p></details></section><p class="subtle">${icon("shield")} Acceso restringido · Solo en este equipo</p></main>`;
+  document.title = "Decision Room — Acceso";
   document.querySelector("#login-form").onsubmit = async (event) => {
     event.preventDefault();
     try {
@@ -1067,8 +1072,10 @@ async function route() {
           : hash === "home" ? "Inicio" : hash === "my-business" ? "Mi negocio" : hash === "reports" ? "Informes" : "Mi espacio");
   } catch (e) {
     if (generation !== state.generation) return;
-    if (e.status === 401) login();
-    else
+    if (e.status === 401) {
+      if (hash === "login") login();
+      else landing();
+    } else
       shell(
         `<section class="card status-card"><h1>Tu espacio está en pausa.</h1><p>${esc(e.message)}</p><button class="button primary" id="reconnect">Volver a conectar</button></section>`,
       );
