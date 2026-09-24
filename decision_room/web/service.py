@@ -86,6 +86,49 @@ class Workspace:
                 'analyses': self.scoped(business_id).listing(),
                 'memory': memory.status(self.config, business_id)}
 
+    def complete_onboarding(self):
+        business_id = self.business_id()
+        with connect(self.config) as db:
+            onboarding = db.execute('SELECT job_id,completed FROM web_onboarding WHERE business_id=%s',
+                                    (business_id,)).fetchone()
+        if not onboarding or not onboarding['job_id']:
+            raise WebError('Termina el primer análisis antes de abrir tu espacio.', 409)
+        if onboarding['completed']:
+            return {'completed': True}
+        if not self.detail(onboarding['job_id'])['publishable']:
+            raise WebError('El informe todavía no está disponible. Responde las preguntas o revisa el análisis.', 409)
+        with connect(self.config) as db, db.transaction():
+            selected = db.execute('SELECT active_business_id FROM web_workspace WHERE singleton FOR SHARE').fetchone()
+            if selected['active_business_id'] != business_id:
+                raise WebError('El negocio activo ha cambiado. Recarga la página.', 409)
+            updated = db.execute('''UPDATE web_onboarding SET completed=true,completed_at=now()
+                WHERE business_id=%s AND job_id=%s RETURNING business_id''',
+                (business_id, onboarding['job_id'])).fetchone()
+            if not updated:
+                raise WebError('El negocio activo ha cambiado. Recarga la página.', 409)
+        return {'completed': True}
+
+    def restart_onboarding(self):
+        business_id = self.business_id()
+        with connect(self.config) as db:
+            onboarding = db.execute('SELECT job_id,completed FROM web_onboarding WHERE business_id=%s',
+                                    (business_id,)).fetchone()
+        if not onboarding or onboarding['completed'] or not onboarding['job_id']:
+            raise WebError('No hay un primer análisis que reemplazar.', 409)
+        result = self.detail(onboarding['job_id'])
+        if result['status'] not in ('blocked', 'failed'):
+            raise WebError('Solo puedes empezar de nuevo si el primer análisis está detenido.', 409)
+        with connect(self.config) as db, db.transaction():
+            selected = db.execute('SELECT active_business_id FROM web_workspace WHERE singleton FOR SHARE').fetchone()
+            if selected['active_business_id'] != business_id:
+                raise WebError('El negocio activo ha cambiado. Recarga la página.', 409)
+            updated = db.execute('''UPDATE web_onboarding SET job_id=NULL WHERE business_id=%s
+                AND job_id=%s AND completed=false RETURNING business_id''',
+                (business_id, onboarding['job_id'])).fetchone()
+            if not updated:
+                raise WebError('El análisis ha cambiado. Recarga la página.', 409)
+        return {'restarted': True}
+
     def retry_memory(self, data):
         business_id = self.business_id()
         if business_id is None:
@@ -137,6 +180,13 @@ class Workspace:
                 return {'id': str(old['id'])}
             if current['profile_revision'] != revision:
                 raise WebError('El contexto del negocio ha cambiado. Recárgalo antes de iniciar otro análisis.', 409)
+            onboarding = db.execute('SELECT job_id,completed FROM web_onboarding WHERE business_id=%s FOR UPDATE',
+                                    (business,)).fetchone()
+            if onboarding and not onboarding['completed']:
+                if data.get('onboarding') is not True or onboarding['job_id'] is not None:
+                    raise WebError('Completa o retoma el primer informe antes de crear otro análisis.', 409)
+            elif data.get('onboarding') is True:
+                raise WebError('Este negocio no tiene un onboarding pendiente.', 409)
             if self.settings is None:
                 raise WebError('Falta configurar el modelo local. El borrador está guardado; podrás enviarlo cuando esté disponible.', 503)
             job_id = uuid4()
@@ -149,6 +199,8 @@ class Workspace:
                 db.execute('''INSERT INTO web_jobs(id,request_key,request_sha256,business_id,business_name,business_revision,title,context,goal,
                     filename,upload_key,byte_count,model_settings,status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'queued')''',
                     (job_id, key, signature, business, name, revision, title, context, goal, filename, upload_key, len(content), Jsonb(asdict(self.settings))))
+                if data.get('onboarding') is True:
+                    db.execute('UPDATE web_onboarding SET job_id=%s WHERE business_id=%s', (job_id, business))
                 db.execute("UPDATE web_businesses SET onboarding_status='analysis_started',updated_at=now() WHERE business_id=%s", (business,))
             except BaseException:
                 path.unlink(missing_ok=True)

@@ -72,6 +72,7 @@ class WebTests(unittest.TestCase):
         self.config = replace(self.base, dsn=self.dsn, storage=Path(self.temp.name))
         with connect(self.config) as db, db.transaction():
             db.execute('DELETE FROM web_replies')
+            db.execute('DELETE FROM web_onboarding')
             db.execute('DELETE FROM web_jobs')
             db.execute('UPDATE web_workspace SET active_business_id=NULL')
             db.execute('DELETE FROM web_businesses')
@@ -394,6 +395,45 @@ class WebTests(unittest.TestCase):
         self.assertEqual(saved['analyses'], [])
         self.assertFalse(saved['configured'])
 
+    def test_guided_first_report_is_durable_and_gates_completion(self):
+        client, _ = self.http()
+        client.post('/api/login', json={'token': 'test-local-access'})
+        self.assertIsNone(client.get('/api/workspace').json()['onboarding'])
+        created = client.post('/api/business', json={
+            'request_key': str(uuid4()), 'expected_active_id': str(self.business['id']),
+            'name': 'Onboarding shop', 'description': 'Each row is one cash-register sale.',
+            'onboarding': True,
+        })
+        self.assertEqual(created.status_code, 200)
+        business_id = created.json()['business']['id']
+        self.assertEqual(client.get('/api/workspace').json()['onboarding']['job_id'], None)
+        self.assertEqual(client.post('/api/onboarding/complete', json={}).status_code, 409)
+        metadata = {'request_key': str(uuid4()), 'business_id': business_id,
+                    'profile_revision': 1, 'goal': '', 'title': 'First report', 'onboarding': True}
+        unmarked = client.post('/api/jobs', files={
+            'metadata': (None, json.dumps({**metadata, 'request_key': str(uuid4()), 'onboarding': False})),
+            'file': ('sales.csv', self.csv)})
+        self.assertEqual(unmarked.status_code, 409)
+        first = client.post('/api/jobs', files={
+            'metadata': (None, json.dumps(metadata)), 'file': ('sales.csv', self.csv)})
+        self.assertEqual(first.status_code, 202)
+        job_id = first.json()['id']
+        self.assertEqual(client.get('/api/workspace').json()['onboarding']['job_id'], job_id)
+        self.assertEqual(client.post('/api/onboarding/complete', json={}).status_code, 409)
+        self.assertEqual(client.post('/api/onboarding/restart', json={}).status_code, 409)
+        self.ws.update(job_id, status='blocked', issue='Insufficient evidence')
+        self.assertEqual(client.post('/api/onboarding/restart', json={}).status_code, 200)
+        self.assertIsNone(client.get('/api/workspace').json()['onboarding']['job_id'])
+        metadata['request_key'] = str(uuid4())
+        second = client.post('/api/jobs', files={
+            'metadata': (None, json.dumps(metadata)), 'file': ('sales.csv', self.csv)})
+        self.assertEqual(second.status_code, 202)
+        with patch.object(self.ws, 'detail', return_value={'publishable': True}):
+            self.assertEqual(client.post('/api/onboarding/complete', json={}).status_code, 200)
+        state = Workspace(self.config, SETTINGS, WebModel).state()
+        self.assertTrue(state['onboarding']['completed'])
+        self.assertEqual(str(state['onboarding']['job_id']), second.json()['id'])
+
     def test_profile_retries_validation_and_concurrent_edit(self):
         from concurrent.futures import ThreadPoolExecutor
         update = {'business_id': str(self.business['id']), 'profile_revision': 1,
@@ -540,6 +580,7 @@ class WebTests(unittest.TestCase):
         html = self.ws.report(job)
         # Recreate the schema-7 boundary, keeping all analytical rows and files.
         with connect(self.config) as db, db.transaction():
+            db.execute('DROP TABLE web_onboarding')
             db.execute('DROP TABLE web_workspace')
             db.execute('DROP TABLE web_businesses')
             db.execute('ALTER TABLE web_jobs DROP COLUMN business_name, DROP COLUMN business_revision')

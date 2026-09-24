@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { randomUUID } = require('node:crypto');
 const vm = require('node:vm');
+const onboardingSource = readFileSync('decision_room/web/static/onboarding.js', 'utf8');
 const source = readFileSync('decision_room/web/static/app.js', 'utf8').split('window.addEventListener("hashchange"')[0];
 function fixture() {
   const values = new Map(), chats = new Map(), messages = new Map(), calls = [];
@@ -20,7 +21,7 @@ function fixture() {
     }
   };
   vm.createContext(sandbox);
-  vm.runInContext(source + '\nstate.business={id:"business-a"}; globalThis.ui={state,store,launchDashboardChat,dashboardSuggestions,shortChatTitle,chatResponse,reportState};', sandbox);
+  vm.runInContext(onboardingSource + '\n' + source + '\nstate.business={id:"business-a"}; globalThis.ui={state,store,launchDashboardChat,dashboardSuggestions,shortChatTitle,chatResponse,reportState};', sandbox);
   return {sandbox, ...sandbox.ui, calls, chats, messages, values};
 }
 test('dashboard creates a chat and sends the original message without CSV', async () => {
@@ -126,7 +127,7 @@ test('first access keeps onboarding in place until a business is saved', async (
   f.sandbox.window={scrollTo:()=>{}};
   f.sandbox.document={querySelector:()=>({setAttribute:()=>{},focus:()=>{}})};
   f.sandbox.fetch=async url => ({ok:true,json:async()=>url==='/api/workspace' ? {analyses:[],configured:false,business:null,businesses:[],memory:{}} : {business_id:null,conversations:[],datasets:{items:[]}}});
-  vm.runInContext('businessForm = () => {globalThis.onboarded=true;}; globalThis.runRoute=route;',f.sandbox);
+  vm.runInContext('onboardingBusiness = () => {globalThis.onboarded=true;}; globalThis.runRoute=route;',f.sandbox);
   await f.sandbox.runRoute();
   assert.equal(f.sandbox.onboarded,true);
   assert.equal(timers,0);
@@ -159,4 +160,19 @@ test('a saved business opens the current dashboard', async () => {
     dashboardHome=()=>{globalThis.screen='dashboard'}; globalThis.runRoute=route;`,f.sandbox);
   await f.sandbox.runRoute();
   assert.equal(f.sandbox.screen,'dashboard');
+});
+
+test('a new business stays in the separate onboarding until its report is complete', async () => {
+  const f=fixture();
+  f.sandbox.clearInterval=()=>{};
+  f.sandbox.setInterval=()=>{};
+  f.sandbox.window={scrollTo:()=>{}};
+  f.sandbox.document={querySelector:()=>({setAttribute:()=>{},focus:()=>{},textContent:''})};
+  f.sandbox.fetch=async url => ({ok:true,json:async()=>url==='/api/workspace'
+    ? {analyses:[],configured:true,business:{id:'business-a'},businesses:[],
+       onboarding:{job_id:null,completed:false},memory:{}}
+    : {business_id:'business-a',conversations:[],datasets:{items:[]}}});
+  vm.runInContext('onboardingData=()=>{globalThis.screen="onboarding-data"}; dashboardHome=()=>{globalThis.screen="dashboard"}; globalThis.runRoute=route;',f.sandbox);
+  await f.sandbox.runRoute();
+  assert.equal(f.sandbox.screen,'onboarding-data');
 });

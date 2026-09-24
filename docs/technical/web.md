@@ -54,12 +54,22 @@ comparar dos vistas de pruebas sin compartir su sesión. No se debe publicar ni
 compartir ese archivo.
 
 Al abrir la web sin sesión se muestra la landing. «Iniciar sesión» y «Empezar en
-este equipo» llevan al acceso con clave local. Después, si no hay negocio
-guardado, se pide nombre y descripción; «Guardar y continuar» crea el negocio
-persistente y abre el Inicio con el dashboard actual. Las visitas posteriores
-van directamente al Inicio del negocio activo. El registro por correo y las
-cuentas de usuario aún no están implementados; esta entrada es para la versión
-local de pruebas.
+este equipo» llevan al acceso con clave local. En un negocio nuevo creado desde
+la entrada guiada, el onboarding ocupa una página independiente: nombre y
+descripción, elección entre exploración general y pregunta concreta, primer CSV,
+aclaraciones del agente e informe revisado. El botón «Entrar a mi espacio»
+aparece después de que el informe sea publicable. El avance queda guardado en
+PostgreSQL y se recupera al volver; los negocios previos no repiten este
+recorrido. Si el análisis se detiene sin informe, se puede reintentar o empezar
+con otro archivo sin borrar el anterior.
+
+Esta primera versión admite un CSV UTF-8 de hasta 20 MB para el informe inicial.
+Se pueden añadir más datos después desde «Mi negocio», pero el sistema no
+combina automáticamente archivos distintos en un único informe. El agente pide
+aclaraciones cuando las necesita para interpretar o revisar el análisis; no
+promete una cantidad fija de preguntas ni un informe si la evidencia es
+insuficiente. El registro por correo y las cuentas de usuario aún no están
+implementados; el acceso actual sigue siendo local.
 
 ## Experiencia
 

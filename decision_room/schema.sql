@@ -561,3 +561,16 @@ CREATE TABLE IF NOT EXISTS dataset_uploads (
     PRIMARY KEY(business_id,request_key)
 );
 INSERT INTO schema_versions(version) VALUES (13) ON CONFLICT DO NOTHING;
+
+-- Only businesses explicitly created through the guided first-report flow are
+-- enrolled. Existing local workspaces retain their established navigation.
+CREATE TABLE IF NOT EXISTS web_onboarding (
+    business_id uuid PRIMARY KEY REFERENCES web_businesses(business_id),
+    job_id uuid,
+    completed boolean NOT NULL DEFAULT false,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    completed_at timestamptz,
+    FOREIGN KEY (business_id, job_id) REFERENCES web_jobs(business_id, id),
+    CHECK (NOT completed OR job_id IS NOT NULL)
+);
+INSERT INTO schema_versions(version) VALUES (14) ON CONFLICT DO NOTHING;

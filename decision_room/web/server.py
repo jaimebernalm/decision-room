@@ -138,9 +138,9 @@ class Handler(BaseHTTPRequestHandler):
             if mutation and (self.headers.get('Origin') != self.server.origin or self.headers.get('X-Decision-Room') != '1'):
                 raise WebError('La petición debe enviarse desde Decision Room.', 403)
             path = urlsplit(self.path).path
-            if not mutation and path in ('/', '/app.js', '/dossier.js', '/styles.css'):
-                name = {'/': 'index.html', '/app.js': 'app.js', '/dossier.js': 'dossier.js', '/styles.css': 'styles.css'}[path]
-                mime = {'/': 'text/html', '/app.js': 'text/javascript', '/dossier.js': 'text/javascript', '/styles.css': 'text/css'}[path]
+            if not mutation and path in ('/', '/app.js', '/dossier.js', '/onboarding.js', '/styles.css'):
+                name = {'/': 'index.html', '/app.js': 'app.js', '/dossier.js': 'dossier.js', '/onboarding.js': 'onboarding.js', '/styles.css': 'styles.css'}[path]
+                mime = {'/': 'text/html', '/app.js': 'text/javascript', '/dossier.js': 'text/javascript', '/onboarding.js': 'text/javascript', '/styles.css': 'text/css'}[path]
                 self.send(200, (STATIC / name).read_bytes(), mime + '; charset=utf-8')
                 return
             if mutation and path == '/api/login':
@@ -160,6 +160,14 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if mutation and path == '/api/business/select':
                 self.send(200, {'business': ws.select_business(self.json_body())})
+                return
+            if mutation and path == '/api/onboarding/complete':
+                self.json_body()
+                self.send(200, ws.complete_onboarding())
+                return
+            if mutation and path == '/api/onboarding/restart':
+                self.json_body()
+                self.send(200, ws.restart_onboarding())
                 return
             if not mutation and path == '/api/sample':
                 sample = ROOT / 'data/reference-cases/01-daily-sales/input/sales.csv'

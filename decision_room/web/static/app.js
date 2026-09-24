@@ -58,6 +58,8 @@ const state = {
   file: null,
   draft: {},
   business: null,
+  onboarding: null,
+  onboardingFile: null,
   memory: {},
   dashboard: null,
   selectedReport: null,
@@ -653,7 +655,7 @@ function detail(data) {
       }
     };
 }
-function setupAnswer(data, question) {
+function setupAnswer(data, question, refresh = pollDetail) {
   const form = document.querySelector("#answer-form");
   const text = document.querySelector("#answer-text");
   const unknown = document.querySelector("#unknown");
@@ -709,7 +711,7 @@ function setupAnswer(data, question) {
       store.remove(key);
       state.signature = "";
       toast("Respuesta guardada. Continuamos con tu análisis.");
-      await pollDetail(data.id);
+      await refresh(data.id);
     } catch (error) {
       document.querySelector("#answer-error").innerHTML = errorBox(
         error.message,
@@ -961,6 +963,7 @@ async function route() {
     state.configured = data.configured;
     state.business = data.business;
     state.businesses = data.businesses;
+    state.onboarding = data.onboarding;
     state.memory = data.memory;
     const chats = await api("/api/chats");
     if (generation !== state.generation) return;
@@ -974,11 +977,20 @@ async function route() {
       state.selectedReport = null;
       state.dashboard = null;
       state.file = null;
+      state.onboardingFile = null;
       state.requestKey = null;
     }
-    if (hash === "business-new") businessForm(true);
-    else if (hash === "businesses" || (!state.business && state.businesses.length)) businessChooser();
-    else if (!state.business) businessForm(true);
+    const onboardingActive = Boolean(state.onboarding && !state.onboarding.completed);
+    if (!state.business && state.businesses.length && hash !== "business-new") businessChooser();
+    else if (!state.business) onboardingBusiness();
+    else if (onboardingActive && state.onboarding.job_id) {
+      await pollOnboarding(state.onboarding.job_id);
+      state.poll = setInterval(() => pollOnboarding(state.onboarding.job_id), 3000);
+    }
+    else if (onboardingActive && hash === "onboarding/business") onboardingBusiness();
+    else if (onboardingActive) onboardingData();
+    else if (hash === "business-new") businessForm(true);
+    else if (hash === "businesses") businessChooser();
     else if (hash === "business") businessForm(!state.business);
     else if (hash === "my-business") await myBusiness();
     else if (hash === "new") newAnalysis();
@@ -1000,7 +1012,7 @@ async function route() {
       dashboardHome();
     }
     if (generation !== state.generation) return;
-    if (state.business && ["home", "analyses", "reports"].includes(hash))
+    if (state.business && !onboardingActive && ["home", "analyses", "reports"].includes(hash))
       state.poll = setInterval(async () => {
         try {
           const next = await api("/api/workspace");
@@ -1065,11 +1077,13 @@ async function route() {
     else document.querySelector("#main")?.focus({ preventScroll: true });
     document.title =
       "Decision Room — " +
-      (hash === "new"
-        ? "Nuevo análisis"
-        : hash.startsWith("analysis/")
-          ? "Tu análisis"
-          : hash === "home" ? "Inicio" : hash === "my-business" ? "Mi negocio" : hash === "reports" ? "Informes" : "Mi espacio");
+      (onboardingActive ? "Primer informe"
+        : !state.business ? "Tu negocio"
+          : hash === "new" ? "Nuevo análisis"
+            : hash.startsWith("analysis/") ? "Tu análisis"
+              : hash === "home" ? "Inicio"
+                : hash === "my-business" ? "Mi negocio"
+                  : hash === "reports" ? "Informes" : "Mi espacio");
   } catch (e) {
     if (generation !== state.generation) return;
     if (e.status === 401) {
