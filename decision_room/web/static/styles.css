@@ -3318,12 +3318,14 @@ body { background: #ffffff; }
 .sidebar-resize:focus-visible::after,
 .sidebar-resize.dragging::after { background: #91aa98; }
 .sidebar-resize:focus-visible { outline: 2px solid #78a086; outline-offset: 2px; }
-.history-row { display: flex; align-items: center; min-width: 0; }
+.history-row { display: flex; align-items: center; min-width: 0; border-radius: 11px; transition: background .15s; }
+.history-row:hover, .history-row:focus-within { background: #e7efe6; }
 .history-row .history-link { flex: 1; min-width: 0; }
+.history-row .history-link:hover, .history-row .history-link:focus-visible { background: transparent; }
 .history-row .history-link span { flex: 1; min-width: 0; }
 .history-row.is-current { background: #dfebde; border-radius: 11px; }
+.history-row.is-current:hover, .history-row.is-current:focus-within { background: #dfebde; }
 .history-row.is-current .history-link { color: #194632; font-weight: 650; }
-.history-row.is-current .history-link:hover { background: transparent; }
 .sidebar-history .history-current-label { margin-top: 18px; }
 .chat-delete {
   display: inline-grid; place-items: center; flex: none;
@@ -3333,7 +3335,7 @@ body { background: #ffffff; }
 .history-row .chat-delete { opacity: 0; }
 .history-row:hover .chat-delete,
 .history-row:focus-within .chat-delete { opacity: 1; }
-.chat-delete:hover, .chat-delete:focus-visible { color: #8c3e3e; background: #f5e8e6; }
+.chat-delete:hover, .chat-delete:focus-visible { color: #194632; background: transparent; }
 .chat-delete .icon { width: 15px; height: 15px; }
 .chat-list-card { position: relative; padding: 0; }
 .chat-list-card > a { display: block; padding: 24px 46px 24px 24px; }
