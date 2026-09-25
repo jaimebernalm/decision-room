@@ -145,7 +145,21 @@ async function api(path, { method = "GET", body } = {}) {
   return data;
 }
 function sidebarHistoryMarkup() {
-  return `<p class="nav-label">CHATS</p>${state.chats.slice(0, 6).map((c) => `<div class="history-row"><a class="history-link" href="#chat/${esc(c.id)}" title="${esc(c.title)}">${icon("chat")}<span>${esc(c.title)}</span></a><button class="chat-delete" type="button" data-delete-chat="${esc(c.id)}" aria-label="Eliminar chat ${esc(c.title)}" title="Eliminar chat">${icon("close")}</button></div>`).join("") || '<p class="history-empty">Aún no hay conversaciones.</p>'}<a class="history-all" href="#chats">Ver conversaciones ${icon("arrow")}</a><p class="nav-label">ANÁLISIS RECIENTES</p>${state.analyses.slice(0, 6).map((a) => `<a class="history-link" href="#analysis/${esc(a.id)}" title="${esc(a.title)}">${icon("grid")}<span>${esc(a.title)}</span></a>`).join("") || '<p class="history-empty">Aún no hay análisis.</p>'}<a class="history-all" href="#analyses">Ver todos los análisis ${icon("arrow")}</a>`;
+  const selectedId = location.hash.startsWith("#chat/") ? location.hash.slice(6) : "";
+  const recent = state.chats.slice(0, 6);
+  const selectedOutsideRecent = selectedId && !recent.some(c => String(c.id) === selectedId)
+    ? state.chats.find(c => String(c.id) === selectedId) : null;
+  const row = c => {
+    const selected = String(c.id) === selectedId;
+    return `<div class="history-row${selected ? " is-current" : ""}"><a class="history-link" href="#chat/${esc(c.id)}" title="${esc(c.title)}" ${selected ? 'aria-current="page"' : ""}>${icon("chat")}<span>${esc(c.title)}</span></a><button class="chat-delete" type="button" data-delete-chat="${esc(c.id)}" aria-label="Eliminar chat ${esc(c.title)}" title="Eliminar chat">${icon("close")}</button></div>`;
+  };
+  return `<p class="nav-label">CHATS</p>${recent.map(row).join("") || '<p class="history-empty">Aún no hay conversaciones.</p>'}${selectedOutsideRecent ? `<p class="nav-label history-current-label">CHAT ACTUAL</p>${row(selectedOutsideRecent)}` : ""}<a class="history-all" href="#chats">Ver conversaciones ${icon("arrow")}</a><p class="nav-label">ANÁLISIS RECIENTES</p>${state.analyses.slice(0, 6).map((a) => `<a class="history-link" href="#analysis/${esc(a.id)}" title="${esc(a.title)}">${icon("grid")}<span>${esc(a.title)}</span></a>`).join("") || '<p class="history-empty">Aún no hay análisis.</p>'}<a class="history-all" href="#analyses">Ver todos los análisis ${icon("arrow")}</a>`;
+}
+function chatQueuePosition(turns, index) {
+  if (turns[index]?.status !== "queued") return 0;
+  const earlier = turns.slice(0, index);
+  if (!earlier.some(turn => ["queued", "routing", "processing"].includes(turn.status))) return 0;
+  return earlier.filter(turn => turn.status === "queued").length + 1;
 }
 function shell(content, active = "home", crumb = "Vista general") {
   const sidebarWidth = Math.max(216, Math.min(Number(state.sidebarWidth) || (innerWidth <= 1180 ? 216 : 250), innerWidth * .4, innerWidth - 420));
@@ -998,8 +1012,8 @@ async function chatPage(id) {
         data.turns
           .map(
             (t, index) => {
-              const queuedBehind = t.status === "queued" && data.turns.slice(0, index).some(item => item.status !== "completed");
-              const queuePosition = data.turns.slice(0, index + 1).filter(item => item.status === "queued").length;
+              const queuePosition = chatQueuePosition(data.turns, index);
+              const queuedBehind = queuePosition > 0;
               const retryable = (["failed", "blocked"].includes(t.status) || (t.status === "stale" && (!t.response || t.job_id))) && data.turns.slice(index + 1).every(item => item.status === "queued");
               return `${t.context_changed_before ? contextDivider : ""}<article class="chat-turn" data-chat-turn="${esc(t.id)}"><div class="chat-owner"><p>${esc(t.payload.text)}</p>${queuedBehind ? `<span class="chat-queue-badge">En cola · ${queuePosition}</span>` : ""}</div>${queuedBehind ? "" : `<div class="card chat-answer"><strong>Decision Room</strong>${t.report_outdated ? '<span class="chat-historical-label">Resultado anterior</span>' : ""}${t.payload.finding_reference ? `<p class="question-context">Sobre: ${esc(t.payload.finding_reference.title)} · ${esc(t.payload.finding_reference.period)}</p>` : ""}${chatResponse(t.response, `turn-${t.id}`, t.payload.text)}${t.issue && !t.historical ? `<p class="notice">${esc(t.issue)}</p>` : ""}${["queued", "routing", "processing"].includes(t.status) ? '<span class="chat-reply-pulse" role="status" aria-label="Preparando respuesta"><i></i><i></i><i></i></span>' : ""}${retryable ? `<button class="button secondary" data-retry="${esc(t.id)}">${t.job_id && t.historical ? "Recalcular resultado" : "Reintentar con el contexto actual"}</button>` : ""}${t.response?.report_id && !t.report_outdated ? (t.report_requested ? `<a class="button secondary" target="_blank" rel="noopener" href="/api/chats/${esc(id)}/report/${esc(t.id)}">Abrir informe</a>` : `<button class="button secondary" data-report="${esc(t.id)}">Generar informe</button>`) : ""}</div>`}</article>`;
             },

@@ -20,7 +20,7 @@ function fixture() {
     }
   };
   vm.createContext(sandbox);
-  vm.runInContext(source + '\nstate.business={id:"business-a"}; globalThis.ui={state,store,launchDashboardChat,dashboardSuggestions,shortChatTitle,chatResponse,reportState,scrollToChatTurn};', sandbox);
+  vm.runInContext(source + '\nstate.business={id:"business-a"}; globalThis.ui={state,store,launchDashboardChat,dashboardSuggestions,shortChatTitle,chatResponse,reportState,scrollToChatTurn,sidebarHistoryMarkup,chatQueuePosition};', sandbox);
   return {sandbox, ...sandbox.ui, calls, chats, messages, values};
 }
 test('sending follows the pending assistant card above the fixed composer', () => {
@@ -40,6 +40,25 @@ test('sending follows the pending assistant card above the fixed composer', () =
   assert.equal(moves.length,1);
   assert.equal(moves[0].top,158);
   assert.equal(moves[0].behavior,'smooth');
+});
+test('the current chat is highlighted without moving an older chat into the recent order', () => {
+  const f=fixture();
+  f.state.chats=Array.from({length:7},(_,index)=>({id:`chat-${index+1}`,title:`Chat ${index+1}`}));
+  f.sandbox.location.hash='#chat/chat-7';
+  const html=f.sidebarHistoryMarkup();
+  assert.ok(html.indexOf('href="#chat/chat-1"') < html.indexOf('href="#chat/chat-6"'));
+  assert.ok(html.indexOf('href="#chat/chat-6"') < html.indexOf('CHAT ACTUAL'));
+  assert.match(html,/class="history-row is-current"[^]*href="#chat\/chat-7"[^]*aria-current="page"/);
+  f.sandbox.location.hash='#home';
+  assert.doesNotMatch(f.sidebarHistoryMarkup(),/aria-current="page"/);
+});
+test('a lone queued message is not shown as waiting behind an old result', () => {
+  const f=fixture();
+  for (const status of ['completed','stale','failed','blocked','waiting'])
+    assert.equal(f.chatQueuePosition([{status},{status:'queued'}],1),0);
+  assert.equal(f.chatQueuePosition([{status:'queued'}],0),0);
+  assert.equal(f.chatQueuePosition([{status:'processing'},{status:'queued'}],1),1);
+  assert.equal(f.chatQueuePosition([{status:'processing'},{status:'queued'},{status:'queued'}],2),2);
 });
 test('dashboard creates a chat and sends the original message without CSV', async () => {
   const f=fixture(); f.store.set('dr-home-prompt-business-a','Mi pregunta');

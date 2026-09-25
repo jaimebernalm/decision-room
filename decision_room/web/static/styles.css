@@ -3321,6 +3321,10 @@ body { background: #ffffff; }
 .history-row { display: flex; align-items: center; min-width: 0; }
 .history-row .history-link { flex: 1; min-width: 0; }
 .history-row .history-link span { flex: 1; min-width: 0; }
+.history-row.is-current { background: #dfebde; border-radius: 11px; }
+.history-row.is-current .history-link { color: #194632; font-weight: 650; }
+.history-row.is-current .history-link:hover { background: transparent; }
+.sidebar-history .history-current-label { margin-top: 18px; }
 .chat-delete {
   display: inline-grid; place-items: center; flex: none;
   width: 28px; height: 28px; border: 0; border-radius: 8px;
@@ -3341,6 +3345,8 @@ body { background: #ffffff; }
 .chat-trash > div { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 0; border-top: 1px solid #eff3ee; font-size: 13px; }
 .chat-heading-actions { display: flex; gap: 8px; align-items: center; }
 .chat-turn { scroll-margin-bottom: 190px; }
+.chat-answer { width: fit-content; max-width: 85%; margin-left: 0; box-sizing: border-box; }
+.chat-answer:has(.dashboard-metrics, .dash-chart-grid) { width: 100%; max-width: 100%; }
 .chat-queue-badge { display: inline-flex; margin-top: 9px; padding: 4px 9px; border-radius: 12px; background: #f9f2df; color: #806b3e; font-size: 11px; font-weight: 600; }
 .chat-reply-pulse { display: flex; gap: 5px; align-items: center; height: 34px; }
 .chat-reply-pulse i { width: 6px; height: 6px; border-radius: 50%; background: #6c987a; animation: reply-pulse 1.1s ease-in-out infinite; }
