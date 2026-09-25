@@ -71,6 +71,7 @@ const state = {
   draftBusiness: null,
   uploading: false,
   poll: null,
+  chatFollowController: null,
   signature: "",
   generation: 0,
 };
@@ -195,14 +196,20 @@ function bindSidebarResize() {
       (state.sidebarWidth || 250) + (event.key === "ArrowRight" ? 24 : -24));
   });
 }
-function scrollToChatTurn(id, answer = false) {
+function scrollToChatTurn(id) {
   const turn = document.querySelector(`[data-chat-turn="${id}"]`);
   if (!turn) return;
-  const target = answer ? turn.querySelector(".chat-answer") || turn : turn.querySelector(".chat-owner") || turn;
+  const target = turn.querySelector(".chat-answer") || turn.querySelector(".chat-owner") || turn;
   const composer = document.querySelector(".chat-composer");
-  const clearance = composer ? innerHeight - composer.getBoundingClientRect().top + 20 : 24;
-  const bottom = target.getBoundingClientRect().bottom + scrollY;
-  scrollTo({top: Math.max(0, bottom - innerHeight + clearance), behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth"});
+  const visibleBottom = (composer?.getBoundingClientRect().top ?? innerHeight) - 18;
+  const visibleTop = Math.max(0, document.querySelector(".topbar")?.getBoundingClientRect().bottom ?? 0) + 18;
+  const rect = target.getBoundingClientRect();
+  if (rect.top >= visibleTop && rect.bottom <= visibleBottom) return;
+  const available = visibleBottom - visibleTop;
+  const offset = rect.height > available || rect.top < visibleTop
+    ? rect.top - visibleTop
+    : rect.bottom - visibleBottom;
+  scrollTo({top: Math.max(0, scrollY + offset), behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth"});
 }
 async function changeChatVisibility(id, action) {
   const chat = [...state.chats, ...state.deletedChats].find(c => String(c.id) === id);
@@ -927,7 +934,8 @@ async function chatPage(id) {
   const generation = state.generation;
   let current = null,
     signature = "",
-    sending = false;
+    sending = false,
+    followedTurnId = null;
   const draftKey = "dr-chat-draft-" + id;
   shell(
     `<div class="page-heading"><div><a href="#chats">← Conversaciones</a><h1 id="chat-title">Conversación</h1><p>El contexto del negocio se comparte entre conversaciones.</p></div><div class="chat-heading-actions"><button class="button secondary" type="button" data-delete-chat="${esc(id)}">Eliminar chat</button><a class="button secondary" href="#ask">Nuevo chat</a></div></div>
@@ -937,6 +945,15 @@ async function chatPage(id) {
     "Conversación",
   );
   const textarea = document.querySelector("#chat-message");
+  const followController = new AbortController();
+  state.chatFollowController = followController;
+  const stopFollowing = (event) => {
+    if (event.target.closest?.(".chat-composer")) return;
+    if (event.type === "keydown" && !["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", " "].includes(event.key)) return;
+    followedTurnId = null;
+  };
+  for (const type of ["wheel", "touchmove", "pointerdown", "keydown"])
+    document.addEventListener(type, stopFollowing, {passive: true, signal: followController.signal});
   textarea.value = store.get(draftKey, { text: "" }).text;
   const chatForm = document.querySelector("#chat-send");
   const chatSuggestions = document.querySelector("#chat-suggestions");
@@ -961,8 +978,9 @@ async function chatPage(id) {
     try {
       const data = await api("/api/chats/" + encodeURIComponent(id));
       if (generation !== state.generation) return;
-      const oldStatuses = new Map(current?.turns?.map(t => [t.id, t.status]) || []);
-      const nearBottom = document.documentElement.scrollHeight - (scrollY + innerHeight) < 240;
+      const oldStatuses = new Map(current?.turns?.map(t => [String(t.id), t.status]) || []);
+      const previousTarget = followedTurnId && document.querySelector(`[data-chat-turn="${followedTurnId}"]`);
+      const hadReply = Boolean(previousTarget?.querySelector(".chat-answer"));
       current = data;
       state.memory = data.memory;
       renderMemory();
@@ -1009,14 +1027,18 @@ async function chatPage(id) {
         .join("");
       if (questions.some((q) => q.id === old)) selector.value = old;
       if (state.scrollToTurn && data.turns.some(t => String(t.id) === String(state.scrollToTurn))) {
-        const targetId = state.scrollToTurn;
+        followedTurnId = String(state.scrollToTurn);
         state.scrollToTurn = null;
+        const targetId = followedTurnId;
         requestAnimationFrame(() => scrollToChatTurn(targetId));
-      } else if (nearBottom) {
-        const completed = [...data.turns].reverse().find(t => t.status === "completed" &&
-          oldStatuses.has(t.id) && ["queued", "routing", "processing", "waiting"].includes(oldStatuses.get(t.id)));
-        if (completed && data.turns.at(-1)?.id === completed.id)
-          requestAnimationFrame(() => scrollToChatTurn(completed.id, true));
+      } else if (followedTurnId) {
+        const followed = data.turns.find(t => String(t.id) === followedTurnId);
+        const gainedReply = !hadReply && Boolean(document.querySelector(`[data-chat-turn="${followedTurnId}"] .chat-answer`));
+        if (followed && (oldStatuses.get(followedTurnId) !== followed.status || gainedReply)) {
+          const targetId = followedTurnId;
+          requestAnimationFrame(() => scrollToChatTurn(targetId));
+          if (!["queued", "routing", "processing"].includes(followed.status)) followedTurnId = null;
+        }
       }
     } catch (e) {
       if (generation === state.generation) toast(e.message);
@@ -1131,6 +1153,8 @@ function takeComposerTransition() {
 }
 async function route(transition = {}) {
   clearInterval(state.poll);
+  state.chatFollowController?.abort();
+  state.chatFollowController = null;
   state.generation++;
   document.querySelector("#main")?.setAttribute("inert", "");
   document.querySelector("#live-status").textContent = "";

@@ -20,9 +20,27 @@ function fixture() {
     }
   };
   vm.createContext(sandbox);
-  vm.runInContext(source + '\nstate.business={id:"business-a"}; globalThis.ui={state,store,launchDashboardChat,dashboardSuggestions,shortChatTitle,chatResponse,reportState};', sandbox);
+  vm.runInContext(source + '\nstate.business={id:"business-a"}; globalThis.ui={state,store,launchDashboardChat,dashboardSuggestions,shortChatTitle,chatResponse,reportState,scrollToChatTurn};', sandbox);
   return {sandbox, ...sandbox.ui, calls, chats, messages, values};
 }
+test('sending follows the pending assistant card above the fixed composer', () => {
+  const f=fixture(), moves=[];
+  const owner={getBoundingClientRect:()=>({top:700,bottom:780,height:80})};
+  const reply={getBoundingClientRect:()=>({top:800,bottom:900,height:100})};
+  const turn={querySelector:selector=>selector==='.chat-answer'?reply:owner};
+  f.sandbox.document.querySelector=selector=>
+    selector==='[data-chat-turn="new-turn"]'?turn:
+    selector==='.chat-composer'?{getBoundingClientRect:()=>({top:760})}:
+    selector==='.topbar'?{getBoundingClientRect:()=>({bottom:0})}:null;
+  f.sandbox.innerHeight=1000;
+  f.sandbox.scrollY=0;
+  f.sandbox.scrollTo=options=>moves.push(options);
+  f.sandbox.matchMedia=()=>({matches:false});
+  f.scrollToChatTurn('new-turn');
+  assert.equal(moves.length,1);
+  assert.equal(moves[0].top,158);
+  assert.equal(moves[0].behavior,'smooth');
+});
 test('dashboard creates a chat and sends the original message without CSV', async () => {
   const f=fixture(); f.store.set('dr-home-prompt-business-a','Mi pregunta');
   const chat=await f.launchDashboardChat('Mi pregunta');
