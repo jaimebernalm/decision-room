@@ -997,13 +997,17 @@ async function route() {
     }
     const onboardingActive = Boolean(state.onboarding && !state.onboarding.completed);
     if (!state.business && state.businesses.length && hash !== "business-new") businessChooser();
+    else if (!state.business && hash === "onboarding/context") onboardingContext();
     else if (!state.business) onboardingBusiness();
     else if (onboardingActive && state.onboarding.job_id) {
       await pollOnboarding(state.onboarding.job_id);
       state.poll = setInterval(() => pollOnboarding(state.onboarding.job_id), 3000);
     }
-    else if (onboardingActive && hash === "onboarding/business") onboardingBusiness();
-    else if (onboardingActive) onboardingData();
+    else if (onboardingActive && ["onboarding/business", "onboarding/name"].includes(hash)) onboardingBusiness();
+    else if (onboardingActive && hash === "onboarding/context") onboardingContext();
+    else if (onboardingActive && hash === "onboarding/goal") onboardingGoal();
+    else if (onboardingActive && hash === "onboarding/data") onboardingData();
+    else if (onboardingActive) onboardingPurpose();
     else if (hash === "business-new") businessForm(true);
     else if (hash === "businesses") businessChooser();
     else if (hash === "business") businessForm(!state.business);

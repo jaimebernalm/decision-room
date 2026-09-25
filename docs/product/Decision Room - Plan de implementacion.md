@@ -219,11 +219,13 @@ y la [validación](../validation/2026-09-23-semantic-check.md).
 
 ### 2.5.9. Aclaraciones con los datos a la vista
 
-**Construir:** hacer excluyentes las opciones, la respuesta libre y «No lo sé» en las preguntas del primer informe y de los análisis posteriores. Mostrar durante el onboarding una tabla paginada del CSV original junto a la pregunta, con las columnas citadas por la evidencia del agente resaltadas; usar coincidencia textual solo cuando la pregunta no traiga referencias de columna. Mantener la navegación guiada con una barra lateral visualmente coherente con el espacio principal, sin abrir el dashboard antes del informe.
+**Construir:** hacer excluyentes las opciones, la respuesta libre y «No lo sé» en las preguntas del primer informe y de los análisis posteriores. Mostrar durante el onboarding una tabla paginada del CSV original junto a la pregunta, con las columnas citadas por la evidencia del agente resaltadas; usar coincidencia textual solo cuando la pregunta no traiga referencias de columna. Mantener la navegación guiada con una barra de progreso superior segmentada y sin abrir el dashboard antes del informe.
 
 **Comprobar:** rechazo de acceso ajeno al CSV, paginación y delimitadores; referencias de columna validadas y ausencia de falsos resaltados; selección excluyente y borradores recuperados sin respuestas contradictorias; diseño en escritorio y móvil. La tabla muestra treinta filas por página y corta las celdas a 200 caracteres; el CSV original se puede descargar.
 
 **Cierre, 25 de septiembre:** pasan 34 pruebas web Python y 17 JavaScript. En navegador con datos ficticios se verifican pregunta y tabla juntas, columna citada resaltada, opciones excluyentes, respuesta libre sin duplicados y diseño a 390 px. Véase [validación](../validation/2026-09-25-contextual-questions-check.md).
+
+**Ajuste de recorrido, 25 de septiembre:** el formulario inicial se divide en nombre, descripción, tipo de informe, pregunta opcional y archivo. Se reemplaza la barra lateral por tramos de progreso superiores; la descripción conserva borrador al recargar. Véase [comprobación del recorrido](../validation/2026-09-25-segmented-onboarding-check.md).
 
 **Orden de trabajo:** identidad → memoria → contexto y dependencias → conversación → ficha/datos → Inicio y navegación → evaluación integrada → primer informe guiado → aclaraciones con datos a la vista. Cada paso se comprueba, revisa y guarda en un commit local según `AGENTS.md`; no se marca completo por tener únicamente su diseño.
 

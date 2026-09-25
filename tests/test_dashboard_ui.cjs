@@ -172,9 +172,19 @@ test('a new business stays in the separate onboarding until its report is comple
     ? {analyses:[],configured:true,business:{id:'business-a'},businesses:[],
        onboarding:{job_id:null,completed:false},memory:{}}
     : {business_id:'business-a',conversations:[],datasets:{items:[]}}});
-  vm.runInContext('onboardingData=()=>{globalThis.screen="onboarding-data"}; dashboardHome=()=>{globalThis.screen="dashboard"}; globalThis.runRoute=route;',f.sandbox);
+  vm.runInContext('onboardingPurpose=()=>{globalThis.screen="onboarding-purpose"}; dashboardHome=()=>{globalThis.screen="dashboard"}; globalThis.runRoute=route;',f.sandbox);
   await f.sandbox.runRoute();
-  assert.equal(f.sandbox.screen,'onboarding-data');
+  assert.equal(f.sandbox.screen,'onboarding-purpose');
+});
+
+test('guided onboarding shows segmented progress without a sidebar', () => {
+  const f=fixture();
+  vm.runInContext('onboardingShell("<p>Pantalla</p>", "name"); globalThis.nameShell=app.innerHTML; onboardingShell("<p>Pantalla</p>", "goal", "specific"); globalThis.goalShell=app.innerHTML;',f.sandbox);
+  assert.match(f.sandbox.nameShell,/Paso 1 de 5/);
+  assert.match(f.sandbox.nameShell,/first-run-segment/);
+  assert.doesNotMatch(f.sandbox.nameShell,/first-run-sidebar/);
+  assert.match(f.sandbox.goalShell,/Paso 4 de 6/);
+  assert.match(f.sandbox.goalShell,/Tu pregunta/);
 });
 
 test('unknown is exclusive and an old answer is not restored beside it', () => {

@@ -2,29 +2,50 @@
 
 // The first report is a separate, resumable journey. The analysis and report
 // are still produced by the same durable service used elsewhere in the app.
-function onboardingShell(content, step) {
-  const labels = ["Tu negocio", "Tus datos", "Primer informe"];
-  app.innerHTML = `<div class="first-run-layout"><aside class="first-run-sidebar">
-    <a class="brand" href="#home" aria-label="Decision Room, inicio"><span class="brand-mark">d<span>r</span></span><span>decision<span class="brand-light">room</span><small>UN ESPACIO PARA DECIDIR</small></span></a>
-    <div class="first-run-workspace-label"><span class="workspace-avatar">${esc(state.business?.name?.charAt(0).toUpperCase() || "M")}</span><span>${esc(state.business?.name || "Mi nuevo espacio")}<small>Preparando tu primer informe</small></span></div>
-    <p class="nav-label">TU RECORRIDO</p><ol class="first-run-steps" aria-label="Progreso del onboarding">${labels.map((label, i) => `<li class="${i === step - 1 ? "current" : i < step - 1 ? "done" : ""}" ${i === step - 1 ? 'aria-current="step"' : ""}><span>${i < step - 1 ? icon("check") : i + 1}</span>${label}</li>`).join("")}</ol>
-    ${content.includes('id="first-data-preview"') ? `<button class="first-run-data-jump" id="first-data-jump" type="button">${icon("grid")} Ver mis datos ${icon("arrow")}</button>` : ""}
-    <div class="first-run-sidebar-footer">${icon("shield")} Tu trabajo se guarda en este espacio local.</div>
-    </aside><div class="first-run-workspace"><header class="first-run-topbar"><span class="breadcrumb">Preparando tu espacio <span>/</span> <b>${labels[step - 1]}</b></span><span class="environment"><i></i> Entorno local <span class="beta">BETA</span></span></header><main id="main" class="first-run" tabindex="-1">${content}</main></div></div>`;
-  document.querySelector("#first-data-jump")?.addEventListener("click", () =>
-    document.querySelector("#first-data-preview")?.scrollIntoView({behavior: "smooth", block: "start"}));
+function onboardingShell(content, stage, mode = "general") {
+  const steps = [
+    ["name", "Nombre"], ["context", "Tu negocio"], ["purpose", "Informe"],
+    ...(mode === "specific" ? [["goal", "Tu pregunta"]] : []),
+    ["file", "Tus datos"], ["report", "Resultado"],
+  ];
+  const current = steps.findIndex(([key]) => key === stage);
+  app.innerHTML = `<div class="first-run-layout"><header class="first-run-header"><a class="brand" href="#home" aria-label="Decision Room, inicio"><span class="brand-mark">d<span>r</span></span><span>decision<span class="brand-light">room</span></span></a><span class="first-run-local">${icon("shield")} Espacio local</span></header>
+    <nav class="first-run-progress-nav" aria-label="Progreso del onboarding"><ol class="first-run-steps">${steps.map(([key, label], index) => `<li class="${index === current ? "current" : index < current ? "done" : ""}" ${index === current ? 'aria-current="step"' : ""}><span class="first-run-segment" aria-hidden="true"></span><span class="first-run-step-label">${label}</span></li>`).join("")}</ol><p>Paso ${current + 1} de ${steps.length}</p></nav>
+    <main id="main" class="first-run ${stage === "report" ? "first-run-wide" : ""}" tabindex="-1">${content}</main></div>`;
 }
 
-function onboardingBusiness() {
+function goOnboarding(hash) {
+  if (location.hash === hash) route();
+  else location.hash = hash;
+}
+
+function businessDraft() {
   const current = state.business;
   const key = "dr-first-business-" + (current?.id || "new");
   const draft = store.get(key, current ? {name: current.name, description: current.description} : {});
-  const requestKey = draft.request_key || crypto.randomUUID();
-  onboardingShell(`<div class="first-run-grid"><section class="first-run-intro"><p class="eyebrow"><span class="tiny-line"></span> PRIMER PASO</p><h1>Cuéntanos sobre <em>tu negocio.</em></h1><p>El nombre y tu explicación nos ayudarán a interpretar los datos. Comparte lo que vendes, cómo trabajas y cualquier detalle que cambie el significado de las cifras.</p><div class="first-run-tip"><strong>Por ejemplo</strong><p>«Tengo una papelería. Vendemos material escolar y regalos; cada fila del archivo representa una venta de caja».</p></div></section>
-    <section class="card first-run-card"><p class="eyebrow">EL CONTEXTO INICIAL</p><h2>Lo que sabes de tu negocio</h2><form id="first-business-form"><label for="first-name">Nombre del negocio</label><input id="first-name" name="name" maxlength="100" required autocomplete="organization" value="${esc(draft.name)}" placeholder="Por ejemplo, Papelería La Esquina"><label for="first-description">Cuéntanos todo lo que consideres importante</label><textarea id="first-description" name="description" rows="8" maxlength="6000" required placeholder="Qué vendes, quiénes son tus clientes, cómo registras las ventas, qué te gustaría entender…">${esc(draft.description)}</textarea><p class="field-help">Podrás corregir este contexto más adelante.</p><div id="first-business-error"></div><button class="button primary" type="submit">Continuar con mis datos ${icon("arrow")}</button></form></section></div>`, 1);
+  return {current, key, draft, requestKey: draft.request_key || crypto.randomUUID()};
+}
+
+function onboardingBusiness() {
+  const {key, draft, requestKey} = businessDraft();
+  onboardingShell(`<section class="first-run-stage first-run-name"><p class="eyebrow">EMPECEMOS POR LO ESENCIAL</p><h1>Cuéntanos sobre <em>tu negocio.</em></h1><form id="first-name-form"><label for="first-name">¿Cómo se llama tu negocio?</label><input id="first-name" name="name" maxlength="100" required autocomplete="organization" value="${esc(draft.name)}" placeholder="Por ejemplo, Tienda La Esquina" autofocus><div class="first-run-actions"><button class="button primary" type="submit">Continuar ${icon("arrow")}</button></div></form></section>`, "name");
+  const form = document.querySelector("#first-name-form");
+  const save = () => store.set(key, {...draft, name: form.elements.name.value, request_key: requestKey});
+  form.oninput = save;
+  form.onsubmit = event => { event.preventDefault(); save(); goOnboarding("#onboarding/context"); };
+}
+
+function onboardingContext() {
+  const {current, key, draft, requestKey} = businessDraft();
+  const name = (draft.name || current?.name || "").trim();
+  if (!name) { goOnboarding("#onboarding/name"); return; }
+  onboardingShell(`<section class="first-run-stage first-run-context"><p class="eyebrow">${esc(name)} · UN POCO DE CONTEXTO</p><h1>Cuéntanos más sobre <em>tu negocio.</em></h1><p class="first-run-lead">Qué vendes, cómo trabajas y qué significan tus datos. Cuantos más detalles nos des, mejor.</p><div class="first-run-example"><strong>Por ejemplo</strong><p>«Tengo una tienda de regalos y papelería. Vendemos en el local; cada fila de nuestro archivo representa un día de ventas. Los importes no incluyen impuestos».</p></div><form id="first-business-form"><label for="first-description">Cuéntanos todo lo que consideres importante</label><textarea id="first-description" name="description" rows="10" maxlength="6000" required placeholder="Empieza por lo que vendes y añade todos los detalles que te parezcan útiles…">${esc(draft.description ?? current?.description ?? "")}</textarea><p class="field-help">Puedes ampliar este campo mientras escribes. También podrás corregirlo más adelante.</p><div id="first-business-error" role="alert"></div><div class="first-run-actions"><a class="button secondary" href="#onboarding/name">Volver</a><button class="button primary" type="submit">Continuar ${icon("arrow")}</button></div></form></section>`, "context");
   const form = document.querySelector("#first-business-form");
-  const values = () => ({...Object.fromEntries(new FormData(form)), request_key: requestKey});
-  form.oninput = () => store.set(key, values());
+  const description = form.elements.description;
+  const grow = () => { description.style.height = "auto"; description.style.height = Math.max(description.scrollHeight, 260) + "px"; };
+  const values = () => ({name, description: description.value, request_key: requestKey});
+  grow();
+  form.oninput = () => { store.set(key, values()); grow(); };
   form.onsubmit = async event => {
     event.preventDefault();
     const button = form.querySelector('button[type="submit"]');
@@ -36,12 +57,41 @@ function onboardingBusiness() {
     try {
       await api("/api/business", {method: "POST", body});
       store.remove(key);
-      if (location.hash === "#onboarding/data") await route();
-      else location.hash = "#onboarding/data";
+      goOnboarding("#onboarding/purpose");
     } catch (error) {
       document.querySelector("#first-business-error").innerHTML = errorBox(error.message);
       button.disabled = false;
     }
+  };
+}
+
+function onboardingPurpose() {
+  const business = state.business;
+  const key = "dr-first-data-" + business.id;
+  const draft = store.get(key, {});
+  const mode = draft.mode === "specific" ? "specific" : "general";
+  onboardingShell(`<section class="first-run-stage"><p class="eyebrow">TU PRIMER INFORME</p><h1>¿Qué te gustaría <em>descubrir?</em></h1><p class="first-run-lead">Elige por dónde empezamos. Podrás hacer más preguntas después.</p><form id="first-purpose-form"><fieldset><legend class="sr-only">Tipo de informe</legend><label class="first-run-choice"><input type="radio" name="mode" value="general" ${mode === "general" ? "checked" : ""}><span><strong>Quiero un informe general</strong><small>Explorar los datos y destacar lo que merece atención.</small></span></label><label class="first-run-choice"><input type="radio" name="mode" value="specific" ${mode === "specific" ? "checked" : ""}><span><strong>Tengo una pregunta concreta</strong><small>Enfocar el primer informe en lo que quieres averiguar.</small></span></label></fieldset><div class="first-run-actions"><a class="button secondary" href="#onboarding/context">Volver</a><button class="button primary" type="submit">Continuar ${icon("arrow")}</button></div></form></section>`, "purpose", mode);
+  const form = document.querySelector("#first-purpose-form");
+  form.onchange = () => store.set(key, {...draft, mode: new FormData(form).get("mode")});
+  form.onsubmit = event => {
+    event.preventDefault();
+    const selected = new FormData(form).get("mode");
+    store.set(key, {...draft, mode: selected});
+    goOnboarding(selected === "specific" ? "#onboarding/goal" : "#onboarding/data");
+  };
+}
+
+function onboardingGoal() {
+  const key = "dr-first-data-" + state.business.id;
+  const draft = store.get(key, {});
+  if (draft.mode !== "specific") { goOnboarding("#onboarding/purpose"); return; }
+  onboardingShell(`<section class="first-run-stage"><p class="eyebrow">TU PREGUNTA</p><h1>¿Qué quieres <em>saber?</em></h1><p class="first-run-lead">Escribe una pregunta que te gustaría resolver con tus datos.</p><form id="first-goal-form"><label for="first-goal">Tu pregunta</label><textarea id="first-goal" rows="4" maxlength="2000" required placeholder="Por ejemplo, ¿cómo cambiaron las ventas durante el mes?">${esc(draft.goal)}</textarea><div class="first-run-actions"><a class="button secondary" href="#onboarding/purpose">Volver</a><button class="button primary" type="submit">Continuar ${icon("arrow")}</button></div></form></section>`, "goal", "specific");
+  const form = document.querySelector("#first-goal-form");
+  form.oninput = () => store.set(key, {...draft, goal: form.querySelector("#first-goal").value});
+  form.onsubmit = event => {
+    event.preventDefault();
+    store.set(key, {...draft, goal: form.querySelector("#first-goal").value.trim()});
+    goOnboarding("#onboarding/data");
   };
 }
 
@@ -50,25 +100,13 @@ function onboardingData() {
   const key = "dr-first-data-" + business.id;
   const draft = store.get(key, {});
   const requestKey = draft.request_key || crypto.randomUUID();
-  const selected = draft.mode === "specific" ? "specific" : "general";
-  onboardingShell(`<div class="first-run-grid"><section class="first-run-intro"><p class="eyebrow"><span class="tiny-line"></span> SEGUNDO PASO</p><h1>Ahora, <em>tus datos.</em></h1><p>Elige qué quieres averiguar y comparte un primer archivo. El agente revisará el contexto y los datos, te preguntará lo que falte e intentará preparar un informe con evidencia.</p><div class="first-run-tip"><strong>${esc(business.name)}</strong><p>${esc(business.description)}</p><a class="text-button" href="#onboarding/business">Editar el negocio</a></div></section>
-    <section class="card first-run-card"><p class="eyebrow">TU PRIMER INFORME</p><h2>¿Qué quieres entender?</h2><form id="first-data-form"><fieldset><legend>Tipo de informe</legend><label class="first-run-choice"><input type="radio" name="mode" value="general" ${selected === "general" ? "checked" : ""}><span><strong>Informe general</strong><small>Explorar los datos y destacar lo que merece atención.</small></span></label><label class="first-run-choice"><input type="radio" name="mode" value="specific" ${selected === "specific" ? "checked" : ""}><span><strong>Responder a una pregunta</strong><small>Orientar el primer informe hacia un objetivo concreto.</small></span></label></fieldset><div id="first-goal-field" ${selected !== "specific" ? "hidden" : ""}><label for="first-goal">¿Qué pregunta tienes?</label><textarea id="first-goal" rows="3" maxlength="2000" ${selected === "specific" ? "required" : ""} placeholder="Por ejemplo, ¿qué productos se vendieron mejor este mes?">${esc(draft.goal)}</textarea></div><label for="first-csv">Tu primer archivo CSV</label><input id="first-csv" type="file" accept=".csv,text/csv" aria-describedby="first-file-help"><p id="first-file-help" class="field-help">CSV UTF-8 de hasta 20 MB. Podrás añadir más archivos desde Mi negocio tras este primer informe.</p><div id="first-file-selected"></div><button type="button" class="text-button" id="first-sample">Usar datos ficticios de ejemplo</button><div id="first-data-error"></div><button class="button primary" type="submit">Empezar el análisis ${icon("arrow")}</button></form></section></div>`, 2);
+  const mode = draft.mode === "specific" ? "specific" : "general";
+  if (mode === "specific" && !draft.goal?.trim()) { goOnboarding("#onboarding/goal"); return; }
+  onboardingShell(`<section class="first-run-stage"><p class="eyebrow">TUS DATOS</p><h1>Vamos a mirar <em>tus datos.</em></h1><p class="first-run-lead">Sube un CSV para preparar tu primer informe. El agente te preguntará si necesita aclarar algo.</p><form id="first-data-form"><label for="first-csv">Elige tu primer archivo</label><input id="first-csv" type="file" accept=".csv,text/csv" aria-describedby="first-file-help"><p id="first-file-help" class="field-help">CSV UTF-8 de hasta 20 MB. Más adelante podrás añadir otros archivos.</p><div id="first-file-selected"></div><button type="button" class="text-button" id="first-sample">Usar datos ficticios de ejemplo</button><div id="first-data-error" role="alert"></div><div class="first-run-actions"><a class="button secondary" href="${mode === "specific" ? "#onboarding/goal" : "#onboarding/purpose"}">Volver</a><button class="button primary" type="submit">Empezar el análisis ${icon("arrow")}</button></div></form></section>`, "file", mode);
   const form = document.querySelector("#first-data-form");
-  const mode = () => new FormData(form).get("mode");
-  const values = () => ({mode: mode(), goal: document.querySelector("#first-goal").value, request_key: requestKey});
-  const save = () => store.set(key, values());
   const showFile = () => {
     document.querySelector("#first-file-selected").textContent = state.onboardingFile
       ? `${state.onboardingFile.name} · ${size(state.onboardingFile.size)}` : "Todavía no has seleccionado un archivo.";
-  };
-  form.oninput = save;
-  form.onchange = event => {
-    if (event.target.name === "mode") {
-      const specific = mode() === "specific";
-      document.querySelector("#first-goal-field").hidden = !specific;
-      document.querySelector("#first-goal").required = specific;
-      save();
-    }
   };
   document.querySelector("#first-csv").onchange = event => {
     state.onboardingFile = event.target.files[0] || null;
@@ -91,7 +129,7 @@ function onboardingData() {
   form.onsubmit = async event => {
     event.preventDefault();
     const file = state.onboardingFile;
-    const goal = mode() === "specific" ? document.querySelector("#first-goal").value.trim() : "";
+    const goal = mode === "specific" ? draft.goal.trim() : "";
     const error = document.querySelector("#first-data-error");
     if (!file) { error.innerHTML = errorBox("Selecciona un archivo CSV para continuar."); return; }
     if (!file.name.toLowerCase().endsWith(".csv") || file.size > 20 * 1024 ** 2) {
@@ -100,7 +138,7 @@ function onboardingData() {
     if (!state.configured) {
       error.innerHTML = errorBox("El modelo local aún no está configurado. Tu contexto está guardado; vuelve cuando esté disponible."); return;
     }
-    save();
+    store.set(key, {...draft, mode, request_key: requestKey});
     const button = form.querySelector('button[type="submit"]');
     button.disabled = true;
     button.textContent = "Guardando el archivo…";
@@ -113,8 +151,7 @@ function onboardingData() {
       await api("/api/jobs", {method: "POST", body});
       store.remove(key);
       state.onboardingFile = null;
-      if (location.hash === "#onboarding/progress") await route();
-      else location.hash = "#onboarding/progress";
+      goOnboarding("#onboarding/progress");
     } catch (caught) {
       error.innerHTML = errorBox(caught.message);
       button.disabled = false;
@@ -181,7 +218,7 @@ function onboardingProgress(data) {
   let content;
   if (data.status === "waiting" && question) {
     const saved = store.get("dr-answer-" + data.id + "-" + question.id, {text: "", disposition: "answered"});
-    content = `<div class="first-run-question-layout"><section class="card first-run-card first-run-progress"><p class="eyebrow">UNA ACLARACIÓN PARA SEGUIR</p><h1>${esc(question.text)}</h1><p class="first-question-reason">${esc(question.reason)}</p><form id="answer-form">${answerFields(question, saved, 4)}<p class="field-help">Si no lo sabes, seguiremos con los datos disponibles y lo indicaremos en el informe.</p><div id="answer-error" role="alert"></div><button class="button primary" type="submit">Guardar y continuar ${icon("arrow")}</button></form></section><aside class="first-run-data" id="first-data-preview" aria-label="Vista del CSV"><p class="eyebrow">TUS DATOS</p><p>Cargando el archivo…</p></aside></div>`;
+    content = `<div class="first-run-question-layout"><section class="card first-run-card first-run-progress"><p class="eyebrow">UNA ACLARACIÓN PARA SEGUIR</p><h1>${esc(question.text)}</h1><p class="first-question-reason">${esc(question.reason)}</p><button class="first-run-data-jump" id="first-data-jump" type="button">${icon("grid")} Ver mis datos ${icon("arrow")}</button><form id="answer-form">${answerFields(question, saved, 4)}<p class="field-help">Si no lo sabes, seguiremos con los datos disponibles y lo indicaremos en el informe.</p><div id="answer-error" role="alert"></div><button class="button primary" type="submit">Guardar y continuar ${icon("arrow")}</button></form></section><aside class="first-run-data" id="first-data-preview" aria-label="Vista del CSV"><p class="eyebrow">TUS DATOS</p><p>Cargando el archivo…</p></aside></div>`;
   } else if (data.publishable) {
     content = `<section class="first-run-report"><p class="eyebrow">TU PRIMER INFORME</p><h1>Ya tienes un punto <em>de partida.</em></h1><p>El agente ha revisado los datos y tus respuestas. Lee el informe y comprueba las cifras antes de pasar a tu espacio.</p><div class="first-run-report-actions"><a class="button secondary" href="/api/jobs/${encodeURIComponent(data.id)}/report" target="_blank" rel="noopener">Abrir informe completo ${icon("external")}</a><button class="button primary" id="first-finish">Entrar a mi espacio ${icon("arrow")}</button></div><div id="first-finish-error"></div><p class="report-caveat">Informe elaborado con IA y revisión automática. Consulta el alcance, las limitaciones y la evidencia antes de tomar decisiones.</p><iframe id="first-report-frame" class="report-frame" title="Primer informe de ${esc(data.business)}" src="/api/jobs/${encodeURIComponent(data.id)}/report" sandbox="allow-same-origin"></iframe></section>`;
   } else if (data.status === "failed" || data.status === "blocked") {
@@ -189,7 +226,9 @@ function onboardingProgress(data) {
   } else {
     content = `<section class="card first-run-card first-run-progress"><div class="working-symbol">${icon("spark")}</div><p class="eyebrow">PREPARANDO TU PRIMER INFORME</p><h1>${esc(phases[data.phase] || "Estamos analizando tus datos")}</h1><p>El agente está contrastando tu contexto con el archivo. Si necesita aclarar algo importante, te preguntará aquí antes de crear el informe.</p>${data.activity ? `<p class="progress-update">${esc(data.activity)}</p>` : ""}<p class="field-help">Puedes cerrar esta página y volver. El trabajo continúa mientras el servidor local esté encendido.</p></section>`;
   }
-  onboardingShell(`<div class="first-run-result"><p class="eyebrow"><span class="tiny-line"></span> TERCER PASO · ${esc(data.business)}</p>${content}</div>`, 3);
+  onboardingShell(`<div class="first-run-result"><p class="eyebrow"><span class="tiny-line"></span> TU PRIMER INFORME · ${esc(data.business)}</p>${content}</div>`, "report", data.goal ? "specific" : "general");
+  document.querySelector("#first-data-jump")?.addEventListener("click", () =>
+    document.querySelector("#first-data-preview")?.scrollIntoView({behavior: "smooth", block: "start"}));
   if (question && data.status === "waiting") {
     setupAnswer(data, question, pollOnboarding);
     loadOnboardingPreview(data.id, question);
@@ -258,7 +297,7 @@ async function pollOnboarding(id) {
       clearInterval(state.poll);
       login();
     } else {
-      onboardingShell(`<section class="card first-run-card first-run-progress"><h1>No pudimos abrir tu análisis.</h1><p>${esc(error.message)}</p><button class="button secondary" id="first-reload">Volver a intentar</button></section>`, 3);
+      onboardingShell(`<section class="card first-run-card first-run-progress"><h1>No pudimos abrir tu análisis.</h1><p>${esc(error.message)}</p><button class="button secondary" id="first-reload">Volver a intentar</button></section>`, "report");
       document.querySelector("#first-reload").onclick = route;
     }
   }
