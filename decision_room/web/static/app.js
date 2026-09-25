@@ -144,6 +144,9 @@ async function api(path, { method = "GET", body } = {}) {
   }
   return data;
 }
+function sidebarHistoryMarkup() {
+  return `<p class="nav-label">CHATS</p>${state.chats.slice(0, 6).map((c) => `<div class="history-row"><a class="history-link" href="#chat/${esc(c.id)}" title="${esc(c.title)}">${icon("chat")}<span>${esc(c.title)}</span></a><button class="chat-delete" type="button" data-delete-chat="${esc(c.id)}" aria-label="Eliminar chat ${esc(c.title)}" title="Eliminar chat">${icon("close")}</button></div>`).join("") || '<p class="history-empty">Aún no hay conversaciones.</p>'}<a class="history-all" href="#chats">Ver conversaciones ${icon("arrow")}</a><p class="nav-label">ANÁLISIS RECIENTES</p>${state.analyses.slice(0, 6).map((a) => `<a class="history-link" href="#analysis/${esc(a.id)}" title="${esc(a.title)}">${icon("grid")}<span>${esc(a.title)}</span></a>`).join("") || '<p class="history-empty">Aún no hay análisis.</p>'}<a class="history-all" href="#analyses">Ver todos los análisis ${icon("arrow")}</a>`;
+}
 function shell(content, active = "home", crumb = "Vista general") {
   const sidebarWidth = Math.max(216, Math.min(Number(state.sidebarWidth) || (innerWidth <= 1180 ? 216 : 250), innerWidth * .4, innerWidth - 420));
   document.documentElement.style.setProperty("--sidebar-size", `${sidebarWidth}px`);
@@ -162,7 +165,7 @@ function shell(content, active = "home", crumb = "Vista general") {
       )
       .join("")}<a href="#chats" class="nav-link mobile-chats" title="Conversaciones" aria-label="Conversaciones">${icon("chat")}</a></nav>
     <a href="#ask" class="button sidebar-create">${icon("plus")} Nuevo chat</a>
-    <div class="sidebar-history"><p class="nav-label">CHATS</p>${state.chats.slice(0, 6).map((c) => `<div class="history-row"><a class="history-link" href="#chat/${esc(c.id)}" title="${esc(c.title)}">${icon("chat")}<span>${esc(c.title)}</span></a><button class="chat-delete" type="button" data-delete-chat="${esc(c.id)}" aria-label="Eliminar chat ${esc(c.title)}" title="Eliminar chat">${icon("close")}</button></div>`).join("") || '<p class="history-empty">Aún no hay conversaciones.</p>'}<a class="history-all" href="#chats">Ver conversaciones ${icon("arrow")}</a><p class="nav-label">ANÁLISIS RECIENTES</p>${state.analyses.slice(0, 6).map((a) => `<a class="history-link" href="#analysis/${esc(a.id)}" title="${esc(a.title)}">${icon("grid")}<span>${esc(a.title)}</span></a>`).join("") || '<p class="history-empty">Aún no hay análisis.</p>'}<a class="history-all" href="#analyses">Ver todos los análisis ${icon("arrow")}</a></div>
+    <div class="sidebar-history">${sidebarHistoryMarkup()}</div>
     <div class="sidebar-bottom"><a class="nav-link" href="#how">${icon("help")}<span>Cómo funciona</span></a><div class="profile"><span>ME</span><div>Mi espacio personal<small>Versión de pruebas</small></div></div></div><div class="sidebar-resize" role="separator" tabindex="0" aria-orientation="vertical" aria-label="Cambiar anchura del panel lateral" aria-valuemin="216" aria-valuemax="${Math.floor(Math.min(innerWidth * .4, innerWidth - 420))}" aria-valuenow="${Math.round(sidebarWidth)}"></div></aside>
     <div class="workspace"><header class="topbar"><span class="breadcrumb">Mi espacio <span>/</span> <b>${esc(crumb)}</b></span><span class="environment"><i></i> Entorno local <span class="beta">BETA</span></span></header><main id="main" class="${centeredQuestion ? "new-chat-page" : ""}" tabindex="-1"><div id="memory-status" aria-live="polite"></div>${content}${hasQuestionComposer && !centeredQuestion ? questionComposer() : ""}</main><footer class="page-footer"><span>Decision Room</span><span>De los datos a decisiones con contexto.</span></footer></div>`;
   renderMemory();
@@ -1074,6 +1077,12 @@ async function chatPage(id) {
           store.remove(draftKey);
           textarea.value = "";
           syncChatComposer();
+        }
+        const chatIndex = state.chats.findIndex(chat => String(chat.id) === String(id));
+        if (chatIndex > 0) {
+          state.chats.unshift(...state.chats.splice(chatIndex, 1));
+          const history = document.querySelector(".sidebar-history");
+          if (history) history.innerHTML = sidebarHistoryMarkup();
         }
         state.scrollToTurn = sent.id;
       } catch (e) {

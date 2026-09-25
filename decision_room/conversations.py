@@ -369,7 +369,11 @@ class Conversations:
             return dict(
                 business_id=self.business,
                 conversations=db.execute(
-                    'SELECT * FROM chat_conversations WHERE business_id=%s AND deleted_at IS NULL ORDER BY created_at DESC',
+                    '''SELECT c.*,last_turn.created_at AS last_message_at FROM chat_conversations c
+                    LEFT JOIN LATERAL (SELECT created_at FROM chat_turns t
+                        WHERE t.conversation_id=c.id ORDER BY created_at DESC,id DESC LIMIT 1) last_turn ON true
+                    WHERE c.business_id=%s AND c.deleted_at IS NULL
+                    ORDER BY COALESCE(last_turn.created_at,c.created_at) DESC,c.created_at DESC,c.id DESC''',
                     (self.business,),
                 ).fetchall(),
                 deleted_conversations=db.execute(

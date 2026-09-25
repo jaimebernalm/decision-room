@@ -179,6 +179,20 @@ class ConversationTests(unittest.TestCase):
         self.chats.restore(chat, dict(business_id=str(self.b)))
         self.assertEqual(self.chats.detail(chat)['turns'][0]['id'], turn['id'])
 
+    def test_chat_order_changes_only_when_owner_sends_a_message(self):
+        older = self.chat()
+        newer = self.chat()
+        self.assertEqual([item['id'] for item in self.chats.listing()['conversations'][:2]],
+                         [newer, older])
+        self.chats.detail(older)
+        self.assertEqual(self.chats.listing()['conversations'][0]['id'], newer)
+        self.chats.send(older, dict(business_id=str(self.b), request_key=str(uuid4()), text='Primero'))
+        self.assertEqual(self.chats.listing()['conversations'][0]['id'], older)
+        self.chats.detail(newer)
+        self.assertEqual(self.chats.listing()['conversations'][0]['id'], older)
+        self.chats.send(newer, dict(business_id=str(self.b), request_key=str(uuid4()), text='Después'))
+        self.assertEqual(self.chats.listing()['conversations'][0]['id'], newer)
+
     def complete(self):
         chat = self.chat(self.batch())
         turn = self.send(chat, 'Calculate sales')
