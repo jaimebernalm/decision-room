@@ -61,20 +61,22 @@ aclaraciones del agente e informe revisado. El botón «Entrar a mi espacio»
 aparece después de que el informe sea publicable. El avance queda guardado en
 PostgreSQL y se recupera al volver; los negocios previos no repiten este
 recorrido. Si el análisis se detiene sin informe, se puede reintentar o empezar
-con otro archivo sin borrar el anterior.
+con otros archivos sin borrar el análisis anterior.
 
-Durante una aclaración, el onboarding muestra una tabla del CSV original junto
+Durante una aclaración, el onboarding permite elegir entre las tablas de los CSV originales junto
 a la pregunta, con las columnas citadas por la referencia validada del agente
 resaltadas. Si no hay referencia de columna, solo resalta un encabezado que
 aparezca literalmente en la pregunta o en su explicación; no adivina una
 columna. Se muestran 30 filas por página y 200 caracteres por celda, con
-navegación por páginas y descarga del archivo original. Elegir una respuesta,
+navegación por páginas y descarga de cada archivo original. Elegir una respuesta,
 escribirla o marcar «No lo sé» son acciones excluyentes; un borrador anterior no
 permanece visible junto a «No lo sé».
 
-Esta primera versión admite un CSV UTF-8 de hasta 20 MB para el informe inicial.
-Se pueden añadir más datos después desde «Mi negocio», pero el sistema no
-combina automáticamente archivos distintos en un único informe. El agente pide
+El primer informe admite varios CSV UTF-8 en un mismo lote, hasta 2 GiB en total,
+sin un límite de cantidad de archivos. Las subidas y vistas previas se procesan
+por partes y se conservan los nombres originales. La ingesta comparte el lote
+con el agente; no presupone relaciones entre tablas ni las une automáticamente.
+Se pueden añadir más datos después desde «Mi negocio». El agente pide
 aclaraciones cuando las necesita para interpretar o revisar el análisis; no
 promete una cantidad fija de preguntas ni un informe si la evidencia es
 insuficiente. El registro por correo y las cuentas de usuario aún no están

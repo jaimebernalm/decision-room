@@ -1,5 +1,7 @@
 "use strict";
 
+const onboardingStagedFiles = new WeakMap();
+
 // The first report is a separate, resumable journey. The analysis and report
 // are still produced by the same durable service used elsewhere in the app.
 function onboardingShell(content, stage, mode = "general") {
@@ -102,14 +104,23 @@ function onboardingData() {
   const requestKey = draft.request_key || crypto.randomUUID();
   const mode = draft.mode === "specific" ? "specific" : "general";
   if (mode === "specific" && !draft.goal?.trim()) { goOnboarding("#onboarding/goal"); return; }
-  onboardingShell(`<section class="first-run-stage"><p class="eyebrow">TUS DATOS</p><h1>Vamos a mirar <em>tus datos.</em></h1><p class="first-run-lead">Sube un CSV para preparar tu primer informe. El agente te preguntará si necesita aclarar algo.</p><form id="first-data-form"><label for="first-csv">Elige tu primer archivo</label><input id="first-csv" type="file" accept=".csv,text/csv" aria-describedby="first-file-help"><p id="first-file-help" class="field-help">CSV UTF-8 de hasta 20 MB. Más adelante podrás añadir otros archivos.</p><div id="first-file-selected"></div><button type="button" class="text-button" id="first-sample">Usar datos ficticios de ejemplo</button><div id="first-data-error" role="alert"></div><div class="first-run-actions"><a class="button secondary" href="${mode === "specific" ? "#onboarding/goal" : "#onboarding/purpose"}">Volver</a><button class="button primary" type="submit">Empezar el análisis ${icon("arrow")}</button></div></form></section>`, "file", mode);
+  onboardingShell(`<section class="first-run-stage"><p class="eyebrow">TUS DATOS</p><h1>Vamos a mirar <em>tus datos.</em></h1><p class="first-run-lead">Añade todos los CSV que quieras analizar juntos. El agente podrá consultar sus tablas y te preguntará si necesita aclarar algo.</p><form id="first-data-form"><label for="first-csv">Elige tus archivos CSV</label><input id="first-csv" type="file" accept=".csv,text/csv" multiple aria-describedby="first-file-help"><p id="first-file-help" class="field-help">Puedes elegir varios archivos y añadir más después. El límite es de 2 GB entre todos.</p><div id="first-file-selected" aria-live="polite"></div><button type="button" class="text-button" id="first-sample">Añadir datos ficticios de ejemplo</button><div id="first-data-error" role="alert"></div><div class="first-run-actions"><a class="button secondary" href="${mode === "specific" ? "#onboarding/goal" : "#onboarding/purpose"}">Volver</a><button class="button primary" type="submit">Empezar el análisis ${icon("arrow")}</button></div></form></section>`, "file", mode);
   const form = document.querySelector("#first-data-form");
+  state.onboardingFiles ||= [];
   const showFile = () => {
-    document.querySelector("#first-file-selected").textContent = state.onboardingFile
-      ? `${state.onboardingFile.name} · ${size(state.onboardingFile.size)}` : "Todavía no has seleccionado un archivo.";
+    const files = state.onboardingFiles;
+    const total = files.reduce((sum, file) => sum + file.size, 0);
+    document.querySelector("#first-file-selected").innerHTML = files.length
+      ? `<p class="first-run-file-total">${files.length} ${files.length === 1 ? "archivo" : "archivos"} · ${size(total)} de 2 GB</p><ul class="first-run-file-list">${files.map((file, index) => `<li><span>${icon("file")} <span>${esc(file.name)} <small>${size(file.size)}</small></span></span><button type="button" data-remove-file="${index}" aria-label="Quitar ${esc(file.name)}">Quitar</button></li>`).join("")}</ul>`
+      : `<p class="field-help">Todavía no has seleccionado ningún archivo.</p>`;
+    document.querySelectorAll("[data-remove-file]").forEach(button => button.onclick = () => {
+      files.splice(Number(button.dataset.removeFile), 1);
+      showFile();
+    });
   };
   document.querySelector("#first-csv").onchange = event => {
-    state.onboardingFile = event.target.files[0] || null;
+    for (const file of event.target.files) state.onboardingFiles.push(file);
+    event.target.value = "";
     showFile();
   };
   document.querySelector("#first-sample").onclick = async event => {
@@ -118,7 +129,7 @@ function onboardingData() {
     try {
       const response = await fetch("/api/sample", {credentials: "same-origin"});
       if (!response.ok) throw new Error("No se pudieron cargar los datos de ejemplo.");
-      state.onboardingFile = new File([await response.blob()], "ventas-ejemplo.csv", {type: "text/csv"});
+      state.onboardingFiles.push(new File([await response.blob()], "ventas-ejemplo.csv", {type: "text/csv"}));
       showFile();
     } catch (error) {
       document.querySelector("#first-data-error").innerHTML = errorBox(error.message);
@@ -128,12 +139,12 @@ function onboardingData() {
   };
   form.onsubmit = async event => {
     event.preventDefault();
-    const file = state.onboardingFile;
+    const files = state.onboardingFiles;
     const goal = mode === "specific" ? draft.goal.trim() : "";
     const error = document.querySelector("#first-data-error");
-    if (!file) { error.innerHTML = errorBox("Selecciona un archivo CSV para continuar."); return; }
-    if (!file.name.toLowerCase().endsWith(".csv") || file.size > 20 * 1024 ** 2) {
-      error.innerHTML = errorBox("Selecciona un CSV de hasta 20 MB."); return;
+    if (!files.length) { error.innerHTML = errorBox("Selecciona al menos un archivo CSV para continuar."); return; }
+    if (files.some(file => !file.name.toLowerCase().endsWith(".csv") || !file.size) || files.reduce((sum, file) => sum + file.size, 0) > 2 * 1024 ** 3) {
+      error.innerHTML = errorBox("Selecciona CSV con datos que no superen 2 GB en total."); return;
     }
     if (!state.configured) {
       error.innerHTML = errorBox("El modelo local aún no está configurado. Tu contexto está guardado; vuelve cuando esté disponible."); return;
@@ -141,16 +152,28 @@ function onboardingData() {
     store.set(key, {...draft, mode, request_key: requestKey});
     const button = form.querySelector('button[type="submit"]');
     button.disabled = true;
-    button.textContent = "Guardando el archivo…";
-    const body = new FormData();
-    body.append("metadata", JSON.stringify({request_key: requestKey, business_id: business.id,
-      profile_revision: business.profile_revision, onboarding: true, goal,
-      title: goal ? goal.slice(0, 160) : `Primera exploración de ${business.name}`.slice(0, 160)}));
-    body.append("file", file);
     try {
-      await api("/api/jobs", {method: "POST", body});
+      const uploaded = [];
+      for (const [index, file] of files.entries()) {
+        if (onboardingStagedFiles.has(file)) {
+          uploaded.push(onboardingStagedFiles.get(file));
+          continue;
+        }
+        button.textContent = `Guardando archivo ${index + 1} de ${files.length}…`;
+        const response = await fetch(`/api/jobs/stage?filename=${encodeURIComponent(file.name)}`, {
+          method: "POST", headers: {"X-Decision-Room": "1", "Content-Type": "text/csv"}, body: file, credentials: "same-origin",
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "No se pudo guardar el CSV.");
+        onboardingStagedFiles.set(file, result.id);
+        uploaded.push(result.id);
+      }
+      button.textContent = "Preparando el análisis…";
+      await api("/api/jobs/batch", {method: "POST", body: {request_key: requestKey, business_id: business.id,
+        profile_revision: business.profile_revision, onboarding: true, goal, files: uploaded,
+        title: goal ? goal.slice(0, 160) : `Primera exploración de ${business.name}`.slice(0, 160)}});
       store.remove(key);
-      state.onboardingFile = null;
+      state.onboardingFiles = [];
       goOnboarding("#onboarding/progress");
     } catch (caught) {
       error.innerHTML = errorBox(caught.message);
@@ -163,6 +186,7 @@ function onboardingData() {
 
 let previewJobId = null;
 let previewOffset = 0;
+let previewFileIndex = 0;
 
 function referencedColumns(question, columns) {
   const cited = (question.references || []).filter(ref => ref.kind === "column")
@@ -184,32 +208,37 @@ function referencedColumns(question, columns) {
   }).filter(index => index !== -1);
 }
 
-async function loadOnboardingPreview(jobId, question, offset = previewOffset) {
+async function loadOnboardingPreview(jobId, question, offset = previewOffset, fileIndex = previewFileIndex) {
   const box = document.querySelector("#first-data-preview");
   if (!box) return;
   if (previewJobId !== jobId) {
     previewJobId = jobId;
     previewOffset = 0;
+    previewFileIndex = 0;
     offset = 0;
+    fileIndex = 0;
   }
   box.innerHTML = `<p class="eyebrow">TUS DATOS</p><p class="first-run-preview-state">Abriendo la tabla…</p>`;
   try {
-    const preview = await api(`/api/jobs/${encodeURIComponent(jobId)}/preview?offset=${offset}`);
+    const preview = await api(`/api/jobs/${encodeURIComponent(jobId)}/preview?offset=${offset}&file=${fileIndex}`);
     if (!box.isConnected || state.onboarding?.job_id !== jobId) return;
     previewOffset = offset;
+    previewFileIndex = fileIndex;
     const highlighted = referencedColumns(question, preview.columns);
     const note = highlighted.length
       ? `Esta pregunta se refiere a ${highlighted.map(i => `<strong>${esc(preview.columns[i])}</strong>`).join(", ")}. Hemos señalado ${highlighted.length === 1 ? "esa columna" : "esas columnas"} en la tabla.`
       : "No podemos señalar una columna concreta con seguridad. Revisa las cabeceras y las filas antes de responder.";
-    box.innerHTML = `<div class="first-run-data-heading"><div><p class="eyebrow">TUS DATOS</p><h2>Consulta tu archivo</h2><p>${esc(preview.filename)}</p></div><span class="first-run-data-badge">CSV</span></div>
+    box.innerHTML = `<div class="first-run-data-heading"><div><p class="eyebrow">TUS DATOS</p><h2>Consulta tus archivos</h2><p>${esc(preview.filename)}</p></div><span class="first-run-data-badge">CSV</span></div>
+      ${preview.files.length > 1 ? `<div class="first-run-file-tabs" role="group" aria-label="Archivos del análisis">${preview.files.map((file, index) => `<button type="button" data-preview-file="${index}" aria-pressed="${index === fileIndex}">${esc(file.filename)}</button>`).join("")}</div>` : ""}
       <p class="first-run-data-note">${note}</p><div class="first-run-table-scroll" role="region" tabindex="0" aria-label="Filas del CSV, desplazamiento horizontal disponible"><table class="first-run-table"><thead><tr><th scope="col">Fila</th>${preview.columns.map((column, i) => `<th scope="col" class="${highlighted.includes(i) ? "is-referenced" : ""}" ${highlighted.includes(i) ? 'title="Columna relacionada con la pregunta"' : ""}>${esc(column)}</th>`).join("")}</tr></thead><tbody>${preview.rows.map(row => `<tr><th scope="row">${row.number}</th>${preview.columns.map((_, i) => `<td class="${highlighted.includes(i) ? "is-referenced" : ""}">${esc(row.cells[i] ?? "")}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="${preview.columns.length + 1}">No hay más filas en este archivo.</td></tr>`}</tbody></table></div>
-      <div class="first-run-table-footer"><span>Filas ${preview.rows.length ? preview.rows[0].number : offset + 1}–${preview.rows.length ? preview.rows.at(-1).number : offset} · Vista de 30 filas</span><div><button type="button" id="first-preview-prev" ${offset === 0 ? "disabled" : ""} aria-label="Filas anteriores">Anterior</button><button type="button" id="first-preview-next" ${!preview.has_more ? "disabled" : ""} aria-label="Filas siguientes">Siguiente</button></div></div><p class="first-run-preview-footnote">Las celdas largas se cortan a 200 caracteres en esta vista. <a href="/api/jobs/${encodeURIComponent(jobId)}/file">Descargar CSV original ${icon("download")}</a></p>`;
-    box.querySelector("#first-preview-prev").onclick = () => loadOnboardingPreview(jobId, question, Math.max(0, offset - 30));
-    box.querySelector("#first-preview-next").onclick = () => loadOnboardingPreview(jobId, question, offset + preview.rows.length);
+      <div class="first-run-table-footer"><span>Filas ${preview.rows.length ? preview.rows[0].number : offset + 1}–${preview.rows.length ? preview.rows.at(-1).number : offset} · Vista de 30 filas</span><div><button type="button" id="first-preview-prev" ${offset === 0 ? "disabled" : ""} aria-label="Filas anteriores">Anterior</button><button type="button" id="first-preview-next" ${!preview.has_more ? "disabled" : ""} aria-label="Filas siguientes">Siguiente</button></div></div><p class="first-run-preview-footnote">Las celdas largas se cortan a 200 caracteres en esta vista. <a href="/api/jobs/${encodeURIComponent(jobId)}/file?file=${fileIndex}">Descargar CSV original ${icon("download")}</a></p>`;
+    box.querySelectorAll("[data-preview-file]").forEach(button => button.onclick = () => loadOnboardingPreview(jobId, question, 0, Number(button.dataset.previewFile)));
+    box.querySelector("#first-preview-prev").onclick = () => loadOnboardingPreview(jobId, question, Math.max(0, offset - 30), fileIndex);
+    box.querySelector("#first-preview-next").onclick = () => loadOnboardingPreview(jobId, question, offset + preview.rows.length, fileIndex);
   } catch (error) {
     if (!box.isConnected) return;
     box.innerHTML = `<p class="eyebrow">TUS DATOS</p><p class="first-run-preview-state">${esc(error.message)}</p><button type="button" class="button secondary" id="first-preview-retry">Volver a abrir la tabla</button>`;
-    box.querySelector("#first-preview-retry").onclick = () => loadOnboardingPreview(jobId, question, offset);
+    box.querySelector("#first-preview-retry").onclick = () => loadOnboardingPreview(jobId, question, offset, fileIndex);
   }
 }
 
@@ -222,9 +251,9 @@ function onboardingProgress(data) {
   } else if (data.publishable) {
     content = `<section class="first-run-report"><p class="eyebrow">TU PRIMER INFORME</p><h1>Ya tienes un punto <em>de partida.</em></h1><p>El agente ha revisado los datos y tus respuestas. Lee el informe y comprueba las cifras antes de pasar a tu espacio.</p><div class="first-run-report-actions"><a class="button secondary" href="/api/jobs/${encodeURIComponent(data.id)}/report" target="_blank" rel="noopener">Abrir informe completo ${icon("external")}</a><button class="button primary" id="first-finish">Entrar a mi espacio ${icon("arrow")}</button></div><div id="first-finish-error"></div><p class="report-caveat">Informe elaborado con IA y revisión automática. Consulta el alcance, las limitaciones y la evidencia antes de tomar decisiones.</p><iframe id="first-report-frame" class="report-frame" title="Primer informe de ${esc(data.business)}" src="/api/jobs/${encodeURIComponent(data.id)}/report" sandbox="allow-same-origin"></iframe></section>`;
   } else if (data.status === "failed" || data.status === "blocked") {
-    content = `<section class="card first-run-card first-run-progress"><p class="eyebrow">TU TRABAJO ESTÁ GUARDADO</p><h1>El análisis se ha detenido.</h1><p>${esc(data.issue || "No se pudo entregar un informe revisado con estos datos.")}</p><div id="first-progress-error"></div><div class="first-run-report-actions">${data.status === "failed" ? `<button class="button primary" id="first-retry">${data.context_stale ? "Recalcular con la memoria actual" : "Reintentar análisis"} ${icon("arrow")}</button>` : ""}<button class="button secondary" id="first-restart">Empezar con otro archivo</button></div>${data.status === "failed" ? '<p class="field-help">Una petición interrumpida al modelo puede ejecutarse de nuevo al reintentar.</p>' : ""}</section>`;
+    content = `<section class="card first-run-card first-run-progress"><p class="eyebrow">TU TRABAJO ESTÁ GUARDADO</p><h1>El análisis se ha detenido.</h1><p>${esc(data.issue || "No se pudo entregar un informe revisado con estos datos.")}</p><div id="first-progress-error"></div><div class="first-run-report-actions">${data.status === "failed" ? `<button class="button primary" id="first-retry">${data.context_stale ? "Recalcular con la memoria actual" : "Reintentar análisis"} ${icon("arrow")}</button>` : ""}<button class="button secondary" id="first-restart">Empezar con otros datos</button></div>${data.status === "failed" ? '<p class="field-help">Una petición interrumpida al modelo puede ejecutarse de nuevo al reintentar.</p>' : ""}</section>`;
   } else {
-    content = `<section class="card first-run-card first-run-progress"><div class="working-symbol">${icon("spark")}</div><p class="eyebrow">PREPARANDO TU PRIMER INFORME</p><h1>${esc(phases[data.phase] || "Estamos analizando tus datos")}</h1><p>El agente está contrastando tu contexto con el archivo. Si necesita aclarar algo importante, te preguntará aquí antes de crear el informe.</p>${data.activity ? `<p class="progress-update">${esc(data.activity)}</p>` : ""}<p class="field-help">Puedes cerrar esta página y volver. El trabajo continúa mientras el servidor local esté encendido.</p></section>`;
+    content = `<section class="card first-run-card first-run-progress"><div class="working-symbol">${icon("spark")}</div><p class="eyebrow">PREPARANDO TU PRIMER INFORME</p><h1>${esc(phases[data.phase] || "Estamos analizando tus datos")}</h1><p>El agente está contrastando tu contexto con los archivos. Si necesita aclarar algo importante, te preguntará aquí antes de crear el informe.</p>${data.activity ? `<p class="progress-update">${esc(data.activity)}</p>` : ""}<p class="field-help">Puedes cerrar esta página y volver. El trabajo continúa mientras el servidor local esté encendido.</p></section>`;
   }
   onboardingShell(`<div class="first-run-result"><p class="eyebrow"><span class="tiny-line"></span> TU PRIMER INFORME · ${esc(data.business)}</p>${content}</div>`, "report", data.goal ? "specific" : "general");
   document.querySelector("#first-data-jump")?.addEventListener("click", () =>

@@ -17,7 +17,7 @@ from decision_room.database import connect, migrate
 from decision_room.agent import review
 from decision_room.agent.model import ModelAPIError, ModelNotReady, ModelSettings, ModelRequestUncertain
 from decision_room.web.server import Server
-from decision_room.web.service import Workspace, WebError, MAX_UPLOAD
+from decision_room.web.service import Workspace, WebError, MAX_UPLOAD, MAX_BATCH_UPLOAD
 from test_agent import ScriptedModel
 from test_review import DialogueModel, action
 
@@ -73,6 +73,7 @@ class WebTests(unittest.TestCase):
         with connect(self.config) as db, db.transaction():
             db.execute('DELETE FROM web_replies')
             db.execute('DELETE FROM web_onboarding')
+            db.execute('DELETE FROM web_job_files')
             db.execute('DELETE FROM web_jobs')
             db.execute('UPDATE web_workspace SET active_business_id=NULL')
             db.execute('DELETE FROM web_businesses')
@@ -158,6 +159,50 @@ class WebTests(unittest.TestCase):
         self.ws.settings = None
         with self.assertRaises(WebError):
             self.create()
+
+    def test_onboarding_batch_streams_multiple_csvs_and_previews_each(self):
+        client, _ = self.http()
+        self.assertEqual(client.post('/api/login', json={'token': 'test-local-access'}).status_code, 200)
+        first = client.post('/api/jobs/stage?filename=sales.csv', content=self.csv,
+                            headers={'Content-Type': 'text/csv'})
+        second_csv = b'product,category\nPen,School\n'
+        second = client.post('/api/jobs/stage?filename=products.csv', content=second_csv,
+                             headers={'Content-Type': 'text/csv'})
+        self.assertEqual((first.status_code, second.status_code), (201, 201))
+        metadata = {**self.metadata, 'files': [first.json()['id'], second.json()['id']]}
+        created = client.post('/api/jobs/batch', json=metadata)
+        self.assertEqual(created.status_code, 202)
+        job = created.json()['id']
+        self.assertEqual(client.post('/api/jobs/batch', json=metadata).json()['id'], job)
+        preview = client.get(f'/api/jobs/{job}/preview?file=1').json()
+        self.assertEqual(preview['filename'], 'products.csv')
+        self.assertEqual(preview['columns'], ['product', 'category'])
+        self.assertEqual(len(preview['files']), 2)
+        self.assertEqual(client.get(f'/api/jobs/{job}/file?file=1').content, second_csv)
+        self.assertEqual(client.get(f'/api/jobs/{job}/preview?file=2').status_code, 404)
+        self.ws.run_job(job)
+        with connect(self.config) as db:
+            sources = db.execute('SELECT original_names FROM sources WHERE analysis_id=%s',
+                                 (self.ws.row(job)['analysis_id'],)).fetchall()
+        self.assertEqual({name for row in sources for name in row['original_names']}, {'sales.csv', 'products.csv'})
+
+    def test_onboarding_batch_uses_total_bytes_and_rejects_invalid_stage(self):
+        import io
+        with self.assertRaisesRegex(WebError, '2 GB'):
+            self.ws.stage_upload('huge.csv', io.BytesIO(b''), MAX_BATCH_UPLOAD + 1)
+        with self.assertRaises(WebError):
+            self.ws.stage_upload('../bad.csv', io.BytesIO(b'a'), 1)
+        first = self.ws.stage_upload('first.csv', io.BytesIO(b'a,b\n1,2\n'), 8)
+        second = self.ws.stage_upload('second.csv', io.BytesIO(b'c,d\n3,4\n'), 8)
+        with patch('decision_room.web.service.MAX_BATCH_UPLOAD', 15), self.assertRaisesRegex(WebError, '2 GB'):
+            self.ws.create_batch({**self.metadata, 'files': [first['id'], second['id']]})
+        with self.assertRaisesRegex(WebError, 'repitas'):
+            self.ws.create_batch({**self.metadata, 'files': [first['id'], first['id']]})
+        class RepeatingStream:
+            def read(self, length):
+                return b'a' * length
+        large = self.ws.stage_upload('large.csv', RepeatingStream(), MAX_UPLOAD + 1)
+        self.assertEqual(large['byte_count'], MAX_UPLOAD + 1)
 
     def test_changed_private_upload_is_not_served_as_original(self):
         job = self.create()

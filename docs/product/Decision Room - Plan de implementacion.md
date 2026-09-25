@@ -227,6 +227,8 @@ y la [validación](../validation/2026-09-23-semantic-check.md).
 
 **Ajuste de recorrido, 25 de septiembre:** el formulario inicial se divide en nombre, descripción, tipo de informe, pregunta opcional y archivo. Se reemplaza la barra lateral por tramos de progreso superiores; la descripción conserva borrador al recargar. Véase [comprobación del recorrido](../validation/2026-09-25-segmented-onboarding-check.md).
 
+**Ampliación del onboarding, 25 de septiembre:** centrar el contenido en escritorio y admitir varios CSV en un mismo primer análisis. El límite de la selección es de 2 GiB en total, sin cupo por cantidad de archivos; las subidas y las vistas previas se procesan por partes para no cargar un lote grande entero en memoria. Conservar los nombres originales y mostrar cada tabla en las aclaraciones. La ingesta conjunta permite investigar las tablas del lote; no presupone que tengan una relación ni une automáticamente filas de fuentes distintas.
+
 **Orden de trabajo:** identidad → memoria → contexto y dependencias → conversación → ficha/datos → Inicio y navegación → evaluación integrada → primer informe guiado → aclaraciones con datos a la vista. Cada paso se comprueba, revisa y guarda en un commit local según `AGENTS.md`; no se marca completo por tener únicamente su diseño.
 
 **Fuera de 2.5:** PDF, Excel y combinación general de tablas, búsqueda web de contexto, predicciones, editor libre de dashboards, conectores, automatización, equipos y despliegue comercial. Continúan en su entrega o roadmap correspondiente. La memoria entre conversaciones y el Inicio interactivo acotado sí forman parte de 2.5.

@@ -59,7 +59,7 @@ const state = {
   draft: {},
   business: null,
   onboarding: null,
-  onboardingFile: null,
+  onboardingFiles: [],
   memory: {},
   dashboard: null,
   selectedReport: null,
@@ -86,7 +86,7 @@ const statuses = {
   ready: ["Respuesta revisada · pendiente de guardar informe", "green"],
 };
 const phases = {
-  upload: "Preparando tu archivo",
+  upload: "Preparando tus datos",
   planning: "Entendiendo tu negocio",
   research: "Analizando los datos",
   review: "Comprobando los hallazgos",
@@ -992,7 +992,7 @@ async function route() {
       state.selectedReport = null;
       state.dashboard = null;
       state.file = null;
-      state.onboardingFile = null;
+      state.onboardingFiles = [];
       state.requestKey = null;
     }
     const onboardingActive = Boolean(state.onboarding && !state.onboarding.completed);

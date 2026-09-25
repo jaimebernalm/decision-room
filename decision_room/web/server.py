@@ -3,6 +3,7 @@ import hmac
 import json
 import logging
 import secrets
+import shutil
 from email import policy
 from email.parser import BytesParser
 from http.cookies import SimpleCookie
@@ -11,7 +12,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, urlsplit
 
 from ..config import ROOT
-from .service import MAX_UPLOAD, WebError
+from .service import MAX_UPLOAD, MAX_BATCH_UPLOAD, WebError
 
 STATIC = Path(__file__).with_name('static')
 CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'self'"
@@ -70,6 +71,20 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def send_file(self, filename, path):
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/csv; charset=utf-8')
+        self.send_header('Content-Length', str(path.stat().st_size))
+        self.send_header('Content-Disposition', "attachment; filename*=UTF-8''" + quote(filename))
+        self.send_header('Cache-Control', 'no-store')
+        self.send_header('X-Content-Type-Options', 'nosniff')
+        self.send_header('Referrer-Policy', 'no-referrer')
+        self.send_header('Content-Security-Policy', CSP)
+        self.send_header('X-Frame-Options', 'SAMEORIGIN')
+        self.end_headers()
+        with path.open('rb') as source:
+            shutil.copyfileobj(source, self.wfile, 1024 * 1024)
+
     def authenticated(self):
         cookie = SimpleCookie()
         try:
@@ -93,11 +108,11 @@ class Handler(BaseHTTPRequestHandler):
             raise WebError('La subida se ha interrumpido. Vuelve a intentarlo.')
         return data
 
-    def json_body(self):
+    def json_body(self, limit=24_000):
         if self.headers.get_content_type() != 'application/json':
             raise WebError('Se esperaba una petición JSON.')
         try:
-            data = json.loads(self.body(24_000))
+            data = json.loads(self.body(limit))
         except (ValueError, UnicodeDecodeError):
             raise WebError('La petición no es válida.') from None
         if not isinstance(data, dict):
@@ -224,6 +239,20 @@ class Handler(BaseHTTPRequestHandler):
                 requested = parse_qs(urlsplit(self.path).query).get('report', [None])
                 self.send(200, ws.dashboard(requested[0]))
                 return
+            if mutation and path == '/api/jobs/stage':
+                self.close_connection = True
+                requested = parse_qs(urlsplit(self.path).query).get('filename', [''])[0]
+                try:
+                    length = int(self.headers.get('Content-Length', '0'))
+                except ValueError:
+                    raise WebError('La petición no es válida.') from None
+                if self.headers.get('Transfer-Encoding') or not 0 < length <= MAX_BATCH_UPLOAD:
+                    raise WebError('El CSV debe tener datos y el lote no puede superar 2 GB.', 413)
+                self.send(201, ws.stage_upload(requested, self.rfile, length))
+                return
+            if mutation and path == '/api/jobs/batch':
+                self.send(202, ws.create_batch(self.json_body(2 * 1024 * 1024)))
+                return
             if mutation and path == '/api/jobs':
                 self.send(202, ws.create(*self.multipart()))
                 return
@@ -235,12 +264,14 @@ class Handler(BaseHTTPRequestHandler):
                     self.send(200, ws.detail(job_id))
                     return
                 if not mutation and action == 'preview':
-                    requested = parse_qs(urlsplit(self.path).query).get('offset', ['0'])[0]
+                    params = parse_qs(urlsplit(self.path).query)
+                    requested = params.get('offset', ['0'])[0]
                     try:
                         offset = int(requested)
+                        file_index = int(params.get('file', ['0'])[0])
                     except ValueError:
                         raise WebError('La página de datos no es válida.') from None
-                    self.send(200, ws.preview(job_id, offset))
+                    self.send(200, ws.preview(job_id, offset, file_index))
                     return
                 if mutation and action == 'answers':
                     self.send(202, ws.reply(job_id, self.json_body()))
@@ -253,8 +284,12 @@ class Handler(BaseHTTPRequestHandler):
                     self.send(200, ws.report(job_id), 'text/html; charset=utf-8')
                     return
                 if not mutation and action == 'file':
-                    name, content = ws.upload(job_id)
-                    self.send(200, content, 'text/csv; charset=utf-8', {'Content-Disposition': "attachment; filename*=UTF-8''" + quote(name)})
+                    try:
+                        file_index = int(parse_qs(urlsplit(self.path).query).get('file', ['0'])[0])
+                    except ValueError:
+                        raise WebError('El CSV solicitado no existe.', 404) from None
+                    name, path, _ = ws.download_path(job_id, file_index)
+                    self.send_file(name, path)
                     return
             raise WebError('Esta página no existe.', 404)
         except WebError as error:

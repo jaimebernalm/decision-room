@@ -42,10 +42,12 @@ def batch_metadata(hashes, delimiter=None):
     return batch_hash, preparation
 
 
-def import_batch(config, business_id, paths, title='CSV upload', delimiter=None, progress=None):
+def import_batch(config, business_id, paths, title='CSV upload', delimiter=None, progress=None, original_names=None):
     paths = [Path(p).resolve() for p in paths]
-    if not paths or len(paths) > config.max_files:
-        raise ValueError(f'Provide between 1 and {config.max_files} CSV files.')
+    if not paths:
+        raise ValueError('Provide at least one CSV file.')
+    if original_names is not None and (len(original_names) != len(paths) or any(not isinstance(name, str) or not name for name in original_names)):
+        raise ValueError('One original name is required for each CSV file.')
     if any(not p.is_file() or p.suffix.lower() != '.csv' for p in paths):
         raise ValueError('All inputs must be existing .csv files.')
     if sum(p.stat().st_size for p in paths) > config.max_batch_bytes:
@@ -54,8 +56,10 @@ def import_batch(config, business_id, paths, title='CSV upload', delimiter=None,
         require_business(db, business_id)
     storage = Storage(config.storage)
     grouped, byte_count = {}, 0
-    for path in paths:
+    for position, path in enumerate(paths):
         item = storage.capture(business_id, path, config.max_file_bytes)
+        if original_names is not None:
+            item['original_names'] = [original_names[position]]
         byte_count += item['byte_count']
         if byte_count > config.max_batch_bytes:
             raise ValueError('Batch exceeds the configured size limit.')
