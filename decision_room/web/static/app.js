@@ -606,7 +606,7 @@ function detail(data) {
       text: "",
       disposition: "answered",
     });
-    center = `<section class="card question-card"><div class="card-kicker">${icon("chat")} UNA ACLARACIÓN PARA SEGUIR <span>${data.questions.length > 1 ? data.questions.length + " preguntas pendientes" : "Tu contexto importa"}</span></div><h2>${esc(question.text)}</h2><div class="question-reason"><strong>Por qué te lo preguntamos</strong><p>${esc(question.reason)}</p></div><form id="answer-form"><fieldset><legend>Tu respuesta</legend>${question.options.map((option, i) => `<label class="answer-option"><input type="radio" name="option" value="${i}"><span>${esc(option)}</span></label>`).join("")}<label for="answer-text" class="answer-label">${question.options.length ? "O cuéntanos con tus palabras" : "Cuéntanos lo que sabes"}</label><textarea id="answer-text" rows="3" maxlength="6000" placeholder="Añade tu respuesta o una aclaración…">${esc(saved.text)}</textarea><label class="unknown-choice"><input type="checkbox" id="unknown" ${saved.disposition === "unknown" ? "checked" : ""}> No lo sé / no tengo esa información</label></fieldset><p class="field-help">Si no lo sabes, continuaremos con lo que pueda analizarse y señalaremos las limitaciones.</p><div id="answer-error"></div><div class="answer-actions"><span class="save-hint">La respuesta se guarda al enviarla</span><button class="button primary" type="submit">Guardar y continuar ${icon("arrow")}</button></div></form></section>`;
+    center = `<section class="card question-card"><div class="card-kicker">${icon("chat")} UNA ACLARACIÓN PARA SEGUIR <span>${data.questions.length > 1 ? data.questions.length + " preguntas pendientes" : "Tu contexto importa"}</span></div><h2>${esc(question.text)}</h2><div class="question-reason"><strong>Por qué te lo preguntamos</strong><p>${esc(question.reason)}</p></div><form id="answer-form">${answerFields(question, saved)}<p class="field-help">Si no lo sabes, continuaremos con lo que pueda analizarse y señalaremos las limitaciones.</p><div id="answer-error"></div><div class="answer-actions"><span class="save-hint">La respuesta se guarda al enviarla</span><button class="button primary" type="submit">Guardar y continuar ${icon("arrow")}</button></div></form></section>`;
   } else if (data.publishable) {
     center = `<div class="report-ready"><span>${icon("check")} Tu informe está disponible</span><a class="text-button" href="/api/jobs/${data.id}/report" target="_blank" rel="noopener">Abrir informe ${icon("external")}</a></div><p class="report-caveat">Informe elaborado con IA y revisión automática. Consulta el alcance y la evidencia; los errores analíticos de esta versión siguen en evaluación.</p><iframe id="report-frame" class="report-frame" title="Informe de ${esc(data.business)} con hallazgos, gráficos y evidencia" src="/api/jobs/${data.id}/report" sandbox="allow-same-origin"></iframe>`;
   } else if (["failed", "blocked"].includes(data.status)) {
@@ -655,32 +655,45 @@ function detail(data) {
       }
     };
 }
+function answerFields(question, saved, rows = 3) {
+  const options = question.options || [];
+  const selected = saved.disposition === "unknown" ? -1
+    : Number.isInteger(saved.optionIndex) ? saved.optionIndex : options.indexOf(saved.text);
+  const answer = saved.disposition === "unknown" || selected >= 0 ? "" : saved.text || "";
+  return `<fieldset><legend>Tu respuesta</legend>${options.map((option, i) => `<label class="answer-option"><input type="radio" name="option" value="${i}" data-answer-option ${selected === i ? "checked" : ""}><span>${esc(option)}</span></label>`).join("")}
+    <label for="answer-text" class="answer-label">${options.length ? "O cuéntanos con tus palabras" : "Cuéntanos lo que sabes"}</label><textarea id="answer-text" rows="${rows}" maxlength="6000" placeholder="Añade tu respuesta o una aclaración…">${esc(answer)}</textarea>
+    <label class="unknown-choice"><input type="radio" name="option" value="unknown" id="unknown" ${saved.disposition === "unknown" ? "checked" : ""}><span>No lo sé / no tengo esa información</span></label></fieldset>`;
+}
 function setupAnswer(data, question, refresh = pollDetail) {
   const form = document.querySelector("#answer-form");
   const text = document.querySelector("#answer-text");
   const unknown = document.querySelector("#unknown");
   const key = "dr-answer-" + data.id + "-" + question.id;
   let requestKey = crypto.randomUUID();
+  const selectedOption = () => form.querySelector("[data-answer-option]:checked");
   const save = () => {
+    const selected = selectedOption();
     store.set(key, {
-      text: text.value,
+      text: unknown.checked ? "" : selected ? question.options[Number(selected.value)] : text.value,
+      optionIndex: selected ? Number(selected.value) : null,
       disposition: unknown.checked ? "unknown" : "answered",
     });
     requestKey = crypto.randomUUID();
-    text.disabled = unknown.checked;
   };
-  text.disabled = unknown.checked;
   text.oninput = () => {
     form
       .querySelectorAll("[name=option]")
       .forEach((radio) => (radio.checked = false));
     save();
   };
-  unknown.onchange = save;
-  form.querySelectorAll("[name=option]").forEach(
+  unknown.onchange = () => {
+    text.value = "";
+    save();
+  };
+  form.querySelectorAll("[data-answer-option]").forEach(
     (radio) =>
       (radio.onchange = () => {
-        text.value = question.options[Number(radio.value)];
+        text.value = "";
         unknown.checked = false;
         save();
       }),
@@ -688,7 +701,9 @@ function setupAnswer(data, question, refresh = pollDetail) {
   form.onsubmit = async (event) => {
     event.preventDefault();
     const button = form.querySelector("button[type=submit]");
-    if (!unknown.checked && !text.value.trim()) {
+    const selected = selectedOption();
+    const response = unknown.checked ? "" : selected ? question.options[Number(selected.value)] : text.value.trim();
+    if (!unknown.checked && !response) {
       document.querySelector("#answer-error").innerHTML = errorBox(
         "Selecciona una opción, escribe una respuesta o marca «No lo sé».",
       );
@@ -704,7 +719,7 @@ function setupAnswer(data, question, refresh = pollDetail) {
           request_key: requestKey,
           question_id: question.id,
           phase: question.phase,
-          text: unknown.checked ? "" : text.value,
+          text: response,
           disposition: unknown.checked ? "unknown" : "answered",
         },
       });

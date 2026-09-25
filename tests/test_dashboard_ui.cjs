@@ -176,3 +176,23 @@ test('a new business stays in the separate onboarding until its report is comple
   await f.sandbox.runRoute();
   assert.equal(f.sandbox.screen,'onboarding-data');
 });
+
+test('unknown is exclusive and an old answer is not restored beside it', () => {
+  const f=fixture();
+  const html=vm.runInContext('answerFields({options:["Total de la fila"]},{text:"Total de la fila",disposition:"unknown"})',f.sandbox);
+  assert.match(html,/type="radio" name="option" value="unknown" id="unknown" checked/);
+  assert.doesNotMatch(html,/type="checkbox" id="unknown"/);
+  assert.doesNotMatch(html,/<textarea[^>]*>Total de la fila<\/textarea>/);
+  assert.doesNotMatch(html,/value="0" data-answer-option checked/);
+  const selected=vm.runInContext('answerFields({options:["Total de la fila"]},{text:"Total de la fila",optionIndex:0,disposition:"answered"})',f.sandbox);
+  assert.match(selected,/value="0" data-answer-option checked/);
+  assert.doesNotMatch(selected,/<textarea[^>]*>Total de la fila<\/textarea>/);
+});
+
+test('data context highlights only columns explicitly named by the question', () => {
+  const f=fixture();
+  const indices=vm.runInContext('referencedColumns({text:"¿Qué representa ventas_eur?",reason:"Afecta al total"},["id","ventas_eur","total_ventas"])',f.sandbox);
+  assert.deepEqual(Array.from(indices),[1]);
+  const cited=vm.runInContext('referencedColumns({text:"¿Precio unitario o total de fila?",references:[{kind:"column",column:"amount"}]},["quantity","amount"])',f.sandbox);
+  assert.deepEqual(Array.from(cited),[1]);
+});

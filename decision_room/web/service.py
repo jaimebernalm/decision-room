@@ -1,5 +1,7 @@
 """Durable local web jobs; all analytical work goes through existing services."""
+import csv
 import hashlib
+import io
 import json
 import logging
 import threading
@@ -361,7 +363,9 @@ class Workspace:
             result['files'] = [{k: f[k] for k in ('original_names', 'status', 'row_count', 'column_count')} for f in data['files']]
         if j['session_id']:
             plan = planning.show(self.config, b, j['session_id'])
-            result['questions'] = [{'id': q['id'], 'phase': 'planning', 'text': q['text'], 'reason': q['reason'], 'options': q['options']} for q in plan['questions']]
+            result['questions'] = [{'id': q['id'], 'phase': 'planning', 'text': q['text'], 'reason': q['reason'],
+                                    'options': q['options'], 'references': q.get('references', [])}
+                                   for q in plan['questions']]
             if plan.get('context_stale'):
                 result.update(status='failed', phase='planning', issue='La memoria aplicable ha cambiado. Reintenta para recalcular con las definiciones actuales.', questions=[])
             result['answers'] = [{'text': a['text'], 'disposition': a['disposition'], 'question': a.get('question', '')} for a in plan['answers']]
@@ -475,6 +479,39 @@ class Workspace:
         if signature != j['request_sha256']:
             raise WebError('El archivo guardado ha cambiado y no coincide con el original enviado.', 409)
         return j['filename'], content
+
+    def preview(self, job_id, offset=0):
+        """Read a bounded page of the owner's original CSV for clarification."""
+        if type(offset) is not int or not 0 <= offset <= self.config.max_rows:
+            raise WebError('La página de datos no es válida.')
+        filename, content = self.upload(job_id)
+        try:
+            source = content.decode('utf-8-sig')
+            sample = source[:65536]
+            try:
+                delimiter = csv.Sniffer().sniff(sample, delimiters=',;\t|').delimiter
+            except csv.Error:
+                first = sample.splitlines()[0]
+                counts = {d: len(next(csv.reader([first], delimiter=d))) for d in ',;\t|'}
+                delimiter = max(counts, key=counts.get)
+            csv.field_size_limit(16 * 1024 * 1024)
+            reader = csv.reader(io.StringIO(source, newline=''), delimiter=delimiter, strict=True)
+            columns = next(reader)
+            rows = []
+            seen = 0
+            for row in reader:
+                if not row:
+                    continue
+                if seen >= offset:
+                    rows.append({'number': seen + 1, 'cells': [cell[:200] for cell in row]})
+                    if len(rows) > 30:
+                        break
+                seen += 1
+        except (csv.Error, UnicodeError, IndexError, StopIteration):
+            raise WebError('No hemos podido mostrar la vista previa del CSV. Descarga el original para revisarlo.', 422) from None
+        return {'filename': filename, 'columns': columns, 'rows': rows[:30],
+                'offset': offset, 'has_more': len(rows) > 30,
+                'cell_limit': 200}
 
     def run_job(self, job_id):
         j = self.sync(job_id)

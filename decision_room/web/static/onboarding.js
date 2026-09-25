@@ -4,10 +4,15 @@
 // are still produced by the same durable service used elsewhere in the app.
 function onboardingShell(content, step) {
   const labels = ["Tu negocio", "Tus datos", "Primer informe"];
-  app.innerHTML = `<main id="main" class="first-run" tabindex="-1">
-    <header class="first-run-header"><a class="brand" href="#home" aria-label="Decision Room, inicio"><span class="brand-mark">d<span>r</span></span><span>decision<span class="brand-light">room</span></span></a><span>Preparando tu espacio</span></header>
-    <ol class="first-run-steps" aria-label="Progreso del onboarding">${labels.map((label, i) => `<li class="${i === step - 1 ? "current" : i < step - 1 ? "done" : ""}" ${i === step - 1 ? 'aria-current="step"' : ""}><span>${i < step - 1 ? icon("check") : i + 1}</span>${label}</li>`).join("")}</ol>
-    ${content}<footer class="first-run-footer">${icon("shield")} Tu trabajo se guarda en este espacio local.</footer></main>`;
+  app.innerHTML = `<div class="first-run-layout"><aside class="first-run-sidebar">
+    <a class="brand" href="#home" aria-label="Decision Room, inicio"><span class="brand-mark">d<span>r</span></span><span>decision<span class="brand-light">room</span><small>UN ESPACIO PARA DECIDIR</small></span></a>
+    <div class="first-run-workspace-label"><span class="workspace-avatar">${esc(state.business?.name?.charAt(0).toUpperCase() || "M")}</span><span>${esc(state.business?.name || "Mi nuevo espacio")}<small>Preparando tu primer informe</small></span></div>
+    <p class="nav-label">TU RECORRIDO</p><ol class="first-run-steps" aria-label="Progreso del onboarding">${labels.map((label, i) => `<li class="${i === step - 1 ? "current" : i < step - 1 ? "done" : ""}" ${i === step - 1 ? 'aria-current="step"' : ""}><span>${i < step - 1 ? icon("check") : i + 1}</span>${label}</li>`).join("")}</ol>
+    ${content.includes('id="first-data-preview"') ? `<button class="first-run-data-jump" id="first-data-jump" type="button">${icon("grid")} Ver mis datos ${icon("arrow")}</button>` : ""}
+    <div class="first-run-sidebar-footer">${icon("shield")} Tu trabajo se guarda en este espacio local.</div>
+    </aside><div class="first-run-workspace"><header class="first-run-topbar"><span class="breadcrumb">Preparando tu espacio <span>/</span> <b>${labels[step - 1]}</b></span><span class="environment"><i></i> Entorno local <span class="beta">BETA</span></span></header><main id="main" class="first-run" tabindex="-1">${content}</main></div></div>`;
+  document.querySelector("#first-data-jump")?.addEventListener("click", () =>
+    document.querySelector("#first-data-preview")?.scrollIntoView({behavior: "smooth", block: "start"}));
 }
 
 function onboardingBusiness() {
@@ -119,12 +124,64 @@ function onboardingData() {
   showFile();
 }
 
+let previewJobId = null;
+let previewOffset = 0;
+
+function referencedColumns(question, columns) {
+  const cited = (question.references || []).filter(ref => ref.kind === "column")
+    .map(ref => String(ref.column).normalize("NFKC").toLocaleLowerCase("es"));
+  const linked = columns.map((name, index) => cited.includes(String(name).normalize("NFKC").toLocaleLowerCase("es")) ? index : -1)
+    .filter(index => index !== -1);
+  if (linked.length) return linked;
+  const source = `${question.text || ""} ${question.reason || ""}`.normalize("NFKC").toLocaleLowerCase("es");
+  const word = character => /[\p{L}\p{N}_]/u.test(character || "");
+  return columns.map((name, index) => {
+    const needle = String(name).normalize("NFKC").toLocaleLowerCase("es");
+    if (!needle) return -1;
+    let at = source.indexOf(needle);
+    while (at !== -1) {
+      if (!word(source[at - 1]) && !word(source[at + needle.length])) return index;
+      at = source.indexOf(needle, at + 1);
+    }
+    return -1;
+  }).filter(index => index !== -1);
+}
+
+async function loadOnboardingPreview(jobId, question, offset = previewOffset) {
+  const box = document.querySelector("#first-data-preview");
+  if (!box) return;
+  if (previewJobId !== jobId) {
+    previewJobId = jobId;
+    previewOffset = 0;
+    offset = 0;
+  }
+  box.innerHTML = `<p class="eyebrow">TUS DATOS</p><p class="first-run-preview-state">Abriendo la tabla…</p>`;
+  try {
+    const preview = await api(`/api/jobs/${encodeURIComponent(jobId)}/preview?offset=${offset}`);
+    if (!box.isConnected || state.onboarding?.job_id !== jobId) return;
+    previewOffset = offset;
+    const highlighted = referencedColumns(question, preview.columns);
+    const note = highlighted.length
+      ? `Esta pregunta se refiere a ${highlighted.map(i => `<strong>${esc(preview.columns[i])}</strong>`).join(", ")}. Hemos señalado ${highlighted.length === 1 ? "esa columna" : "esas columnas"} en la tabla.`
+      : "No podemos señalar una columna concreta con seguridad. Revisa las cabeceras y las filas antes de responder.";
+    box.innerHTML = `<div class="first-run-data-heading"><div><p class="eyebrow">TUS DATOS</p><h2>Consulta tu archivo</h2><p>${esc(preview.filename)}</p></div><span class="first-run-data-badge">CSV</span></div>
+      <p class="first-run-data-note">${note}</p><div class="first-run-table-scroll" role="region" tabindex="0" aria-label="Filas del CSV, desplazamiento horizontal disponible"><table class="first-run-table"><thead><tr><th scope="col">Fila</th>${preview.columns.map((column, i) => `<th scope="col" class="${highlighted.includes(i) ? "is-referenced" : ""}" ${highlighted.includes(i) ? 'title="Columna relacionada con la pregunta"' : ""}>${esc(column)}</th>`).join("")}</tr></thead><tbody>${preview.rows.map(row => `<tr><th scope="row">${row.number}</th>${preview.columns.map((_, i) => `<td class="${highlighted.includes(i) ? "is-referenced" : ""}">${esc(row.cells[i] ?? "")}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="${preview.columns.length + 1}">No hay más filas en este archivo.</td></tr>`}</tbody></table></div>
+      <div class="first-run-table-footer"><span>Filas ${preview.rows.length ? preview.rows[0].number : offset + 1}–${preview.rows.length ? preview.rows.at(-1).number : offset} · Vista de 30 filas</span><div><button type="button" id="first-preview-prev" ${offset === 0 ? "disabled" : ""} aria-label="Filas anteriores">Anterior</button><button type="button" id="first-preview-next" ${!preview.has_more ? "disabled" : ""} aria-label="Filas siguientes">Siguiente</button></div></div><p class="first-run-preview-footnote">Las celdas largas se cortan a 200 caracteres en esta vista. <a href="/api/jobs/${encodeURIComponent(jobId)}/file">Descargar CSV original ${icon("download")}</a></p>`;
+    box.querySelector("#first-preview-prev").onclick = () => loadOnboardingPreview(jobId, question, Math.max(0, offset - 30));
+    box.querySelector("#first-preview-next").onclick = () => loadOnboardingPreview(jobId, question, offset + preview.rows.length);
+  } catch (error) {
+    if (!box.isConnected) return;
+    box.innerHTML = `<p class="eyebrow">TUS DATOS</p><p class="first-run-preview-state">${esc(error.message)}</p><button type="button" class="button secondary" id="first-preview-retry">Volver a abrir la tabla</button>`;
+    box.querySelector("#first-preview-retry").onclick = () => loadOnboardingPreview(jobId, question, offset);
+  }
+}
+
 function onboardingProgress(data) {
   const question = data.questions?.[0];
   let content;
   if (data.status === "waiting" && question) {
     const saved = store.get("dr-answer-" + data.id + "-" + question.id, {text: "", disposition: "answered"});
-    content = `<section class="card first-run-card first-run-progress"><p class="eyebrow">UNA ACLARACIÓN PARA SEGUIR</p><h1>${esc(question.text)}</h1><p>${esc(question.reason)}</p><form id="answer-form"><fieldset><legend>Tu respuesta</legend>${question.options.map((option, i) => `<label class="answer-option"><input type="radio" name="option" value="${i}"><span>${esc(option)}</span></label>`).join("")}<label for="answer-text" class="answer-label">${question.options.length ? "O cuéntanos con tus palabras" : "Cuéntanos lo que sabes"}</label><textarea id="answer-text" rows="4" maxlength="6000">${esc(saved.text)}</textarea><label class="unknown-choice"><input type="checkbox" id="unknown" ${saved.disposition === "unknown" ? "checked" : ""}> No lo sé / no tengo esa información</label></fieldset><p class="field-help">Si no lo sabes, seguiremos con los datos disponibles y lo indicaremos en el informe.</p><div id="answer-error"></div><button class="button primary" type="submit">Guardar y continuar ${icon("arrow")}</button></form></section>`;
+    content = `<div class="first-run-question-layout"><section class="card first-run-card first-run-progress"><p class="eyebrow">UNA ACLARACIÓN PARA SEGUIR</p><h1>${esc(question.text)}</h1><p class="first-question-reason">${esc(question.reason)}</p><form id="answer-form">${answerFields(question, saved, 4)}<p class="field-help">Si no lo sabes, seguiremos con los datos disponibles y lo indicaremos en el informe.</p><div id="answer-error" role="alert"></div><button class="button primary" type="submit">Guardar y continuar ${icon("arrow")}</button></form></section><aside class="first-run-data" id="first-data-preview" aria-label="Vista del CSV"><p class="eyebrow">TUS DATOS</p><p>Cargando el archivo…</p></aside></div>`;
   } else if (data.publishable) {
     content = `<section class="first-run-report"><p class="eyebrow">TU PRIMER INFORME</p><h1>Ya tienes un punto <em>de partida.</em></h1><p>El agente ha revisado los datos y tus respuestas. Lee el informe y comprueba las cifras antes de pasar a tu espacio.</p><div class="first-run-report-actions"><a class="button secondary" href="/api/jobs/${encodeURIComponent(data.id)}/report" target="_blank" rel="noopener">Abrir informe completo ${icon("external")}</a><button class="button primary" id="first-finish">Entrar a mi espacio ${icon("arrow")}</button></div><div id="first-finish-error"></div><p class="report-caveat">Informe elaborado con IA y revisión automática. Consulta el alcance, las limitaciones y la evidencia antes de tomar decisiones.</p><iframe id="first-report-frame" class="report-frame" title="Primer informe de ${esc(data.business)}" src="/api/jobs/${encodeURIComponent(data.id)}/report" sandbox="allow-same-origin"></iframe></section>`;
   } else if (data.status === "failed" || data.status === "blocked") {
@@ -133,7 +190,10 @@ function onboardingProgress(data) {
     content = `<section class="card first-run-card first-run-progress"><div class="working-symbol">${icon("spark")}</div><p class="eyebrow">PREPARANDO TU PRIMER INFORME</p><h1>${esc(phases[data.phase] || "Estamos analizando tus datos")}</h1><p>El agente está contrastando tu contexto con el archivo. Si necesita aclarar algo importante, te preguntará aquí antes de crear el informe.</p>${data.activity ? `<p class="progress-update">${esc(data.activity)}</p>` : ""}<p class="field-help">Puedes cerrar esta página y volver. El trabajo continúa mientras el servidor local esté encendido.</p></section>`;
   }
   onboardingShell(`<div class="first-run-result"><p class="eyebrow"><span class="tiny-line"></span> TERCER PASO · ${esc(data.business)}</p>${content}</div>`, 3);
-  if (question && data.status === "waiting") setupAnswer(data, question, pollOnboarding);
+  if (question && data.status === "waiting") {
+    setupAnswer(data, question, pollOnboarding);
+    loadOnboardingPreview(data.id, question);
+  }
   const finish = document.querySelector("#first-finish");
   if (finish) finish.onclick = async () => {
     finish.disabled = true;

@@ -63,6 +63,15 @@ PostgreSQL y se recupera al volver; los negocios previos no repiten este
 recorrido. Si el análisis se detiene sin informe, se puede reintentar o empezar
 con otro archivo sin borrar el anterior.
 
+Durante una aclaración, el onboarding muestra una tabla del CSV original junto
+a la pregunta, con las columnas citadas por la referencia validada del agente
+resaltadas. Si no hay referencia de columna, solo resalta un encabezado que
+aparezca literalmente en la pregunta o en su explicación; no adivina una
+columna. Se muestran 30 filas por página y 200 caracteres por celda, con
+navegación por páginas y descarga del archivo original. Elegir una respuesta,
+escribirla o marcar «No lo sé» son acciones excluyentes; un borrador anterior no
+permanece visible junto a «No lo sé».
+
 Esta primera versión admite un CSV UTF-8 de hasta 20 MB para el informe inicial.
 Se pueden añadir más datos después desde «Mi negocio», pero el sistema no
 combina automáticamente archivos distintos en un único informe. El agente pide

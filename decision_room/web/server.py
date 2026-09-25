@@ -234,6 +234,14 @@ class Handler(BaseHTTPRequestHandler):
                 if not mutation and not action:
                     self.send(200, ws.detail(job_id))
                     return
+                if not mutation and action == 'preview':
+                    requested = parse_qs(urlsplit(self.path).query).get('offset', ['0'])[0]
+                    try:
+                        offset = int(requested)
+                    except ValueError:
+                        raise WebError('La página de datos no es válida.') from None
+                    self.send(200, ws.preview(job_id, offset))
+                    return
                 if mutation and action == 'answers':
                     self.send(202, ws.reply(job_id, self.json_body()))
                     return

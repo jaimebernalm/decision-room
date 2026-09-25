@@ -126,6 +126,27 @@ class WebTests(unittest.TestCase):
         with connect(self.config) as db:
             self.assertEqual(db.execute('SELECT count(*) AS n FROM web_jobs WHERE request_key=%s', (self.metadata['request_key'],)).fetchone()['n'], 1)
 
+    def test_csv_preview_is_scoped_paginated_and_uses_original_values(self):
+        content = b'category;ventas_eur\n' + b''.join(f'Cat {i};{i}.00\n'.encode() for i in range(1, 33))
+        job = self.ws.create({**self.metadata, 'request_key': str(uuid4())}, 'ventas.csv', content)['id']
+        client, _ = self.http()
+        self.assertEqual(client.get(f'/api/jobs/{job}/preview').status_code, 401)
+        client.post('/api/login', json={'token': 'test-local-access'})
+        first = client.get(f'/api/jobs/{job}/preview').json()
+        self.assertEqual(first['columns'], ['category', 'ventas_eur'])
+        self.assertEqual(first['rows'][0], {'number': 1, 'cells': ['Cat 1', '1.00']})
+        self.assertEqual(len(first['rows']), 30)
+        self.assertTrue(first['has_more'])
+        last = client.get(f'/api/jobs/{job}/preview?offset=30').json()
+        self.assertEqual([row['number'] for row in last['rows']], [31, 32])
+        self.assertFalse(last['has_more'])
+        self.assertEqual(client.get(f'/api/jobs/{job}/preview?offset=bad').status_code, 400)
+        self.assertEqual(client.get(f'/api/jobs/{job}/preview?offset=-1').status_code, 400)
+        other = self.ws.save_business({'request_key': str(uuid4()), 'expected_active_id': str(self.business['id']),
+                                       'name': 'Other shop', 'description': 'Separate data'})
+        self.assertNotEqual(str(other['id']), str(self.business['id']))
+        self.assertEqual(client.get(f'/api/jobs/{job}/preview').status_code, 404)
+
     def test_upload_constraints_and_missing_model(self):
         for filename, content in [('../secret.csv', self.csv), ('C:\\secret.csv', self.csv), ('x.xlsx', self.csv),
                                   ('x.csv', b''), ('x.csv', b'\xff'), ('x.csv', b'x' * (MAX_UPLOAD + 1))]:
@@ -178,6 +199,7 @@ class WebTests(unittest.TestCase):
         job = self.create()
         self.ws.run_job(job)
         first = self.ws.detail(job)
+        self.assertTrue(any(ref['kind'] == 'column' for ref in first['questions'][0]['references']))
         self.ws = Workspace(self.config, SETTINGS, WebModel)
         self.assertEqual(self.ws.detail(job)['questions'], first['questions'])
         self.assertEqual(self.ws.detail(job)['status'], 'waiting')
