@@ -3375,3 +3375,45 @@ html.is-scrolling::-webkit-scrollbar-thumb,
 @media (prefers-reduced-motion: reduce) {
   .send-spinner, .chat-reply-pulse i { animation: none; }
 }
+
+/* Surfaces use spacing and fill rather than permanent perimeter lines. */
+:is(.workspace-label, .beta, .search, .file-symbol, .card, .notice, .button,
+  .error-message, .dropzone, .selected-file, .review-context, .answer-option,
+  .report-frame, .dossier-card, .composer-card, .chat-suggestions button,
+  .choice, .chat-conflict, .profile > span, .form-steps li > span,
+  .art-source, .art-report, #toast) { border: 0; }
+.dropzone.dragging { border: 0; }
+.dossier-card { background: #f6f9f5; }
+.notice, .error-message, .amber, .red, .chat-queue-badge {
+  color: var(--ink);
+  background: #f0f4ee;
+}
+.notice { border-radius: 14px; }
+.question-reason { border: 0; background: #f0f4ee; }
+.question-reason :is(strong, p), .card-kicker { color: var(--ink); }
+.question-context, .fact-origin blockquote { border-left: 0; }
+.chat-queue-badge { background: #e6eee5; }
+.chat-suggestions button { background: #f3f8f2; }
+.composer-card:focus-within { border: 0; }
+.dossier-form :is(input, select, textarea),
+.report-filters :is(input, select),
+.form-section > :is(input, textarea), #goal-field > textarea,
+#access, #answer-text, .chat-composer select {
+  border: 0;
+  background: #f0f5ef;
+}
+.chat-conflict {
+  max-width: 850px;
+  margin: 16px auto 28px;
+  padding: 20px 24px;
+  border-radius: 18px;
+  background: #f3f7f2;
+  color: var(--ink);
+}
+.chat-conflict h3 { margin-bottom: 8px; }
+.chat-conflict p { margin: 0 0 14px; overflow-wrap: anywhere; }
+.chat-conflict > button { margin-right: 16px; }
+.chat-conflict > a, .chat-conflict summary { color: var(--ink); font-size: 13px; }
+.chat-conflict details { margin-top: 14px; color: var(--muted); }
+.chat-conflict details p { margin: 9px 0 0; }
+a:focus-visible, button:focus-visible, summary:focus-visible { outline-color: #547b60; }

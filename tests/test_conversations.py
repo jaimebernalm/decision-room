@@ -12,12 +12,12 @@ from decision_room.conversations import Conversations, memory_reply, search_hist
 from decision_room.greetings import is_greeting
 from decision_room.database import connect
 from decision_room.service import import_batch
-from decision_room.memory import service as memory, retrieval
+from decision_room.memory import service as memory, retrieval, extraction
 from decision_room.agent.model import ModelRequestUncertain
 from decision_room.web.service import Workspace, WebError
 import test_web
 from test_web import WebModel, SETTINGS
-from test_memory import candidate, content
+from test_memory import MemoryModel, candidate, content
 
 
 def action(kind, **values):
@@ -313,6 +313,109 @@ class ConversationTests(unittest.TestCase):
         final = self.send(chat, 'Memory?')
         self.assertEqual(final['response']['items'][0]['content']['statement'], 'Abrimos los domingos.')
         self.assertEqual(final['response']['items'][0]['status'], 'declared')
+
+    def test_explicit_chat_correction_is_saved_before_the_agent_confirms_it(self):
+        profile = self.ws.save_business(dict(business_id=str(self.b),
+                                             profile_revision=self.business['profile_revision'],
+                                             name='Fictional chat shop',
+                                             description='Es una papelería ficticia de Valencia.'))
+        with connect(self.config) as db:
+            origin = db.execute('SELECT id FROM memory_sources WHERE business_id=%s AND origin_key=%s',
+                                (self.b, f"profile:{profile['profile_revision']}")).fetchone()
+        extraction.process(self.config, self.b, origin['id'],
+                           MemoryModel([candidate('Es una papelería ficticia de Valencia.',
+                                                  topic='business_location')]))
+        first = memory.read(self.config, self.b)[0]
+        text = '¿Puedes cambiar que la papelería está en Valencia por Vila-real?'
+        observed = []
+
+        def extract(context, correction=None):
+            return {'candidates': [candidate('Es una papelería ficticia de Vila-real.',
+                                             topic='business_location', quote=text,
+                                             conflicts=[str(first['fact_id'])], correction_of=str(first['fact_id']))]}, {}
+
+        def answer(context, correction=None):
+            receipt = context['chat_context']['saved_corrections']
+            observed.extend(receipt)
+            self.assertEqual(receipt[0]['statement'], 'Es una papelería ficticia de Vila-real.')
+            self.assertIn('saved_corrections', context['available_sources'])
+            return action('answer', text='He actualizado la ubicación a Vila-real.',
+                          sources=['saved_corrections']), {}
+
+        with patch.object(ChatModel, 'generate_memory', side_effect=extract), \
+             patch.object(ChatModel, 'generate_chat', side_effect=answer):
+            turn = self.send(self.chat(), text)
+        self.assertEqual(turn['status'], 'completed')
+        self.assertEqual(turn['response']['text'], 'He actualizado la ubicación a Vila-real.')
+        self.assertEqual(len(observed), 1)
+        self.assertEqual(memory.read(self.config, self.b)[0]['status'], 'declared')
+        self.assertEqual(memory.status(self.config, self.b)['needs_review'], 0)
+        with connect(self.config) as db:
+            updated = db.execute('SELECT description FROM businesses WHERE id=%s', (self.b,)).fetchone()
+        self.assertEqual(updated['description'], 'Es una papelería ficticia de Vila-real.')
+
+    def test_profile_only_location_correction_keeps_unrelated_memory(self):
+        profile = self.ws.save_business(dict(business_id=str(self.b),
+                                             profile_revision=self.business['profile_revision'],
+                                             name='Fictional chat shop',
+                                             description='Somos una papelería ficticia de Valencia. Vendemos cuadernos.'))
+        self.assertGreater(profile['profile_revision'], self.business['profile_revision'])
+        memory.change(self.config, self.b, request_key=str(uuid4()), action='declare',
+                      content=content('Es una papelería de barrio.', topic='business_type'))
+        text = '¿Puedes cambiar Valencia por Vila-real en la descripción del negocio?'
+
+        def extract(context, correction=None):
+            self.assertIn('Valencia', context['profile']['description'])
+            return {'candidates': [candidate('La papelería está en Vila-real.',
+                topic='business_location', quote=text,
+                profile_replacement={'old_text': 'Valencia', 'new_text': 'Vila-real'})]}, {}
+
+        def answer(context, correction=None):
+            self.assertEqual(context['chat_context']['saved_corrections'][0]['statement'],
+                             'La papelería está en Vila-real.')
+            return action('answer', text='He cambiado la ubicación a Vila-real.',
+                          sources=['saved_corrections']), {}
+
+        with patch.object(ChatModel, 'generate_memory', side_effect=extract), \
+             patch.object(ChatModel, 'generate_chat', side_effect=answer):
+            turn = self.send(self.chat(), text)
+        self.assertEqual(turn['status'], 'completed')
+        statements = [item['content']['statement'] for item in memory.read(self.config, self.b)]
+        self.assertIn('Es una papelería de barrio.', statements)
+        self.assertIn('La papelería está en Vila-real.', statements)
+        with connect(self.config) as db:
+            updated = db.execute('SELECT description FROM businesses WHERE id=%s', (self.b,)).fetchone()
+        self.assertEqual(updated['description'],
+                         'Somos una papelería ficticia de Vila-real. Vendemos cuadernos.')
+
+    def test_profile_correction_receipt_when_memory_already_has_new_value(self):
+        self.ws.save_business(dict(business_id=str(self.b),
+                                   profile_revision=self.business['profile_revision'],
+                                   name='Fictional chat shop',
+                                   description='Somos una papelería de Valencia.'))
+        memory.change(self.config, self.b, request_key=str(uuid4()), action='declare',
+                      content=content('La papelería está en Vila-real.', topic='business_location'))
+        text = 'Cambia Valencia por Vila-real en Mi negocio.'
+
+        def extract(context, correction=None):
+            return {'candidates': [candidate('La papelería está en Vila-real.',
+                topic='business_location', quote=text,
+                profile_replacement={'old_text': 'Valencia', 'new_text': 'Vila-real'})]}, {}
+
+        def answer(context, correction=None):
+            self.assertEqual(context['chat_context']['saved_corrections'],
+                             [{'statement': 'La papelería está en Vila-real.', 'profile_updated': True}])
+            return action('answer', text='He actualizado Mi negocio.',
+                          sources=['saved_corrections']), {}
+
+        with patch.object(ChatModel, 'generate_memory', side_effect=extract), \
+             patch.object(ChatModel, 'generate_chat', side_effect=answer):
+            turn = self.send(self.chat(), text)
+        self.assertEqual(turn['status'], 'completed')
+        self.assertEqual(len(memory.read(self.config, self.b)), 1)
+        with connect(self.config) as db:
+            updated = db.execute('SELECT description FROM businesses WHERE id=%s', (self.b,)).fetchone()
+        self.assertEqual(updated['description'], 'Somos una papelería de Vila-real.')
 
     def test_memory_answer_uses_current_facts_and_plain_language(self):
         chat = self.chat()

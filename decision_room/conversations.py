@@ -745,6 +745,7 @@ class Conversations:
                              draft=action.text, cited_sources=cited,
                              runtime=context['chat_context'].get('runtime', {}),
                              memory_status=context['chat_context'].get('memory_status', {}),
+                             saved_corrections=context['chat_context'].get('saved_corrections', []),
                              finding_reference=context['message'].get('finding_reference'))
         row = db.execute('SELECT * FROM chat_answer_reviews WHERE turn_id=%s AND attempt=%s AND ordinal=%s',
                          (turn['id'], turn['attempt'], ordinal)).fetchone()
@@ -922,6 +923,30 @@ class Conversations:
                         turn['snapshot'] = snapshot(
                             db, self.business, chat['analysis_id'], turn['payload']['text']
                         )
+                        if turn['memory_source_id']:
+                            source_response = db.execute(
+                                'SELECT response FROM memory_sources WHERE id=%s',
+                                (turn['memory_source_id'],),
+                            ).fetchone()['response'] or {}
+                            correction_candidates = [candidate for candidate in source_response.get('candidates', [])
+                                                     if candidate.get('correction_of') or candidate.get('profile_replacement')]
+                            saved_corrections = db.execute(
+                                """SELECT fact_id,revision,content FROM memory_revisions
+                                WHERE business_id=%s AND source_id=%s AND status='declared'
+                                ORDER BY business_revision""",
+                                (self.business, turn['memory_source_id']),
+                            ).fetchall() if correction_candidates else []
+                            turn['snapshot']['saved_corrections'] = [
+                                dict(fact_id=str(row['fact_id']), revision=row['revision'],
+                                     statement=row['content']['statement'])
+                                for row in saved_corrections
+                            ]
+                            for candidate in correction_candidates:
+                                if (candidate.get('profile_replacement') and
+                                    not any(saved['statement'] == candidate['content']['statement']
+                                            for saved in turn['snapshot']['saved_corrections'])):
+                                    turn['snapshot']['saved_corrections'].append(dict(
+                                        statement=candidate['content']['statement'], profile_updated=True))
                         if turn['payload'].get('finding_reference'):
                             turn['snapshot']['finding_reference'] = turn['payload']['finding_reference']
                         db.execute(

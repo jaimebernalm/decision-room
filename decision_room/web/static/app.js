@@ -244,10 +244,11 @@ function renderMemory() {
   if (!box || !state.business) return;
   const m = state.memory || {};
   const failed = m.failed || m.uncertain;
+  const reviewShownInChat = Boolean(document.querySelector("#chat-conflicts")?.children.length);
   const message = failed
     ? "Guardé tus cambios, pero aún no he podido incorporarlos a la memoria."
     : m.pending ? "Guardé tus cambios. Estoy incorporándolos a la memoria…"
-    : m.needs_review ? `Hay ${m.needs_review} ${m.needs_review === 1 ? "dato" : "datos"} de tu negocio por confirmar o aclarar.`
+    : m.needs_review && !reviewShownInChat ? `Hay ${m.needs_review} ${m.needs_review === 1 ? "dato" : "datos"} de tu negocio por confirmar o aclarar.`
     : "";
   box.innerHTML = message ? `<div class="notice memory-notice"><p>${esc(message)} ${m.needs_review ? '<a href="#my-business">Revisar en Mi negocio</a>' : ""}</p>${m.uncertain ? '<p>Se interrumpió una petición al modelo. Reintentar puede repetir esa petición.</p>' : ""}${failed ? '<button type="button" class="button secondary" id="retry-memory">Reintentar memoria</button>' : ""}<span id="memory-error"></span></div>` : "";
   const retry = document.querySelector("#retry-memory");
@@ -983,7 +984,6 @@ async function chatPage(id) {
       const hadReply = Boolean(previousTarget?.querySelector(".chat-answer"));
       current = data;
       state.memory = data.memory;
-      renderMemory();
       const next = JSON.stringify(data);
       if (signature === next) return;
       signature = next;
@@ -1007,10 +1007,13 @@ async function chatPage(id) {
       );
       document.querySelector("#chat-conflicts").innerHTML = conflicts
         .map(
-          (f) =>
-            `<section class="notice"><h3>Confirma qué debemos recordar</h3><p>Existe una contradicción con: ${esc(f.content.statement)}</p>${f.alternatives.map((a, i) => `<p>${esc(a.content.statement)}</p><button class="button secondary" data-fact="${esc(f.id)}" data-revision="${f.revision}" data-alternative="${i}">Usar esta versión como corrección</button>`).join("")}</section>`,
+          (f) => {
+            const proposed = f.alternatives.at(-1);
+            return `<section class="chat-conflict"><h3>Dato pendiente de revisar</h3>${proposed ? `<p>${esc(proposed.content.statement)}</p><button class="button secondary" data-fact="${esc(f.id)}" data-revision="${f.revision}" data-alternative="${f.alternatives.length - 1}">Confirmar este dato</button>` : ""}<a href="#my-business">Editar en Mi negocio</a>${f.alternatives.length > 1 ? `<details><summary>Ver dato anterior</summary><p>${esc(f.alternatives[0].content.statement)}</p></details>` : ""}</section>`;
+          },
         )
         .join("");
+      renderMemory();
       const waiting = data.turns.find(t => t.status === "waiting");
       const busy = !waiting && data.turns.some(t => ["queued", "routing", "processing"].includes(t.status));
       const sendButton = document.querySelector("#send-message");

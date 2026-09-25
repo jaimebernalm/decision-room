@@ -28,9 +28,11 @@ def content(statement='Cerramos los domingos.', **changes):
                    scope_id=None, temporal_scope='unspecified', valid_from=None, valid_until=None, result_id=None), **changes}
 
 
-def candidate(statement='Cerramos los domingos.', *, evidence='explicit', quote=None, conflicts=None, **changes):
+def candidate(statement='Cerramos los domingos.', *, evidence='explicit', quote=None, conflicts=None,
+              correction_of=None, profile_replacement=None, **changes):
     return {'content': content(statement, **changes), 'evidence': evidence,
-            'quote': statement if quote is None else quote, 'conflicts_with': conflicts or []}
+            'quote': statement if quote is None else quote, 'conflicts_with': conflicts or [],
+            'correction_of': correction_of, 'profile_replacement': profile_replacement}
 
 
 class MemoryModel:
@@ -190,6 +192,32 @@ print(read(replace(Config.load(),dsn=args['dsn']),args['business'])[0]['status']
             self.change(action='confirm', fact_id=first['fact_id'], expected_revision=2)
         self.change(action='correct', fact_id=first['fact_id'], expected_revision=2, content=content('Abrimos todos los domingos.'))
         self.assertEqual(memory.read(self.config, self.b)[0]['status'], 'declared')
+
+    def test_explicit_chat_correction_replaces_one_fact_and_preserves_history(self):
+        first = self.change(action='declare', content=content('Es una papelería ficticia de Valencia.', topic='business_location'))
+        text = '¿Puedes cambiar que la papelería está en Valencia por Vila-real?'
+        with connect(self.config) as db, db.transaction():
+            source = memory.capture(db, self.b, 'chat_message:' + str(uuid4()), text=text, kind='manual')
+        self.process(source, candidate('Es una papelería ficticia de Vila-real.', topic='business_location',
+                                       quote=text, conflicts=[first['fact_id']], correction_of=first['fact_id']))
+        rows = memory.read(self.config, self.b)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['status'], 'declared')
+        self.assertEqual(str(rows[0]['fact_id']), first['fact_id'])
+        self.assertEqual(rows[0]['content']['statement'], 'Es una papelería ficticia de Vila-real.')
+        self.assertEqual([r['content']['statement'] for r in memory.read(self.config, self.b, history=True)],
+                         ['Es una papelería ficticia de Valencia.', 'Es una papelería ficticia de Vila-real.'])
+        self.assertEqual(memory.status(self.config, self.b)['needs_review'], 0)
+
+    def test_plain_contradiction_cannot_claim_to_be_an_explicit_correction(self):
+        first = self.change(action='declare', content=content())
+        with connect(self.config) as db, db.transaction():
+            source = memory.capture(db, self.b, 'chat_message:' + str(uuid4()),
+                                    text='Abrimos los domingos.', kind='manual')
+        self.process(source, candidate('Abrimos los domingos.', quote='Abrimos los domingos.',
+                                       conflicts=[first['fact_id']], correction_of=first['fact_id']))
+        self.assertEqual(self.source(source)['status'], 'failed')
+        self.assertEqual(memory.read(self.config, self.b)[0]['content']['statement'], 'Cerramos los domingos.')
 
     def test_withdrawn_origin_and_rephrased_replay_do_not_restore_memory(self):
         source = self.capture()
