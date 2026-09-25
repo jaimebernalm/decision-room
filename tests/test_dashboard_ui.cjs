@@ -20,7 +20,7 @@ function fixture() {
     }
   };
   vm.createContext(sandbox);
-  vm.runInContext(source + '\nstate.business={id:"business-a"}; globalThis.ui={state,store,launchDashboardChat,dashboardSuggestions,shortChatTitle,chatResponse,reportState,scrollToChatTurn,sidebarHistoryMarkup,chatQueuePosition};', sandbox);
+  vm.runInContext(source + '\nstate.business={id:"business-a"}; globalThis.ui={state,store,launchDashboardChat,dashboardSuggestions,shortChatTitle,chatResponse,reportState,scrollToChatTurn,sidebarHistoryMarkup,chatQueuePosition,changeChatVisibility};', sandbox);
   return {sandbox, ...sandbox.ui, calls, chats, messages, values};
 }
 test('sending follows the pending assistant card above the fixed composer', () => {
@@ -59,6 +59,35 @@ test('a lone queued message is not shown as waiting behind an old result', () =>
   assert.equal(f.chatQueuePosition([{status:'queued'}],0),0);
   assert.equal(f.chatQueuePosition([{status:'processing'},{status:'queued'}],1),1);
   assert.equal(f.chatQueuePosition([{status:'processing'},{status:'queued'},{status:'queued'}],2),2);
+});
+test('deleting a chat waits for the in-app dialog and cancel sends no request', async () => {
+  const f=fixture(), dialogs=[];
+  f.state.chats=[{id:'chat-1',title:'Chat <privado>'}];
+  f.sandbox.location.hash='#chat/chat-1';
+  f.sandbox.document.body={append:()=>{}};
+  f.sandbox.document.createElement=()=>{
+    const handlers={};
+    const dialog={
+      returnValue:'', innerHTML:'', className:'',
+      setAttribute:()=>{}, addEventListener:(name,callback)=>{handlers[name]=callback;},
+      showModal:()=>{}, querySelector:()=>({focus:()=>{}}), remove:()=>{},
+      close(value){this.returnValue=value;handlers.close();},
+    };
+    dialogs.push(dialog);
+    return dialog;
+  };
+  const cancelled=f.changeChatVisibility('chat-1','delete');
+  assert.equal(f.calls.length,0);
+  assert.ok(dialogs[0].innerHTML.includes('Chat &lt;privado&gt;'));
+  dialogs[0].close('cancel');
+  assert.equal(await cancelled,false);
+  assert.equal(f.calls.length,0);
+  const approved=f.changeChatVisibility('chat-1','delete');
+  assert.equal(f.calls.length,0);
+  dialogs[1].close('delete');
+  assert.equal(await approved,true);
+  assert.equal(f.calls.filter(call=>call.url==='/api/chats/chat-1/delete').length,1);
+  assert.equal(f.sandbox.location.hash,'#chats');
 });
 test('dashboard creates a chat and sends the original message without CSV', async () => {
   const f=fixture(); f.store.set('dr-home-prompt-business-a','Mi pregunta');

@@ -228,11 +228,30 @@ function scrollToChatTurn(id) {
     : rect.bottom - visibleBottom;
   scrollTo({top: Math.max(0, scrollY + offset), behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth"});
 }
+function confirmChatDelete(chat) {
+  const dialog = document.createElement("dialog");
+  dialog.className = "chat-delete-dialog";
+  dialog.setAttribute("aria-labelledby", "chat-delete-title");
+  dialog.innerHTML = `<form method="dialog"><h2 id="chat-delete-title">¿Eliminar este chat?</h2><p class="chat-delete-name">${esc(chat.title)}</p><p>Se quitará de tus conversaciones. Podrás recuperarlo en «Chats eliminados». Los datos de Mi negocio y los informes seguirán guardados.</p><div class="chat-delete-dialog-actions"><button class="button secondary" value="cancel">Cancelar</button><button class="button primary" value="delete">Eliminar chat</button></div></form>`;
+  document.body.append(dialog);
+  return new Promise(resolve => {
+    dialog.addEventListener("close", () => {
+      const confirmed = dialog.returnValue === "delete";
+      dialog.remove();
+      resolve(confirmed);
+    }, { once: true });
+    dialog.addEventListener("click", event => { if (event.target === dialog) dialog.close("cancel"); });
+    dialog.showModal();
+    dialog.querySelector('[value="cancel"]').focus();
+  });
+}
 async function changeChatVisibility(id, action) {
   const chat = [...state.chats, ...state.deletedChats].find(c => String(c.id) === id);
   if (!chat || !state.business) return false;
-  if (action === "delete" && !confirm(`¿Eliminar «${chat.title}»? Podrás recuperarlo en Conversaciones. Los datos guardados en Mi negocio y los informes se conservan.`)) return false;
-  await api(`/api/chats/${encodeURIComponent(id)}/${action}`, {method: "POST", body: {business_id: state.business.id}});
+  const businessId = state.business.id;
+  if (action === "delete" && !await confirmChatDelete(chat)) return false;
+  if (state.business?.id !== businessId) return false;
+  await api(`/api/chats/${encodeURIComponent(id)}/${action}`, {method: "POST", body: {business_id: businessId}});
   if (action === "delete" && location.hash === `#chat/${id}`) location.hash = "#chats";
   else await route();
   return true;

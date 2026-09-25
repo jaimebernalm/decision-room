@@ -3337,7 +3337,7 @@ body { background: #ffffff; }
 .history-row:focus-within .chat-delete { opacity: 1; }
 .chat-delete:hover, .chat-delete:focus-visible { color: #194632; background: transparent; }
 .chat-delete .icon { width: 15px; height: 15px; }
-.chat-list { display: grid; gap: 12px; max-width: 920px; }
+.chat-list { display: grid; gap: 12px; width: 100%; max-width: 920px; margin-inline: auto; }
 .chat-list-card { position: relative; padding: 0; background: #f5f8f4; transition: background .15s; }
 .chat-list-card:hover, .chat-list-card:focus-within { background: #e7efe6; }
 .chat-list-card > a { display: block; padding: 18px 54px 18px 22px; color: var(--ink); text-decoration: none; }
@@ -3346,10 +3346,17 @@ body { background: #ffffff; }
 .chat-list-card .chat-delete { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); opacity: 0; }
 .chat-list-card:hover .chat-delete, .chat-list-card:focus-within .chat-delete { opacity: 1; }
 @media (hover: none) { .chat-list-card .chat-delete { opacity: 1; } }
-.chat-trash { margin: 38px 0 0; max-width: 850px; border-top: 1px solid #e1eae1; padding-top: 18px; }
+.chat-trash { margin: 38px auto 0; max-width: 920px; border-top: 1px solid #e1eae1; padding-top: 18px; }
 .chat-trash h2 { margin: 0 0 6px; font-size: 16px; }
 .chat-trash > p { margin: 0 0 12px; color: var(--muted); font-size: 12px; }
 .chat-trash > div { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 0; border-top: 1px solid #eff3ee; font-size: 13px; }
+.chat-delete-dialog { width: min(440px, calc(100vw - 32px)); max-width: none; box-sizing: border-box; border: 0; border-radius: 20px; padding: 28px; background: #fff; color: var(--ink); box-shadow: 0 24px 72px rgba(19, 44, 30, .18); }
+.chat-delete-dialog::backdrop { background: rgba(18, 38, 27, .36); backdrop-filter: blur(2px); }
+.chat-delete-dialog h2 { margin: 0 0 14px; font-size: 23px; line-height: 1.2; }
+.chat-delete-dialog p { margin: 0 0 13px; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.chat-delete-dialog .chat-delete-name { color: var(--ink); font-weight: 650; overflow-wrap: anywhere; }
+.chat-delete-dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+@media (max-width: 520px) { .chat-delete-dialog { padding: 22px; } .chat-delete-dialog-actions { flex-direction: column-reverse; } .chat-delete-dialog-actions .button { width: 100%; } }
 .chat-heading-actions { display: flex; gap: 8px; align-items: center; }
 .chat-turn { scroll-margin-bottom: 190px; }
 .chat-answer { width: fit-content; max-width: 85%; margin-left: 0; box-sizing: border-box; }
