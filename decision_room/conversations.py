@@ -556,6 +556,7 @@ class Conversations:
                 'SELECT * FROM chat_turns WHERE conversation_id=%s ORDER BY ordinal', (chat_id,)
             ).fetchall()
             result = []
+            previous_snapshot = None
             for t in turns:
                 value = {
                     k: t[k]
@@ -571,6 +572,13 @@ class Conversations:
                         'created_at',
                     )
                 }
+                if t['snapshot']:
+                    if previous_snapshot and any(
+                        previous_snapshot.get(key) != t['snapshot'].get(key)
+                        for key in ('revision', 'profile', 'tables')
+                    ):
+                        value['context_changed_before'] = True
+                    previous_snapshot = t['snapshot']
                 if t['response'] and t['response'].get('report_id'):
                     r = reviewed(self.config, self.business, t['response']['report_id'])
                     valid = r['publishable'] and r['approved_sha256'] == t['response'].get('report_version')
@@ -582,9 +590,10 @@ class Conversations:
                     valid = valid and dependencies_current(self.config, db, t['snapshot'], self.events(db, t))
                 if not valid:
                     value.update(
-                        response=None,
                         status='stale',
-                        issue='El contexto o la evidencia han cambiado. Recalcula este mensaje.',
+                        historical=bool(t['response']),
+                        report_outdated=bool(t['response'] and t['response'].get('report_id')),
+                        issue=None if t['response'] else 'El contexto o la evidencia han cambiado. Recalcula este mensaje.',
                     )
                 if t['status'] == 'waiting' and t['job_id']:
                     detail = self.ws.detail(t['job_id'])
@@ -593,10 +602,12 @@ class Conversations:
                     else:
                         value['questions'] = detail['questions']
                 result.append(value)
+            context_changed_after = bool(previous_snapshot and not fresh(db, previous_snapshot))
             return dict(
                 conversation=chat,
                 dataset=db.execute('SELECT a.title,COALESCE(v.version,1) AS version,v.corrected,v.superseded_by FROM analyses a LEFT JOIN dataset_versions v ON v.analysis_id=a.id WHERE a.id=%s AND a.business_id=%s', (chat['analysis_id'], self.business)).fetchone() if chat['analysis_id'] else None,
                 turns=result,
+                context_changed_after=context_changed_after,
                 memory=memory.status(self.config, self.business),
                 memory_items=ctx.scoped(
                     ctx.effective(db, self.business),

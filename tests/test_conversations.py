@@ -314,6 +314,29 @@ class ConversationTests(unittest.TestCase):
         self.assertEqual(final['response']['items'][0]['content']['statement'], 'Abrimos los domingos.')
         self.assertEqual(final['response']['items'][0]['status'], 'declared')
 
+    def test_context_change_keeps_prior_replies_and_marks_the_transition(self):
+        chat = self.chat()
+        first = self.send(chat, 'Cerramos los domingos.')
+        original = first['response']
+        fact = memory.read(self.config, self.b)[0]
+        memory.change(self.config, self.b, request_key=str(uuid4()), action='correct',
+                      fact_id=str(fact['fact_id']), expected_revision=fact['revision'],
+                      content=content('Abrimos los domingos.'))
+        changed = self.chats.detail(chat)
+        self.assertEqual(changed['turns'][0]['status'], 'stale')
+        self.assertEqual(changed['turns'][0]['response'], original)
+        self.assertTrue(changed['turns'][0]['historical'])
+        self.assertIsNone(changed['turns'][0]['issue'])
+        self.assertTrue(changed['context_changed_after'])
+
+        self.send(chat, 'Memory?')
+        updated = self.chats.detail(chat)
+        self.assertFalse(updated['context_changed_after'])
+        self.assertTrue(updated['turns'][1]['context_changed_before'])
+        self.assertEqual(updated['turns'][0]['response'], original)
+        self.assertEqual(updated['turns'][1]['response']['items'][0]['content']['statement'],
+                         'Abrimos los domingos.')
+
     def test_explicit_chat_correction_is_saved_before_the_agent_confirms_it(self):
         profile = self.ws.save_business(dict(business_id=str(self.b),
                                              profile_revision=self.business['profile_revision'],
@@ -957,6 +980,9 @@ class ConversationTests(unittest.TestCase):
             return_value={'publishable': True, 'approved_sha256': 'different-reviewed-version'},
         ):
             self.assertEqual(self.chats.detail(chat)['turns'][-1]['status'], 'stale')
+            self.assertEqual(self.chats.detail(chat)['turns'][-1]['response']['report_id'],
+                             turn['response']['report_id'])
+            self.assertTrue(self.chats.detail(chat)['turns'][-1]['report_outdated'])
             with self.assertRaises(WebError):
                 self.chats.report(chat, turn['id'], dict(business_id=str(self.b)))
 

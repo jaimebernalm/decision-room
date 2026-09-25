@@ -3417,3 +3417,33 @@ html.is-scrolling::-webkit-scrollbar-thumb,
 .chat-conflict details { margin-top: 14px; color: var(--muted); }
 .chat-conflict details p { margin: 9px 0 0; }
 a:focus-visible, button:focus-visible, summary:focus-visible { outline-color: #547b60; }
+
+.chat-context-divider {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 30px auto;
+  max-width: 850px;
+  color: #66756b;
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
+}
+.chat-context-divider::before,
+.chat-context-divider::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: #dce7dc;
+}
+.chat-context-divider span { max-width: 440px; }
+.chat-historical-label {
+  display: inline-block;
+  margin-left: 12px;
+  color: #66756b;
+  font-size: 11px;
+  font-weight: 500;
+}
+@media (max-width: 600px) {
+  .chat-context-divider { gap: 10px; font-size: 10px; }
+}
