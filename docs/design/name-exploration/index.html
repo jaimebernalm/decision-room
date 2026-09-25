@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Decision Room · Exploración de nombre y marca</title>
+  <style>
+    :root { --green:#1c493c; --ink:#253c34; --muted:#65705e; --paper:#f8f7f3; --line:#e2e6dd; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:"Avenir Next",Avenir,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    main { max-width:1280px; margin:auto; padding:48px 52px 68px; }
+    header { margin-bottom:31px; }
+    .eyebrow { margin:0 0 11px; color:#5a7867; font-size:12px; letter-spacing:2.2px; font-weight:750; }
+    h1 { margin:0; font-size:42px; line-height:1.15; letter-spacing:-1.8px; font-weight:700; }
+    .intro { margin:13px 0 0; max-width:850px; font-size:16px; line-height:1.5; color:var(--muted); }
+    .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
+    article { min-height:285px; padding:26px 29px 22px; border:1px solid var(--line); border-radius:18px; background:white; }
+    .topline { display:flex; justify-content:space-between; align-items:center; font-size:12px; font-weight:750; letter-spacing:1.8px; color:#62806e; text-transform:uppercase; }
+    .tag { color:#7c8c7f; letter-spacing:.7px; font-weight:600; }
+    .lockup { display:flex; align-items:center; gap:14px; min-height:130px; margin-top:10px; overflow:hidden; }
+    .icon { width:90px; height:90px; flex:none; overflow:hidden; display:grid; place-items:center; }
+    .icon img { width:115px; height:115px; max-width:none; display:block; }
+    .wordmark { color:var(--green); font-size:51px; line-height:1; font-weight:700; letter-spacing:-2.8px; white-space:nowrap; }
+    .current .wordmark { font-size:42px; letter-spacing:-2.5px; font-weight:650; }
+    .auna .wordmark { font-weight:750; letter-spacing:-3px; }
+    .atina .wordmark { font-weight:700; letter-spacing:-2.5px; }
+    .hilaro .wordmark { font-weight:650; letter-spacing:-2.7px; }
+    .meaning { margin:0 0 16px; font-size:15px; color:#5b6b61; }
+    .small { display:flex; align-items:center; gap:6px; border-top:1px solid #e8ebe4; padding-top:12px; color:var(--green); font-size:18px; font-weight:700; letter-spacing:-.7px; }
+    .small img { width:39px; height:39px; }
+    footer { color:#68766c; font-size:13px; margin-top:24px; line-height:1.5; }
+    @media (max-width:820px) { main{padding:28px 18px 40px} .grid{grid-template-columns:1fr} h1{font-size:32px} .wordmark{font-size:42px} .current .wordmark{font-size:33px} }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="eyebrow">DECISION ROOM / EXPLORACIÓN DE MARCA</p>
+    <h1>¿Cómo suena y se ve el nombre?</h1>
+    <p class="intro">Cuatro pruebas de símbolo y palabra en una sola identidad. Verde único, tipografía sans serif con peso cercano al trazo del símbolo y lectura clara en pequeño.</p>
+  </header>
+  <section class="grid" aria-label="Cuatro combinaciones de nombre y símbolo">
+    <article class="current">
+      <div class="topline"><span>01 / nombre actual</span><span class="tag">referencia</span></div>
+      <div class="lockup"><span class="icon"><img src="../logo-options/02-chispa.png" alt=""></span><span class="wordmark">decisionroom</span></div>
+      <p class="meaning">El nombre explica la idea de un espacio para decidir; ocupa más sitio en la interfaz.</p>
+      <div class="small"><img src="../logo-options/02-chispa.png" alt=""><span>decisionroom</span></div>
+    </article>
+    <article class="auna">
+      <div class="topline"><span>02 / colaboración</span><span class="tag">nombre exploratorio</span></div>
+      <div class="lockup"><span class="icon"><img src="../logo-options/01-colaboracion.png" alt=""></span><span class="wordmark">aúna</span></div>
+      <p class="meaning">Persona y agente aportan una perspectiva cada uno. Cálido, breve y fácil de decir.</p>
+      <div class="small"><img src="../logo-options/01-colaboracion.png" alt=""><span>aúna</span></div>
+    </article>
+    <article class="atina">
+      <div class="topline"><span>03 / decisión</span><span class="tag">nombre exploratorio</span></div>
+      <div class="lockup"><span class="icon"><img src="../logo-options/02-chispa.png" alt=""></span><span class="wordmark">atina</span></div>
+      <p class="meaning">Expresa acertar con criterio. La chispa aporta el momento de comprensión.</p>
+      <div class="small"><img src="../logo-options/02-chispa.png" alt=""><span>atina</span></div>
+    </article>
+    <article class="hilaro">
+      <div class="topline"><span>04 / comprensión</span><span class="tag">nombre exploratorio</span></div>
+      <div class="lockup"><span class="icon"><img src="../logo-options/03-apoyo.png" alt=""></span><span class="wordmark">hilaro</span></div>
+      <p class="meaning">De hilar datos e ideas hasta entenderlos. Más distintivo, con significado menos inmediato.</p>
+      <div class="small"><img src="../logo-options/03-apoyo.png" alt=""><span>hilaro</span></div>
+    </article>
+  </section>
+  <footer>Pruebas de identidad, no un cambio de nombre aprobado. Las opciones deben comprobarse en marcas, dominios y con usuarios antes de adoptarse.</footer>
+</main>
+</body>
+</html>
