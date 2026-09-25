@@ -116,13 +116,13 @@ class ModelClient:
         )
 
     def generate_chat(self, context, correction=None):
-        from ..conversations import Action, SYSTEM
-        schema = Action.model_json_schema()
-        # Stored v2 actions keep defaults; new provider responses name every field.
-        schema['required'] = list(schema['properties'])
-        for field in schema['properties'].values():
-            field.pop('default', None)
+        from ..chat_agent import Decision, SYSTEM
+        schema = Decision.model_json_schema()
         return self._generate(context, correction, SYSTEM, schema)
+
+    def review_chat_answer(self, context):
+        from ..chat_agent import AnswerReview, REVIEW_SYSTEM
+        return self._generate(context, None, REVIEW_SYSTEM, AnswerReview.model_json_schema())
 
     def generate_memory(self, context, correction=None):
         from ..memory.contracts import Extraction, SYSTEM as MEMORY_SYSTEM

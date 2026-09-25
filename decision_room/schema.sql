@@ -561,3 +561,18 @@ CREATE TABLE IF NOT EXISTS dataset_uploads (
     PRIMARY KEY(business_id,request_key)
 );
 INSERT INTO schema_versions(version) VALUES (13) ON CONFLICT DO NOTHING;
+
+-- Conversational prose is independently checked, with durable provider outcomes.
+CREATE TABLE IF NOT EXISTS chat_answer_reviews (
+    turn_id uuid NOT NULL REFERENCES chat_turns(id),
+    attempt integer NOT NULL,
+    ordinal integer NOT NULL,
+    prompt_version text NOT NULL,
+    context jsonb NOT NULL,
+    response jsonb,
+    usage jsonb,
+    status text NOT NULL CHECK(status IN ('running','completed','failed','uncertain')),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY(turn_id,attempt,ordinal)
+);
+INSERT INTO schema_versions(version) VALUES (14) ON CONFLICT DO NOTHING;

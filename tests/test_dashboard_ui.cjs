@@ -152,3 +152,12 @@ test('first access keeps onboarding in place until a business is saved', async (
   assert.equal(f.sandbox.onboarded,true);
   assert.equal(timers,0);
 });
+
+test('agent prose formats paragraphs and lists while escaping all model HTML', () => {
+  const f = fixture();
+  const html = f.chatResponse({kind:'grounded_answer', text:'**Ventas** y `importe`\n\n- <img src=x onerror=alert(1)>\n- Segundo dato', sources:[{label:'<script>bad</script>'}]});
+  assert.match(html, /<strong>Ventas<\/strong>/);
+  assert.match(html, /<code>importe<\/code>/);
+  assert.match(html, /<ul><li>&lt;img/);
+  assert.doesNotMatch(html, /<img|<script/);
+});

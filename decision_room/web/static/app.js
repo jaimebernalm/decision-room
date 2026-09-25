@@ -803,8 +803,24 @@ function shortGreeting(value) {
   const normalized = String(value ?? "").toLocaleLowerCase("es").replace(/[¡!¿?.,\s]+/g, " ").trim();
   return ["hola", "holi", "buenas", "buen día", "buenos días", "buenas tardes", "buenas noches", "qué tal", "que tal", "hey", "hello", "hi"].includes(normalized);
 }
+function chatProse(text) {
+  // Escape first: model prose never introduces HTML, links or executable content.
+  const inline = line => esc(line).replace(/`([^`\n]+)`/g, "<code>$1</code>").replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
+  return text.split(/\n\s*\n/).map(block => {
+    const lines = block.split("\n");
+    if (lines.every(line => /^[-*]\s+/.test(line)))
+      return `<ul>${lines.map(line => `<li>${inline(line.replace(/^[-*]\s+/, ""))}</li>`).join("")}</ul>`;
+    return `<p>${lines.map(inline).join("<br>")}</p>`;
+  }).join("");
+}
 function chatResponse(r, anchor = "response", ownerText = "") {
   if (!r) return "";
+  if (r.kind === "grounded_answer") {
+    const labels = [...new Set((r.sources || []).map(s => s.label))];
+    return chatProse(r.text)
+      + (labels.length ? `<p class="muted chat-source">Fuentes: ${labels.map(esc).join(" · ")}</p>` : "")
+      + (r.evidence ? `<details class="chat-evidence"><summary>Ver informe de referencia</summary>${chatResponse(r.evidence, anchor)}</details>` : "");
+  }
   if (r.kind === "memory" && shortGreeting(ownerText))
     return `<p>¡Hola! ¿Qué te gustaría saber o investigar sobre ${esc(state.business?.name || "tu negocio")}?</p>`;
   if (r.kind === "evidence") {
@@ -888,7 +904,7 @@ async function chatPage(id) {
         data.turns
           .map(
             (t, index) =>
-              `<article class="chat-turn"><div class="chat-owner"><strong>Tú</strong><p>${esc(t.payload.text)}</p></div><div class="card chat-answer"><strong>Decision Room</strong>${t.payload.finding_reference ? `<p class="question-context">Sobre: ${esc(t.payload.finding_reference.title)} · ${esc(t.payload.finding_reference.period)}</p>` : ""}${chatResponse(t.response, `turn-${t.id}`, t.payload.text)}${t.issue ? `<p class="notice">${esc(t.issue)}</p>` : ""}${["queued", "routing", "processing"].includes(t.status) ? '<p class="muted">Preparando y comprobando la respuesta… Puedes volver más tarde.</p>' : ""}${["failed", "stale", "blocked"].includes(t.status) && index === data.turns.length - 1 ? `<button class="button secondary" data-retry="${esc(t.id)}">Reintentar con el contexto actual</button>` : ""}${t.response?.kind === "evidence" ? (t.report_requested ? `<a class="button secondary" target="_blank" rel="noopener" href="/api/chats/${esc(id)}/report/${esc(t.id)}">Abrir informe</a>` : `<button class="button secondary" data-report="${esc(t.id)}">Generar informe</button>`) : ""}</div></article>`,
+              `<article class="chat-turn"><div class="chat-owner"><strong>Tú</strong><p>${esc(t.payload.text)}</p></div><div class="card chat-answer"><strong>Decision Room</strong>${t.payload.finding_reference ? `<p class="question-context">Sobre: ${esc(t.payload.finding_reference.title)} · ${esc(t.payload.finding_reference.period)}</p>` : ""}${chatResponse(t.response, `turn-${t.id}`, t.payload.text)}${t.issue ? `<p class="notice">${esc(t.issue)}</p>` : ""}${["queued", "routing", "processing"].includes(t.status) ? '<p class="muted">Preparando y comprobando la respuesta… Puedes volver más tarde.</p>' : ""}${["failed", "stale", "blocked"].includes(t.status) && index === data.turns.length - 1 ? `<button class="button secondary" data-retry="${esc(t.id)}">Reintentar con el contexto actual</button>` : ""}${t.response?.report_id ? (t.report_requested ? `<a class="button secondary" target="_blank" rel="noopener" href="/api/chats/${esc(id)}/report/${esc(t.id)}">Abrir informe</a>` : `<button class="button secondary" data-report="${esc(t.id)}">Generar informe</button>`) : ""}</div></article>`,
           )
           .join("") ||
         '<section class="card"><h2>¿Por dónde empezamos?</h2><p>Puedes preguntar por un resultado, pedir un cálculo o explicar cómo funciona tu negocio.</p></section>';

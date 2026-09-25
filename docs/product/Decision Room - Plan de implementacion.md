@@ -181,6 +181,8 @@ y la [validación](../validation/2026-09-23-semantic-check.md).
 
 ### 2.5.4. Conversaciones del cliente conectadas al análisis
 
+**Ampliación completada, 25 de septiembre:** consultas dirigidas por el agente y redacción propia con fuentes y revisión persistente; memoria automática, comprobación de vigencia, bloqueo de consultas idénticas e informes originales conservados. Verificados 39 casos dirigidos, 15 de interfaz, recorridos con modelo real y el seguimiento al CSV en navegador. Véanse el [plan aplicado](../technical/autonomous-chat-plan.md) y la [validación con límites](../validation/2026-09-25-autonomous-chat-check.md).
+
 **Construir:** conversaciones y mensajes persistentes, turnos recuperables y referencia al negocio, fuentes, memoria e investigaciones. Permitir explicar evidencia existente, aportar contexto, explorar una decisión o iniciar un cálculo; no exigir un informe ni un CSV nuevo por mensaje. Integrar cambios de memoria desde el chat con aviso/corrección para declaraciones claras y aclaración cuando haya ambigüedad material. Crear un informe independiente cuando se solicite, reutilizando evidencia vigente y revisando contenido nuevo. Mantener la conversación interna de revisión separada del chat del cliente.
 
 **Comprobar:** una pregunta breve obtiene respuesta con fuente y periodo; una pregunta nueva ejecuta y verifica el cálculo; una pregunta sin datos suficientes explica el límite; una declaración se utiliza en otro chat y al reabrir uno antiguo. Recargar/reintentar no duplica mensajes, hechos ni trabajos. Las respuestas nuevas no eluden las comprobaciones por presentarse en chat en vez de en un informe.

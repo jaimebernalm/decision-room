@@ -21,6 +21,8 @@ from test_memory import candidate, content
 
 
 def action(kind, **values):
+    if kind == 'answer':
+        return dict(action=kind, retrieval=None, analysis_id='', text='', sources=[]) | values
     return {
         **dict(
             action=kind,
@@ -59,7 +61,13 @@ class ChatModel(WebModel):
                 limit=5,
             )
             return action('retrieve', retrieval=req), {}
+        if is_greeting(text):
+            return action('answer', text='¡Hola, buenos días! ¿Qué te gustaría averiguar?', sources=[]), {}
         return action('remember' if 'domingo' in text or text == 'Memory?' else 'missing'), {}
+
+
+    def review_chat_answer(self, context):
+        return dict(approved=True, issues=[]), {}
 
 
 class ConversationTests(unittest.TestCase):
@@ -248,26 +256,19 @@ class ConversationTests(unittest.TestCase):
         self.assertIn('todavía no encuentro', memory_reply({'name': 'Tienda'}, [],
             {'pending': 0, 'failed': 0, 'uncertain': 0}))
 
-    def test_short_greeting_uses_business_context_without_listing_it(self):
-        self.assertTrue(is_greeting('  ¡Hola! '))
-        self.assertTrue(is_greeting('hola buenos dias'))
-        self.assertTrue(is_greeting('¡Hola! ¿Qué tal?'))
-        self.assertTrue(is_greeting('Buenas tardes'))
-        self.assertFalse(is_greeting('Hola, ¿qué sabes de mi negocio?'))
-        self.assertFalse(is_greeting('dime buenos dias al menos tmb no? jajaj'))
+    def test_greeting_is_model_authored_and_sees_business_context(self):
         self.send(self.chat(), 'Cerramos los domingos.')
-        chat = self.chat()
-        with (patch.object(ChatModel, 'generate_memory', side_effect=AssertionError('greeting extraction')),
-              patch.object(ChatModel, 'generate_chat', side_effect=AssertionError('greeting routing'))):
-            turn = self.send(chat, 'hola buenos dias')
-        self.assertEqual(turn['status'], 'completed')
-        self.assertEqual(turn['response']['kind'], 'greeting')
-        self.assertIn('Fictional chat shop', turn['response']['text'])
-        self.assertIn('¿Qué te gustaría', turn['response']['text'])
-        self.assertIn('¡Hola, buenos días!', turn['response']['text'])
-        self.assertNotIn('Cerramos los domingos', turn['response']['text'])
+        def greet(model, context, correction=None):
+            self.assertEqual(context['chat_context']['profile']['name'], 'Fictional chat shop')
+            return action('answer', text='¡Buenos días! ¿En qué te ayudo hoy?', sources=[]), {}
+        with patch.object(ChatModel, 'generate_chat', greet):
+            turn = self.send(self.chat(), 'hola buenos dias')
+        self.assertEqual(turn['status'], 'completed', turn)
+        self.assertEqual(turn['response']['text'], '¡Buenos días! ¿En qué te ayudo hoy?')
+        self.assertEqual(turn['response']['kind'], 'grounded_answer')
         with connect(self.config) as db:
-            self.assertFalse(db.execute('SELECT 1 FROM chat_calls WHERE turn_id=%s', (turn['id'],)).fetchone())
+            self.assertTrue(db.execute('SELECT 1 FROM chat_calls WHERE turn_id=%s', (turn['id'],)).fetchone())
+            self.assertTrue(db.execute('SELECT 1 FROM chat_answer_reviews WHERE turn_id=%s', (turn['id'],)).fetchone())
 
     def test_router_sees_both_sides_and_can_repair_a_missed_greeting(self):
         chat = self.chat()
@@ -301,8 +302,131 @@ class ConversationTests(unittest.TestCase):
             return action('missing'), {}
         with patch.object(ChatModel, 'generate_chat', answer):
             self.send(chat, '¿Qué dijiste antes?')
-        self.assertEqual(seen[0]['recent_dialogue'], [])
+        self.assertEqual(seen[0]['recent_dialogue'][0]['owner'], 'Cerramos los domingos.')
+        self.assertEqual(seen[0]['recent_dialogue'][0]['assistant']['kind'], 'stale')
+        self.assertNotIn('Cerramos', seen[0]['recent_dialogue'][0]['assistant']['text'])
         self.assertEqual(seen[0]['recent_owner_messages'], [])
+
+    def test_inspected_csv_answer_and_reference_survive_followup_and_refresh(self):
+        analysis = self.batch()
+        chat = self.chat(analysis)
+        seen = []
+        def respond(model, context, correction=None):
+            seen.append(context)
+            table = context['chat_context']['catalog']['items'][0]
+            if not context['retrievals']:
+                return dict(action='retrieve', retrieval=dict(tool='inspect_dataset', id=table['id'], query='', limit=5),
+                            text='', analysis_id='', sources=[]), {}
+            self.assertEqual(context['retrievals'][0]['response']['dataset']['row_count'], 2)
+            return action('answer', text='El CSV contiene dos filas y las columnas quantity y amount.', sources=['tool/0']), {}
+        with patch.object(ChatModel, 'generate_chat', respond):
+            first = self.send(chat, 'What files do I have?')
+            second = self.send(chat, 'And what is in them?')
+        self.assertEqual(first['status'], 'completed', first)
+        self.assertEqual(second['status'], 'completed', second)
+        self.assertEqual(seen[2]['recent_dialogue'][-1]['assistant']['text'], first['response']['text'])
+        self.assertEqual(self.chats.detail(chat)['turns'][-1]['response'], second['response'])
+        self.assertIsNone(second['job_id'])
+        memory.change(self.config, self.b, action='declare', request_key='changed-definition', content=content())
+        self.assertEqual(self.chats.detail(chat)['turns'][-1]['status'], 'stale')
+
+    def test_duplicate_tool_is_not_executed_twice(self):
+        chat = self.chat(self.batch())
+        def respond(model, context, correction=None):
+            if len(context['retrievals']) < 2:
+                return dict(action='retrieve', retrieval=dict(tool='inspect_dataset', id=context['chat_context']['catalog']['items'][0]['id'], query='', limit=5),
+                            text='', analysis_id='', sources=[]), {}
+            self.assertIn('Identical lookup', context['retrievals'][-1]['response']['error'])
+            return action('answer', text='Hay dos filas en el CSV.', sources=['tool/0']), {}
+        with patch.object(ChatModel, 'generate_chat', respond), patch.object(retrieval, 'retrieve', wraps=retrieval.retrieve) as tool:
+            turn = self.send(chat, 'Describe the CSV')
+        self.assertEqual(turn['status'], 'completed', turn)
+        self.assertEqual(tool.call_count, 1)
+
+    def test_unknown_source_and_reviewer_rejection_correct_before_publication(self):
+        count = 0
+        def respond(model, context, correction=None):
+            nonlocal count
+            count += 1
+            if count == 1:
+                return action('answer', text='Ventas: 999 euros.', sources=['invented']), {}
+            self.assertTrue(context['validation_feedback'])
+            if count == 2:
+                return action('answer', text='Ventas: 999 euros.', sources=['profile']), {}
+            return action('answer', text='Todavía no tengo datos para comprobar las ventas.', sources=[]), {}
+        def check(model, context):
+            if '999' in context['draft']:
+                return dict(approved=False, issues=['Sales figure unsupported; retrieve reviewed evidence.']), {}
+            return dict(approved=True, issues=[]), {}
+        with patch.object(ChatModel, 'generate_chat', respond), patch.object(ChatModel, 'review_chat_answer', check):
+            turn = self.send(self.chat(), 'What are sales?')
+        self.assertEqual(turn['status'], 'completed', turn)
+        self.assertNotIn('999', turn['response']['text'])
+        with connect(self.config) as db:
+            reviews = db.execute('SELECT response FROM chat_answer_reviews WHERE turn_id=%s ORDER BY ordinal', (turn['id'],)).fetchall()
+        self.assertEqual([r['response']['approved'] for r in reviews], [False, False, True])
+
+    def test_review_uncertainty_is_durable_and_requires_explicit_retry(self):
+        chat = self.chat()
+        with patch.object(ChatModel, 'generate_chat', return_value=(action('answer', text='Hola, ¿cómo estás?', sources=[]), {})), \
+             patch.object(ChatModel, 'review_chat_answer', side_effect=ModelRequestUncertain('test review')) as reviewer:
+            turn = self.send(chat, 'Hello again')
+            self.chats.run(turn['id'])
+        self.assertEqual(turn['status'], 'failed')
+        self.assertIsNone(turn['response'])
+        self.assertEqual(reviewer.call_count, 1)
+        with connect(self.config) as db:
+            self.assertEqual(db.execute('SELECT status FROM chat_answer_reviews WHERE turn_id=%s', (turn['id'],)).fetchone()['status'], 'uncertain')
+
+    def test_model_authored_report_explanation_exports_and_stales(self):
+        chat, original = self.complete()
+        report_id = original['response']['report_id']
+        def respond(model, context, correction=None):
+            if not context['retrievals']:
+                return dict(action='retrieve', retrieval=dict(tool='open_report', id=report_id, query='', limit=5),
+                            text='', analysis_id='', sources=[]), {}
+            return action('answer', text='El resultado procede de sumar los importes de cada fila.', sources=['tool/0']), {}
+        with patch.object(ChatModel, 'generate_chat', respond):
+            turn = self.send(chat, 'Where does this come from?')
+        self.assertEqual(turn['status'], 'completed', turn)
+        self.assertEqual(turn['response']['report_id'], report_id)
+        self.assertEqual(self.chats.detail(chat)['turns'][-1]['response']['text'], turn['response']['text'])
+        self.chats.report(chat, turn['id'], dict(business_id=str(self.b)))
+        self.assertIn('Ventas', self.chats.report(chat, turn['id']))
+        memory.change(self.config, self.b, action='declare', request_key='report-new-definition', content=content())
+        self.assertEqual(self.chats.detail(chat)['turns'][-1]['status'], 'stale')
+        with self.assertRaises(WebError):
+            self.chats.report(chat, turn['id'])
+
+    def test_completed_prose_and_review_replay_without_provider_calls(self):
+        chat = self.chat()
+        with patch.object(ChatModel, 'generate_chat', return_value=(action('answer', text='¡Hola!', sources=[]), {})):
+            turn = self.send(chat, 'Hola')
+        with connect(self.config) as db:
+            db.execute("UPDATE chat_turns SET status='routing',response=NULL WHERE id=%s", (turn['id'],))
+        with patch.object(ChatModel, 'generate_chat', side_effect=AssertionError('No duplicate author call')), \
+             patch.object(ChatModel, 'review_chat_answer', side_effect=AssertionError('No duplicate review')):
+            self.chats.run(turn['id'])
+        self.assertEqual(self.chats.detail(chat)['turns'][-1]['response'], turn['response'])
+
+    def test_finding_answer_must_open_and_cite_selected_report_after_rejected_draft(self):
+        chat, original = self.complete()
+        evidence = original['response']
+        reference = {k: evidence[k] for k in ('report_id', 'report_version')}
+        reference['claim_key'] = evidence['claims'][0]['key']
+        def respond(model, context, correction=None):
+            if not context['validation_feedback']:
+                return action('answer', text='La cifra procede de sumar importes.', sources=[]), {}
+            if not context['retrievals']:
+                return dict(action='retrieve', retrieval=dict(tool='open_report', id=reference['report_id'], query='', limit=5),
+                            text='', analysis_id='', sources=[]), {}
+            self.assertIn('tool/1', context['available_sources'])
+            return action('answer', text='La cifra procede de sumar los importes de cada fila.', sources=['tool/1']), {}
+        with patch.object(ChatModel, 'generate_chat', respond):
+            turn = self.send(self.chat(), 'Explain that finding', finding_reference=reference)
+        self.assertEqual(turn['status'], 'completed', turn)
+        self.assertEqual(turn['response']['report_version'], reference['report_version'])
+        self.assertEqual([c['key'] for c in turn['response']['evidence']['claims']], [reference['claim_key']])
 
     def test_send_is_persisted_idempotent_and_serial(self):
         chat = self.chat()
@@ -315,7 +439,7 @@ class ConversationTests(unittest.TestCase):
         with self.assertRaises(WebError):
             self.chats.send(chat, {**payload, 'request_key': str(uuid4())})
         self.chats.run(results[0]['id'])
-        self.assertEqual(self.chats.detail(chat)['turns'][0]['response']['kind'], 'greeting')
+        self.assertEqual(self.chats.detail(chat)['turns'][0]['response']['kind'], 'grounded_answer')
 
     def test_reviewed_calculation_explanation_and_explicit_report(self):
         chat, t = self.complete()
@@ -355,23 +479,21 @@ class ConversationTests(unittest.TestCase):
         with self.assertRaises(WebError):
             self.chats.report(chat, t['id'])
 
-    def test_clock_answer_is_grounded_durable_and_does_not_extract_memory(self):
+    def test_clock_answer_uses_supplied_runtime_and_no_analytical_job(self):
         chat = self.chat()
         clock = dict(server_time='2026-09-24T10:42:00+02:00', timezone='CEST', web_access=False)
-        with patch('decision_room.conversations.runtime_context', return_value=clock), \
-                patch.object(ChatModel, 'generate_chat', side_effect=AssertionError('Clock needs no model')):
+        def answer(model, context, correction=None):
+            self.assertEqual(context['available_sources']['runtime']['content'], clock)
+            return action('answer', text='Hoy es 24 de septiembre de 2026, según el reloj del servidor.', sources=['runtime']), {}
+        with patch('decision_room.conversations.runtime_context', return_value=clock), patch.object(ChatModel, 'generate_chat', answer):
             turn = self.send(chat, '¿Qué día es hoy?')
-        self.assertEqual(turn['response']['kind'], 'answer')
-        self.assertIn('jueves, 24 de septiembre de 2026', turn['response']['text'])
-        self.assertIn('UTC+0200', turn['response']['text'])
+        self.assertEqual(turn['status'], 'completed', turn)
+        self.assertIn('24 de septiembre de 2026', turn['response']['text'])
         with connect(self.config) as db:
             row = db.execute('SELECT memory_source_id,job_id FROM chat_turns WHERE id=%s', (turn['id'],)).fetchone()
             self.assertIsNone(row['memory_source_id'])
             self.assertIsNone(row['job_id'])
-        memory.change(self.config, self.b, action='declare', request_key='clock-unrelated-change', content=content())
         self.assertEqual(self.chats.detail(chat)['turns'][0]['response'], turn['response'])
-        self.assertIsNone(direct_question('¿Qué día es hoy y cuánto vendimos?'))
-        self.assertIsNone(direct_question('¿Qué ha pasado hoy en mi negocio?'))
 
     def test_conversational_fallback_and_capabilities_do_not_dump_memory(self):
         for kind in ('capabilities', 'unavailable'):
