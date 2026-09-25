@@ -990,7 +990,7 @@ async function chatPage(id) {
       document.querySelector("#chat-title").textContent =
         shortChatTitle(data.conversation.title);
       document.querySelector("#chat-dataset").innerHTML = data.dataset ? `${esc(data.dataset.title)} · Versión ${esc(data.dataset.version)}${data.dataset.corrected ? " · Corregida: elige los datos vigentes" : data.dataset.superseded_by ? " · Hay una versión posterior" : ""} · <a href="#files">Ver datos</a>` : "Datos: el agente buscará los conjuntos pertinentes.";
-      const contextDivider = '<div class="chat-context-divider" role="note"><span>Contexto actualizado · Las respuestas anteriores reflejan la información disponible entonces.</span></div>';
+      const contextDivider = '<div class="chat-context-divider" role="note" aria-label="El contexto cambió aquí. Las respuestas anteriores reflejan la información disponible entonces."><span>Contexto actualizado desde aquí</span></div>';
       document.querySelector("#chat-turns").innerHTML =
         data.turns
           .map(

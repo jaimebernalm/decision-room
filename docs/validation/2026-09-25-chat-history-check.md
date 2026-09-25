@@ -11,4 +11,5 @@
 
 - Pruebas de conversación: se conserva la respuesta original, el separador cambia de posición al continuar el chat y la respuesta nueva utiliza el dato vigente. La revisión de informes de otra versión conserva el contenido histórico y señala el resultado anterior.
 - Se inspeccionó en el navegador local el chat existente que contenía una respuesta sobre Valencia y una corrección posterior a Vila-real: las dos respuestas anteriores reaparecen y la línea queda antes del mensaje de corrección.
+- El separador usa la frase breve «Contexto actualizado desde aquí» para mantenerse en una sola línea también en la vista estrecha; su descripción accesible conserva la explicación completa.
 - Pasan 274 pruebas Python y 16 pruebas JavaScript. La sintaxis JavaScript y Python, y `git diff --check` también pasan.

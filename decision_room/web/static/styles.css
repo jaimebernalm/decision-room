@@ -3436,7 +3436,9 @@ a:focus-visible, button:focus-visible, summary:focus-visible { outline-color: #5
   flex: 1;
   background: #dce7dc;
 }
-.chat-context-divider span { max-width: 440px; }
+.chat-context-divider span { white-space: nowrap; }
+.chat-context-divider::before,
+.chat-context-divider::after { min-width: 8px; }
 .chat-historical-label {
   display: inline-block;
   margin-left: 12px;
@@ -3445,5 +3447,5 @@ a:focus-visible, button:focus-visible, summary:focus-visible { outline-color: #5
   font-weight: 500;
 }
 @media (max-width: 600px) {
-  .chat-context-divider { gap: 10px; font-size: 10px; }
+  .chat-context-divider { gap: 8px; font-size: 10px; }
 }
