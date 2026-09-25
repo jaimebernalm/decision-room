@@ -62,7 +62,6 @@ const state = {
   dashboard: null,
   selectedReport: null,
   chats: [],
-  deletedChats: [],
   sidebarWidth: store.get("dr-sidebar-width", null),
   scrollToTurn: null,
   datasets: { items: [], more: false },
@@ -232,7 +231,7 @@ function confirmChatDelete(chat) {
   const dialog = document.createElement("dialog");
   dialog.className = "chat-delete-dialog";
   dialog.setAttribute("aria-labelledby", "chat-delete-title");
-  dialog.innerHTML = `<form method="dialog"><h2 id="chat-delete-title">¿Eliminar este chat?</h2><p class="chat-delete-name">${esc(chat.title)}</p><p>Se quitará de tus conversaciones. Podrás recuperarlo en «Chats eliminados». Los datos de Mi negocio y los informes seguirán guardados.</p><div class="chat-delete-dialog-actions"><button class="button secondary" value="cancel">Cancelar</button><button class="button primary" value="delete">Eliminar chat</button></div></form>`;
+  dialog.innerHTML = `<form method="dialog"><h2 id="chat-delete-title">¿Eliminar este chat?</h2><p class="chat-delete-name">${esc(chat.title)}</p><p>Si lo eliminas, no podrás volver a acceder a esta conversación.</p><div class="chat-delete-dialog-actions"><button class="button secondary" value="cancel">Cancelar</button><button class="button primary" value="delete">Eliminar chat</button></div></form>`;
   document.body.append(dialog);
   return new Promise(resolve => {
     dialog.addEventListener("close", () => {
@@ -245,25 +244,24 @@ function confirmChatDelete(chat) {
     dialog.querySelector('[value="cancel"]').focus();
   });
 }
-async function changeChatVisibility(id, action) {
-  const chat = [...state.chats, ...state.deletedChats].find(c => String(c.id) === id);
+async function deleteChat(id) {
+  const chat = state.chats.find(c => String(c.id) === id);
   if (!chat || !state.business) return false;
   const businessId = state.business.id;
-  if (action === "delete" && !await confirmChatDelete(chat)) return false;
+  if (!await confirmChatDelete(chat)) return false;
   if (state.business?.id !== businessId) return false;
-  await api(`/api/chats/${encodeURIComponent(id)}/${action}`, {method: "POST", body: {business_id: businessId}});
-  if (action === "delete" && location.hash === `#chat/${id}`) location.hash = "#chats";
+  await api(`/api/chats/${encodeURIComponent(id)}/delete`, {method: "POST", body: {business_id: businessId}});
+  if (location.hash === `#chat/${id}`) location.hash = "#chats";
   else await route();
   return true;
 }
 document.addEventListener("click", async (event) => {
-  const button = event.target.closest("[data-delete-chat],[data-restore-chat]");
+  const button = event.target.closest("[data-delete-chat]");
   if (!button) return;
   event.preventDefault();
   button.disabled = true;
   try {
-    const changed = await changeChatVisibility(button.dataset.deleteChat || button.dataset.restoreChat,
-      button.dataset.deleteChat ? "delete" : "restore");
+    const changed = await deleteChat(button.dataset.deleteChat);
     if (!changed) button.disabled = false;
   } catch (error) { toast(error.message); button.disabled = false; }
 });
@@ -965,7 +963,7 @@ async function chatsPage() {
     shell(`<div class="new-chat-landing"><div class="new-chat-heading"><p class="eyebrow">${esc(state.business.name)}</p><h1>¿Qué te gustaría entender hoy?</h1></div>${questionComposer()}<section class="new-chat-recent" aria-label="Conversaciones anteriores"><h2>Conversaciones anteriores</h2>${recent.length ? `<div class="new-chat-list">${recent.map(c => `<a href="#chat/${esc(c.id)}">${icon("chat")}<span>${esc(shortChatTitle(c.title))}</span>${icon("arrow")}</a>`).join("")}</div><a class="new-chat-all" href="#chats">Ver todas las conversaciones ${icon("arrow")}</a>` : '<p>Aquí encontrarás tus chats cuando empieces a conversar.</p>'}</section></div>`, "chats", "Nuevo chat");
     return;
   }
-  shell(`<div class="page-heading"><div><p class="eyebrow">TU NEGOCIO, CON CONTEXTO</p><h1>Conversaciones</h1><p>Retoma un chat o empieza uno nuevo.</p></div><a class="button secondary" href="#ask">Nuevo chat</a></div><div class="chat-list">${state.chats.map(c => `<article class="card chat-list-card"><a href="#chat/${esc(c.id)}"><h2>${esc(c.title)}</h2><p>${fmtDate(c.last_message_at || c.created_at)}</p></a><button type="button" class="chat-delete" data-delete-chat="${esc(c.id)}" aria-label="Eliminar chat ${esc(c.title)}" title="Eliminar chat">${icon("close")}</button></article>`).join("") || '<p class="empty">Aquí aparecerán tus conversaciones guardadas.</p>'}</div>${state.deletedChats.length ? `<section class="chat-trash"><h2>Chats eliminados</h2><p>Se pueden recuperar. Los datos guardados en Mi negocio y los informes se conservan.</p>${state.deletedChats.map(c => `<div><span>${esc(c.title)}</span><button class="button secondary" type="button" data-restore-chat="${esc(c.id)}">Recuperar</button></div>`).join("")}</section>` : ""}`, "chats", "Conversaciones");
+  shell(`<div class="page-heading"><div><p class="eyebrow">TU NEGOCIO, CON CONTEXTO</p><h1>Conversaciones</h1><p>Retoma un chat o empieza uno nuevo.</p></div><a class="button secondary" href="#ask">Nuevo chat</a></div><div class="chat-list">${state.chats.map(c => `<article class="card chat-list-card"><a href="#chat/${esc(c.id)}"><h2>${esc(c.title)}</h2><p>${fmtDate(c.last_message_at || c.created_at)}</p></a><button type="button" class="chat-delete" data-delete-chat="${esc(c.id)}" aria-label="Eliminar chat ${esc(c.title)}" title="Eliminar chat">${icon("close")}</button></article>`).join("") || '<p class="empty">Aquí aparecerán tus conversaciones guardadas.</p>'}</div>`, "chats", "Conversaciones");
 }
 async function chatPage(id) {
   const generation = state.generation;
@@ -1219,7 +1217,6 @@ async function route(transition = {}) {
     if (generation !== state.generation) return;
     if (chats.business_id !== (state.business?.id || null)) { await route(); return; }
     state.chats = chats.conversations;
-    state.deletedChats = chats.deleted_conversations || [];
     state.datasets = chats.datasets;
     const activeId = data.business?.id || null;
     if (state.draftBusiness !== activeId) {

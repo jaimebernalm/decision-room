@@ -164,20 +164,21 @@ class ConversationTests(unittest.TestCase):
         self.assertEqual(self.chats.detail(chat)['turns'][2]['status'], 'queued')
         self.chats.run(reply['id'])
 
-    def test_deleted_chat_is_hidden_and_can_be_recovered(self):
+    def test_deleted_chat_is_no_longer_accessible(self):
         chat = self.chat()
         turn = self.send(chat, 'hola')
         self.chats.delete(chat, dict(business_id=str(self.b)))
-        self.assertNotIn(chat, [c['id'] for c in self.chats.listing()['conversations']])
-        self.assertIn(chat, [c['id'] for c in self.chats.listing()['deleted_conversations']])
+        listing = self.chats.listing()
+        self.assertNotIn(chat, [c['id'] for c in listing['conversations']])
+        self.assertNotIn('deleted_conversations', listing)
         with self.assertRaises(WebError):
             self.chats.detail(chat)
         with connect(self.config) as db:
             req = retrieval.Request(tool='search_chats', query='', id='', limit=10)
             result, _ = search_history(self.config, db, snapshot(db, self.b, None, 'hola'), req)
             self.assertNotIn(str(turn['id']), [item['message_id'] for item in result['items']])
-        self.chats.restore(chat, dict(business_id=str(self.b)))
-        self.assertEqual(self.chats.detail(chat)['turns'][0]['id'], turn['id'])
+        with self.assertRaises(WebError):
+            self.chats.send(chat, dict(business_id=str(self.b), request_key=str(uuid4()), text='Another message'))
 
     def test_chat_order_changes_only_when_owner_sends_a_message(self):
         older = self.chat()
@@ -831,8 +832,8 @@ class ConversationTests(unittest.TestCase):
         self.assertEqual(client.get('/api/chats/' + chat).json()['turns'][0]['status'], 'completed')
         self.assertEqual(client.post('/api/chats/' + chat + '/delete', json={'business_id': str(self.b)}).status_code, 202)
         self.assertEqual(client.get('/api/chats/' + chat).status_code, 404)
-        self.assertEqual(client.post('/api/chats/' + chat + '/restore', json={'business_id': str(self.b)}).status_code, 202)
-        self.assertEqual(client.get('/api/chats/' + chat).status_code, 200)
+        self.assertNotIn('deleted_conversations', client.get('/api/chats').json())
+        self.assertEqual(client.post('/api/chats/' + chat + '/restore', json={'business_id': str(self.b)}).status_code, 404)
         self.assertEqual(
             client.post('/api/chats', json={}, headers={'Origin': 'https://evil.test'}).status_code, 403
         )

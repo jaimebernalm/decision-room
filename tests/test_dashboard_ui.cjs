@@ -20,7 +20,7 @@ function fixture() {
     }
   };
   vm.createContext(sandbox);
-  vm.runInContext(source + '\nstate.business={id:"business-a"}; globalThis.ui={state,store,launchDashboardChat,dashboardSuggestions,shortChatTitle,chatResponse,reportState,scrollToChatTurn,sidebarHistoryMarkup,chatQueuePosition,changeChatVisibility};', sandbox);
+  vm.runInContext(source + '\nstate.business={id:"business-a"}; globalThis.ui={state,store,launchDashboardChat,dashboardSuggestions,shortChatTitle,chatResponse,reportState,scrollToChatTurn,sidebarHistoryMarkup,chatQueuePosition,deleteChat};', sandbox);
   return {sandbox, ...sandbox.ui, calls, chats, messages, values};
 }
 test('sending follows the pending assistant card above the fixed composer', () => {
@@ -76,13 +76,15 @@ test('deleting a chat waits for the in-app dialog and cancel sends no request', 
     dialogs.push(dialog);
     return dialog;
   };
-  const cancelled=f.changeChatVisibility('chat-1','delete');
+  const cancelled=f.deleteChat('chat-1');
   assert.equal(f.calls.length,0);
   assert.ok(dialogs[0].innerHTML.includes('Chat &lt;privado&gt;'));
+  assert.ok(dialogs[0].innerHTML.includes('no podrás volver a acceder'));
+  assert.ok(!dialogs[0].innerHTML.includes('recuperar'));
   dialogs[0].close('cancel');
   assert.equal(await cancelled,false);
   assert.equal(f.calls.length,0);
-  const approved=f.changeChatVisibility('chat-1','delete');
+  const approved=f.deleteChat('chat-1');
   assert.equal(f.calls.length,0);
   dialogs[1].close('delete');
   assert.equal(await approved,true);

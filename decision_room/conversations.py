@@ -376,10 +376,6 @@ class Conversations:
                     ORDER BY COALESCE(last_turn.created_at,c.created_at) DESC,c.created_at DESC,c.id DESC''',
                     (self.business,),
                 ).fetchall(),
-                deleted_conversations=db.execute(
-                    'SELECT id,title,deleted_at FROM chat_conversations WHERE business_id=%s AND deleted_at IS NOT NULL ORDER BY deleted_at DESC',
-                    (self.business,),
-                ).fetchall(),
                 datasets=ctx.datasets(db, self.business) if self.business else {'items': [], 'more': False},
             )
 
@@ -388,17 +384,6 @@ class Conversations:
         with connect(self.config) as db, db.transaction():
             self.conversation(db, chat_id, lock=True)
             db.execute('UPDATE chat_conversations SET deleted_at=now() WHERE id=%s', (chat_id,))
-        return {'saved': True}
-
-    def restore(self, chat_id, data):
-        self.guard(data)
-        with connect(self.config) as db, db.transaction():
-            row = db.execute('SELECT id FROM chat_conversations WHERE id=%s AND business_id=%s AND deleted_at IS NOT NULL FOR UPDATE',
-                             (identifier(chat_id), self.business)).fetchone()
-            if not row:
-                raise WebError('Conversación eliminada no encontrada.', 404)
-            db.execute('UPDATE chat_conversations SET deleted_at=NULL WHERE id=%s', (chat_id,))
-        self.ws.wake.set()
         return {'saved': True}
 
     def create(self, data):

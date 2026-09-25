@@ -181,10 +181,9 @@ class Handler(BaseHTTPRequestHandler):
                 if len(parts) == 3 and not mutation:
                     self.send(200, chats.detail(chat_id))
                     return
-                if mutation and action in ('messages','retry','report','resolve','delete','restore'):
+                if mutation and action in ('messages','retry','report','resolve','delete'):
                     data = self.json_body()
                     result = (chats.delete(chat_id,data) if action == 'delete' else
-                              chats.restore(chat_id,data) if action == 'restore' else
                               chats.send(chat_id,data) if action == 'messages' else
                               chats.resolve(chat_id,data) if action == 'resolve' else
                               chats.retry(chat_id,data.get('turn_id'),data) if action == 'retry' else
