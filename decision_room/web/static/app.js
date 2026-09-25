@@ -62,6 +62,9 @@ const state = {
   dashboard: null,
   selectedReport: null,
   chats: [],
+  deletedChats: [],
+  sidebarWidth: store.get("dr-sidebar-width", null),
+  scrollToTurn: null,
   datasets: { items: [], more: false },
   launching: false,
   businesses: [],
@@ -141,6 +144,8 @@ async function api(path, { method = "GET", body } = {}) {
   return data;
 }
 function shell(content, active = "home", crumb = "Vista general") {
+  const sidebarWidth = Math.max(216, Math.min(Number(state.sidebarWidth) || (innerWidth <= 1180 ? 216 : 250), innerWidth * .4, innerWidth - 420));
+  document.documentElement.style.setProperty("--sidebar-size", `${sidebarWidth}px`);
   const hasQuestionComposer = state.business && !location.hash.startsWith("#chat/");
   const centeredQuestion = location.hash === "#ask";
   app.innerHTML = `<aside class="sidebar"><a class="brand" href="#home" aria-label="Decision Room, inicio"><span class="brand-mark">d<span>r</span></span><span>decision<span class="brand-light">room</span><small>UN ESPACIO PARA DECIDIR</small></span></a>
@@ -156,12 +161,77 @@ function shell(content, active = "home", crumb = "Vista general") {
       )
       .join("")}<a href="#chats" class="nav-link mobile-chats" title="Conversaciones" aria-label="Conversaciones">${icon("chat")}</a></nav>
     <a href="#ask" class="button sidebar-create">${icon("plus")} Nuevo chat</a>
-    <div class="sidebar-history"><p class="nav-label">CHATS</p>${state.chats.slice(0, 6).map((c) => `<a class="history-link" href="#chat/${esc(c.id)}">${icon("chat")}<span>${esc(c.title)}</span></a>`).join("") || '<p class="history-empty">Aún no hay conversaciones.</p>'}<a class="history-all" href="#chats">Ver conversaciones ${icon("arrow")}</a><p class="nav-label">ANÁLISIS RECIENTES</p>${state.analyses.slice(0, 6).map((a) => `<a class="history-link" href="#analysis/${esc(a.id)}" title="${esc(a.title)}">${icon("grid")}<span>${esc(a.title)}</span></a>`).join("") || '<p class="history-empty">Aún no hay análisis.</p>'}<a class="history-all" href="#analyses">Ver todos los análisis ${icon("arrow")}</a></div>
-    <div class="sidebar-bottom"><a class="nav-link" href="#how">${icon("help")}<span>Cómo funciona</span></a><div class="profile"><span>ME</span><div>Mi espacio personal<small>Versión de pruebas</small></div></div></div></aside>
+    <div class="sidebar-history"><p class="nav-label">CHATS</p>${state.chats.slice(0, 6).map((c) => `<div class="history-row"><a class="history-link" href="#chat/${esc(c.id)}" title="${esc(c.title)}">${icon("chat")}<span>${esc(c.title)}</span></a><button class="chat-delete" type="button" data-delete-chat="${esc(c.id)}" aria-label="Eliminar chat ${esc(c.title)}" title="Eliminar chat">${icon("close")}</button></div>`).join("") || '<p class="history-empty">Aún no hay conversaciones.</p>'}<a class="history-all" href="#chats">Ver conversaciones ${icon("arrow")}</a><p class="nav-label">ANÁLISIS RECIENTES</p>${state.analyses.slice(0, 6).map((a) => `<a class="history-link" href="#analysis/${esc(a.id)}" title="${esc(a.title)}">${icon("grid")}<span>${esc(a.title)}</span></a>`).join("") || '<p class="history-empty">Aún no hay análisis.</p>'}<a class="history-all" href="#analyses">Ver todos los análisis ${icon("arrow")}</a></div>
+    <div class="sidebar-bottom"><a class="nav-link" href="#how">${icon("help")}<span>Cómo funciona</span></a><div class="profile"><span>ME</span><div>Mi espacio personal<small>Versión de pruebas</small></div></div></div><div class="sidebar-resize" role="separator" tabindex="0" aria-orientation="vertical" aria-label="Cambiar anchura del panel lateral" aria-valuemin="216" aria-valuemax="${Math.floor(Math.min(innerWidth * .4, innerWidth - 420))}" aria-valuenow="${Math.round(sidebarWidth)}"></div></aside>
     <div class="workspace"><header class="topbar"><span class="breadcrumb">Mi espacio <span>/</span> <b>${esc(crumb)}</b></span><span class="environment"><i></i> Entorno local <span class="beta">BETA</span></span></header><main id="main" class="${centeredQuestion ? "new-chat-page" : ""}" tabindex="-1"><div id="memory-status" aria-live="polite"></div>${content}${hasQuestionComposer && !centeredQuestion ? questionComposer() : ""}</main><footer class="page-footer"><span>Decision Room</span><span>De los datos a decisiones con contexto.</span></footer></div>`;
   renderMemory();
+  bindSidebarResize();
   if (hasQuestionComposer) bindQuestionComposer();
 }
+function bindSidebarResize() {
+  const handle = document.querySelector(".sidebar-resize");
+  if (!handle) return;
+  const setWidth = (value) => {
+    const width = Math.round(Math.max(216, Math.min(value, innerWidth * .4, innerWidth - 420)));
+    state.sidebarWidth = width;
+    document.documentElement.style.setProperty("--sidebar-size", `${width}px`);
+    handle.setAttribute("aria-valuenow", String(width));
+    store.set("dr-sidebar-width", width);
+  };
+  handle.addEventListener("pointerdown", (event) => {
+    if (innerWidth <= 760) return;
+    handle.setPointerCapture(event.pointerId);
+    handle.classList.add("dragging");
+    event.preventDefault();
+  });
+  handle.addEventListener("pointermove", (event) => {
+    if (handle.hasPointerCapture(event.pointerId)) setWidth(event.clientX);
+  });
+  for (const type of ["pointerup", "pointercancel"]) handle.addEventListener(type, () => handle.classList.remove("dragging"));
+  handle.addEventListener("keydown", (event) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    setWidth(event.key === "Home" ? 216 : event.key === "End" ? innerWidth * .4 :
+      (state.sidebarWidth || 250) + (event.key === "ArrowRight" ? 24 : -24));
+  });
+}
+function scrollToChatTurn(id, answer = false) {
+  const turn = document.querySelector(`[data-chat-turn="${id}"]`);
+  if (!turn) return;
+  const target = answer ? turn.querySelector(".chat-answer") || turn : turn.querySelector(".chat-owner") || turn;
+  const composer = document.querySelector(".chat-composer");
+  const clearance = composer ? innerHeight - composer.getBoundingClientRect().top + 20 : 24;
+  const bottom = target.getBoundingClientRect().bottom + scrollY;
+  scrollTo({top: Math.max(0, bottom - innerHeight + clearance), behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth"});
+}
+async function changeChatVisibility(id, action) {
+  const chat = [...state.chats, ...state.deletedChats].find(c => String(c.id) === id);
+  if (!chat || !state.business) return false;
+  if (action === "delete" && !confirm(`¿Eliminar «${chat.title}»? Podrás recuperarlo en Conversaciones. Los datos guardados en Mi negocio y los informes se conservan.`)) return false;
+  await api(`/api/chats/${encodeURIComponent(id)}/${action}`, {method: "POST", body: {business_id: state.business.id}});
+  if (action === "delete" && location.hash === `#chat/${id}`) location.hash = "#chats";
+  else await route();
+  return true;
+}
+document.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-delete-chat],[data-restore-chat]");
+  if (!button) return;
+  event.preventDefault();
+  button.disabled = true;
+  try {
+    const changed = await changeChatVisibility(button.dataset.deleteChat || button.dataset.restoreChat,
+      button.dataset.deleteChat ? "delete" : "restore");
+    if (!changed) button.disabled = false;
+  } catch (error) { toast(error.message); button.disabled = false; }
+});
+const scrollIndicatorTimers = new WeakMap();
+document.addEventListener("scroll", (event) => {
+  const surface = event.target === document ? document.documentElement : event.target;
+  if (!surface?.classList) return;
+  surface.classList.add("is-scrolling");
+  clearTimeout(scrollIndicatorTimers.get(surface));
+  scrollIndicatorTimers.set(surface, setTimeout(() => surface.classList.remove("is-scrolling"), 1000));
+}, true);
 function renderMemory() {
   const box = document.querySelector("#memory-status");
   if (!box || !state.business) return;
@@ -267,7 +337,7 @@ async function launchDashboardChat(text, context = {}) {
     store.set(cacheKey, pending);
     const draftKey = "dr-chat-draft-" + chat.id;
     store.set(draftKey, { text, key: pending.messageKey, finding_reference: context.finding_reference });
-    await api("/api/chats/" + chat.id + "/messages", {
+    const sent = await api("/api/chats/" + chat.id + "/messages", {
       method: "POST", body: { business_id: businessId, text, request_key: pending.messageKey, ...(context.finding_reference ? {finding_reference: context.finding_reference} : {}) }
     });
     if (store.get(draftKey, {}).key === pending.messageKey) store.remove(draftKey);
@@ -277,7 +347,7 @@ async function launchDashboardChat(text, context = {}) {
       store.remove(homeKey);
       if (JSON.stringify(store.get("dr-question-context-" + businessId, {})) === JSON.stringify(context)) store.remove("dr-question-context-" + businessId);
     }
-    if (generation === state.generation) location.hash = "#chat/" + chat.id;
+    if (generation === state.generation) { state.scrollToTurn = sent.id; location.hash = "#chat/" + chat.id; }
     return chat;
   } finally { state.launching = false; }
 }
@@ -830,7 +900,7 @@ function chatResponse(r, anchor = "response", ownerText = "") {
   if (r.kind === "catalog")
     return `<p>${esc(r.text)}</p>${r.items.map((x) => `<p><strong>${esc(x.description)}</strong> · ${esc(x.names.join(", "))}<br>${esc(x.columns.join(", "))}</p>`).join("") || "<p>No hay conjuntos disponibles todavía.</p>"}`;
   if (r.kind === "history")
-    return `<p>${esc(r.text)}</p>${r.items.map((x) => `<blockquote>${x.preceding_question ? `<p>Pregunta: ${esc(x.preceding_question)}</p>` : ""}<p>${esc(x.text)}</p><a href="#chat/${esc(x.conversation_id)}">Abrir conversación original</a></blockquote>`).join("")}`;
+    return `<p>${esc(r.text)}</p>${r.items.map((x) => `<blockquote>${x.preceding_question ? `<p>Pregunta: ${esc(x.preceding_question)}</p>` : ""}<p>${esc(x.text)}</p>${state.chats.some(c => String(c.id) === String(x.conversation_id)) ? `<a href="#chat/${esc(x.conversation_id)}">Abrir conversación original</a>` : ""}</blockquote>`).join("")}`;
   if (r.kind === "memory") {
     const legacy = r.text === "El mensaje está guardado. Estos son los recuerdos aplicables y su estado.";
     const intro = legacy ? (r.items?.length ? "Esto es lo que tenía guardado en ese momento:" : "En ese momento todavía no encontraba información del negocio que pudiera utilizar.") : r.text;
@@ -851,7 +921,7 @@ async function chatsPage() {
     shell(`<div class="new-chat-landing"><div class="new-chat-heading"><p class="eyebrow">${esc(state.business.name)}</p><h1>¿Qué te gustaría entender hoy?</h1></div>${questionComposer()}<section class="new-chat-recent" aria-label="Conversaciones anteriores"><h2>Conversaciones anteriores</h2>${recent.length ? `<div class="new-chat-list">${recent.map(c => `<a href="#chat/${esc(c.id)}">${icon("chat")}<span>${esc(shortChatTitle(c.title))}</span>${icon("arrow")}</a>`).join("")}</div><a class="new-chat-all" href="#chats">Ver todas las conversaciones ${icon("arrow")}</a>` : '<p>Aquí encontrarás tus chats cuando empieces a conversar.</p>'}</section></div>`, "chats", "Nuevo chat");
     return;
   }
-  shell(`<div class="page-heading"><div><p class="eyebrow">TU NEGOCIO, CON CONTEXTO</p><h1>Conversaciones</h1><p>Retoma un chat o empieza uno nuevo.</p></div><a class="button secondary" href="#ask">Nuevo chat</a></div><div class="card-grid">${state.chats.map(c => `<a class="card" href="#chat/${esc(c.id)}"><h2>${esc(shortChatTitle(c.title))}</h2><p>${fmtDate(c.created_at)}</p><span>Abrir conversación ${icon("arrow")}</span></a>`).join("") || '<p class="empty">Aquí aparecerán tus conversaciones guardadas.</p>'}</div>`, "chats", "Conversaciones");
+  shell(`<div class="page-heading"><div><p class="eyebrow">TU NEGOCIO, CON CONTEXTO</p><h1>Conversaciones</h1><p>Retoma un chat o empieza uno nuevo.</p></div><a class="button secondary" href="#ask">Nuevo chat</a></div><div class="card-grid">${state.chats.map(c => `<div class="card chat-list-card"><a href="#chat/${esc(c.id)}"><h2>${esc(c.title)}</h2><p>${fmtDate(c.created_at)}</p><span>Abrir conversación ${icon("arrow")}</span></a><button type="button" class="chat-delete" data-delete-chat="${esc(c.id)}" aria-label="Eliminar chat ${esc(c.title)}" title="Eliminar chat">${icon("close")}</button></div>`).join("") || '<p class="empty">Aquí aparecerán tus conversaciones guardadas.</p>'}</div>${state.deletedChats.length ? `<section class="chat-trash"><h2>Chats eliminados</h2><p>Se pueden recuperar. Los datos guardados en Mi negocio y los informes se conservan.</p>${state.deletedChats.map(c => `<div><span>${esc(c.title)}</span><button class="button secondary" type="button" data-restore-chat="${esc(c.id)}">Recuperar</button></div>`).join("")}</section>` : ""}`, "chats", "Conversaciones");
 }
 async function chatPage(id) {
   const generation = state.generation;
@@ -860,9 +930,9 @@ async function chatPage(id) {
     sending = false;
   const draftKey = "dr-chat-draft-" + id;
   shell(
-    `<div class="page-heading"><div><a href="#chats">← Conversaciones</a><h1 id="chat-title">Conversación</h1><p>El contexto del negocio se comparte entre conversaciones.</p></div><a class="button secondary" href="#ask">Nuevo chat</a></div>
+    `<div class="page-heading"><div><a href="#chats">← Conversaciones</a><h1 id="chat-title">Conversación</h1><p>El contexto del negocio se comparte entre conversaciones.</p></div><div class="chat-heading-actions"><button class="button secondary" type="button" data-delete-chat="${esc(id)}">Eliminar chat</button><a class="button secondary" href="#ask">Nuevo chat</a></div></div>
     <p id="chat-dataset" class="question-context"></p><div id="chat-turns" aria-live="polite" aria-relevant="additions text"></div><div id="chat-conflicts"></div>
-    <form class="chat-composer" id="chat-send"><div class="composer-card"><label id="question-label" hidden>Aclaración pendiente<select id="chat-question"></select></label><div class="composer-input-row"><label for="chat-message" class="sr-only">Tu mensaje</label><textarea id="chat-message" rows="1" maxlength="6000" required placeholder="Pregunta lo que quieras…"></textarea><button class="button primary" id="send-message" aria-label="Enviar mensaje">${icon("arrow")}</button></div><p id="chat-status" class="muted" aria-live="polite"></p></div><div class="chat-suggestions" id="chat-suggestions"><button type="button" data-suggestion="¿Qué sabes de mi negocio?">Qué sabemos del negocio</button><button type="button" data-suggestion="¿Qué datos tenemos disponibles para analizar?">Explorar mis datos</button></div></form>`,
+    <form class="chat-composer" id="chat-send"><div class="composer-card"><label id="question-label" hidden>Aclaración pendiente<select id="chat-question"></select></label><div class="composer-input-row"><label for="chat-message" class="sr-only">Tu mensaje</label><textarea id="chat-message" rows="1" maxlength="6000" required placeholder="Pregunta lo que quieras…"></textarea><button class="button primary" id="send-message" aria-label="Enviar mensaje">${icon("arrow")}</button></div></div><div class="chat-suggestions" id="chat-suggestions"><button type="button" data-suggestion="¿Qué sabes de mi negocio?">Qué sabemos del negocio</button><button type="button" data-suggestion="¿Qué datos tenemos disponibles para analizar?">Explorar mis datos</button></div></form>`,
     "chats",
     "Conversación",
   );
@@ -891,6 +961,8 @@ async function chatPage(id) {
     try {
       const data = await api("/api/chats/" + encodeURIComponent(id));
       if (generation !== state.generation) return;
+      const oldStatuses = new Map(current?.turns?.map(t => [t.id, t.status]) || []);
+      const nearBottom = document.documentElement.scrollHeight - (scrollY + innerHeight) < 240;
       current = data;
       state.memory = data.memory;
       renderMemory();
@@ -903,8 +975,12 @@ async function chatPage(id) {
       document.querySelector("#chat-turns").innerHTML =
         data.turns
           .map(
-            (t, index) =>
-              `<article class="chat-turn"><div class="chat-owner"><strong>Tú</strong><p>${esc(t.payload.text)}</p></div><div class="card chat-answer"><strong>Decision Room</strong>${t.payload.finding_reference ? `<p class="question-context">Sobre: ${esc(t.payload.finding_reference.title)} · ${esc(t.payload.finding_reference.period)}</p>` : ""}${chatResponse(t.response, `turn-${t.id}`, t.payload.text)}${t.issue ? `<p class="notice">${esc(t.issue)}</p>` : ""}${["queued", "routing", "processing"].includes(t.status) ? '<p class="muted">Preparando y comprobando la respuesta… Puedes volver más tarde.</p>' : ""}${["failed", "stale", "blocked"].includes(t.status) && index === data.turns.length - 1 ? `<button class="button secondary" data-retry="${esc(t.id)}">Reintentar con el contexto actual</button>` : ""}${t.response?.report_id ? (t.report_requested ? `<a class="button secondary" target="_blank" rel="noopener" href="/api/chats/${esc(id)}/report/${esc(t.id)}">Abrir informe</a>` : `<button class="button secondary" data-report="${esc(t.id)}">Generar informe</button>`) : ""}</div></article>`,
+            (t, index) => {
+              const queuedBehind = t.status === "queued" && data.turns.slice(0, index).some(item => item.status !== "completed");
+              const queuePosition = data.turns.slice(0, index + 1).filter(item => item.status === "queued").length;
+              const retryable = ["failed", "stale", "blocked"].includes(t.status) && data.turns.slice(index + 1).every(item => item.status === "queued");
+              return `<article class="chat-turn" data-chat-turn="${esc(t.id)}"><div class="chat-owner"><strong>Tú</strong><p>${esc(t.payload.text)}</p>${queuedBehind ? `<span class="chat-queue-badge">En cola · ${queuePosition}</span>` : ""}</div>${queuedBehind ? "" : `<div class="card chat-answer"><strong>Decision Room</strong>${t.payload.finding_reference ? `<p class="question-context">Sobre: ${esc(t.payload.finding_reference.title)} · ${esc(t.payload.finding_reference.period)}</p>` : ""}${chatResponse(t.response, `turn-${t.id}`, t.payload.text)}${t.issue ? `<p class="notice">${esc(t.issue)}</p>` : ""}${["queued", "routing", "processing"].includes(t.status) ? '<span class="chat-reply-pulse" role="status" aria-label="Preparando respuesta"><i></i><i></i><i></i></span>' : ""}${retryable ? `<button class="button secondary" data-retry="${esc(t.id)}">Reintentar con el contexto actual</button>` : ""}${t.response?.report_id ? (t.report_requested ? `<a class="button secondary" target="_blank" rel="noopener" href="/api/chats/${esc(id)}/report/${esc(t.id)}">Abrir informe</a>` : `<button class="button secondary" data-report="${esc(t.id)}">Generar informe</button>`) : ""}</div>`}</article>`;
+            },
           )
           .join("") ||
         '<section class="card"><h2>¿Por dónde empezamos?</h2><p>Puedes preguntar por un resultado, pedir un cálculo o explicar cómo funciona tu negocio.</p></section>';
@@ -917,14 +993,14 @@ async function chatPage(id) {
             `<section class="notice"><h3>Confirma qué debemos recordar</h3><p>Existe una contradicción con: ${esc(f.content.statement)}</p>${f.alternatives.map((a, i) => `<p>${esc(a.content.statement)}</p><button class="button secondary" data-fact="${esc(f.id)}" data-revision="${f.revision}" data-alternative="${i}">Usar esta versión como corrección</button>`).join("")}</section>`,
         )
         .join("");
-      const last = data.turns.at(-1),
-        busy =
-          last && ["queued", "routing", "processing"].includes(last.status);
-      document.querySelector("#send-message").disabled = !!busy || sending;
-      document.querySelector("#chat-status").textContent = busy
-        ? "Tu mensaje está guardado. Espera a que termine para continuar."
-        : "";
-      const questions = last?.status === "waiting" ? last.questions || [] : [];
+      const waiting = data.turns.find(t => t.status === "waiting");
+      const busy = !waiting && data.turns.some(t => ["queued", "routing", "processing"].includes(t.status));
+      const sendButton = document.querySelector("#send-message");
+      sendButton.disabled = sending;
+      sendButton.classList.toggle("is-thinking", busy);
+      sendButton.setAttribute("aria-label", waiting ? "Enviar aclaración" : busy ? "Añadir mensaje a la cola" : "Enviar mensaje");
+      sendButton.innerHTML = busy ? '<span class="send-spinner" aria-hidden="true"></span>' : icon("arrow");
+      const questions = waiting?.questions || [];
       document.querySelector("#question-label").hidden = !questions.length;
       const selector = document.querySelector("#chat-question"),
         old = selector.value;
@@ -932,6 +1008,16 @@ async function chatPage(id) {
         .map((q) => `<option value="${esc(q.id)}">${esc(q.text)}</option>`)
         .join("");
       if (questions.some((q) => q.id === old)) selector.value = old;
+      if (state.scrollToTurn && data.turns.some(t => String(t.id) === String(state.scrollToTurn))) {
+        const targetId = state.scrollToTurn;
+        state.scrollToTurn = null;
+        requestAnimationFrame(() => scrollToChatTurn(targetId));
+      } else if (nearBottom) {
+        const completed = [...data.turns].reverse().find(t => t.status === "completed" &&
+          oldStatuses.has(t.id) && ["queued", "routing", "processing", "waiting"].includes(oldStatuses.get(t.id)));
+        if (completed && data.turns.at(-1)?.id === completed.id)
+          requestAnimationFrame(() => scrollToChatTurn(completed.id, true));
+      }
     } catch (e) {
       if (generation === state.generation) toast(e.message);
     }
@@ -948,7 +1034,7 @@ async function chatPage(id) {
         sentText = textarea.value;
       store.set(draftKey, { ...draft, text: sentText, key });
       try {
-        await api("/api/chats/" + id + "/messages", {
+        const sent = await api("/api/chats/" + id + "/messages", {
           method: "POST",
           body: {
             business_id: current.conversation.business_id,
@@ -963,6 +1049,7 @@ async function chatPage(id) {
           textarea.value = "";
           syncChatComposer();
         }
+        state.scrollToTurn = sent.id;
       } catch (e) {
         toast(e.message);
       } finally {
@@ -1062,6 +1149,7 @@ async function route(transition = {}) {
     if (generation !== state.generation) return;
     if (chats.business_id !== (state.business?.id || null)) { await route(); return; }
     state.chats = chats.conversations;
+    state.deletedChats = chats.deleted_conversations || [];
     state.datasets = chats.datasets;
     const activeId = data.business?.id || null;
     if (state.draftBusiness !== activeId) {

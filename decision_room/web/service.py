@@ -209,7 +209,10 @@ class Workspace:
             result['data_version'] = db.execute('SELECT version,superseded_by,corrected FROM dataset_versions WHERE analysis_id=%s AND business_id=%s', (j['analysis_id'], j['business_id'])).fetchone()
         if j['origin'] == 'chat':
             with connect(self.config) as db:
-                source = db.execute('SELECT conversation_id FROM chat_turns WHERE job_id=%s AND business_id=%s ORDER BY created_at LIMIT 1', (j['id'], j['business_id'])).fetchone()
+                source = db.execute('''SELECT t.conversation_id FROM chat_turns t
+                    JOIN chat_conversations c ON c.id=t.conversation_id AND c.deleted_at IS NULL
+                    WHERE t.job_id=%s AND t.business_id=%s ORDER BY t.created_at LIMIT 1''',
+                    (j['id'], j['business_id'])).fetchone()
             result['conversation_id'] = source['conversation_id'] if source else None
         return result
 
@@ -242,7 +245,7 @@ class Workspace:
         with connect(self.config) as db:
             rows = db.execute("""SELECT t.*,c.title FROM chat_conversations c
                 JOIN LATERAL (SELECT * FROM chat_turns WHERE conversation_id=c.id ORDER BY ordinal DESC LIMIT 1) t ON true
-                WHERE c.business_id=%s AND (t.status!='completed' OR t.response->>'kind'='evidence')
+                WHERE c.business_id=%s AND c.deleted_at IS NULL AND (t.status!='completed' OR t.response->>'kind'='evidence')
                 ORDER BY (t.status IN ('queued','routing','processing','waiting','failed','blocked','stale')) DESC,
                          t.updated_at DESC LIMIT 12""", (self.business_id(),)).fetchall()
             chats = Conversations(self)

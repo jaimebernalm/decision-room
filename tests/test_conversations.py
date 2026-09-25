@@ -108,6 +108,77 @@ class ConversationTests(unittest.TestCase):
         path.write_text('quantity,amount\n2,10\n3,20\n')
         return import_batch(self.config, self.b, [path], title='Synthetic sales')['analysis']['id']
 
+    def test_messages_queue_in_order_and_keep_prior_dialogue(self):
+        chat = self.chat()
+        first = self.chats.send(chat, dict(business_id=str(self.b), request_key=str(uuid4()), text='hola'))
+        second = self.chats.send(chat, dict(business_id=str(self.b), request_key=str(uuid4()), text='¿Y ahora?'))
+        self.chats.run(second['id'])
+        self.assertEqual([t['status'] for t in self.chats.detail(chat)['turns']], ['queued', 'queued'])
+        self.chats.run(first['id'])
+        self.chats.run(second['id'])
+        turns = self.chats.detail(chat)['turns']
+        self.assertEqual([t['status'] for t in turns], ['completed', 'completed'])
+        self.assertEqual([t['ordinal'] for t in turns], [1, 2])
+
+    def test_queued_declaration_waits_to_enter_memory_until_its_turn(self):
+        chat = self.chat()
+        first = self.chats.send(chat, dict(business_id=str(self.b), request_key=str(uuid4()), text='hola'))
+        second = self.chats.send(chat, dict(business_id=str(self.b), request_key=str(uuid4()), text='Cerramos los domingos.'))
+        with connect(self.config) as db:
+            self.assertIsNone(db.execute('SELECT memory_source_id FROM chat_turns WHERE id=%s', (second['id'],)).fetchone()['memory_source_id'])
+        self.chats.run(first['id'])
+        self.chats.run(second['id'])
+        with connect(self.config) as db:
+            self.assertIsNotNone(db.execute('SELECT memory_source_id FROM chat_turns WHERE id=%s', (second['id'],)).fetchone()['memory_source_id'])
+
+    def test_failed_first_message_can_be_retried_with_a_queued_successor(self):
+        chat = self.chat()
+        first = self.chats.send(chat, dict(business_id=str(self.b), request_key=str(uuid4()), text='hola'))
+        second = self.chats.send(chat, dict(business_id=str(self.b), request_key=str(uuid4()), text='¿Y ahora?'))
+        with patch.object(ChatModel, 'generate_chat', side_effect=ModelRequestUncertain('test')):
+            self.chats.run(first['id'])
+        self.assertEqual(self.chats.detail(chat)['turns'][0]['status'], 'failed')
+        self.chats.run(second['id'])
+        self.assertEqual(self.chats.detail(chat)['turns'][1]['status'], 'queued')
+        self.chats.retry(chat, first['id'], dict(business_id=str(self.b)))
+        self.chats.run(first['id'])
+        self.chats.run(second['id'])
+        self.assertEqual([t['status'] for t in self.chats.detail(chat)['turns']], ['completed', 'completed'])
+
+    def test_clarification_is_inserted_before_queued_followups(self):
+        chat = self.chat(self.batch())
+        first = self.chats.send(chat, dict(business_id=str(self.b), request_key=str(uuid4()), text='Calculate sales'))
+        follow = self.chats.send(chat, dict(business_id=str(self.b), request_key=str(uuid4()), text='What happened next?'))
+        self.chats.run(first['id'])
+        job = self.chats.detail(chat)['turns'][0]['job_id']
+        self.ws.run_job(job)
+        self.chats.run(first['id'])
+        self.assertEqual(self.chats.detail(chat)['turns'][0]['status'], 'waiting')
+        self.chats.run(follow['id'])
+        self.assertEqual(self.chats.detail(chat)['turns'][1]['status'], 'queued')
+        question = self.chats.detail(chat)['turns'][0]['questions'][0]
+        reply = self.chats.send(chat, dict(business_id=str(self.b), request_key=str(uuid4()), text='unit price', question_id=question['id']))
+        turns = self.chats.detail(chat)['turns']
+        self.assertEqual([t['id'] for t in turns], [first['id'], reply['id'], follow['id']])
+        self.chats.run(follow['id'])
+        self.assertEqual(self.chats.detail(chat)['turns'][2]['status'], 'queued')
+        self.chats.run(reply['id'])
+
+    def test_deleted_chat_is_hidden_and_can_be_recovered(self):
+        chat = self.chat()
+        turn = self.send(chat, 'hola')
+        self.chats.delete(chat, dict(business_id=str(self.b)))
+        self.assertNotIn(chat, [c['id'] for c in self.chats.listing()['conversations']])
+        self.assertIn(chat, [c['id'] for c in self.chats.listing()['deleted_conversations']])
+        with self.assertRaises(WebError):
+            self.chats.detail(chat)
+        with connect(self.config) as db:
+            req = retrieval.Request(tool='search_chats', query='', id='', limit=10)
+            result, _ = search_history(self.config, db, snapshot(db, self.b, None, 'hola'), req)
+            self.assertNotIn(str(turn['id']), [item['message_id'] for item in result['items']])
+        self.chats.restore(chat, dict(business_id=str(self.b)))
+        self.assertEqual(self.chats.detail(chat)['turns'][0]['id'], turn['id'])
+
     def complete(self):
         chat = self.chat(self.batch())
         turn = self.send(chat, 'Calculate sales')
@@ -428,7 +499,7 @@ class ConversationTests(unittest.TestCase):
         self.assertEqual(turn['response']['report_version'], reference['report_version'])
         self.assertEqual([c['key'] for c in turn['response']['evidence']['claims']], [reference['claim_key']])
 
-    def test_send_is_persisted_idempotent_and_serial(self):
+    def test_send_is_persisted_idempotent_and_queued(self):
         chat = self.chat()
         payload = dict(business_id=str(self.b), request_key=str(uuid4()), text='Hello')
         with ThreadPoolExecutor(2) as pool:
@@ -436,9 +507,10 @@ class ConversationTests(unittest.TestCase):
         self.assertEqual(results[0], results[1])
         with self.assertRaises(WebError):
             self.chats.send(chat, {**payload, 'text': 'Changed'})
-        with self.assertRaises(WebError):
-            self.chats.send(chat, {**payload, 'request_key': str(uuid4())})
+        queued = self.chats.send(chat, {**payload, 'request_key': str(uuid4())})
+        self.assertEqual([t['status'] for t in self.chats.detail(chat)['turns']], ['queued', 'queued'])
         self.chats.run(results[0]['id'])
+        self.chats.run(queued['id'])
         self.assertEqual(self.chats.detail(chat)['turns'][0]['response']['kind'], 'grounded_answer')
 
     def test_reviewed_calculation_explanation_and_explicit_report(self):
@@ -617,6 +689,10 @@ class ConversationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 202, response.text)
         self.chats.run(response.json()['id'])
         self.assertEqual(client.get('/api/chats/' + chat).json()['turns'][0]['status'], 'completed')
+        self.assertEqual(client.post('/api/chats/' + chat + '/delete', json={'business_id': str(self.b)}).status_code, 202)
+        self.assertEqual(client.get('/api/chats/' + chat).status_code, 404)
+        self.assertEqual(client.post('/api/chats/' + chat + '/restore', json={'business_id': str(self.b)}).status_code, 202)
+        self.assertEqual(client.get('/api/chats/' + chat).status_code, 200)
         self.assertEqual(
             client.post('/api/chats', json={}, headers={'Origin': 'https://evil.test'}).status_code, 403
         )

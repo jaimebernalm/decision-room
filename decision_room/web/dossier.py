@@ -31,7 +31,8 @@ def listing(ws):
         facts = memory.current(db, business)
         history = db.execute('''SELECT r.*,s.origin_key,s.payload->>'kind' AS origin_kind,
             s.payload->>'text' AS original_text,s.payload->>'question' AS question,
-            (SELECT t.conversation_id FROM chat_turns t WHERE t.business_id=r.business_id AND t.memory_source_id=r.source_id LIMIT 1) AS conversation_id
+            (SELECT t.conversation_id FROM chat_turns t JOIN chat_conversations c ON c.id=t.conversation_id AND c.deleted_at IS NULL
+                WHERE t.business_id=r.business_id AND t.memory_source_id=r.source_id LIMIT 1) AS conversation_id
             FROM memory_revisions r JOIN memory_sources s ON s.id=r.source_id
             WHERE r.business_id=%s ORDER BY r.business_revision DESC''', (business,)).fetchall()
         origins = {(r['fact_id'], r['revision']): r for r in history}

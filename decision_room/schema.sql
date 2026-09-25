@@ -483,6 +483,7 @@ CREATE TABLE IF NOT EXISTS chat_conversations (
     UNIQUE(business_id,id), UNIQUE(business_id,request_key),
     FOREIGN KEY(business_id,analysis_id) REFERENCES analyses(business_id,id)
 );
+ALTER TABLE chat_conversations ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
 CREATE TABLE IF NOT EXISTS chat_turns (
     id uuid PRIMARY KEY,
     business_id uuid NOT NULL,
@@ -576,3 +577,6 @@ CREATE TABLE IF NOT EXISTS chat_answer_reviews (
     PRIMARY KEY(turn_id,attempt,ordinal)
 );
 INSERT INTO schema_versions(version) VALUES (14) ON CONFLICT DO NOTHING;
+
+-- Reversible chat deletion; shared memory and reviewed reports remain independent.
+INSERT INTO schema_versions(version) VALUES (15) ON CONFLICT DO NOTHING;

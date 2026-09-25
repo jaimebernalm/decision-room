@@ -8,7 +8,7 @@ const source = readFileSync('decision_room/web/static/app.js', 'utf8').split('wi
 function fixture() {
   const values = new Map(), chats = new Map(), messages = new Map(), calls = [];
   const sandbox = {
-    document: { querySelector: () => ({}) }, crypto: { randomUUID }, FormData,
+    document: { querySelector: () => ({}), addEventListener: () => {} }, crypto: { randomUUID }, FormData,
     localStorage: { getItem: k => values.get(k), setItem: (k,v) => values.set(k,v), removeItem: k => values.delete(k) },
     location: { hash: '#home' },
     fetch: async (url, options) => {

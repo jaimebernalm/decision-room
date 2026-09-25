@@ -180,7 +180,7 @@ def search_history(config, db, manifest, request):
     scope = retrieval._scope(db, manifest, request.id)
     rows = db.execute(
         """SELECT t.*,c.analysis_id FROM chat_turns t JOIN chat_conversations c ON c.id=t.conversation_id
-        WHERE t.business_id=%s AND t.status IN ('completed','waiting') AND t.snapshot IS NOT NULL
+        WHERE t.business_id=%s AND c.deleted_at IS NULL AND t.status IN ('completed','waiting') AND t.snapshot IS NOT NULL
         AND (%s::uuid IS NULL OR c.analysis_id IS NULL OR c.analysis_id=%s) ORDER BY t.created_at DESC LIMIT %s""",
         (manifest['business_id'], scope['analysis_id'], scope['analysis_id'], semantic.MAX_DOCUMENTS + 1),
     ).fetchall()
@@ -346,7 +346,7 @@ class Conversations:
 
     def conversation(self, db, chat_id, *, lock=False):
         row = db.execute(
-            'SELECT * FROM chat_conversations WHERE id=%s AND business_id=%s'
+            'SELECT * FROM chat_conversations WHERE id=%s AND business_id=%s AND deleted_at IS NULL'
             + (' FOR UPDATE' if lock else ''),
             (identifier(chat_id), self.business),
         ).fetchone()
@@ -369,11 +369,33 @@ class Conversations:
             return dict(
                 business_id=self.business,
                 conversations=db.execute(
-                    'SELECT * FROM chat_conversations WHERE business_id=%s ORDER BY created_at DESC',
+                    'SELECT * FROM chat_conversations WHERE business_id=%s AND deleted_at IS NULL ORDER BY created_at DESC',
+                    (self.business,),
+                ).fetchall(),
+                deleted_conversations=db.execute(
+                    'SELECT id,title,deleted_at FROM chat_conversations WHERE business_id=%s AND deleted_at IS NOT NULL ORDER BY deleted_at DESC',
                     (self.business,),
                 ).fetchall(),
                 datasets=ctx.datasets(db, self.business) if self.business else {'items': [], 'more': False},
             )
+
+    def delete(self, chat_id, data):
+        self.guard(data)
+        with connect(self.config) as db, db.transaction():
+            self.conversation(db, chat_id, lock=True)
+            db.execute('UPDATE chat_conversations SET deleted_at=now() WHERE id=%s', (chat_id,))
+        return {'saved': True}
+
+    def restore(self, chat_id, data):
+        self.guard(data)
+        with connect(self.config) as db, db.transaction():
+            row = db.execute('SELECT id FROM chat_conversations WHERE id=%s AND business_id=%s AND deleted_at IS NOT NULL FOR UPDATE',
+                             (identifier(chat_id), self.business)).fetchone()
+            if not row:
+                raise WebError('Conversación eliminada no encontrada.', 404)
+            db.execute('UPDATE chat_conversations SET deleted_at=NULL WHERE id=%s', (chat_id,))
+        self.ws.wake.set()
+        return {'saved': True}
 
     def create(self, data):
         self.guard(data)
@@ -454,23 +476,25 @@ class Conversations:
             previous = db.execute(
                 'SELECT * FROM chat_turns WHERE conversation_id=%s ORDER BY ordinal DESC LIMIT 1', (chat_id,)
             ).fetchone()
+            waiting = db.execute(
+                "SELECT * FROM chat_turns WHERE conversation_id=%s AND status='waiting' ORDER BY ordinal LIMIT 1", (chat_id,)
+            ).fetchone()
             job, question, phase = None, '', None
-            if previous and previous['response'] and previous['response'].get('kind') == 'clarification':
-                question = previous['response']['text']
-            if previous and previous['status'] in ('queued', 'routing', 'processing'):
-                raise WebError('Espera a que termine el mensaje anterior.', 409)
-            if previous and previous['status'] == 'waiting':
-                questions = self.ws.detail(previous['job_id'])['questions']
+            if waiting:
+                questions = self.ws.detail(waiting['job_id'])['questions']
                 chosen = next((q for q in questions if str(q['id']) == question_id), None)
                 if not chosen:
                     raise WebError('Selecciona una aclaración pendiente.', 409)
-                job, question, phase = previous['job_id'], chosen['text'], chosen['phase']
+                job, question, phase = waiting['job_id'], chosen['text'], chosen['phase']
             elif question_id:
                 raise WebError('Esa aclaración ya no está pendiente.', 409)
+            elif previous and previous['response'] and previous['response'].get('kind') == 'clarification':
+                question = previous['response']['text']
             turn_id = uuid4()
             settings = asdict(self.ws.settings)
             source = None
-            if not job and not direct_question(text):
+            defer_memory = bool(not job and previous and previous['status'] != 'completed' and not direct_question(text))
+            if not job and not defer_memory and not direct_question(text):
                 source = memory.capture(
                     db,
                     self.business,
@@ -485,10 +509,20 @@ class Conversations:
                     model_settings=settings,
                 )
             payload = dict(
-                text=text, question_id=question_id, disposition=disposition, question=question, phase=phase
+                text=text, question_id=question_id, disposition=disposition, question=question, phase=phase,
+                memory_deferred=defer_memory,
             )
             if reference:
                 payload['finding_reference'] = reference
+            ordinal = previous['ordinal'] + 1 if previous else 1
+            if waiting and previous['id'] != waiting['id']:
+                successors = db.execute('SELECT id,status FROM chat_turns WHERE conversation_id=%s AND ordinal>%s ORDER BY ordinal DESC',
+                                        (chat_id, waiting['ordinal'])).fetchall()
+                if any(item['status'] != 'queued' for item in successors):
+                    raise WebError('Hay una respuesta posterior en curso. Espera a que termine.', 409)
+                for item in successors:
+                    db.execute('UPDATE chat_turns SET ordinal=ordinal+1 WHERE id=%s', (item['id'],))
+                ordinal = waiting['ordinal'] + 1
             db.execute(
                 """INSERT INTO chat_turns(id,business_id,conversation_id,ordinal,request_key,payload,status,model_settings,memory_source_id,job_id)
                 VALUES (%s,%s,%s,%s,%s,%s,'queued',%s,%s,%s)""",
@@ -496,7 +530,7 @@ class Conversations:
                     turn_id,
                     self.business,
                     chat_id,
-                    previous['ordinal'] + 1 if previous else 1,
+                    ordinal,
                     key,
                     Jsonb(payload),
                     Jsonb(settings),
@@ -505,7 +539,7 @@ class Conversations:
                 ),
             )
             if job:
-                db.execute("UPDATE chat_turns SET status='completed' WHERE id=%s", (previous['id'],))
+                db.execute("UPDATE chat_turns SET status='completed' WHERE id=%s", (waiting['id'],))
         self.ws.wake.set()
         return {'id': turn_id}
 
@@ -586,12 +620,12 @@ class Conversations:
                 raise WebError('El mensaje todavía está procesándose.', 409)
             self.conversation(db, chat_id, lock=True)
             turn = self.turn(db, chat_id, turn_id)
-            latest = db.execute(
-                'SELECT id FROM chat_turns WHERE conversation_id=%s ORDER BY ordinal DESC LIMIT 1', (chat_id,)
-            ).fetchone()
-            if latest['id'] != turn['id']:
+            successors = db.execute(
+                'SELECT status FROM chat_turns WHERE conversation_id=%s AND ordinal>%s', (chat_id, turn['ordinal'])
+            ).fetchall()
+            if any(item['status'] != 'queued' for item in successors):
                 raise WebError('Abre un nuevo mensaje para recalcular una respuesta anterior.', 409)
-            item = self.detail(chat_id)['turns'][-1]
+            item = next(x for x in self.detail(chat_id)['turns'] if x['id'] == turn['id'])
             if turn['status'] in ('queued', 'routing', 'processing') or item['status'] not in (
                 'failed',
                 'stale',
@@ -819,8 +853,29 @@ class Conversations:
             ).fetchone()
             if not turn or turn['status'] not in ('queued', 'routing', 'processing'):
                 return
-            chat = self.conversation(db, turn['conversation_id'])
+            if db.execute("SELECT 1 FROM chat_turns WHERE conversation_id=%s AND ordinal<%s AND status<>'completed' LIMIT 1",
+                          (turn['conversation_id'], turn['ordinal'])).fetchone():
+                return
+            chat = db.execute('SELECT * FROM chat_conversations WHERE id=%s AND business_id=%s AND deleted_at IS NULL',
+                              (turn['conversation_id'], self.business)).fetchone()
+            if not chat:
+                return
             try:
+                if turn['payload'].get('memory_deferred'):
+                    with db.transaction():
+                        source = memory.capture(
+                            db, self.business, 'chat_message:' + str(turn_id),
+                            text=turn['payload']['text'], kind='manual',
+                            question=turn['payload'].get('question', ''),
+                            disposition=turn['payload']['disposition'],
+                            default_scope='analysis' if chat['analysis_id'] else 'business',
+                            scope_id=chat['analysis_id'], allow_business=True,
+                            model_settings=turn['model_settings'],
+                        )
+                        payload = {**turn['payload'], 'memory_deferred': False}
+                        db.execute('UPDATE chat_turns SET memory_source_id=%s,payload=%s WHERE id=%s',
+                                   (source['id'], Jsonb(payload), turn_id))
+                        turn = {**turn, 'memory_source_id': source['id'], 'payload': payload}
                 if turn['job_id']:
                     if turn['status'] == 'queued':
                         a = turn['payload']
@@ -1131,8 +1186,12 @@ class Conversations:
 
 
 def work_once(workspace, db):
-    row = db.execute("""SELECT t.id,t.business_id FROM chat_turns t LEFT JOIN web_jobs j ON j.id=t.job_id
-        WHERE t.status IN ('queued','routing') OR (t.status='processing' AND j.status IN ('completed','waiting','failed','blocked'))
+    row = db.execute("""SELECT t.id,t.business_id FROM chat_turns t
+        JOIN chat_conversations c ON c.id=t.conversation_id
+        LEFT JOIN web_jobs j ON j.id=t.job_id
+        WHERE c.deleted_at IS NULL
+        AND NOT EXISTS (SELECT 1 FROM chat_turns earlier WHERE earlier.conversation_id=t.conversation_id AND earlier.ordinal<t.ordinal AND earlier.status<>'completed')
+        AND (t.status IN ('queued','routing') OR (t.status='processing' AND j.status IN ('completed','waiting','failed','blocked')))
         ORDER BY t.created_at LIMIT 1""").fetchone()
     if not row:
         return False
