@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { randomUUID } = require('node:crypto');
 const vm = require('node:vm');
+const onboardingSource = readFileSync('decision_room/web/static/onboarding.js', 'utf8');
 const source = readFileSync('decision_room/web/static/app.js', 'utf8').split('window.addEventListener("hashchange"')[0];
 function fixture() {
   const values = new Map(), chats = new Map(), messages = new Map(), calls = [];
@@ -20,7 +21,7 @@ function fixture() {
     }
   };
   vm.createContext(sandbox);
-  vm.runInContext(source + '\nstate.business={id:"business-a"}; globalThis.ui={state,store,launchDashboardChat,dashboardSuggestions,shortChatTitle,chatResponse,reportState,scrollToChatTurn,sidebarHistoryMarkup,chatQueuePosition,deleteChat};', sandbox);
+  vm.runInContext(onboardingSource + '\n' + source + '\nstate.business={id:"business-a"}; globalThis.ui={state,store,launchDashboardChat,dashboardSuggestions,shortChatTitle,chatResponse,reportState,scrollToChatTurn,sidebarHistoryMarkup,chatQueuePosition,deleteChat};', sandbox);
   return {sandbox, ...sandbox.ui, calls, chats, messages, values};
 }
 test('sending follows the pending assistant card above the fixed composer', () => {
@@ -215,10 +216,84 @@ test('first access keeps onboarding in place until a business is saved', async (
   f.sandbox.window={scrollTo:()=>{}};
   f.sandbox.document={querySelector:()=>({setAttribute:()=>{},focus:()=>{}})};
   f.sandbox.fetch=async url => ({ok:true,json:async()=>url==='/api/workspace' ? {analyses:[],configured:false,business:null,businesses:[],memory:{}} : {business_id:null,conversations:[],datasets:{items:[]}}});
-  vm.runInContext('businessForm = () => {globalThis.onboarded=true;}; globalThis.runRoute=route;',f.sandbox);
+  vm.runInContext('onboardingBusiness = () => {globalThis.onboarded=true;}; globalThis.runRoute=route;',f.sandbox);
   await f.sandbox.runRoute();
   assert.equal(f.sandbox.onboarded,true);
   assert.equal(timers,0);
+});
+
+test('public entry opens the landing and the access link opens local login', async () => {
+  const f=fixture();
+  f.sandbox.clearInterval=()=>{};
+  f.sandbox.document={querySelector:selector=>selector==='#reconnect' ? null : {setAttribute:()=>{},focus:()=>{}}};
+  vm.runInContext(`api=async()=>{throw Object.assign(new Error('Access required'),{status:401})};
+    landing=()=>{globalThis.screen='landing'}; login=()=>{globalThis.screen='login'};
+    globalThis.runRoute=route;`,f.sandbox);
+  await f.sandbox.runRoute();
+  assert.equal(f.sandbox.screen,'landing');
+  f.sandbox.location.hash='#login';
+  await f.sandbox.runRoute();
+  assert.equal(f.sandbox.screen,'login');
+});
+
+test('a saved business opens the current dashboard', async () => {
+  const f=fixture();
+  f.sandbox.clearInterval=()=>{};
+  f.sandbox.setInterval=()=>{};
+  f.sandbox.window={scrollTo:()=>{}};
+  f.sandbox.document={querySelector:()=>({setAttribute:()=>{},focus:()=>{},textContent:''})};
+  vm.runInContext(`api=async path=>path==='/api/workspace'
+      ? {analyses:[],configured:false,business:{id:'business-a'},businesses:[],memory:{}}
+      : path==='/api/chats' ? {business_id:'business-a',conversations:[],datasets:{items:[]}}
+      : {selected_id:null,report:null};
+    dashboardHome=()=>{globalThis.screen='dashboard'}; globalThis.runRoute=route;`,f.sandbox);
+  await f.sandbox.runRoute();
+  assert.equal(f.sandbox.screen,'dashboard');
+});
+
+test('a new business stays in the separate onboarding until its report is complete', async () => {
+  const f=fixture();
+  f.sandbox.clearInterval=()=>{};
+  f.sandbox.setInterval=()=>{};
+  f.sandbox.window={scrollTo:()=>{}};
+  f.sandbox.document={querySelector:()=>({setAttribute:()=>{},focus:()=>{},textContent:''})};
+  f.sandbox.fetch=async url => ({ok:true,json:async()=>url==='/api/workspace'
+    ? {analyses:[],configured:true,business:{id:'business-a'},businesses:[],
+       onboarding:{job_id:null,completed:false},memory:{}}
+    : {business_id:'business-a',conversations:[],datasets:{items:[]}}});
+  vm.runInContext('onboardingPurpose=()=>{globalThis.screen="onboarding-purpose"}; dashboardHome=()=>{globalThis.screen="dashboard"}; globalThis.runRoute=route;',f.sandbox);
+  await f.sandbox.runRoute();
+  assert.equal(f.sandbox.screen,'onboarding-purpose');
+});
+
+test('guided onboarding shows segmented progress without a sidebar', () => {
+  const f=fixture();
+  vm.runInContext('onboardingShell("<p>Pantalla</p>", "name"); globalThis.nameShell=app.innerHTML; onboardingShell("<p>Pantalla</p>", "goal", "specific"); globalThis.goalShell=app.innerHTML;',f.sandbox);
+  assert.match(f.sandbox.nameShell,/Paso 1 de 5/);
+  assert.match(f.sandbox.nameShell,/first-run-segment/);
+  assert.doesNotMatch(f.sandbox.nameShell,/first-run-sidebar/);
+  assert.match(f.sandbox.goalShell,/Paso 4 de 6/);
+  assert.match(f.sandbox.goalShell,/Tu pregunta/);
+});
+
+test('unknown is exclusive and an old answer is not restored beside it', () => {
+  const f=fixture();
+  const html=vm.runInContext('answerFields({options:["Total de la fila"]},{text:"Total de la fila",disposition:"unknown"})',f.sandbox);
+  assert.match(html,/type="radio" name="option" value="unknown" id="unknown" checked/);
+  assert.doesNotMatch(html,/type="checkbox" id="unknown"/);
+  assert.doesNotMatch(html,/<textarea[^>]*>Total de la fila<\/textarea>/);
+  assert.doesNotMatch(html,/value="0" data-answer-option checked/);
+  const selected=vm.runInContext('answerFields({options:["Total de la fila"]},{text:"Total de la fila",optionIndex:0,disposition:"answered"})',f.sandbox);
+  assert.match(selected,/value="0" data-answer-option checked/);
+  assert.doesNotMatch(selected,/<textarea[^>]*>Total de la fila<\/textarea>/);
+});
+
+test('data context highlights only columns explicitly named by the question', () => {
+  const f=fixture();
+  const indices=vm.runInContext('referencedColumns({text:"¿Qué representa ventas_eur?",reason:"Afecta al total"},["id","ventas_eur","total_ventas"])',f.sandbox);
+  assert.deepEqual(Array.from(indices),[1]);
+  const cited=vm.runInContext('referencedColumns({text:"¿Precio unitario o total de fila?",references:[{kind:"column",column:"amount"}]},["quantity","amount"])',f.sandbox);
+  assert.deepEqual(Array.from(cited),[1]);
 });
 
 test('agent prose formats paragraphs and lists while escaping all model HTML', () => {

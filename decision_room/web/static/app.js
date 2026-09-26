@@ -58,6 +58,8 @@ const state = {
   file: null,
   draft: {},
   business: null,
+  onboarding: null,
+  onboardingFiles: [],
   memory: {},
   dashboard: null,
   selectedReport: null,
@@ -87,7 +89,7 @@ const statuses = {
   ready: ["Respuesta revisada · pendiente de guardar informe", "green"],
 };
 const phases = {
-  upload: "Preparando tu archivo",
+  upload: "Preparando tus datos",
   planning: "Entendiendo tu negocio",
   research: "Analizando los datos",
   review: "Comprobando los hallazgos",
@@ -303,8 +305,13 @@ function renderMemory() {
 function errorBox(message) {
   return `<div class="error-message" role="alert">${esc(message)}</div>`;
 }
+function landing() {
+  app.innerHTML = `<main id="main" class="landing" tabindex="-1"><header class="landing-header"><a class="brand" href="#home" aria-label="Decision Room, inicio"><span class="brand-mark">d<span>r</span></span><span>decision<span class="brand-light">room</span></span></a><a class="button secondary" href="#login">Iniciar sesión ${icon("arrow")}</a></header><section class="landing-hero"><div><p class="eyebrow"><span class="tiny-line"></span> CLARIDAD PARA TU NEGOCIO</p><h1>Entiende lo que cuentan <em>tus datos.</em></h1><p>Describe tu negocio una sola vez. Después podrás conversar sobre tus datos, explorar hallazgos y comprobar la evidencia de cada respuesta.</p><a class="button primary" href="#login">Empezar en este equipo ${icon("arrow")}</a><span class="landing-note">Versión local de pruebas · Las cuentas por correo todavía no están disponibles.</span></div>${illustration()}</section><section class="landing-steps" aria-label="Cómo funciona"><div><span>01</span><h2>Cuéntanos tu negocio</h2><p>Guardamos tu contexto para que puedas retomarlo en próximas visitas.</p></div><div><span>02</span><h2>Pregunta y comparte datos</h2><p>Abre una conversación y añade un CSV cuando necesites analizar cifras.</p></div><div><span>03</span><h2>Decide con evidencia</h2><p>Consulta tu Inicio, los informes y las fuentes detrás de cada hallazgo.</p></div></section><footer class="landing-footer">Decision Room · Tu espacio de pruebas se guarda en este equipo.</footer></main>`;
+  document.title = "Decision Room — Entiende tu negocio";
+}
 function login(error = "") {
   app.innerHTML = `<main class="login"><a class="brand" href="#"><span class="brand-mark">d<span>r</span></span><span>decision<span class="brand-light">room</span></span></a><section class="card"><p class="eyebrow">TU ESPACIO PRIVADO</p><h1>Bienvenido a<br><em>Decision Room.</em></h1><p>Un lugar para entender los datos de tu negocio y decidir con más claridad.</p><form id="login-form"><label for="access">Clave de acceso local</label><input id="access" name="access" type="password" autocomplete="current-password" required><div id="login-error">${error ? errorBox(error) : ""}</div><button class="button primary" type="submit">Entrar a mi espacio ${icon("arrow")}</button></form><details><summary>¿Dónde está mi clave?</summary><p>Abre la aplicación con <code>python -m decision_room.web --open</code> desde el entorno del proyecto. También puedes usar la clave del archivo privado <code>.web-access-key</code> en el almacenamiento local.</p></details></section><p class="subtle">${icon("shield")} Acceso restringido · Solo en este equipo</p></main>`;
+  document.title = "Decision Room — Acceso";
   document.querySelector("#login-form").onsubmit = async (event) => {
     event.preventDefault();
     try {
@@ -735,7 +742,7 @@ function detail(data) {
       text: "",
       disposition: "answered",
     });
-    center = `<section class="card question-card"><div class="card-kicker">${icon("chat")} UNA ACLARACIÓN PARA SEGUIR <span>${data.questions.length > 1 ? data.questions.length + " preguntas pendientes" : "Tu contexto importa"}</span></div><h2>${esc(question.text)}</h2><div class="question-reason"><strong>Por qué te lo preguntamos</strong><p>${esc(question.reason)}</p></div><form id="answer-form"><fieldset><legend>Tu respuesta</legend>${question.options.map((option, i) => `<label class="answer-option"><input type="radio" name="option" value="${i}"><span>${esc(option)}</span></label>`).join("")}<label for="answer-text" class="answer-label">${question.options.length ? "O cuéntanos con tus palabras" : "Cuéntanos lo que sabes"}</label><textarea id="answer-text" rows="3" maxlength="6000" placeholder="Añade tu respuesta o una aclaración…">${esc(saved.text)}</textarea><label class="unknown-choice"><input type="checkbox" id="unknown" ${saved.disposition === "unknown" ? "checked" : ""}> No lo sé / no tengo esa información</label></fieldset><p class="field-help">Si no lo sabes, continuaremos con lo que pueda analizarse y señalaremos las limitaciones.</p><div id="answer-error"></div><div class="answer-actions"><span class="save-hint">La respuesta se guarda al enviarla</span><button class="button primary" type="submit">Guardar y continuar ${icon("arrow")}</button></div></form></section>`;
+    center = `<section class="card question-card"><div class="card-kicker">${icon("chat")} UNA ACLARACIÓN PARA SEGUIR <span>${data.questions.length > 1 ? data.questions.length + " preguntas pendientes" : "Tu contexto importa"}</span></div><h2>${esc(question.text)}</h2><div class="question-reason"><strong>Por qué te lo preguntamos</strong><p>${esc(question.reason)}</p></div><form id="answer-form">${answerFields(question, saved)}<p class="field-help">Si no lo sabes, continuaremos con lo que pueda analizarse y señalaremos las limitaciones.</p><div id="answer-error"></div><div class="answer-actions"><span class="save-hint">La respuesta se guarda al enviarla</span><button class="button primary" type="submit">Guardar y continuar ${icon("arrow")}</button></div></form></section>`;
   } else if (data.publishable) {
     center = `<div class="report-ready"><span>${icon("check")} Tu informe está disponible</span><a class="text-button" href="/api/jobs/${data.id}/report" target="_blank" rel="noopener">Abrir informe ${icon("external")}</a></div><p class="report-caveat">Informe elaborado con IA y revisión automática. Consulta el alcance y la evidencia; los errores analíticos de esta versión siguen en evaluación.</p><iframe id="report-frame" class="report-frame" title="Informe de ${esc(data.business)} con hallazgos, gráficos y evidencia" src="/api/jobs/${data.id}/report" sandbox="allow-same-origin"></iframe>`;
   } else if (["failed", "blocked"].includes(data.status)) {
@@ -784,32 +791,45 @@ function detail(data) {
       }
     };
 }
-function setupAnswer(data, question) {
+function answerFields(question, saved, rows = 3) {
+  const options = question.options || [];
+  const selected = saved.disposition === "unknown" ? -1
+    : Number.isInteger(saved.optionIndex) ? saved.optionIndex : options.indexOf(saved.text);
+  const answer = saved.disposition === "unknown" || selected >= 0 ? "" : saved.text || "";
+  return `<fieldset><legend>Tu respuesta</legend>${options.map((option, i) => `<label class="answer-option"><input type="radio" name="option" value="${i}" data-answer-option ${selected === i ? "checked" : ""}><span>${esc(option)}</span></label>`).join("")}
+    <label for="answer-text" class="answer-label">${options.length ? "O cuéntanos con tus palabras" : "Cuéntanos lo que sabes"}</label><textarea id="answer-text" rows="${rows}" maxlength="6000" placeholder="Añade tu respuesta o una aclaración…">${esc(answer)}</textarea>
+    <label class="unknown-choice"><input type="radio" name="option" value="unknown" id="unknown" ${saved.disposition === "unknown" ? "checked" : ""}><span>No lo sé / no tengo esa información</span></label></fieldset>`;
+}
+function setupAnswer(data, question, refresh = pollDetail) {
   const form = document.querySelector("#answer-form");
   const text = document.querySelector("#answer-text");
   const unknown = document.querySelector("#unknown");
   const key = "dr-answer-" + data.id + "-" + question.id;
   let requestKey = crypto.randomUUID();
+  const selectedOption = () => form.querySelector("[data-answer-option]:checked");
   const save = () => {
+    const selected = selectedOption();
     store.set(key, {
-      text: text.value,
+      text: unknown.checked ? "" : selected ? question.options[Number(selected.value)] : text.value,
+      optionIndex: selected ? Number(selected.value) : null,
       disposition: unknown.checked ? "unknown" : "answered",
     });
     requestKey = crypto.randomUUID();
-    text.disabled = unknown.checked;
   };
-  text.disabled = unknown.checked;
   text.oninput = () => {
     form
       .querySelectorAll("[name=option]")
       .forEach((radio) => (radio.checked = false));
     save();
   };
-  unknown.onchange = save;
-  form.querySelectorAll("[name=option]").forEach(
+  unknown.onchange = () => {
+    text.value = "";
+    save();
+  };
+  form.querySelectorAll("[data-answer-option]").forEach(
     (radio) =>
       (radio.onchange = () => {
-        text.value = question.options[Number(radio.value)];
+        text.value = "";
         unknown.checked = false;
         save();
       }),
@@ -817,7 +837,9 @@ function setupAnswer(data, question) {
   form.onsubmit = async (event) => {
     event.preventDefault();
     const button = form.querySelector("button[type=submit]");
-    if (!unknown.checked && !text.value.trim()) {
+    const selected = selectedOption();
+    const response = unknown.checked ? "" : selected ? question.options[Number(selected.value)] : text.value.trim();
+    if (!unknown.checked && !response) {
       document.querySelector("#answer-error").innerHTML = errorBox(
         "Selecciona una opción, escribe una respuesta o marca «No lo sé».",
       );
@@ -833,14 +855,14 @@ function setupAnswer(data, question) {
           request_key: requestKey,
           question_id: question.id,
           phase: question.phase,
-          text: unknown.checked ? "" : text.value,
+          text: response,
           disposition: unknown.checked ? "unknown" : "answered",
         },
       });
       store.remove(key);
       state.signature = "";
       toast("Respuesta guardada. Continuamos con tu análisis.");
-      await pollDetail(data.id);
+      await refresh(data.id);
     } catch (error) {
       document.querySelector("#answer-error").innerHTML = errorBox(
         error.message,
@@ -1212,6 +1234,7 @@ async function route(transition = {}) {
     state.configured = data.configured;
     state.business = data.business;
     state.businesses = data.businesses;
+    state.onboarding = data.onboarding;
     state.memory = data.memory;
     const chats = await api("/api/chats");
     if (generation !== state.generation) return;
@@ -1225,11 +1248,24 @@ async function route(transition = {}) {
       state.selectedReport = null;
       state.dashboard = null;
       state.file = null;
+      state.onboardingFiles = [];
       state.requestKey = null;
     }
-    if (hash === "business-new") businessForm(true);
-    else if (hash === "businesses" || (!state.business && state.businesses.length)) businessChooser();
-    else if (!state.business) businessForm(true);
+    const onboardingActive = Boolean(state.onboarding && !state.onboarding.completed);
+    if (!state.business && state.businesses.length && hash !== "business-new") businessChooser();
+    else if (!state.business && hash === "onboarding/context") onboardingContext();
+    else if (!state.business) onboardingBusiness();
+    else if (onboardingActive && state.onboarding.job_id) {
+      await pollOnboarding(state.onboarding.job_id);
+      state.poll = setInterval(() => pollOnboarding(state.onboarding.job_id), 3000);
+    }
+    else if (onboardingActive && ["onboarding/business", "onboarding/name"].includes(hash)) onboardingBusiness();
+    else if (onboardingActive && hash === "onboarding/context") onboardingContext();
+    else if (onboardingActive && hash === "onboarding/goal") onboardingGoal();
+    else if (onboardingActive && hash === "onboarding/data") onboardingData();
+    else if (onboardingActive) onboardingPurpose();
+    else if (hash === "business-new") businessForm(true);
+    else if (hash === "businesses") businessChooser();
     else if (hash === "business") businessForm(!state.business);
     else if (hash === "my-business") await myBusiness();
     else if (hash === "new") newAnalysis();
@@ -1251,7 +1287,7 @@ async function route(transition = {}) {
       dashboardHome();
     }
     if (generation !== state.generation) return;
-    if (state.business && ["home", "analyses", "reports"].includes(hash))
+    if (state.business && !onboardingActive && ["home", "analyses", "reports"].includes(hash))
       state.poll = setInterval(async () => {
         try {
           const next = await api("/api/workspace");
@@ -1317,15 +1353,20 @@ async function route(transition = {}) {
     animateComposerRoute(transition.origin, transition.fromCentered, hash === "ask");
     document.title =
       "Decision Room — " +
-      (hash === "new"
-        ? "Nuevo análisis"
-        : hash.startsWith("analysis/")
-          ? "Tu análisis"
-        : hash === "home" ? "Inicio" : hash === "my-business" ? "Mi negocio" : hash === "reports" ? "Informes" : hash === "ask" ? "Nuevo chat" : "Mi espacio");
+      (onboardingActive ? "Primer informe"
+        : !state.business ? "Tu negocio"
+          : hash === "new" ? "Nuevo análisis"
+            : hash.startsWith("analysis/") ? "Tu análisis"
+              : hash === "home" ? "Inicio"
+                : hash === "my-business" ? "Mi negocio"
+                  : hash === "reports" ? "Informes"
+                    : hash === "ask" ? "Nuevo chat" : "Mi espacio");
   } catch (e) {
     if (generation !== state.generation) return;
-    if (e.status === 401) login();
-    else
+    if (e.status === 401) {
+      if (hash === "login") login();
+      else landing();
+    } else
       shell(
         `<section class="card status-card"><h1>Tu espacio está en pausa.</h1><p>${esc(e.message)}</p><button class="button primary" id="reconnect">Volver a conectar</button></section>`,
       );

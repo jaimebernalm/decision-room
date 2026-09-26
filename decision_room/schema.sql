@@ -292,6 +292,21 @@ CREATE TABLE IF NOT EXISTS web_jobs (
     FOREIGN KEY (business_id,research_id) REFERENCES agent_research(business_id,id),
     FOREIGN KEY (business_id,review_id) REFERENCES agent_reviews(business_id,id)
 );
+-- A staged CSV can be retried before a batch is committed. Files keep their
+-- original order so the first table remains the default preview.
+CREATE TABLE IF NOT EXISTS web_job_files (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL REFERENCES businesses(id),
+    job_id uuid REFERENCES web_jobs(id) ON DELETE CASCADE,
+    position integer,
+    filename text NOT NULL,
+    upload_key text NOT NULL,
+    byte_count bigint NOT NULL CHECK (byte_count > 0),
+    sha256 text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (job_id, position)
+);
+CREATE INDEX IF NOT EXISTS web_job_files_job ON web_job_files(job_id, position);
 CREATE TABLE IF NOT EXISTS web_replies (
     job_id uuid NOT NULL REFERENCES web_jobs(id),
     request_key uuid NOT NULL,
@@ -580,3 +595,16 @@ INSERT INTO schema_versions(version) VALUES (14) ON CONFLICT DO NOTHING;
 
 -- Reversible chat deletion; shared memory and reviewed reports remain independent.
 INSERT INTO schema_versions(version) VALUES (15) ON CONFLICT DO NOTHING;
+
+-- Only businesses explicitly created through the guided first-report flow are
+-- enrolled. Existing local workspaces retain their established navigation.
+CREATE TABLE IF NOT EXISTS web_onboarding (
+    business_id uuid PRIMARY KEY REFERENCES web_businesses(business_id),
+    job_id uuid,
+    completed boolean NOT NULL DEFAULT false,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    completed_at timestamptz,
+    FOREIGN KEY (business_id, job_id) REFERENCES web_jobs(business_id, id),
+    CHECK (NOT completed OR job_id IS NOT NULL)
+);
+INSERT INTO schema_versions(version) VALUES (16) ON CONFLICT DO NOTHING;

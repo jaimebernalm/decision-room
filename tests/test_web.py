@@ -17,7 +17,7 @@ from decision_room.database import connect, migrate
 from decision_room.agent import review
 from decision_room.agent.model import ModelAPIError, ModelNotReady, ModelSettings, ModelRequestUncertain
 from decision_room.web.server import Server
-from decision_room.web.service import Workspace, WebError, MAX_UPLOAD
+from decision_room.web.service import Workspace, WebError, MAX_UPLOAD, MAX_BATCH_UPLOAD
 from test_agent import ScriptedModel
 from test_review import DialogueModel, action
 
@@ -72,6 +72,8 @@ class WebTests(unittest.TestCase):
         self.config = replace(self.base, dsn=self.dsn, storage=Path(self.temp.name))
         with connect(self.config) as db, db.transaction():
             db.execute('DELETE FROM web_replies')
+            db.execute('DELETE FROM web_onboarding')
+            db.execute('DELETE FROM web_job_files')
             db.execute('DELETE FROM web_jobs')
             db.execute('UPDATE web_workspace SET active_business_id=NULL')
             db.execute('DELETE FROM web_businesses')
@@ -125,6 +127,27 @@ class WebTests(unittest.TestCase):
         with connect(self.config) as db:
             self.assertEqual(db.execute('SELECT count(*) AS n FROM web_jobs WHERE request_key=%s', (self.metadata['request_key'],)).fetchone()['n'], 1)
 
+    def test_csv_preview_is_scoped_paginated_and_uses_original_values(self):
+        content = b'category;ventas_eur\n' + b''.join(f'Cat {i};{i}.00\n'.encode() for i in range(1, 33))
+        job = self.ws.create({**self.metadata, 'request_key': str(uuid4())}, 'ventas.csv', content)['id']
+        client, _ = self.http()
+        self.assertEqual(client.get(f'/api/jobs/{job}/preview').status_code, 401)
+        client.post('/api/login', json={'token': 'test-local-access'})
+        first = client.get(f'/api/jobs/{job}/preview').json()
+        self.assertEqual(first['columns'], ['category', 'ventas_eur'])
+        self.assertEqual(first['rows'][0], {'number': 1, 'cells': ['Cat 1', '1.00']})
+        self.assertEqual(len(first['rows']), 30)
+        self.assertTrue(first['has_more'])
+        last = client.get(f'/api/jobs/{job}/preview?offset=30').json()
+        self.assertEqual([row['number'] for row in last['rows']], [31, 32])
+        self.assertFalse(last['has_more'])
+        self.assertEqual(client.get(f'/api/jobs/{job}/preview?offset=bad').status_code, 400)
+        self.assertEqual(client.get(f'/api/jobs/{job}/preview?offset=-1').status_code, 400)
+        other = self.ws.save_business({'request_key': str(uuid4()), 'expected_active_id': str(self.business['id']),
+                                       'name': 'Other shop', 'description': 'Separate data'})
+        self.assertNotEqual(str(other['id']), str(self.business['id']))
+        self.assertEqual(client.get(f'/api/jobs/{job}/preview').status_code, 404)
+
     def test_upload_constraints_and_missing_model(self):
         for filename, content in [('../secret.csv', self.csv), ('C:\\secret.csv', self.csv), ('x.xlsx', self.csv),
                                   ('x.csv', b''), ('x.csv', b'\xff'), ('x.csv', b'x' * (MAX_UPLOAD + 1))]:
@@ -136,6 +159,50 @@ class WebTests(unittest.TestCase):
         self.ws.settings = None
         with self.assertRaises(WebError):
             self.create()
+
+    def test_onboarding_batch_streams_multiple_csvs_and_previews_each(self):
+        client, _ = self.http()
+        self.assertEqual(client.post('/api/login', json={'token': 'test-local-access'}).status_code, 200)
+        first = client.post('/api/jobs/stage?filename=sales.csv', content=self.csv,
+                            headers={'Content-Type': 'text/csv'})
+        second_csv = b'product,category\nPen,School\n'
+        second = client.post('/api/jobs/stage?filename=products.csv', content=second_csv,
+                             headers={'Content-Type': 'text/csv'})
+        self.assertEqual((first.status_code, second.status_code), (201, 201))
+        metadata = {**self.metadata, 'files': [first.json()['id'], second.json()['id']]}
+        created = client.post('/api/jobs/batch', json=metadata)
+        self.assertEqual(created.status_code, 202)
+        job = created.json()['id']
+        self.assertEqual(client.post('/api/jobs/batch', json=metadata).json()['id'], job)
+        preview = client.get(f'/api/jobs/{job}/preview?file=1').json()
+        self.assertEqual(preview['filename'], 'products.csv')
+        self.assertEqual(preview['columns'], ['product', 'category'])
+        self.assertEqual(len(preview['files']), 2)
+        self.assertEqual(client.get(f'/api/jobs/{job}/file?file=1').content, second_csv)
+        self.assertEqual(client.get(f'/api/jobs/{job}/preview?file=2').status_code, 404)
+        self.ws.run_job(job)
+        with connect(self.config) as db:
+            sources = db.execute('SELECT original_names FROM sources WHERE analysis_id=%s',
+                                 (self.ws.row(job)['analysis_id'],)).fetchall()
+        self.assertEqual({name for row in sources for name in row['original_names']}, {'sales.csv', 'products.csv'})
+
+    def test_onboarding_batch_uses_total_bytes_and_rejects_invalid_stage(self):
+        import io
+        with self.assertRaisesRegex(WebError, '2 GB'):
+            self.ws.stage_upload('huge.csv', io.BytesIO(b''), MAX_BATCH_UPLOAD + 1)
+        with self.assertRaises(WebError):
+            self.ws.stage_upload('../bad.csv', io.BytesIO(b'a'), 1)
+        first = self.ws.stage_upload('first.csv', io.BytesIO(b'a,b\n1,2\n'), 8)
+        second = self.ws.stage_upload('second.csv', io.BytesIO(b'c,d\n3,4\n'), 8)
+        with patch('decision_room.web.service.MAX_BATCH_UPLOAD', 15), self.assertRaisesRegex(WebError, '2 GB'):
+            self.ws.create_batch({**self.metadata, 'files': [first['id'], second['id']]})
+        with self.assertRaisesRegex(WebError, 'repitas'):
+            self.ws.create_batch({**self.metadata, 'files': [first['id'], first['id']]})
+        class RepeatingStream:
+            def read(self, length):
+                return b'a' * length
+        large = self.ws.stage_upload('large.csv', RepeatingStream(), MAX_UPLOAD + 1)
+        self.assertEqual(large['byte_count'], MAX_UPLOAD + 1)
 
     def test_changed_private_upload_is_not_served_as_original(self):
         job = self.create()
@@ -177,6 +244,7 @@ class WebTests(unittest.TestCase):
         job = self.create()
         self.ws.run_job(job)
         first = self.ws.detail(job)
+        self.assertTrue(any(ref['kind'] == 'column' for ref in first['questions'][0]['references']))
         self.ws = Workspace(self.config, SETTINGS, WebModel)
         self.assertEqual(self.ws.detail(job)['questions'], first['questions'])
         self.assertEqual(self.ws.detail(job)['status'], 'waiting')
@@ -326,7 +394,7 @@ class WebTests(unittest.TestCase):
         connection = HTTPConnection('127.0.0.1', server.server_port, timeout=5)
         self.addCleanup(connection.close)
         connection.putrequest('POST', '/api/jobs')
-        for key, value in {'Origin': server.origin, 'X-Decision-Room': '1', 'Cookie': 'dr_session=test-local-access',
+        for key, value in {'Origin': server.origin, 'X-Decision-Room': '1', 'Cookie': f'{server.cookie_name}=test-local-access',
                            'Content-Type': 'multipart/form-data; boundary=test', 'Content-Length': str(MAX_UPLOAD + 50_001)}.items():
             connection.putheader(key, value)
         connection.endheaders()
@@ -342,9 +410,14 @@ class WebTests(unittest.TestCase):
         self.assertEqual(client.post('/api/login', json={'token': 'test-local-access'}, headers={'Origin': 'https://outside.test'}).status_code, 403)
         response = client.post('/api/login', json={'token': 'test-local-access'})
         self.assertEqual(response.status_code, 200)
+        self.assertIn(server.cookie_name + '=', response.headers['set-cookie'])
         self.assertIn('HttpOnly', response.headers['set-cookie'])
         self.assertIn('SameSite=Strict', response.headers['set-cookie'])
         self.assertEqual(client.get('/api/workspace').status_code, 200)
+        other_client, other_server = self.http()
+        self.assertNotEqual(server.cookie_name, other_server.cookie_name)
+        other_client.cookies.update(client.cookies)
+        self.assertEqual(other_client.get('/api/workspace').status_code, 401)
         self.assertIsNone(client.get('/api/dashboard').json()['report'])
         self.assertEqual(client.get('/api/workspace', headers={'Host': 'outside.test'}).status_code, 403)
         self.assertEqual(client.post('/api/jobs', content=b'x', headers={'X-Decision-Room': ''}).status_code, 403)
@@ -388,6 +461,45 @@ class WebTests(unittest.TestCase):
         self.assertEqual(saved['business']['description'], before['description'])
         self.assertEqual(saved['analyses'], [])
         self.assertFalse(saved['configured'])
+
+    def test_guided_first_report_is_durable_and_gates_completion(self):
+        client, _ = self.http()
+        client.post('/api/login', json={'token': 'test-local-access'})
+        self.assertIsNone(client.get('/api/workspace').json()['onboarding'])
+        created = client.post('/api/business', json={
+            'request_key': str(uuid4()), 'expected_active_id': str(self.business['id']),
+            'name': 'Onboarding shop', 'description': 'Each row is one cash-register sale.',
+            'onboarding': True,
+        })
+        self.assertEqual(created.status_code, 200)
+        business_id = created.json()['business']['id']
+        self.assertEqual(client.get('/api/workspace').json()['onboarding']['job_id'], None)
+        self.assertEqual(client.post('/api/onboarding/complete', json={}).status_code, 409)
+        metadata = {'request_key': str(uuid4()), 'business_id': business_id,
+                    'profile_revision': 1, 'goal': '', 'title': 'First report', 'onboarding': True}
+        unmarked = client.post('/api/jobs', files={
+            'metadata': (None, json.dumps({**metadata, 'request_key': str(uuid4()), 'onboarding': False})),
+            'file': ('sales.csv', self.csv)})
+        self.assertEqual(unmarked.status_code, 409)
+        first = client.post('/api/jobs', files={
+            'metadata': (None, json.dumps(metadata)), 'file': ('sales.csv', self.csv)})
+        self.assertEqual(first.status_code, 202)
+        job_id = first.json()['id']
+        self.assertEqual(client.get('/api/workspace').json()['onboarding']['job_id'], job_id)
+        self.assertEqual(client.post('/api/onboarding/complete', json={}).status_code, 409)
+        self.assertEqual(client.post('/api/onboarding/restart', json={}).status_code, 409)
+        self.ws.update(job_id, status='blocked', issue='Insufficient evidence')
+        self.assertEqual(client.post('/api/onboarding/restart', json={}).status_code, 200)
+        self.assertIsNone(client.get('/api/workspace').json()['onboarding']['job_id'])
+        metadata['request_key'] = str(uuid4())
+        second = client.post('/api/jobs', files={
+            'metadata': (None, json.dumps(metadata)), 'file': ('sales.csv', self.csv)})
+        self.assertEqual(second.status_code, 202)
+        with patch.object(self.ws, 'detail', return_value={'publishable': True}):
+            self.assertEqual(client.post('/api/onboarding/complete', json={}).status_code, 200)
+        state = Workspace(self.config, SETTINGS, WebModel).state()
+        self.assertTrue(state['onboarding']['completed'])
+        self.assertEqual(str(state['onboarding']['job_id']), second.json()['id'])
 
     def test_profile_retries_validation_and_concurrent_edit(self):
         from concurrent.futures import ThreadPoolExecutor
@@ -535,6 +647,7 @@ class WebTests(unittest.TestCase):
         html = self.ws.report(job)
         # Recreate the schema-7 boundary, keeping all analytical rows and files.
         with connect(self.config) as db, db.transaction():
+            db.execute('DROP TABLE web_onboarding')
             db.execute('DROP TABLE web_workspace')
             db.execute('DROP TABLE web_businesses')
             db.execute('ALTER TABLE web_jobs DROP COLUMN business_name, DROP COLUMN business_revision')

@@ -1,7 +1,11 @@
 """Durable local web jobs; all analytical work goes through existing services."""
+import csv
+import codecs
 import hashlib
 import json
 import logging
+import os
+import tempfile
 import threading
 from dataclasses import asdict
 from contextlib import nullcontext
@@ -16,13 +20,14 @@ from ..agent.model import ModelAPIError, ModelClient, ModelNotReady, ModelSettin
 from ..client_report import render_client
 from ..database import connect
 from ..execution import recover_executions
-from ..storage import Storage
+from ..storage import Storage, digest
 from ..memory import service as memory, extraction as memory_extraction
 from . import business as business_store
 from .dashboard import projection as dashboard_projection
 from .errors import WebError, bounded, identifier
 
 MAX_UPLOAD = 20 * 1024**2
+MAX_BATCH_UPLOAD = 2 * 1024**3
 LOG = logging.getLogger(__name__)
 
 
@@ -86,6 +91,49 @@ class Workspace:
                 'analyses': self.scoped(business_id).listing(),
                 'memory': memory.status(self.config, business_id)}
 
+    def complete_onboarding(self):
+        business_id = self.business_id()
+        with connect(self.config) as db:
+            onboarding = db.execute('SELECT job_id,completed FROM web_onboarding WHERE business_id=%s',
+                                    (business_id,)).fetchone()
+        if not onboarding or not onboarding['job_id']:
+            raise WebError('Termina el primer análisis antes de abrir tu espacio.', 409)
+        if onboarding['completed']:
+            return {'completed': True}
+        if not self.detail(onboarding['job_id'])['publishable']:
+            raise WebError('El informe todavía no está disponible. Responde las preguntas o revisa el análisis.', 409)
+        with connect(self.config) as db, db.transaction():
+            selected = db.execute('SELECT active_business_id FROM web_workspace WHERE singleton FOR SHARE').fetchone()
+            if selected['active_business_id'] != business_id:
+                raise WebError('El negocio activo ha cambiado. Recarga la página.', 409)
+            updated = db.execute('''UPDATE web_onboarding SET completed=true,completed_at=now()
+                WHERE business_id=%s AND job_id=%s RETURNING business_id''',
+                (business_id, onboarding['job_id'])).fetchone()
+            if not updated:
+                raise WebError('El negocio activo ha cambiado. Recarga la página.', 409)
+        return {'completed': True}
+
+    def restart_onboarding(self):
+        business_id = self.business_id()
+        with connect(self.config) as db:
+            onboarding = db.execute('SELECT job_id,completed FROM web_onboarding WHERE business_id=%s',
+                                    (business_id,)).fetchone()
+        if not onboarding or onboarding['completed'] or not onboarding['job_id']:
+            raise WebError('No hay un primer análisis que reemplazar.', 409)
+        result = self.detail(onboarding['job_id'])
+        if result['status'] not in ('blocked', 'failed'):
+            raise WebError('Solo puedes empezar de nuevo si el primer análisis está detenido.', 409)
+        with connect(self.config) as db, db.transaction():
+            selected = db.execute('SELECT active_business_id FROM web_workspace WHERE singleton FOR SHARE').fetchone()
+            if selected['active_business_id'] != business_id:
+                raise WebError('El negocio activo ha cambiado. Recarga la página.', 409)
+            updated = db.execute('''UPDATE web_onboarding SET job_id=NULL WHERE business_id=%s
+                AND job_id=%s AND completed=false RETURNING business_id''',
+                (business_id, onboarding['job_id'])).fetchone()
+            if not updated:
+                raise WebError('El análisis ha cambiado. Recarga la página.', 409)
+        return {'restarted': True}
+
     def retry_memory(self, data):
         business_id = self.business_id()
         if business_id is None:
@@ -95,6 +143,133 @@ class Workspace:
         memory_extraction.retry(self.config, business_id)
         self.wake.set()
         return memory.status(self.config, business_id)
+
+    @staticmethod
+    def csv_filename(filename):
+        if not isinstance(filename, str) or '/' in filename or '\\' in filename or any(ord(c) < 32 for c in filename):
+            raise WebError('El nombre del archivo no es válido.')
+        filename = bounded(filename, 'el nombre del archivo', 180)
+        if not filename.lower().endswith('.csv'):
+            raise WebError('Sube archivos CSV. El soporte de Excel llegará en una próxima entrega.')
+        return filename
+
+    def stage_upload(self, filename, stream, length):
+        """Stream one CSV to private storage; a later request commits the batch."""
+        business = self.business_id()
+        if business is None:
+            raise WebError('Selecciona tu negocio antes de subir los datos.', 409)
+        filename = self.csv_filename(filename)
+        if not 0 < length <= MAX_BATCH_UPLOAD:
+            raise WebError('El total de CSV no puede superar 2 GB.', 413)
+        upload_id = uuid4()
+        key = f'{business}/web/staged/{upload_id}.csv'
+        path = Storage(self.config.storage).path(business, key)
+        path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+        fd, temporary = tempfile.mkstemp(prefix='.incoming-', dir=path.parent)
+        hasher = hashlib.sha256()
+        decoder = codecs.getincrementaldecoder('utf-8-sig')('strict')
+        try:
+            with os.fdopen(fd, 'wb') as output:
+                remaining = length
+                while remaining:
+                    chunk = stream.read(min(1024 * 1024, remaining))
+                    if not chunk:
+                        raise WebError('La subida se ha interrumpido. Vuelve a intentarlo.')
+                    try:
+                        decoder.decode(chunk)
+                    except UnicodeDecodeError:
+                        raise WebError('Guarda el archivo como CSV UTF-8 y vuelve a subirlo.') from None
+                    hasher.update(chunk)
+                    output.write(chunk)
+                    remaining -= len(chunk)
+                try:
+                    decoder.decode(b'', final=True)
+                except UnicodeDecodeError:
+                    raise WebError('Guarda el archivo como CSV UTF-8 y vuelve a subirlo.') from None
+                output.flush()
+                os.fsync(output.fileno())
+            os.chmod(temporary, 0o600)
+            os.replace(temporary, path)
+            with connect(self.config) as db, db.transaction():
+                selected = db.execute('SELECT active_business_id FROM web_workspace WHERE singleton FOR SHARE').fetchone()
+                if selected['active_business_id'] != business:
+                    raise WebError('El negocio activo ha cambiado. Vuelve a abrir el formulario.', 409)
+                db.execute('''INSERT INTO web_job_files(id,business_id,filename,upload_key,byte_count,sha256)
+                    VALUES (%s,%s,%s,%s,%s,%s)''', (upload_id, business, filename, key, length, hasher.hexdigest()))
+            return {'id': str(upload_id), 'filename': filename, 'byte_count': length}
+        except BaseException:
+            path.unlink(missing_ok=True)
+            raise
+        finally:
+            Path(temporary).unlink(missing_ok=True)
+
+    def create_batch(self, data):
+        if not isinstance(data, dict) or not isinstance(data.get('files'), list) or not data['files']:
+            raise WebError('Selecciona al menos un CSV.')
+        key = identifier(data.get('request_key'))
+        business = self.business_id()
+        if business is None or identifier(data.get('business_id')) != business:
+            raise WebError('El negocio activo ha cambiado. Recarga la página.', 409)
+        revision = data.get('profile_revision')
+        if type(revision) is not int or revision < 1 or 'business' in data or 'context' in data:
+            raise WebError('Vuelve a cargar el contexto de tu negocio.', 409)
+        goal = bounded(data.get('goal', ''), 'la pregunta', 2000, False)
+        title = bounded(data.get('title') or goal or 'Exploración general', 'el título', 160)
+        ids = [identifier(value) for value in data['files']]
+        if len(set(ids)) != len(ids):
+            raise WebError('No repitas el mismo archivo en el lote.')
+        with connect(self.config) as db, db.transaction():
+            selected = db.execute('SELECT active_business_id FROM web_workspace WHERE singleton FOR SHARE').fetchone()
+            if selected['active_business_id'] != business:
+                raise WebError('El negocio activo ha cambiado. Recarga la página.', 409)
+            db.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s, 7))', (str(key),))
+            old = db.execute('SELECT * FROM web_jobs WHERE request_key=%s', (key,)).fetchone()
+            current = business_store.profile(db, business)
+            name, context = (old['business_name'], old['context']) if old else (current['name'], current['description'])
+            rows = db.execute('SELECT * FROM web_job_files WHERE id=ANY(%s) AND business_id=%s FOR UPDATE', (ids, business)).fetchall()
+            by_id = {row['id']: row for row in rows}
+            if len(by_id) != len(ids):
+                raise WebError('Falta algún CSV subido. Vuelve a seleccionarlos.', 409)
+            files = [by_id[item] for item in ids]
+            total = sum(row['byte_count'] for row in files)
+            if total > MAX_BATCH_UPLOAD:
+                raise WebError('El total de CSV no puede superar 2 GB.', 413)
+            manifest = [[row['filename'], row['sha256'], row['byte_count']] for row in files]
+            signature = hashlib.sha256(json.dumps([name, context, goal, title, manifest], ensure_ascii=False).encode()).hexdigest()
+            if old:
+                if old['business_id'] != business or old['business_revision'] != revision or old['request_sha256'] != signature or any(row['job_id'] not in (None, old['id']) for row in files):
+                    raise WebError('Este envío ya se guardó con otros datos. Inicia un nuevo análisis.', 409)
+                return {'id': str(old['id'])}
+            if any(row['job_id'] is not None for row in files):
+                raise WebError('Uno de estos archivos ya pertenece a otro análisis.', 409)
+            if current['profile_revision'] != revision:
+                raise WebError('El contexto del negocio ha cambiado. Recárgalo antes de iniciar otro análisis.', 409)
+            onboarding = db.execute('SELECT job_id,completed FROM web_onboarding WHERE business_id=%s FOR UPDATE', (business,)).fetchone()
+            if onboarding and not onboarding['completed']:
+                if data.get('onboarding') is not True or onboarding['job_id'] is not None:
+                    raise WebError('Completa o retoma el primer informe antes de crear otro análisis.', 409)
+            elif data.get('onboarding') is True:
+                raise WebError('Este negocio no tiene un onboarding pendiente.', 409)
+            if self.settings is None:
+                raise WebError('Falta configurar el modelo local. El borrador está guardado; podrás enviarlo cuando esté disponible.', 503)
+            # Verify exact staged bytes before the job becomes visible to the worker.
+            storage = Storage(self.config.storage)
+            for row in files:
+                path = storage.path(business, row['upload_key'])
+                if not path.is_file() or path.stat().st_size != row['byte_count'] or digest(path) != row['sha256']:
+                    raise WebError('Uno de los CSV guardados ha cambiado. Vuelve a subirlo.', 409)
+            job_id = uuid4()
+            first = files[0]
+            db.execute('''INSERT INTO web_jobs(id,request_key,request_sha256,business_id,business_name,business_revision,title,context,goal,
+                filename,upload_key,byte_count,model_settings,status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'queued')''',
+                (job_id, key, signature, business, name, revision, title, context, goal, first['filename'], first['upload_key'], total, Jsonb(asdict(self.settings))))
+            for position, item in enumerate(ids):
+                db.execute('UPDATE web_job_files SET job_id=%s,position=%s WHERE id=%s', (job_id, position, item))
+            if data.get('onboarding') is True:
+                db.execute('UPDATE web_onboarding SET job_id=%s WHERE business_id=%s', (job_id, business))
+            db.execute("UPDATE web_businesses SET onboarding_status='analysis_started',updated_at=now() WHERE business_id=%s", (business,))
+        self.wake.set()
+        return {'id': str(job_id)}
 
     def create(self, data, filename, content):
         if not isinstance(data, dict):
@@ -137,6 +312,13 @@ class Workspace:
                 return {'id': str(old['id'])}
             if current['profile_revision'] != revision:
                 raise WebError('El contexto del negocio ha cambiado. Recárgalo antes de iniciar otro análisis.', 409)
+            onboarding = db.execute('SELECT job_id,completed FROM web_onboarding WHERE business_id=%s FOR UPDATE',
+                                    (business,)).fetchone()
+            if onboarding and not onboarding['completed']:
+                if data.get('onboarding') is not True or onboarding['job_id'] is not None:
+                    raise WebError('Completa o retoma el primer informe antes de crear otro análisis.', 409)
+            elif data.get('onboarding') is True:
+                raise WebError('Este negocio no tiene un onboarding pendiente.', 409)
             if self.settings is None:
                 raise WebError('Falta configurar el modelo local. El borrador está guardado; podrás enviarlo cuando esté disponible.', 503)
             job_id = uuid4()
@@ -149,6 +331,8 @@ class Workspace:
                 db.execute('''INSERT INTO web_jobs(id,request_key,request_sha256,business_id,business_name,business_revision,title,context,goal,
                     filename,upload_key,byte_count,model_settings,status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'queued')''',
                     (job_id, key, signature, business, name, revision, title, context, goal, filename, upload_key, len(content), Jsonb(asdict(self.settings))))
+                if data.get('onboarding') is True:
+                    db.execute('UPDATE web_onboarding SET job_id=%s WHERE business_id=%s', (job_id, business))
                 db.execute("UPDATE web_businesses SET onboarding_status='analysis_started',updated_at=now() WHERE business_id=%s", (business,))
             except BaseException:
                 path.unlink(missing_ok=True)
@@ -312,7 +496,9 @@ class Workspace:
             result['files'] = [{k: f[k] for k in ('original_names', 'status', 'row_count', 'column_count')} for f in data['files']]
         if j['session_id']:
             plan = planning.show(self.config, b, j['session_id'])
-            result['questions'] = [{'id': q['id'], 'phase': 'planning', 'text': q['text'], 'reason': q['reason'], 'options': q['options']} for q in plan['questions']]
+            result['questions'] = [{'id': q['id'], 'phase': 'planning', 'text': q['text'], 'reason': q['reason'],
+                                    'options': q['options'], 'references': q.get('references', [])}
+                                   for q in plan['questions']]
             if plan.get('context_stale'):
                 result.update(status='failed', phase='planning', issue='La memoria aplicable ha cambiado. Reintenta para recalcular con las definiciones actuales.', questions=[])
             result['answers'] = [{'text': a['text'], 'disposition': a['disposition'], 'question': a.get('question', '')} for a in plan['answers']]
@@ -427,6 +613,61 @@ class Workspace:
             raise WebError('El archivo guardado ha cambiado y no coincide con el original enviado.', 409)
         return j['filename'], content
 
+    def file_rows(self, job_id):
+        j = self.row(job_id)
+        if j['origin'] == 'chat':
+            raise WebError('Esta conversación reutiliza un conjunto de datos existente.', 409)
+        with connect(self.config) as db:
+            files = db.execute('SELECT * FROM web_job_files WHERE job_id=%s AND business_id=%s ORDER BY position',
+                               (j['id'], j['business_id'])).fetchall()
+        return j, files
+
+    def download_path(self, job_id, file_index=0):
+        j, files = self.file_rows(job_id)
+        if type(file_index) is not int or file_index < 0 or (files and file_index >= len(files)) or (not files and file_index != 0):
+            raise WebError('El CSV solicitado no existe.', 404)
+        item = files[file_index] if files else j
+        path = Storage(self.config.storage).path(j['business_id'], item['upload_key'])
+        if not path.is_file() or path.stat().st_size != item['byte_count']:
+            raise WebError('El CSV guardado no está disponible.', 409)
+        if not files:
+            self.upload(job_id)  # Preserve legacy content/signature verification.
+        return item['filename'], path, [{'filename': row['filename'], 'byte_count': row['byte_count']} for row in files] if files else [{'filename': j['filename'], 'byte_count': j['byte_count']}]
+
+    def preview(self, job_id, offset=0, file_index=0):
+        """Read a bounded page of the owner's original CSV for clarification."""
+        if type(offset) is not int or not 0 <= offset <= self.config.max_rows:
+            raise WebError('La página de datos no es válida.')
+        filename, path, files = self.download_path(job_id, file_index)
+        try:
+            with path.open('r', encoding='utf-8-sig', newline='') as source:
+                sample = source.read(65536)
+                source.seek(0)
+                try:
+                    delimiter = csv.Sniffer().sniff(sample, delimiters=',;\t|').delimiter
+                except csv.Error:
+                    first = sample.splitlines()[0]
+                    counts = {d: len(next(csv.reader([first], delimiter=d))) for d in ',;\t|'}
+                    delimiter = max(counts, key=counts.get)
+                csv.field_size_limit(16 * 1024 * 1024)
+                reader = csv.reader(source, delimiter=delimiter, strict=True)
+                columns = next(reader)
+                rows = []
+                seen = 0
+                for row in reader:
+                    if not row:
+                        continue
+                    if seen >= offset:
+                        rows.append({'number': seen + 1, 'cells': [cell[:200] for cell in row]})
+                        if len(rows) > 30:
+                            break
+                    seen += 1
+        except (csv.Error, UnicodeError, IndexError, StopIteration, OSError):
+            raise WebError('No hemos podido mostrar la vista previa del CSV. Descarga el original para revisarlo.', 422) from None
+        return {'filename': filename, 'columns': columns, 'rows': rows[:30],
+                'offset': offset, 'has_more': len(rows) > 30,
+                'cell_limit': 200, 'files': files, 'file_index': file_index}
+
     def run_job(self, job_id):
         j = self.sync(job_id)
         b, key = j['business_id'], 'web:' + str(j['id'])
@@ -453,16 +694,28 @@ class Workspace:
                 recover_executions(self.config, b)
             if not j['analysis_id']:
                 self.update(job_id, phase='upload')
-                content = self.upload(job_id)[1]  # Verify before reuse or import.
-                path = Storage(self.config.storage).path(b, j['upload_key'])
-                batch_hash, _ = ingestion.batch_metadata([hashlib.sha256(content).hexdigest()])
+                _, files = self.file_rows(job_id)
+                storage = Storage(self.config.storage)
+                if files:
+                    paths = [storage.path(b, item['upload_key']) for item in files]
+                    hashes = []
+                    for item, path in zip(files, paths):
+                        if not path.is_file() or path.stat().st_size != item['byte_count'] or digest(path) != item['sha256']:
+                            raise WebError('Uno de los CSV guardados ha cambiado y no coincide con el original enviado.', 409)
+                        hashes.append(item['sha256'])
+                else:
+                    content = self.upload(job_id)[1]  # Legacy single-file identity.
+                    paths = [storage.path(b, j['upload_key'])]
+                    hashes = [hashlib.sha256(content).hexdigest()]
+                batch_hash, _ = ingestion.batch_metadata(hashes)
                 with connect(self.config) as db:
                     existing = db.execute('SELECT id FROM analyses WHERE business_id=%s AND batch_sha256=%s',
                                           (b, batch_hash)).fetchone()
                 # Reuse and verify the exact batch without changing the names
                 # in previous source snapshots. This upload keeps its own name.
                 data = (ingestion.resume(self.config, b, existing['id']) if existing else
-                        ingestion.import_batch(self.config, b, [path], title=j['title']))
+                        ingestion.import_batch(self.config, b, paths, title=j['title'],
+                                               original_names=[item['filename'] for item in files] if files else None))
             else:
                 data = ingestion.describe(self.config, b, j['analysis_id'])
                 if data['analysis']['status'] == 'importing':

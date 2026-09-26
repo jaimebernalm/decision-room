@@ -12,7 +12,6 @@ ROOT = Path(__file__).resolve().parents[1]
 class Config:
     dsn: str
     storage: Path
-    max_files: int = 100
     max_file_bytes: int = 2 * 1024**3
     max_batch_bytes: int = 8 * 1024**3
     max_columns: int = 256

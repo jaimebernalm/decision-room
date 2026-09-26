@@ -49,7 +49,38 @@ El acceso inicial usa una clave generada en el almacenamiento privado
 (`.local/storage/.web-access-key` por defecto). `--open` la pasa al navegador en
 un fragmento que se intercambia por una cookie HttpOnly y se retira enseguida de
 la URL; no entra en URLs HTTP ni logs de acceso. La clave también se puede pegar
-en la pantalla de acceso. No se debe publicar ni compartir ese archivo.
+en la pantalla de acceso. Cada puerto local usa una cookie propia, para poder
+comparar dos vistas de pruebas sin compartir su sesión. No se debe publicar ni
+compartir ese archivo.
+
+Al abrir la web sin sesión se muestra la landing. «Iniciar sesión» y «Empezar en
+este equipo» llevan al acceso con clave local. En un negocio nuevo creado desde
+la entrada guiada, el onboarding ocupa una página independiente: nombre y
+descripción, elección entre exploración general y pregunta concreta, primer CSV,
+aclaraciones del agente e informe revisado. El botón «Entrar a mi espacio»
+aparece después de que el informe sea publicable. El avance queda guardado en
+PostgreSQL y se recupera al volver; los negocios previos no repiten este
+recorrido. Si el análisis se detiene sin informe, se puede reintentar o empezar
+con otros archivos sin borrar el análisis anterior.
+
+Durante una aclaración, el onboarding permite elegir entre las tablas de los CSV originales junto
+a la pregunta, con las columnas citadas por la referencia validada del agente
+resaltadas. Si no hay referencia de columna, solo resalta un encabezado que
+aparezca literalmente en la pregunta o en su explicación; no adivina una
+columna. Se muestran 30 filas por página y 200 caracteres por celda, con
+navegación por páginas y descarga de cada archivo original. Elegir una respuesta,
+escribirla o marcar «No lo sé» son acciones excluyentes; un borrador anterior no
+permanece visible junto a «No lo sé».
+
+El primer informe admite varios CSV UTF-8 en un mismo lote, hasta 2 GiB en total,
+sin un límite de cantidad de archivos. Las subidas y vistas previas se procesan
+por partes y se conservan los nombres originales. La ingesta comparte el lote
+con el agente; no presupone relaciones entre tablas ni las une automáticamente.
+Se pueden añadir más datos después desde «Mi negocio». El agente pide
+aclaraciones cuando las necesita para interpretar o revisar el análisis; no
+promete una cantidad fija de preguntas ni un informe si la evidencia es
+insuficiente. El registro por correo y las cuentas de usuario aún no están
+implementados; el acceso actual sigue siendo local.
 
 ## Experiencia
 
