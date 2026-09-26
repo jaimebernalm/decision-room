@@ -40,10 +40,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
 import { useWorkspace } from "@/lib/workspace";
-import { store, shortTitle } from "@/lib/api";
+import { store, shortTitle, analysisHref } from "@/lib/api";
 const navigation = [
   ["home", "Inicio", Home],
   ["reports", "Informes", BarChart3],
@@ -152,7 +150,9 @@ function Navigation({
                   asChild
                   isActive={
                     route === key ||
-                    (key === "reports" && route.startsWith("analysis")) ||
+                    (key === "reports" &&
+                      (route.startsWith("analysis/") ||
+                        route.startsWith("report/"))) ||
                     (key === "my-business" &&
                       ["files", "business"].includes(route))
                   }
@@ -222,10 +222,14 @@ function Navigation({
               <SidebarMenuItem key={item.id}>
                 <SidebarMenuButton asChild tooltip={item.title}>
                   <a
-                    href={`#analysis/${item.id}`}
+                    href={analysisHref(item)}
                     onClick={close}
                     aria-current={
-                      route === `analysis/${item.id}` ? "page" : undefined
+                      [`analysis/${item.id}`, `report/${item.id}`].includes(
+                        route,
+                      )
+                        ? "page"
+                        : undefined
                     }
                   >
                     <FileText />
@@ -308,55 +312,29 @@ function Navigation({
   );
 }
 function Topbar() {
-  const { route, workspace } = useWorkspace();
+  const { route } = useWorkspace();
   const { theme, setTheme } = useTheme();
-  const title = route.startsWith("chat/")
-    ? "Conversación"
-    : route.startsWith("report/") || route.startsWith("chat-report/")
-      ? "Informe"
-      : route.startsWith("analysis/")
-        ? "Análisis"
-        : {
-            home: "Inicio",
-            ask: "Nuevo chat",
-            chats: "Conversaciones",
-            reports: "Informes",
-            analyses: "Análisis",
-            "my-business": "Mi negocio",
-            files: "Datos y archivos",
-            business: "Presentación",
-            businesses: "Negocios",
-            "business-new": "Nuevo negocio",
-            new: "Nuevo análisis",
-            how: "Cómo funciona",
-          }[route] || "Mi espacio";
+  const back = route.startsWith("chat-report/")
+    ? {
+        href: `#chat/${route.split("/")[1]}`,
+        label: "Volver a la conversación",
+      }
+    : route.startsWith("chat/")
+      ? { href: "#chats", label: "Volver a conversaciones" }
+      : route.startsWith("report/") || route.startsWith("analysis/")
+        ? { href: "#reports", label: "Volver a informes" }
+        : null;
   return (
-    <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4 sm:px-6">
+    <header className="flex h-14 shrink-0 items-center gap-3 px-4 sm:px-6">
       <SidebarTrigger aria-label="Abrir o cerrar navegación" />
-      <Separator orientation="vertical" className="h-4!" />
-      {route.startsWith("chat/") ? (
+      {back && (
         <Button asChild variant="ghost" size="icon" className="rounded-full">
-          <a
-            href="#chats"
-            aria-label="Volver a conversaciones"
-            title="Volver a conversaciones"
-          >
+          <a href={back.href} aria-label={back.label} title={back.label}>
             <ArrowLeft />
           </a>
         </Button>
-      ) : (
-        <>
-          <span className="hidden truncate text-sm text-muted-foreground sm:inline">
-            {workspace.business?.name || "Mi espacio"}
-          </span>
-          <span className="hidden text-muted-foreground sm:inline">/</span>
-          <span className="truncate text-sm font-medium">{title}</span>
-        </>
       )}
       <div className="ml-auto flex items-center gap-2">
-        <Badge variant="outline" className="hidden sm:inline-flex">
-          Local
-        </Badge>
         <Button
           variant="ghost"
           size="icon"

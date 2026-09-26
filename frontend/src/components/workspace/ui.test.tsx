@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Composer } from "./composer";
 import { ReportView } from "./report";
 import { FloatingAssistant } from "./floating-assistant";
-import { StartChat } from "./overview";
+import { StartChat, AnalysisList } from "./overview";
 import { WorkspaceState, type WorkspaceContext } from "@/lib/workspace";
 import { store } from "@/lib/api";
 const workspace = {
@@ -30,7 +30,43 @@ const workspace = {
   refresh: vi.fn(),
   removeChat: vi.fn(),
 } satisfies WorkspaceContext;
-it("new chat offers the four latest conversations below one expanded composer", () => {
+it("opens available reports directly and keeps progress or recovery for other states", () => {
+  const states = [
+    "completed",
+    "running",
+    "waiting",
+    "outdated",
+    "withdrawn",
+    "historical",
+  ];
+  render(
+    <WorkspaceState.Provider
+      value={{
+        ...workspace,
+        workspace: {
+          ...workspace.workspace,
+          analyses: states.map((status) => ({
+            id: status,
+            title: status,
+            status,
+            presentation_status: status,
+            filename: "datos.csv",
+            created_at: "2026-09-26",
+          })),
+        },
+      }}
+    >
+      <AnalysisList reports />
+    </WorkspaceState.Provider>,
+  );
+  for (const status of states)
+    expect(screen.getByRole("link", { name: status })).toHaveAttribute(
+      "href",
+      `#${["completed", "historical"].includes(status) ? "report" : "analysis"}/${status}`,
+    );
+  expect(screen.getByText("En curso")).toBeInTheDocument();
+});
+it("new chat offers the four latest conversations below one expanded composer", async () => {
   store.set("dr-assistant-collapsed", true);
   render(
     <WorkspaceState.Provider
@@ -51,7 +87,11 @@ it("new chat offers the four latest conversations below one expanded composer", 
     </WorkspaceState.Provider>,
   );
   expect(
-    screen.getByRole("heading", { name: "¿Qué quieres entender hoy?" }),
+    screen.queryByRole("heading", { name: "¿Qué quieres entender hoy?" }),
+  ).toBeNull();
+  expect(screen.getByRole("textbox", { name: "Mensaje" })).toBeVisible();
+  expect(
+    await screen.findByRole("heading", { name: "¿Qué quieres entender hoy?" }),
   ).toBeInTheDocument();
   expect(screen.getAllByRole("textbox", { name: "Mensaje" })).toHaveLength(1);
   expect(

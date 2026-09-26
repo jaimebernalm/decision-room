@@ -89,6 +89,70 @@ it("keeps onboarding available with no business and supports form editing", asyn
     screen.queryByRole("heading", { name: "Una mirada clara a tu negocio." }),
   ).not.toBeInTheDocument();
 });
+it.each(["reports", "analysis/ready"])(
+  "opens a report directly from %s and returns with the header arrow",
+  async (route) => {
+    location.hash = route;
+    const analyses = [
+      {
+        id: "ready",
+        title: "Informe disponible",
+        filename: "datos.csv",
+        created_at: "2026-09-26",
+        status: "completed",
+      },
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => ({
+        ok: true,
+        json: async () =>
+          url === "/api/workspace"
+            ? { ...ws, analyses }
+            : url === "/api/chats"
+              ? listing
+              : url === "/api/jobs/ready"
+                ? {
+                    ...analyses[0],
+                    publishable: true,
+                    questions: [],
+                    files: [],
+                    answers: [],
+                    interpretations: [],
+                  }
+                : {
+                    title: "Resultado revisado",
+                    scope: {
+                      period: "Septiembre",
+                      coverage: "Datos disponibles",
+                    },
+                    highlights: [],
+                    charts: [],
+                    claims: [],
+                    limitations: [],
+                  },
+      })),
+    );
+    render(<App />);
+    if (route === "reports")
+      await userEvent.click(
+        await screen.findByRole("link", { name: "Abrir Informe disponible" }),
+      );
+    expect(
+      await screen.findByRole("heading", { name: "Resultado revisado" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Abrir informe revisado" }),
+    ).toBeNull();
+    expect(screen.queryByRole("link", { name: "Volver" })).toBeNull();
+    await userEvent.click(
+      screen.getByRole("link", { name: "Volver a informes" }),
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Informes" }),
+    ).toBeInTheDocument();
+  },
+);
 it("opens a chat without a title header and returns to the conversation list with the arrow", async () => {
   location.hash = "chat/chat";
   vi.stubGlobal(

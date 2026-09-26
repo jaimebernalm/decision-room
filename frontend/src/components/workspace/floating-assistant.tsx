@@ -15,7 +15,13 @@ import { Composer } from "./composer";
 
 // The owner keys this component by business and route: drafts survive navigation,
 // while late sends cannot redirect a different page or business.
-export function FloatingAssistant({ inline = false }: { inline?: boolean }) {
+export function FloatingAssistant({
+  inline = false,
+  onArrive,
+}: {
+  inline?: boolean;
+  onArrive?: () => void;
+}) {
   const reducedMotion = useReducedMotion();
   const { workspace, route, refresh } = useWorkspace();
   const business = workspace.business!;
@@ -96,8 +102,9 @@ export function FloatingAssistant({ inline = false }: { inline?: boolean }) {
           <motion.div
             layoutId={`assistant-bar-${business.id}`}
             initial={false}
+            onLayoutAnimationComplete={onArrive}
             transition={{
-              layout: { duration: reducedMotion ? 0 : 0.32, ease: "easeInOut" },
+              layout: { duration: reducedMotion ? 0 : 0.24, ease: "easeInOut" },
             }}
             className="relative rounded-[2rem] bg-background shadow-[0_8px_40px_-8px_rgba(0,0,0,0.25)] dark:shadow-[0_8px_40px_-8px_rgba(0,0,0,0.6)]"
           >

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useReducedMotion } from "motion/react";
 import { Plus, ArrowUpRight, Trash2, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,12 +21,33 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useWorkspace } from "@/lib/workspace";
 import { useResource } from "@/lib/hooks";
-import { contextKey, store, date, reportState, shortTitle } from "@/lib/api";
+import {
+  contextKey,
+  store,
+  date,
+  reportState,
+  shortTitle,
+  analysisHref,
+} from "@/lib/api";
 import type { Dashboard, Claim, Report } from "@/lib/types";
 import { Heading, Notice, Empty, Loading, ChoiceSelect } from "./shared";
 import { FloatingAssistant } from "./floating-assistant";
 import { ReportView } from "./report";
 export function StartChat({ home = false }: { home?: boolean }) {
+  const reducedMotion = useReducedMotion();
+  const [arrived, setArrived] = useState(false);
+  const reveal = useCallback(() => setArrived(true), []);
+  const showIntro = home || reducedMotion || arrived;
+  useEffect(() => {
+    if (showIntro) return;
+    // Direct visits have no shared-layout animation to signal arrival.
+    const timer = setTimeout(reveal, 320);
+    return () => clearTimeout(timer);
+  }, [showIntro, reveal]);
+  const revealStyle = {
+    opacity: showIntro ? 1 : 0,
+    visibility: showIntro ? ("visible" as const) : ("hidden" as const),
+  };
   const { workspace, listing } = useWorkspace(),
     business = workspace.business!;
   return (
@@ -36,7 +58,12 @@ export function StartChat({ home = false }: { home?: boolean }) {
           : "mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center py-8 sm:py-12"
       }
     >
-      <div className={home ? "mb-7" : "mb-8 text-center"}>
+      <div
+        style={revealStyle}
+        className={
+          home ? "mb-7" : "mb-8 text-center transition-opacity duration-150"
+        }
+      >
         <p className="mb-3 text-xs font-medium text-muted-foreground">
           {business.name}
         </p>
@@ -53,9 +80,13 @@ export function StartChat({ home = false }: { home?: boolean }) {
       </div>
       {!home && (
         <>
-          <FloatingAssistant inline />
+          <FloatingAssistant inline onArrive={reveal} />
           {listing.conversations.length > 0 && (
-            <section aria-label="Conversaciones recientes" className="mt-10">
+            <section
+              aria-label="Conversaciones recientes"
+              style={revealStyle}
+              className="mt-10 transition-opacity duration-150"
+            >
               <div className="mb-3 flex items-center justify-between gap-3">
                 <h2 className="text-xs font-medium text-muted-foreground">
                   Conversaciones recientes
@@ -199,15 +230,10 @@ export function Home() {
 export function AnalysisList({ reports = false }: { reports?: boolean }) {
   const { workspace } = useWorkspace();
   const [search, setSearch] = useState("");
-  const items = workspace.analyses.filter(
-    (a) =>
-      (!reports ||
-        ["completed", "historical", "outdated", "withdrawn"].includes(
-          reportState(a),
-        )) &&
-      `${a.title} ${a.filename}`
-        .toLocaleLowerCase()
-        .includes(search.toLocaleLowerCase()),
+  const items = workspace.analyses.filter((a) =>
+    `${a.title} ${a.filename}`
+      .toLocaleLowerCase()
+      .includes(search.toLocaleLowerCase()),
   );
   return (
     <>
@@ -230,29 +256,36 @@ export function AnalysisList({ reports = false }: { reports?: boolean }) {
         className="mb-6 max-w-sm"
       />
       {items.length ? (
-        <Card className="shadow-none">
-          <Table>
+        <Card className="gap-0 overflow-hidden py-0 shadow-none">
+          <Table className="[&_th]:px-4 [&_td]:px-4">
             <TableHeader>
-              <TableRow>
+              <TableRow className="hover:bg-transparent">
                 <TableHead>Análisis</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead className="hidden sm:table-cell">Creado</TableHead>
-                <TableHead>
+                <TableHead className="hidden sm:table-cell">
                   <span className="sr-only">Abrir</span>
                 </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {items.map((a) => (
-                <TableRow key={a.id}>
-                  <TableCell>
+                <TableRow
+                  key={a.id}
+                  className="cursor-pointer hover:bg-muted focus-within:bg-muted"
+                  onClick={(event) => {
+                    if (!(event.target as HTMLElement).closest("a, button"))
+                      location.hash = analysisHref(a);
+                  }}
+                >
+                  <TableCell className="whitespace-normal">
                     <a
-                      className="font-medium hover:underline"
-                      href={`#analysis/${a.id}`}
+                      className="break-words font-medium hover:underline"
+                      href={analysisHref(a)}
                     >
                       {a.title}
                     </a>
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    <p className="mt-1 break-all text-xs text-muted-foreground">
                       {a.filename}
                     </p>
                   </TableCell>
@@ -276,12 +309,14 @@ export function AnalysisList({ reports = false }: { reports?: boolean }) {
                   <TableCell className="hidden text-muted-foreground sm:table-cell">
                     {date(a.created_at)}
                   </TableCell>
-                  <TableCell>
-                    <Button asChild variant="ghost" size="icon">
-                      <a
-                        href={`#analysis/${a.id}`}
-                        aria-label={`Abrir ${a.title}`}
-                      >
+                  <TableCell className="hidden sm:table-cell">
+                    <Button
+                      asChild
+                      variant="ghost"
+                      size="icon"
+                      className="hover:bg-transparent"
+                    >
+                      <a href={analysisHref(a)} aria-label={`Abrir ${a.title}`}>
                         <ArrowUpRight />
                       </a>
                     </Button>
@@ -371,11 +406,9 @@ export function Chats() {
 }
 export function Presentation({
   path,
-  back,
   exportUrl,
 }: {
   path: string;
-  back: string;
   exportUrl: string;
 }) {
   const { data, error } = useResource<Report>(path, 5000);
@@ -383,9 +416,6 @@ export function Presentation({
     <>
       <Heading title="Informe del negocio">
         <div className="flex gap-2">
-          <Button asChild variant="ghost">
-            <a href={back}>Volver</a>
-          </Button>
           <Button asChild variant="outline">
             <a href={exportUrl} target="_blank" rel="noreferrer">
               Vista para imprimir

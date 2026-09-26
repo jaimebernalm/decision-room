@@ -106,6 +106,13 @@ export const reportState = (item: {
   (item.status === "completed" && item.data_version?.superseded_by
     ? "historical"
     : item.status);
+export const analysisHref = (item: {
+  id: string;
+  status: string;
+  presentation_status?: string;
+  data_version?: { superseded_by?: string };
+}) =>
+  `#${["completed", "historical"].includes(reportState(item)) ? "report" : "analysis"}/${item.id}`;
 export const contextKey = (business: string) =>
   `dr-question-context-${business}`;
 export const homeDraftKey = (business: string) => `dr-home-prompt-${business}`;

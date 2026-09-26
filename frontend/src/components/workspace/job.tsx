@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { FileText, Download, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,6 +20,9 @@ export function JobPage({ id }: { id: string }) {
   const resource = useResource<Job>(`/api/jobs/${id}`, 3000),
     action = useAction(),
     { refresh } = useWorkspace();
+  useEffect(() => {
+    if (resource.data?.publishable) location.hash = `report/${id}`;
+  }, [resource.data?.publishable, id]);
   if (!resource.data)
     return (
       <>

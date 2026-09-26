@@ -265,6 +265,18 @@ acento de acciones principales con variante para tema oscuro.
 escritorio/móvil, plegado, foco y ambos temas. Véase
 [validación](../validation/2026-09-26-floating-assistant-check.md#superficies-y-color-paso-2511).
 
+### 2.5.12. Acceso a informes y transición de nuevo chat
+
+**Completado, 26 de septiembre de 2026:** tabla sin relleno exterior que recorte
+el hover; apertura directa de informes disponibles, progreso para trabajos en
+curso y apertura automática al aprobarse; cabecera simplificada y flechas de
+vuelta coherentes. En nuevo chat, la barra llega primero y después se revela
+el título y las conversaciones recientes.
+
+**Cierre:** 27 pruebas de frontend, compilación y lint sin errores; comprobación
+en navegador de apertura directa, regreso, tabla y secuencia visual.
+Véase [validación](../validation/2026-09-26-report-navigation-check.md).
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Prioridad actualizada, 23 de septiembre de 2026:** iniciar las ampliaciones siguientes después de cerrar la entrega 2.5. La evaluación del 22 de septiembre descrita a continuación ya se realizó; no se presenta como trabajo pendiente ni sustituye la regresión exigida por los cambios de memoria y conversación.

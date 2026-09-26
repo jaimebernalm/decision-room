@@ -326,7 +326,6 @@ function Route({ route }: { route: string }) {
       return (
         <Presentation
           path={`/api/jobs/${id}/presentation`}
-          back={`#analysis/${id}`}
           exportUrl={`/api/jobs/${id}/report`}
         />
       );
@@ -334,7 +333,6 @@ function Route({ route }: { route: string }) {
       return (
         <Presentation
           path={`/api/chats/${id}/presentation/${turn}`}
-          back={`#chat/${id}`}
           exportUrl={`/api/chats/${id}/report/${turn}`}
         />
       );
