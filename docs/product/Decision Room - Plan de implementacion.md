@@ -243,6 +243,17 @@ el chat abierto conserva su propio compositor persistente.
 **Cierre:** 22 pruebas de frontend, compilación y lint sin errores, revisión visual
 de scroll y plegado en escritorio y móvil. Véase [validación](../validation/2026-09-26-floating-assistant-check.md).
 
+### 2.5.10. Continuidad entre nuevo chat y conversación
+
+**Completado, 26 de septiembre de 2026:** compositor compacto y redondeado también
+en conversaciones abiertas; pantalla de nuevo chat centrada, con transición de
+la barra y las cuatro conversaciones más recientes debajo. Cabecera de chat sin
+título visible y flecha accesible hacia el listado de conversaciones.
+
+**Cierre:** 24 pruebas de frontend aprobadas, compilación y lint sin errores,
+comprobación de navegación y diseño en escritorio y móvil.
+Véase [validación](../validation/2026-09-26-floating-assistant-check.md#continuidad-del-chat-paso-2510).
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Prioridad actualizada, 23 de septiembre de 2026:** iniciar las ampliaciones siguientes después de cerrar la entrega 2.5. La evaluación del 22 de septiembre descrita a continuación ya se realizó; no se presenta como trabajo pendiente ni sustituye la regresión exigida por los cambios de memoria y conversación.

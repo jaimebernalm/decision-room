@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { Plus, ArrowUpRight, FileText, Trash2 } from "lucide-react";
+import {
+  Plus,
+  ArrowUpRight,
+  FileText,
+  Trash2,
+  MessageCircle,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -20,22 +26,23 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useWorkspace } from "@/lib/workspace";
 import { useResource } from "@/lib/hooks";
-import { contextKey, store, date, reportState } from "@/lib/api";
+import { contextKey, store, date, reportState, shortTitle } from "@/lib/api";
 import type { Dashboard, Claim, Report } from "@/lib/types";
 import { Heading, Notice, Empty, Loading, ChoiceSelect } from "./shared";
+import { FloatingAssistant } from "./floating-assistant";
 import { ReportView } from "./report";
 export function StartChat({ home = false }: { home?: boolean }) {
-  const { workspace } = useWorkspace(),
+  const { workspace, listing } = useWorkspace(),
     business = workspace.business!;
   return (
     <div
       className={
         home
           ? "mb-10"
-          : "mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center py-12"
+          : "mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center py-8 sm:py-12"
       }
     >
-      <div className="mb-7">
+      <div className={home ? "mb-7" : "mb-8 text-center"}>
         <p className="mb-3 text-xs font-medium text-muted-foreground">
           {business.name}
         </p>
@@ -50,6 +57,50 @@ export function StartChat({ home = false }: { home?: boolean }) {
             : "Pregunta, añade contexto o explora tus datos con la IA."}
         </p>
       </div>
+      {!home && (
+        <>
+          <FloatingAssistant inline />
+          {listing.conversations.length > 0 && (
+            <section aria-label="Conversaciones recientes" className="mt-10">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h2 className="text-xs font-medium text-muted-foreground">
+                  Conversaciones recientes
+                </h2>
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-xs"
+                  asChild
+                >
+                  <a href="#chats">Ver todas</a>
+                </Button>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {listing.conversations.slice(0, 4).map((chat) => (
+                  <a
+                    key={chat.id}
+                    href={`#chat/${chat.id}`}
+                    className="flex min-w-0 items-center gap-3 rounded-2xl border border-border/60 p-4 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <MessageCircle
+                      className="size-4 shrink-0 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">
+                        {shortTitle(chat.title)}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {date(chat.last_message_at || chat.created_at)}
+                      </p>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
+        </>
+      )}
     </div>
   );
 }

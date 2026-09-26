@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Composer } from "./composer";
 import { ReportView } from "./report";
 import { FloatingAssistant } from "./floating-assistant";
+import { StartChat } from "./overview";
 import { WorkspaceState, type WorkspaceContext } from "@/lib/workspace";
 import { store } from "@/lib/api";
 const workspace = {
@@ -29,6 +30,46 @@ const workspace = {
   refresh: vi.fn(),
   removeChat: vi.fn(),
 } satisfies WorkspaceContext;
+it("new chat offers the four latest conversations below one expanded composer", () => {
+  store.set("dr-assistant-collapsed", true);
+  render(
+    <WorkspaceState.Provider
+      value={{
+        ...workspace,
+        listing: {
+          ...workspace.listing,
+          conversations: Array.from({ length: 5 }, (_, i) => ({
+            id: `chat-${i}`,
+            business_id: "a",
+            title: `Conversación ${i}`,
+            created_at: "2026-09-26",
+          })),
+        },
+      }}
+    >
+      <StartChat />
+    </WorkspaceState.Provider>,
+  );
+  expect(
+    screen.getByRole("heading", { name: "¿Qué quieres entender hoy?" }),
+  ).toBeInTheDocument();
+  expect(screen.getAllByRole("textbox", { name: "Mensaje" })).toHaveLength(1);
+  expect(
+    screen.getByRole("region", { name: "Conversaciones recientes" }),
+  ).toBeInTheDocument();
+  for (let i = 0; i < 4; i++)
+    expect(
+      screen.getByRole("link", { name: new RegExp(`Conversación ${i}`) }),
+    ).toHaveAttribute("href", `#chat/chat-${i}`);
+  expect(screen.queryByRole("link", { name: /Conversación 4/ })).toBeNull();
+  expect(screen.getByRole("link", { name: "Ver todas" })).toHaveAttribute(
+    "href",
+    "#chats",
+  );
+  expect(
+    screen.queryByRole("button", { name: "Minimizar asistente" }),
+  ).toBeNull();
+});
 it("official composer keeps controlled draft after submit failure and supports Shift+Enter", async () => {
   const send = vi.fn(async () => {
     throw new Error("offline");

@@ -1,5 +1,6 @@
 import { useState, type ReactNode, type CSSProperties } from "react";
 import {
+  ArrowLeft,
   BarChart3,
   Building2,
   ChevronDown,
@@ -14,6 +15,7 @@ import {
   Sun,
   Moon,
 } from "lucide-react";
+import { LayoutGroup } from "motion/react";
 import { useTheme } from "next-themes";
 import {
   Sidebar,
@@ -62,7 +64,7 @@ export function Layout({ children }: { children: ReactNode }) {
       <Navigation width={width} setWidth={setWidth} />
       <SidebarInset className="relative h-svh min-w-0 overflow-hidden md:h-[calc(100svh-1rem)]">
         <Topbar />
-        {children}
+        <LayoutGroup>{children}</LayoutGroup>
       </SidebarInset>
     </SidebarProvider>
   );
@@ -332,11 +334,25 @@ function Topbar() {
     <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4 sm:px-6">
       <SidebarTrigger aria-label="Abrir o cerrar navegación" />
       <Separator orientation="vertical" className="h-4!" />
-      <span className="hidden truncate text-sm text-muted-foreground sm:inline">
-        {workspace.business?.name || "Mi espacio"}
-      </span>
-      <span className="hidden text-muted-foreground sm:inline">/</span>
-      <span className="truncate text-sm font-medium">{title}</span>
+      {route.startsWith("chat/") ? (
+        <Button asChild variant="ghost" size="icon" className="rounded-full">
+          <a
+            href="#chats"
+            aria-label="Volver a conversaciones"
+            title="Volver a conversaciones"
+          >
+            <ArrowLeft />
+          </a>
+        </Button>
+      ) : (
+        <>
+          <span className="hidden truncate text-sm text-muted-foreground sm:inline">
+            {workspace.business?.name || "Mi espacio"}
+          </span>
+          <span className="hidden text-muted-foreground sm:inline">/</span>
+          <span className="truncate text-sm font-medium">{title}</span>
+        </>
+      )}
       <div className="ml-auto flex items-center gap-2">
         <Badge variant="outline" className="hidden sm:inline-flex">
           Local

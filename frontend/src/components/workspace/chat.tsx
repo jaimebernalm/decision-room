@@ -265,11 +265,9 @@ export function ChatPage({ id }: { id: string }) {
   const data = resource.data;
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b px-6 py-4">
-        <div className="min-w-0">
-          <h1 className="truncate text-sm font-semibold">
-            {data.conversation.title}
-          </h1>
+      <h1 className="sr-only">Conversación con IA</h1>
+      <Conversation>
+        <ConversationContent className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-8">
           {data.dataset && (
             <p className="mt-1 text-xs text-muted-foreground">
               {data.dataset.title} · v{data.dataset.version}
@@ -280,11 +278,7 @@ export function ChatPage({ id }: { id: string }) {
                   : ""}
             </p>
           )}
-        </div>
-        <Badge variant="outline">IA</Badge>
-      </div>
-      <Conversation>
-        <ConversationContent className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-8">
+
           <Notice error>{resource.error || action.error}</Notice>
           {!data.turns.length && (
             <p className="py-16 text-center text-muted-foreground">
@@ -422,7 +416,7 @@ export function ChatPage({ id }: { id: string }) {
         <ConversationScrollButton aria-label="Ir al último mensaje" />
       </Conversation>
       <div className="shrink-0 bg-background px-4 pb-4 pt-2 sm:px-8">
-        <div className="mx-auto max-w-3xl">
+        <div className="mx-auto max-w-2xl">
           {selected && (
             <div className="mb-3 space-y-2">
               <ChoiceSelect
@@ -446,6 +440,7 @@ export function ChatPage({ id }: { id: string }) {
             </div>
           )}
           <Composer
+            compact
             text={draft.text}
             onChange={(text) =>
               setDraft({ text, finding_reference: draft.finding_reference })

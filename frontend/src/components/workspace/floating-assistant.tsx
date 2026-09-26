@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { motion, useReducedMotion } from "motion/react";
 import { MessageCircle, Minus, X, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +15,8 @@ import { Composer } from "./composer";
 
 // The owner keys this component by business and route: drafts survive navigation,
 // while late sends cannot redirect a different page or business.
-export function FloatingAssistant() {
+export function FloatingAssistant({ inline = false }: { inline?: boolean }) {
+  const reducedMotion = useReducedMotion();
   const { workspace, route, refresh } = useWorkspace();
   const business = workspace.business!;
   const [text, setText] = useDraft(homeDraftKey(business.id), "");
@@ -56,18 +58,22 @@ export function FloatingAssistant() {
       ref={container}
       role="region"
       aria-label="Asistente del negocio"
-      className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-end px-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 sm:pb-6"
+      className={
+        inline
+          ? "w-full"
+          : "pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-end px-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 sm:pb-6"
+      }
     >
       <Collapsible
-        open={open}
+        open={inline || open}
         onOpenChange={changeOpen}
         className={
-          open
+          inline || open
             ? "pointer-events-auto mx-auto w-full max-w-2xl"
             : "pointer-events-auto"
         }
       >
-        {!open && (
+        {!inline && !open && (
           <CollapsibleTrigger asChild>
             <Button
               className="h-12 rounded-full px-5 shadow-lg"
@@ -86,46 +92,57 @@ export function FloatingAssistant() {
             </Button>
           </CollapsibleTrigger>
         )}
-        <CollapsibleContent className="rounded-[2rem] bg-background shadow-[0_8px_40px_-8px_rgba(0,0,0,0.25)] dark:shadow-[0_8px_40px_-8px_rgba(0,0,0,0.6)]">
-          {(context.analysis_id || context.finding_reference) && (
-            <div className="flex items-center gap-2 px-5 pt-2 text-xs text-muted-foreground">
-              <span className="min-w-0 flex-1 truncate" title={context.label}>
-                {context.label || "Contexto seleccionado"}
-              </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-8 shrink-0 rounded-full"
-                aria-label="Quitar contexto"
-                onClick={() => setContext({})}
-              >
-                <X className="size-3" />
-              </Button>
-            </div>
-          )}
-          <Composer
-            compact
-            text={text}
-            onChange={setText}
-            onSend={send}
-            busy={action.busy}
-            error={action.error}
-            placeholder="Pregunta algo…"
-            trailingAction={
-              <CollapsibleTrigger asChild>
+        <CollapsibleContent asChild>
+          <motion.div
+            layoutId={`assistant-bar-${business.id}`}
+            initial={false}
+            transition={{
+              layout: { duration: reducedMotion ? 0 : 0.32, ease: "easeInOut" },
+            }}
+            className="rounded-[2rem] bg-background shadow-[0_8px_40px_-8px_rgba(0,0,0,0.25)] dark:shadow-[0_8px_40px_-8px_rgba(0,0,0,0.6)]"
+          >
+            {(context.analysis_id || context.finding_reference) && (
+              <div className="flex items-center gap-2 px-5 pt-2 text-xs text-muted-foreground">
+                <span className="min-w-0 flex-1 truncate" title={context.label}>
+                  {context.label || "Contexto seleccionado"}
+                </span>
                 <Button
-                  type="button"
                   variant="ghost"
                   size="icon"
-                  className="size-10 rounded-full text-muted-foreground"
-                  aria-label="Minimizar asistente"
-                  title="Minimizar asistente"
+                  className="size-8 shrink-0 rounded-full"
+                  aria-label="Quitar contexto"
+                  onClick={() => setContext({})}
                 >
-                  <Minus className="size-4" />
+                  <X className="size-3" />
                 </Button>
-              </CollapsibleTrigger>
-            }
-          />
+              </div>
+            )}
+            <Composer
+              compact
+              text={text}
+              onChange={setText}
+              onSend={send}
+              busy={action.busy}
+              error={action.error}
+              placeholder="Pregunta algo…"
+              trailingAction={
+                !inline && (
+                  <CollapsibleTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-10 rounded-full text-muted-foreground"
+                      aria-label="Minimizar asistente"
+                      title="Minimizar asistente"
+                    >
+                      <Minus className="size-4" />
+                    </Button>
+                  </CollapsibleTrigger>
+                )
+              }
+            />
+          </motion.div>
         </CollapsibleContent>
       </Collapsible>
     </div>

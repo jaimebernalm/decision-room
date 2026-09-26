@@ -39,3 +39,24 @@ y el cambio de negocio no muestran la barra de otro negocio.
 No se cambia el backend ni los contratos de envío. Los envíos se validan con
 respuestas simuladas; esta comprobación visual no requiere nuevas llamadas al
 modelo ni modificar los datos del negocio.
+
+## Continuidad del chat: paso 2.5.10
+
+- «Nuevo chat» coloca el compositor en el flujo de la página, bajo un título
+  centrado, y muestra hasta cuatro conversaciones recientes del negocio activo
+  en el orden recibido del listado. Incluye «Ver todas». No duplica la barra
+  flotante ni permite plegar el campo principal de esta pantalla.
+- Motion, ya instalado, comparte la posición de la barra entre el borde inferior
+  y el centro con `layoutId`; la transición respeta movimiento reducido.
+- El chat abierto usa la misma variante compacta de PromptInput, con radio de
+  32 px. Se retira la cabecera con el título; queda una flecha con nombre accesible
+  «Volver a conversaciones» y destino al listado. La versión de datos, cuando
+  existe, se conserva como información dentro de la conversación.
+- 24 pruebas de frontend aprobadas: se añaden recientes limitados a cuatro,
+  compositor único expandido y regreso desde el chat al historial. Compilación
+  correcta y lint sin errores (persisten los 14 avisos de los componentes
+  oficiales y el aviso de tamaño del fragmento de chat).
+- Navegador: centrado y cuatro tarjetas en escritorio; chat real con compositor
+  redondeado, sin título visible, y flecha que abre el historial. En 390 × 844,
+  las tarjetas quedan debajo de la barra y no hay desbordamiento horizontal.
+  Se restaura el tamaño habitual y se deja abierta la pantalla «Nuevo chat».

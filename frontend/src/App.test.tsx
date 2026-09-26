@@ -89,6 +89,37 @@ it("keeps onboarding available with no business and supports form editing", asyn
     screen.queryByRole("heading", { name: "Una mirada clara a tu negocio." }),
   ).not.toBeInTheDocument();
 });
+it("opens a chat without a title header and returns to the conversation list with the arrow", async () => {
+  location.hash = "chat/chat";
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () =>
+        url === "/api/workspace"
+          ? ws
+          : url === "/api/chats"
+            ? listing
+            : {
+                conversation: listing.conversations[0],
+                turns: [],
+                reports: [],
+                memory_items: [],
+                memory: {},
+              },
+    })),
+  );
+  render(<App />);
+  await screen.findByText("Escribe tu primera pregunta para empezar.");
+  expect(screen.queryByRole("heading", { name: "Chat de prueba" })).toBeNull();
+  expect(screen.getAllByRole("textbox", { name: "Mensaje" })).toHaveLength(1);
+  const back = screen.getByRole("link", { name: "Volver a conversaciones" });
+  expect(back).toHaveTextContent("");
+  await userEvent.click(back);
+  expect(
+    await screen.findByRole("heading", { name: "Conversaciones" }),
+  ).toBeInTheDocument();
+});
 it("delete dialog cancel makes no mutation and explicit delete refreshes the list", async () => {
   location.hash = "chats";
   const writes: string[] = [];

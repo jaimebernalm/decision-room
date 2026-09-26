@@ -182,7 +182,7 @@ function App() {
     const showAssistant =
       Boolean(workspace.business) &&
       !activeRoute.startsWith("chat/") &&
-      !["business-new", "businesses"].includes(activeRoute);
+      !["business-new", "businesses", "ask"].includes(activeRoute);
     body = (
       <WorkspaceState.Provider
         value={{
