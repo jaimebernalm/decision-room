@@ -28,7 +28,7 @@ import {
   Busy,
 } from "@/components/workspace/shared";
 const Home = lazy(() =>
-  import("@/components/workspace/overview").then((m) => ({ default: m.Home })),
+  import("@/components/workspace/home").then((m) => ({ default: m.Home })),
 );
 const StartChat = lazy(() =>
   import("@/components/workspace/overview").then((m) => ({

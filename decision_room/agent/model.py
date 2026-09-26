@@ -124,6 +124,10 @@ class ModelClient:
         from ..chat_agent import AnswerReview, REVIEW_SYSTEM
         return self._generate(context, None, REVIEW_SYSTEM, AnswerReview.model_json_schema())
 
+    def generate_dashboard(self, context):
+        from ..web.home import Proposal, SYSTEM as DASHBOARD_SYSTEM
+        return self._generate(context, None, DASHBOARD_SYSTEM, Proposal.model_json_schema())
+
     def generate_memory(self, context, correction=None):
         from ..memory.contracts import Extraction, SYSTEM as MEMORY_SYSTEM
         schema = Extraction.model_json_schema()

@@ -233,3 +233,43 @@ export type DatasetChoice = {
   names: string[];
   columns: string[];
 };
+
+export type HomeSource = {
+  job_id: string;
+  report_id: string;
+  version: string;
+  title: string;
+  period: string;
+  coverage: string;
+  filename: string;
+  created_at: string;
+  data_version?: Dataset;
+  analysis_id: string;
+  limitations: string[];
+  href: string;
+};
+export type HomeItem = { id: string; title: string; source: HomeSource } & (
+  | { kind: "metric"; content: Report["highlights"][number] }
+  | { kind: "chart"; content: ChartData }
+  | { kind: "insight"; content: Claim }
+);
+export type HomeDashboard = {
+  business_id: string;
+  revision: number;
+  fingerprint: string;
+  items: HomeItem[];
+  sources: HomeSource[];
+  selected: string[];
+  pinned: string[];
+  hidden: string[];
+  unavailable: number;
+  reasons: Record<string, string>;
+  selection_origin: "initial" | "owner" | "agent";
+  proposal: {
+    picks: { id: string; reason: string }[];
+    fingerprint: string;
+  } | null;
+  can_suggest: boolean;
+  activity: Dashboard["activity"];
+  limited: boolean;
+};

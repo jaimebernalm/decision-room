@@ -21,18 +21,11 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useWorkspace } from "@/lib/workspace";
 import { useResource } from "@/lib/hooks";
-import {
-  contextKey,
-  store,
-  date,
-  reportState,
-  shortTitle,
-  analysisHref,
-} from "@/lib/api";
-import type { Dashboard, Claim, Report } from "@/lib/types";
-import { Heading, Notice, Empty, Loading, ChoiceSelect } from "./shared";
-import { FloatingAssistant } from "./floating-assistant";
+import { date, reportState, shortTitle, analysisHref } from "@/lib/api";
+import type { Report } from "@/lib/types";
+import { Heading, Notice, Empty, Loading } from "./shared";
 import { ReportView } from "./report";
+import { FloatingAssistant } from "./floating-assistant";
 export function StartChat({ home = false }: { home?: boolean }) {
   const reducedMotion = useReducedMotion();
   const [arrived, setArrived] = useState(false);
@@ -127,104 +120,6 @@ export function StartChat({ home = false }: { home?: boolean }) {
         </>
       )}
     </div>
-  );
-}
-export function Home() {
-  const { workspace } = useWorkspace();
-  const [selected, setSelected] = useState("latest");
-  const resource = useResource<Dashboard>(
-    `/api/dashboard${selected === "latest" ? "" : `?report=${encodeURIComponent(selected)}`}`,
-    5000,
-  );
-  const ask = (claim: Claim) => {
-    const data = resource.data!;
-    store.set(contextKey(workspace.business!.id), {
-      analysis_id: data.analysis_id,
-      finding_reference: {
-        report_id: data.report_id,
-        report_version: data.report_version,
-        claim_key: claim.key,
-        title: claim.title,
-        period: data.report!.scope.period,
-      },
-      label: claim.title,
-    });
-    location.hash = "ask";
-  };
-  return (
-    <>
-      <StartChat home />
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-medium text-muted-foreground">
-            PERSPECTIVA DEL NEGOCIO
-          </p>
-          <h2 className="mt-2 text-xl font-semibold tracking-tight">
-            Tu último informe
-          </h2>
-        </div>
-        <Button asChild variant="outline" size="sm">
-          <a href="#new">
-            <Plus />
-            Crear informe
-          </a>
-        </Button>
-      </div>
-      <Notice error>{resource.error}</Notice>
-      {!resource.data && !resource.error ? (
-        <Loading />
-      ) : resource.data?.report ? (
-        <>
-          <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-            <div className="w-full max-w-sm">
-              <ChoiceSelect
-                label="Informe"
-                value={selected}
-                onChange={setSelected}
-                options={[
-                  { value: "latest", label: "Último disponible" },
-                  ...resource.data.reports.map((r) => ({
-                    value: r.id,
-                    label: `${r.title} · ${date(r.created_at)}`,
-                  })),
-                ]}
-              />
-            </div>
-            <Button asChild variant="ghost">
-              <a href={`#report/${resource.data.selected_id}`}>
-                Abrir informe completo
-                <ArrowUpRight />
-              </a>
-            </Button>
-          </div>
-          <ReportView report={resource.data.report} onAsk={ask} />
-        </>
-      ) : (
-        <Empty
-          title="El primer hallazgo empieza con tus datos"
-          description="Sube un CSV y crea un informe. Aquí aparecerán los resultados que hayan superado la revisión."
-          href="#new"
-          label="Crear informe"
-        />
-      )}
-      {resource.data?.activity.length ? (
-        <section className="mt-10">
-          <h2 className="mb-4 text-base font-semibold">Necesita tu atención</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {resource.data.activity.map((a, i) => (
-              <a
-                key={i}
-                href={a.href}
-                className="flex items-center justify-between gap-3 rounded-xl border p-4 hover:bg-muted/50"
-              >
-                <span className="text-sm">{a.title}</span>
-                <ArrowUpRight className="size-4 shrink-0" />
-              </a>
-            ))}
-          </div>
-        </section>
-      ) : null}
-    </>
   );
 }
 export function Reports() {

@@ -580,3 +580,12 @@ INSERT INTO schema_versions(version) VALUES (14) ON CONFLICT DO NOTHING;
 
 -- Reversible chat deletion; shared memory and reviewed reports remain independent.
 INSERT INTO schema_versions(version) VALUES (15) ON CONFLICT DO NOTHING;
+
+-- Stable owner selections and pending AI editorial proposals, isolated by business.
+CREATE TABLE IF NOT EXISTS web_home_layouts (
+    business_id uuid PRIMARY KEY REFERENCES businesses(id) ON DELETE CASCADE,
+    revision integer NOT NULL DEFAULT 0,
+    layout jsonb NOT NULL DEFAULT '{}',
+    proposal jsonb
+);
+INSERT INTO schema_versions(version) VALUES (16) ON CONFLICT DO NOTHING;

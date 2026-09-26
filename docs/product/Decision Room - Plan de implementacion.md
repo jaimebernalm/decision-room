@@ -289,6 +289,20 @@ La navegación principal queda en Inicio, Conversaciones, Informes y Mi negocio.
 de navegación y formulario en el navegador. La ruta antigua del listado sigue
 abriendo Informes. Véase [validación](../validation/2026-09-26-report-navigation-check.md#nomenclatura-unificada-paso-2513).
 
+### 2.5.14. Inicio como dashboard personalizable
+
+**Completado, 26 de septiembre de 2026:** Inicio presenta indicadores, gráficos,
+hallazgos y pendientes con periodo y fuente. Selección persistente por negocio,
+tarjetas fijadas u ocultas y propuestas reales del agente con aceptación explícita.
+La evidencia retirada no permanece en el dashboard. Los gráficos comparten una
+gama azul coherente con el acento de la interfaz, en claro y oscuro.
+
+**Cierre:** regresión de 284 pruebas Python, 7 pruebas dirigidas tras el último
+ajuste, 31 pruebas de frontend, compilación, lint sin errores y recorrido en
+navegador de escritorio/móvil y ambos temas. Dos propuestas con Luna real;
+conservación de fijados y aplicación explícita verificadas. Véanse
+[validación y límites](../validation/2026-09-26-home-dashboard-check.md).
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Prioridad actualizada, 23 de septiembre de 2026:** iniciar las ampliaciones siguientes después de cerrar la entrega 2.5. La evaluación del 22 de septiembre descrita a continuación ya se realizó; no se presenta como trabajo pendiente ni sustituye la regresión exigida por los cambios de memoria y conversación.

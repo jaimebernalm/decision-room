@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import {
   Bar,
   BarChart,
@@ -40,7 +41,15 @@ import { Disclosure } from "./shared";
 import { chartPoints } from "@/lib/charts";
 import type { ChartData, Report as ReportData, Claim } from "@/lib/types";
 const config = { value: { label: "Valor", color: "var(--chart-1)" } };
-export function EvidenceChart({ chart }: { chart: ChartData }) {
+export function EvidenceChart({
+  chart,
+  actions,
+  footer,
+}: {
+  chart: ChartData;
+  actions?: ReactNode;
+  footer?: ReactNode;
+}) {
   const bars = chart.kind === "bar";
   const temporal =
     chart.kind === "line" &&
@@ -126,8 +135,13 @@ export function EvidenceChart({ chart }: { chart: ChartData }) {
   return (
     <Card className="shadow-none">
       <CardHeader>
-        <CardTitle>{chart.title}</CardTitle>
-        <CardDescription>{chart.unit}</CardDescription>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 space-y-2">
+            <CardTitle>{chart.title}</CardTitle>
+            <CardDescription>{chart.unit}</CardDescription>
+          </div>
+          {actions}
+        </div>
       </CardHeader>
       <CardContent>
         {chart.kind !== "table" && (
@@ -206,6 +220,7 @@ export function EvidenceChart({ chart }: { chart: ChartData }) {
             </Table>
           </Disclosure>
         </div>
+        {footer}
       </CardContent>
     </Card>
   );

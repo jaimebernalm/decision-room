@@ -220,6 +220,15 @@ class Handler(BaseHTTPRequestHandler):
             if mutation and path == '/api/memory/retry':
                 self.send(202, {'memory': ws.retry_memory(self.json_body())})
                 return
+            if path in ('/api/home', '/api/home/preferences', '/api/home/suggest'):
+                from . import home
+                if not mutation and path == '/api/home':
+                    self.send(200, home.view(ws))
+                    return
+                if mutation and path in ('/api/home/preferences', '/api/home/suggest'):
+                    operation = home.save if path.endswith('/preferences') else home.suggest
+                    self.send(200, operation(ws, self.json_body()))
+                    return
             if not mutation and path == '/api/dashboard':
                 requested = parse_qs(urlsplit(self.path).query).get('report', [None])
                 self.send(200, ws.dashboard(requested[0]))
