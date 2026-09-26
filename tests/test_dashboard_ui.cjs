@@ -8,7 +8,7 @@ const source = readFileSync('decision_room/web/static/app.js', 'utf8').split('wi
 function fixture() {
   const values = new Map(), chats = new Map(), messages = new Map(), calls = [];
   const sandbox = {
-    document: { querySelector: () => ({}) }, crypto: { randomUUID }, FormData,
+    document: { querySelector: () => ({}), addEventListener: () => {} }, crypto: { randomUUID }, FormData,
     localStorage: { getItem: k => values.get(k), setItem: (k,v) => values.set(k,v), removeItem: k => values.delete(k) },
     location: { hash: '#home' },
     fetch: async (url, options) => {
@@ -20,9 +20,77 @@ function fixture() {
     }
   };
   vm.createContext(sandbox);
-  vm.runInContext(source + '\nstate.business={id:"business-a"}; globalThis.ui={state,store,launchDashboardChat,dashboardSuggestions,shortChatTitle,chatResponse,reportState};', sandbox);
+  vm.runInContext(source + '\nstate.business={id:"business-a"}; globalThis.ui={state,store,launchDashboardChat,dashboardSuggestions,shortChatTitle,chatResponse,reportState,scrollToChatTurn,sidebarHistoryMarkup,chatQueuePosition,deleteChat};', sandbox);
   return {sandbox, ...sandbox.ui, calls, chats, messages, values};
 }
+test('sending follows the pending assistant card above the fixed composer', () => {
+  const f=fixture(), moves=[];
+  const owner={getBoundingClientRect:()=>({top:700,bottom:780,height:80})};
+  const reply={getBoundingClientRect:()=>({top:800,bottom:900,height:100})};
+  const turn={querySelector:selector=>selector==='.chat-answer'?reply:owner};
+  f.sandbox.document.querySelector=selector=>
+    selector==='[data-chat-turn="new-turn"]'?turn:
+    selector==='.chat-composer'?{getBoundingClientRect:()=>({top:760})}:
+    selector==='.topbar'?{getBoundingClientRect:()=>({bottom:0})}:null;
+  f.sandbox.innerHeight=1000;
+  f.sandbox.scrollY=0;
+  f.sandbox.scrollTo=options=>moves.push(options);
+  f.sandbox.matchMedia=()=>({matches:false});
+  f.scrollToChatTurn('new-turn');
+  assert.equal(moves.length,1);
+  assert.equal(moves[0].top,158);
+  assert.equal(moves[0].behavior,'smooth');
+});
+test('the current chat is highlighted without moving an older chat into the recent order', () => {
+  const f=fixture();
+  f.state.chats=Array.from({length:7},(_,index)=>({id:`chat-${index+1}`,title:`Chat ${index+1}`}));
+  f.sandbox.location.hash='#chat/chat-7';
+  const html=f.sidebarHistoryMarkup();
+  assert.ok(html.indexOf('href="#chat/chat-1"') < html.indexOf('href="#chat/chat-6"'));
+  assert.ok(html.indexOf('href="#chat/chat-6"') < html.indexOf('CHAT ACTUAL'));
+  assert.match(html,/class="history-row is-current"[^]*href="#chat\/chat-7"[^]*aria-current="page"/);
+  f.sandbox.location.hash='#home';
+  assert.doesNotMatch(f.sidebarHistoryMarkup(),/aria-current="page"/);
+});
+test('a lone queued message is not shown as waiting behind an old result', () => {
+  const f=fixture();
+  for (const status of ['completed','stale','failed','blocked','waiting'])
+    assert.equal(f.chatQueuePosition([{status},{status:'queued'}],1),0);
+  assert.equal(f.chatQueuePosition([{status:'queued'}],0),0);
+  assert.equal(f.chatQueuePosition([{status:'processing'},{status:'queued'}],1),1);
+  assert.equal(f.chatQueuePosition([{status:'processing'},{status:'queued'},{status:'queued'}],2),2);
+});
+test('deleting a chat waits for the in-app dialog and cancel sends no request', async () => {
+  const f=fixture(), dialogs=[];
+  f.state.chats=[{id:'chat-1',title:'Chat <privado>'}];
+  f.sandbox.location.hash='#chat/chat-1';
+  f.sandbox.document.body={append:()=>{}};
+  f.sandbox.document.createElement=()=>{
+    const handlers={};
+    const dialog={
+      returnValue:'', innerHTML:'', className:'',
+      setAttribute:()=>{}, addEventListener:(name,callback)=>{handlers[name]=callback;},
+      showModal:()=>{}, querySelector:()=>({focus:()=>{}}), remove:()=>{},
+      close(value){this.returnValue=value;handlers.close();},
+    };
+    dialogs.push(dialog);
+    return dialog;
+  };
+  const cancelled=f.deleteChat('chat-1');
+  assert.equal(f.calls.length,0);
+  assert.ok(dialogs[0].innerHTML.includes('Chat &lt;privado&gt;'));
+  assert.ok(dialogs[0].innerHTML.includes('no podrás volver a acceder'));
+  assert.ok(!dialogs[0].innerHTML.includes('recuperar'));
+  dialogs[0].close('cancel');
+  assert.equal(await cancelled,false);
+  assert.equal(f.calls.length,0);
+  const approved=f.deleteChat('chat-1');
+  assert.equal(f.calls.length,0);
+  dialogs[1].close('delete');
+  assert.equal(await approved,true);
+  assert.equal(f.calls.filter(call=>call.url==='/api/chats/chat-1/delete').length,1);
+  assert.equal(f.sandbox.location.hash,'#chats');
+});
 test('dashboard creates a chat and sends the original message without CSV', async () => {
   const f=fixture(); f.store.set('dr-home-prompt-business-a','Mi pregunta');
   const chat=await f.launchDashboardChat('Mi pregunta');
@@ -109,9 +177,30 @@ test('chat titles are short without losing the full submitted question', async (
 });
 test('chat renders reviewed labels and formatting instead of raw metrics', () => {
   const f=fixture();
-  const html=f.chatResponse({kind:'evidence',title:'Ventas',metrics:[{metric:'technical_total_eur',value:'1255.0000000000'}],highlights:[{label:'Ventas netas',value:'1.255,00',unit:'EUR'}],scope:{},claims:[],charts:[],limitations:[]});
+  const html=f.chatResponse({kind:'evidence',title:'Ventas',paragraphs:['Se suman los importes <sin repetir filas>.'],metrics:[{metric:'technical_total_eur',value:'1255.0000000000'}],highlights:[{label:'Ventas netas',value:'1.255,00',unit:'EUR'}],scope:{},claims:[],charts:[],limitations:[]});
   assert.ok(html.includes('Ventas netas'));assert.ok(html.includes('1.255,00'));
   assert.ok(!html.includes('technical_total_eur'));assert.ok(!html.includes('1255.0000000000'));
+  assert.ok(html.indexOf('Se suman los importes &lt;sin repetir filas&gt;') < html.indexOf('<details'));
+  assert.ok(html.includes('<details class="chat-evidence"><summary>Ver datos y evidencia</summary>'));
+});
+test('memory answer reads naturally and does not add a technical empty-state paragraph', () => {
+  const f=fixture();
+  const empty=f.chatResponse({kind:'memory',text:'He revisado la información y aún no encuentro nada.',items:[]});
+  assert.ok(empty.includes('He revisado'));
+  assert.ok(!empty.includes('hechos declarados'));
+  const facts=f.chatResponse({kind:'memory',text:'Esto es lo que sé:',items:[{status:'declared',content:{statement:'Cerramos los domingos.',scope:'business'}}]});
+  assert.ok(facts.includes('Cerramos los domingos.'));
+  assert.ok(!facts.includes('Declarado'));
+  const previous=f.chatResponse({kind:'memory',text:'El mensaje está guardado. Estos son los recuerdos aplicables y su estado.',items:[]});
+  assert.ok(previous.includes('En ese momento'));
+  assert.ok(!previous.includes('recuerdos aplicables'));
+});
+test('an earlier greeting does not display a memory dump', () => {
+  const f=fixture(); f.state.business.name='Papelería Bruma';
+  const html=f.chatResponse({kind:'memory',text:'Esto es lo que me has contado sobre Papelería Bruma:',items:[{status:'declared',content:{statement:'Vende cuadernos.',scope:'business'}}]},'response','hola');
+  assert.ok(html.includes('¡Hola!'));
+  assert.ok(html.includes('Papelería Bruma'));
+  assert.ok(!html.includes('Vende cuadernos'));
 });
 test('withdrawn reports are distinct from pending and historical reports', () => {
   const f=fixture();
@@ -130,4 +219,13 @@ test('first access keeps onboarding in place until a business is saved', async (
   await f.sandbox.runRoute();
   assert.equal(f.sandbox.onboarded,true);
   assert.equal(timers,0);
+});
+
+test('agent prose formats paragraphs and lists while escaping all model HTML', () => {
+  const f = fixture();
+  const html = f.chatResponse({kind:'grounded_answer', text:'**Ventas** y `importe`\n\n- <img src=x onerror=alert(1)>\n- Segundo dato', sources:[{label:'<script>bad</script>'}]});
+  assert.match(html, /<strong>Ventas<\/strong>/);
+  assert.match(html, /<code>importe<\/code>/);
+  assert.match(html, /<ul><li>&lt;img/);
+  assert.doesNotMatch(html, /<img|<script/);
 });

@@ -6,6 +6,17 @@ from decision_room.agent.model import ModelClient, ModelSettings
 
 
 class ModelActionTests(unittest.TestCase):
+    def test_conversation_schema_supports_direct_replies_with_strict_provider_fields(self):
+        client = ModelClient(ModelSettings('test'))
+        with patch.object(client, '_generate', return_value=({}, {})) as request:
+            client.generate_chat({})
+        schema = request.call_args.args[3]
+        self.assertEqual(set(schema['required']), set(schema['properties']))
+        self.assertEqual(schema['properties']['action']['enum'], ['retrieve', 'investigate', 'answer'])
+        self.assertIn('text', schema['properties'])
+        self.assertIn('sources', schema['properties'])
+        self.assertNotIn('reply_kind', schema['properties'])
+
     def test_inspection_is_available_only_when_profiles_remain(self):
         client = ModelClient(ModelSettings('test'))
         for uninspected in ([], ['remaining-table']):

@@ -28,9 +28,11 @@ def content(statement='Cerramos los domingos.', **changes):
                    scope_id=None, temporal_scope='unspecified', valid_from=None, valid_until=None, result_id=None), **changes}
 
 
-def candidate(statement='Cerramos los domingos.', *, evidence='explicit', quote=None, conflicts=None, **changes):
+def candidate(statement='Cerramos los domingos.', *, evidence='explicit', quote=None, conflicts=None,
+              correction_of=None, profile_replacement=None, **changes):
     return {'content': content(statement, **changes), 'evidence': evidence,
-            'quote': statement if quote is None else quote, 'conflicts_with': conflicts or []}
+            'quote': statement if quote is None else quote, 'conflicts_with': conflicts or [],
+            'correction_of': correction_of, 'profile_replacement': profile_replacement}
 
 
 class MemoryModel:
@@ -191,6 +193,32 @@ print(read(replace(Config.load(),dsn=args['dsn']),args['business'])[0]['status']
         self.change(action='correct', fact_id=first['fact_id'], expected_revision=2, content=content('Abrimos todos los domingos.'))
         self.assertEqual(memory.read(self.config, self.b)[0]['status'], 'declared')
 
+    def test_explicit_chat_correction_replaces_one_fact_and_preserves_history(self):
+        first = self.change(action='declare', content=content('Es una papelería ficticia de Valencia.', topic='business_location'))
+        text = '¿Puedes cambiar que la papelería está en Valencia por Vila-real?'
+        with connect(self.config) as db, db.transaction():
+            source = memory.capture(db, self.b, 'chat_message:' + str(uuid4()), text=text, kind='manual')
+        self.process(source, candidate('Es una papelería ficticia de Vila-real.', topic='business_location',
+                                       quote=text, conflicts=[first['fact_id']], correction_of=first['fact_id']))
+        rows = memory.read(self.config, self.b)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['status'], 'declared')
+        self.assertEqual(str(rows[0]['fact_id']), first['fact_id'])
+        self.assertEqual(rows[0]['content']['statement'], 'Es una papelería ficticia de Vila-real.')
+        self.assertEqual([r['content']['statement'] for r in memory.read(self.config, self.b, history=True)],
+                         ['Es una papelería ficticia de Valencia.', 'Es una papelería ficticia de Vila-real.'])
+        self.assertEqual(memory.status(self.config, self.b)['needs_review'], 0)
+
+    def test_plain_contradiction_cannot_claim_to_be_an_explicit_correction(self):
+        first = self.change(action='declare', content=content())
+        with connect(self.config) as db, db.transaction():
+            source = memory.capture(db, self.b, 'chat_message:' + str(uuid4()),
+                                    text='Abrimos los domingos.', kind='manual')
+        self.process(source, candidate('Abrimos los domingos.', quote='Abrimos los domingos.',
+                                       conflicts=[first['fact_id']], correction_of=first['fact_id']))
+        self.assertEqual(self.source(source)['status'], 'failed')
+        self.assertEqual(memory.read(self.config, self.b)[0]['content']['statement'], 'Cerramos los domingos.')
+
     def test_withdrawn_origin_and_rephrased_replay_do_not_restore_memory(self):
         source = self.capture()
         model = self.process(source, candidate())
@@ -310,11 +338,55 @@ print(read(replace(Config.load(),dsn=args['dsn']),args['business'])[0]['status']
     def test_model_contract_uses_existing_provider_boundary(self):
         model = ModelClient(ModelSettings(model='test-only'))
         with patch.object(model, '_generate', return_value=({'candidates': []}, {})) as generate:
-            model.generate_memory({'source': {}})
+            model.generate_memory({'source': {'default_scope': 'business', 'scope_id': None,
+                                              'allow_business': True}})
         schema = generate.call_args.args[-1]
         self.assertFalse(schema['additionalProperties'])
         self.assertEqual(schema['required'], ['candidates'])
         self.assertIn('untrusted', generate.call_args.args[2])
+        fields = schema['$defs']['Content']['properties']
+        self.assertEqual(fields['scope']['enum'], ['business'])
+        self.assertEqual(fields['scope_id'], {'type': 'null'})
+        self.assertNotIn('definition', fields['kind']['enum'])
+        self.assertNotIn('result_reference', fields['kind']['enum'])
+
+    def test_invalid_business_scope_is_corrected_automatically(self):
+        source = self.capture('Cerramos los domingos.', allow_business=True)
+        invalid = candidate(scope='source', scope_id=None)
+        valid = candidate()
+
+        class CorrectingModel:
+            identity = {'model': 'correction-test-only'}
+            calls = []
+
+            def generate_memory(self, context, correction=None):
+                self.calls.append((context, correction))
+                return {'candidates': [valid if correction else invalid]}, {}
+
+        model = CorrectingModel()
+        extraction.process(self.config, self.b, source['id'], model)
+        self.assertEqual(self.source(source)['status'], 'applied')
+        self.assertEqual(len(memory.read(self.config, self.b)), 1)
+        self.assertEqual(len(model.calls), 2)
+        self.assertIn('scope', model.calls[1][1])
+        self.assertIn('previous_response', model.calls[1][0])
+        with connect(self.config) as db:
+            calls = db.execute('SELECT status FROM memory_calls WHERE source_id=%s ORDER BY created_at',
+                               (source['id'],)).fetchall()
+        self.assertEqual([row['status'] for row in calls], ['completed', 'completed'])
+
+    def test_greeting_is_applied_without_model_or_new_fact(self):
+        with connect(self.config) as db, db.transaction():
+            source = memory.capture(db, self.b, 'chat_message:' + str(uuid4()),
+                                    kind='manual', text='¡Hola!')
+        model = MemoryModel([candidate()])
+        extraction.process(self.config, self.b, source['id'], model)
+        self.assertEqual(self.source(source)['status'], 'applied')
+        self.assertEqual(model.calls, 0)
+        self.assertEqual(memory.read(self.config, self.b), [])
+        with connect(self.config) as db:
+            self.assertFalse(db.execute('SELECT 1 FROM memory_calls WHERE source_id=%s',
+                                        (source['id'],)).fetchone())
 
     def test_hypothesis_does_not_displace_current_declared_schedule(self):
         self.change(action='declare', content=content())
