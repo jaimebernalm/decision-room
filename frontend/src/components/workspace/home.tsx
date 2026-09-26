@@ -85,6 +85,11 @@ export function Home() {
   } | null>(null);
   const [preview, setPreview] = useState<HomeDashboard | null>(null);
   const data = resource.data;
+  const openEditor = () => {
+    if (!data) return;
+    action.setError("");
+    setEditor({ base: data, selected: [...data.selected] });
+  };
   const save = (base: HomeDashboard, changes: object, close?: () => void) =>
     action.run(async () => {
       await api<HomeDashboard>("/api/home/preferences", {
@@ -169,10 +174,7 @@ export function Home() {
               variant="outline"
               size="sm"
               disabled={action.busy}
-              onClick={() => {
-                action.setError("");
-                setEditor({ base: data, selected: [...data.selected] });
-              }}
+              onClick={openEditor}
             >
               <SlidersHorizontal />
               Personalizar
@@ -320,7 +322,13 @@ export function Home() {
               }
               {...(!data.items.length
                 ? { href: "#new", label: "Crear informe" }
-                : {})}
+                : {
+                    iconAction: {
+                      label: "Añadir tarjetas al dashboard",
+                      onClick: openEditor,
+                      disabled: action.busy,
+                    },
+                  })}
             />
           )}
           {data.activity.length > 0 && (

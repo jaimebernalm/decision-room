@@ -156,18 +156,35 @@ export function Empty({
   description,
   href,
   label = "Nuevo chat",
+  iconAction,
 }: {
   title: string;
   description: string;
   href?: string;
   label?: string;
+  iconAction?: { label: string; onClick: () => void; disabled?: boolean };
 }) {
   return (
     <Card className="border-dashed shadow-none">
       <CardContent className="flex min-h-60 flex-col items-center justify-center gap-3 py-12 text-center">
-        <div className="rounded-xl bg-muted p-3">
-          <Plus className="size-5" />
-        </div>
+        {iconAction ? (
+          <Button
+            type="button"
+            variant="secondary"
+            size="icon"
+            className="size-12 rounded-xl"
+            aria-label={iconAction.label}
+            title={iconAction.label}
+            onClick={iconAction.onClick}
+            disabled={iconAction.disabled}
+          >
+            <Plus className="size-5" />
+          </Button>
+        ) : (
+          <div className="rounded-xl bg-muted p-3" aria-hidden="true">
+            <Plus className="size-5" />
+          </div>
+        )}
         <h2 className="text-lg font-semibold">{title}</h2>
         <p className="max-w-md text-sm text-muted-foreground">{description}</p>
         {href && (

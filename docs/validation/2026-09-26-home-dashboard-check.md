@@ -82,3 +82,11 @@ de validez. No hay generación periódica de propuestas en segundo plano.
 - Esquema 16: tabla `web_home_layouts`, aislada por `business_id`. No guarda
   copias de cifras o series. El endpoint anterior `/api/dashboard` se conserva
   por compatibilidad, pero el nuevo Inicio ya no lo utiliza.
+
+## Corrección del acceso + en el estado vacío
+
+El signo + del estado «Elige qué quieres tener a la vista» era decorativo.
+Ahora es un Button de shadcn con nombre accesible «Añadir tarjetas al dashboard»
+y abre el mismo selector que Personalizar. Respeta el bloqueo durante guardados.
+Comprobados clic y Enter en el navegador, sin modificar la selección guardada.
+Pasan las 31 pruebas de frontend y la compilación TypeScript/Vite.

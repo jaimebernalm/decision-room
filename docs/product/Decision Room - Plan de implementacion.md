@@ -303,6 +303,9 @@ navegador de escritorio/móvil y ambos temas. Dos propuestas con Luna real;
 conservación de fijados y aplicación explícita verificadas. Véanse
 [validación y límites](../validation/2026-09-26-home-dashboard-check.md).
 
+**Corrección del acceso vacío:** el + abre Personalizar mediante clic o teclado.
+Verificado en navegador, con 31 pruebas de frontend y compilación correctas.
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Prioridad actualizada, 23 de septiembre de 2026:** iniciar las ampliaciones siguientes después de cerrar la entrega 2.5. La evaluación del 22 de septiembre descrita a continuación ya se realizó; no se presenta como trabajo pendiente ni sustituye la regresión exigida por los cambios de memoria y conversación.
