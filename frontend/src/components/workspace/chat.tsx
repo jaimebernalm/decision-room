@@ -366,14 +366,14 @@ export function ChatPage({ id }: { id: string }) {
                           onClick={() => operation("report", turn.id)}
                         >
                           <FileText />
-                          Generar informe
+                          Crear informe
                         </Button>
                       ))}
                     {turn.report_outdated && <Status status="outdated" />}
                     {turn.job_id && (
                       <Button asChild variant="ghost" size="sm">
                         <a href={`#analysis/${turn.job_id}`}>
-                          Ver análisis
+                          Ver informe
                           <ArrowUpRight />
                         </a>
                       </Button>

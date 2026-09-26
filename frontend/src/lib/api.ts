@@ -83,6 +83,7 @@ export const date = (value?: string) =>
 export const reportLink = (id: string, claim?: string) =>
   `/api/jobs/${encodeURIComponent(id)}/report${claim ? `#finding-${encodeURIComponent(claim)}` : ""}`;
 export const statuses: Record<string, string> = {
+  preparing: "En preparación",
   queued: "En cola",
   running: "En curso",
   waiting: "Necesita tu respuesta",

@@ -39,3 +39,21 @@ Paso 2.5.12 del plan.
   el título estaba oculto; al finalizar, transformación nula y título visible.
 - Revisión a 390 × 844, con el tamaño habitual restaurado al terminar.
 - `git diff --check` sin errores. No se cambian datos ni servicios del backend.
+
+## Nomenclatura unificada: paso 2.5.13
+
+- Una sola sección «Informes», sin «Todos los análisis» ni «Ver análisis».
+  Navegación principal: Inicio, Conversaciones, Informes y Mi negocio. Los
+  accesos recientes quedan como Chats recientes e Informes recientes.
+- Acciones «Crear informe», campo «Título del informe», búsqueda «Buscar
+  informes», columna «Informe» y enlaces del chat «Ver informe». Estados de la
+  biblioteca: En preparación, Necesita tu respuesta, Disponible y los estados
+  existentes de interrupción, retirada o cambio de contexto.
+- Los mensajes sobre la actividad de la IA pueden seguir hablando de análisis.
+  No se renombra el contrato de almacenamiento ni se crean resultados nuevos.
+- La antigua ruta `#analyses` resuelve a la misma biblioteca y activa Informes
+  en el menú. Los enlaces existentes a trabajos conservan su funcionamiento.
+- 28 pruebas aprobadas, incluida compatibilidad del listado antiguo y apertura
+  directa del resultado; compilación correcta, lint sin errores con los avisos
+  previos. Navegador: los cuatro destinos principales, biblioteca unificada y
+  formulario «Crear informe» con su campo «Título del informe» verificados.

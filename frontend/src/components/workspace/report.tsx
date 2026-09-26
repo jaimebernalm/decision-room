@@ -342,7 +342,7 @@ export function ReportView({
         ))}
       </div>
       {report.limitations?.length > 0 && (
-        <Disclosure title="Alcance y límites del análisis">
+        <Disclosure title="Alcance y límites del informe">
           <ul className="list-disc space-y-2 pl-5 text-muted-foreground">
             {report.limitations.map((l, i) => (
               <li key={i}>{l}</li>

@@ -41,7 +41,10 @@ export function JobPage({ id }: { id: string }) {
           status={
             job.context_stale
               ? "outdated"
-              : job.presentation_status || job.status
+              : job.presentation_status ||
+                (["queued", "running"].includes(job.status)
+                  ? "preparing"
+                  : job.status)
           }
         />
       </Heading>
@@ -100,12 +103,12 @@ export function JobPage({ id }: { id: string }) {
           <RotateCcw />
           {job.context_stale
             ? "Recalcular con el contexto actual"
-            : "Reintentar análisis"}
+            : "Reintentar informe"}
         </Button>
       )}
       {job.status === "blocked" && (
         <Button asChild className="mb-6" variant="outline">
-          <a href="#new">Preparar un nuevo análisis</a>
+          <a href="#new">Crear otro informe</a>
         </Button>
       )}
       <div className="grid gap-4">

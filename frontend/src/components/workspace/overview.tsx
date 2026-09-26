@@ -166,7 +166,7 @@ export function Home() {
         <Button asChild variant="outline" size="sm">
           <a href="#new">
             <Plus />
-            Nuevo análisis
+            Crear informe
           </a>
         </Button>
       </div>
@@ -202,9 +202,9 @@ export function Home() {
       ) : (
         <Empty
           title="El primer hallazgo empieza con tus datos"
-          description="Sube un CSV y prepara un análisis. Aquí aparecerán los resultados que hayan superado la revisión."
+          description="Sube un CSV y crea un informe. Aquí aparecerán los resultados que hayan superado la revisión."
           href="#new"
-          label="Preparar un análisis"
+          label="Crear informe"
         />
       )}
       {resource.data?.activity.length ? (
@@ -227,7 +227,7 @@ export function Home() {
     </>
   );
 }
-export function AnalysisList({ reports = false }: { reports?: boolean }) {
+export function Reports() {
   const { workspace } = useWorkspace();
   const [search, setSearch] = useState("");
   const items = workspace.analyses.filter((a) =>
@@ -238,18 +238,18 @@ export function AnalysisList({ reports = false }: { reports?: boolean }) {
   return (
     <>
       <Heading
-        title={reports ? "Informes" : "Todos los análisis"}
+        title="Informes"
         description="Resultados, contexto y evidencia en un mismo lugar."
       >
         <Button asChild>
           <a href="#new">
             <Plus />
-            Nuevo análisis
+            Crear informe
           </a>
         </Button>
       </Heading>
       <Input
-        aria-label="Buscar análisis"
+        aria-label="Buscar informes"
         placeholder="Buscar por título o archivo…"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
@@ -260,7 +260,7 @@ export function AnalysisList({ reports = false }: { reports?: boolean }) {
           <Table className="[&_th]:px-4 [&_td]:px-4">
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead>Análisis</TableHead>
+                <TableHead>Informe</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead className="hidden sm:table-cell">Creado</TableHead>
                 <TableHead className="hidden sm:table-cell">
@@ -297,9 +297,9 @@ export function AnalysisList({ reports = false }: { reports?: boolean }) {
                           historical: "Versión anterior",
                           outdated: "Contexto cambiado",
                           withdrawn: "Retirado",
-                          queued: "En cola",
-                          waiting: "Necesita respuesta",
-                          running: "En curso",
+                          queued: "En preparación",
+                          waiting: "Necesita tu respuesta",
+                          running: "En preparación",
                           failed: "Interrumpido",
                           blocked: "Necesita atención",
                         } as Record<string, string>
@@ -329,9 +329,9 @@ export function AnalysisList({ reports = false }: { reports?: boolean }) {
       ) : (
         <Empty
           title="Todavía no hay resultados"
-          description="Empieza con una pregunta o prepara un análisis de tus datos."
+          description="Empieza con una pregunta o crea un informe de tus datos."
           href="#new"
-          label="Nuevo análisis"
+          label="Crear informe"
         />
       )}
     </>

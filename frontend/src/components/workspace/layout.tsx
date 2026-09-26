@@ -8,7 +8,6 @@ import {
   HelpCircle,
   Home,
   MessageSquare,
-  MoreHorizontal,
   Plus,
   Trash2,
   PanelLeft,
@@ -44,6 +43,7 @@ import { useWorkspace } from "@/lib/workspace";
 import { store, shortTitle, analysisHref } from "@/lib/api";
 const navigation = [
   ["home", "Inicio", Home],
+  ["chats", "Conversaciones", MessageSquare],
   ["reports", "Informes", BarChart3],
   ["my-business", "Mi negocio", Building2],
 ] as const;
@@ -150,8 +150,13 @@ function Navigation({
                   asChild
                   isActive={
                     route === key ||
+                    (key === "chats" &&
+                      (route === "ask" ||
+                        route.startsWith("chat/") ||
+                        route.startsWith("chat-report/"))) ||
                     (key === "reports" &&
-                      (route.startsWith("analysis/") ||
+                      (route === "new" ||
+                        route.startsWith("analysis/") ||
                         route.startsWith("report/"))) ||
                     (key === "my-business" &&
                       ["files", "business"].includes(route))
@@ -172,7 +177,7 @@ function Navigation({
           </SidebarMenu>
         </SidebarGroup>
         <SidebarGroup>
-          <SidebarGroupLabel>Conversaciones</SidebarGroupLabel>
+          <SidebarGroupLabel>Chats recientes</SidebarGroupLabel>
           <SidebarMenu>
             {chatRows.map((chat) => (
               <SidebarMenuItem key={chat.id}>
@@ -201,22 +206,10 @@ function Navigation({
                 </SidebarMenuAction>
               </SidebarMenuItem>
             ))}
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                isActive={route === "chats"}
-                tooltip="Todas las conversaciones"
-              >
-                <a href="#chats" onClick={close}>
-                  <MoreHorizontal />
-                  <span>Ver conversaciones</span>
-                </a>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroup>
         <SidebarGroup>
-          <SidebarGroupLabel>Análisis recientes</SidebarGroupLabel>
+          <SidebarGroupLabel>Informes recientes</SidebarGroupLabel>
           <SidebarMenu>
             {workspace.analyses.slice(0, 5).map((item) => (
               <SidebarMenuItem key={item.id}>
@@ -238,14 +231,6 @@ function Navigation({
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild tooltip="Todos los análisis">
-                <a href="#analyses" onClick={close}>
-                  <BarChart3 />
-                  <span>Ver análisis</span>
-                </a>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>

@@ -245,9 +245,7 @@ export function UploadForm({
       }}
     >
       <Field
-        label={
-          dataOnly ? "Nombre del conjunto de datos" : "Título del análisis"
-        }
+        label={dataOnly ? "Nombre del conjunto de datos" : "Título del informe"}
         id="upload-title"
       >
         <Input
@@ -371,7 +369,7 @@ export function UploadForm({
           type="submit"
         >
           {action.busy ? <Busy /> : <Upload />}
-          {dataOnly ? "Guardar datos" : "Preparar análisis"}
+          {dataOnly ? "Guardar datos" : "Crear informe"}
         </Button>
         <Button asChild type="button" variant="ghost">
           <a href="/api/sample" download>
@@ -383,11 +381,11 @@ export function UploadForm({
     </form>
   );
 }
-export function NewAnalysis() {
+export function NewReport() {
   return (
     <div className="mx-auto max-w-2xl">
       <Heading
-        title="Un nuevo análisis"
+        title="Crear informe"
         description="Sube tus datos. Revisaremos su estructura y pediremos las aclaraciones que hagan falta."
       />
       <Card className="shadow-none">

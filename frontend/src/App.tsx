@@ -38,9 +38,9 @@ const StartChat = lazy(() =>
 const Chats = lazy(() =>
   import("@/components/workspace/overview").then((m) => ({ default: m.Chats })),
 );
-const AnalysisList = lazy(() =>
+const Reports = lazy(() =>
   import("@/components/workspace/overview").then((m) => ({
-    default: m.AnalysisList,
+    default: m.Reports,
   })),
 );
 const Presentation = lazy(() =>
@@ -64,9 +64,9 @@ const BusinessPicker = lazy(() =>
     default: m.BusinessPicker,
   })),
 );
-const NewAnalysis = lazy(() =>
+const NewReport = lazy(() =>
   import("@/components/workspace/business").then((m) => ({
-    default: m.NewAnalysis,
+    default: m.NewReport,
   })),
 );
 const Dossier = lazy(() =>
@@ -77,7 +77,10 @@ const Dossier = lazy(() =>
 const JobPage = lazy(() =>
   import("@/components/workspace/job").then((m) => ({ default: m.JobPage })),
 );
-const routeNow = () => location.hash.slice(1) || "home";
+const routeNow = () => {
+  const route = location.hash.slice(1) || "home";
+  return route === "analyses" ? "reports" : route;
+};
 let loginPromise: Promise<unknown> | undefined;
 function exchangeAccess() {
   if (location.hash.startsWith("#access=")) {
@@ -305,11 +308,11 @@ function Route({ route }: { route: string }) {
     case "chats":
       return <Chats />;
     case "reports":
-      return <AnalysisList reports />;
+      return <Reports />;
     case "analyses":
-      return <AnalysisList />;
+      return <Reports />;
     case "new":
-      return <NewAnalysis />;
+      return <NewReport />;
     case "business-new":
       return <BusinessForm create />;
     case "business":

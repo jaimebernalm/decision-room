@@ -49,7 +49,7 @@ it("keeps one page and one assistant while navigating, preserving and clearing d
   await screen.findByRole("heading", { name: "¿Qué quieres entender hoy?" });
   const user = userEvent.setup();
   await user.type(screen.getByRole("textbox", { name: "Mensaje" }), "Borrador");
-  await user.click(screen.getByRole("link", { name: "Ver conversaciones" }));
+  await user.click(screen.getByRole("link", { name: "Conversaciones" }));
   await screen.findByRole("heading", { name: "Conversaciones" });
   expect(document.querySelectorAll("#main-content")).toHaveLength(1);
   expect(
@@ -89,7 +89,7 @@ it("keeps onboarding available with no business and supports form editing", asyn
     screen.queryByRole("heading", { name: "Una mirada clara a tu negocio." }),
   ).not.toBeInTheDocument();
 });
-it.each(["reports", "analysis/ready"])(
+it.each(["reports", "analyses", "analysis/ready"])(
   "opens a report directly from %s and returns with the header arrow",
   async (route) => {
     location.hash = route;
@@ -134,7 +134,7 @@ it.each(["reports", "analysis/ready"])(
       })),
     );
     render(<App />);
-    if (route === "reports")
+    if (route !== "analysis/ready")
       await userEvent.click(
         await screen.findByRole("link", { name: "Abrir Informe disponible" }),
       );

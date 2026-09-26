@@ -277,6 +277,18 @@ el título y las conversaciones recientes.
 en navegador de apertura directa, regreso, tabla y secuencia visual.
 Véase [validación](../validation/2026-09-26-report-navigation-check.md).
 
+### 2.5.13. Unificar informes y análisis en la interfaz
+
+**Completado, 26 de septiembre de 2026:** «Informes» es la única biblioteca de
+resultados, incluidos los que están en preparación o necesitan respuesta. Las
+acciones y formularios usan «Crear informe», y los accesos recientes usan
+«Informes recientes». Se reserva «análisis» para describir el proceso de la IA.
+La navegación principal queda en Inicio, Conversaciones, Informes y Mi negocio.
+
+**Cierre:** 28 pruebas de frontend, compilación y lint sin errores; comprobación
+de navegación y formulario en el navegador. La ruta antigua del listado sigue
+abriendo Informes. Véase [validación](../validation/2026-09-26-report-navigation-check.md#nomenclatura-unificada-paso-2513).
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Prioridad actualizada, 23 de septiembre de 2026:** iniciar las ampliaciones siguientes después de cerrar la entrega 2.5. La evaluación del 22 de septiembre descrita a continuación ya se realizó; no se presenta como trabajo pendiente ni sustituye la regresión exigida por los cambios de memoria y conversación.

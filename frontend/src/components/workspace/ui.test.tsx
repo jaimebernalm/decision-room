@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Composer } from "./composer";
 import { ReportView } from "./report";
 import { FloatingAssistant } from "./floating-assistant";
-import { StartChat, AnalysisList } from "./overview";
+import { StartChat, Reports } from "./overview";
 import { WorkspaceState, type WorkspaceContext } from "@/lib/workspace";
 import { store } from "@/lib/api";
 const workspace = {
@@ -56,7 +56,7 @@ it("opens available reports directly and keeps progress or recovery for other st
         },
       }}
     >
-      <AnalysisList reports />
+      <Reports />
     </WorkspaceState.Provider>,
   );
   for (const status of states)
@@ -64,7 +64,7 @@ it("opens available reports directly and keeps progress or recovery for other st
       "href",
       `#${["completed", "historical"].includes(status) ? "report" : "analysis"}/${status}`,
     );
-  expect(screen.getByText("En curso")).toBeInTheDocument();
+  expect(screen.getByText("En preparación")).toBeInTheDocument();
 });
 it("new chat offers the four latest conversations below one expanded composer", async () => {
   store.set("dr-assistant-collapsed", true);
