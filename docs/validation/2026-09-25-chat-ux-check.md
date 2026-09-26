@@ -1,5 +1,7 @@
 # Ajustes de conversación y navegación, 25 de septiembre de 2026
 
+**Estado posterior:** esta comprobación recoge la eliminación recuperable de aquella iteración. El flujo final deja el chat inaccesible para el usuario y retira la restauración; véase [la validación del diálogo de eliminación](2026-09-25-delete-dialog-check.md).
+
 ## Alcance
 
 - El envío desde un chat desplaza la página con suavidad hasta el bloque de respuesta, incluidos los tres puntos de espera, y lo mantiene visible al avanzar el turno. Si la persona desplaza la página manualmente, deja de seguirlo. Respeta la preferencia de movimiento reducido.
