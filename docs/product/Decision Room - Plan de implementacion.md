@@ -232,6 +232,17 @@ agradecimientos. Véase la [validación del diálogo](../validation/2026-09-24-d
 
 **Cierre:** todos los recorridos existentes se pueden completar en React, los componentes provienen de sus registros oficiales y la aplicación se sirve desde el lanzador local. Compilación correcta, 20 pruebas de frontend, 275 pruebas de regresión Python y 3 de proyección adicionales aprobadas; comprobación visual en escritorio/móvil y acceso al espacio existente. [Validación](../validation/2026-09-26-react-ui-check.md).
 
+### 2.5.9. Asistente flotante y compacto
+
+**Completado, 26 de septiembre de 2026:** (1) revisar Prompt Input y controles
+oficiales; (2) trasladar el compositor a una barra inferior superpuesta, redondeada
+y plegable, retirando el selector de datos; (3) comprobar borradores, contexto,
+foco, navegación y escritorio/móvil. Disponible en las pantallas del negocio;
+el chat abierto conserva su propio compositor persistente.
+
+**Cierre:** 22 pruebas de frontend, compilación y lint sin errores, revisión visual
+de scroll y plegado en escritorio y móvil. Véase [validación](../validation/2026-09-26-floating-assistant-check.md).
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Prioridad actualizada, 23 de septiembre de 2026:** iniciar las ampliaciones siguientes después de cerrar la entrega 2.5. La evaluación del 22 de septiembre descrita a continuación ya se realizó; no se presenta como trabajo pendiente ni sustituye la regresión exigida por los cambios de memoria y conversación.

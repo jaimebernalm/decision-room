@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { Composer } from "./composer";
 import { ReportView } from "./report";
-import { StartChat } from "./overview";
+import { FloatingAssistant } from "./floating-assistant";
 import { WorkspaceState, type WorkspaceContext } from "@/lib/workspace";
 import { store } from "@/lib/api";
 const workspace = {
@@ -60,7 +60,7 @@ it("official composer keeps controlled draft after submit failure and supports S
   expect(send).toHaveBeenCalledOnce();
   expect(input).toHaveValue("Mi pregunta\n");
 });
-it("unmounting the start page prevents a late response redirecting another business", async () => {
+it("unmounting the floating assistant prevents a late response redirecting another business", async () => {
   let finish: () => void = () => {};
   vi.stubGlobal(
     "fetch",
@@ -75,7 +75,7 @@ it("unmounting the start page prevents a late response redirecting another busin
   store.set("dr-home-prompt-a", "Pregunta");
   const rendered = render(
     <WorkspaceState.Provider value={workspace}>
-      <StartChat />
+      <FloatingAssistant />
     </WorkspaceState.Provider>,
   );
   await userEvent.click(screen.getByRole("button", { name: "Enviar mensaje" }));
@@ -115,7 +115,7 @@ it("shows approved formatting and exact values, with escaped claim text", () => 
   expect(screen.getByText(/Revisar detalle/)).toBeInTheDocument();
 });
 
-it("sends the analysis identity from the dataset selector, not its table identity", async () => {
+it("preserves explicit analysis context without showing a dataset selector", async () => {
   const calls: { url: string; body: Record<string, unknown> }[] = [];
   vi.stubGlobal(
     "fetch",
@@ -143,18 +143,55 @@ it("sends the analysis identity from the dataset selector, not its table identit
       },
     },
   };
+  store.set("dr-question-context-a", {
+    analysis_id: "analysis-id",
+    label: "Ventas junio · v2",
+  });
   render(
     <WorkspaceState.Provider value={context}>
-      <StartChat />
+      <FloatingAssistant />
     </WorkspaceState.Provider>,
   );
   const user = userEvent.setup();
-  await user.click(
-    screen.getByRole("combobox", { name: "Datos para esta conversación" }),
-  );
-  await user.click(screen.getByRole("option", { name: "Ventas junio · v2" }));
+  expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  expect(screen.getByText("Ventas junio · v2")).toBeInTheDocument();
   await user.type(screen.getByRole("textbox", { name: "Mensaje" }), "Pregunta");
   await user.click(screen.getByRole("button", { name: "Enviar mensaje" }));
   await waitFor(() => expect(calls.length).toBe(2));
   expect(calls[0].body.analysis_id).toBe("analysis-id");
+});
+
+it("folds into an accessible button and restores the draft and keyboard focus", async () => {
+  const renderDock = (route = "home") =>
+    render(
+      <WorkspaceState.Provider value={{ ...workspace, route }}>
+        <FloatingAssistant />
+      </WorkspaceState.Provider>,
+    );
+  const first = renderDock();
+  const user = userEvent.setup();
+  await user.type(
+    screen.getByRole("textbox", { name: "Mensaje" }),
+    "Mi borrador",
+  );
+  await user.click(screen.getByRole("button", { name: "Minimizar asistente" }));
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Abrir asistente: pregunta algo" }),
+  ).toHaveFocus();
+  first.unmount();
+  const next = renderDock("reports");
+  await user.click(
+    screen.getByRole("button", { name: "Abrir asistente: pregunta algo" }),
+  );
+  expect(screen.getByRole("textbox", { name: "Mensaje" })).toHaveValue(
+    "Mi borrador",
+  );
+  expect(screen.getByRole("textbox", { name: "Mensaje" })).toHaveFocus();
+  await user.click(screen.getByRole("button", { name: "Minimizar asistente" }));
+  next.unmount();
+  renderDock("ask");
+  expect(screen.getByRole("textbox", { name: "Mensaje" })).toHaveValue(
+    "Mi borrador",
+  );
 });

@@ -18,6 +18,7 @@ import { api, ApiError } from "@/lib/api";
 import type { Workspace, ChatListing, Chat } from "@/lib/types";
 import { WorkspaceState } from "@/lib/workspace";
 import { useAction } from "@/lib/hooks";
+import { FloatingAssistant } from "@/components/workspace/floating-assistant";
 import { Layout } from "@/components/workspace/layout";
 import {
   Heading,
@@ -178,6 +179,10 @@ function App() {
           ? "businesses"
           : "business-new"
         : route;
+    const showAssistant =
+      Boolean(workspace.business) &&
+      !activeRoute.startsWith("chat/") &&
+      !["business-new", "businesses"].includes(activeRoute);
     body = (
       <WorkspaceState.Provider
         value={{
@@ -221,13 +226,18 @@ function App() {
                 <ChatPage id={activeRoute.split("/")[1]} />
               ) : (
                 <div
-                  className={`mx-auto w-full max-w-7xl px-5 py-8 sm:px-8 lg:px-10 ${activeRoute === "ask" ? "flex min-h-full flex-col" : ""}`}
+                  className={`mx-auto w-full max-w-7xl px-5 py-8 sm:px-8 lg:px-10 ${showAssistant ? "pb-64" : ""} ${activeRoute === "ask" ? "flex min-h-full flex-col" : ""}`}
                 >
                   <Route route={activeRoute} />
                 </div>
               )}
             </Suspense>
           </div>
+          {showAssistant && (
+            <FloatingAssistant
+              key={`assistant:${workspace.business!.id}:${activeRoute}`}
+            />
+          )}
         </Layout>
         <AlertDialog
           open={Boolean(deleting)}

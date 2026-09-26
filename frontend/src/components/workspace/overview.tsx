@@ -19,55 +19,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useWorkspace } from "@/lib/workspace";
-import { useResource, useDraft, useAction } from "@/lib/hooks";
-import {
-  contextKey,
-  homeDraftKey,
-  store,
-  launchChat,
-  date,
-  reportState,
-} from "@/lib/api";
-import type { Dashboard, QuestionContext, Claim, Report } from "@/lib/types";
+import { useResource } from "@/lib/hooks";
+import { contextKey, store, date, reportState } from "@/lib/api";
+import type { Dashboard, Claim, Report } from "@/lib/types";
 import { Heading, Notice, Empty, Loading, ChoiceSelect } from "./shared";
-import { Composer } from "./composer";
 import { ReportView } from "./report";
 export function StartChat({ home = false }: { home?: boolean }) {
-  const { workspace, listing, refresh } = useWorkspace(),
+  const { workspace } = useWorkspace(),
     business = workspace.business!;
-  const [text, setText] = useDraft(homeDraftKey(business.id), "");
-  const [context, setContext] = useDraft<QuestionContext>(
-    contextKey(business.id),
-    {},
-  );
-  const datasetOptions = [
-    ...new Map(
-      listing.datasets.items.map((d) => [
-        d.analysis_id,
-        {
-          value: d.analysis_id,
-          label: `${d.description} · v${d.dataset_version}`,
-        },
-      ]),
-    ).values(),
-  ];
-  if (
-    context.analysis_id &&
-    !datasetOptions.some((d) => d.value === context.analysis_id)
-  )
-    datasetOptions.push({
-      value: context.analysis_id,
-      label: context.label || "Versión seleccionada",
-    });
-  const action = useAction();
-  const send = () =>
-    action.run(async () => {
-      const chat = await launchChat(business.id, text, context);
-      if (action.isMounted()) {
-        refresh();
-        location.hash = `chat/${chat.id}`;
-      }
-    });
   return (
     <div
       className={
@@ -91,47 +50,6 @@ export function StartChat({ home = false }: { home?: boolean }) {
             : "Pregunta, añade contexto o explora tus datos con la IA."}
         </p>
       </div>
-      {(listing.datasets?.items.length > 0 || context.label) && (
-        <div className="mb-4 max-w-md">
-          <ChoiceSelect
-            label="Datos para esta conversación"
-            value={context.analysis_id || "auto"}
-            onChange={(value) =>
-              setContext(
-                value === "auto"
-                  ? {}
-                  : {
-                      analysis_id: value,
-                      label: datasetOptions.find((d) => d.value === value)
-                        ?.label,
-                    },
-              )
-            }
-            options={[
-              { value: "auto", label: "Elegir según la pregunta" },
-              ...datasetOptions,
-            ]}
-          />
-          {context.finding_reference && (
-            <div className="mt-2 flex items-center gap-2">
-              <Badge variant="secondary">
-                {context.label || "Hallazgo seleccionado"}
-              </Badge>
-              <Button size="sm" variant="ghost" onClick={() => setContext({})}>
-                Quitar contexto
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-      <Composer
-        text={text}
-        onChange={setText}
-        onSend={send}
-        busy={action.busy}
-        error={action.error}
-        suggestions={!home}
-      />
     </div>
   );
 }

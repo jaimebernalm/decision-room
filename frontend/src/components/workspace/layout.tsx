@@ -60,7 +60,7 @@ export function Layout({ children }: { children: ReactNode }) {
       }
     >
       <Navigation width={width} setWidth={setWidth} />
-      <SidebarInset className="h-svh min-w-0 overflow-hidden md:h-[calc(100svh-1rem)]">
+      <SidebarInset className="relative h-svh min-w-0 overflow-hidden md:h-[calc(100svh-1rem)]">
         <Topbar />
         {children}
       </SidebarInset>
