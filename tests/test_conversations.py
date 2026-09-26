@@ -660,8 +660,13 @@ class ConversationTests(unittest.TestCase):
         self.assertIsNone(self.ws.dashboard()["report"])
         with self.assertRaises(WebError):
             self.chats.report(chat, t['id'])
+        with self.assertRaises(WebError):
+            self.chats.report(chat, t['id'], structured=True)
         self.chats.report(chat, t['id'], dict(business_id=str(self.b)))
         self.assertIn('Ventas', self.chats.report(chat, t['id']))
+        presentation = self.chats.report(chat, t['id'], structured=True)
+        self.assertIn('Ventas', presentation['title'])
+        self.assertTrue(presentation['claims'][0]['evidence_details']['metrics'])
         self.assertEqual(len(self.ws.listing()), 1)
         listed = self.ws.listing()[0]
         self.assertEqual(listed['origin'], 'chat')
@@ -691,6 +696,8 @@ class ConversationTests(unittest.TestCase):
         self.assertIsNone(self.ws.dashboard()['report'])
         with self.assertRaises(WebError):
             self.chats.report(chat, t['id'])
+        with self.assertRaises(WebError):
+            self.chats.report(chat, t['id'], structured=True)
 
     def test_clock_answer_uses_supplied_runtime_and_no_analytical_job(self):
         chat = self.chat()

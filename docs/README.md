@@ -62,3 +62,8 @@ mantiene en los archivos Markdown enlazados arriba.
 Los documentos de investigación conservan sus fechas y contexto. El MVP y el
 plan de implementación determinan el alcance actual. Los comandos de las guías
 se ejecutan desde la raíz del repositorio, salvo indicación expresa.
+
+## Interfaz React
+
+- [Arquitectura y componentes oficiales](technical/react-ui-migration.md)
+- [Validación del paso 2.5.8](validation/2026-09-26-react-ui-check.md)

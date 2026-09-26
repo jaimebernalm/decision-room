@@ -1,5 +1,6 @@
 """Local web boundary and durable orchestration; scripted AI is not quality evidence."""
 import json
+import re
 import tempfile
 import threading
 import unittest
@@ -163,6 +164,11 @@ class WebTests(unittest.TestCase):
         client, _ = self.http()
         client.post('/api/login', json={'token': 'test-local-access'})
         self.assertEqual(client.get('/api/dashboard').json()['selected_id'], job)
+        rendered = client.get('/api/jobs/' + job + '/presentation')
+        self.assertEqual(rendered.status_code, 200)
+        self.assertEqual(rendered.json()['title'], 'Ventas seleccionadas')
+        self.assertTrue(rendered.json()['claims'][0]['evidence_details']['metrics'])
+        self.assertNotIn('storage_key', rendered.text)
         row = self.ws.row(job)
         review.hold(self.config, row['business_id'], row['review_id'], reason='Controlled hold for test.')
         self.assertFalse(self.ws.detail(job)['publishable'])
@@ -170,6 +176,7 @@ class WebTests(unittest.TestCase):
         self.assertEqual(next(j for j in self.ws.listing() if str(j['id']) == job)['status'], 'blocked')
         self.assertIsNone(self.ws.dashboard()['report'])
         self.assertIsNone(client.get('/api/dashboard').json()['report'])
+        self.assertEqual(client.get('/api/jobs/' + job + '/presentation').status_code, 409)
         with self.assertRaises(WebError):
             self.ws.report(job)
 
@@ -357,7 +364,13 @@ class WebTests(unittest.TestCase):
         self.assertEqual(client.get('/api/jobs/not-a-uuid').status_code, 400)
         self.assertEqual(client.get('/api/jobs/' + str(uuid4()) + '/file').status_code, 404)
         self.assertEqual(client.get('/api/sample').status_code, 200)
-        self.assertEqual(client.get('/styles.css').status_code, 200)
+        assets = re.findall(r'(?:src|href)="(/assets/[^"]+)"', client.get('/').text)
+        self.assertTrue(assets)
+        for asset in assets:
+            self.assertEqual(client.get(asset).status_code, 200)
+        self.assertEqual(client.get('/assets/missing.js').status_code, 404)
+        self.assertNotEqual(client.get('/assets/../../server.py').status_code, 200)
+        self.assertNotEqual(client.get('/assets/%2e%2e/server.py').status_code, 200)
 
     def test_cross_question_and_unreviewed_report_denied(self):
         job = self.create()

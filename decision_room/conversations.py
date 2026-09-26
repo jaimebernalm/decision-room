@@ -670,7 +670,7 @@ class Conversations:
         self.ws.wake.set()
         return {'saved': True}
 
-    def report(self, chat_id, turn_id, data=None):
+    def report(self, chat_id, turn_id, data=None, *, structured=False):
         if data is not None:
             self.guard(data)
         with connect(self.config) as db, db.transaction():
@@ -690,6 +690,9 @@ class Conversations:
                 return {'saved': True}
             if not t['report_requested']:
                 raise WebError('Genera primero el informe de este mensaje.', 409)
+            if structured:
+                from .web.dashboard import presentation
+                return presentation(r)
             from .client_report import render_client
 
             return render_client(r, r['updated_at'].strftime('%d/%m/%Y, %H:%M %Z'), embedded=True)

@@ -156,15 +156,20 @@ El dashboard con filtros que recalculan métricas sigue fuera de esta entrega.
 - `decision_room/web/business.py`: identidad, selección y edición del perfil con control de revisión.
 - `decision_room/web/service.py`: orquestación duradera y traducción al estado del producto.
 - `decision_room/web/server.py`: HTTP autenticado, límites y archivos privados.
-- `decision_room/web/static/`: frontend HTML, CSS y JavaScript sin dependencias de ejecución nuevas.
+- `frontend/`: interfaz React 19, TypeScript, Tailwind 4 y componentes oficiales
+  shadcn/ui + AI Elements. Compila a `decision_room/web/dist`, servido por Python.
+  Véase [la migración](react-ui-migration.md) y [el frontend](../../frontend/README.md).
 - `scripts/dev/start_web.py`: apertura del espacio local.
 - `tests/test_business_migration.py`: transición desde esquema 7, selección y recuperación de migraciones fallidas.
 - `tests/test_web.py`: PostgreSQL y sandbox reales con roles controlados, fronteras HTTP y recuperación.
 
 ```sh
+npm ci --prefix frontend
+npm --prefix frontend run build
 .venv/bin/python -m unittest discover -s tests -p 'test_web.py' -v
 .venv/bin/python -m unittest discover -s tests -v
-node --check decision_room/web/static/app.js
+npm --prefix frontend test
+npm --prefix frontend run lint
 ```
 
 Los tests usan bases PostgreSQL temporales y el sandbox local. Los resultados de

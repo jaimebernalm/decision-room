@@ -13,7 +13,7 @@ from urllib.parse import parse_qs, quote, urlsplit
 from ..config import ROOT
 from .service import MAX_UPLOAD, WebError
 
-STATIC = Path(__file__).with_name('static')
+STATIC = Path(__file__).with_name('dist')
 CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'self'"
 
 
@@ -136,10 +136,16 @@ class Handler(BaseHTTPRequestHandler):
             if mutation and (self.headers.get('Origin') != self.server.origin or self.headers.get('X-Decision-Room') != '1'):
                 raise WebError('La petición debe enviarse desde Decision Room.', 403)
             path = urlsplit(self.path).path
-            if not mutation and path in ('/', '/app.js', '/dossier.js', '/styles.css'):
-                name = {'/': 'index.html', '/app.js': 'app.js', '/dossier.js': 'dossier.js', '/styles.css': 'styles.css'}[path]
-                mime = {'/': 'text/html', '/app.js': 'text/javascript', '/dossier.js': 'text/javascript', '/styles.css': 'text/css'}[path]
-                self.send(200, (STATIC / name).read_bytes(), mime + '; charset=utf-8')
+            if not mutation and (path == '/' or path.startswith('/assets/')):
+                name = 'index.html' if path == '/' else path.lstrip('/')
+                target = (STATIC / name).resolve()
+                if not target.is_relative_to(STATIC.resolve()) or not target.is_file():
+                    raise WebError('Compila la interfaz con npm --prefix frontend run build.' if path == '/' else 'Archivo no encontrado.', 503 if path == '/' else 404)
+                mime = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
+                        '.css': 'text/css; charset=utf-8', '.woff2': 'font/woff2', '.svg': 'image/svg+xml'}.get(target.suffix)
+                if not mime:
+                    raise WebError('Archivo no encontrado.', 404)
+                self.send(200, target.read_bytes(), mime)
                 return
             if mutation and path == '/api/login':
                 token = self.json_body().get('token', '')
@@ -190,6 +196,9 @@ class Handler(BaseHTTPRequestHandler):
                               chats.report(chat_id,data.get('turn_id'),data))
                     self.send(202,result)
                     return
+                if not mutation and len(parts) == 5 and parts[3] == 'presentation':
+                    self.send(200, chats.report(chat_id, parts[4], structured=True))
+                    return
                 if not mutation and len(parts) == 5 and parts[3] == 'report':
                     self.send(200,chats.report(chat_id,parts[4]),'text/html; charset=utf-8')
                     return
@@ -231,6 +240,9 @@ class Handler(BaseHTTPRequestHandler):
                 if mutation and action == 'retry':
                     self.json_body()
                     self.send(202, ws.retry(job_id))
+                    return
+                if not mutation and action == 'presentation':
+                    self.send(200, ws.report(job_id, structured=True))
                     return
                 if not mutation and action == 'report':
                     self.send(200, ws.report(job_id), 'text/html; charset=utf-8')

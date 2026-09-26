@@ -1,5 +1,9 @@
 # Entrega 2.5: ejecución incremental en siete pasos
 
+> Actualización 26-09-2026: la interfaz se ha migrado a React y componentes oficiales.
+> Las referencias al renderer anterior se conservan como contexto del diseño;
+> consulta [la implementación actual](react-ui-migration.md).
+
 **Fecha:** 23 de septiembre de 2026.  
 **Estado:** pasos 2.5.1–2.5.5 completados y comprobados; pasos 2.5.6–2.5.7 pendientes. Véase la [validación del primer paso](../validation/2026-09-23-business-identity-check.md).  
 **Referencias:** [alcance y criterios del plan](<../product/Decision Room - Plan de implementacion.md#51-entrega-25-memoria-del-negocio-y-experiencia-cotidiana>) y [diagnóstico y diseño de memoria/UX](business-memory-plan.md).
@@ -198,7 +202,7 @@ Para ejecutar un módulo existente o nuevo, sustituir el patrón por su nombre r
 
 ```sh
 .venv/bin/python -m unittest discover -s tests -p 'test_web.py' -v
-node --check decision_room/web/static/app.js
+npm --prefix frontend run build
 git diff --check
 ```
 

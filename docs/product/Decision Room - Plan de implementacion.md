@@ -224,6 +224,14 @@ agradecimientos. Véase la [validación del diálogo](../validation/2026-09-24-d
 
 **Fuera de 2.5:** PDF, Excel y combinación general de tablas, búsqueda web de contexto, predicciones, editor libre de dashboards, conectores, automatización, equipos y despliegue comercial. Continúan en su entrega o roadmap correspondiente. La memoria entre conversaciones y el Inicio interactivo acotado sí forman parte de 2.5.
 
+### 2.5.8. Migración visual a React y componentes oficiales
+
+**Completado, 26 de septiembre de 2026:** sustituida toda la interfaz web por React con componentes reales de shadcn/ui y AI Elements, incluidos navegación, formularios, gráficos y chat. Conservar los servicios Python y los contratos durables existentes. Véase [análisis de migración](../technical/react-ui-migration.md).
+
+**Orden:** (1) preparar compilación y componentes oficiales; (2) migrar recorridos y contratos del cliente; (3) comprobar integración, teclado, escritorio/móvil y recuperación, revisar y guardar un commit local. La migración no amplía las capacidades analíticas de la entrega 3.
+
+**Cierre:** todos los recorridos existentes se pueden completar en React, los componentes provienen de sus registros oficiales y la aplicación se sirve desde el lanzador local. Compilación correcta, 20 pruebas de frontend, 275 pruebas de regresión Python y 3 de proyección adicionales aprobadas; comprobación visual en escritorio/móvil y acceso al espacio existente. [Validación](../validation/2026-09-26-react-ui-check.md).
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Prioridad actualizada, 23 de septiembre de 2026:** iniciar las ampliaciones siguientes después de cerrar la entrega 2.5. La evaluación del 22 de septiembre descrita a continuación ya se realizó; no se presenta como trabajo pendiente ni sustituye la regresión exigida por los cambios de memoria y conversación.

@@ -404,7 +404,7 @@ class Workspace:
         self.wake.set()
         return {'saved': True}
 
-    def report(self, job_id):
+    def report(self, job_id, *, structured=False):
         j = self.row(job_id)
         if not j['review_id']:
             raise WebError('El informe todavía no está disponible.', 409)
@@ -415,6 +415,9 @@ class Workspace:
             data = self.review_state(j, _db=db)
             if not data['publishable']:
                 raise WebError('Este informe no ha superado la revisión o ha quedado desactualizado.', 409)
+            if structured:
+                from .dashboard import presentation
+                return presentation(data)
             return render_client(data, data['updated_at'].strftime('%d/%m/%Y, %H:%M %Z'), embedded=True)
 
     def upload(self, job_id):

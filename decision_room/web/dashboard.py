@@ -44,3 +44,32 @@ def projection(data):
                     'statement': claim['statement']} for claim in report['claims'][:3]],
         'charts': charts, 'limitations': report['limitations'],
     }
+
+
+def presentation(data):
+    """Complete React report, derived only from the approved evidence contract."""
+    result = projection(data)
+    if result is None:
+        from .errors import WebError
+        raise WebError('El informe necesita una nueva revisión.', 409)
+    report = data['report']
+    claims = []
+    for claim in report['claims']:
+        charts = [c for c in report['charts'] if c['claim_key'] == claim['key']]
+        refs = claim['evidence'] + [p['value'] for c in charts for p in c['points']]
+        refs += [h['value'] for h in report.get('highlights', []) if h['claim_key'] == claim['key']]
+        selected = {ref['execution_id'] for ref in refs}
+        selected.update(c['series']['execution_id'] for c in charts if c.get('series'))
+        files = sorted({name for o in data['observations'] if o['execution_id'] in selected
+                        for item in o['inputs'].values() for name in item['original_names']})
+        metrics, seen = [], set()
+        for ref in refs:
+            key = (ref['execution_id'], ref['metric'])
+            if key not in seen:
+                seen.add(key)
+                metrics.append({'label': ref['metric'], 'value': str(metric(data, ref))})
+        operations = [saved_series(data['observations'], c['series'])['evidence']['operation']
+                      for c in charts if c.get('series')]
+        claims.append({**{key: claim[key] for key in ('key', 'title', 'statement', 'interpretation', 'method', 'next_step')},
+                       'evidence_details': dict(files=files, metrics=metrics, operations=operations)})
+    return {**result, 'claims': claims, 'no_chart_reason': report['no_chart_reason']}
