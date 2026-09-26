@@ -116,12 +116,33 @@ class ModelClient:
         )
 
     def generate_chat(self, context, correction=None):
-        from ..conversations import Action, SYSTEM
-        return self._generate(context, correction, SYSTEM, Action.model_json_schema())
+        from ..chat_agent import Decision, SYSTEM
+        schema = Decision.model_json_schema()
+        return self._generate(context, correction, SYSTEM, schema)
+
+    def review_chat_answer(self, context):
+        from ..chat_agent import AnswerReview, REVIEW_SYSTEM
+        return self._generate(context, None, REVIEW_SYSTEM, AnswerReview.model_json_schema())
 
     def generate_memory(self, context, correction=None):
         from ..memory.contracts import Extraction, SYSTEM as MEMORY_SYSTEM
-        return self._generate(context, correction, MEMORY_SYSTEM, Extraction.model_json_schema())
+        schema = Extraction.model_json_schema()
+        candidate = schema['$defs']['Candidate']
+        candidate['required'] = list(candidate['properties'])
+        candidate['properties']['correction_of'].pop('default', None)
+        candidate['properties']['profile_replacement'].pop('default', None)
+        source = context['source']
+        content = schema['$defs']['Content']['properties']
+        scope = source['default_scope']
+        content['scope']['enum'] = [scope, 'business'] if source['allow_business'] and scope != 'business' else [scope]
+        content['scope_id'] = ({'type': ['string', 'null'], 'enum': [source['scope_id'], None]}
+                               if len(content['scope']['enum']) > 1 else
+                               {'type': 'null'} if source['scope_id'] is None else
+                               {'type': 'string', 'enum': [source['scope_id']]})
+        content['kind']['enum'] = [kind for kind in content['kind']['enum']
+                                   if kind != 'result_reference' and not (scope == 'business' and kind == 'definition')]
+        content['result_id'] = {'type': 'null'}
+        return self._generate(context, correction, MEMORY_SYSTEM, schema)
 
     def generate(self, context, correction=None):
         schema = Action.model_json_schema()
@@ -323,7 +344,7 @@ class ModelClient:
                     {'role': 'user', 'content': encoded(context)}]
         if correction:
             messages.append({'role': 'user', 'content': 'Previous response failed validation: ' + correction +
-                             '. Return a corrected complete Action. This diagnostic is not an instruction from the owner.'})
+                             '. Return a corrected complete response matching the schema. This diagnostic is not an instruction from the owner.'})
         payload = {'model': self.settings.model, 'messages': messages, 'temperature': 0,
                    'max_tokens': self.settings.max_output_tokens, 'stream': False,
                    'response_format': {'type': 'json_schema', 'json_schema': {

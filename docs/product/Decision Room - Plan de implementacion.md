@@ -181,9 +181,20 @@ y la [validación](../validation/2026-09-23-semantic-check.md).
 
 ### 2.5.4. Conversaciones del cliente conectadas al análisis
 
+**Ampliación completada, 25 de septiembre:** consultas dirigidas por el agente y redacción propia con fuentes y revisión persistente; memoria automática, comprobación de vigencia, bloqueo de consultas idénticas e informes originales conservados. Verificados 39 casos dirigidos, 15 de interfaz, recorridos con modelo real y el seguimiento al CSV en navegador. Véanse el [plan aplicado](../technical/autonomous-chat-plan.md) y la [validación con límites](../validation/2026-09-25-autonomous-chat-check.md).
+
 **Construir:** conversaciones y mensajes persistentes, turnos recuperables y referencia al negocio, fuentes, memoria e investigaciones. Permitir explicar evidencia existente, aportar contexto, explorar una decisión o iniciar un cálculo; no exigir un informe ni un CSV nuevo por mensaje. Integrar cambios de memoria desde el chat con aviso/corrección para declaraciones claras y aclaración cuando haya ambigüedad material. Crear un informe independiente cuando se solicite, reutilizando evidencia vigente y revisando contenido nuevo. Mantener la conversación interna de revisión separada del chat del cliente.
 
 **Comprobar:** una pregunta breve obtiene respuesta con fuente y periodo; una pregunta nueva ejecuta y verifica el cálculo; una pregunta sin datos suficientes explica el límite; una declaración se utiliza en otro chat y al reabrir uno antiguo. Recargar/reintentar no duplica mensajes, hechos ni trabajos. Las respuestas nuevas no eluden las comprobaciones por presentarse en chat en vez de en un informe.
+
+**Corrección de pertinencia, 24 de septiembre:** respuestas de fecha y capacidades,
+consulta de información reciente sin iniciar un análisis innecesario y explicación
+breve antes de la evidencia desplegable. Se comprueban los casos observados con
+modelo real, navegador y regresión automatizada. Véase la [validación y límites](../validation/2026-09-24-conversation-relevance-check.md).
+
+**Corrección de continuidad, 24 de septiembre:** se incluyen las respuestas previas
+del asistente en el contexto reciente y se distinguen saludos, cortesía y
+agradecimientos. Véase la [validación del diálogo](../validation/2026-09-24-dialogue-context-check.md).
 
 ### 2.5.5. «Mi negocio» y actualización de datos
 
@@ -423,3 +434,17 @@ Ver [validación completa](../validation/2026-09-22-luna-validation.md) e
 **Cierre de 2.5.6, 23 de septiembre de 2026:** Inicio y navegación cotidiana completos dentro del alcance local: preguntas vinculadas a revisión/hallazgo/fuentes, chat con gráficos y versión de datos, actividad real previa al informe, biblioteca filtrable y compositor sin ocultar resultados. Se valida con 243 pruebas Python, 12 JavaScript y recorrido con Luna sobre un informe histórico v2, sin cambiar a v3 ni crear otro cálculo. Se corrige también el refresco que reemplazaba el onboarding. Véase [validación](../validation/2026-09-23-daily-ux-check.md). El siguiente paso es **2.5.7**, evaluación integrada.
 
 **Cierre de 2.5.7, 24 de septiembre de 2026:** completada la evaluación integrada y corregidos los dos fallos de presentación reproducidos. Memoria y antecedentes entre chats, selección de datos, invalidación por corrección, cifras y series independientes, aislamiento y recuperación comprobados con Luna real y navegador; 245 pruebas Python y 12 JavaScript pasan. El alcance local de la entrega 2.5 queda cerrado. Véase [validación integrada](../validation/2026-09-24-integrated-check.md); la ampliación de cobertura de la entrega 3 sigue pendiente.
+
+**Ajuste de experiencia tras 2.5.7, 25 de septiembre de 2026:** se incorpora desplazamiento hacia nuevos mensajes, indicador de respuesta y cola persistente, eliminación recuperable de chats, panel lateral ajustable y barra de desplazamiento discreta. La cola conserva el orden de respuesta y pospone la memoria de cada mensaje hasta su turno. Véanse [alcance y comprobaciones](../validation/2026-09-25-chat-ux-check.md). Este ajuste no cierra la entrega 3.
+
+**Correcciones explícitas y superficies, 25 de septiembre de 2026:** una petición inequívoca del propietario para sustituir un dato vigente se guarda como nueva revisión antes de contestar; si el texto antiguo solo aparece en el perfil, se sustituye allí de forma acotada y se declara un recuerdo específico. Las contradicciones sin una instrucción clara siguen requiriendo revisión. El chat muestra una sola acción para los casos pendientes, y las cajas pierden el borde permanente y los tonos amarillos del texto. Véanse [comprobaciones](../validation/2026-09-25-explicit-correction-check.md). La entrega 3 sigue pendiente.
+
+**Historial visible tras cambios de contexto, 25 de septiembre de 2026:** las respuestas anteriores permanecen en el chat como historial y una línea discreta señala desde qué mensaje rige el contexto actualizado. Los resultados vinculados a informes antiguos se identifican como anteriores y solo pueden recalcularse mediante la acción correspondiente. El agente continúa filtrando el historial antiguo para no tratarlo como evidencia actual. Véanse [comprobaciones](../validation/2026-09-25-chat-history-check.md).
+
+**Orden de chats y ficha compacta, 25 de septiembre de 2026:** las conversaciones se ordenan por el último mensaje enviado por el propietario; abrir una conversación no modifica el orden. «Mi negocio» agrupa la información vigente en negocio, preferencias, datos y asuntos por revisar, con búsqueda, edición al interactuar y procedencia desplegable. Véanse [comprobaciones](../validation/2026-09-25-dossier-ux-check.md). No cambia el estado de aceptación de la entrega 3.
+
+**Ajuste de conversación, 25 de septiembre de 2026:** se distingue visualmente el chat abierto incluso si queda fuera de los seis más recientes, sin cambiar su orden. El resaltado al pasar el cursor abarca la fila completa, incluida la X, que no tiene fondo propio. «En cola» solo aparece si hay otro turno anterior pendiente de ejecución o respuesta; los resultados anteriores caducados, fallidos o completados no generan una cola ficticia. Las respuestas breves del agente se ajustan a su texto, mientras que los resultados con métricas o gráficos conservan el ancho necesario. Véanse [comprobaciones](../validation/2026-09-25-chat-bubbles-check.md).
+
+**Listado de conversaciones, 25 de septiembre de 2026:** la biblioteca de chats muestra tarjetas separadas y más compactas, con título y fecha del último mensaje. Toda la tarjeta es un enlace y cambia de fondo al pasar el cursor o recibir foco; la acción de eliminar permanece independiente. Se elimina el texto redundante «Abrir conversación». Véanse [comprobaciones](../validation/2026-09-25-conversation-list-check.md).
+
+**Confirmación de eliminación y centrado, 25 de septiembre de 2026:** el listado de conversaciones se centra dentro del área de contenido. La eliminación usa un diálogo de la aplicación con título del chat, aviso de que ya no se podrá acceder a la conversación y acciones de cancelar o eliminar, en lugar de la confirmación del navegador. No se muestra una sección de chats eliminados ni se ofrece restauración al usuario. Véanse [comprobaciones](../validation/2026-09-25-delete-dialog-check.md).

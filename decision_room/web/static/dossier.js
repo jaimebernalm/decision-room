@@ -13,6 +13,34 @@ function validity(content) {
 function originDetails(fact) {
   return `<details class="fact-origin"><summary>Origen y alcance</summary><p>${esc(fact.origin_kind === "profile" ? "Perfil del negocio" : fact.origin_key?.startsWith("chat_message:") ? "Conversación" : fact.origin_kind === "manual" ? "Declaración o edición explícita" : "Aclaración de un análisis")} · ${fmtDate(fact.created_at)}</p><blockquote>${esc(fact.original_text || fact.quote)}</blockquote>${fact.question ? `<p>Pregunta: ${esc(fact.question)}</p>` : ""}${fact.conversation_id ? `<a href="#chat/${esc(fact.conversation_id)}">Abrir conversación</a>` : ""}</details>`;
 }
+function dossierGroupFor(fact) {
+  if (fact.status !== "declared" || fact.content.kind === "open_question") return "review";
+  if (fact.content.kind === "priority") return "preferences";
+  if (fact.content.kind === "definition" || fact.content.scope !== "business") return "data";
+  const topic = fact.content.topic || "";
+  if (fact.content.kind === "availability" && /open|hour|schedule|horario|apertura|cierre/.test(topic)) return "business";
+  if (fact.content.kind === "availability" || /csv|data|dataset|file|source|column|row|field|revenue|sales|cost|ticket|venta|dato|archivo|unidad|importe/.test(topic)) return "data";
+  return "business";
+}
+function dossierFactRow(f, dossier) {
+  const unresolved = f.status !== "declared";
+  return `<article class="dossier-fact-row"><div class="dossier-fact-main"><p class="fact-statement">${esc(f.content.statement)}</p><button class="dossier-quick-edit" type="button" data-edit="${esc(f.fact_id)}">${f.status === "conflicted" ? "Resolver" : "Editar"}</button></div>${unresolved ? `<p class="dossier-fact-state">${esc(factStates[f.status])}</p>` : ""}<details class="dossier-fact-more"><summary aria-label="Ver detalles y origen">···</summary><p>${esc(factKinds[f.content.kind])} · ${esc(factScope(f.content, dossier))} · ${esc(validity(f.content))}</p>${f.alternatives?.length ? `<details><summary>Versiones en conflicto</summary>${f.alternatives.map(a => `<p>${esc(a.content?.statement || a.statement || a.quote || "Consulta la declaración original.")}</p>`).join("")}</details>` : ""}${originDetails(f)}<div class="dossier-actions">${f.status === "proposed" && f.content.temporal_scope !== "unresolved" ? `<button class="button secondary" data-confirm="${esc(f.fact_id)}">Confirmar</button>` : ""}<button class="text-button" data-withdraw="${esc(f.fact_id)}">Retirar</button></div></details><p class="field-help" role="status" id="fact-status-${esc(f.fact_id)}"></p></article>`;
+}
+function dossierInformationMarkup(dossier, facts) {
+  const b = dossier.business;
+  const groups = [
+    ["review", "Por revisar", "Datos que necesitan una decisión"],
+    ["business", "Sobre el negocio", "Identidad, actividad y funcionamiento"],
+    ["preferences", "Preferencias y objetivos", "Lo que quieres conseguir o recordar"],
+    ["data", "Datos y definiciones", "Archivos, disponibilidad e interpretación"],
+  ];
+  const grouped = Object.fromEntries(groups.map(([key]) => [key, facts.filter(f => dossierGroupFor(f) === key)]));
+  const sections = groups.filter(([key]) => grouped[key].length).map(([key, title, hint]) => {
+    const open = key === "review" || key === "business";
+    return `<details class="dossier-group" data-default-open="${open}" ${open ? "open" : ""}><summary><span><strong>${title}</strong><small>${hint}</small></span><span class="dossier-group-count">${grouped[key].length} ${grouped[key].length === 1 ? "dato" : "datos"}</span></summary><div class="dossier-fact-list">${grouped[key].map(f => dossierFactRow(f, dossier)).join("")}</div></details>`;
+  }).join("");
+  return `<section class="dossier-overview"><div class="dossier-overview-head"><div><p class="eyebrow">PRESENTACIÓN</p><h2>${esc(b.name)}</h2></div><a href="#business">Editar presentación</a></div><p class="business-description dossier-description-preview">${esc(b.description || "Añade contexto a tu ritmo; no hay campos obligatorios que completar.")}</p>${(b.description || "").length > 220 ? `<details class="dossier-description-full"><summary>Ver descripción completa</summary><p>${esc(b.description)}</p></details>` : ""}</section><div class="dossier-information-head"><div><h2>Información</h2><p>Encuentra y corrige lo que el agente sabe de tu negocio.</p></div><button class="button secondary" id="fact-new">Añadir información</button></div>${facts.length ? `<label class="dossier-search">Buscar información<input id="dossier-fact-search" type="search" placeholder="Buscar en tu negocio…"></label><div class="dossier-groups">${sections}</div><p class="dossier-empty" id="dossier-search-empty" hidden>No hay datos que coincidan con la búsqueda.</p>` : '<p class="dossier-empty">No hay información activa. Puedes añadirla o contarla en una conversación.</p>'}`;
+}
 async function dossierPage(tab = "information") {
   if (!state.business) { businessForm(true); return; }
   const generation = state.generation, business = state.business.id;
@@ -24,11 +52,26 @@ async function dossierPage(tab = "information") {
   const render = (selected) => {
     const b = state.business;
     const facts = dossier.facts.filter(f => !["withdrawn", "superseded"].includes(f.status));
-    const card = (f) => `<article class="dossier-card"><div class="dossier-meta"><span>${esc(factKinds[f.content.kind])}</span><span class="badge ${f.status === "declared" ? "green" : "amber"}">${esc(factStates[f.status])}</span></div><p class="fact-statement">${esc(f.content.statement)}</p><p class="field-help">${esc(factScope(f.content, dossier))} · ${esc(validity(f.content))}</p>${f.alternatives?.length ? `<details><summary>Versiones en conflicto</summary>${f.alternatives.map(a => `<p>${esc(a.content?.statement || a.statement || a.quote || "Consulta la declaración original.")}</p>`).join("")}</details>` : ""}${originDetails(f)}<div class="dossier-actions"><button class="button secondary" data-edit="${esc(f.fact_id)}">${f.status === "conflicted" ? "Resolver contradicción" : "Editar"}</button>${f.status === "proposed" && f.content.temporal_scope !== "unresolved" ? `<button class="button secondary" data-confirm="${esc(f.fact_id)}">Confirmar</button>` : ""}<button class="text-button" data-withdraw="${esc(f.fact_id)}">Retirar</button></div><p class="field-help" role="status" id="fact-status-${esc(f.fact_id)}"></p></article>`;
-    shell(`<div class="page-heading"><div><p class="eyebrow">TU MEMORIA COMPARTIDA</p><h1>Mi negocio</h1><p>Revisa lo que recuerda el agente y los datos que puede consultar.</p></div><button class="button secondary" id="dossier-refresh">Actualizar ficha</button></div><div class="dossier-tabs" role="group" aria-label="Secciones de Mi negocio">${[["information", "Información"], ["data", "Datos y archivos"], ["history", "Cambios"]].map(([key, label]) => `<button class="button ${selected === key ? "primary" : "secondary"}" aria-pressed="${selected === key}" data-dossier-tab="${key}">${label}</button>`).join("")}</div><div id="dossier-content">${selected === "information" ? `<section class="dossier-card"><h2>${esc(b.name)}</h2><p class="business-description">${esc(b.description || "Añade contexto a tu ritmo; no hay campos obligatorios que completar.")}</p><a href="#business">Editar presentación del negocio</a></section><div class="section-heading"><h2>Información y definiciones</h2><button class="button secondary" id="fact-new">Añadir información</button></div><p class="field-help">Las propuestas y las dudas no se consideran hechos confirmados. Las correcciones se comparten con las conversaciones y pueden requerir revisar resultados anteriores.</p><div class="dossier-cards">${facts.filter(f => f.status !== "declared" || f.content.kind === "open_question").map(card).join("")}${facts.filter(f => f.status === "declared" && f.content.kind !== "open_question").map(card).join("") || (!facts.length ? '<p class="dossier-empty">No hay información activa en la ficha. Puedes añadirla o contarla en una conversación; las revisiones anteriores se conservan en Cambios.</p>' : "")}</div>` : selected === "data" ? datasetMarkup(dossier) : `<h2>Historial de cambios</h2><p>Se conservan las revisiones anteriores. Una información retirada no vuelve a utilizarse automáticamente.</p>${dossier.history.length ? dossier.history.map(f => `<article class="dossier-card"><div class="dossier-meta"><span>${fmtDate(f.created_at)} · Revisión ${f.revision}</span><span>${esc(factStates[f.status])}${dossier.facts.some(x => x.fact_id === f.fact_id && x.revision > f.revision) ? " · Histórica" : ""}</span></div><p>${esc(f.content.statement)}</p><p class="field-help">${esc(factScope(f.content, dossier))} · ${esc(validity(f.content))}${f.change_kind === "future" ? " · Cambio desde una fecha" : ""}</p>${originDetails(f)}${f.status === "withdrawn" && dossier.facts.some(x => x.fact_id === f.fact_id && x.revision === f.revision) ? `<button class="button secondary" data-edit="${esc(f.fact_id)}">Restaurar mediante corrección</button>` : ""}</article>`).join("") : '<p class="dossier-empty">Aún no hay cambios registrados.</p>'}`}</div><div id="dossier-editor"></div><p class="field-help"><a href="#businesses">Cambiar de negocio</a></p>`, "my-business", "Mi negocio");
+    shell(`<div class="page-heading"><div><p class="eyebrow">TU MEMORIA COMPARTIDA</p><h1>Mi negocio</h1><p>Revisa lo que recuerda el agente y los datos que puede consultar.</p></div><button class="button secondary" id="dossier-refresh">Actualizar ficha</button></div><div class="dossier-tabs" role="group" aria-label="Secciones de Mi negocio">${[["information", "Información"], ["data", "Datos y archivos"], ["history", "Cambios"]].map(([key, label]) => `<button class="button ${selected === key ? "primary" : "secondary"}" aria-pressed="${selected === key}" data-dossier-tab="${key}">${label}</button>`).join("")}</div><div id="dossier-content">${selected === "information" ? dossierInformationMarkup(dossier, facts) : selected === "data" ? datasetMarkup(dossier) : `<h2>Historial de cambios</h2><p>Se conservan las revisiones anteriores. Una información retirada no vuelve a utilizarse automáticamente.</p>${dossier.history.length ? dossier.history.map(f => `<article class="dossier-card"><div class="dossier-meta"><span>${fmtDate(f.created_at)} · Revisión ${f.revision}</span><span>${esc(factStates[f.status])}${dossier.facts.some(x => x.fact_id === f.fact_id && x.revision > f.revision) ? " · Histórica" : ""}</span></div><p>${esc(f.content.statement)}</p><p class="field-help">${esc(factScope(f.content, dossier))} · ${esc(validity(f.content))}${f.change_kind === "future" ? " · Cambio desde una fecha" : ""}</p>${originDetails(f)}${f.status === "withdrawn" && dossier.facts.some(x => x.fact_id === f.fact_id && x.revision === f.revision) ? `<button class="button secondary" data-edit="${esc(f.fact_id)}">Restaurar mediante corrección</button>` : ""}</article>`).join("") : '<p class="dossier-empty">Aún no hay cambios registrados.</p>'}`}</div><div id="dossier-editor"></div><p class="field-help"><a href="#businesses">Cambiar de negocio</a></p>`, "my-business", "Mi negocio");
     document.querySelectorAll("[data-dossier-tab]").forEach(button => button.onclick = () => render(button.dataset.dossierTab));
     document.querySelector("#dossier-refresh").onclick = () => refresh(selected);
     document.querySelector("#fact-new")?.addEventListener("click", () => editFact(null));
+    document.querySelector("#dossier-fact-search")?.addEventListener("input", (event) => {
+      const query = event.target.value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+      let matches = 0;
+      document.querySelectorAll(".dossier-group").forEach(group => {
+        let visible = 0;
+        group.querySelectorAll(".dossier-fact-row").forEach(row => {
+          const text = row.querySelector(".fact-statement").textContent.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+          row.hidden = !text.includes(query);
+          if (!row.hidden) visible++;
+        });
+        group.hidden = visible === 0;
+        group.open = query ? visible > 0 : group.dataset.defaultOpen === "true";
+        matches += visible;
+      });
+      document.querySelector("#dossier-search-empty").hidden = matches !== 0;
+    });
     document.querySelectorAll("[data-edit]").forEach(button => button.onclick = () => editFact(dossier.facts.find(f => f.fact_id === button.dataset.edit)));
     for (const action of ["confirm", "withdraw"]) document.querySelectorAll(`[data-${action}]`).forEach(button => {
       const fact = dossier.facts.find(f => f.fact_id === button.dataset[action]);

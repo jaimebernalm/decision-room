@@ -498,6 +498,7 @@ CREATE TABLE IF NOT EXISTS chat_conversations (
     UNIQUE(business_id,id), UNIQUE(business_id,request_key),
     FOREIGN KEY(business_id,analysis_id) REFERENCES analyses(business_id,id)
 );
+ALTER TABLE chat_conversations ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
 CREATE TABLE IF NOT EXISTS chat_turns (
     id uuid PRIMARY KEY,
     business_id uuid NOT NULL,
@@ -577,6 +578,24 @@ CREATE TABLE IF NOT EXISTS dataset_uploads (
 );
 INSERT INTO schema_versions(version) VALUES (13) ON CONFLICT DO NOTHING;
 
+-- Conversational prose is independently checked, with durable provider outcomes.
+CREATE TABLE IF NOT EXISTS chat_answer_reviews (
+    turn_id uuid NOT NULL REFERENCES chat_turns(id),
+    attempt integer NOT NULL,
+    ordinal integer NOT NULL,
+    prompt_version text NOT NULL,
+    context jsonb NOT NULL,
+    response jsonb,
+    usage jsonb,
+    status text NOT NULL CHECK(status IN ('running','completed','failed','uncertain')),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY(turn_id,attempt,ordinal)
+);
+INSERT INTO schema_versions(version) VALUES (14) ON CONFLICT DO NOTHING;
+
+-- Reversible chat deletion; shared memory and reviewed reports remain independent.
+INSERT INTO schema_versions(version) VALUES (15) ON CONFLICT DO NOTHING;
+
 -- Only businesses explicitly created through the guided first-report flow are
 -- enrolled. Existing local workspaces retain their established navigation.
 CREATE TABLE IF NOT EXISTS web_onboarding (
@@ -588,4 +607,4 @@ CREATE TABLE IF NOT EXISTS web_onboarding (
     FOREIGN KEY (business_id, job_id) REFERENCES web_jobs(business_id, id),
     CHECK (NOT completed OR job_id IS NOT NULL)
 );
-INSERT INTO schema_versions(version) VALUES (14) ON CONFLICT DO NOTHING;
+INSERT INTO schema_versions(version) VALUES (16) ON CONFLICT DO NOTHING;

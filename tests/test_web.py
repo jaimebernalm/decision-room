@@ -733,7 +733,7 @@ class WebTests(unittest.TestCase):
         job = self.complete()
         report = self.ws.report(job)
         with connect(self.config) as db, db.transaction():
-            db.execute('DROP TABLE chat_retrievals,chat_calls,chat_turns,chat_conversations')
+            db.execute('DROP TABLE chat_answer_reviews,chat_retrievals,chat_calls,chat_turns,chat_conversations')
             db.execute('DROP TABLE memory_commands,memory_calls,memory_revisions,memory_facts,memory_heads,memory_sources')
             db.execute('DELETE FROM schema_versions WHERE version=9')
         migrate(self.config)
