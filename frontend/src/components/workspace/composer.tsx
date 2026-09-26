@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { Paperclip, ArrowUp, LoaderCircle, Sparkles } from "lucide-react";
 import { InputGroupAddon } from "@/components/ui/input-group";
 import {
@@ -20,7 +19,6 @@ export function Composer({
   placeholder = "Pregunta sobre tu negocio…",
   suggestions = false,
   compact = false,
-  trailingAction,
 }: {
   text: string;
   onChange: (v: string) => void;
@@ -30,7 +28,6 @@ export function Composer({
   placeholder?: string;
   suggestions?: boolean;
   compact?: boolean;
-  trailingAction?: ReactNode;
 }) {
   return (
     <div className="w-full">
@@ -61,10 +58,13 @@ export function Composer({
           }
         />
         {compact ? (
-          <InputGroupAddon align="inline-end" className="gap-1 pr-0">
+          <InputGroupAddon
+            align="inline-end"
+            className="py-0 pr-1 has-[>button]:mr-0"
+          >
             <PromptInputSubmit
               aria-label="Enviar mensaje"
-              className="size-10 rounded-full"
+              className="size-9 rounded-full"
               disabled={!text.trim() || busy}
               status={busy ? "submitted" : "ready"}
             >
@@ -74,7 +74,6 @@ export function Composer({
                 <ArrowUp className="size-4" />
               )}
             </PromptInputSubmit>
-            {trailingAction}
           </InputGroupAddon>
         ) : (
           <PromptInputFooter>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
-import { MessageCircle, Minus, X, LoaderCircle } from "lucide-react";
+import { MessageCircle, ChevronDown, X, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Collapsible,
@@ -99,8 +99,22 @@ export function FloatingAssistant({ inline = false }: { inline?: boolean }) {
             transition={{
               layout: { duration: reducedMotion ? 0 : 0.32, ease: "easeInOut" },
             }}
-            className="rounded-[2rem] bg-background shadow-[0_8px_40px_-8px_rgba(0,0,0,0.25)] dark:shadow-[0_8px_40px_-8px_rgba(0,0,0,0.6)]"
+            className="relative rounded-[2rem] bg-background shadow-[0_8px_40px_-8px_rgba(0,0,0,0.25)] dark:shadow-[0_8px_40px_-8px_rgba(0,0,0,0.6)]"
           >
+            {!inline && (
+              <CollapsibleTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute -top-9 right-3 size-7 rounded-full bg-background text-muted-foreground shadow-sm hover:bg-muted aria-expanded:bg-background"
+                  aria-label="Minimizar asistente"
+                  title="Minimizar asistente"
+                >
+                  <ChevronDown className="size-3.5" />
+                </Button>
+              </CollapsibleTrigger>
+            )}
             {(context.analysis_id || context.finding_reference) && (
               <div className="flex items-center gap-2 px-5 pt-2 text-xs text-muted-foreground">
                 <span className="min-w-0 flex-1 truncate" title={context.label}>
@@ -125,22 +139,6 @@ export function FloatingAssistant({ inline = false }: { inline?: boolean }) {
               busy={action.busy}
               error={action.error}
               placeholder="Pregunta algo…"
-              trailingAction={
-                !inline && (
-                  <CollapsibleTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-10 rounded-full text-muted-foreground"
-                      aria-label="Minimizar asistente"
-                      title="Minimizar asistente"
-                    >
-                      <Minus className="size-4" />
-                    </Button>
-                  </CollapsibleTrigger>
-                )
-              }
             />
           </motion.div>
         </CollapsibleContent>

@@ -60,3 +60,25 @@ modelo ni modificar los datos del negocio.
   redondeado, sin título visible, y flecha que abre el historial. En 390 × 844,
   las tarjetas quedan debajo de la barra y no hay desbordamiento horizontal.
   Se restaura el tamaño habitual y se deja abierta la pantalla «Nuevo chat».
+
+## Superficies y color: paso 2.5.11
+
+- Listado y conversaciones recientes usan la misma superficie gris tenue, sin
+  borde ni anillo permanente, con mayor redondeo. Las filas del listado miden
+  64 px en la comprobación, con 8 px de separación. La fila completa abre el chat;
+  eliminar conserva su botón y confirmación independientes.
+- Hover y foco dentro de la tarjeta oscurecen la superficie en tema claro; el
+  tema oscuro utiliza una variación neutra acorde. Se verificó el cambio de
+  color calculado al navegar con teclado.
+- Minimizar se mueve fuera del formulario, encima del extremo derecho: control
+  de 28 px, separado del envío de 36 px. Se elimina el margen negativo del addon
+  que acercaba demasiado el botón de envío al borde de la barra.
+- Acento azul petróleo `#28658a` en acciones principales; variante `#8dc5e5`
+  con texto `#132a38` en oscuro. Contraste nominal aproximado texto/fondo de los
+  botones principales: 6,06:1 en claro y 7,95:1 en oscuro, calculado con luminancia
+  relativa sRGB. La estructura, tarjetas y gráficos conservan tonos neutros.
+- Pasan las 24 pruebas existentes, la compilación y lint sin errores. Persisten
+  los avisos ya registrados. No se añaden pruebas que reflejen solo clases CSS.
+- Inspección visual en escritorio y 390 × 844 sin desbordamiento horizontal;
+  plegado/restauración, tarjetas, espaciado y temas claro/oscuro comprobados.
+  Se restaura el tema claro y el tamaño habitual, dejando «Nuevo chat» abierto.

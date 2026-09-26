@@ -96,7 +96,7 @@ function Navigation({
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <a href="#home" onClick={close}>
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-foreground text-background">
                   <PanelLeft className="size-4" />
                 </span>
                 <span className="text-base font-semibold tracking-tight">

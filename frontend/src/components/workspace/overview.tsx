@@ -1,11 +1,5 @@
 import { useState } from "react";
-import {
-  Plus,
-  ArrowUpRight,
-  FileText,
-  Trash2,
-  MessageCircle,
-} from "lucide-react";
+import { Plus, ArrowUpRight, Trash2, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -80,7 +74,7 @@ export function StartChat({ home = false }: { home?: boolean }) {
                   <a
                     key={chat.id}
                     href={`#chat/${chat.id}`}
-                    className="flex min-w-0 items-center gap-3 rounded-2xl border border-border/60 p-4 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="conversation-tile flex min-w-0 items-center gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <MessageCircle
                       className="size-4 shrink-0 text-muted-foreground"
@@ -335,12 +329,18 @@ export function Chats() {
         className="mb-6 max-w-sm"
       />
       {chats.length ? (
-        <div className="grid gap-3">
+        <div className="grid gap-2">
           {chats.map((c) => (
-            <Card key={c.id} className="shadow-none">
-              <CardContent className="flex items-center gap-4 py-4">
-                <FileText className="size-4 text-muted-foreground" />
-                <a className="min-w-0 flex-1" href={`#chat/${c.id}`}>
+            <Card
+              key={c.id}
+              className="conversation-tile gap-0 border-0 py-0 shadow-none ring-0"
+            >
+              <CardContent className="flex items-center gap-3 px-4 py-3">
+                <MessageCircle className="size-4 shrink-0 text-muted-foreground" />
+                <a
+                  className="min-w-0 flex-1 after:absolute after:inset-0 after:rounded-2xl focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring"
+                  href={`#chat/${c.id}`}
+                >
                   <p className="truncate text-sm font-medium">{c.title}</p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {date(c.last_message_at || c.created_at)}
@@ -349,6 +349,7 @@ export function Chats() {
                 <Button
                   size="icon"
                   variant="ghost"
+                  className="relative z-10 rounded-full text-muted-foreground hover:bg-transparent hover:text-foreground"
                   aria-label={`Eliminar ${c.title}`}
                   onClick={() => removeChat(c)}
                 >

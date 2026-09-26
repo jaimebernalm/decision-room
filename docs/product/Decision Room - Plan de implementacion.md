@@ -254,6 +254,17 @@ título visible y flecha accesible hacia el listado de conversaciones.
 comprobación de navegación y diseño en escritorio y móvil.
 Véase [validación](../validation/2026-09-26-floating-assistant-check.md#continuidad-del-chat-paso-2510).
 
+### 2.5.11. Superficies compactas y acento de color
+
+**Completado, 26 de septiembre de 2026:** tarjetas de conversaciones más compactas,
+redondeadas y sin contorno, con fondo neutro y estados de interacción; control de
+minimizar separado del envío, envío más pequeño y espaciado, y azul petróleo como
+acento de acciones principales con variante para tema oscuro.
+
+**Cierre:** 24 pruebas de frontend, compilación y lint sin errores; revisión de
+escritorio/móvil, plegado, foco y ambos temas. Véase
+[validación](../validation/2026-09-26-floating-assistant-check.md#superficies-y-color-paso-2511).
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Prioridad actualizada, 23 de septiembre de 2026:** iniciar las ampliaciones siguientes después de cerrar la entrega 2.5. La evaluación del 22 de septiembre descrita a continuación ya se realizó; no se presenta como trabajo pendiente ni sustituye la regresión exigida por los cambios de memoria y conversación.
