@@ -31,7 +31,7 @@ export const referenceId = (r: ContextReference) =>
 export const blockId = (r: ContextReference) =>
   `context-${"report_id" in r ? r.report_id : r.source_id}-${r.kind}-${r.element_key}`;
 export const selectableRoute = (route: string) =>
-  ["home", "my-business", "reports", "files"].includes(route) ||
+  ["home", "my-business", "reports", "files", "chats"].includes(route) ||
   route.startsWith("report/") ||
   route.startsWith("chat-report/");
 export const contextualRoute = (route: string) =>
@@ -130,6 +130,9 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
         title: r.title,
         period: r.period,
         href: r.href,
+        ...(r.kind === "conversation"
+          ? { content: r.content, report_title: r.report_title }
+          : {}),
       })),
     });
   useEffect(() => {
@@ -215,19 +218,30 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
         },
         toggle: (r) => {
           const exists = refs.some((x) => referenceId(x) === referenceId(r));
-          if (!exists && refs.length >= 8) {
+          const remaining =
+            r.kind === "conversation"
+              ? refs.filter(
+                  (x) =>
+                    x.kind !== "conversation" || x.source_id !== r.source_id,
+                )
+              : refs;
+          if (!exists && remaining.length >= 8) {
             setError("Puedes añadir hasta ocho elementos por mensaje.");
             return;
           }
           save(
             exists
               ? refs.filter((x) => referenceId(x) !== referenceId(r))
-              : [...refs, r],
+              : [...remaining, r],
           );
           setError("");
         },
         returnToSource: (r, chatId) => {
           if (r.status === "withdrawn") return;
+          if (r.kind === "conversation" && r.href) {
+            location.hash = r.href;
+            return;
+          }
           const origin = (r.href || "#home").slice(1);
           setDock({
             chatId: chatId || dock.chatId,

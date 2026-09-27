@@ -22,6 +22,7 @@ import { Heading, Notice, Empty, Loading } from "./shared";
 import { ReportView } from "./report";
 import { ChatActions } from "./chat-actions";
 import { FloatingAssistant } from "./floating-assistant";
+import { Selectable } from "./context-selection";
 import { useAssistant } from "@/lib/assistant";
 export function StartChat() {
   return (
@@ -67,33 +68,32 @@ export function Chats() {
       {chats.length ? (
         <div className="grid gap-2">
           {chats.map((c) => (
-            <Card
-              key={c.id}
-              className="conversation-tile gap-0 border-0 py-0 shadow-none ring-0"
-            >
-              <CardContent className="flex items-center gap-3 px-4 py-3">
-                <MessageCircle className="size-4 shrink-0 text-muted-foreground" />
-                <a
-                  className="min-w-0 flex-1 after:absolute after:inset-0 after:rounded-2xl focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring"
-                  href={`#chat/${c.id}`}
-                >
-                  <p className="truncate text-sm font-medium">{c.title}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {date(c.last_message_at || c.created_at)}
-                  </p>
-                </a>
-                <ChatActions chat={c}>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="relative z-10 rounded-full text-muted-foreground hover:bg-transparent hover:text-foreground"
-                    aria-label={`Opciones de ${c.title}`}
+            <Selectable key={c.id} item={c.context_reference}>
+              <Card className="conversation-tile gap-0 border-0 py-0 shadow-none ring-0">
+                <CardContent className="flex items-center gap-3 px-4 py-3">
+                  <MessageCircle className="size-4 shrink-0 text-muted-foreground" />
+                  <a
+                    className="min-w-0 flex-1 after:absolute after:inset-0 after:rounded-2xl focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring"
+                    href={`#chat/${c.id}`}
                   >
-                    <MoreHorizontal />
-                  </Button>
-                </ChatActions>
-              </CardContent>
-            </Card>
+                    <p className="truncate text-sm font-medium">{c.title}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {date(c.last_message_at || c.created_at)}
+                    </p>
+                  </a>
+                  <ChatActions chat={c}>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="relative z-10 rounded-full text-muted-foreground hover:bg-transparent hover:text-foreground"
+                      aria-label={`Opciones de ${c.title}`}
+                    >
+                      <MoreHorizontal />
+                    </Button>
+                  </ChatActions>
+                </CardContent>
+              </Card>
+            </Selectable>
           ))}
         </div>
       ) : (

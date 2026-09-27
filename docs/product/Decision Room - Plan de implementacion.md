@@ -378,6 +378,13 @@ la acción principal. Se revierte la redirección introducida en el ajuste anter
 Validado con 61 pruebas frontend, compilación, lint y navegador con modelo real;
 detalle en la validación de 2.5.16.
 
+**Conversaciones como contexto:** selección de tarjetas del listado, adjuntos con
+vista previa y acceso al original. Lectura por fragmentos y búsqueda dentro de una
+captura versionada, también en seguimientos; historial distinguido de evidencia.
+Preguntar algo abre el panel desde el listado. El borde de la última fila de
+Informes sigue las esquinas de la tarjeta. Validación automática y con modelo
+real descrita en [la comprobación](../validation/2026-09-27-conversation-context-check.md).
+
 ### 2.5.17. Aclaraciones con vista de datos y recuperación
 
 **Completado, 27 de septiembre de 2026:** las preguntas del informe, onboarding y

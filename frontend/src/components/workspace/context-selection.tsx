@@ -1,5 +1,5 @@
 import { useState, useEffect, type ReactNode } from "react";
-import { MousePointer2, Check, FileText } from "lucide-react";
+import { MousePointer2, Check, FileText, MessagesSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -203,11 +203,16 @@ export function ContextAttachments({
             >
               <div className="mb-1 flex items-center gap-1 text-[10px] text-muted-foreground">
                 {r.kind === "report" && <FileText className="size-3" />}
-                {r.kind === "report"
-                  ? "Informe"
-                  : r.kind === "business" || r.kind === "memory"
-                    ? "Mi negocio"
-                    : "Fragmento de informe"}
+                {r.kind === "conversation" && (
+                  <MessagesSquare className="size-3" />
+                )}
+                {r.kind === "conversation"
+                  ? "Conversación"
+                  : r.kind === "report"
+                    ? "Informe"
+                    : r.kind === "business" || r.kind === "memory"
+                      ? "Mi negocio"
+                      : "Fragmento de informe"}
               </div>
               <div className="mb-1 flex h-12 items-center overflow-hidden">
                 {r.status === "withdrawn" ? (
@@ -289,9 +294,11 @@ export function ContextAttachments({
                 setOpened(null);
               }}
             >
-              {chosen.href === "#my-business"
-                ? "Ver en Mi negocio"
-                : "Ver en el informe"}
+              {chosen.kind === "conversation"
+                ? "Ver conversación original"
+                : chosen.href === "#my-business"
+                  ? "Ver en Mi negocio"
+                  : "Ver en el informe"}
             </Button>
           )}
         </DialogContent>

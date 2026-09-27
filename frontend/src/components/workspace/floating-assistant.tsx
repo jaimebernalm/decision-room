@@ -21,8 +21,6 @@ function AssistantLauncher() {
   const continuing = Boolean(
     assistant.dock.chatId || draft.trim() || assistant.selected.length,
   );
-  // The conversation library already has a primary New chat action.
-  if (route === "chats" && !continuing) return null;
   return (
     <div className="absolute bottom-5 right-5 z-20">
       <Button

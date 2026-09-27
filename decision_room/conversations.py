@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from psycopg.types.json import Jsonb
 
 from .database import connect
-from . import chat_agent, context_references as selections
+from . import chat_agent, context_references as selections, conversation_context
 from .greetings import is_greeting, salutation
 from .agent.model import ModelSettings, ModelRequestUncertain
 from .agent import review
@@ -234,6 +234,11 @@ def dependencies_current(config, db, saved, events):
             return False
     for event in events:
         for dep in event['dependencies']:
+            if dep['kind'] == 'conversation_selection':
+                try:
+                    conversation_context.validate(db, saved['business_id'], dep['reference'])
+                except WebError:
+                    return False
             if (
                 dep['kind'] == 'table'
                 and ctx.table_version(db, saved['business_id'], dep['id']) != dep['metadata_version']
@@ -365,7 +370,7 @@ class Conversations:
 
     def listing(self):
         with connect(self.config) as db:
-            return dict(
+            result = dict(
                 business_id=self.business,
                 conversations=db.execute(
                     '''SELECT c.*,last_turn.created_at AS last_message_at FROM chat_conversations c
@@ -377,6 +382,10 @@ class Conversations:
                 ).fetchall(),
                 datasets=ctx.datasets(db, self.business) if self.business else {'items': [], 'more': False},
             )
+
+            for chat in result['conversations']:
+                chat['context_reference'] = conversation_context.listing_reference(db, self.business, chat['id'])
+            return result
 
     def delete(self, chat_id, data):
         self.guard(data)
@@ -437,6 +446,8 @@ class Conversations:
         except WebError:
             if strict:
                 raise
+            if reference['kind'] == 'conversation':
+                return dict(**reference, title='Conversación no disponible', status='withdrawn', report_title='Conversación')
             return dict(**reference, title='Información actualizada o no disponible', status='withdrawn',
                         report_title='Mi negocio', href='#my-business')
 
@@ -789,6 +800,14 @@ class Conversations:
                        and f'tool/{e.get("ordinal", i)}' in cited
                        for i, e in enumerate(context['retrievals'])):
                 source_issues.append('Open and cite the exact report/version of every selected element before answering.')
+        for ref in context['message'].get('context_references', []):
+            if ref.get('kind') == 'conversation' and self.selected_context(db, ref)['status'] == 'available':
+                if not any(e['request']['tool'] == 'open_chat'
+                           and e['response'].get('id') == ref['source_id']
+                           and e['response'].get('version') == ref['source_version']
+                           and f'tool/{e.get('ordinal', i)}' in cited
+                           for i, e in enumerate(context['retrievals'])):
+                    source_issues.append('Open and cite the selected conversation before answering about it; its preview is not its full content.')
         check_context = dict(message=context['message'], recent_dialogue=context['recent_dialogue'],
                              draft=action.text, cited_sources=cited,
                              runtime=context['chat_context'].get('runtime', {}),
@@ -1002,6 +1021,16 @@ class Conversations:
                                             for saved in turn['snapshot']['saved_corrections'])):
                                     turn['snapshot']['saved_corrections'].append(dict(
                                         statement=candidate['content']['statement'], profile_updated=True))
+                        previous_selections = db.execute(
+                            'SELECT payload FROM chat_turns WHERE conversation_id=%s AND ordinal<%s ORDER BY ordinal DESC LIMIT 12',
+                            (chat['id'], turn['ordinal'])).fetchall()
+                        carried = {}
+                        for prior in previous_selections:
+                            for ref in prior['payload'].get('context_references', []):
+                                if ref.get('kind') == 'conversation' and ref['source_id'] not in carried:
+                                    if self.selected_context(db, ref)['status'] == 'available':
+                                        carried[ref['source_id']] = ref
+                        turn['snapshot']['conversation_references'] = list(carried.values())[:8]
                         if turn['payload'].get('context_references'):
                             turn['snapshot']['context_references'] = turn['payload']['context_references']
                             turn['snapshot']['selected_elements'] = [

@@ -12,7 +12,7 @@ from .service import digest, encoded, lock
 
 class Request(BaseModel):
     model_config = ConfigDict(extra='forbid')
-    tool: Literal['search_datasets', 'inspect_dataset', 'search_memory', 'search_reports', 'open_report', 'open_evidence', 'search_chats']
+    tool: Literal['search_datasets', 'inspect_dataset', 'search_memory', 'search_reports', 'open_report', 'open_evidence', 'search_chats', 'open_chat']
     query: str = Field(max_length=300)
     id: str = Field(max_length=36)
     limit: int = Field(ge=1, le=10)
@@ -208,6 +208,9 @@ def retrieve(config, db, session_id, request, *, manifest=None, opened=None):
                 coverage='First five records are not full date coverage.',
                 authorized_for_current_execution=str(table['analysis_id']) == m['selection']['analysis_id'])
             dependencies.append(dict(kind='table', id=r.id, version=table['parquet_sha256'], metadata_version=ctx.table_version(db,m['business_id'],r.id)))
+    elif r.tool == 'open_chat':
+        from ..conversation_context import read
+        result, dependencies = read(db, m, r)
     elif r.tool == 'search_chats':
         from ..conversations import search_history
         result, dependencies = search_history(config, db, m, r)

@@ -169,7 +169,7 @@ function server(delayed?: Promise<void>, failSend = 0) {
   );
   return calls;
 }
-it.each(["home", "my-business", "reports"])(
+it.each(["home", "my-business", "reports", "chats"])(
   "opens the right panel immediately from the launcher on %s, preserving a folded draft",
   async (route) => {
     location.hash = route;
@@ -562,8 +562,8 @@ it("keeps the same dock, draft and attachments across all four sections", async 
     "Explica la selección",
   );
   expect(
-    within(panel).queryByRole("button", { name: "Seleccionar" }),
-  ).toBeNull();
+    within(panel).getByRole("button", { name: "Seleccionar" }),
+  ).toBeInTheDocument();
   expect(
     within(panel).getAllByRole("button", { name: /Ver adjunto:/ }),
   ).toHaveLength(2);
@@ -595,5 +595,68 @@ it("keeps the same dock, draft and attachments across all four sections", async 
         ],
       }),
     }),
+  ]);
+});
+
+it("attaches a conversation without opening it, keeps it across navigation and sends only the reference", async () => {
+  location.hash = "chats";
+  const calls = server();
+  const user = userEvent.setup();
+  const ref: ContextAttachment = {
+    kind: "conversation",
+    source_id: "previous",
+    source_version: "2:version",
+    element_key: "conversation",
+    title: "Plan anterior",
+    href: "#chat/previous",
+    content: {
+      key: "conversation",
+      title: "Plan anterior",
+      statement: "2 intercambios · Vista previa",
+    },
+  };
+  render(
+    <Harness
+      initialRoute="chats"
+      conversations={[
+        {
+          id: "previous",
+          business_id: "a",
+          title: "Plan anterior",
+          created_at: "2026-09-27",
+          context_reference: ref,
+        },
+      ]}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "Preguntar algo" }));
+  const panel = screen.getByRole("complementary", {
+    name: "Conversación lateral",
+  });
+  await user.click(within(panel).getByRole("button", { name: "Seleccionar" }));
+  await user.click(
+    screen.getByRole("button", { name: "Seleccionar: Plan anterior" }),
+  );
+  expect(location.hash).toBe("#chats");
+  await user.keyboard("{Escape}");
+  expect(
+    within(panel).getByRole("button", { name: "Ver adjunto: Plan anterior" }),
+  ).toBeInTheDocument();
+  await user.click(screen.getByRole("link", { name: "Informes" }));
+  expect(screen.getByRole("complementary")).toBe(panel);
+  await user.type(within(panel).getByRole("textbox"), "¿Qué decidimos?");
+  await user.click(
+    within(panel).getByRole("button", { name: "Enviar mensaje" }),
+  );
+  await within(panel).findByText("Ventas revisadas.");
+  expect(
+    calls.find((c) => c.url.endsWith("/messages"))?.data.context_references,
+  ).toEqual([
+    {
+      kind: "conversation",
+      source_id: "previous",
+      source_version: "2:version",
+      element_key: "conversation",
+    },
   ]);
 });

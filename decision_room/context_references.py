@@ -19,12 +19,14 @@ def normalize(values):
             raise WebError('La selección no es válida.')
         identity, version = fields[:2]
         item = dict(value, **{identity: str(identifier(value[identity]))})
-        kinds = ('business', 'memory') if fields == SOURCE_FIELDS else ('chart', 'metric', 'insight', 'section', 'report')
+        kinds = ('business', 'memory', 'conversation') if fields == SOURCE_FIELDS else ('chart', 'metric', 'insight', 'section', 'report')
         if (item['kind'] not in kinds or
             any(not isinstance(item[k], str) or not 0 < len(item[k]) <= 180
                 for k in (version, 'element_key'))):
             raise WebError('La selección no es válida.')
         if item not in result:
+            if item['kind'] == 'conversation' and any(r.get('source_id') == item['source_id'] and r['kind'] == 'conversation' for r in result):
+                raise WebError('Selecciona una sola versión de cada conversación.')
             result.append(item)
     return result
 
@@ -67,6 +69,9 @@ def resolve(reference, reviewed):
 def resolve_source(reference, db, business):
     """Resolve owner-declared context, never treating it as reviewed analysis."""
     from .web.business import profile
+    if reference['kind'] == 'conversation':
+        from .conversation_context import attachment
+        return attachment(db, business, reference)
     kind, key = reference['kind'], reference['element_key']
     if kind == 'business' and key == 'profile' and reference['source_id'] == str(business):
         row = profile(db, business)

@@ -279,3 +279,38 @@ idempotentes y no purgan datos ni revisiones. No se elimina un trabajo en curso.
 La interfaz permite confirmar, cancelar y restaurar; las referencias históricas
 siguen apuntando a los originales. Véase la
 [validación](../validation/2026-09-27-report-context-fixes.md).
+
+## Selección de conversaciones y lectura acotada
+
+La herramienta Seleccionar también funciona sobre las tarjetas de Conversaciones.
+El listado ofrece Preguntar algo para abrir el panel sin cambiar de página; Nuevo
+chat conserva su vista independiente. Un adjunto muestra el tipo Conversación,
+su título, una vista previa explícitamente parcial y el acceso al chat original.
+Los adjuntos se conservan al navegar, ampliar y recargar.
+
+Las referencias `kind=conversation` usan `source_id`, `source_version` y
+`element_key=conversation`. La versión captura el último ordinal y una huella del
+contenido anterior: los mensajes posteriores no se incorporan automáticamente.
+El servidor vuelve a comprobar negocio, eliminación y contenido. No acepta texto
+del cliente ni expande recursivamente los adjuntos de la conversación original.
+Una misma conversación solo puede adjuntarse en una versión por mensaje.
+
+El agente recibe una vista previa del inicio/final, no un resumen que pretenda
+cubrir todo el historial. `open_chat` entrega mensajes originales con autor,
+posición y referencias a informes, en fragmentos de hasta 1.200 caracteres,
+solapamiento de 300 y páginas de hasta 10 fragmentos / 10 KB de elementos. Puede
+buscar frases literales y continuar con `next_query`. Los resultados señalan si
+son parciales; el límite de continuaciones sigue siendo 12. Por tanto, puede
+localizar detalles en chats largos sin cargar todo el historial, pero no debe
+prometer una revisión exhaustiva si solo leyó parte. Las preguntas de seguimiento
+pueden recuperar selecciones de los últimos 12 mensajes, hasta ocho referencias.
+
+Una respuesta anterior prueba qué se dijo, no que fuera cierto. El prompt y la
+revisión mantienen esa distinción y requieren fuentes actuales para verificar
+hechos. El servidor exige abrir y citar cada chat seleccionado antes de publicar
+la respuesta. Las pruebas controladas verifican este requisito y los límites;
+la prueba con el modelo real comprueba una recuperación concreta, no garantiza
+todas las posibles formulaciones.
+
+El borde de selección de Informes se dibuja un píxel dentro de la fila y la
+última fila adopta el radio inferior de la tarjeta para evitar el recorte.

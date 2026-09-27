@@ -47,7 +47,9 @@ it("starts a standalone new chat without visiting home and can resume its draft 
   );
   render(<App />);
   await screen.findByRole("heading", { name: "Conversaciones" });
-  expect(screen.queryByRole("button", { name: "Preguntar algo" })).toBeNull();
+  expect(
+    screen.getByRole("button", { name: "Preguntar algo" }),
+  ).toBeInTheDocument();
   expect(screen.queryByRole("textbox", { name: "Mensaje" })).toBeNull();
   const user = userEvent.setup();
   await user.click(screen.getAllByRole("link", { name: "Nuevo chat" }).at(-1)!);

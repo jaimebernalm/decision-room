@@ -49,6 +49,7 @@ export type Chat = {
   title: string;
   created_at: string;
   last_message_at?: string;
+  context_reference?: ContextAttachment;
 };
 export type ChatListing = {
   business_id: string | null;
@@ -123,7 +124,7 @@ export type ContextReference =
   | {
       source_id: string;
       source_version: string;
-      kind: "business" | "memory";
+      kind: "business" | "memory" | "conversation";
       element_key: string;
     };
 export type ContextAttachment = ContextReference & {
