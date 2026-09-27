@@ -15,6 +15,7 @@ from .context import fingerprint, snapshot as source_snapshot
 from .model import ModelClient, ModelSettings
 from .persistence import checkpointer, session_lock
 from .research import knowledge, mark_stale
+from .research_agenda import agenda, coverage
 from .research_graph import findings, steps
 from .review_context import approval_digest, material
 from .review_graph import REVIEW_GRAPH_VERSION, build
@@ -59,7 +60,8 @@ def start(config, business_id, research_id, *, request_key, analyst=None, review
             raise ValueError('The analyst must retain the original session model settings.')
         executions = [{'execution_id': str(s['execution_id'])} for s in steps(db, research_id)
                       if s['action']['action'] == 'execute' and s['execution_id']]
-        snapshot = {**research['snapshot'], 'findings': candidates, 'executions': executions, 'initial_knowledge': key,
+        history = steps(db, research_id)
+        snapshot = {**agenda(research['snapshot'], history), 'research_coverage': coverage(research['snapshot'], history, candidates, research['options'], research['issue'] or ''), 'findings': candidates, 'executions': executions, 'initial_knowledge': key,
                     'planning_history': db.execute('SELECT revision,proposal FROM agent_revisions WHERE session_id=%s ORDER BY revision',
                                                    (session['id'],)).fetchall()}
         options = {'max_review_rounds': max_review_rounds, 'max_turns': 20, 'max_calls_per_role': 16,

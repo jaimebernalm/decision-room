@@ -60,7 +60,10 @@ def material(config, db, session, run):
             event['owner_answer'] = by_step[event['step']]
     return {'owner_context': run['snapshot']['source']['owner_context'], 'owner_answers': owner_answers,
             'plan': run['snapshot']['proposal'], 'candidate_history': run['snapshot']['findings'],
-            'planning_history': run['snapshot']['planning_history'], 'tables': run['snapshot']['tables'],
+            'planning_history': run['snapshot']['planning_history'],
+            'research_coverage': run['snapshot'].get('research_coverage'),
+            'delivery_capabilities': {'execution_artifact_downloads': False, 'chart_categories': 36, 'daily_line_points': 366,
+                                      'surfaces': ['web_report', 'static_html']}, 'tables': run['snapshot']['tables'],
             'conversation': conversation, 'observations': observations,
             'report': report, 'report_step': report_step, 'checks': checks(report, observations),
             'budgets': {**run['options'], 'turns_used': len(history),
@@ -84,7 +87,7 @@ def model_context(materialized, role):
             action['code'] = ''
             event['code_reference'] = {'execution_id': event['execution_id'], 'field': 'observations.code'}
         if action.get('report') is not None and action['report'] == context['report']:
-            action['report'] = None
+            action['report'] = {'$ref': '#/report'}
             event['report_reference'] = 'report'
     for item in context['observations']:
         item['logs'] = {k: v[-3000:] if isinstance(v, str) else v for k, v in item['logs'].items()}

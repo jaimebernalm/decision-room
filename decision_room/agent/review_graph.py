@@ -10,6 +10,7 @@ from .context import fingerprint
 from .persistence import model_call, answers
 from .review_context import approval_digest, material, model_context
 from .review_contract import validate
+from .research_agenda import limitation
 
 REVIEW_GRAPH_VERSION = 'review-v7'
 
@@ -45,6 +46,14 @@ def build(config, db, session, run, analyst, reviewer, saver, *, executor=execut
                              scope=str(run['id']), max_calls=run['options']['max_calls_per_role'])
             try:
                 action = validate(raw, state['role'], context)
+                if action['action'] == 'submit' and context.get('research_coverage'):
+                    report = action['report']
+                    note = limitation(context['research_coverage'], report)
+                    # Replace only reserved controller scope notes, preserving all
+                    # substantive caveats. Computed candidates are not delivered answers.
+                    limits = [l for l in report['limitations'] if not l.startswith(('Cobertura del informe:', 'Cobertura de investigación:'))]
+                    report['limitations'] = [*limits, note]
+                    action = validate(action, state['role'], context)
                 break
             except ValueError as error:
                 correction = str(error)[:1800]

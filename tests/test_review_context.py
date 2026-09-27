@@ -29,6 +29,7 @@ class ReviewContextTests(unittest.TestCase):
         self.assertEqual(packed['conversation'][2], original['conversation'][2])
         self.assertEqual(packed['conversation'][3], original['conversation'][3])
         self.assertEqual(packed['conversation'][4]['report_reference'], 'report')
+        self.assertEqual(packed['conversation'][4]['action']['report'], {'$ref': '#/report'})
         self.assertEqual(packed['report'], draft)
         # A different program must never be replaced merely because IDs match.
         context['conversation'][0]['action']['code'] = 'print(2)'

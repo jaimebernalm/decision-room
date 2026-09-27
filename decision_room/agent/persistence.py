@@ -82,7 +82,7 @@ def save_revision(db, session_id, revision, proposal, inspected):
                         question['key'], Jsonb(question)))
 
 
-def _model_call(db, session_id, model, context, correction, retry_uncertain, *, phase='planning', scope='', max_calls=20):
+def _model_call(db, session_id, model, context, correction, retry_uncertain, *, phase='planning', scope='', max_calls=20, before_call=None):
     version = {'planning': PROMPT_VERSION, 'research': RESEARCH_PROMPT_VERSION,
                'analyst_review': REVIEW_PROMPT_VERSION, 'reviewer': REVIEW_PROMPT_VERSION}[phase]
     identity = {'context': context, 'correction': correction, 'prompt': version}
@@ -101,6 +101,8 @@ def _model_call(db, session_id, model, context, correction, retry_uncertain, *, 
                    (session_id, key))
     count = db.execute('SELECT count(*) AS n FROM agent_calls WHERE session_id=%s AND phase=%s AND scope=%s',
                        (session_id, phase, scope)).fetchone()['n']
+    if before_call:
+        before_call()
     if count >= max_calls:
         raise ValueError(f'Session model-call budget exhausted ({max_calls}). Inspect the saved state before starting another session.')
     call_id = uuid4()
@@ -124,7 +126,7 @@ def _model_call(db, session_id, model, context, correction, retry_uncertain, *, 
 
 
 def model_call(db, session_id, model, context, correction, retry_uncertain, *, config=None,
-               phase='planning', scope='', max_calls=20):
+               phase='planning', scope='', max_calls=20, before_call=None):
     from ..memory import context as memory_context, retrieval
     from ..memory.service import lock
     decision = fingerprint(dict(context=context, correction=correction, phase=phase, scope=scope))
@@ -149,9 +151,12 @@ def model_call(db, session_id, model, context, correction, retry_uncertain, *, c
             business_context['retrievals'] = baseline['retrievals'] + additions
             payload = {**context, 'business_context': business_context, 'decision_key': decision}
             if len(encoded(payload).encode()) > memory_context.CONTEXT_BYTES:
+                if phase == 'research':
+                    from .research_agenda import ResearchBudgetReached
+                    raise ResearchBudgetReached('Presupuesto de contexto de investigación alcanzado (200 KB).')
                 raise ValueError('Model context exceeds 200 KB. Narrow the investigation; no material context was silently dropped.')
         output = _model_call(db, session_id, model, payload, correction, retry_uncertain,
-                             phase=phase, scope=scope, max_calls=max_calls)
+                             phase=phase, scope=scope, max_calls=max_calls, before_call=before_call)
         memory_context.ensure(db, session_id)
         if output.get('action') != 'retrieve':
             if output.get('retrieval') is not None:
@@ -159,7 +164,7 @@ def model_call(db, session_id, model, context, correction, retry_uncertain, *, c
             return {k: v for k, v in output.items() if k != 'retrieval'}
         if config is None:
             raise ValueError('Retrieval requires application configuration.')
-        if any(output.get(k) for k in ('proposal', 'code', 'table_ids', 'report', 'metric_keys', 'question', 'investigation_key')):
+        if any(output.get(k) for k in ('proposal', 'code', 'table_ids', 'report', 'metric_keys', 'question', 'investigation_key', 'followups')):
             return {'invalid_model_output': 'retrieve requires empty action fields and a retrieval request.'}
         try:
             retrieval.save(config, db, session_id, decision, ordinal, output.get('retrieval'))

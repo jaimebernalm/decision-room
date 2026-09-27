@@ -29,7 +29,16 @@ class Question(Strict):
     options: list[str] = Field(max_length=4)
 
 
+class ResearchPriority(Strict):
+    relevance: int = Field(ge=1, le=5, strict=True)
+    magnitude: int = Field(ge=1, le=5, strict=True)
+    reliability: int = Field(ge=1, le=5, strict=True)
+    cost: int = Field(ge=1, le=5, strict=True)
+    reason: str = Field(min_length=1, max_length=800)
+
+
 class Investigation(Strict):
+    priority: ResearchPriority | None = None
     key: str = Field(pattern=r'^[a-z][a-z0-9_]{0,63}$')
     question: str = Field(min_length=1, max_length=1000)
     business_value: str = Field(min_length=1, max_length=1000)

@@ -84,10 +84,10 @@ class ReportDraft(Strict):
     charts: list[Chart] = Field(max_length=4)
     no_chart_reason: str = Field(max_length=600)
     claims: list[Claim] = Field(min_length=1, max_length=6)
-    limitations: list[str] = Field(min_length=1, max_length=12)
+    limitations: list[str] = Field(min_length=1, max_length=13)
     checks: list[NumericCheck] = Field(max_length=16)
     highlights: list[Highlight] = Field(default_factory=list, max_length=4)
-    question_coverage: list[QuestionCoverage] = Field(default_factory=list, max_length=8)
+    question_coverage: list[QuestionCoverage] = Field(default_factory=list, max_length=24)
 
 
 class ReviewAction(Strict):

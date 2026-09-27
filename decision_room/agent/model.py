@@ -151,6 +151,8 @@ class ModelClient:
 
     def generate(self, context, correction=None):
         schema = Action.model_json_schema()
+        schema['$defs']['Investigation']['required'] = list(schema['$defs']['Investigation']['properties'])
+        schema['$defs']['Investigation']['properties']['priority'].pop('default', None)
         if 'uninspected_table_ids' in context:
             self._table_choices(schema['properties']['table_ids'], context['uninspected_table_ids'])
         if 'catalog' in context:
@@ -168,11 +170,11 @@ class ModelClient:
     def generate_research(self, context, correction=None):
         schema = ResearchAction.model_json_schema()
         if 'plan' in context:
-            finished = {f['investigation_key'] for f in context['findings']}
+            finished = {f['investigation_key'] for f in context['findings']} | set(context.get('budgets', {}).get('discarded_keys', []))
             unfinished = [i['key'] for i in context['plan']['investigations']
                           if i['status'] == 'ready' and i['key'] not in finished]
             latest = {o['investigation_key']: o for o in context['observations']}
-            allowed = ['execute', 'block'] if unfinished else []
+            allowed = ['execute', 'block', 'discard'] if unfinished else []
             if any(latest.get(key, {}).get('status') == 'completed' for key in unfinished):
                 allowed.append('record_candidate')
             if not (latest.keys() - finished):
@@ -190,6 +192,9 @@ class ModelClient:
                 pending_tables = {table_id for item in context['plan']['investigations']
                                   if item['key'] in unfinished for table_id in item['table_ids']}
                 self._table_choices(schema['properties']['table_ids'], authorized & pending_tables)
+        schema['required'] = list(schema['properties'])
+        if 'table_catalog' in context:
+            self._table_choices(schema['$defs']['Followup']['properties']['table_ids'], [t['id'] for t in context['table_catalog']])
         return self._generate(context, correction, RESEARCH_SYSTEM, schema)
 
     def generate_analyst_review(self, context, correction=None):
@@ -225,18 +230,30 @@ class ModelClient:
             for field in definition['properties'].values():
                 field.pop('default', None)
         series_choices = []
-        series_by_unit = {}
+        series_by_chart = {}
         for item in context.get('observations', []):
             if item.get('current') and item['status'] == 'completed' and item.get('result') and not item.get('result_omitted'):
                 units = {}
+                display = {}
                 for key, value in item['result'].get('series', {}).items():
-                    units.setdefault(value['unit'], []).append(key)
+                    count = len(value.get('points', []))
+                    kinds = (['bar', 'table'] if 2 <= count <= 36 else [])
+                    if value.get('grain') == 'day' and 2 <= count <= 366:
+                        kinds.append('line')
+                    if kinds:
+                        units.setdefault(value['unit'], []).append(key)
+                        display[key] = kinds
                 for unit, keys in sorted(units.items()):
                     branch = deepcopy(schema['$defs']['SeriesRef'])
                     branch['properties']['execution_id']['enum'] = [item['execution_id']]
                     branch['properties']['series']['enum'] = sorted(keys)
                     series_choices.append(branch)
-                    series_by_unit.setdefault(unit, []).append(branch)
+                    for kind in ('bar', 'table', 'line'):
+                        eligible = [key for key in keys if kind in display[key]]
+                        if eligible:
+                            reference = deepcopy(branch)
+                            reference['properties']['series']['enum'] = sorted(eligible)
+                            series_by_chart.setdefault((unit, kind), []).append(reference)
         original_chart = schema['$defs']['Chart']
         scalar_chart = deepcopy(original_chart)
         scalar_chart['properties']['series'] = {'type': 'null'}
@@ -244,9 +261,10 @@ class ModelClient:
         if series_choices:
             schema['$defs']['SeriesRef'] = {'anyOf': series_choices}
             charts = [scalar_chart]
-            for unit, references in sorted(series_by_unit.items()):
+            for (unit, kind), references in sorted(series_by_chart.items()):
                 branch = deepcopy(original_chart)
                 branch['properties']['unit']['enum'] = [unit]
+                branch['properties']['kind']['enum'] = [kind]
                 branch['properties']['series'] = {'anyOf': references}
                 branch['properties']['points']['maxItems'] = 0
                 charts.append(branch)

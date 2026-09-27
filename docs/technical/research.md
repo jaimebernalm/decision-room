@@ -1,4 +1,8 @@
-# Investigación con Python: paso 1.5
+# Investigación con Python: pasos 1.5 y 3.3
+
+**Actualización de 3.3:** la agenda admite profundizaciones con evidencia,
+prioridades, límites por ronda y resultados parciales. Véase el
+[contrato de rondas](research-rounds.md) para los límites y comportamiento vigentes.
 
 El agente principal puede elegir investigaciones de un plan guardado, escribir
 Python, ejecutarlo en el sandbox, examinar la salida y corregir errores. Registra
@@ -83,7 +87,8 @@ Con un plan creado mediante `agent-start`:
   --business UUID_EMPRESA --research UUID_INVESTIGACION
 ```
 
-El agente elige entre investigaciones listas. Se puede acotar con uno o varios
+El agente elige entre investigaciones listas, ordenadas por prioridad, y puede
+añadir verificaciones o desgloses al registrar un candidato. Se puede acotar con uno o varios
 `--investigation CLAVE_DEL_PLAN`. Una investigación con dependencias sin resolver
 no puede ejecutarse. Si el plan está esperando una respuesta, se permite investigar
 la parte independiente que ya figure lista.
@@ -138,9 +143,10 @@ mantiene disponible.
 - Docker mantiene entradas de solo lectura, ausencia de red, usuario sin privilegios,
   1 CPU, 768 MiB, límites de procesos, archivos y tiempo del sandbox existente.
 - Por ejecución: 30 segundos por defecto; el operador puede seleccionar 1–120 con
-  `--timeout`. Por investigación, como máximo tres intentos Python. Entre una y tres
-  investigaciones por recorrido, dos por defecto; 12 decisiones y 16 llamadas al
-  modelo, contando correcciones. Alcanzar un límite no implica análisis completo.
+  `--timeout`. Por investigación, como máximo tres intentos Python. El paso 1.5
+  admitía hasta tres investigaciones. En 3.3 se usan por defecto seis
+  investigaciones, tres rondas, doce ejecuciones y 32 decisiones/llamadas,
+  contando consultas y correcciones; el límite de admisión temporal es 900 s. Alcanzar un límite no implica análisis completo.
 - Cada acción se guarda antes del efecto. Una caída después de terminar Python y
   antes del checkpoint reutiliza el mismo `execution_id` mediante su clave de
   idempotencia; no vuelve a ejecutar el programa completado.
@@ -153,12 +159,14 @@ mantiene disponible.
 - Una salida JSON envuelta en un único bloque Markdown puede desempaquetarse. No se
   repara ni modifica el código generado. Un JSON malformado se guarda como diagnóstico
   y se devuelve al modelo para corrección, sin ejecutar nada.
-- Las observaciones omiten resultados mayores de 24 KB y recortan logs a 4.000
+- Las observaciones omiten resultados mayores de 64 KB y recortan logs a 4.000
   caracteres por campo. El modelo debe generar una salida más enfocada antes de
   registrar ese candidato. Los artefactos completos siguen disponibles.
 - Sigue vigente el límite de contexto de 200 KB. No hay compactación automática ni
-  recuperación general de artefactos extensos por parte del modelo. Se implementarán
-  antes de ampliar a investigaciones largas; los límites actuales no se ocultan.
+  recuperación general de artefactos extensos por parte del modelo. Las rondas
+  nuevas eliminan código/logs de candidatos ya registrados del contexto del
+  investigador, manteniendo el original disponible para revisión. El límite sigue
+  siendo explícito y no autoriza investigaciones ilimitadas.
 
 El programa puede devolver una cifra incorrecta y una explicación plausible.
 Validar JSON y comprobar que existe evidencia no demuestra que el código o las

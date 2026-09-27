@@ -448,11 +448,15 @@ con compilación, lint y 65 pruebas frontend correctos.
 
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
-**Avance, 27 de septiembre de 2026:** completados **3.1** (medición inicial) y
+**Avance, 27 de septiembre de 2026:** completados **3.1** (medición inicial),
 **3.2** (catálogo versionado, relaciones y diagrama ER compartidos por ficha, chat
-e informes). Véanse [validación de 3.2](../validation/2026-09-27-data-knowledge.md)
+e informes) y **3.3** (investigación adaptativa por rondas, prioridades, presupuestos
+y resultados parciales con cobertura de entrega). Véanse [validación de 3.2](../validation/2026-09-27-data-knowledge.md)
 y [secuencia vigente](onboarding-e-informes-plan.md#8-secuencia-de-implementación-y-criterios-de-cierre).
-El siguiente paso es **3.3: investigación por rondas con prioridades y presupuesto**.
+La [validación de 3.3](../validation/2026-09-27-research-rounds.md) conserva también
+los fallos de modelo, revisión y proveedor encontrados; no declara resuelta la
+evaluación general de calidad prevista en 3.5. El siguiente paso es **3.4:
+onboarding conversacional y elección abierta del objetivo**.
 
 **Planificación ampliada, 27 de septiembre de 2026:** el
 [plan de onboarding e informes](onboarding-e-informes-plan.md) concreta la secuencia
