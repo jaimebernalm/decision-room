@@ -62,7 +62,7 @@ naturales de respuestas nuevas necesitan conservar esa relación estructuralment
 - El primer turno reutiliza la fuente de memoria del perfil, procesándola antes de
   tomar contexto. Las opciones del objetivo son un encargo de este informe, no
   prioridades permanentes del negocio extraídas automáticamente.
-- `conversation-v11` añade instrucciones de etapa al mismo asistente y revisa su
+- `conversation-v12` añade instrucciones de etapa al mismo asistente y revisa su
   pregunta/propuesta como contenido visible. Máximo tres preguntas opcionales;
   definiciones esenciales pueden reducir el alcance cuando no se conocen.
 - El catálogo y sus herramientas existentes permiten inspeccionar y consultar los
@@ -80,3 +80,18 @@ naturales de respuestas nuevas necesitan conservar esa relación estructuralment
   archivos locales; se conservan sus nombres y el identificador de subida.
 - Las rutas de trabajos del onboarding anterior permanecen disponibles; los chats
   y negocios existentes no se incorporan automáticamente al nuevo recorrido.
+
+
+### Corrección tras la prueba manual: pregunta histórica y revisión
+
+El revisor recibe `draft` y `proposed_guide` como única salida candidata. La
+pregunta que motivó la respuesta del propietario se presenta por separado como
+`previous_question_context`; no se vuelve a presentar como una pregunta activa
+ni dentro de la cita `owner_message`. El turno original mantiene íntegra su
+procedencia. `answered` describe el envío de texto libre, no una confirmación
+semántica: «no lo sé» sigue expresando incertidumbre.
+
+Una nueva pregunta repetida sigue sujeta a rechazo. Las preguntas del alcance son
+objetivos del informe, no solicitudes adicionales de respuesta al propietario.
+Si se agotan las revisiones, el aviso identifica ese límite y permite reintentar;
+no se presenta como una petición incierta al proveedor.

@@ -26,6 +26,10 @@ from .web.dashboard import projection
 PROMPT_VERSION = chat_agent.PROMPT_VERSION
 
 
+class AnswerValidationExhausted(ValueError):
+    """A completed series of reviews could not approve an answer."""
+
+
 class Action(BaseModel):
     model_config = ConfigDict(extra='forbid')
     action: Literal[
@@ -846,6 +850,7 @@ class Conversations:
         if context.get('onboarding'):
             check_context['onboarding'] = context['onboarding']
             check_context['proposed_guide'] = action.onboarding.model_dump() if action.onboarding else None
+        check_context = chat_agent.separate_review_history(check_context)
         row = db.execute('SELECT * FROM chat_answer_reviews WHERE turn_id=%s AND attempt=%s AND ordinal=%s',
                          (turn['id'], turn['attempt'], ordinal)).fetchone()
         if row and row['status'] != 'completed':
@@ -1249,7 +1254,7 @@ class Conversations:
                         response = self._answer(db, turn, ordinal, action, context, model)
                         if response is None:
                             if ordinal >= ctx.MAX_RETRIEVALS:
-                                raise ValueError('Answer validation budget exhausted.')
+                                raise AnswerValidationExhausted('Answer validation budget exhausted.')
                             continue
                     elif action.action == 'explain':
                         opened = next(
@@ -1356,7 +1361,10 @@ class Conversations:
                     db,
                     turn,
                     'failed',
-                    issue='El mensaje está guardado, pero el procesamiento se ha interrumpido. Reintenta para continuar; si hubo una petición incierta al modelo, el reintento puede repetirla.',
+                    issue=('No hemos conseguido aprobar una respuesta dentro del límite de revisión. '
+                           'Tu mensaje y tus archivos siguen guardados. Puedes reintentar la respuesta.'
+                           if isinstance(error, AnswerValidationExhausted) else
+                           'El mensaje está guardado, pero el procesamiento se ha interrumpido. Reintenta para continuar; si hubo una petición incierta al modelo, el reintento puede repetirla.'),
                 )
 
 

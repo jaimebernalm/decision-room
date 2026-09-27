@@ -134,3 +134,33 @@ pronósticos ni analistas concurrentes. **3.5** implementará el reparto de aná
 casos repetidos. Estos ejemplos pequeños acreditan el recorrido y sus límites,
 no una mejora cuantificada de calidad sobre bases sustanciales ni una validación
 con clientes reales. Los reintentos limitados de 429/503 de 3.3.1 se reutilizan.
+
+
+## Corrección posterior a la prueba manual de Bruma Café
+
+El mensaje libre «No lo se, aplica lo que tenga mas sentido» se guardó correctamente
+como incertidumbre. Los borradores excluían importes y márgenes y no contenían
+ninguna nueva pregunta (`proposed_guide.question=null`). Sin embargo, el revisor
+confundía `message.onboarding_question`, procedencia de la respuesta, con una
+pregunta candidata. Dos intentos agotaron el límite sin publicar la propuesta.
+
+`conversation-v12` separa esa procedencia de la salida revisada y de la cita al
+mensaje del propietario, conservando el mensaje original. Se añade un aviso
+específico para agotamiento de revisión. No se aumenta el presupuesto ni se
+omite la aprobación del revisor.
+
+Validación de la corrección:
+
+- **71 pruebas** de onboarding, conversación y contexto pasan en **49,487 s**.
+  Incluyen texto libre desconocido, conservación de procedencia, ausencia de
+  mutación de las fuentes, conservación de preguntas realmente nuevas y
+  agotamiento con recuperación explícita.
+- Revisión real con GPT-6 Luna de la última propuesta guardada que había fallado:
+  **aprobada**, sin reparos, en **0,96 s**.
+- Control negativo que vuelve a preguntar la aclaración desconocida:
+  **rechazado**, en **2,98 s**.
+- Control negativo que inventa una confirmación de importes totales por fila:
+  **rechazado**, en **1,61 s**.
+- Los tres ensayos reutilizan contexto de la prueba sintética sin modificar el
+  turno del usuario ni iniciar su informe. El reintento interactivo queda a cargo
+  del usuario. Las trazas completas permanecen locales.

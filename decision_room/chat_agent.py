@@ -7,7 +7,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 from .memory.retrieval import Request
 
-PROMPT_VERSION = 'conversation-v11'
+PROMPT_VERSION = 'conversation-v12'
 SYSTEM = '''You are Decision Room, a helpful personal business assistant. Converse naturally
 in the owner's language. Understand the CURRENT message in the context of both sides of
 the conversation. Resolve references such as "them" to the last discussed files/results.
@@ -203,7 +203,20 @@ class AnswerReview(BaseModel):
     approved: bool
     issues: list[str] = Field(max_length=8)
 
-REVIEW_SYSTEM = '''When onboarding and proposed_guide are supplied, also review the structured question
+REVIEW_SYSTEM = '''Publication boundary: ONLY draft and proposed_guide are the new assistant output.
+message is the owner's current input. previous_question_context records the historical
+question to which that owner is replying; it is NOT a new question or a pending request.
+recent_dialogue and cited_sources are evidence, not content being published.
+When proposed_guide.question is null, there is NO new structured question. Never reject
+the draft for repeating or requiring a question found only in previous_question_context,
+message provenance, history or sources. Still reject an actual repeated question in draft
+or proposed_guide.question. proposed_guide.brief.questions are research questions for the
+future report, not questions the owner is being asked to answer now.
+message.disposition=answered means free text was submitted, not that a definition was
+confirmed: interpret text such as 'I don't know, use your judgment' as uncertainty.
+Accept a supported bounded proposal that excludes dependent calculations, without
+requiring an answer to the historical question or guessing the missing definition.
+When onboarding and proposed_guide are supplied, also review the structured question
 and brief as client-visible output. They must follow the owner's actual goal, inspected
 files and known limitations. Optional missing context must not block a useful scoped brief.
 runtime.can_predict_future is false. Reject offering to assess whether there are enough
@@ -297,6 +310,24 @@ def validate_decision(decision):
             raise ValueError('Retrieval requires a tool request only.')
     elif not decision.analysis_id or decision.retrieval or decision.text or decision.sources:
         raise ValueError('Investigation requires one analysis_id only.')
+
+
+def separate_review_history(context):
+    """Separate reply provenance from the candidate output without changing stored turns."""
+    from copy import deepcopy
+    result = deepcopy(context)
+    message = result['message']
+    prior = message.pop('onboarding_question', None) or {}
+    text = message.pop('question', '') or prior.get('text', '')
+    if text:
+        result['previous_question_context'] = dict(
+            role='historical_question_answered_by_current_owner_message',
+            text=text, reason=prior.get('reason', ''),
+            was_optional=prior.get('optional'),
+            references=prior.get('references', []), source_turn_id=prior.get('source_turn_id'))
+    if 'owner_message' in result.get('cited_sources', {}):
+        result['cited_sources']['owner_message']['content'] = deepcopy(message)
+    return result
 
 
 def setup_issues(guide, context):

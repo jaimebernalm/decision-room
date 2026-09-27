@@ -133,6 +133,62 @@ class SetupTests(unittest.TestCase):
             from decision_room.conversations import fresh
             self.assertTrue(fresh(db, turn['snapshot']))
 
+    def test_free_text_unknown_separates_previous_question_from_reviewed_output(self):
+        state = self.setup_scope()
+        text = 'No lo se, aplica lo que tenga mas sentido'
+        turn = self.chats.send(state['conversation_id'], dict(business_id=str(self.b),
+            request_key=str(uuid4()), text=text))
+        captured = []
+
+        def review(context):
+            captured.append(context)
+            return dict(approved=True, issues=[]), {}
+
+        with patch.object(SetupModel, 'review_chat_answer', side_effect=review):
+            self.chats.run(turn['id'])
+        check = captured[-1]
+        self.assertEqual(check['message']['text'], text)
+        self.assertEqual(check['message']['disposition'], 'answered')
+        self.assertNotIn('question', check['message'])
+        self.assertNotIn('onboarding_question', check['message'])
+        self.assertEqual(check['previous_question_context']['text'], '¿Hubo una campaña?')
+        self.assertIsNone(check['proposed_guide']['question'])
+        self.assertIsNotNone(check['proposed_guide']['brief'])
+        with connect(self.config) as db:
+            saved = db.execute('SELECT payload,status FROM chat_turns WHERE id=%s', (turn['id'],)).fetchone()
+            self.assertEqual(saved['status'], 'completed')
+            self.assertEqual(saved['payload']['onboarding_question']['text'], '¿Hubo una campaña?')
+
+    def test_review_history_keeps_real_new_question_and_cleans_owner_citation(self):
+        from copy import deepcopy
+        from decision_room.chat_agent import separate_review_history
+        message = dict(text='No lo sé', question='¿Total o unitario?',
+                       onboarding_question=dict(text='¿Total o unitario?', optional=False))
+        original = dict(message=message, draft='¿Total o unitario?',
+                        proposed_guide=dict(question=dict(text='¿Total o unitario?', optional=False)),
+                        cited_sources=dict(owner_message=dict(label='Tu mensaje', content=message)))
+        before = deepcopy(original)
+        reviewed = separate_review_history(original)
+        self.assertEqual(original, before)
+        self.assertEqual(reviewed['proposed_guide'], original['proposed_guide'])
+        self.assertEqual(reviewed['draft'], original['draft'])
+        self.assertEqual(reviewed['cited_sources']['owner_message']['content'], dict(text='No lo sé'))
+        self.assertFalse(reviewed['previous_question_context']['was_optional'])
+
+    def test_exhausted_answer_review_has_specific_recoverable_error(self):
+        state = self.setup_scope()
+        turn = self.chats.send(state['conversation_id'], dict(business_id=str(self.b),
+            request_key=str(uuid4()), text='No lo sé'))
+        with patch.object(SetupModel, 'review_chat_answer', return_value=(dict(approved=False, issues=['Synthetic unresolved issue']), {})):
+            self.chats.run(turn['id'])
+        saved = self.chats.detail(state['conversation_id'])['turns'][-1]
+        self.assertEqual(saved['status'], 'failed')
+        self.assertIn('límite de revisión', saved['issue'])
+        self.assertNotIn('petición incierta', saved['issue'])
+        self.chats.retry(state['conversation_id'], turn['id'], dict(business_id=str(self.b)))
+        self.chats.run(turn['id'])
+        self.assertEqual(self.chats.detail(state['conversation_id'])['turns'][-1]['status'], 'completed')
+
     def test_change_goal_invalidates_proposal_and_old_confirmation(self):
         state = self.setup_scope()
         changed = self.change('goal', text='Comparar periodos', choices=['evolution'])
