@@ -114,7 +114,10 @@ function Navigation({
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <SidebarMenuButton className="h-10">
+                <SidebarMenuButton
+                  className="h-10"
+                  aria-label={workspace.business?.name || "Mi espacio"}
+                >
                   <Building2 />
                   <span className="truncate">
                     {workspace.business?.name || "Mi espacio"}
@@ -181,6 +184,7 @@ function Navigation({
                   <a
                     href={`#${key}`}
                     onClick={close}
+                    aria-label={label}
                     aria-current={route === key ? "page" : undefined}
                   >
                     <Icon />
@@ -192,7 +196,12 @@ function Navigation({
           </SidebarMenu>
         </SidebarGroup>
         <SidebarGroup>
-          <SidebarGroupLabel>Chats recientes</SidebarGroupLabel>
+          <SidebarGroupLabel
+            className="workspace-section-label"
+            aria-label="Chats recientes"
+          >
+            <span>Chats recientes</span>
+          </SidebarGroupLabel>
           <SidebarMenu>
             {chatRows.map((chat) => (
               <SidebarMenuItem key={chat.id}>
@@ -204,6 +213,7 @@ function Navigation({
                   <a
                     href={`#chat/${chat.id}`}
                     onClick={close}
+                    aria-label={chat.title}
                     aria-current={
                       route === `chat/${chat.id}` ? "page" : undefined
                     }
@@ -225,7 +235,12 @@ function Navigation({
           </SidebarMenu>
         </SidebarGroup>
         <SidebarGroup>
-          <SidebarGroupLabel>Informes recientes</SidebarGroupLabel>
+          <SidebarGroupLabel
+            className="workspace-section-label"
+            aria-label="Informes recientes"
+          >
+            <span>Informes recientes</span>
+          </SidebarGroupLabel>
           <SidebarMenu>
             {workspace.analyses.slice(0, 5).map((item) => (
               <SidebarMenuItem key={item.id}>
@@ -233,6 +248,7 @@ function Navigation({
                   <a
                     href={analysisHref(item)}
                     onClick={close}
+                    aria-label={item.title}
                     aria-current={
                       [`analysis/${item.id}`, `report/${item.id}`].includes(
                         route,
@@ -254,14 +270,14 @@ function Navigation({
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip="Cómo funciona">
-              <a href="#how" onClick={close}>
+              <a href="#how" onClick={close} aria-label="Cómo funciona">
                 <HelpCircle />
                 <span>Cómo funciona</span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-        <div className="px-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
+        <div className="workspace-footer-note px-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
           Espacio local · Versión de pruebas
         </div>
       </SidebarFooter>

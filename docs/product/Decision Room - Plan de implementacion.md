@@ -413,12 +413,12 @@ ambos temas; 54 pruebas frontend, nueve dirigidas, compilación y lint correctos
 resaltado activo/hover de navegación en tema claro. Revisión visual, compilación
 y lint correctos.
 
-**Espaciado de la navegación compacta:** el logo y el selector de negocio tienen
-un hueco propio. Los accesos usan iconos de 20 px y controles de 36–40 px con
-separación adaptable a la altura; en ventanas bajas la lista se puede desplazar
-sin ocultar los últimos informes. Verificado en navegador en estados compacto y
-extendido, con selector abierto y a 1000 × 600 px. Compilación, lint y 65 pruebas
-frontend correctos.
+**Navegación compacta estable:** al plegar la barra, logo, selector, accesos,
+chats, informes y ayuda conservan la misma altura y posición vertical. Los
+títulos «Chats recientes» e «Informes recientes» se sustituyen por separadores
+en sus propias filas, y los iconos quedan en 18 px. La lista central mantiene
+su desplazamiento en ventanas bajas. Verificado visualmente en el navegador,
+con compilación, lint y 65 pruebas frontend correctos.
 
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 

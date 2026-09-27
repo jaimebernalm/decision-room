@@ -8,34 +8,41 @@
   transition-duration: 280ms;
   transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
 }
-/* The icon rail uses the available vertical space without crowding its controls. */
+/* Keep each row in place when the navigation text disappears. */
 @layer utilities {
   @media (min-width: 768px) {
-    .workspace-shell [data-slot="sidebar"][data-state="collapsed"] {
-      --compact-control-size: clamp(2.25rem, 4.2svh, 2.5rem);
-      --compact-row-gap: clamp(0.125rem, 0.4svh, 0.25rem);
-    }
-    .workspace-shell
-      [data-slot="sidebar"][data-state="collapsed"]
-      [data-slot="sidebar-menu"] {
-      gap: var(--compact-row-gap);
-    }
-    .workspace-shell
-      [data-slot="sidebar"][data-state="collapsed"]
-      [data-slot="sidebar-header"]
-      [data-slot="sidebar-menu-item"]
-      + [data-slot="sidebar-menu-item"] {
-      margin-top: 0.5rem;
-    }
     .workspace-shell
       [data-slot="sidebar"][data-state="collapsed"]
       [data-slot="sidebar-menu-button"] {
-      width: var(--compact-control-size) !important;
-      height: var(--compact-control-size) !important;
+      width: 2.5rem !important;
+      height: 2rem !important;
       padding: 0 !important;
       margin-inline: auto;
       justify-content: center;
       border-radius: 0.625rem;
+    }
+    .workspace-shell
+      [data-slot="sidebar"][data-state="collapsed"]
+      [data-slot="sidebar-header"]
+      a[href="#home"] {
+      height: 3rem !important;
+    }
+    .workspace-shell
+      [data-slot="sidebar"][data-state="collapsed"]
+      [data-slot="sidebar-header"]
+      [data-slot="dropdown-menu-trigger"] {
+      width: 2.5rem !important;
+      height: 2.5rem !important;
+      padding: 0 !important;
+      margin-inline: auto;
+      justify-content: center;
+      border-radius: 0.625rem;
+    }
+    .workspace-shell
+      [data-slot="sidebar"][data-state="collapsed"]
+      [data-slot="dropdown-menu-trigger"]
+      > span {
+      display: none;
     }
     .workspace-shell
       [data-slot="sidebar"][data-state="collapsed"]
@@ -62,8 +69,26 @@
       [data-slot="sidebar-header"]
       a[href="#ask"]
       > svg {
-      width: 1.25rem;
-      height: 1.25rem;
+      width: 1.125rem;
+      height: 1.125rem;
+    }
+    .workspace-shell
+      [data-slot="sidebar"][data-state="collapsed"]
+      [data-slot="sidebar-header"]
+      a[href="#home"]
+      svg,
+    .workspace-shell
+      [data-slot="sidebar"][data-state="collapsed"]
+      [data-slot="dropdown-menu-trigger"]
+      > svg:first-of-type {
+      width: 1.125rem !important;
+      height: 1.125rem !important;
+    }
+    .workspace-shell
+      [data-slot="sidebar"][data-state="collapsed"]
+      [data-slot="dropdown-menu-trigger"]
+      > svg:last-of-type {
+      display: none;
     }
     .workspace-shell
       [data-slot="sidebar"][data-state="collapsed"]
@@ -76,8 +101,8 @@
       [data-slot="sidebar"][data-state="collapsed"]
       [data-slot="sidebar-header"]
       a[href="#ask"] {
-      width: var(--compact-control-size);
-      height: var(--compact-control-size);
+      width: 2.5rem;
+      height: 2rem;
       padding: 0;
       margin-inline: auto;
     }
@@ -86,14 +111,45 @@
       [data-slot="sidebar-header"]
       a[href="#home"]
       > span:first-child {
-      width: var(--compact-control-size);
-      height: var(--compact-control-size);
+      width: 2rem;
+      height: 2rem;
+    }
+    .workspace-shell
+      [data-slot="sidebar"][data-state="collapsed"]
+      .workspace-section-label {
+      margin-top: 0 !important;
+      opacity: 1 !important;
+      justify-content: center;
+      padding-inline: 0;
+    }
+    .workspace-shell
+      [data-slot="sidebar"][data-state="collapsed"]
+      .workspace-section-label
+      > span {
+      display: none;
+    }
+    .workspace-shell
+      [data-slot="sidebar"][data-state="collapsed"]
+      .workspace-section-label::after {
+      content: "";
+      width: 1.25rem;
+      height: 1px;
+      background: var(--sidebar-border);
     }
     .workspace-shell
       [data-slot="sidebar"][data-state="collapsed"]
       [data-slot="sidebar-content"] {
       overflow-x: hidden;
       overflow-y: auto;
+    }
+    .workspace-shell
+      [data-slot="sidebar"][data-state="collapsed"]
+      .workspace-footer-note {
+      display: block !important;
+      visibility: hidden;
+      height: 1rem;
+      overflow: hidden;
+      white-space: nowrap;
     }
   }
 }

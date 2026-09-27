@@ -268,3 +268,13 @@ completamente en el carril y vuelven a verse al expandirlo. A 1000 × 600 px se
 comprobó que el área central desplaza hasta el último informe (último borde
 523,9 px frente a límite visible 532 px), con el acceso de ayuda fijo. El
 viewport temporal se restauró. Compilación, lint y 65 pruebas frontend correctos.
+
+## Corrección de la navegación compacta
+
+Se retiró el espaciado añadido solo al plegar: cada fila conserva su altura y
+posición vertical respecto a la barra extendida. «Chats recientes» e «Informes
+recientes» ocupan sus mismas filas como líneas separadoras. Los iconos compactos
+miden 18 px; el selector de negocio oculta su texto y flecha, y la ayuda conserva
+su posición inferior. Se mantuvieron los nombres accesibles de los enlaces.
+Comprobación visual y de coordenadas con Computer Use, compilación, lint y 65
+pruebas frontend correctos.
