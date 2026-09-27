@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Paperclip, ArrowUp, LoaderCircle, Sparkles } from "lucide-react";
 import { InputGroupAddon } from "@/components/ui/input-group";
 import {
@@ -19,6 +20,8 @@ export function Composer({
   placeholder = "Pregunta sobre tu negocio…",
   suggestions = false,
   compact = false,
+  attachments,
+  tools,
 }: {
   text: string;
   onChange: (v: string) => void;
@@ -28,9 +31,12 @@ export function Composer({
   placeholder?: string;
   suggestions?: boolean;
   compact?: boolean;
+  attachments?: ReactNode;
+  tools?: ReactNode;
 }) {
   return (
     <div className="w-full">
+      {attachments && <div className="mb-2 px-2">{attachments}</div>}
       <PromptInput
         onSubmit={async () => {
           await onSend();
@@ -41,7 +47,7 @@ export function Composer({
       >
         {compact && (
           <InputGroupAddon align="inline-start" className="pl-2 pr-0">
-            <Sparkles className="size-4" aria-hidden="true" />
+            {tools || <Sparkles className="size-4" aria-hidden="true" />}
           </InputGroupAddon>
         )}
         <PromptInputTextarea
@@ -78,6 +84,7 @@ export function Composer({
         ) : (
           <PromptInputFooter>
             <PromptInputTools>
+              {tools}
               <PromptInputButton
                 aria-label="Gestionar datos y archivos"
                 onClick={() => {

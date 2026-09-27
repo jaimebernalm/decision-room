@@ -1,4 +1,4 @@
-import type { QuestionContext, Chat, Turn } from "./types";
+import type { QuestionContext, Chat, Turn, ContextReference } from "./types";
 export class ApiError extends Error {
   status: number;
   constructor(message: string, status: number) {
@@ -17,6 +17,7 @@ export const store = {
   set(key: string, value: unknown) {
     try {
       localStorage.setItem(key, JSON.stringify(value));
+      dispatchEvent(new CustomEvent("dr-draft", { detail: key }));
     } catch {
       /* Private browsing may disallow storage. */
     }
@@ -24,6 +25,7 @@ export const store = {
   remove(key: string) {
     try {
       localStorage.removeItem(key);
+      dispatchEvent(new CustomEvent("dr-draft", { detail: key }));
     } catch {
       /* Keep the in-memory draft usable. */
     }
@@ -118,7 +120,14 @@ export const contextKey = (business: string) =>
   `dr-question-context-${business}`;
 export const homeDraftKey = (business: string) => `dr-home-prompt-${business}`;
 export const messageKey = (chat: string) => `dr-chat-draft-${chat}`;
+export const referenceWire = (r: ContextReference): ContextReference => ({
+  report_id: r.report_id,
+  report_version: r.report_version,
+  kind: r.kind,
+  element_key: r.element_key,
+});
 export type MessageDraft = {
+  context_references?: ContextReference[];
   question_id?: string;
   text: string;
   key?: string;
@@ -167,11 +176,15 @@ export function launchChat(
       text,
       key: pending.messageKey,
       finding_reference: context.finding_reference,
+      context_references: context.context_references?.map(referenceWire),
     });
     await api<Turn>(`/api/chats/${chat.id}/messages`, {
       business_id: business,
       text,
       request_key: pending.messageKey,
+      ...(context.context_references?.length
+        ? { context_references: context.context_references.map(referenceWire) }
+        : {}),
       ...(context.finding_reference
         ? { finding_reference: context.finding_reference }
         : {}),

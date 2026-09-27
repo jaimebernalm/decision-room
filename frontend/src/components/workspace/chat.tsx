@@ -25,6 +25,8 @@ import {
   store,
   queuePosition,
   type MessageDraft,
+  referenceWire,
+  contextKey,
 } from "@/lib/api";
 import type { ChatDetail, Response, Report } from "@/lib/types";
 import {
@@ -36,6 +38,8 @@ import {
   Busy,
 } from "./shared";
 import { ReportView } from "./report";
+import { useAssistant } from "@/lib/assistant";
+import { ContextAttachments, SelectionTool } from "./context-selection";
 import { Composer } from "./composer";
 export function Answer({
   response,
@@ -195,7 +199,14 @@ export function Answer({
     </div>
   );
 }
-export function ChatPage({ id }: { id: string }) {
+export function ChatPage({
+  id,
+  docked = false,
+}: {
+  id: string;
+  docked?: boolean;
+}) {
+  const assistant = useAssistant();
   const { workspace, refresh } = useWorkspace(),
     business = workspace.business!.id;
   const resource = useResource<ChatDetail>(`/api/chats/${id}`, 3000);
@@ -217,27 +228,48 @@ export function ChatPage({ id }: { id: string }) {
     sendAction.run(async () => {
       const snapshot = draftRef.current;
       if (!snapshot.text.trim()) return;
-      const key = snapshot.key || crypto.randomUUID();
+      const references = assistant
+        ? assistant.selected.map(referenceWire)
+        : snapshot.context_references;
+      const unchanged =
+        JSON.stringify(references || []) ===
+        JSON.stringify(snapshot.context_references || []);
+      const key = (unchanged && snapshot.key) || crypto.randomUUID();
       const sent = {
         ...snapshot,
+        context_references: references,
         key,
-        question_id: snapshot.key ? snapshot.question_id : selected?.id,
+        question_id:
+          unchanged && snapshot.key ? snapshot.question_id : selected?.id,
       };
       setDraft(sent);
       await api(`/api/chats/${id}/messages`, {
         business_id: business,
         request_key: key,
         text: sent.text,
+        ...(sent.context_references?.length
+          ? { context_references: sent.context_references }
+          : {}),
         ...(sent.finding_reference
           ? { finding_reference: sent.finding_reference }
           : {}),
         ...(sent.question_id ? { question_id: sent.question_id } : {}),
       });
+      if (
+        JSON.stringify(store.get(messageKey(id), {})) === JSON.stringify(sent)
+      ) {
+        store.remove(messageKey(id));
+        const currentContext = store.get<{
+          context_references?: import("@/lib/types").ContextReference[];
+        }>(contextKey(business), {});
+        if (
+          JSON.stringify(
+            currentContext.context_references?.map(referenceWire) || [],
+          ) === JSON.stringify(sent.context_references || [])
+        )
+          assistant?.clear();
+      }
       if (sendAction.isMounted()) {
-        if (draftRef.current.text === sent.text) {
-          setDraft({ text: "" });
-          store.remove(messageKey(id));
-        }
         resource.refresh();
         refresh();
       }
@@ -267,7 +299,9 @@ export function ChatPage({ id }: { id: string }) {
     <div className="flex min-h-0 flex-1 flex-col">
       <h1 className="sr-only">Conversación con IA</h1>
       <Conversation>
-        <ConversationContent className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-8">
+        <ConversationContent
+          className={`mx-auto w-full max-w-4xl px-4 py-8 ${docked ? "" : "sm:px-8"}`}
+        >
           {data.dataset && (
             <p className="mt-1 text-xs text-muted-foreground">
               {data.dataset.title} · v{data.dataset.version}
@@ -289,6 +323,12 @@ export function ChatPage({ id }: { id: string }) {
             <div key={turn.id} className="space-y-5">
               {turn.context_changed_before && <ContextChange />}
               <Message from="user" className="ml-auto">
+                <div className="ml-auto max-w-full">
+                  <ContextAttachments
+                    items={turn.attachments || []}
+                    chatId={id}
+                  />
+                </div>
                 <MessageContent className="whitespace-pre-wrap break-words">
                   {turn.payload.text}
                 </MessageContent>
@@ -415,7 +455,9 @@ export function ChatPage({ id }: { id: string }) {
         </ConversationContent>
         <ConversationScrollButton aria-label="Ir al último mensaje" />
       </Conversation>
-      <div className="shrink-0 bg-background px-4 pb-4 pt-2 sm:px-8">
+      <div
+        className={`shrink-0 bg-background px-4 pb-4 pt-2 ${docked ? "" : "sm:px-8"}`}
+      >
         <div className="mx-auto max-w-2xl">
           {selected && (
             <div className="mb-3 space-y-2">
@@ -441,9 +483,22 @@ export function ChatPage({ id }: { id: string }) {
           )}
           <Composer
             compact
+            tools={docked ? <SelectionTool /> : undefined}
+            attachments={
+              assistant?.selected.length ? (
+                <ContextAttachments
+                  items={assistant.selected}
+                  onRemove={assistant.remove}
+                />
+              ) : undefined
+            }
             text={draft.text}
             onChange={(text) =>
-              setDraft({ text, finding_reference: draft.finding_reference })
+              setDraft({
+                text,
+                finding_reference: draft.finding_reference,
+                context_references: draft.context_references,
+              })
             }
             onSend={send}
             busy={sendAction.busy}

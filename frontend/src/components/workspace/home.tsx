@@ -30,8 +30,21 @@ import { useResource, useAction } from "@/lib/hooks";
 import { api, date } from "@/lib/api";
 import type { HomeDashboard, HomeItem } from "@/lib/types";
 import { Heading, Notice, Empty, Loading, Disclosure, Status } from "./shared";
+import { Selectable } from "./context-selection";
+import type { ContextAttachment } from "@/lib/types";
 import { EvidenceChart } from "./report";
 
+const selection = (item: HomeItem): ContextAttachment => ({
+  report_id: item.source.report_id,
+  report_version: item.source.version,
+  kind: item.kind,
+  element_key: item.content.key || item.id.split(":").at(-1)!,
+  title: item.title,
+  period: item.source.period,
+  report_title: item.source.title,
+  href: item.source.href,
+  content: item.content,
+});
 const labels = {
   metric: "Indicadores",
   chart: "Gráficos",
@@ -232,28 +245,27 @@ export function Home() {
                 {selected
                   .filter((item) => item.kind === "metric")
                   .map((item) => (
-                    <Card
-                      key={item.id}
-                      className="min-w-0 gap-3 rounded-2xl bg-muted/45 shadow-none ring-0"
-                    >
-                      <CardHeader>
-                        <div className="flex items-start justify-between gap-2">
-                          <CardTitle className="text-sm leading-relaxed text-muted-foreground">
-                            {item.title}
-                          </CardTitle>
-                          {controls(item)}
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="break-words text-3xl font-semibold tracking-tight tabular-nums">
-                          {item.content.value}{" "}
-                          <span className="mt-1 block text-xs font-normal tracking-normal text-muted-foreground">
-                            {item.content.unit}
-                          </span>
-                        </p>
-                        <Source item={item} reason={data.reasons[item.id]} />
-                      </CardContent>
-                    </Card>
+                    <Selectable key={item.id} item={selection(item)}>
+                      <Card className="min-w-0 gap-3 rounded-2xl bg-muted/45 shadow-none ring-0">
+                        <CardHeader>
+                          <div className="flex items-start justify-between gap-2">
+                            <CardTitle className="text-sm leading-relaxed text-muted-foreground">
+                              {item.title}
+                            </CardTitle>
+                            {controls(item)}
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="break-words text-3xl font-semibold tracking-tight tabular-nums">
+                            {item.content.value}{" "}
+                            <span className="mt-1 block text-xs font-normal tracking-normal text-muted-foreground">
+                              {item.content.unit}
+                            </span>
+                          </p>
+                          <Source item={item} reason={data.reasons[item.id]} />
+                        </CardContent>
+                      </Card>
+                    </Selectable>
                   ))}
               </section>
               {selected.some((item) => item.kind === "chart") && (
@@ -264,14 +276,18 @@ export function Home() {
                   {selected
                     .filter((item) => item.kind === "chart")
                     .map((item) => (
-                      <EvidenceChart
-                        key={item.id}
-                        chart={item.content}
-                        actions={controls(item)}
-                        footer={
-                          <Source item={item} reason={data.reasons[item.id]} />
-                        }
-                      />
+                      <Selectable key={item.id} item={selection(item)}>
+                        <EvidenceChart
+                          chart={item.content}
+                          actions={controls(item)}
+                          footer={
+                            <Source
+                              item={item}
+                              reason={data.reasons[item.id]}
+                            />
+                          }
+                        />
+                      </Selectable>
                     ))}
                 </section>
               )}
@@ -284,25 +300,27 @@ export function Home() {
                     {selected
                       .filter((item) => item.kind === "insight")
                       .map((item) => (
-                        <Card key={item.id} className="min-w-0 shadow-none">
-                          <CardHeader>
-                            <div className="flex items-start justify-between gap-3">
-                              <CardTitle className="leading-relaxed">
-                                {item.title}
-                              </CardTitle>
-                              {controls(item)}
-                            </div>
-                          </CardHeader>
-                          <CardContent>
-                            <p className="text-sm leading-relaxed">
-                              {item.content.statement}
-                            </p>
-                            <Source
-                              item={item}
-                              reason={data.reasons[item.id]}
-                            />
-                          </CardContent>
-                        </Card>
+                        <Selectable key={item.id} item={selection(item)}>
+                          <Card className="min-w-0 shadow-none">
+                            <CardHeader>
+                              <div className="flex items-start justify-between gap-3">
+                                <CardTitle className="leading-relaxed">
+                                  {item.title}
+                                </CardTitle>
+                                {controls(item)}
+                              </div>
+                            </CardHeader>
+                            <CardContent>
+                              <p className="text-sm leading-relaxed">
+                                {item.content.statement}
+                              </p>
+                              <Source
+                                item={item}
+                                reason={data.reasons[item.id]}
+                              />
+                            </CardContent>
+                          </Card>
+                        </Selectable>
                       ))}
                   </div>
                 </section>
@@ -413,8 +431,8 @@ export function Home() {
           <DialogHeader>
             <DialogTitle>Personaliza tu inicio</DialogTitle>
             <DialogDescription>
-              Hasta 10 indicadores, 2 gráficos y 3 hallazgos. Desfija una tarjeta
-              antes de ocultarla.
+              Hasta 10 indicadores, 2 gráficos y 3 hallazgos. Desfija una
+              tarjeta antes de ocultarla.
             </DialogDescription>
           </DialogHeader>
           <div className="min-h-0 space-y-6 overflow-y-auto pr-2">

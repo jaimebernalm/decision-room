@@ -9,7 +9,7 @@ import {
   YAxis,
   ReferenceLine,
 } from "recharts";
-import { MessageSquare, ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import {
   ChartContainer,
   ChartTooltip,
@@ -30,16 +30,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Sources,
   SourcesTrigger,
   SourcesContent,
 } from "@/components/ai-elements/sources";
+import { Selectable } from "./context-selection";
 import { Disclosure } from "./shared";
 import { chartPoints } from "@/lib/charts";
-import type { ChartData, Report as ReportData, Claim } from "@/lib/types";
+import type {
+  ChartData,
+  Report as ReportData,
+  ContextAttachment,
+} from "@/lib/types";
 const config = { value: { label: "Valor", color: "var(--chart-1)" } };
 export function EvidenceChart({
   chart,
@@ -227,13 +231,34 @@ export function EvidenceChart({
 }
 export function ReportView({
   report,
-  onAsk,
   compact = false,
 }: {
   report: ReportData;
-  onAsk?: (claim: Claim) => void;
   compact?: boolean;
 }) {
+  const item = (
+    kind: ContextAttachment["kind"],
+    key: string,
+    content: NonNullable<ContextAttachment["content"]>,
+  ): ContextAttachment | undefined =>
+    report.report_id && report.report_version && !compact
+      ? {
+          report_id: report.report_id,
+          report_version: report.report_version,
+          kind,
+          element_key: key,
+          title:
+            "title" in content
+              ? content.title
+              : "label" in content
+                ? content.label
+                : key,
+          period: report.scope.period,
+          report_title: report.title,
+          href: location.hash,
+          content,
+        }
+      : undefined;
   return (
     <div className="space-y-6">
       <div>
@@ -251,30 +276,51 @@ export function ReportView({
           {report.title}
         </h2>
         {report.summary && (
-          <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground">
-            {report.summary}
-          </p>
+          <Selectable
+            item={item("section", "summary", {
+              key: "summary",
+              title: "Resumen",
+              statement: report.summary,
+            })}
+          >
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground">
+              {report.summary}
+            </p>
+          </Selectable>
         )}
-        <p className="mt-2 text-xs text-muted-foreground">
-          {report.scope.coverage}
-        </p>
+        <Selectable
+          item={item("section", "scope", {
+            key: "scope",
+            title: "Alcance",
+            statement: report.scope.coverage,
+          })}
+        >
+          <p className="mt-2 text-xs text-muted-foreground">
+            {report.scope.coverage}
+          </p>
+        </Selectable>
       </div>
       {report.highlights?.length > 0 && (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {report.highlights.map((h, i) => (
-            <Card key={i} className="shadow-none">
-              <CardHeader className="pb-2">
-                <CardDescription>{h.label}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-semibold tracking-tight tabular-nums">
-                  {h.value}
-                  <span className="mt-2 block text-xs font-normal tracking-normal text-muted-foreground">
-                    {h.unit}
-                  </span>
-                </p>
-              </CardContent>
-            </Card>
+            <Selectable
+              key={h.key || i}
+              item={h.key ? item("metric", h.key, h) : undefined}
+            >
+              <Card className="shadow-none">
+                <CardHeader className="pb-2">
+                  <CardDescription>{h.label}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-semibold tracking-tight tabular-nums">
+                    {h.value}
+                    <span className="mt-2 block text-xs font-normal tracking-normal text-muted-foreground">
+                      {h.unit}
+                    </span>
+                  </p>
+                </CardContent>
+              </Card>
+            </Selectable>
           ))}
         </div>
       )}
@@ -291,79 +337,83 @@ export function ReportView({
       )}
       <div className="grid gap-5 xl:grid-cols-2">
         {report.charts?.map((c) => (
-          <EvidenceChart key={c.key} chart={c} />
+          <Selectable key={c.key} item={item("chart", c.key, c)}>
+            <EvidenceChart chart={c} />
+          </Selectable>
         ))}
       </div>
       <div className="space-y-4">
         {report.claims.map((claim, i) => (
-          <Card
-            key={claim.key}
-            id={`finding-${claim.key}`}
-            className="shadow-none"
-          >
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs text-muted-foreground">
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <CardTitle>{claim.title}</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm leading-7">
-              <p>{claim.statement}</p>
-              {claim.interpretation && (
-                <p className="text-muted-foreground">{claim.interpretation}</p>
-              )}
-              {claim.next_step && (
-                <p className="rounded-lg bg-muted p-4">
-                  <strong>Siguiente comprobación: </strong>
-                  {claim.next_step}
-                </p>
-              )}
-              {claim.method && (
-                <Disclosure title="Cómo se ha calculado">
-                  <p>{claim.method}</p>
-                </Disclosure>
-              )}
-              {claim.evidence_details && (
-                <Sources>
-                  <SourcesTrigger count={claim.evidence_details.files.length}>
-                    <span>Fuentes y evidencia</span>
-                    <ArrowUpRight className="size-4" />
-                  </SourcesTrigger>
-                  <SourcesContent>
-                    <div className="rounded-lg border p-4 space-y-3">
-                      <p>{claim.evidence_details.files.join(" · ")}</p>
-                      {claim.evidence_details.metrics.map((m, j) => (
-                        <p key={j} className="font-mono text-xs">
-                          {m.label}: {m.value}
-                        </p>
-                      ))}
-                      {claim.evidence_details.operations.map((o, j) => (
-                        <p key={j}>{o}</p>
-                      ))}
-                    </div>
-                  </SourcesContent>
-                </Sources>
-              )}
-              {onAsk && (
-                <Button variant="ghost" size="sm" onClick={() => onAsk(claim)}>
-                  <MessageSquare />
-                  Preguntar sobre este hallazgo
-                </Button>
-              )}
-            </CardContent>
-          </Card>
+          <Selectable key={claim.key} item={item("insight", claim.key, claim)}>
+            <Card id={`finding-${claim.key}`} className="shadow-none">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs text-muted-foreground">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <CardTitle>{claim.title}</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm leading-7">
+                <p>{claim.statement}</p>
+                {claim.interpretation && (
+                  <p className="text-muted-foreground">
+                    {claim.interpretation}
+                  </p>
+                )}
+                {claim.next_step && (
+                  <p className="rounded-lg bg-muted p-4">
+                    <strong>Siguiente comprobación: </strong>
+                    {claim.next_step}
+                  </p>
+                )}
+                {claim.method && (
+                  <Disclosure title="Cómo se ha calculado">
+                    <p>{claim.method}</p>
+                  </Disclosure>
+                )}
+                {claim.evidence_details && (
+                  <Sources>
+                    <SourcesTrigger count={claim.evidence_details.files.length}>
+                      <span>Fuentes y evidencia</span>
+                      <ArrowUpRight className="size-4" />
+                    </SourcesTrigger>
+                    <SourcesContent>
+                      <div className="rounded-lg border p-4 space-y-3">
+                        <p>{claim.evidence_details.files.join(" · ")}</p>
+                        {claim.evidence_details.metrics.map((m, j) => (
+                          <p key={j} className="font-mono text-xs">
+                            {m.label}: {m.value}
+                          </p>
+                        ))}
+                        {claim.evidence_details.operations.map((o, j) => (
+                          <p key={j}>{o}</p>
+                        ))}
+                      </div>
+                    </SourcesContent>
+                  </Sources>
+                )}
+              </CardContent>
+            </Card>
+          </Selectable>
         ))}
       </div>
       {report.limitations?.length > 0 && (
-        <Disclosure title="Alcance y límites del informe">
-          <ul className="list-disc space-y-2 pl-5 text-muted-foreground">
-            {report.limitations.map((l, i) => (
-              <li key={i}>{l}</li>
-            ))}
-          </ul>
-        </Disclosure>
+        <Selectable
+          item={item("section", "limitations", {
+            key: "limitations",
+            title: "Limitaciones",
+            statement: report.limitations.join("\n"),
+          })}
+        >
+          <Disclosure title="Alcance y límites del informe">
+            <ul className="list-disc space-y-2 pl-5 text-muted-foreground">
+              {report.limitations.map((l, i) => (
+                <li key={i}>{l}</li>
+              ))}
+            </ul>
+          </Disclosure>
+        </Selectable>
       )}
     </div>
   );

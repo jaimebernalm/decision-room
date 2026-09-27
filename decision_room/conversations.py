@@ -468,8 +468,9 @@ class Conversations:
                     db.execute('UPDATE chat_conversations SET analysis_id=%s WHERE id=%s', (chat['analysis_id'], chat_id))
             if refs:
                 memory.lock(db, self.business)
-                for ref in refs:
-                    selections.resolve(ref, reviewed(self.config, self.business, ref['report_id'], db))
+                resolved = [selections.resolve(ref, reviewed(self.config, self.business, ref['report_id'], db)) for ref in refs]
+                if len(memory.encoded(resolved).encode()) > ctx.CONTEXT_BYTES // 3:
+                    raise WebError('La selección contiene demasiados datos. Adjunta menos gráficos para esta pregunta.')
             previous = db.execute(
                 'SELECT * FROM chat_turns WHERE conversation_id=%s ORDER BY ordinal DESC LIMIT 1', (chat_id,)
             ).fetchone()
@@ -805,7 +806,11 @@ class Conversations:
         if opened:
             ref = context['message'].get('finding_reference')
             report = next((r for r in opened if ref and r['id'] == ref['report_id']), opened[-1])
-            evidence = brief(review.show(self.config, self.business, report['id']), [ref['claim_key']] if ref else None)
+            keys = [ref['claim_key']] if ref else None
+            selected_refs = [r for r in context['message'].get('context_references', []) if r['report_id'] == report['id']]
+            if selected_refs:
+                keys = list(dict.fromkeys(k for r in selected_refs for k in selections.resolve(r, reviewed(self.config, self.business, r['report_id'], db))['claim_keys']))
+            evidence = brief(review.show(self.config, self.business, report['id']), keys)
             response.update(evidence=evidence, report_id=evidence['report_id'], report_version=evidence['report_version'])
         return response
 
@@ -1048,6 +1053,9 @@ class Conversations:
                             retrievals=[{k: e[k] for k in ('ordinal', 'request', 'response')} for e in events],
                         )
                         context['available_sources'] = chat_agent.sources_for(context)
+                        for index, ref in enumerate(turn['payload'].get('context_references', [])):
+                            selected = selections.resolve(ref, reviewed(self.config, self.business, ref['report_id'], db))
+                            context['available_sources'][f'selection/{index}'] = dict(label=selected['title'], content=selected)
                         context['remaining_steps'] = ctx.MAX_RETRIEVALS - ordinal
                         context['validation_feedback'] = [r['response']['issues'] for r in db.execute(
                             "SELECT response FROM chat_answer_reviews WHERE turn_id=%s AND attempt=%s AND status='completed' ORDER BY ordinal",

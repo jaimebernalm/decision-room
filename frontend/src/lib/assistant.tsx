@@ -1,0 +1,176 @@
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  type ReactNode,
+} from "react";
+import { useWorkspace } from "./workspace";
+import { contextKey, referenceWire, launchChat, store } from "./api";
+import { useDraft } from "./hooks";
+import type {
+  ContextAttachment,
+  ContextReference,
+  QuestionContext,
+} from "./types";
+export const referenceId = (r: ContextReference) =>
+  [r.report_id, r.report_version, r.kind, r.element_key].join(":");
+export const blockId = (r: ContextReference) =>
+  `context-${r.report_id}-${r.kind}-${r.element_key}`;
+export const contextualRoute = (route: string) =>
+  route === "home" ||
+  route.startsWith("report/") ||
+  route.startsWith("chat-report/");
+type Dock = {
+  chatId?: string;
+  open: boolean;
+  origin?: string;
+  scroll?: number;
+  block?: string;
+};
+type Assistant = {
+  dock: Dock;
+  setDock: (d: Dock) => void;
+  selecting: boolean;
+  setSelecting: (v: boolean) => void;
+  selected: ContextAttachment[];
+  toggle: (r: ContextAttachment) => void;
+  clear: () => void;
+  remove: (r: ContextReference) => void;
+  register: (r: ContextAttachment) => () => void;
+  launch: (
+    text: string,
+    context: QuestionContext,
+    origin: string,
+  ) => Promise<void>;
+  error: string;
+  returnToSource: (r: ContextAttachment, chatId?: string) => void;
+};
+const AssistantContext = createContext<Assistant | null>(null);
+export const useAssistant = () => useContext(AssistantContext);
+export function AssistantProvider({ children }: { children: ReactNode }) {
+  const { workspace, route } = useWorkspace();
+  const business = workspace.business?.id || "empty";
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const [dock, setDock] = useDraft<Dock>(`dr-dock-${business}`, {
+    open: false,
+  });
+  const [context, setContext] = useDraft<QuestionContext>(
+    contextKey(business),
+    {},
+  );
+  const [selectionRoute, setSelectionRoute] = useState<string | null>(null);
+  const selecting = selectionRoute === route;
+  const setSelecting = (value: boolean) => setSelectionRoute(value ? route : null);
+  const [error, setError] = useState("");
+  const [previews, setPreviews] = useState<Record<string, ContextAttachment>>(
+    {},
+  );
+  const register = useCallback((item: ContextAttachment) => {
+    const key = referenceId(item);
+    setPreviews((current) => ({ ...current, [key]: item }));
+    return () =>
+      setPreviews((current) => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
+  }, []);
+  const refs = context.context_references || [];
+  const selected = refs.map((r) => previews[referenceId(r)] || r);
+  const save = (items: ContextAttachment[]) =>
+    setContext({
+      ...context,
+      finding_reference: undefined,
+      context_references: items.map((r) => ({
+        ...referenceWire(r),
+        title: r.title,
+        period: r.period,
+        href: r.href,
+      })),
+    });
+  useEffect(() => {
+    const leave = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelecting(false);
+    };
+    addEventListener("keydown", leave);
+    return () => removeEventListener("keydown", leave);
+  }, []);
+  const clear = () => {
+    save([]);
+    setSelecting(false);
+    setError("");
+  };
+  return (
+    <AssistantContext.Provider
+      value={{
+        dock,
+        setDock,
+        selecting,
+        setSelecting,
+        selected,
+        register,
+        error,
+        clear,
+        launch: async (text, selectedContext, origin) => {
+          setSelecting(false);
+          setError("");
+          setDock({ open: true, origin });
+          try {
+            const chat = await launchChat(business, text, selectedContext);
+            if (mounted.current) {
+              const current = store.get<Dock>(`dr-dock-${business}`, {
+                open: false,
+              });
+              setDock({ ...current, chatId: chat.id, origin });
+            }
+          } catch (error) {
+            if (mounted.current) {
+              setDock({ open: false, origin });
+              setError((error as Error).message);
+            }
+            throw error;
+          }
+        },
+        remove: (r) => {
+          save(refs.filter((x) => referenceId(x) !== referenceId(r)));
+          setError("");
+        },
+        toggle: (r) => {
+          const exists = refs.some((x) => referenceId(x) === referenceId(r));
+          if (!exists && refs.length >= 8) {
+            setError("Puedes añadir hasta ocho elementos por mensaje.");
+            return;
+          }
+          save(
+            exists
+              ? refs.filter((x) => referenceId(x) !== referenceId(r))
+              : [...refs, r],
+          );
+          setError("");
+        },
+        returnToSource: (r, chatId) => {
+          if (r.status === "withdrawn") return;
+          const origin = (r.href || "#home").slice(1);
+          setDock({
+            chatId: chatId || dock.chatId,
+            open: !matchMedia("(max-width: 767px)").matches,
+            origin,
+            block: blockId(r),
+          });
+          location.hash = origin;
+        },
+      }}
+    >
+      {children}
+    </AssistantContext.Provider>
+  );
+}

@@ -307,6 +307,37 @@ class ConversationTests(unittest.TestCase):
         with self.assertRaises(WebError):
             self.chats.send(chat, {**payload, 'request_key': str(uuid4())})
 
+    def test_multiple_reports_are_opened_cited_and_carried_into_investigation(self):
+        _, first = self.complete()
+        _, second = self.complete()
+        refs = [dict(report_id=t['response']['report_id'], report_version=t['response']['report_version'],
+                     kind='insight', element_key=t['response']['claims'][0]['key']) for t in (first, second)]
+        chat = self.chat()
+        seen = []
+        def answer_selected(model, context, correction=None):
+            seen.append(context)
+            opened = {e['response'].get('id') for e in context['retrievals']}
+            missing = next((r for r in refs if r['report_id'] not in opened), None)
+            if missing:
+                return action('retrieve', retrieval=dict(tool='open_report', query='', id=missing['report_id'], limit=1)), {}
+            return action('answer', text='Ambos informes describen ventas registradas.', sources=['selection/0', 'selection/1', 'tool/0', 'tool/1']), {}
+        with patch.object(ChatModel, 'generate_chat', answer_selected):
+            turn = self.send(chat, 'Explain both selected reports', context_references=refs)
+        self.assertEqual(turn['status'], 'completed', turn)
+        self.assertEqual(len(turn['attachments']), 2)
+        self.assertEqual(len(seen[-1]['available_sources']['selection/0']['content']['claim_keys']), 1)
+        self.assertIn('statement', seen[-1]['available_sources']['selection/1']['content']['content'])
+        self.assertIsNone(self.chats.detail(chat)['conversation']['analysis_id'])
+        selected_analysis = turn['attachments'][0]['analysis_id']
+        with patch.object(ChatModel, 'generate_chat', return_value=(action('investigate', analysis_id=selected_analysis), {})):
+            follow = self.send(chat, 'Investigate these reports', context_references=refs)
+        self.assertEqual(follow['status'], 'processing', follow)
+        import json
+        continuation = json.loads(self.ws.row(follow['job_id'])['context'])
+        self.assertEqual(continuation['context']['context_references'], refs)
+        for ref in refs:
+            self.assertIn(dict(kind='report', id=ref['report_id'], version=ref['report_version']), continuation['dependencies'])
+
     def test_daily_activity_distinguishes_unpublished_pending_and_withdrawn(self):
         chat = self.chat(self.batch())
         saved = self.chats.send(chat, dict(business_id=str(self.b), request_key=str(uuid4()), text='Calculate sales'))

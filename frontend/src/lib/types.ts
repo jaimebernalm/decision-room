@@ -78,6 +78,8 @@ export type ChartData = {
   points: { label: string; value: string; formatted: string }[];
 };
 export type Report = {
+  report_id?: string;
+  report_version?: string;
   title: string;
   summary?: string;
   no_chart_reason?: string;
@@ -89,6 +91,7 @@ export type Report = {
   };
   claims: Claim[];
   highlights: {
+    key?: string;
     label: string;
     value: string;
     unit: string;
@@ -108,6 +111,20 @@ export type Dashboard = {
   created_at?: string;
   data_version?: Dataset;
 };
+export type ContextReference = {
+  report_id: string;
+  report_version: string;
+  kind: "chart" | "metric" | "insight" | "section";
+  element_key: string;
+};
+export type ContextAttachment = ContextReference & {
+  title?: string;
+  period?: string;
+  report_title?: string;
+  href?: string;
+  status?: "available" | "withdrawn";
+  content?: ChartData | Claim | Report["highlights"][number];
+};
 export type FindingReference = {
   report_id: string;
   report_version: string;
@@ -116,6 +133,7 @@ export type FindingReference = {
   period?: string;
 };
 export type QuestionContext = {
+  context_references?: ContextAttachment[];
   analysis_id?: string;
   finding_reference?: FindingReference;
   label?: string;
@@ -190,7 +208,12 @@ export type ResponseItem = {
 export type Turn = {
   id: string;
   status: string;
-  payload: { text: string; finding_reference?: FindingReference };
+  payload: {
+    text: string;
+    finding_reference?: FindingReference;
+    context_references?: ContextReference[];
+  };
+  attachments?: ContextAttachment[];
   response?: Response;
   issue?: string;
   historical?: boolean;

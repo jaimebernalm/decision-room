@@ -11,6 +11,8 @@ import { useWorkspace } from "@/lib/workspace";
 import { useAction, useDraft } from "@/lib/hooks";
 import { contextKey, homeDraftKey, launchChat, store } from "@/lib/api";
 import type { QuestionContext } from "@/lib/types";
+import { useAssistant, contextualRoute } from "@/lib/assistant";
+import { ContextAttachments, SelectionTool } from "./context-selection";
 import { Composer } from "./composer";
 
 // The owner keys this component by business and route: drafts survive navigation,
@@ -22,6 +24,7 @@ export function FloatingAssistant({
   inline?: boolean;
   onArrive?: () => void;
 }) {
+  const assistant = useAssistant();
   const reducedMotion = useReducedMotion();
   const { workspace, route, refresh } = useWorkspace();
   const business = workspace.business!;
@@ -53,12 +56,30 @@ export function FloatingAssistant({
   const send = () =>
     action.run(async () => {
       if (!text.trim()) return;
-      const chat = await launchChat(business.id, text, context);
-      if (action.isMounted()) {
-        refresh();
-        location.hash = `chat/${chat.id}`;
+      if (assistant && contextualRoute(route)) {
+        await assistant.launch(text, context, route);
+        if (action.isMounted()) refresh();
+      } else {
+        const chat = await launchChat(business.id, text, context);
+        if (action.isMounted()) {
+          refresh();
+          location.hash = `chat/${chat.id}`;
+        }
       }
     });
+  if (assistant?.dock.open && contextualRoute(route) && !inline) return null;
+  if (assistant?.dock.chatId && contextualRoute(route) && !inline)
+    return (
+      <div className="absolute bottom-5 right-5 z-20">
+        <Button
+          className="rounded-full shadow-lg"
+          onClick={() => assistant.setDock({ ...assistant.dock, open: true })}
+        >
+          <MessageCircle className="size-4" />
+          Continuar conversación
+        </Button>
+      </div>
+    );
   return (
     <div
       ref={container}
@@ -140,11 +161,24 @@ export function FloatingAssistant({
             )}
             <Composer
               compact
+              tools={
+                assistant && contextualRoute(route) ? (
+                  <SelectionTool />
+                ) : undefined
+              }
+              attachments={
+                assistant?.selected.length ? (
+                  <ContextAttachments
+                    items={assistant.selected}
+                    onRemove={assistant.remove}
+                  />
+                ) : undefined
+              }
               text={text}
               onChange={setText}
               onSend={send}
               busy={action.busy}
-              error={action.error}
+              error={action.error || assistant?.error}
               placeholder="Pregunta algo…"
             />
           </motion.div>

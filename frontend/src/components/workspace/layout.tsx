@@ -41,6 +41,8 @@ import { Button } from "@/components/ui/button";
 import { Brand } from "@/components/brand";
 import { useWorkspace } from "@/lib/workspace";
 import { store, shortTitle, analysisHref } from "@/lib/api";
+import { AssistantProvider } from "@/lib/assistant";
+import { AssistantFrame } from "./assistant-frame";
 const navigation = [
   ["home", "Inicio", Home],
   ["chats", "Conversaciones", MessageSquare],
@@ -48,6 +50,7 @@ const navigation = [
   ["my-business", "Mi negocio", Building2],
 ] as const;
 export function Layout({ children }: { children: ReactNode }) {
+  const { workspace } = useWorkspace();
   const [width, setWidth] = useState(() =>
     Number(store.get("dr-sidebar-width", 256)),
   );
@@ -62,7 +65,11 @@ export function Layout({ children }: { children: ReactNode }) {
       <Navigation width={width} setWidth={setWidth} />
       <SidebarInset className="relative h-svh min-w-0 overflow-hidden md:h-[calc(100svh-1rem)]">
         <Topbar />
-        <LayoutGroup>{children}</LayoutGroup>
+        <AssistantProvider key={workspace.business?.id || "empty"}>
+          <LayoutGroup>
+            <AssistantFrame>{children}</AssistantFrame>
+          </LayoutGroup>
+        </AssistantProvider>
       </SidebarInset>
     </SidebarProvider>
   );

@@ -32,6 +32,16 @@ export function useResource<T>(path: string, interval = 0) {
 }
 export function useDraft<T>(key: string, fallback: T) {
   const [value, setValue] = useState<T>(() => store.get(key, fallback));
+  useEffect(() => {
+    const sync = (event: Event) => {
+      if ((event as CustomEvent).detail === key)
+        setValue(store.get(key, fallback));
+    };
+    addEventListener("dr-draft", sync);
+    return () => removeEventListener("dr-draft", sync);
+    // The fallback only initializes an empty draft.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
   const set = useCallback(
     (next: T) => {
       store.set(key, next);
