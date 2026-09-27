@@ -329,6 +329,22 @@ componente de marca, con icono, color y tipografía Geist idénticos. Se añade 
 recorrido y 12 filas CSV. Compilación y lint de los componentes modificados
 correctos; totales del CSV comprobados y bienvenida revisada en navegador.
 
+### 2.5.16. Selección de contexto y chat acoplado
+
+**Completado, 27 de septiembre de 2026:** herramienta de selección en el chat,
+adjuntos visuales de bloques de Inicio e informes y conversación lateral ajustable.
+Plegar, ampliar y recargar conservan la misma conversación y los gráficos enviados.
+La página completa permite ampliar cada adjunto y regresar al bloque de origen.
+Referencias versionadas, validación por negocio, retirada y recuperación del agente
+incluyen todos los elementos seleccionados.
+
+**Cierre:** 290 pruebas de regresión Python, dos pruebas adicionales de resolución
+y 45 pruebas de frontend correctas; compilación y lint sin errores. Recorrido en
+navegador de escritorio/móvil y con el modelo real, incluidas cifras contrastadas
+independientemente y corrección de fallos encontrados. Véanse el
+[plan técnico](../technical/contextual-chat-plan.md) y la
+[validación y límites](../validation/2026-09-27-contextual-chat-check.md).
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Prioridad actualizada, 23 de septiembre de 2026:** iniciar las ampliaciones siguientes después de cerrar la entrega 2.5. La evaluación del 22 de septiembre descrita a continuación ya se realizó; no se presenta como trabajo pendiente ni sustituye la regresión exigida por los cambios de memoria y conversación.

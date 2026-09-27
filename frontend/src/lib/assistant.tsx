@@ -98,11 +98,16 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       })),
     });
   useEffect(() => {
+    const cancel = () => setSelectionRoute(null);
     const leave = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setSelecting(false);
+      if (e.key === "Escape") cancel();
     };
     addEventListener("keydown", leave);
-    return () => removeEventListener("keydown", leave);
+    addEventListener("hashchange", cancel);
+    return () => {
+      removeEventListener("keydown", leave);
+      removeEventListener("hashchange", cancel);
+    };
   }, []);
   const clear = () => {
     save([]);

@@ -1,11 +1,11 @@
 # Selección de contexto y conversación lateral
 
-27 de septiembre de 2026. Estado: planificación; implementación pendiente.
+27 de septiembre de 2026. Estado: implementado y validado; paso 2.5.16.
+Véanse [pruebas, correcciones y límites](../validation/2026-09-27-contextual-chat-check.md).
 
 Ampliación de los pasos 2.5.6 (navegación y contexto), 2.5.10 (continuidad del
 chat) y 2.5.14 (dashboard) del [plan de implementación](../product/Decision%20Room%20-%20Plan%20de%20implementacion.md).
-Ejecutar después del paso 2.5.15, actualmente en curso. Este documento no cierra
-ningún paso de implementación ni modifica los trabajos de onboarding.
+Ejecutado después del paso 2.5.15, conservando los trabajos de onboarding.
 
 ## Experiencia acordada
 
@@ -80,8 +80,9 @@ ocho referencias por mensaje, validado en cliente y servidor.
 
 Conservar compatibilidad con mensajes antiguos que usan `finding_reference`.
 Normalizar a una lista al leerlos. Rechazar envíos ambiguos con ambos formatos.
-Guardar referencias normalizadas y una proyección acotada, resuelta por servidor,
-en el JSON del turno. No guardar imágenes base64 ni datos de pantalla en localStorage.
+Implementación final: guardar las referencias normalizadas en el JSON del turno
+y resolver su proyección desde el servidor en cada lectura, sin duplicar series
+en el mensaje persistido. No guardar imágenes base64 ni datos de pantalla en localStorage.
 La vista ampliada obtiene las series completas del informe versionado mediante
 una lectura autorizada; la miniatura puede simplificar la presentación sin
 modificar las cifras de la vista completa. Establecer límites de tamaño al
@@ -209,5 +210,11 @@ Contrastes realizados: navegación y envío actuales, borradores y reintentos,
 restricción de una referencia por turno, asociación a un conjunto, proyecciones
 del dashboard, claves de gráficos, presentación de mensajes y componentes de
 Vercel disponibles. Revisar enlaces locales y diferencias antes de guardar este
-documento. Las pruebas de ejecución descritas arriba están pendientes; este
-documento no afirma haber implementado ni probado el nuevo comportamiento.
+documento. Las pruebas de ejecución se completaron y constan en la
+[validación integrada](../validation/2026-09-27-contextual-chat-check.md).
+El paso 1 se guardó en `3cfaaa8`; los pasos 2–4, desarrollados y comprobados
+conjuntamente, en `a785c61`. El cierre del paso 5 registra los resultados y límites.
+Se reutiliza `ChatPage` tanto en panel como en página y la lectura existente del
+chat entrega los adjuntos; no fue necesario añadir un endpoint de resolución.
+La transición usa CSS con respeto a movimiento reducido, y las tablas conservan
+el tipo de gráfico tabular del contrato de presentación existente.
