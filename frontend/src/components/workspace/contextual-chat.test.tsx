@@ -9,7 +9,7 @@ import type { ContextAttachment } from "@/lib/types";
 import { Selectable } from "./context-selection";
 import { FloatingAssistant } from "./floating-assistant";
 import { ChatPage } from "./chat";
-import { Chats, Reports } from "./overview";
+import { Chats, Reports, StartChat } from "./overview";
 import { Dossier } from "./dossier";
 import { Layout } from "./layout";
 const item: ContextAttachment = {
@@ -88,8 +88,13 @@ function Harness({
         <Layout>
           {route.startsWith("chat/") ? (
             <ChatPage id={route.split("/")[1]} />
+          ) : route === "ask" ? (
+            <StartChat />
           ) : route === "chats" ? (
-            <Chats />
+            <>
+              <Chats />
+              <FloatingAssistant />
+            </>
           ) : (
             <>
               <div id="main-content">
@@ -164,11 +169,97 @@ function server(delayed?: Promise<void>, failSend = 0) {
   );
   return calls;
 }
+it.each(["home", "my-business", "reports"])(
+  "opens the right panel immediately from the launcher on %s, preserving a folded draft",
+  async (route) => {
+    location.hash = route;
+    store.set("dr-assistant-collapsed", false);
+    const calls = server();
+    const user = userEvent.setup();
+    render(<Harness initialRoute={route} />);
+    expect(screen.queryByRole("textbox", { name: "Mensaje" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Preguntar algo" }));
+    const panel = await screen.findByRole("complementary", {
+      name: "Conversación lateral",
+    });
+    const composer = within(panel).getByRole("textbox", { name: "Mensaje" });
+    expect(composer).toHaveFocus();
+    expect(location.hash).toBe(`#${route}`);
+    expect(calls.filter((call) => call.url === "/api/chats")).toHaveLength(0);
+    await user.type(composer, "Borrador del panel");
+    await user.click(
+      within(panel).getByRole("button", { name: "Plegar conversación" }),
+    );
+    await waitFor(() => expect(screen.queryByRole("complementary")).toBeNull());
+    expect(screen.queryByRole("textbox", { name: "Mensaje" })).toBeNull();
+    await user.click(
+      screen.getByRole("button", { name: "Continuar conversación" }),
+    );
+    expect(await screen.findByRole("textbox", { name: "Mensaje" })).toHaveValue(
+      "Borrador del panel",
+    );
+    expect(screen.getAllByRole("textbox", { name: "Mensaje" })).toHaveLength(1);
+  },
+);
+it("sends the first standalone message without routing through home or opening a side panel", async () => {
+  location.hash = "ask";
+  const calls = server();
+  const user = userEvent.setup();
+  render(<Harness initialRoute="ask" />);
+  expect(screen.queryByRole("complementary")).toBeNull();
+  expect(calls).toHaveLength(0);
+  await user.type(
+    screen.getByRole("textbox", { name: "Mensaje" }),
+    "Mi primera pregunta",
+  );
+  await user.click(screen.getByRole("button", { name: "Enviar mensaje" }));
+  await screen.findByText("Ventas revisadas.");
+  expect(location.hash).toBe("#chat/chat");
+  expect(screen.queryByRole("complementary")).toBeNull();
+  expect(calls.filter((call) => call.url === "/api/chats")).toHaveLength(1);
+  expect(calls.filter((call) => call.url.endsWith("/messages"))).toEqual([
+    expect.objectContaining({
+      data: expect.objectContaining({ text: "Mi primera pregunta" }),
+    }),
+  ]);
+});
+it("can fold and resume an existing side conversation from the library", async () => {
+  location.hash = "chats";
+  store.set("dr-dock-a", { chatId: "existing", open: true });
+  store.set(messageKey("existing"), { text: "Continuar aquí" });
+  const calls = server();
+  const user = userEvent.setup();
+  render(<Harness initialRoute="chats" conversations={existingChats} />);
+  const panel = await screen.findByRole("complementary", {
+    name: "Conversación lateral",
+  });
+  expect(await within(panel).findByRole("textbox")).toHaveValue(
+    "Continuar aquí",
+  );
+  await user.click(
+    within(panel).getByRole("button", { name: "Plegar conversación" }),
+  );
+  await waitFor(() => expect(screen.queryByRole("complementary")).toBeNull());
+  expect(screen.queryByRole("button", { name: "Preguntar algo" })).toBeNull();
+  await user.click(
+    screen.getByRole("button", { name: "Continuar conversación" }),
+  );
+  expect(await screen.findByRole("textbox", { name: "Mensaje" })).toHaveValue(
+    "Continuar aquí",
+  );
+  expect(location.hash).toBe("#chats");
+  expect(
+    calls.some(
+      (call) => call.url === "/api/chats" || call.url.endsWith("/messages"),
+    ),
+  ).toBe(false);
+});
 it("selects context, opens a dock, expands the same chat and recovers attachments after remount", async () => {
   location.hash = "home";
   const calls = server();
   const user = userEvent.setup();
   const mounted = render(<Harness />);
+  await user.click(screen.getByRole("button", { name: "Preguntar algo" }));
   await user.click(screen.getByRole("button", { name: "Seleccionar" }));
   await user.click(screen.getByRole("button", { name: "Seleccionar: Ventas" }));
   expect(
@@ -233,6 +324,7 @@ it("does not reopen a panel folded before the first send finishes", async () => 
   );
   const user = userEvent.setup();
   render(<Harness />);
+  await user.click(screen.getByRole("button", { name: "Preguntar algo" }));
   await user.type(screen.getByRole("textbox"), "Explica esto");
   await user.click(screen.getByRole("button", { name: "Enviar mensaje" }));
   await user.click(screen.getByRole("button", { name: "Plegar conversación" }));
@@ -255,6 +347,7 @@ it("keeps selected references and the question when the first send fails", async
   );
   const user = userEvent.setup();
   render(<Harness />);
+  await user.click(screen.getByRole("button", { name: "Preguntar algo" }));
   await user.click(screen.getByRole("button", { name: "Seleccionar" }));
   await user.click(screen.getByRole("button", { name: "Seleccionar: Ventas" }));
   await user.keyboard("{Escape}");
@@ -355,28 +448,6 @@ it("starts a new conversation inside the open panel and labels its actions", asy
   expect(location.hash).toBe("#home");
 });
 
-it.each([
-  ["home", "#home"],
-  ["my-business", "#my-business"],
-  ["reports", "#reports"],
-  ["chats", "#home"],
-  ["chat/previous-chat", "#home"],
-])("opens a blank right panel from %s", async (route, destination) => {
-  location.hash = route;
-  store.set("dr-dock-a", { chatId: "previous-chat", open: false });
-  const calls = server();
-  render(<Harness initialRoute={route} />);
-  await userEvent.click(screen.getAllByRole("button", { name: "Nuevo chat" })[0]);
-  await waitFor(() => expect(location.hash).toBe(destination));
-  const panel = await screen.findByRole("complementary", {
-    name: "Conversación lateral",
-  });
-  expect(within(panel).getByRole("textbox", { name: "Mensaje" })).toHaveValue("");
-  expect(within(panel).getByRole("button", { name: "Abrir conversación completa" })).toBeDisabled();
-  expect(calls.filter((call) => call.url === "/api/chats")).toHaveLength(0);
-  expect(screen.queryByRole("heading", { name: "¿Qué quieres entender hoy?" })).toBeNull();
-});
-
 const existingChats = [
   { id: "old", business_id: "a", title: "Anterior", created_at: "2026-09-27" },
   {
@@ -415,7 +486,7 @@ it("opens an existing conversation from its page on home without duplicate retur
     calls.some((c) => c.url.endsWith("/messages") || c.url === "/api/chats"),
   ).toBe(false);
 });
-it("opens from the conversation list on the dashboard when there is no origin", async () => {
+it("opens an existing chat in the panel without leaving the conversation list", async () => {
   location.hash = "chats";
   server();
   const user = userEvent.setup();
@@ -426,7 +497,7 @@ it("opens from the conversation list on the dashboard when there is no origin", 
   await user.click(buttons[buttons.length - 1]);
   await user.click(screen.getByRole("menuitem", { name: "Abrir en panel" }));
   await screen.findByRole("complementary", { name: "Conversación lateral" });
-  expect(location.hash).toBe("#home");
+  expect(location.hash).toBe("#chats");
   expect(store.get("dr-dock-a", {})).toMatchObject({ chatId: "existing" });
 });
 it("switches chats from navigation without leaving the report or losing the previous draft", async () => {
@@ -452,7 +523,7 @@ it("switches chats from navigation without leaving the report or losing the prev
   expect(store.get("dr-dock-a", {})).toMatchObject({ chatId: "existing" });
 });
 
-it("keeps the same dock and draft across home, business and reports and sends both kinds of selection", async () => {
+it("keeps the same dock, draft and attachments across all four sections", async () => {
   location.hash = "home";
   store.set("dr-dock-a", { chatId: "existing", open: true });
   const calls = server();
@@ -484,6 +555,18 @@ it("keeps the same dock and draft across home, business and reports and sends bo
   );
   expect(location.hash).toBe("#reports");
   await user.keyboard("{Escape}");
+  await user.click(screen.getByRole("link", { name: "Conversaciones" }));
+  expect(location.hash).toBe("#chats");
+  expect(screen.getByRole("complementary")).toBe(panel);
+  expect(within(panel).getByRole("textbox")).toHaveValue(
+    "Explica la selección",
+  );
+  expect(
+    within(panel).queryByRole("button", { name: "Seleccionar" }),
+  ).toBeNull();
+  expect(
+    within(panel).getAllByRole("button", { name: /Ver adjunto:/ }),
+  ).toHaveLength(2);
   await user.click(screen.getByRole("link", { name: "Inicio" }));
   expect(screen.getByRole("complementary")).toBe(panel);
   await user.click(

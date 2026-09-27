@@ -21,7 +21,21 @@ import type { Report } from "@/lib/types";
 import { Heading, Notice, Empty, Loading } from "./shared";
 import { ReportView } from "./report";
 import { ChatActions } from "./chat-actions";
+import { FloatingAssistant } from "./floating-assistant";
 import { useAssistant } from "@/lib/assistant";
+export function StartChat() {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <h1 className="sr-only">Nueva conversación</h1>
+      <div className="flex-1" />
+      <div className="shrink-0 px-4 pb-4 pt-2 sm:px-8">
+        <div className="mx-auto max-w-2xl">
+          <FloatingAssistant inline />
+        </div>
+      </div>
+    </div>
+  );
+}
 export { Reports } from "./reports";
 export function Chats() {
   const { listing } = useWorkspace();
@@ -36,9 +50,11 @@ export function Chats() {
         title="Conversaciones"
         description="Retoma una pregunta o empieza a explorar algo nuevo."
       >
-        <Button onClick={() => assistant?.newConversation()}>
-          <Plus />
-          Nuevo chat
+        <Button asChild>
+          <a href="#ask" onClick={() => assistant?.newConversation("page")}>
+            <Plus />
+            Nuevo chat
+          </a>
         </Button>
       </Heading>
       <Input
@@ -84,7 +100,8 @@ export function Chats() {
         <Empty
           title="Un espacio para pensar con tus datos"
           description="Tus conversaciones se guardan dentro de cada negocio."
-          onAction={() => assistant?.newConversation()}
+          href="#ask"
+          onAction={() => assistant?.newConversation("page")}
         />
       )}
     </>
@@ -116,7 +133,6 @@ export function Presentation({
   );
 }
 export function How() {
-  const assistant = useAssistant();
   return (
     <>
       <Heading
@@ -155,9 +171,11 @@ export function How() {
         contener errores: revisa el alcance, las fuentes y las limitaciones
         antes de tomar decisiones.
       </Notice>
-      <Button className="mt-4" onClick={() => assistant?.newConversation()}>
-        Empezar una conversación
-        <ArrowUpRight />
+      <Button asChild className="mt-4">
+        <a href="#ask">
+          Empezar una conversación
+          <ArrowUpRight />
+        </a>
       </Button>
     </>
   );

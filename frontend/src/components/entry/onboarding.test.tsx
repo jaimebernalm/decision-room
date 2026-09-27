@@ -293,7 +293,7 @@ it("opens a published first report in the workspace", async () => {
   render(<App />);
   await screen.findByRole("heading", { name: "Mi primer resultado" });
   await waitFor(() => expect(location.hash).toBe("#report/ready"));
-  expect(screen.getByRole("button", { name: "Nuevo chat" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Nuevo chat" })).toBeInTheDocument();
 });
 
 it("recovers a lost business creation response after reload without creating a second business", async () => {

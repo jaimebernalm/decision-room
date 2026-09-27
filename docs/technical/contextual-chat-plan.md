@@ -9,11 +9,18 @@ Ejecutado después del paso 2.5.15, conservando los trabajos de onboarding.
 
 ## Experiencia acordada
 
-«Nuevo chat» abre directamente el panel derecho sin crear una conversación hasta
-el primer envío. Desde Inicio, Mi negocio e Informes mantiene la página; desde
-Conversaciones o un chat ampliado vuelve a Inicio. La ruta antigua `#ask`
-redirige al mismo resultado. Los chats recientes permanecen en la navegación,
-sin un selector duplicado dentro del panel.
+«Nuevo chat» abre una conversación independiente vacía (`#ask`), con el cuadro
+de escritura al pie. No utiliza Inicio como fondo. El primer envío abre la
+conversación completa con ese mismo mensaje. El botón + del panel, en cambio,
+prepara una conversación vacía dentro del panel y conserva la página actual.
+
+Cuando el panel está cerrado, «Preguntar algo» lo abre directamente sin mostrar
+un compositor intermedio. Si existe una conversación o borrador, el botón dice
+«Continuar conversación». El panel permanece abierto entre Inicio, Mi negocio,
+Informes y Conversaciones. En el listado solo se muestra el acceso de continuar:
+la acción principal para empezar es «Nuevo chat». Abrir un chat existente en panel
+desde el listado conserva el listado. La selección se ofrece en páginas con
+bloques de contexto compatibles, no en el listado de conversaciones.
 
 La barra del chat incorpora una herramienta visible «Seleccionar», con icono.
 No se añaden botones «Preguntar sobre esto» en cada tarjeta del dashboard o
@@ -27,8 +34,8 @@ Los adjuntos aparecen encima del texto: miniatura y título para gráficos, valo
 y etiqueta para indicadores, extracto para hallazgos y secciones, vista compacta
 para tablas. Se pueden quitar individualmente y ampliar antes de enviar.
 
-Al enviar desde Inicio/dashboard, Mi negocio, Informes o un informe, la barra se transforma en un chat
-a la derecha, conservando el contenido de origen visible. Se abre inmediatamente
+Al abrir el panel desde Inicio/dashboard, Mi negocio, Informes o un informe,
+el contenido de origen permanece visible. El primer envío continúa en ese panel
 con estado real de envío, sin esperar la respuesta del modelo. Un error conserva
 texto, selecciones e identidad de reintento. El panel permite seguir preguntando
 y adjuntar nuevas selecciones. El ancho es ajustable y se puede plegar.

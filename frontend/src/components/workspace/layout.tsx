@@ -138,15 +138,22 @@ function Navigation({
           </SidebarMenuItem>
         </SidebarMenu>
         <Button
-          aria-label="Nuevo chat"
-          onClick={() => {
-            assistant?.newConversation();
-            close();
-          }}
+          asChild
           className="w-full group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:p-0"
         >
-          <Plus />
-          <span className="group-data-[collapsible=icon]:hidden">Nuevo chat</span>
+          <a
+            href="#ask"
+            aria-label="Nuevo chat"
+            onClick={() => {
+              assistant?.newConversation("page");
+              close();
+            }}
+          >
+            <Plus />
+            <span className="group-data-[collapsible=icon]:hidden">
+              Nuevo chat
+            </span>
+          </a>
         </Button>
       </SidebarHeader>
       <SidebarContent>
@@ -159,7 +166,8 @@ function Navigation({
                   isActive={
                     route === key ||
                     (key === "chats" &&
-                      (route.startsWith("chat/") ||
+                      (route === "ask" ||
+                        route.startsWith("chat/") ||
                         route.startsWith("chat-report/"))) ||
                     (key === "reports" &&
                       (route === "new" ||
@@ -313,7 +321,7 @@ function Topbar() {
         href: `#chat/${route.split("/")[1]}`,
         label: "Volver a la conversación",
       }
-    : route.startsWith("chat/")
+    : route === "ask" || route.startsWith("chat/")
       ? { href: "#chats", label: "Volver a conversaciones" }
       : route.startsWith("report/") || route.startsWith("analysis/")
         ? { href: "#reports", label: "Volver a informes" }

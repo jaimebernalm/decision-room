@@ -36,47 +36,49 @@ const context = {
   refresh: vi.fn(),
   removeChat: vi.fn(),
 } satisfies WorkspaceContext;
-it("redirects legacy new-chat links to a blank right panel", async () => {
-  location.hash = "ask";
+it("starts a standalone new chat without visiting home and can resume its draft from the library", async () => {
+  location.hash = "chats";
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string) => ({
       ok: true,
-      json: async () =>
-        url === "/api/workspace"
-          ? ws
-          : url === "/api/home"
-            ? {
-                business_id: "b",
-                items: [],
-                sources: [],
-                selected: [],
-                pinned: [],
-                hidden: [],
-                unavailable: 0,
-                reasons: {},
-                activity: [],
-                limited: false,
-              }
-            : listing,
+      json: async () => (url === "/api/workspace" ? ws : listing),
     })),
   );
   render(<App />);
-  await screen.findByRole("complementary", { name: "Conversación lateral" });
-  await waitFor(() => expect(location.hash).toBe("#home"));
+  await screen.findByRole("heading", { name: "Conversaciones" });
+  expect(screen.queryByRole("button", { name: "Preguntar algo" })).toBeNull();
+  expect(screen.queryByRole("textbox", { name: "Mensaje" })).toBeNull();
   const user = userEvent.setup();
-  expect(screen.queryByRole("heading", { name: "¿Qué quieres entender hoy?" })).toBeNull();
+  await user.click(screen.getAllByRole("link", { name: "Nuevo chat" }).at(-1)!);
+  await screen.findByRole("heading", { name: "Nueva conversación" });
+  expect(location.hash).toBe("#ask");
+  expect(
+    screen.queryByRole("complementary", { name: "Conversación lateral" }),
+  ).toBeNull();
+  expect(
+    screen.queryByRole("heading", { name: "Tu negocio, de un vistazo" }),
+  ).toBeNull();
   await user.type(screen.getByRole("textbox", { name: "Mensaje" }), "Borrador");
   await user.click(screen.getByRole("link", { name: "Conversaciones" }));
   await screen.findByRole("heading", { name: "Conversaciones" });
-  expect(document.querySelectorAll("#main-content")).toHaveLength(1);
-  expect(screen.queryByRole("textbox", { name: "Mensaje" })).toBeNull();
-  await user.click(screen.getAllByRole("button", { name: "Nuevo chat" })[0]);
-  await waitFor(() => expect(location.hash).toBe("#home"));
-  expect(document.querySelectorAll("#main-content")).toHaveLength(1);
-  const panel = await screen.findByRole("complementary", { name: "Conversación lateral" });
-  expect(panel).toHaveTextContent("Conversación");
+  await user.click(
+    screen.getByRole("button", { name: "Continuar conversación" }),
+  );
+  await screen.findByRole("complementary", { name: "Conversación lateral" });
+  expect(location.hash).toBe("#chats");
+  expect(screen.getByRole("textbox", { name: "Mensaje" })).toHaveValue(
+    "Borrador",
+  );
+  await user.click(screen.getAllByRole("link", { name: "Nuevo chat" }).at(-1)!);
+  await screen.findByRole("heading", { name: "Nueva conversación" });
+  await waitFor(() => expect(screen.queryByRole("complementary")).toBeNull());
+  expect(location.hash).toBe("#ask");
   expect(screen.getByRole("textbox", { name: "Mensaje" })).toHaveValue("");
+  expect(document.querySelectorAll("#main-content")).toHaveLength(1);
+  expect(vi.mocked(fetch).mock.calls.some(([url]) => url === "/api/home")).toBe(
+    false,
+  );
 });
 it("keeps onboarding available with no business and supports form editing", async () => {
   location.hash = "home";
@@ -222,16 +224,24 @@ it("delete dialog cancel makes no mutation and explicit delete refreshes the lis
   await screen.findByRole("heading", { name: "Conversaciones" });
   const user = userEvent.setup();
   await user.click(
-    screen.getAllByRole("button", { name: "Opciones de Chat de prueba" }).at(-1)!,
+    screen
+      .getAllByRole("button", { name: "Opciones de Chat de prueba" })
+      .at(-1)!,
   );
-  await user.click(screen.getByRole("menuitem", { name: "Eliminar conversación" }));
+  await user.click(
+    screen.getByRole("menuitem", { name: "Eliminar conversación" }),
+  );
   expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Cancelar" }));
   expect(writes).toEqual([]);
   await user.click(
-    screen.getAllByRole("button", { name: "Opciones de Chat de prueba" }).at(-1)!,
+    screen
+      .getAllByRole("button", { name: "Opciones de Chat de prueba" })
+      .at(-1)!,
   );
-  await user.click(screen.getByRole("menuitem", { name: "Eliminar conversación" }));
+  await user.click(
+    screen.getByRole("menuitem", { name: "Eliminar conversación" }),
+  );
   await user.click(screen.getByRole("button", { name: "Eliminar chat" }));
   await waitFor(() => expect(writes).toEqual(["/api/chats/chat/delete"]));
   expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();

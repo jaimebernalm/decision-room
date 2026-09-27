@@ -1,26 +1,46 @@
-import { useEffect, useRef, useState } from "react";
-import { MessageCircle, ChevronDown, X, LoaderCircle } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { MessageCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { useWorkspace } from "@/lib/workspace";
 import { useAction, useDraft } from "@/lib/hooks";
-import { contextKey, homeDraftKey, launchChat, store } from "@/lib/api";
+import { contextKey, homeDraftKey, launchChat } from "@/lib/api";
 import type { QuestionContext } from "@/lib/types";
 import { useAssistant, contextualRoute } from "@/lib/assistant";
 import { ContextAttachments, SelectionTool } from "./context-selection";
 import { Composer } from "./composer";
 
-// The owner keys this component by business and route: drafts survive navigation,
-// while late sends cannot redirect a different page or business.
-export function FloatingAssistant({
-  inline = false,
-}: {
-  inline?: boolean;
-}) {
+export function FloatingAssistant({ inline = false }: { inline?: boolean }) {
+  return inline ? <NewChatComposer /> : <AssistantLauncher />;
+}
+
+function AssistantLauncher() {
+  const assistant = useAssistant();
+  const { workspace, route } = useWorkspace();
+  const [draft] = useDraft(homeDraftKey(workspace.business!.id), "");
+  if (!assistant || !contextualRoute(route) || assistant.dock.open) return null;
+  const continuing = Boolean(
+    assistant.dock.chatId || draft.trim() || assistant.selected.length,
+  );
+  // The conversation library already has a primary New chat action.
+  if (route === "chats" && !continuing) return null;
+  return (
+    <div className="absolute bottom-5 right-5 z-20">
+      <Button
+        className="h-12 rounded-full px-5 shadow-lg"
+        onClick={() =>
+          assistant.setDock({ ...assistant.dock, open: true, origin: route })
+        }
+      >
+        <MessageCircle className="size-4" />
+        {continuing ? "Continuar conversación" : "Preguntar algo"}
+      </Button>
+    </div>
+  );
+}
+
+// Used both in the empty side panel and the standalone new conversation.
+// The page owns the component lifetime, so late sends cannot redirect another page.
+function NewChatComposer() {
   const assistant = useAssistant();
   const { workspace, route, refresh } = useWorkspace();
   const business = workspace.business!;
@@ -29,26 +49,13 @@ export function FloatingAssistant({
     contextKey(business.id),
     {},
   );
-  const [open, setOpen] = useState<boolean>(
-    () =>
-      !store.get<boolean>("dr-assistant-collapsed", false),
-  );
   const container = useRef<HTMLDivElement>(null);
-  const focusOnChange = useRef(inline);
   const action = useAction();
   useEffect(() => {
-    if (focusOnChange.current) {
-      container.current
-        ?.querySelector<HTMLElement>(open ? "textarea" : "button")
-        ?.focus();
-      focusOnChange.current = false;
-    }
-  }, [open]);
-  const changeOpen = (value: boolean) => {
-    focusOnChange.current = true;
-    store.set("dr-assistant-collapsed", !value);
-    setOpen(value);
-  };
+    container.current
+      ?.querySelector("textarea")
+      ?.focus({ preventScroll: true });
+  }, []);
   const send = () =>
     action.run(async () => {
       if (!text.trim()) return;
@@ -58,122 +65,53 @@ export function FloatingAssistant({
       } else {
         const chat = await launchChat(business.id, text, context);
         if (action.isMounted()) {
+          assistant?.setDock({ chatId: chat.id, open: false });
           refresh();
           location.hash = `chat/${chat.id}`;
         }
       }
     });
-  if (assistant?.dock.open && contextualRoute(route) && !inline) return null;
-  if (assistant?.dock.chatId && contextualRoute(route) && !inline)
-    return (
-      <div className="absolute bottom-5 right-5 z-20">
-        <Button
-          className="rounded-full shadow-lg"
-          onClick={() => assistant.setDock({ ...assistant.dock, open: true })}
-        >
-          <MessageCircle className="size-4" />
-          Continuar conversación
-        </Button>
-      </div>
-    );
   return (
     <div
       ref={container}
       role="region"
       aria-label="Asistente del negocio"
-      className={
-        inline
-          ? "w-full"
-          : "pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-end px-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 sm:pb-6"
-      }
+      className="w-full"
     >
-      <Collapsible
-        open={inline || open}
-        onOpenChange={changeOpen}
-        className={
-          inline || open
-            ? "pointer-events-auto mx-auto w-full max-w-2xl"
-            : "pointer-events-auto"
-        }
-      >
-        {!inline && !open && (
-          <CollapsibleTrigger asChild>
-            <Button
-              className="h-12 rounded-full px-5 shadow-lg"
-              aria-label="Abrir asistente: pregunta algo"
-            >
-              {action.busy ? (
-                <LoaderCircle className="size-4 animate-spin" />
-              ) : (
-                <MessageCircle className="size-4" />
-              )}
-              {action.busy
-                ? "Enviando…"
-                : action.error
-                  ? "Reintentar pregunta"
-                  : "Pregunta algo"}
-            </Button>
-          </CollapsibleTrigger>
-        )}
-        <CollapsibleContent asChild>
-          <div
-            className="relative rounded-[2rem] bg-background shadow-[0_8px_40px_-8px_rgba(0,0,0,0.25)] dark:shadow-[0_8px_40px_-8px_rgba(0,0,0,0.6)]"
+      {(context.analysis_id || context.finding_reference) && (
+        <div className="flex items-center gap-2 px-5 pt-2 text-xs text-muted-foreground">
+          <span className="min-w-0 flex-1 truncate" title={context.label}>
+            {context.label || "Contexto seleccionado"}
+          </span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8 shrink-0 rounded-full"
+            aria-label="Quitar contexto"
+            onClick={() => setContext({})}
           >
-            {!inline && (
-              <CollapsibleTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="absolute -top-9 right-3 size-7 rounded-full bg-background text-muted-foreground shadow-sm hover:bg-muted aria-expanded:bg-background"
-                  aria-label="Minimizar asistente"
-                  title="Minimizar asistente"
-                >
-                  <ChevronDown className="size-3.5" />
-                </Button>
-              </CollapsibleTrigger>
-            )}
-            {(context.analysis_id || context.finding_reference) && (
-              <div className="flex items-center gap-2 px-5 pt-2 text-xs text-muted-foreground">
-                <span className="min-w-0 flex-1 truncate" title={context.label}>
-                  {context.label || "Contexto seleccionado"}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-8 shrink-0 rounded-full"
-                  aria-label="Quitar contexto"
-                  onClick={() => setContext({})}
-                >
-                  <X className="size-3" />
-                </Button>
-              </div>
-            )}
-            <Composer
-              compact
-              tools={
-                assistant && contextualRoute(route) ? (
-                  <SelectionTool />
-                ) : undefined
-              }
-              attachments={
-                assistant?.selected.length ? (
-                  <ContextAttachments
-                    items={assistant.selected}
-                    onRemove={assistant.remove}
-                  />
-                ) : undefined
-              }
-              text={text}
-              onChange={setText}
-              onSend={send}
-              busy={action.busy}
-              error={action.error || assistant?.error}
-              placeholder="Pregunta algo…"
+            <X className="size-3" />
+          </Button>
+        </div>
+      )}
+      <Composer
+        compact
+        tools={<SelectionTool />}
+        attachments={
+          assistant?.selected.length ? (
+            <ContextAttachments
+              items={assistant.selected}
+              onRemove={assistant.remove}
             />
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
+          ) : undefined
+        }
+        text={text}
+        onChange={setText}
+        onSend={send}
+        busy={action.busy}
+        error={action.error || assistant?.error}
+        placeholder="Pregunta o añade contexto…"
+      />
     </div>
   );
 }

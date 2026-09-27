@@ -189,19 +189,14 @@ export function Empty({
         )}
         <h2 className="text-lg font-semibold">{title}</h2>
         <p className="max-w-md text-sm text-muted-foreground">{description}</p>
-        {onAction ? (
-          <Button className="mt-3" onClick={onAction}>
-            {label}
-            <ArrowUpRight />
-          </Button>
-        ) : href ? (
+        {href && (
           <Button asChild className="mt-3">
-            <a href={href}>
+            <a href={href} onClick={onAction}>
               {label}
               <ArrowUpRight />
             </a>
           </Button>
-        ) : null}
+        )}
       </CardContent>
     </Card>
   );

@@ -211,18 +211,10 @@ en pantalla, compilación y lint sin errores; ajuste exclusivamente de color.
 - Servidor local actualizado tras verificar que no había trabajos ni turnos activos.
 
 
-## Transición desde Nuevo chat (sustituida)
+## Transición desde Nuevo chat (histórico, sustituido)
 
-La pantalla central descrita a continuación se retiró después de la validación
-original. Actualmente «Nuevo chat» abre un panel vacío a la derecha, también al
-entrar mediante `#ask`. Las conversaciones anteriores se eligen desde la barra
-lateral o el listado de Conversaciones. El historial siguiente documenta la
-implementación anterior y no describe el comportamiento actual.
-
-Validación del cambio: 61 pruebas frontend, compilación y lint sin errores.
-En navegador local, el listado de Conversaciones no muestra barra de mensaje;
-«Nuevo chat» abre Inicio con el panel vacío y el primer envío permanece allí.
-La ruta antigua `#ask` también termina en Inicio con el panel enfocado.
+La pantalla central y esta animación se retiraron al corregir el flujo descrito
+en la sección siguiente. Se conserva la comprobación original como historial.
 
 - Se captura la posición de la barra central al completar un primer envío válido.
   La conversación recibe esa geometría de forma efímera y anima la barra hasta su
@@ -241,3 +233,26 @@ La ruta antigua `#ask` también termina en Inicio con el panel enfocado.
   530, 586 y 623 px durante el movimiento, todavía sin mensajes en el contenido.
   Al terminar quedó en y=638 px, con un único compositor, el mensaje y la respuesta
   visibles. Comprobación visual del destino y foco. No se modifica el backend.
+
+## Corrección de Nuevo chat y continuidad entre las cuatro secciones
+
+- Revertido el ajuste que redirigía «Nuevo chat» a Inicio. Ahora abre `#ask`, una
+  conversación independiente vacía, sin tarjetas de otra página y con el cuadro
+  de escritura al pie. El primer envío navega al chat completo sin pasar por Inicio.
+- La acción «Preguntar algo» abre directamente el panel derecho. La antigua barra
+  intermedia y su preferencia de despliegue ya no intervienen. Cerrar conserva el
+  borrador y permite retomarlo desde «Continuar conversación».
+- El panel conserva su instancia, conversación, borrador y adjuntos entre Inicio,
+  Mi negocio, Informes y Conversaciones. El listado muestra su acción «Nuevo chat»
+  y, cuando procede, «Continuar conversación»; no añade otro botón de pregunta.
+- 61 pruebas frontend correctas. Cubren apertura inmediata sin crear un chat,
+  envío independiente, navegación por las cuatro secciones con dos adjuntos,
+  cierre/retoma en Conversaciones, errores y ausencia de redirección a Inicio.
+  Compilación y lint sin errores; permanecen los avisos existentes de tamaño de
+  paquetes, Fast Refresh y componentes de proveedor.
+- Navegador local con negocio ficticio y modelo real: «Nuevo chat» desde el
+  listado abre la vista vacía; «Preguntar algo» desde Inicio abre directamente el
+  panel. Tras un envío real se navega a Mi negocio, Informes y Conversaciones:
+  el mensaje, respuesta y borrador permanecen. Plegar y continuar desde el listado
+  recupera el mismo chat y borrador. Revisadas visualmente la página independiente
+  y la biblioteca con el panel abierto. No hay cambios de backend.

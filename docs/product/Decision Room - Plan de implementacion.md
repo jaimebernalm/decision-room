@@ -368,11 +368,15 @@ Selección sobre toda la fila, estados rojo/verde y papelera recuperable por neg
 Validado con 299 pruebas Python, 57 frontend, compilación, lint y navegador con
 modelo real. Véase [comprobación](../validation/2026-09-27-report-context-fixes.md).
 
-**Inicio unificado de conversaciones:** «Nuevo chat» abre un panel vacío a la
-derecha. Conserva Inicio, Mi negocio o Informes como fondo; desde Conversaciones
-o una conversación ampliada lleva a Inicio. La ruta antigua `#ask` redirige al
-mismo panel. La antigua barra central y su transición al primer envío se han
-retirado. Los chats existentes siguen accesibles desde la navegación.
+**Corrección del inicio y continuidad del chat:** «Nuevo chat» abre una vista
+vacía independiente en `#ask`, con el compositor abajo y sin redirigir a Inicio.
+«Preguntar algo» abre directamente el panel derecho, sin barra intermedia.
+El panel conserva conversación, borrador y adjuntos entre Inicio, Mi negocio,
+Informes y Conversaciones. En el listado se muestra «Continuar conversación»
+solo si hay una conversación o borrador que retomar; «Nuevo chat» sigue siendo
+la acción principal. Se revierte la redirección introducida en el ajuste anterior.
+Validado con 61 pruebas frontend, compilación, lint y navegador con modelo real;
+detalle en la validación de 2.5.16.
 
 ### 2.5.17. Aclaraciones con vista de datos y recuperación
 

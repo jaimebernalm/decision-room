@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Composer } from "./composer";
 import { ReportView } from "./report";
 import { FloatingAssistant } from "./floating-assistant";
-import { Reports } from "./overview";
+import { StartChat, Reports } from "./overview";
 import { WorkspaceState, type WorkspaceContext } from "@/lib/workspace";
 import { store } from "@/lib/api";
 const workspace = {
@@ -66,6 +66,24 @@ it("opens available reports directly and keeps progress or recovery for other st
     );
   expect(screen.getByText("En preparación")).toBeInTheDocument();
 });
+it("opens an empty standalone conversation with one focused composer", () => {
+  render(
+    <WorkspaceState.Provider value={workspace}>
+      <StartChat />
+    </WorkspaceState.Provider>,
+  );
+  expect(
+    screen.getByRole("heading", { name: "Nueva conversación" }),
+  ).toBeInTheDocument();
+  expect(screen.getAllByRole("textbox", { name: "Mensaje" })).toHaveLength(1);
+  expect(screen.getByRole("textbox", { name: "Mensaje" })).toHaveFocus();
+  expect(
+    screen.queryByRole("region", { name: "Conversaciones recientes" }),
+  ).toBeNull();
+  expect(
+    screen.queryByRole("button", { name: "Minimizar asistente" }),
+  ).toBeNull();
+});
 it("official composer keeps controlled draft after submit failure and supports Shift+Enter", async () => {
   const send = vi.fn(async () => {
     throw new Error("offline");
@@ -112,7 +130,7 @@ it("unmounting the floating assistant prevents a late response redirecting anoth
   store.set("dr-home-prompt-a", "Pregunta");
   const rendered = render(
     <WorkspaceState.Provider value={workspace}>
-      <FloatingAssistant />
+      <FloatingAssistant inline />
     </WorkspaceState.Provider>,
   );
   await userEvent.click(screen.getByRole("button", { name: "Enviar mensaje" }));
@@ -186,7 +204,7 @@ it("preserves explicit analysis context without showing a dataset selector", asy
   });
   render(
     <WorkspaceState.Provider value={context}>
-      <FloatingAssistant />
+      <FloatingAssistant inline />
     </WorkspaceState.Provider>,
   );
   const user = userEvent.setup();
@@ -196,40 +214,4 @@ it("preserves explicit analysis context without showing a dataset selector", asy
   await user.click(screen.getByRole("button", { name: "Enviar mensaje" }));
   await waitFor(() => expect(calls.length).toBe(2));
   expect(calls[0].body.analysis_id).toBe("analysis-id");
-});
-
-it("folds into an accessible button and restores the draft and keyboard focus", async () => {
-  const renderDock = (route = "home") =>
-    render(
-      <WorkspaceState.Provider value={{ ...workspace, route }}>
-        <FloatingAssistant />
-      </WorkspaceState.Provider>,
-    );
-  const first = renderDock();
-  const user = userEvent.setup();
-  await user.type(
-    screen.getByRole("textbox", { name: "Mensaje" }),
-    "Mi borrador",
-  );
-  await user.click(screen.getByRole("button", { name: "Minimizar asistente" }));
-  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
-  expect(
-    screen.getByRole("button", { name: "Abrir asistente: pregunta algo" }),
-  ).toHaveFocus();
-  first.unmount();
-  const next = renderDock("reports");
-  await user.click(
-    screen.getByRole("button", { name: "Abrir asistente: pregunta algo" }),
-  );
-  expect(screen.getByRole("textbox", { name: "Mensaje" })).toHaveValue(
-    "Mi borrador",
-  );
-  expect(screen.getByRole("textbox", { name: "Mensaje" })).toHaveFocus();
-  await user.click(screen.getByRole("button", { name: "Minimizar asistente" }));
-  next.unmount();
-  store.set("dr-assistant-collapsed", false);
-  renderDock("my-business");
-  expect(screen.getByRole("textbox", { name: "Mensaje" })).toHaveValue(
-    "Mi borrador",
-  );
 });

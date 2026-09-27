@@ -8,7 +8,13 @@ import {
   type ReactNode,
 } from "react";
 import { useWorkspace } from "./workspace";
-import { contextKey, homeDraftKey, referenceWire, launchChat, store } from "./api";
+import {
+  contextKey,
+  homeDraftKey,
+  referenceWire,
+  launchChat,
+  store,
+} from "./api";
 import { useDraft } from "./hooks";
 import type {
   ContextAttachment,
@@ -25,9 +31,21 @@ export const referenceId = (r: ContextReference) =>
 export const blockId = (r: ContextReference) =>
   `context-${"report_id" in r ? r.report_id : r.source_id}-${r.kind}-${r.element_key}`;
 export const selectableRoute = (route: string) =>
-  contextualRoute(route) && route !== "business";
+  ["home", "my-business", "reports", "files"].includes(route) ||
+  route.startsWith("report/") ||
+  route.startsWith("chat-report/");
 export const contextualRoute = (route: string) =>
-  ["home", "my-business", "reports", "files", "business"].includes(route) ||
+  [
+    "home",
+    "my-business",
+    "reports",
+    "files",
+    "business",
+    "chats",
+    "how",
+    "new",
+  ].includes(route) ||
+  route.startsWith("analysis/") ||
   route.startsWith("report/") ||
   route.startsWith("chat-report/");
 type Dock = {
@@ -38,10 +56,10 @@ type Dock = {
   block?: string;
 };
 type Assistant = {
+  newConversation: (presentation: "page" | "panel") => void;
   dock: Dock;
   setDock: (d: Dock) => void;
   openConversation: (id: string) => void;
-  newConversation: () => void;
   selecting: boolean;
   setSelecting: (v: boolean) => void;
   selected: ContextAttachment[];
@@ -136,14 +154,15 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       value={{
         dock,
         setDock,
-        newConversation: () => {
+        newConversation: (presentation) => {
           launchVersion.current += 1;
           setLaunching(false);
-          clear();
+          setSelecting(false);
+          setError("");
+          setContext({});
           store.remove(homeDraftKey(business));
-          const origin = contextualRoute(route) ? route : "home";
-          setDock({ open: true, origin });
-          if (route !== origin) location.hash = origin;
+          setDock({ open: presentation === "panel", origin: route });
+          if (presentation === "page") location.hash = "ask";
         },
         openConversation: (id) => {
           launchVersion.current += 1;
