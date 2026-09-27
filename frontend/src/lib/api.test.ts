@@ -8,6 +8,8 @@ import {
   shortTitle,
   reportState,
   uploadPayload,
+  uploadFolder,
+  FOLDER_LIMIT,
 } from "./api";
 import type { Turn } from "./types";
 function server(fail = "") {
@@ -143,4 +145,41 @@ it("rejects unsupported or empty uploads before submitting", async () => {
   await expect(
     uploadPayload("upload", {}, new File([], "x.csv")),
   ).rejects.toThrow("CSV");
+});
+
+it("uploads a folder as one resumable batch and keeps the job identity", async () => {
+  const files = [new File(["id,total\n1,10\n"], "ventas.csv")];
+  Object.defineProperty(files[0], "webkitRelativePath", { value: "tienda/ventas.csv" });
+  const calls: { url: string; body?: BodyInit | null; offset?: string | null }[] = [];
+  let saved: { analysis_id: string; status: string } | null = null;
+  vi.stubGlobal("fetch", vi.fn(async (url: string, options: RequestInit) => {
+    calls.push({ url, body: options.body, offset: new Headers(options.headers).get("X-Upload-Offset") });
+    if (url === "/api/datasets/bundles") {
+      const data = JSON.parse(options.body as string);
+      return { ok: true, json: async () => ({ files: [{ path: "tienda/ventas.csv", size: files[0].size, uploaded: saved ? files[0].size : 0 }], result: saved, id: data.request_key }) };
+    }
+    if (url.endsWith("/finish")) {
+      saved = { analysis_id: "prepared", status: "ready" };
+      throw new Error("response lost");
+    }
+    return { ok: true, json: async () => ({ uploaded: files[0].size }) };
+  }));
+  const key = "test-folder-retry";
+  await expect(uploadFolder(key, { business_id: "shop", title: "Datos" }, files)).rejects.toThrow();
+  const first = store.get<{ signature: string; id: string }>(key, { signature: "", id: "" });
+  const recovered = await uploadFolder(key, { business_id: "shop", title: "Datos" }, files);
+  expect(recovered.analysis_id).toBe("prepared");
+  expect(recovered.upload_id).toBe(first.id);
+  expect(calls.filter((call) => call.url.includes("/files/"))).toHaveLength(1);
+  expect(calls.find((call) => call.url.includes("/files/"))?.offset).toBe("0");
+  store.remove(key);
+});
+
+it("rejects folders over the total size before contacting the server", async () => {
+  const file = new File(["x"], "a.csv");
+  Object.defineProperty(file, "size", { value: FOLDER_LIMIT + 1 });
+  const fetch = vi.fn();
+  vi.stubGlobal("fetch", fetch);
+  await expect(uploadFolder("too-large", {}, [file])).rejects.toThrow("2 GB");
+  expect(fetch).not.toHaveBeenCalled();
 });

@@ -10,7 +10,7 @@ from pydantic import ValidationError
 from ..database import connect
 from .. import service as ingestion
 from ..memory import service as memory, context
-from ..storage import Storage
+from ..storage import Storage, digest
 from .errors import WebError, identifier, bounded
 from .business import profile
 
@@ -45,6 +45,10 @@ def listing(ws):
                 LEFT JOIN prepared_tables p ON p.source_id=s.id WHERE s.analysis_id=a.id) AS files
             FROM analyses a LEFT JOIN dataset_versions v ON v.analysis_id=a.id
             WHERE a.business_id=%s AND NOT EXISTS (SELECT 1 FROM dataset_uploads u WHERE u.business_id=a.business_id AND u.result->>'pending'='true' AND u.result->>'existing_id' IS NULL AND u.result->>'batch_sha256'=a.batch_sha256) ORDER BY a.created_at DESC,a.id''', (business,)).fetchall()
+        for dataset in datasets:
+            dataset['original_files'] = db.execute('''SELECT relative_path AS path,byte_count AS size
+                FROM dataset_bundle_files WHERE business_id=%s AND analysis_id=%s ORDER BY relative_path''',
+                (business, dataset['id'])).fetchall()
         return dict(business_id=business, business=profile(db, business), memory=memory.status(ws.config, business),
                     facts=facts, history=history, datasets=datasets)
 
@@ -65,11 +69,29 @@ def change(ws, data):
 
 def available(db, business, analysis):
     return db.execute('''SELECT 1 FROM analyses a LEFT JOIN dataset_versions v ON v.analysis_id=a.id
-        WHERE a.id=%s AND a.business_id=%s AND a.status='ready' AND NOT coalesce(v.corrected,false) AND NOT EXISTS (SELECT 1 FROM dataset_uploads u WHERE u.business_id=a.business_id AND u.result->>'pending'='true' AND u.result->>'existing_id' IS NULL AND u.result->>'batch_sha256'=a.batch_sha256)''',
+        WHERE a.id=%s AND a.business_id=%s AND a.status IN ('ready','partial')
+        AND EXISTS (SELECT 1 FROM prepared_tables p WHERE p.analysis_id=a.id AND p.business_id=a.business_id)
+        AND NOT coalesce(v.corrected,false) AND NOT EXISTS (SELECT 1 FROM dataset_uploads u WHERE u.business_id=a.business_id AND u.result->>'pending'='true' AND u.result->>'existing_id' IS NULL AND u.result->>'batch_sha256'=a.batch_sha256)''',
         (analysis, business)).fetchone() is not None
 
 
 def upload(ws, data, filename, content):
+    if not isinstance(filename, str) or '/' in filename or '\\' in filename or any(ord(c) < 32 for c in filename):
+        raise WebError('El nombre del archivo no es válido.')
+    filename = bounded(filename, 'el nombre del archivo', 180)
+    if not filename.lower().endswith('.csv') or not content or len(content) > 20 * 1024**2:
+        raise WebError('Sube un CSV UTF-8 con datos, de hasta 20 MB.')
+    try:
+        content.decode('utf-8-sig')
+    except UnicodeDecodeError:
+        raise WebError('Guarda el CSV con codificación UTF-8.') from None
+    with TemporaryDirectory(prefix='dr-csv-') as directory:
+        path = Path(directory) / filename
+        path.write_bytes(content)
+        return upload_paths(ws, data, [path], original_signature=[(filename, hashlib.sha256(content).hexdigest())])
+
+
+def upload_paths(ws, data, paths, *, names=None, original_signature=None):
     business = guard(ws, data)
     key = identifier(data.get('request_key'))
     title = bounded(data.get('title', ''), 'el nombre del conjunto', 160)
@@ -86,16 +108,9 @@ def upload(ws, data, filename, content):
             raise ValueError()
     except (ValueError, TypeError):
         raise WebError('Revisa el periodo: utiliza fechas válidas y ordenadas.') from None
-    if not isinstance(filename, str) or '/' in filename or '\\' in filename or any(ord(c) < 32 for c in filename):
-        raise WebError('El nombre del archivo no es válido.')
-    filename = bounded(filename, 'el nombre del archivo', 180)
-    if not filename.lower().endswith('.csv') or not content or len(content) > 20 * 1024**2:
-        raise WebError('Sube un CSV UTF-8 con datos, de hasta 20 MB.')
-    try:
-        content.decode('utf-8-sig')
-    except UnicodeDecodeError:
-        raise WebError('Guarda el CSV con codificación UTF-8.') from None
-    signature = memory.digest([title, filename, mode, str(previous), str(start), str(end), hashlib.sha256(content).hexdigest()])
+    hashes = [digest(path) for path in paths]
+    signature = memory.digest([title, mode, str(previous), str(start), str(end),
+                               original_signature or sorted(hashes)])
     # Serialize uploads for this business across ingestion's separate transactions.
     # An interrupted import is recovered by the existing content-addressed importer.
     with connect(ws.config) as db:
@@ -116,7 +131,7 @@ def upload(ws, data, filename, content):
                 WHERE a.id=%s AND a.business_id=%s AND a.status='ready' ''', (previous, business)).fetchone()
             if not old or old['superseded_by']:
                 raise WebError('La versión seleccionada ya ha cambiado o no está disponible. Recarga la ficha.', 409)
-        batch_hash, _ = ingestion.batch_metadata([hashlib.sha256(content).hexdigest()])
+        batch_hash, _ = ingestion.batch_metadata(hashes)
         existing = db.execute('SELECT id FROM analyses WHERE business_id=%s AND batch_sha256=%s', (business, batch_hash)).fetchone()
         if existing and previous and existing['id'] != previous and (not saved or saved['result'].get('existing_id')):
             raise WebError('Este archivo ya pertenece a otra versión o conjunto. Reutilízalo desde la ficha.', 409)
@@ -132,11 +147,8 @@ def upload(ws, data, filename, content):
             result = dict(analysis_id=str(existing['id']), reused=True,
                           status=ingestion.describe(ws.config, business, existing['id'])['analysis']['status'])
         else:
-            with TemporaryDirectory(prefix='dr-csv-') as directory:
-                path = Path(directory) / filename
-                path.write_bytes(content)
-                imported = (ingestion.resume(ws.config, business, existing['id']) if existing else
-                            ingestion.import_batch(ws.config, business, [path], title=title))
+            imported = (ingestion.resume(ws.config, business, existing['id']) if existing else
+                        ingestion.import_batch(ws.config, business, paths, title=title, names=names))
             result = dict(analysis_id=str(imported['analysis']['id']), reused=False, status=imported['analysis']['status'])
         analysis = identifier(result['analysis_id'])
         with db.transaction():
@@ -155,19 +167,25 @@ def upload(ws, data, filename, content):
                         context.invalidate(db, business)
             result['message'] = ('Este archivo ya estaba guardado; conserva su conjunto, periodo y versión.' if result['reused'] else
                 'Datos disponibles. Los informes anteriores no se han recalculado.' if result['status'] == 'ready' else
-                'No se ha podido preparar el CSV. Corrige sus encabezados o filas y vuelve a subirlo. Se conservan los datos anteriores.')
+                'Algunos archivos no se han podido preparar. Los datos anteriores se conservan.' if result['status'] == 'partial' else
+                'No se han podido preparar los archivos. Corrígelos y vuelve a subirlos. Se conservan los datos anteriores.')
             db.execute('UPDATE dataset_uploads SET result=%s WHERE business_id=%s AND request_key=%s',
                        (Jsonb(result), business, key))
         return result
 
 
 def download(ws, source_id):
+    name, path = download_location(ws, source_id)
+    return name, path.read_bytes()
+
+
+def download_location(ws, source_id):
     with connect(ws.config) as db:
         source = db.execute('SELECT * FROM sources WHERE id=%s AND business_id=%s',
                             (identifier(source_id), ws.business_id())).fetchone()
     if not source:
         raise WebError('Archivo no encontrado.', 404)
-    content = Storage(ws.config.storage).path(ws.business_id(), source['original_key']).read_bytes()
-    if hashlib.sha256(content).hexdigest() != source['sha256']:
+    path = Storage(ws.config.storage).path(ws.business_id(), source['original_key'])
+    if digest(path) != source['sha256']:
         raise WebError('El original no supera la comprobación de integridad.', 409)
-    return source['original_names'][0], content
+    return source['original_names'][0], path

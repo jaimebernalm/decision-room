@@ -589,3 +589,17 @@ CREATE TABLE IF NOT EXISTS web_home_layouts (
     proposal jsonb
 );
 INSERT INTO schema_versions(version) VALUES (16) ON CONFLICT DO NOTHING;
+
+-- A folder upload retains the files selected by the owner. Excel worksheets are
+-- prepared as traceable CSV tables; the submitted workbook remains downloadable.
+CREATE TABLE IF NOT EXISTS dataset_bundle_files (
+    business_id uuid NOT NULL,
+    analysis_id uuid NOT NULL,
+    relative_path text NOT NULL,
+    sha256 text NOT NULL,
+    byte_count bigint NOT NULL CHECK (byte_count > 0),
+    original_key text NOT NULL,
+    PRIMARY KEY (business_id, analysis_id, relative_path),
+    FOREIGN KEY (business_id, analysis_id) REFERENCES analyses(business_id, id)
+);
+INSERT INTO schema_versions(version) VALUES (17) ON CONFLICT DO NOTHING;

@@ -69,6 +69,18 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def send_file(self, path, name):
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/octet-stream')
+        self.send_header('Content-Length', str(path.stat().st_size))
+        self.send_header('Cache-Control', 'no-store')
+        self.send_header('Content-Disposition', "attachment; filename*=UTF-8''" + quote(name))
+        self.send_header('X-Content-Type-Options', 'nosniff')
+        self.end_headers()
+        with path.open('rb') as stream:
+            while chunk := stream.read(1024 * 1024):
+                self.wfile.write(chunk)
+
     def authenticated(self):
         cookie = SimpleCookie()
         try:
@@ -91,11 +103,11 @@ class Handler(BaseHTTPRequestHandler):
             raise WebError('La subida se ha interrumpido. Vuelve a intentarlo.')
         return data
 
-    def json_body(self):
+    def json_body(self, limit=24_000):
         if self.headers.get_content_type() != 'application/json':
             raise WebError('Se esperaba una petición JSON.')
         try:
-            data = json.loads(self.body(24_000))
+            data = json.loads(self.body(limit))
         except (ValueError, UnicodeDecodeError):
             raise WebError('La petición no es válida.') from None
         if not isinstance(data, dict):
@@ -203,7 +215,7 @@ class Handler(BaseHTTPRequestHandler):
                     self.send(200,chats.report(chat_id,parts[4]),'text/html; charset=utf-8')
                     return
                 raise WebError('Operación de conversación no encontrada.',404)
-            from . import dossier
+            from . import dossier, bundles
             if path == '/api/business/dossier' and not mutation:
                 self.send(200, dossier.listing(ws))
                 return
@@ -213,9 +225,37 @@ class Handler(BaseHTTPRequestHandler):
             if path == '/api/datasets' and mutation:
                 self.send(200, dossier.upload(ws, *self.multipart()))
                 return
+            if path == '/api/datasets/bundles' and mutation:
+                self.send(200, bundles.start(ws, self.json_body(bundles.MANIFEST_BYTES)))
+                return
+            bundle_parts = path.strip('/').split('/')
+            if len(bundle_parts) >= 4 and bundle_parts[:3] == ['api', 'datasets', 'bundles']:
+                upload_id = bundle_parts[3]
+                if len(bundle_parts) == 4 and not mutation:
+                    self.send(200, bundles.status(ws, upload_id))
+                    return
+                if len(bundle_parts) == 5 and bundle_parts[4] == 'finish' and mutation:
+                    self.json_body()
+                    self.send(200, bundles.finish(ws, upload_id))
+                    return
+                if len(bundle_parts) == 6 and bundle_parts[4] == 'files' and mutation:
+                    if self.headers.get_content_type() != 'application/octet-stream':
+                        raise WebError('Se esperaba un fragmento de archivo.')
+                    try:
+                        index = int(bundle_parts[5])
+                        offset = int(self.headers.get('X-Upload-Offset', ''))
+                    except ValueError:
+                        raise WebError('Indica el archivo y la posición de la carga.') from None
+                    self.send(200, bundles.chunk(ws, upload_id, index, offset, self.body(bundles.CHUNK_BYTES)))
+                    return
             if path.startswith('/api/datasets/file/') and not mutation:
-                name, content = dossier.download(ws, path.rsplit('/', 1)[-1])
-                self.send(200, content, 'text/csv; charset=utf-8', {'Content-Disposition': "attachment; filename*=UTF-8''" + quote(name)})
+                name, location = dossier.download_location(ws, path.rsplit('/', 1)[-1])
+                self.send_file(location, name)
+                return
+            if path.startswith('/api/datasets/original/') and not mutation:
+                requested = parse_qs(urlsplit(self.path).query).get('path', [''])[0]
+                name, location = bundles.original_location(ws, path.rsplit('/', 1)[-1], requested)
+                self.send_file(location, name)
                 return
             if mutation and path == '/api/memory/retry':
                 self.send(202, {'memory': ws.retry_memory(self.json_body())})
@@ -235,6 +275,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if mutation and path == '/api/jobs':
                 self.send(202, ws.create(*self.multipart()))
+                return
+            if mutation and path == '/api/jobs/from-dataset':
+                self.send(202, ws.create_from_dataset(self.json_body()))
                 return
             pieces = path.strip('/').split('/')
             if len(pieces) in (3, 4) and pieces[:2] == ['api', 'jobs']:

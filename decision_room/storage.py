@@ -26,7 +26,7 @@ class Storage:
             raise ValueError('File reference escapes the business storage directory.')
         return target
 
-    def capture(self, business_id, source, max_bytes):
+    def capture(self, business_id, source, max_bytes, *, original_name=None):
         """Hash the exact bytes we copy, avoiding a hash/copy race on uploads."""
         folder = self.path(business_id, f'{business_id}/originals')
         folder.mkdir(parents=True, mode=0o700, exist_ok=True)
@@ -43,7 +43,10 @@ class Storage:
                 target.flush()
                 os.fsync(target.fileno())
             sha = hasher.hexdigest()
-            key = f'{business_id}/originals/{sha}.csv'
+            suffix = Path(source).suffix.lower()
+            if suffix not in ('.csv', '.xlsx'):
+                raise ValueError('Unsupported original file type.')
+            key = f'{business_id}/originals/{sha}{suffix}'
             destination = self.path(business_id, key)
             if destination.exists():
                 if digest(destination) != sha:
@@ -57,6 +60,6 @@ class Storage:
                     if digest(destination) != sha:
                         raise ValueError('Original file integrity mismatch.')
             return {'sha256': sha, 'byte_count': size, 'original_key': key,
-                    'original_names': [Path(source).name]}
+                    'original_names': [original_name or Path(source).name]}
         finally:
             Path(tmp).unlink(missing_ok=True)

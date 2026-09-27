@@ -42,7 +42,7 @@ def batch_metadata(hashes, delimiter=None):
     return batch_hash, preparation
 
 
-def import_batch(config, business_id, paths, title='CSV upload', delimiter=None, progress=None):
+def import_batch(config, business_id, paths, title='CSV upload', delimiter=None, progress=None, names=None):
     paths = [Path(p).resolve() for p in paths]
     if not paths or len(paths) > config.max_files:
         raise ValueError(f'Provide between 1 and {config.max_files} CSV files.')
@@ -55,7 +55,8 @@ def import_batch(config, business_id, paths, title='CSV upload', delimiter=None,
     storage = Storage(config.storage)
     grouped, byte_count = {}, 0
     for path in paths:
-        item = storage.capture(business_id, path, config.max_file_bytes)
+        item = storage.capture(business_id, path, config.max_file_bytes,
+                               original_name=names.get(path, path.name) if names else None)
         byte_count += item['byte_count']
         if byte_count > config.max_batch_bytes:
             raise ValueError('Batch exceeds the configured size limit.')

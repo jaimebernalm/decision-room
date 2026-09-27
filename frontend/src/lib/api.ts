@@ -232,3 +232,74 @@ export async function uploadPayload(key: string, metadata: object, file: File) {
   body.append("file", file);
   return body;
 }
+export const FOLDER_LIMIT = 2_000_000_000;
+export type FolderFile = File & { webkitRelativePath?: string };
+export const folderPath = (file: FolderFile) => file.webkitRelativePath || file.name;
+export function selectedDataFiles(files: Iterable<FolderFile>) {
+  const all = Array.from(files);
+  return {
+    supported: all.filter((file) => /\.(csv|xlsx)$/i.test(file.name)),
+    ignored: all.filter((file) => !/\.(csv|xlsx)$/i.test(file.name)),
+  };
+}
+
+export async function uploadFolder(
+  key: string,
+  metadata: Record<string, unknown>,
+  files: FolderFile[],
+  progress?: (uploaded: number, total: number) => void,
+) {
+  if (!files.length || files.some((file) => !file.size))
+    throw new Error("Selecciona archivos CSV o Excel con datos.");
+  const total = files.reduce((sum, file) => sum + file.size, 0);
+  if (total > FOLDER_LIMIT)
+    throw new Error("La carpeta supera el límite total de 2 GB.");
+  const byPath = new Map(files.map((file) => [folderPath(file), file]));
+  if (byPath.size !== files.length)
+    throw new Error("Hay archivos con la misma ruta en la carpeta.");
+  const listing = files.map((file) => ({ path: folderPath(file), size: file.size }));
+  const signature = JSON.stringify([metadata, files.map((file) => [folderPath(file), file.size, file.lastModified]).sort()]);
+  const old = store.get<{ signature: string; id: string } | null>(key, null);
+  const pending = old?.signature === signature ? old : { signature, id: crypto.randomUUID() };
+  store.set(key, pending);
+  const base = `/api/datasets/bundles/${pending.id}`;
+  const state = await api<{ files: { path: string; size: number; uploaded: number }[]; result?: { analysis_id: string; status: string; message?: string } }>(
+    "/api/datasets/bundles",
+    { ...metadata, request_key: pending.id, files: listing },
+  );
+  if (state.result) {
+    return { ...state.result, upload_id: pending.id };
+  }
+  let uploaded = state.files.reduce((sum, file) => sum + file.uploaded, 0);
+  progress?.(uploaded, total);
+  for (const [index, item] of state.files.entries()) {
+    const file = byPath.get(item.path);
+    if (!file || file.size !== item.size)
+      throw new Error("La carpeta seleccionada ha cambiado. Selecciónala de nuevo.");
+    for (let offset = item.uploaded; offset < file.size; ) {
+      const end = Math.min(offset + 8 * 1024 * 1024, file.size);
+      let response: globalThis.Response;
+      try {
+        response = await fetch(`${base}/files/${index}`, {
+          method: "POST",
+          headers: {
+            "X-Decision-Room": "1",
+            "X-Upload-Offset": String(offset),
+            "Content-Type": "application/octet-stream",
+          },
+          credentials: "same-origin",
+          body: file.slice(offset, end),
+        });
+      } catch {
+        throw new Error("Se ha interrumpido la subida. Vuelve a intentarlo para reanudarla.");
+      }
+      const answer = await response.json();
+      if (!response.ok) throw new ApiError(answer.error || "No se pudo subir un fragmento.", response.status);
+      uploaded += end - offset;
+      offset = end;
+      progress?.(uploaded, total);
+    }
+  }
+  const result = await api<{ analysis_id: string; status: string; message?: string }>(`${base}/finish`, {});
+  return { ...result, upload_id: pending.id };
+}

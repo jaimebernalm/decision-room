@@ -156,6 +156,51 @@ class Workspace:
         self.wake.set()
         return {'id': str(job_id)}
 
+    def create_from_dataset(self, data):
+        """Start the established report worker on a prepared folder batch."""
+        if not isinstance(data, dict):
+            raise WebError('Los datos del análisis no son válidos.')
+        key = identifier(data.get('request_key'))
+        business = self.business_id()
+        if not business or identifier(data.get('business_id')) != business:
+            raise WebError('El negocio activo ha cambiado. Recarga la página.', 409)
+        analysis_id = identifier(data.get('analysis_id'))
+        revision = data.get('profile_revision')
+        if type(revision) is not int or revision < 1:
+            raise WebError('Vuelve a cargar el contexto de tu negocio.', 409)
+        goal = bounded(data.get('goal', ''), 'la pregunta', 2000, False)
+        title = bounded(data.get('title') or goal or 'Exploración general', 'el título', 160)
+        signature = hashlib.sha256(json.dumps([str(analysis_id), revision, goal, title],
+                                              ensure_ascii=False).encode()).hexdigest()
+        with connect(self.config) as db, db.transaction():
+            selected = db.execute('SELECT active_business_id FROM web_workspace WHERE singleton FOR SHARE').fetchone()
+            if selected['active_business_id'] != business:
+                raise WebError('El negocio activo ha cambiado. Recarga la página.', 409)
+            db.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s, 7))', (str(key),))
+            old = db.execute('SELECT id,business_id,request_sha256 FROM web_jobs WHERE request_key=%s', (key,)).fetchone()
+            if old:
+                if old['business_id'] != business or old['request_sha256'] != signature:
+                    raise WebError('Este envío ya se guardó con otros datos.', 409)
+                return {'id': str(old['id'])}
+            current = business_store.profile(db, business)
+            if current['profile_revision'] != revision:
+                raise WebError('El contexto del negocio ha cambiado. Recárgalo.', 409)
+            from .dossier import available
+            if not available(db, business, analysis_id):
+                raise WebError('Los archivos de esta entrega aún no están preparados.', 409)
+            if self.settings is None:
+                raise WebError('Falta configurar el modelo local. Tus datos están guardados.', 503)
+            job_id = uuid4()
+            db.execute('''INSERT INTO web_jobs(id,request_key,request_sha256,business_id,analysis_id,
+                business_name,business_revision,title,context,goal,filename,upload_key,byte_count,
+                model_settings,status,phase,origin)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'Carpeta de datos','',0,%s,'queued','planning','upload')''',
+                (job_id, key, signature, business, analysis_id, current['name'], revision,
+                 title, current['description'], goal, Jsonb(asdict(self.settings))))
+            db.execute("UPDATE web_businesses SET onboarding_status='analysis_started',updated_at=now() WHERE business_id=%s", (business,))
+        self.wake.set()
+        return {'id': str(job_id)}
+
     def row(self, job_id):
         with connect(self.config) as db:
             job = db.execute('SELECT w.*,w.business_name AS business FROM web_jobs w WHERE w.id=%s AND w.business_id=%s',
@@ -471,8 +516,8 @@ class Workspace:
                 if data['analysis']['status'] == 'importing':
                     data = ingestion.resume(self.config, b, j['analysis_id'])
             self.update(job_id, analysis_id=data['analysis']['id'])
-            if data['analysis']['status'] != 'ready':
-                self.update(job_id, status='blocked', issue='No hemos podido leer el CSV. Comprueba que tiene encabezados y filas con el mismo número de columnas, y crea un nuevo análisis con el archivo corregido.')
+            if data['analysis']['status'] not in ('ready', 'partial'):
+                self.update(job_id, status='blocked', issue='No hemos podido preparar archivos útiles para este análisis. Corrige los archivos y crea otra entrega.')
                 return
             j = self.sync(job_id)
             # Once review exists it owns continuity, including answers that invalidate research.

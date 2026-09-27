@@ -12,9 +12,9 @@ ROOT = Path(__file__).resolve().parents[1]
 class Config:
     dsn: str
     storage: Path
-    max_files: int = 100
-    max_file_bytes: int = 2 * 1024**3
-    max_batch_bytes: int = 8 * 1024**3
+    max_files: int = 10_000  # Internal manifest guard, not a product file quota.
+    max_file_bytes: int = 2_000_000_000
+    max_batch_bytes: int = 2_000_000_000
     max_columns: int = 256
     max_rows: int = 10_000_000
     semantic_search: bool = False

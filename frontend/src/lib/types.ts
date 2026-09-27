@@ -21,7 +21,8 @@ export type Dataset = {
   superseded_by?: string;
   period_from?: string;
   period_until?: string;
-  files?: { id: string; name: string; rows?: number }[];
+  files?: { id: string; name: string; rows?: number; status?: string }[];
+  original_files?: { path: string; size: number }[];
 };
 export type Analysis = {
   id: string;

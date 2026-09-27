@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/card";
 import { useWorkspace } from "@/lib/workspace";
 import { useDraft, useAction } from "@/lib/hooks";
-import { api, store, uploadPayload } from "@/lib/api";
+import { api, store, selectedDataFiles, uploadFolder, FOLDER_LIMIT } from "@/lib/api";
 import type { Dataset } from "@/lib/types";
 import { Heading, Field, Notice, ChoiceSelect, Busy } from "./shared";
 export function BusinessPicker() {
@@ -199,13 +199,23 @@ export function UploadForm({
     period_from: "",
     period_until: "",
   });
-  const [file, setFile] = useState<File | null>(null),
+  const [files, setFiles] = useState<File[]>([]),
+    [ignored, setIgnored] = useState(0),
+    [uploaded, setUploaded] = useState(0),
     action = useAction();
+  const choose = (selection: FileList | File[]) => {
+    const picked = selectedDataFiles(Array.from(selection));
+    setFiles(picked.supported);
+    setIgnored(picked.ignored.length);
+    setUploaded(0);
+  };
+  const total = files.reduce((sum, file) => sum + file.size, 0);
   const update = (field: string, value: string) =>
     setDraft({ ...draft, [field]: value });
   const submit = () =>
     action.run(async () => {
-      if (!file) throw new Error("Selecciona el CSV que quieres subir.");
+      if (!files.length)
+        throw new Error("Selecciona una carpeta o varios archivos CSV/Excel.");
       const metadata = dataOnly
         ? {
             business_id: b.id,
@@ -221,19 +231,35 @@ export function UploadForm({
             title: draft.title,
             goal: draft.mode === "specific" ? draft.goal : "",
           };
-      const body = await uploadPayload(`${key}-pending`, metadata, file);
-      const result = await api<{ id: string; message?: string }>(
-        dataOnly ? "/api/datasets" : "/api/jobs",
-        body,
+      const result = await uploadFolder(
+        `${key}-pending`,
+        dataOnly
+          ? metadata
+          : { business_id: b.id, title: draft.title, mode: "separate" },
+        files,
+        (done) => setUploaded(done),
       );
-      store.remove(key);
+      let job: { id: string } | null = null;
+      if (!dataOnly && (result.status === "ready" || result.status === "partial")) {
+        job = await api<{ id: string }>("/api/jobs/from-dataset", {
+          ...metadata,
+          analysis_id: result.analysis_id,
+          request_key: result.upload_id,
+        });
+      }
       store.remove(`${key}-pending`);
+      store.remove(key);
       refresh();
       if (action.isMounted()) {
         if (dataOnly) {
           toast.success(result.message || "Datos guardados");
           onDone?.();
-        } else location.hash = `analysis/${result.id}`;
+        } else if (job) location.hash = `analysis/${job.id}`;
+        else
+          throw new Error(
+            result.message ||
+              "Hay archivos que necesitan corrección antes del informe.",
+          );
       }
     });
   return (
@@ -336,26 +362,47 @@ export function UploadForm({
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
-          setFile(e.dataTransfer.files[0] || null);
+          choose(e.dataTransfer.files);
         }}
       >
         <FileSpreadsheet className="mb-3 size-6 text-muted-foreground" />
         <Field
-          label="Archivo CSV"
-          id="csv-file"
-          hint="Arrastra un archivo o selecciónalo. CSV UTF-8, hasta 20 MB."
+          label="Archivos CSV o Excel"
+          id="data-files"
+          hint="Selecciona varios archivos o una carpeta completa. Hasta 2 GB en total."
         >
           <Input
-            id="csv-file"
+            id="data-files"
             type="file"
-            accept=".csv,text/csv"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
+            multiple
+            accept=".csv,.xlsx"
+            onChange={(e) => choose(e.target.files || [])}
           />
         </Field>
-        {file && (
-          <p className="mt-3 break-all text-xs">
-            {file.name} · {(file.size / 1024).toFixed(1)} KB
+        <Input
+          type="file"
+          multiple
+          accept=".csv,.xlsx"
+          aria-label="Seleccionar carpeta de datos"
+          className="mt-3"
+          ref={(node) => node?.setAttribute("webkitdirectory", "")}
+          onChange={(e) => choose(e.target.files || [])}
+        />
+        {files.length > 0 && (
+          <p className="mt-3 text-xs">
+            {files.length} archivos · {(total / 1_000_000).toFixed(1)} MB
+            {ignored > 0 ? ` · ${ignored} archivos de otro tipo omitidos` : ""}
           </p>
+        )}
+        {action.busy && total > 0 && (
+          <p className="mt-2 text-xs" role="status">
+            {uploaded < total
+              ? `Subiendo ${Math.round((uploaded / total) * 100)} %`
+              : "Preparando las tablas…"}
+          </p>
+        )}
+        {total > FOLDER_LIMIT && (
+          <Notice error>La entrega supera el límite total de 2 GB.</Notice>
         )}
       </div>
       <Notice error>{action.error}</Notice>
@@ -363,7 +410,8 @@ export function UploadForm({
         <Button
           disabled={
             action.busy ||
-            !file ||
+            !files.length ||
+            total > FOLDER_LIMIT ||
             (dataOnly && draft.mode !== "separate" && !draft.previous_id)
           }
           type="submit"

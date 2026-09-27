@@ -250,6 +250,8 @@ export function Dossier({ files = false }: { files?: boolean }) {
                         : d.superseded_by
                           ? " · anterior"
                           : ""}
+                      {d.status === "partial" ? " · algunos archivos fallaron" : ""}
+                      {d.status === "failed" ? " · sin tablas disponibles" : ""}
                     </Badge>
                   </div>
                   <CardDescription>
@@ -258,26 +260,30 @@ export function Dossier({ files = false }: { files?: boolean }) {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {!!d.original_files?.length && <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">Archivos originales de la entrega</p>
+                    {d.original_files.map((file) => <div key={file.path} className="flex items-center gap-2 text-sm">
+                      <span className="min-w-0 flex-1 break-all">{file.path} · {(file.size / 1_000_000).toFixed(1)} MB</span>
+                      <Button asChild size="icon" variant="ghost"><a href={`/api/datasets/original/${d.id}?path=${encodeURIComponent(file.path)}`} download aria-label={`Descargar ${file.path}`}><Download /></a></Button>
+                    </div>)}
+                  </div>}
+                  {!!d.original_files?.length && <p className="text-xs font-medium text-muted-foreground">Tablas disponibles para analizar</p>}
                   {d.files?.map((f) => (
                     <div key={f.id} className="flex items-center gap-3 text-sm">
                       <span className="min-w-0 flex-1 break-all">
                         {f.name}
                         <span className="ml-2 text-xs text-muted-foreground">
-                          {f.rows ?? "—"} filas
+                          {f.status === "failed" ? "No se pudo preparar" : `${f.rows ?? "—"} filas`}
                         </span>
                       </span>
-                      <Button asChild size="icon" variant="ghost">
-                        <a
-                          href={`/api/datasets/file/${f.id}`}
-                          download
-                          aria-label={`Descargar ${f.name}`}
-                        >
+                      {f.status !== "failed" && <Button asChild size="icon" variant="ghost">
+                        <a href={`/api/datasets/file/${f.id}`} download aria-label={`Descargar ${f.name}`}>
                           <Download />
                         </a>
-                      </Button>
+                      </Button>}
                     </div>
                   ))}
-                  {d.status === "ready" && !d.corrected && (
+                  {(d.status === "ready" || d.status === "partial") && !d.corrected && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -299,7 +305,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
           ) : (
             <Empty
               title="Tus datos empiezan aquí"
-              description="Guarda archivos CSV para reutilizarlos en las conversaciones. Cada actualización conserva su versión."
+              description="Guarda archivos CSV o Excel, juntos o como carpeta, para reutilizarlos en las conversaciones. Cada actualización conserva su versión."
             />
           )}
         </TabsContent>
