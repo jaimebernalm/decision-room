@@ -415,14 +415,20 @@ y lint correctos.
 
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
+**Avance, 27 de septiembre de 2026:** completados **3.1** (medición inicial) y
+**3.2** (catálogo versionado, relaciones y diagrama ER compartidos por ficha, chat
+e informes). Véanse [validación de 3.2](../validation/2026-09-27-data-knowledge.md)
+y [secuencia vigente](onboarding-e-informes-plan.md#8-secuencia-de-implementación-y-criterios-de-cierre).
+El siguiente paso es **3.3: investigación por rondas con prioridades y presupuesto**.
+
 **Planificación ampliada, 27 de septiembre de 2026:** el
-[plan de onboarding e informes](onboarding-e-informes-plan.md) concreta los pasos
-pendientes 3.1–3.5: evaluación con una base sustancial, catálogo y relaciones,
+[plan de onboarding e informes](onboarding-e-informes-plan.md) concreta la secuencia
+3.1–3.5: evaluación con una base sustancial, catálogo y relaciones,
 investigación por rondas, onboarding conversacional y revisión orientada al
 objetivo. Incorpora una pregunta abierta con opciones para descubrir oportunidades,
 organizar un dashboard, seguir la evolución o resolver una pregunta. Las
-predicciones se reservan como capacidad futura. Este documento es planificación;
-no declara implementadas ni evaluadas estas ampliaciones.
+predicciones se reservan como capacidad futura. El estado de ejecución vigente
+se indica en el avance anterior y en el plan enlazado.
 
 **Prioridad actualizada, 23 de septiembre de 2026:** iniciar las ampliaciones siguientes después de cerrar la entrega 2.5. La evaluación del 22 de septiembre descrita a continuación ya se realizó; no se presenta como trabajo pendiente ni sustituye la regresión exigida por los cambios de memoria y conversación.
 

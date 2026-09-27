@@ -141,7 +141,15 @@ def resume(config, business_id, analysis_id, progress=None):
         state = 'ready' if counts.get('ready') == len(sources) else ('partial' if counts.get('ready') else 'failed')
         db.execute('UPDATE analyses SET status=%s,updated_at=now() WHERE business_id=%s AND id=%s',
                    (state, business_id, analysis_id))
-    return describe(config, business_id, analysis_id)
+    report = describe(config, business_id, analysis_id)
+    if state in ('ready', 'partial'):
+        from .data_knowledge.service import ensure
+        import duckdb
+        try:
+            report['data_model_revision'] = ensure(config, business_id, analysis_id)['revision']
+        except (ValueError, duckdb.Error):
+            report['data_model_issue'] = 'Los archivos están guardados. Reintenta preparar el modelo de datos desde Mi negocio.'
+    return report
 
 
 def describe(config, business_id, analysis_id, detailed=False):

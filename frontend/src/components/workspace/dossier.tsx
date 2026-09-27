@@ -51,6 +51,7 @@ import {
 } from "./shared";
 import { Selectable } from "./context-selection";
 import { UploadForm } from "./business";
+import { DataModelPanel } from "./data-model";
 const factKinds: Record<string, string> = {
   context: "Contexto",
   priority: "Prioridad",
@@ -160,7 +161,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
           )}
         </Notice>
       )}
-      <Tabs defaultValue={files ? "data" : "info"}>
+      <Tabs defaultValue={files ? "data" : "info"} className="min-w-0 w-full">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <TabsList>
             <TabsTrigger value="info">Información</TabsTrigger>
@@ -296,6 +297,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {(d.status === "ready" || d.status === "partial") && <DataModelPanel business={b.id} analysis={d.id} />}
                   {!!d.original_files?.length && <div className="space-y-2">
                     <p className="text-xs font-medium text-muted-foreground">Archivos originales de la entrega</p>
                     {d.original_files.map((file) => <div key={file.path} className="flex items-center gap-2 text-sm">

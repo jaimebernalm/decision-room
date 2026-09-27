@@ -607,3 +607,17 @@ INSERT INTO schema_versions(version) VALUES (17) ON CONFLICT DO NOTHING;
 -- Recoverable removal from the report library, preserving evidence and chat links.
 ALTER TABLE web_jobs ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
 INSERT INTO schema_versions(version) VALUES (18) ON CONFLICT DO NOTHING;
+
+-- Immutable data model revisions: the ER view and agents read the same document.
+CREATE TABLE IF NOT EXISTS data_model_revisions (
+    business_id uuid NOT NULL,
+    analysis_id uuid NOT NULL,
+    revision integer NOT NULL CHECK (revision > 0),
+    fingerprint text NOT NULL,
+    body jsonb NOT NULL,
+    reason text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (business_id,analysis_id,revision),
+    FOREIGN KEY (business_id,analysis_id) REFERENCES analyses(business_id,id)
+);
+INSERT INTO schema_versions(version) VALUES (19) ON CONFLICT DO NOTHING;

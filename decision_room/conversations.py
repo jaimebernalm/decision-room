@@ -123,6 +123,7 @@ def selected_sources(db, business, analysis_id):
 
 
 def snapshot(db, business, analysis_id, objective):
+    from .data_knowledge import service as knowledge
     selection = dict(
         analysis_id=str(analysis_id) if analysis_id else None,
         source_ids=selected_sources(db, business, analysis_id),
@@ -145,6 +146,8 @@ def snapshot(db, business, analysis_id, objective):
         profile=profile,
         memories=memories,
         catalog=catalog,
+        data_models=knowledge.heads(db, business, analysis_id),
+        data_model=knowledge.summary(db, business, analysis_id) if analysis_id else None,
         tables={r['id']: ctx.table_version(db, business, r['id']) for r in catalog['items']},
         runtime=runtime_context(),
         rules='Current memory; explicit business/source scope; historical quotes are not facts; reviewed evidence only.',
@@ -153,6 +156,9 @@ def snapshot(db, business, analysis_id, objective):
 
 def fresh(db, saved, ignore_origins=None):
     if not saved:
+        return False
+    from .data_knowledge import service as knowledge
+    if any(not knowledge.current(db, saved['business_id'], dep) for dep in saved.get('data_models', [])):
         return False
     if revision(db, saved['business_id']) != saved['revision']:
         changes = db.execute(
@@ -238,6 +244,10 @@ def dependencies_current(config, db, saved, events):
                 try:
                     conversation_context.validate(db, saved['business_id'], dep['reference'])
                 except WebError:
+                    return False
+            if dep['kind'] == 'data_model':
+                from .data_knowledge import service as knowledge
+                if not knowledge.current(db, saved['business_id'], dep):
                     return False
             if (
                 dep['kind'] == 'table'

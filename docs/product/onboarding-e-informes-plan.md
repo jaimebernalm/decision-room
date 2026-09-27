@@ -2,7 +2,7 @@
 
 Fecha: 27 de septiembre de 2026.
 
-**Estado: paso 3.1 completado; pasos 3.2–3.5 pendientes.**
+**Estado: pasos 3.1 y 3.2 completados; pasos 3.3–3.5 pendientes.**
 Este documento desarrolla la entrega 3 del [plan de implementación](<Decision Room - Plan de implementacion.md>).
 La [evaluación inicial con una base sustancial](../validation/2026-09-27-substantial-baseline.md)
 aceptó cuatro de seis recorridos y conserva los fallos y límites observados.
@@ -329,14 +329,14 @@ no demuestra que el sistema generalice.
 
 ## 8. Secuencia de implementación y criterios de cierre
 
-El paso **3.1 está completado como medición inicial**; los pasos **3.2–3.5 están
-pendientes**. El diseño de objetivos de la sección 2 se evaluó mediante contexto
+El paso **3.1 está completado como medición inicial** y **3.2 está completado**;
+los pasos **3.3–3.5 están pendientes**. El diseño de objetivos de la sección 2 se evaluó mediante contexto
 del propietario; su interfaz sigue prevista para el paso 3.4.
 
 | Paso | Trabajo | Evidencia necesaria para cerrarlo |
 |---|---|---|
 | 3.1 — Completado | Medir el recorrido actual con un caso sustancial y referencias independientes. | Cinco tablas y 299.673 filas, tres objetivos por dos repeticiones; 4/6 aceptados, fallos conservados, métricas y revisión independiente. [Resultados](../validation/2026-09-27-substantial-baseline.md). |
-| 3.2 | Catálogo y memoria de datos persistentes y versionados; definiciones, modelo de relaciones y diagrama ER en «Mi negocio». | Reutilización entre informes y chats, uniones sin duplicación, diagrama coherente, revalidación con datos nuevos y revisión de resultados afectados por correcciones. |
+| 3.2 — Completado | Catálogo y memoria de datos persistentes y versionados; definiciones, modelo de relaciones y diagrama ER en «Mi negocio». | Reutilización entre informes y chats, uniones sin duplicación, diagrama coherente, revalidación con datos nuevos y revisión de resultados afectados por correcciones. 48 tablas/4.713.833 filas, 98 claves de referencia comprobadas, dos informes y otro chat reales; corrección propagada. [Validación](../validation/2026-09-27-data-knowledge.md). |
 | 3.3 | Investigación por rondas con prioridades y presupuesto. | Profundización útil, parada y recuperación correctas, evidencia y resultados parciales válidos. |
 | 3.4 | Onboarding conversacional y elección abierta del objetivo con sugerencias. | Continuidad con el chat, objetivo editable y persistente, datos visibles al preguntar y contexto opcional no bloqueante. |
 | 3.5 | Selección y revisión adaptadas al objetivo; evaluación completa repetida. | Mejora demostrada frente a 3.1, entregas útiles para cada intención y ausencia de errores materiales en los casos de aceptación. |
@@ -346,10 +346,12 @@ y commit local. No marcar un paso como completado por haber escrito este plan.
 La predicción mediante machine learning queda fuera de esta secuencia inicial y
 necesitará un plan y criterios de aceptación propios.
 
-**Prioridad de entrada a 3.2 tras la evaluación:** corregir la validación de
+**Prioridad de entrada a 3.2 — resuelta:** se ha corregido la validación de
 consultas de contexto nulas o con identificadores inválidos antes de ampliar las
 herramientas de memoria. Las peticiones incorrectas deben recibir una corrección
 acotada y no abortar la revisión. Mantener la matriz inicial intacta y comprobar
 las correcciones en un lote nuevo. Incorporar relaciones y columnas comprobadas,
 definiciones estables de métricas y nombres legibles; la memoria por sí sola no
 resuelve errores de sintaxis ni la selección y presentación de hallazgos.
+
+**Cierre de 3.2:** [contrato implementado](../technical/data-knowledge.md) y [pruebas, intentos conservados y límites](../validation/2026-09-27-data-knowledge.md). El siguiente paso es **3.3: investigación por rondas con prioridades y presupuesto**.

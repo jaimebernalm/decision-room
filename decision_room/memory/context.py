@@ -136,7 +136,10 @@ def create(db, session, request_period=None):
     if len(encoded(memories).encode()) > MEMORY_BYTES:
         raise ValueError('Applicable memory exceeds 48 KB. Narrow the source/period before continuing; no material doubts were dropped.')
     business = db.execute('SELECT name FROM businesses WHERE id=%s', (session['business_id'],)).fetchone()
-    initial = dict(profile={'id': str(session['business_id']), 'name': business['name']},
+    from ..data_knowledge import service as knowledge
+    initial = dict(data_model=knowledge.summary(db, session['business_id'], session['analysis_id']),
+                   data_model_dependencies=knowledge.heads(db, session['business_id'], session['analysis_id']),
+                   profile={'id': str(session['business_id']), 'name': business['name']},
                    memories=memories, period=selection['period'],
                    dataset_catalog=datasets(db, session['business_id'], analysis_id=session['analysis_id']),
                    authorized_source_ids=source_ids, authorized_analysis_id=str(session['analysis_id']),
@@ -190,6 +193,9 @@ def reason(db, session_id, seen=None):
     if str(session_id) in seen:
         return 'Cyclic context dependency.'
     seen.add(str(session_id))
+    from ..data_knowledge import service as knowledge
+    if any(not knowledge.current(db, m['business_id'], dep) for dep in m['initial_context'].get('data_model_dependencies', [])):
+        return 'Data model corrected; replan with the current definitions and relationships.'
     selection = m['selection']
     # A source already supplied as an answer in THIS session does not add knowledge.
     # A later correction uses a new origin and therefore does invalidate it.
@@ -226,6 +232,9 @@ def reason(db, session_id, seen=None):
                 from ..conversations import fresh
                 if not fresh(db, dep['snapshot'], ignore_origins=originals):
                     return 'Retrieved conversation context changed; replan.'
+            elif dep['kind'] == 'data_model':
+                if not knowledge.current(db, m['business_id'], dep):
+                    return 'Retrieved data model changed; replan.'
             elif dep['kind'] == 'table':
                 if table_version(db, m['business_id'], dep['id']) != dep['metadata_version']:
                     return 'Retrieved dataset changed; replan.'

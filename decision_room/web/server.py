@@ -215,6 +215,17 @@ class Handler(BaseHTTPRequestHandler):
                     self.send(200,chats.report(chat_id,parts[4]),'text/html; charset=utf-8')
                     return
                 raise WebError('Operación de conversación no encontrada.',404)
+            if path == '/api/business/data-model':
+                from . import data_model
+                if mutation:
+                    self.send(200, data_model.change(ws, self.json_body()))
+                else:
+                    query = parse_qs(urlsplit(self.path).query)
+                    revision = query.get('revision', [None])[0]
+                    if revision is not None and (not revision.isdigit() or int(revision) < 1):
+                        raise WebError('Revisión no válida.')
+                    self.send(200, data_model.read(ws, query.get('analysis_id', [''])[0], int(revision) if revision else None))
+                return
             from . import dossier, bundles
             if path == '/api/business/dossier' and not mutation:
                 self.send(200, dossier.listing(ws))
