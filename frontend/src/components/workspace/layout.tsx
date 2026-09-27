@@ -28,7 +28,6 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarMenuAction,
-  SidebarInset,
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
@@ -59,6 +58,7 @@ export function Layout({ children }: { children: ReactNode }) {
   return (
     <AssistantProvider key={workspace.business?.id || "empty"}>
       <SidebarProvider
+        className="workspace-shell"
         style={
           {
             "--sidebar-width": `${Math.max(216, Math.min(width, 420))}px`,
@@ -66,12 +66,9 @@ export function Layout({ children }: { children: ReactNode }) {
         }
       >
         <Navigation width={width} setWidth={setWidth} />
-        <SidebarInset className="relative h-svh min-w-0 overflow-hidden md:h-[calc(100svh-1rem)]">
-          <Topbar />
-          <LayoutGroup>
-            <AssistantFrame>{children}</AssistantFrame>
-          </LayoutGroup>
-        </SidebarInset>
+        <LayoutGroup>
+          <AssistantFrame header={<Topbar />}>{children}</AssistantFrame>
+        </LayoutGroup>
       </SidebarProvider>
     </AssistantProvider>
   );

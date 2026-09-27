@@ -464,7 +464,7 @@ export function ChatPage({
         <ConversationScrollButton aria-label="Ir al último mensaje" />
       </Conversation>
       <div
-        className={`shrink-0 bg-background px-4 pb-4 pt-2 ${docked ? "" : "sm:px-8"}`}
+        className={`shrink-0 px-4 pb-4 pt-2 ${docked ? "bg-sidebar" : "bg-background sm:px-8"}`}
       >
         <div className="mx-auto max-w-2xl">
           {selected && (

@@ -1,9 +1,24 @@
+.workspace-shell {
+  height: 100svh;
+  overflow: hidden;
+  background: var(--sidebar);
+}
+.workspace-shell [data-slot="sidebar-gap"],
+.workspace-shell [data-slot="sidebar-container"] {
+  transition-duration: 280ms;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
 .assistant-frame {
   display: flex;
   position: relative;
   flex: 1;
   min-height: 0;
   min-width: 0;
+  height: 100svh;
+}
+.assistant-page {
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
 }
 .assistant-content {
@@ -14,17 +29,22 @@
   min-width: 0;
   min-height: 0;
 }
+.assistant-panel-shell {
+  max-width: 55vw;
+  display: flex;
+  min-width: 0;
+  flex-shrink: 0;
+  overflow: hidden;
+}
 .assistant-panel {
   position: relative;
   display: flex;
   flex-direction: column;
-  width: var(--chat-panel-width);
-  max-width: 55%;
+  width: min(var(--chat-panel-width), 55vw);
   min-height: 0;
   flex-shrink: 0;
-  border-left: 1px solid var(--border);
-  background: var(--background);
-  animation: chat-enter 0.24s ease-out;
+  background: var(--sidebar);
+  color: var(--sidebar-foreground);
 }
 .assistant-resize {
   position: absolute;
@@ -100,21 +120,22 @@
   background: var(--background);
   box-shadow: 0 4px 24px #0002;
 }
-@keyframes chat-enter {
-  from {
-    opacity: 0;
-    margin-right: calc(-1 * var(--chat-panel-width));
-    transform: translateX(24px);
+@media (min-width: 768px) {
+  .assistant-page {
+    margin: 8px 8px 8px 0;
+    border-radius: var(--radius-xl);
+    box-shadow: 0 1px 3px #0000000d;
   }
-  to {
-    opacity: 1;
-    margin-right: 0;
-    transform: translateX(0);
+  .assistant-frame {
+    padding-left: 8px;
   }
 }
 @media (max-width: 767px) {
-  .assistant-docked > .assistant-content {
+  .assistant-docked > .assistant-page {
     display: none;
+  }
+  .assistant-panel-shell {
+    max-width: none;
   }
   .assistant-panel {
     width: 100%;
@@ -124,15 +145,16 @@
   .assistant-resize {
     display: none;
   }
-  .assistant-selecting > .assistant-content {
+  .assistant-selecting > .assistant-page {
     display: flex;
   }
-  .assistant-selecting > .assistant-panel {
+  .assistant-selecting > .assistant-panel-shell {
     display: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .assistant-panel {
-    animation: none;
+  .workspace-shell [data-slot="sidebar-gap"],
+  .workspace-shell [data-slot="sidebar-container"] {
+    transition-duration: 0ms;
   }
 }

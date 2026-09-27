@@ -150,3 +150,26 @@ y cambio de chat desde navegación conservando el borrador anterior. La prueba d
 eliminación se adaptó al menú y mantiene las comprobaciones de cancelación y
 confirmación. En navegador se abrió un chat guardado desde su cabecera y otro
 desde la navegación, manteniendo el dashboard y mostrando el historial correcto.
+
+## Barra derecha independiente y transición de la tarjeta central
+
+El chat lateral queda fuera de la tarjeta principal, al mismo nivel que ella.
+Comparte el fondo `sidebar` de la navegación y ocupa toda la altura disponible;
+su cabecera y acciones empiezan arriba, sin la franja de la cabecera del dashboard.
+La tarjeta central mantiene su fondo, esquinas redondeadas y separación de 8 px.
+El compositor del chat comparte el fondo del panel.
+
+La apertura y el cierre animan el ancho y la opacidad durante 280 ms, con la
+misma curva y duración que la navegación izquierda. Abrir la navegación retira
+gradualmente el chat y desplaza la tarjeta central; ya no desmonta el espacio
+del panel de golpe. Durante la salida los controles quedan inertes y fuera del
+árbol accesible. La preferencia de movimiento reducido elimina estas transiciones.
+
+Comprobaciones: 54 pruebas frontend correctas; nueve pruebas contextuales repetidas
+tras ajustar la interpolación de ancho; compilación y lint sin errores. Revisión
+visual en escritorio claro/oscuro y móvil de 390 × 844, incluido el compositor y
+la selección de contexto. En escritorio se comprobó la separación geométrica:
+tarjeta a 8 px del borde superior y panel desde el borde superior, fuera de ella.
+Se observó un ancho intermedio de 35 px durante la apertura hacia 444 px y la
+conservación del panel al empezar el cierre. El dashboard termina desplazado a
+la derecha al abrir la navegación. La ventana de pruebas se restauró al finalizar.
