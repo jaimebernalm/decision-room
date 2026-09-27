@@ -9,7 +9,8 @@ import type { ContextAttachment } from "@/lib/types";
 import { Selectable } from "./context-selection";
 import { FloatingAssistant } from "./floating-assistant";
 import { ChatPage } from "./chat";
-import { Chats } from "./overview";
+import { Chats, Reports } from "./overview";
+import { Dossier } from "./dossier";
 import { Layout } from "./layout";
 const item: ContextAttachment = {
   report_id: "review",
@@ -35,7 +36,16 @@ const workspace: WorkspaceContext = {
       profile_revision: 1,
     },
     businesses: [],
-    analyses: [],
+    analyses: [
+      {
+        id: "analysis",
+        title: "Informe de ventas",
+        filename: "ventas.csv",
+        created_at: "2026-09-27",
+        status: "completed",
+        context_reference: { ...item, title: "Informe de ventas" },
+      },
+    ],
     configured: true,
     memory: {},
   },
@@ -78,9 +88,15 @@ function Harness({
           ) : (
             <>
               <div id="main-content">
-                <Selectable item={item}>
-                  <p>Ventas: 80 EUR</p>
-                </Selectable>
+                {route === "my-business" ? (
+                  <Dossier />
+                ) : route === "reports" ? (
+                  <Reports />
+                ) : (
+                  <Selectable item={item}>
+                    <p>Ventas: 80 EUR</p>
+                  </Selectable>
+                )}
               </div>
               <FloatingAssistant />
             </>
@@ -100,7 +116,16 @@ function server(delayed?: Promise<void>, failSend = 0) {
       const data = JSON.parse(String(init?.body || "{}"));
       calls.push({ url, data });
       let body: unknown;
-      if (url === "/api/chats") {
+      if (url === "/api/business/dossier") {
+        body = {
+          business: workspace.workspace.business,
+          business_id: "a",
+          memory: {},
+          facts: [],
+          history: [],
+          datasets: [],
+        };
+      } else if (url === "/api/chats") {
         await delayed;
         body = { id: "chat", business_id: "a" };
       } else if (url.endsWith("/messages")) {
@@ -393,4 +418,73 @@ it("switches chats from navigation without leaving the report or losing the prev
     text: "Conservar borrador",
   });
   expect(store.get("dr-dock-a", {})).toMatchObject({ chatId: "existing" });
+});
+
+it("keeps the same dock and draft across home, business and reports and sends both kinds of selection", async () => {
+  location.hash = "home";
+  store.set("dr-dock-a", { chatId: "existing", open: true });
+  const calls = server();
+  const user = userEvent.setup();
+  render(<Harness />);
+  const panel = await screen.findByRole("complementary", {
+    name: "Conversación lateral",
+  });
+  await user.type(
+    await within(panel).findByRole("textbox"),
+    "Explica la selección",
+  );
+  await user.click(
+    screen.getByRole("link", { name: "Mi negocio" }),
+  );
+  await user.click(
+    screen.getByRole("button", { name: "Seleccionar" }),
+  );
+  await user.click(
+    await screen.findByRole("button", {
+      name: "Seleccionar: Presentación de Negocio",
+    }),
+  );
+  await user.keyboard("{Escape}");
+  await user.click(screen.getByRole("link", { name: "Informes" }));
+  expect(screen.getByRole("complementary")).toBe(panel);
+  expect(within(panel).getByRole("textbox")).toHaveValue(
+    "Explica la selección",
+  );
+  await user.click(
+    screen.getByRole("button", { name: "Seleccionar" }),
+  );
+  await user.click(
+    screen.getByRole("button", { name: "Seleccionar: Informe de ventas" }),
+  );
+  expect(location.hash).toBe("#reports");
+  await user.keyboard("{Escape}");
+  await user.click(screen.getByRole("link", { name: "Inicio" }));
+  expect(screen.getByRole("complementary")).toBe(panel);
+  await user.click(
+    within(panel).getByRole("button", { name: "Enviar mensaje" }),
+  );
+  await within(panel).findByText("Ventas revisadas.");
+  expect(calls.filter((c) => c.url === "/api/chats")).toHaveLength(0);
+  expect(calls.filter((c) => c.url.endsWith("/messages"))).toEqual([
+    expect.objectContaining({
+      url: "/api/chats/existing/messages",
+      data: expect.objectContaining({
+        text: "Explica la selección",
+        context_references: [
+          {
+            source_id: "a",
+            source_version: "1",
+            kind: "business",
+            element_key: "profile",
+          },
+          {
+            report_id: "review",
+            report_version: "v1",
+            kind: "metric",
+            element_key: "total",
+          },
+        ],
+      }),
+    }),
+  ]);
 });

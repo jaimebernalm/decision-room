@@ -26,6 +26,7 @@ export type Dataset = {
   original_files?: { path: string; size: number }[];
 };
 export type Analysis = {
+  context_reference?: ContextAttachment;
   id: string;
   title: string;
   filename: string;
@@ -111,12 +112,20 @@ export type Dashboard = {
   created_at?: string;
   data_version?: Dataset;
 };
-export type ContextReference = {
+export type ReportReference = {
   report_id: string;
   report_version: string;
   kind: "chart" | "metric" | "insight" | "section";
   element_key: string;
 };
+export type ContextReference =
+  | ReportReference
+  | {
+      source_id: string;
+      source_version: string;
+      kind: "business" | "memory";
+      element_key: string;
+    };
 export type ContextAttachment = ContextReference & {
   title?: string;
   period?: string;

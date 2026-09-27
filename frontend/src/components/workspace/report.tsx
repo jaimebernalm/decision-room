@@ -237,7 +237,7 @@ export function ReportView({
   compact?: boolean;
 }) {
   const item = (
-    kind: ContextAttachment["kind"],
+    kind: "chart" | "metric" | "insight" | "section",
     key: string,
     content: NonNullable<ContextAttachment["content"]>,
   ): ContextAttachment | undefined =>

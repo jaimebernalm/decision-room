@@ -17,7 +17,7 @@ import {
   useAssistant,
   referenceId,
   blockId,
-  contextualRoute,
+  selectableRoute,
 } from "@/lib/assistant";
 import { useWorkspace } from "@/lib/workspace";
 import type {
@@ -73,7 +73,7 @@ export function Selectable({
 export function SelectionTool() {
   const a = useAssistant();
   const { route } = useWorkspace();
-  if (!a || !contextualRoute(route)) return null;
+  if (!a || !selectableRoute(route)) return null;
   return (
     <Button
       type="button"
@@ -244,14 +244,14 @@ export function ContextAttachments({
               {chosen?.title || "Contexto seleccionado"}
             </DialogTitle>
             <DialogDescription>
-              {chosen?.report_title || "Referencia al informe"}
+              {chosen?.report_title || "Contexto seleccionado"}
               {chosen?.period ? ` · ${chosen.period}` : ""}
             </DialogDescription>
           </DialogHeader>
           {chosen?.status === "withdrawn" ? (
             <p>
-              Este contenido ha cambiado o se ha retirado. Vuelve al informe
-              para elegir evidencia vigente.
+              Este contenido ha cambiado o se ha retirado. Vuelve al origen para
+              seleccionar su versión actual.
             </p>
           ) : chosen?.content && "points" in chosen.content ? (
             <EvidenceChart chart={chosen.content} />
@@ -277,7 +277,9 @@ export function ContextAttachments({
                 setOpened(null);
               }}
             >
-              Ver en el informe
+              {chosen.href === "#my-business"
+                ? "Ver en Mi negocio"
+                : "Ver en el informe"}
             </Button>
           )}
         </DialogContent>

@@ -307,6 +307,57 @@ class ConversationTests(unittest.TestCase):
         with self.assertRaises(WebError):
             self.chats.send(chat, {**payload, 'request_key': str(uuid4())})
 
+    def test_business_selections_are_scoped_versioned_and_available_to_answers(self):
+        from decision_room.context_references import normalize
+        ref = dict(kind='business', source_id=str(self.b), source_version=str(self.business['profile_revision']), element_key='profile')
+        seen = []
+        def answer_selected(model, context, correction=None):
+            seen.append(context)
+            return action('answer', text='Synthetic test business.', sources=['selection/0']), {}
+        chat = self.chat()
+        with patch.object(ChatModel, 'generate_chat', answer_selected):
+            turn = self.send(chat, 'Explain my selected profile', context_references=[ref])
+        self.assertEqual(turn['status'], 'completed', turn)
+        self.assertEqual(turn['attachments'][0]['content']['statement'], self.business['description'])
+        self.assertEqual(turn['attachments'][0]['href'], '#my-business')
+        source = seen[-1]['available_sources']['selection/0']['content']
+        self.assertEqual(source['authority'], 'owner_declared')
+        self.assertEqual(seen[-1]['retrievals'], [])
+        self.assertEqual(normalize([ref]), [ref])
+        for invalid in (ref | {'source_id': str(uuid4())}, ref | {'source_version': '0'}, ref | {'element_key': 'invented'}, ref | {'content': 'injected'}):
+            with self.assertRaises(WebError):
+                self.send(chat, 'Explain this', context_references=[invalid])
+        self.ws.save_business(dict(business_id=str(self.b), name=self.business['name'], description='Updated synthetic profile.', profile_revision=self.business['profile_revision']))
+        attachment = Conversations(self.ws.scoped(self.b)).detail(chat)['turns'][0]['attachments'][0]
+        self.assertEqual(attachment['status'], 'withdrawn')
+        self.assertNotIn('content', attachment)
+        with self.assertRaises(WebError):
+            self.send(chat, 'Explain this', context_references=[ref])
+
+    def test_selected_memory_can_change_before_routing_without_reviving_old_content(self):
+        saved = memory.change(self.config, self.b, action='declare', request_key=str(uuid4()), content=content())
+        with connect(self.config) as db:
+            fact = memory.current(db, self.b)[0]
+        ref = dict(kind='memory', source_id=str(fact['fact_id']), source_version=str(fact['revision']), element_key='fact')
+        chat = self.chat()
+        pending = self.chats.send(chat, dict(business_id=str(self.b), request_key=str(uuid4()), text='What about this?', context_references=[ref]))
+        with connect(self.config) as db:
+            payload = db.execute('SELECT payload FROM memory_sources WHERE id=(SELECT memory_source_id FROM chat_turns WHERE id=%s)', (pending['id'],)).fetchone()['payload']
+            self.assertIn(fact['content']['statement'], payload['question'])
+        memory.change(self.config, self.b, action='withdraw', request_key=str(uuid4()), fact_id=str(fact['fact_id']), expected_revision=fact['revision'])
+        seen = []
+        def answer_changed(model, context, correction=None):
+            seen.append(context)
+            return action('answer', text='La información seleccionada ha cambiado.', sources=['selection/0']), {}
+        with patch.object(ChatModel, 'generate_chat', answer_changed):
+            self.chats.run(pending['id'])
+        turn = self.chats.detail(chat)['turns'][0]
+        self.assertEqual(turn['status'], 'completed', turn)
+        self.assertEqual(seen[-1]['available_sources']['selection/0']['content']['status'], 'withdrawn')
+        self.assertNotIn('content', turn['attachments'][0])
+        with self.assertRaises(WebError):
+            self.send(chat, 'What about this?', context_references=[ref])
+
     def test_multiple_reports_are_opened_cited_and_carried_into_investigation(self):
         _, first = self.complete()
         _, second = self.complete()

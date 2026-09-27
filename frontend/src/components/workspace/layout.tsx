@@ -8,6 +8,7 @@ import {
   HelpCircle,
   Home,
   MessageSquare,
+  MessagesSquare,
   Plus,
   MoreHorizontal,
   PanelRightOpen,
@@ -46,9 +47,9 @@ import { ChatActions } from "./chat-actions";
 import { AssistantFrame } from "./assistant-frame";
 const navigation = [
   ["home", "Inicio", Home],
-  ["chats", "Conversaciones", MessageSquare],
-  ["reports", "Informes", BarChart3],
   ["my-business", "Mi negocio", Building2],
+  ["reports", "Informes", BarChart3],
+  ["chats", "Conversaciones", MessagesSquare],
 ] as const;
 export function Layout({ children }: { children: ReactNode }) {
   const { workspace } = useWorkspace();

@@ -113,7 +113,13 @@ export function AssistantFrame({
                 <ArrowLeft className="size-3" />
                 {a.dock.origin === "home"
                   ? "Volver al dashboard"
-                  : "Volver al informe"}
+                  : a.dock.origin === "my-business" ||
+                      a.dock.origin === "files" ||
+                      a.dock.origin === "business"
+                    ? "Volver a Mi negocio"
+                    : a.dock.origin === "reports"
+                      ? "Volver a informes"
+                      : "Volver al informe"}
               </Button>
             )}
           {children}

@@ -181,3 +181,31 @@ navegación pasa de luminosidad OKLCH 0,97 a 0,93 en tema claro. Los mensajes us
 el token `sidebar-accent` para mantener coherencia con el resaltado de navegación.
 Se conserva el valor del tema oscuro. Verificación visual con ambos elementos
 en pantalla, compilación y lint sin errores; ajuste exclusivamente de color.
+
+
+## Panel transversal y selección de negocio
+
+- Inicio, Mi negocio e Informes comparten el panel abierto, el identificador del
+  chat, el borrador y los adjuntos. Menú ordenado en ese orden y Conversaciones
+  al final, con icono de bocadillos superpuestos distinto de los chats individuales.
+- Mi negocio permite seleccionar presentación y hechos activos; Informes permite
+  adjuntar el resumen de una revisión publicable desde el listado. No se convierten
+  archivos ni hechos retirados en bloques seleccionables.
+- Referencias de propietario resueltas en servidor, limitadas al negocio y a la
+  revisión. Pruebas de versión antigua, identidad ajena, clave inexistente e intento
+  de inyectar contenido. Un cambio posterior al envío retira el contenido del
+  adjunto y permite continuar con el contexto vigente, sin tratarlo como informe.
+- Regresión: **297 pruebas Python** correctas; tras enriquecer la selección para
+  extracción de memoria con autoridad/estado/ámbito, se repiten las **48 pruebas
+  de conversaciones**, correctas. **55 pruebas de frontend** correctas, incluida
+  navegación real de componentes Inicio → Mi negocio → Informes → Inicio con
+  borrador, dos tipos de adjunto y un único envío al chat existente.
+- Compilación TypeScript/Vite correcta y lint sin errores. Persisten avisos de
+  Fast Refresh y tamaño del fragmento de chat; la función exportada de selección
+  añade otro aviso de la misma clase. Revisión de diferencias sin errores.
+- Navegador con negocio ficticio y modelo real: seleccionar presentación, escribir
+  una pregunta, ir a Informes y enviar; respuesta correcta «Es una tienda de
+  papelería ficticia, creada para probar la experiencia de uso». Se comprueban
+  adjunto en conversación completa, reacoplamiento, navegación y selección desde
+  Informes. Revisión visual de Mi negocio con panel abierto, sin errores de consola.
+- Servidor local actualizado tras verificar que no había trabajos ni turnos activos.

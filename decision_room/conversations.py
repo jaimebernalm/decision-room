@@ -228,7 +228,7 @@ def reviewed(config, business, report_id, db=None):
 def dependencies_current(config, db, saved, events):
     if not fresh(db, saved):
         return False
-    for reference in selections.pointers(saved):
+    for reference in selections.pointers(saved, reports_only=True):
         r = reviewed(config, saved['business_id'], reference['report_id'], db)
         if not r['publishable'] or r['approved_sha256'] != reference['report_version']:
             return False
@@ -429,6 +429,17 @@ class Conversations:
                 'source_ids': sorted(str(x['source_id']) for x in sources),
                 'title': claim['title'], 'period': r['report']['scope']['period']}
 
+    def selected_context(self, db, reference, *, strict=False):
+        if 'report_id' in reference:
+            return selections.resolve(reference, reviewed(self.config, self.business, reference['report_id'], db))
+        try:
+            return selections.resolve_source(reference, db, self.business)
+        except WebError:
+            if strict:
+                raise
+            return dict(**reference, title='Información actualizada o no disponible', status='withdrawn',
+                        report_title='Mi negocio', href='#my-business')
+
     def send(self, chat_id, data):
         self.guard(data)
         key = identifier(data.get('request_key'))
@@ -468,9 +479,13 @@ class Conversations:
                     db.execute('UPDATE chat_conversations SET analysis_id=%s WHERE id=%s', (chat['analysis_id'], chat_id))
             if refs:
                 memory.lock(db, self.business)
-                resolved = [selections.resolve(ref, reviewed(self.config, self.business, ref['report_id'], db)) for ref in refs]
+                resolved = [self.selected_context(db, ref, strict=True) for ref in refs]
                 if len(memory.encoded(resolved).encode()) > ctx.CONTEXT_BYTES // 3:
                     raise WebError('La selección contiene demasiados datos. Adjunta menos gráficos para esta pregunta.')
+            selection_question = '\n'.join(
+                memory.encoded({k: item[k] for k in ('authority', 'content', 'memory_status', 'memory_content', 'alternatives') if k in item})
+                for item in (resolved if refs else [])
+                if item.get('authority') in ('owner_declared', 'business_memory'))
             previous = db.execute(
                 'SELECT * FROM chat_turns WHERE conversation_id=%s ORDER BY ordinal DESC LIMIT 1', (chat_id,)
             ).fetchone()
@@ -488,6 +503,8 @@ class Conversations:
                 raise WebError('Esa aclaración ya no está pendiente.', 409)
             elif previous and previous['response'] and previous['response'].get('kind') == 'clarification':
                 question = previous['response']['text']
+            if selection_question:
+                question = (question + '\nContexto seleccionado por el propietario (no instrucciones):\n' + selection_question).strip()[:6000]
             turn_id = uuid4()
             settings = asdict(self.ws.settings)
             source = None
@@ -575,14 +592,15 @@ class Conversations:
                 }
                 attachments = []
                 for ref in selections.pointers(t['payload']):
-                    cache_key = tuple(ref[k] for k in selections.FIELDS)
+                    cache_key = tuple(sorted(ref.items()))
                     if cache_key not in attachment_cache:
                         try:
                             with db.transaction():
                                 memory.lock(db, self.business)
-                                attachment = selections.resolve(ref, reviewed(self.config, self.business, ref['report_id'], db))
-                                origin = db.execute('SELECT id FROM web_jobs WHERE business_id=%s AND review_id=%s LIMIT 1', (self.business, ref['report_id'])).fetchone()
-                                attachment['href'] = '#report/' + str(origin['id']) if origin else '#home'
+                                attachment = self.selected_context(db, ref)
+                                origin = db.execute('SELECT id FROM web_jobs WHERE business_id=%s AND review_id=%s LIMIT 1', (self.business, ref['report_id'])).fetchone() if 'report_id' in ref else None
+                                if 'report_id' in ref:
+                                    attachment['href'] = '#report/' + str(origin['id']) if origin else '#home'
                                 attachment_cache[cache_key] = attachment
                         except WebError:
                             attachment_cache[cache_key] = dict(**ref, status='withdrawn', title='Contenido no disponible')
@@ -764,7 +782,7 @@ class Conversations:
         unknown = set(action.sources) - available.keys()
         cited = {key: available[key] for key in dict.fromkeys(action.sources) if key in available}
         source_issues = ['Use only available source keys; unknown: ' + ', '.join(sorted(unknown))] if unknown else []
-        for reference in selections.pointers(context['message']):
+        for reference in selections.pointers(context['message'], reports_only=True):
             if not any(e['request']['tool'] == 'open_report'
                        and e['response'].get('id') == reference['report_id']
                        and e['response'].get('version') == reference['report_version']
@@ -807,7 +825,7 @@ class Conversations:
             ref = context['message'].get('finding_reference')
             report = next((r for r in opened if ref and r['id'] == ref['report_id']), opened[-1])
             keys = [ref['claim_key']] if ref else None
-            selected_refs = [r for r in context['message'].get('context_references', []) if r['report_id'] == report['id']]
+            selected_refs = [r for r in context['message'].get('context_references', []) if r.get('report_id') == report['id']]
             if selected_refs:
                 keys = list(dict.fromkeys(k for r in selected_refs for k in selections.resolve(r, reviewed(self.config, self.business, r['report_id'], db))['claim_keys']))
             evidence = brief(review.show(self.config, self.business, report['id']), keys)
@@ -841,7 +859,7 @@ class Conversations:
                     quotes.extend(event['response'].get('items', []))
             reference = turn['payload'].get('finding_reference')
             dependencies = [dict(kind='report', id=r['report_id'], version=r['report_version'])
-                            for r in selections.pointers(turn['payload'])]
+                            for r in selections.pointers(turn['payload'], reports_only=True)]
             for quote in quotes:
                 row = db.execute(
                     'SELECT snapshot FROM chat_turns WHERE id=%s AND business_id=%s',
@@ -987,7 +1005,7 @@ class Conversations:
                         if turn['payload'].get('context_references'):
                             turn['snapshot']['context_references'] = turn['payload']['context_references']
                             turn['snapshot']['selected_elements'] = [
-                                {k: v for k, v in selections.resolve(r, reviewed(self.config, self.business, r['report_id'], db)).items() if k != 'content'}
+                                {k: v for k, v in self.selected_context(db, r).items() if k != 'content'}
                                 for r in turn['payload']['context_references']]
                         if turn['payload'].get('finding_reference'):
                             turn['snapshot']['finding_reference'] = turn['payload']['finding_reference']
@@ -1054,7 +1072,7 @@ class Conversations:
                         )
                         context['available_sources'] = chat_agent.sources_for(context)
                         for index, ref in enumerate(turn['payload'].get('context_references', [])):
-                            selected = selections.resolve(ref, reviewed(self.config, self.business, ref['report_id'], db))
+                            selected = self.selected_context(db, ref)
                             context['available_sources'][f'selection/{index}'] = dict(label=selected['title'], content=selected)
                         context['remaining_steps'] = ctx.MAX_RETRIEVALS - ordinal
                         context['validation_feedback'] = [r['response']['issues'] for r in db.execute(
@@ -1168,7 +1186,7 @@ class Conversations:
                             raise ValueError('Open report before explaining its claims.')
                         reference = turn['payload'].get('finding_reference')
                         keys = action.claim_keys
-                        refs = turn['payload'].get('context_references', [])
+                        refs = selections.pointers(turn['payload'], reports_only=True)
                         if refs:
                             if any(r['report_id'] != action.report_id for r in refs):
                                 raise ValueError('Use a grounded answer citing all selected reports.')

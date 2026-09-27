@@ -30,6 +30,7 @@ import { date, reportState, shortTitle, analysisHref } from "@/lib/api";
 import type { Report } from "@/lib/types";
 import { Heading, Notice, Empty, Loading } from "./shared";
 import { ReportView } from "./report";
+import { Selectable } from "./context-selection";
 import { ChatActions } from "./chat-actions";
 import { FloatingAssistant } from "./floating-assistant";
 export function StartChat({ home = false }: { home?: boolean }) {
@@ -180,15 +181,17 @@ export function Reports() {
                   }}
                 >
                   <TableCell className="whitespace-normal">
-                    <a
-                      className="break-words font-medium hover:underline"
-                      href={analysisHref(a)}
-                    >
-                      {a.title}
-                    </a>
-                    <p className="mt-1 break-all text-xs text-muted-foreground">
-                      {a.filename}
-                    </p>
+                    <Selectable item={a.context_reference}>
+                      <a
+                        className="break-words font-medium hover:underline"
+                        href={analysisHref(a)}
+                      >
+                        {a.title}
+                      </a>
+                      <p className="mt-1 break-all text-xs text-muted-foreground">
+                        {a.filename}
+                      </p>
+                    </Selectable>
                   </TableCell>
                   <TableCell>
                     <Badge variant="secondary">

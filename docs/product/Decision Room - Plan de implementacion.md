@@ -354,6 +354,13 @@ independientemente y corrección de fallos encontrados. Véanse el
 fino solo mientras se desplaza el contenido, sin carril permanente. Validado con
 el chat lateral abierto en navegador, 45 pruebas de frontend, compilación y lint.
 
+**Ampliación transversal:** chat y borrador persistentes entre Inicio, Mi negocio
+e Informes; selección de presentación, hechos activos y resúmenes de informes.
+Referencias resueltas y versionadas por el servidor, con retirada de contenido
+obsoleto. Menú ordenado Inicio, Mi negocio, Informes y Conversaciones, con icono
+propio para el listado de chats. Pruebas de continuidad, alcance y vigencia, más
+recorrido en navegador con modelo real, registrados en la validación del paso.
+
 ### 2.5.17. Aclaraciones con vista de datos y recuperación
 
 **Completado, 27 de septiembre de 2026:** las preguntas del informe, onboarding y

@@ -120,12 +120,20 @@ export const contextKey = (business: string) =>
   `dr-question-context-${business}`;
 export const homeDraftKey = (business: string) => `dr-home-prompt-${business}`;
 export const messageKey = (chat: string) => `dr-chat-draft-${chat}`;
-export const referenceWire = (r: ContextReference): ContextReference => ({
-  report_id: r.report_id,
-  report_version: r.report_version,
-  kind: r.kind,
-  element_key: r.element_key,
-});
+export const referenceWire = (r: ContextReference): ContextReference =>
+  "source_id" in r
+    ? {
+        source_id: r.source_id,
+        source_version: r.source_version,
+        kind: r.kind,
+        element_key: r.element_key,
+      }
+    : {
+        report_id: r.report_id,
+        report_version: r.report_version,
+        kind: r.kind,
+        element_key: r.element_key,
+      };
 export type MessageDraft = {
   context_references?: ContextReference[];
   question_id?: string;

@@ -21,7 +21,7 @@ Los adjuntos aparecen encima del texto: miniatura y título para gráficos, valo
 y etiqueta para indicadores, extracto para hallazgos y secciones, vista compacta
 para tablas. Se pueden quitar individualmente y ampliar antes de enviar.
 
-Al enviar desde Inicio/dashboard o un informe, la barra se transforma en un chat
+Al enviar desde Inicio/dashboard, Mi negocio, Informes o un informe, la barra se transforma en un chat
 a la derecha, conservando el contenido de origen visible. Se abre inmediatamente
 con estado real de envío, sin esperar la respuesta del modelo. Un error conserva
 texto, selecciones e identidad de reintento. El panel permite seguir preguntando
@@ -126,7 +126,7 @@ conversación no puede depender de ese componente. Mantener separados:
 - Conversación: identificador, mensajes, envío, cola y aclaraciones.
 - Origen: ruta, bloque y posición de lectura; no altera la evidencia del mensaje.
 
-Al plegar se conserva conversación y borrador. Cambiar entre Inicio e informes
+Al plegar se conserva conversación y borrador. Cambiar entre Inicio, Mi negocio e Informes
 mantiene el chat acoplado; un nuevo bloque se añade al siguiente mensaje. «Nueva
 conversación» crea otro chat solo al enviar. Desde la página completa, abrir un
 origen puede volver a acoplar el chat existente. En las demás pantallas se conserva
@@ -199,9 +199,10 @@ desde servidor y seguir visibles al abrir una conversación por su ruta directa.
 
 ## Límites de la primera versión
 
-Selección por bloques completos de dashboard e informe. El lazo de píxeles,
-selección arbitraria de texto y selección de zonas de otras páginas quedan fuera
-de esta primera implementación. Se conservan las referencias y la vista de los
+Selección por bloques completos de dashboard e informe, resúmenes del listado
+de Informes y presentación/hechos activos de Mi negocio. El lazo de píxeles,
+selección arbitraria de texto, archivos e historial retirado quedan fuera
+de esta implementación. Se conservan las referencias y la vista de los
 gráficos originales; no se incorpora edición de informes ni recálculo al seleccionar.
 
 ## Verificación de esta planificación
@@ -218,3 +219,27 @@ Se reutiliza `ChatPage` tanto en panel como en página y la lectura existente de
 chat entrega los adjuntos; no fue necesario añadir un endpoint de resolución.
 La transición usa CSS con respeto a movimiento reducido, y las tablas conservan
 el tipo de gráfico tabular del contrato de presentación existente.
+
+
+## Ampliación a Mi negocio e Informes
+
+El panel permanece montado al navegar por Inicio, Mi negocio e Informes, con el
+mismo identificador, borrador y adjuntos. El editor de presentación y la ruta de
+datos también conservan el panel; el editor no ofrece selección de campos.
+La navegación principal pasa a Inicio, Mi negocio, Informes y Conversaciones;
+el listado usa dos bocadillos para distinguirse del icono de los chats individuales.
+
+Las referencias de perfil y memoria usan `source_id`, `source_version`, `kind`
+(`business` o `memory`) y `element_key`. El servidor resuelve la presentación
+vigente o la última revisión activa del hecho dentro del negocio seleccionado.
+No acepta contenido aportado por el cliente. Conserva autoridad, estado, ámbito
+y alternativas para distinguir contexto del propietario de resultados revisados.
+La captura de correcciones recibe contexto de la selección, con su estado y ámbito,
+sujeto al límite de 6.000 caracteres de la pregunta auxiliar existente.
+
+Un envío con versión antigua se rechaza. Si cambia después de enviarse —incluida
+una corrección solicitada por el propio mensaje— el adjunto se marca no disponible;
+la respuesta dispone del perfil y memoria vigentes sin recuperar el texto retirado
+como evidencia actual. Las selecciones de informes siguen obligando al agente a
+abrir y citar la revisión exacta. El listado solo ofrece referencias de informes
+publicables; seleccionar un resumen no lanza un nuevo cálculo.

@@ -2,6 +2,7 @@
 from .web.errors import WebError, identifier
 from .web.dashboard import presentation
 
+SOURCE_FIELDS = ('source_id', 'source_version', 'kind', 'element_key')
 FIELDS = ('report_id', 'report_version', 'kind', 'element_key')
 MAX_REFERENCES = 8
 
@@ -11,20 +12,25 @@ def normalize(values):
         raise WebError('Selecciona como máximo ocho elementos.')
     result = []
     for value in values:
-        if not isinstance(value, dict) or set(value) != set(FIELDS):
+        if not isinstance(value, dict):
             raise WebError('La selección no es válida.')
-        item = dict(value, report_id=str(identifier(value['report_id'])))
-        if (item['kind'] not in ('chart', 'metric', 'insight', 'section') or
+        fields = SOURCE_FIELDS if 'source_id' in value else FIELDS
+        if set(value) != set(fields):
+            raise WebError('La selección no es válida.')
+        identity, version = fields[:2]
+        item = dict(value, **{identity: str(identifier(value[identity]))})
+        kinds = ('business', 'memory') if fields == SOURCE_FIELDS else ('chart', 'metric', 'insight', 'section')
+        if (item['kind'] not in kinds or
             any(not isinstance(item[k], str) or not 0 < len(item[k]) <= 180
-                for k in ('report_version', 'element_key'))):
+                for k in (version, 'element_key'))):
             raise WebError('La selección no es válida.')
         if item not in result:
             result.append(item)
     return result
 
 
-def pointers(payload):
-    refs = list(payload.get('context_references') or [])
+def pointers(payload, *, reports_only=False):
+    refs = [r for r in (payload.get('context_references') or []) if not reports_only or 'report_id' in r]
     if legacy := payload.get('finding_reference'):
         refs.append(dict(report_id=legacy['report_id'], report_version=legacy['report_version'],
                          kind='insight', element_key=legacy['claim_key']))
@@ -52,3 +58,31 @@ def resolve(reference, reviewed):
                 period=display['scope']['period'], report_title=display['title'],
                 analysis_id=str(reviewed['analysis_id']), claim_keys=claims, content=content,
                 status='available')
+
+
+def resolve_source(reference, db, business):
+    """Resolve owner-declared context, never treating it as reviewed analysis."""
+    from .web.business import profile
+    kind, key = reference['kind'], reference['element_key']
+    if kind == 'business' and key == 'profile' and reference['source_id'] == str(business):
+        row = profile(db, business)
+        version = str(row['profile_revision'])
+        title = 'Presentación de ' + row['name']
+        content = dict(key=key, title=title, statement=row['description'])
+        details = dict(authority='owner_declared')
+    elif kind == 'memory' and key == 'fact':
+        row = db.execute("""SELECT * FROM memory_revisions WHERE business_id=%s AND fact_id=%s
+            ORDER BY revision DESC LIMIT 1""", (business, reference['source_id'])).fetchone()
+        if not row or row['status'] in ('withdrawn', 'superseded'):
+            raise WebError('La información seleccionada ya no está disponible.', 409)
+        version = str(row['revision'])
+        title = row['content']['statement'][:100]
+        content = dict(key=key, title=title, statement=row['content']['statement'])
+        details = dict(authority='business_memory', memory_status=row['status'],
+                       memory_content=row['content'], alternatives=row.get('alternatives') or [])
+    else:
+        raise WebError('El elemento seleccionado no pertenece a este negocio.', 409)
+    if version != reference['source_version']:
+        raise WebError('La información seleccionada ha cambiado. Vuelve a seleccionarla.', 409)
+    return dict(**reference, title=title, content=content, status='available',
+                report_title='Mi negocio', href='#my-business', **details)

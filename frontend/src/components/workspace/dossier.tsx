@@ -49,6 +49,7 @@ import {
   Busy,
   Empty,
 } from "./shared";
+import { Selectable } from "./context-selection";
 import { UploadForm } from "./business";
 const factKinds: Record<string, string> = {
   context: "Contexto",
@@ -115,11 +116,28 @@ export function Dossier({ files = false }: { files?: boolean }) {
           </a>
         </Button>
       </Heading>
-      <Card className="mb-6 shadow-none">
-        <CardContent className="whitespace-pre-wrap text-sm leading-7 text-muted-foreground">
-          {b.description}
-        </CardContent>
-      </Card>
+      <Selectable
+        item={{
+          kind: "business",
+          source_id: b.id,
+          source_version: String(data.business.profile_revision),
+          element_key: "profile",
+          title: `Presentación de ${data.business.name}`,
+          href: "#my-business",
+          report_title: "Mi negocio",
+          content: {
+            key: "profile",
+            title: data.business.name,
+            statement: data.business.description,
+          },
+        }}
+      >
+        <Card className="mb-6 shadow-none">
+          <CardContent className="whitespace-pre-wrap text-sm leading-7 text-muted-foreground">
+            {data.business.description}
+          </CardContent>
+        </Card>
+      </Selectable>
       <Notice error>{resource.error || action.error}</Notice>
       {Boolean(
         data.memory.pending || data.memory.failed || data.memory.needs_review,
@@ -164,63 +182,81 @@ export function Dossier({ files = false }: { files?: boolean }) {
           {facts.length ? (
             <div className="grid gap-4 md:grid-cols-2">
               {facts.map((f) => (
-                <Card key={f.fact_id} className="shadow-none">
-                  <CardHeader>
-                    <div className="flex flex-wrap gap-2">
-                      <Badge variant="outline">
-                        {factKinds[f.content.kind] || f.content.kind}
-                      </Badge>
-                      <Badge
-                        variant={
-                          f.status === "conflicted"
-                            ? "destructive"
-                            : "secondary"
-                        }
-                      >
-                        {factStatus[f.status] || f.status}
-                      </Badge>
-                    </div>
-                    <CardTitle className="text-base leading-7">
-                      {f.content.statement}
-                    </CardTitle>
-                    <CardDescription>
-                      {scopeLabel(f.content, data.datasets)}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <FactOrigin fact={f} />
-                    <div className="flex flex-wrap gap-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setEdit(f)}
-                      >
-                        <Pencil />
-                        Corregir
-                      </Button>
-                      {f.status !== "declared" && (
+                <Selectable
+                  key={f.fact_id}
+                  item={{
+                    kind: "memory",
+                    source_id: f.fact_id,
+                    source_version: String(f.revision),
+                    element_key: "fact",
+                    title: f.content.statement.slice(0, 100),
+                    href: "#my-business",
+                    report_title: "Mi negocio",
+                    content: {
+                      key: "fact",
+                      title: factKinds[f.content.kind] || "Información",
+                      statement: f.content.statement,
+                    },
+                  }}
+                >
+                  <Card className="shadow-none">
+                    <CardHeader>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="outline">
+                          {factKinds[f.content.kind] || f.content.kind}
+                        </Badge>
+                        <Badge
+                          variant={
+                            f.status === "conflicted"
+                              ? "destructive"
+                              : "secondary"
+                          }
+                        >
+                          {factStatus[f.status] || f.status}
+                        </Badge>
+                      </div>
+                      <CardTitle className="text-base leading-7">
+                        {f.content.statement}
+                      </CardTitle>
+                      <CardDescription>
+                        {scopeLabel(f.content, data.datasets)}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <FactOrigin fact={f} />
+                      <div className="flex flex-wrap gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setEdit(f)}
+                        >
+                          <Pencil />
+                          Corregir
+                        </Button>
+                        {f.status !== "declared" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={action.busy}
+                            onClick={() => mutation(f, "confirm")}
+                          >
+                            <Check />
+                            Confirmar
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="ghost"
                           disabled={action.busy}
-                          onClick={() => mutation(f, "confirm")}
+                          onClick={() => mutation(f, "withdraw")}
                         >
-                          <Check />
-                          Confirmar
+                          <Archive />
+                          Retirar
                         </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={action.busy}
-                        onClick={() => mutation(f, "withdraw")}
-                      >
-                        <Archive />
-                        Retirar
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Selectable>
               ))}
             </div>
           ) : (

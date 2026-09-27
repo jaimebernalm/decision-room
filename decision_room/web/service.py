@@ -278,7 +278,11 @@ class Workspace:
             item = self.public(j)
             if j['status'] == 'completed' and j['review_id']:
                 current = self.review_state(j)
-                if not current['publishable']:
+                if current['publishable']:
+                    item['context_reference'] = dict(report_id=str(j['review_id']),
+                        report_version=current['approved_sha256'], kind='section', element_key='summary',
+                        title=j['title'], href='#report/' + str(j['id']))
+                else:
                     item.update(status='blocked', presentation_status='withdrawn', phase='review', issue='Informe retirado: necesita un nuevo cálculo y revisión.')
             result.append(item)
         return result

@@ -16,11 +16,18 @@ import type {
   QuestionContext,
 } from "./types";
 export const referenceId = (r: ContextReference) =>
-  [r.report_id, r.report_version, r.kind, r.element_key].join(":");
+  [
+    "report_id" in r ? r.report_id : r.source_id,
+    "report_version" in r ? r.report_version : r.source_version,
+    r.kind,
+    r.element_key,
+  ].join(":");
 export const blockId = (r: ContextReference) =>
-  `context-${r.report_id}-${r.kind}-${r.element_key}`;
+  `context-${"report_id" in r ? r.report_id : r.source_id}-${r.kind}-${r.element_key}`;
+export const selectableRoute = (route: string) =>
+  contextualRoute(route) && route !== "business";
 export const contextualRoute = (route: string) =>
-  route === "home" ||
+  ["home", "my-business", "reports", "files", "business"].includes(route) ||
   route.startsWith("report/") ||
   route.startsWith("chat-report/");
 type Dock = {
