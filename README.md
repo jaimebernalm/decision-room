@@ -9,6 +9,7 @@ technical guides and validation results. Downloaded datasets are in `data/`.
 
 ```text
 decision_room/             Application Python code
+frontend/                  React UI, official shadcn/AI Elements components and lockfile
 sandbox/                   Isolated Python container and dependency versions
 tests/                     Automated tests
 examples/                  Example calculations
@@ -89,7 +90,9 @@ model server and sandbox available:
 .venv/bin/python scripts/dev/start_web.py
 ```
 
-This starts local PostgreSQL and opens the authenticated workspace at
+Requires Node.js 22.13+ alongside Python. The launcher installs the locked frontend
+dependencies and builds the React interface, then starts local PostgreSQL and opens
+the authenticated workspace at
 `http://127.0.0.1:8787`. It includes previous web analyses, business context,
 CSV upload, actual agent questions, durable progress and reviewed reports with
 charts and evidence. `--model` selects another installed model. See the

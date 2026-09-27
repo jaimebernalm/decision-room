@@ -1,5 +1,9 @@
 # Conversaciones funcionales · Paso 2.5.4
 
+> Actualización 26-09-2026: la interfaz se ha migrado a React y componentes oficiales.
+> Las referencias al renderer anterior se conservan como contexto del diseño;
+> consulta [la implementación actual](react-ui-migration.md).
+
 ## Implementación
 
 1. **Persistencia.** Esquema 12: `chat_conversations`, `chat_turns`, `chat_calls` y `chat_retrievals`. Cada turno conserva el mensaje original, la pregunta a la que responde, su orden, estado, respuesta estructurada, referencias y contexto entregado. El servidor confirma el envío después del commit; el trabajo ocurre en segundo plano. La clave de envío y el bloqueo de la conversación evitan duplicados y turnos simultáneos fuera de orden.
@@ -40,7 +44,7 @@ Las escrituras incluyen el negocio visto por el cliente; los mensajes y conversa
 
 ```sh
 .venv/bin/python -m unittest discover -s tests -v
-node --check decision_room/web/static/app.js
+npm --prefix frontend run build
 .venv/bin/python scripts/evaluate_conversations.py --output .local/chat-evaluation-new-run
 git diff --check
 ```

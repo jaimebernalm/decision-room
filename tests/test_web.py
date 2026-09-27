@@ -1,5 +1,6 @@
 """Local web boundary and durable orchestration; scripted AI is not quality evidence."""
 import json
+import re
 import tempfile
 import threading
 import unittest
@@ -118,6 +119,97 @@ class WebTests(unittest.TestCase):
         self.assertTrue(self.ws.detail(job)['publishable'])
         return job
 
+    def test_report_trash_is_recoverable_scoped_and_keeps_evidence(self):
+        job = self.complete()
+        report = self.ws.report(job, structured=True)
+        client, server = self.http()
+        body = {'business_id': str(self.business['id'])}
+        self.assertEqual(client.post(f'/api/jobs/{job}/delete', json=body).status_code, 401)
+        client.post('/api/login', json={'token': server.token})
+        item = self.ws.listing()[0]
+        self.assertEqual(item['context_reference']['kind'], 'report')
+        self.assertEqual(item['context_reference']['element_key'], 'report')
+        self.assertEqual(client.post(f'/api/jobs/{job}/delete', json=body).status_code, 200)
+        self.assertEqual(self.ws.listing(), [])
+        self.assertEqual(str(client.get('/api/reports/deleted').json()['items'][0]['id']), str(job))
+        self.assertEqual(self.ws.report(job, structured=True), report)
+        self.assertEqual(client.post(f'/api/jobs/{job}/delete', json=body).status_code, 200)
+        self.assertEqual(client.post(f'/api/jobs/{job}/restore', json=body).status_code, 200)
+        self.assertEqual(len(self.ws.listing()), 1)
+        self.assertEqual(client.get('/api/reports/deleted').json()['items'], [])
+        review.hold(self.config, self.business['id'], self.ws.row(job)['review_id'], reason='Test withdrawal')
+        self.assertEqual(self.ws.listing()[0]['presentation_status'], 'withdrawn')
+        self.assertEqual(client.post(f'/api/jobs/{job}/delete', json=body).status_code, 200)
+        self.assertEqual(self.ws.listing(), [])
+        queued = self.create(request_key=str(uuid4()))
+        self.assertEqual(client.post(f'/api/jobs/{queued}/delete', json=body).status_code, 409)
+        other = self.ws.save_business({'request_key': str(uuid4()), 'name': 'Other', 'description': 'Other business', 'expected_active_id': str(self.business['id'])})
+        self.assertEqual(client.get('/api/reports/deleted').json()['items'], [])
+        self.assertEqual(client.post(f'/api/jobs/{job}/restore', json=body).status_code, 409)
+        self.assertEqual(client.post(f'/api/jobs/{job}/restore', json={'business_id': str(other['id'])}).status_code, 404)
+
+    def test_question_references_preview_pagination_and_scope(self):
+        from decision_room.web.preview import page
+        self.csv = ('quantity,amount\n' + ''.join(f'{i},{i * 10}\n' for i in range(1, 56))).encode()
+        job = self.create()
+        self.ws.run_job(job)
+        detail = self.ws.detail(job)
+        table_id = detail['questions'][0]['references'][0]['id']
+        first = page(self.ws, job, {'table': [table_id]})
+        self.assertEqual(first['columns'], ['quantity', 'amount'])
+        self.assertEqual(len(first['rows']), 50)
+        self.assertEqual(first['rows'][0], {'number': 1, 'values': ['1', '10']})
+        last = page(self.ws, job, {'offset': ['50']})
+        self.assertEqual(last['rows'][-1], {'number': 55, 'values': ['55', '550']})
+        self.assertNotIn('parquet_key', json.dumps(first))
+        for query in ({'offset': ['-1']}, {'offset': ['55']}, {'column_offset': ['2']}, {'offset': ['no']}, {'table': [str(uuid4())]}):
+            with self.assertRaises(WebError):
+                page(self.ws, job, query)
+        other = self.ws.save_business({'request_key': str(uuid4()), 'name': 'Other', 'description': 'Other business', 'expected_active_id': str(self.business['id'])})
+        with self.assertRaises(WebError):
+            page(self.ws.scoped(other['id']), job, {})
+        client, server = self.http()
+        self.assertEqual(client.get(f'/api/jobs/{job}/data').status_code, 401)
+        client.post('/api/login', json={'token': server.token})
+        self.assertEqual(client.get(f'/api/jobs/{job}/data').status_code, 404)
+        self.ws.select_business({'business_id': str(self.business['id'])})
+        self.assertEqual(client.get(f'/api/jobs/{job}/data?offset=50').json()['rows'], last['rows'])
+
+    def test_preview_wide_columns_nulls_truncation_and_integrity(self):
+        from decision_room.web.preview import page
+        self.csv = (','.join(f'c{i}' for i in range(14)) + '\n' + ','.join([''] + ['value'] * 12 + ['z' * 510]) + '\n').encode()
+        job = self.create()
+        from decision_room import service as ingestion
+        original = Path(self.temp.name) / 'wide.csv'
+        original.write_bytes(self.csv)
+        dataset = ingestion.import_batch(self.config, self.business['id'], [original])['analysis']['id']
+        self.ws.update(job, analysis_id=dataset)
+        first = page(self.ws, job, {})
+        self.assertIsNone(first['rows'][0]['values'][0])
+        last = page(self.ws, job, {'column': ['c13']})
+        self.assertEqual(last['column_offset'], 12)
+        self.assertEqual(last['columns'], ['c12', 'c13'])
+        self.assertEqual(last['rows'][0]['values'][-1], 'z' * 500 + '…')
+        with connect(self.config) as db:
+            db.execute("UPDATE prepared_tables SET parquet_sha256=%s WHERE analysis_id=%s", ('0' * 64, dataset))
+        with self.assertRaises(WebError):
+            page(self.ws, job, {})
+
+    def test_unknown_with_text_rejected_and_blocked_answer_explained(self):
+        job = self.create()
+        self.ws.run_job(job)
+        with self.assertRaisesRegex(WebError, 'Has escrito una respuesta'):
+            self.answer(job, 'Total de cada fila', 'unknown')
+        self.assertEqual(self.ws.detail(job)['status'], 'waiting')
+        self.answer(job, '', 'unknown')
+        self.ws.run_job(job)
+        detail = self.ws.detail(job)
+        self.assertEqual(detail['status'], 'blocked')
+        self.assertIn('aclaración se guardó como no disponible', detail['issue'])
+        self.assertEqual(detail['answers'][0]['question'], '¿Precio unitario o total de fila?')
+        self.assertEqual(detail['unresolved_questions'][0]['text'], detail['answers'][0]['question'])
+        self.assertEqual(detail['analysis_id'], self.ws.row(job)['analysis_id'])
+
     def test_upload_idempotency_and_changed_payload_rejected(self):
         job = self.create()
         self.assertEqual(self.create(), job)
@@ -230,6 +322,11 @@ class WebTests(unittest.TestCase):
         client, _ = self.http()
         client.post('/api/login', json={'token': 'test-local-access'})
         self.assertEqual(client.get('/api/dashboard').json()['selected_id'], job)
+        rendered = client.get('/api/jobs/' + job + '/presentation')
+        self.assertEqual(rendered.status_code, 200)
+        self.assertEqual(rendered.json()['title'], 'Ventas seleccionadas')
+        self.assertTrue(rendered.json()['claims'][0]['evidence_details']['metrics'])
+        self.assertNotIn('storage_key', rendered.text)
         row = self.ws.row(job)
         review.hold(self.config, row['business_id'], row['review_id'], reason='Controlled hold for test.')
         self.assertFalse(self.ws.detail(job)['publishable'])
@@ -237,6 +334,7 @@ class WebTests(unittest.TestCase):
         self.assertEqual(next(j for j in self.ws.listing() if str(j['id']) == job)['status'], 'blocked')
         self.assertIsNone(self.ws.dashboard()['report'])
         self.assertIsNone(client.get('/api/dashboard').json()['report'])
+        self.assertEqual(client.get('/api/jobs/' + job + '/presentation').status_code, 409)
         with self.assertRaises(WebError):
             self.ws.report(job)
 
@@ -430,7 +528,13 @@ class WebTests(unittest.TestCase):
         self.assertEqual(client.get('/api/jobs/not-a-uuid').status_code, 400)
         self.assertEqual(client.get('/api/jobs/' + str(uuid4()) + '/file').status_code, 404)
         self.assertEqual(client.get('/api/sample').status_code, 200)
-        self.assertEqual(client.get('/styles.css').status_code, 200)
+        assets = re.findall(r'(?:src|href)="(/assets/[^"]+)"', client.get('/').text)
+        self.assertTrue(assets)
+        for asset in assets:
+            self.assertEqual(client.get(asset).status_code, 200)
+        self.assertEqual(client.get('/assets/missing.js').status_code, 404)
+        self.assertNotEqual(client.get('/assets/../../server.py').status_code, 200)
+        self.assertNotEqual(client.get('/assets/%2e%2e/server.py').status_code, 200)
 
     def test_cross_question_and_unreviewed_report_denied(self):
         job = self.create()

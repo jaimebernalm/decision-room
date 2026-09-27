@@ -19,6 +19,8 @@ def main():
     parser.add_argument('--no-open', action='store_true')
     args = parser.parse_args()
     os.chdir(ROOT)
+    subprocess.run(['npm', 'ci', '--prefix', 'frontend'], check=True)
+    subprocess.run(['npm', '--prefix', 'frontend', 'run', 'build'], check=True)
     subprocess.run([sys.executable, 'scripts/dev/local_postgres.py', 'start'], check=True)
     os.environ['DECISION_ROOM_AGENT_MODEL'] = args.model
     os.environ.setdefault('DECISION_ROOM_AGENT_TIMEOUT', '300')

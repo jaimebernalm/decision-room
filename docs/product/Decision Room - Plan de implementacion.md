@@ -222,6 +222,12 @@ agradecimientos. Véase la [validación del diálogo](../validation/2026-09-24-d
 
 ### 2.5.8. Entrada y primer informe guiado
 
+**Nota de integración, 27 de septiembre:** los cierres del 24 y 25 siguientes
+documentan la interfaz anterior, conservada en el historial. La interfaz vigente
+es la migración React y el onboarding validado el 27 de septiembre. Se mantienen
+los datos y las API anteriores por compatibilidad; el límite actual de las
+entregas CSV/Excel es 2.000.000.000 bytes.
+
 **Construir:** separar el primer recorrido de la navegación cotidiana. Desde la landing y el acceso local, pedir nombre y contexto del negocio, un CSV inicial y una elección entre exploración general o pregunta concreta. Utilizar el trabajo duradero del agente para las aclaraciones, el cálculo, la revisión y el informe. Guardar el trabajo de onboarding por negocio para reanudarlo tras recargar; mostrar el informe revisado antes de abrir Inicio. No inscribir automáticamente los negocios existentes en el nuevo recorrido.
 
 **Comprobar:** acceso y navegación sin mostrar el dashboard antes del informe; borrador y envío idempotente; una pregunta real del agente y su respuesta; recuperación tras recargar; bloqueo de la salida sin informe publicable; reintento o cambio de archivo cuando el trabajo se detiene; llegada al dashboard después de aceptar el primer informe. Verificar escritorio y móvil. La primera versión usa un CSV UTF-8; registro por correo, cuentas multiusuario y combinación automática de archivos quedan fuera de este paso.
@@ -244,7 +250,218 @@ agradecimientos. Véase la [validación del diálogo](../validation/2026-09-24-d
 
 **Fuera de 2.5:** PDF, Excel y combinación general de tablas, búsqueda web de contexto, predicciones, editor libre de dashboards, conectores, automatización, equipos y despliegue comercial. Continúan en su entrega o roadmap correspondiente. La memoria entre conversaciones y el Inicio interactivo acotado sí forman parte de 2.5.
 
+### 2.5.8. Migración visual a React y componentes oficiales
+
+**Completado, 26 de septiembre de 2026:** sustituida toda la interfaz web por React con componentes reales de shadcn/ui y AI Elements, incluidos navegación, formularios, gráficos y chat. Conservar los servicios Python y los contratos durables existentes. Véase [análisis de migración](../technical/react-ui-migration.md).
+
+**Orden:** (1) preparar compilación y componentes oficiales; (2) migrar recorridos y contratos del cliente; (3) comprobar integración, teclado, escritorio/móvil y recuperación, revisar y guardar un commit local. La migración no amplía las capacidades analíticas de la entrega 3.
+
+**Cierre:** todos los recorridos existentes se pueden completar en React, los componentes provienen de sus registros oficiales y la aplicación se sirve desde el lanzador local. Compilación correcta, 20 pruebas de frontend, 275 pruebas de regresión Python y 3 de proyección adicionales aprobadas; comprobación visual en escritorio/móvil y acceso al espacio existente. [Validación](../validation/2026-09-26-react-ui-check.md).
+
+### 2.5.9. Asistente flotante y compacto
+
+**Completado, 26 de septiembre de 2026:** (1) revisar Prompt Input y controles
+oficiales; (2) trasladar el compositor a una barra inferior superpuesta, redondeada
+y plegable, retirando el selector de datos; (3) comprobar borradores, contexto,
+foco, navegación y escritorio/móvil. Disponible en las pantallas del negocio;
+el chat abierto conserva su propio compositor persistente.
+
+**Cierre:** 22 pruebas de frontend, compilación y lint sin errores, revisión visual
+de scroll y plegado en escritorio y móvil. Véase [validación](../validation/2026-09-26-floating-assistant-check.md).
+
+### 2.5.10. Continuidad entre nuevo chat y conversación
+
+**Completado, 26 de septiembre de 2026:** compositor compacto y redondeado también
+en conversaciones abiertas; pantalla de nuevo chat centrada, con transición de
+la barra y las cuatro conversaciones más recientes debajo. Cabecera de chat sin
+título visible y flecha accesible hacia el listado de conversaciones.
+
+**Cierre:** 24 pruebas de frontend aprobadas, compilación y lint sin errores,
+comprobación de navegación y diseño en escritorio y móvil.
+Véase [validación](../validation/2026-09-26-floating-assistant-check.md#continuidad-del-chat-paso-2510).
+
+### 2.5.11. Superficies compactas y acento de color
+
+**Completado, 26 de septiembre de 2026:** tarjetas de conversaciones más compactas,
+redondeadas y sin contorno, con fondo neutro y estados de interacción; control de
+minimizar separado del envío, envío más pequeño y espaciado, y azul petróleo como
+acento de acciones principales con variante para tema oscuro.
+
+**Cierre:** 24 pruebas de frontend, compilación y lint sin errores; revisión de
+escritorio/móvil, plegado, foco y ambos temas. Véase
+[validación](../validation/2026-09-26-floating-assistant-check.md#superficies-y-color-paso-2511).
+
+### 2.5.12. Acceso a informes y transición de nuevo chat
+
+**Completado, 26 de septiembre de 2026:** tabla sin relleno exterior que recorte
+el hover; apertura directa de informes disponibles, progreso para trabajos en
+curso y apertura automática al aprobarse; cabecera simplificada y flechas de
+vuelta coherentes. En nuevo chat, la barra llega primero y después se revela
+el título y las conversaciones recientes.
+
+**Cierre:** 27 pruebas de frontend, compilación y lint sin errores; comprobación
+en navegador de apertura directa, regreso, tabla y secuencia visual.
+Véase [validación](../validation/2026-09-26-report-navigation-check.md).
+
+### 2.5.13. Unificar informes y análisis en la interfaz
+
+**Completado, 26 de septiembre de 2026:** «Informes» es la única biblioteca de
+resultados, incluidos los que están en preparación o necesitan respuesta. Las
+acciones y formularios usan «Crear informe», y los accesos recientes usan
+«Informes recientes». Se reserva «análisis» para describir el proceso de la IA.
+La navegación principal queda en Inicio, Conversaciones, Informes y Mi negocio.
+
+**Cierre:** 28 pruebas de frontend, compilación y lint sin errores; comprobación
+de navegación y formulario en el navegador. La ruta antigua del listado sigue
+abriendo Informes. Véase [validación](../validation/2026-09-26-report-navigation-check.md#nomenclatura-unificada-paso-2513).
+
+### 2.5.14. Inicio como dashboard personalizable
+
+**Completado, 26 de septiembre de 2026:** Inicio presenta indicadores, gráficos,
+hallazgos y pendientes con periodo y fuente. Selección persistente por negocio,
+tarjetas fijadas u ocultas y propuestas reales del agente con aceptación explícita.
+La evidencia retirada no permanece en el dashboard. Los gráficos comparten una
+gama azul coherente con el acento de la interfaz, en claro y oscuro.
+
+**Cierre:** regresión de 284 pruebas Python, 7 pruebas dirigidas tras el último
+ajuste, 31 pruebas de frontend, compilación, lint sin errores y recorrido en
+navegador de escritorio/móvil y ambos temas. Dos propuestas con Luna real;
+conservación de fijados y aplicación explícita verificadas. Véanse
+[validación y límites](../validation/2026-09-26-home-dashboard-check.md).
+
+**Corrección del acceso vacío:** el + abre Personalizar mediante clic o teclado.
+Verificado en navegador, con 31 pruebas de frontend y compilación correctas.
+
+### 2.5.15. Bienvenida y onboarding antes del dashboard
+
+**Completado, 27 de septiembre de 2026:** página de bienvenida con presentación
+del producto y acceso al espacio; recorrido independiente por negocio, datos y
+primer informe, con navegación atrás, borradores y progreso real. La interfaz
+habitual se abre al publicarse el primer resultado.
+
+**Cierre:** comprobadas entrada sin sesión, regreso, respuestas perdidas,
+aislamiento y diseño en escritorio/móvil. Recorrido HTTP con datos sintéticos,
+aclaraciones y publicación, incluida la integración con las entregas de archivos.
+Pruebas React y del servicio web aprobadas, compilación y lint sin errores propios.
+Véase [validación](../validation/2026-09-27-onboarding-check.md).
+
+El acceso utiliza la autenticación local existente; el registro comercial no se
+implementa en este paso. La bienvenida se puede abrir desde un espacio existente
+sin crear ni editar negocios. La carga de datos reutiliza el servicio disponible.
+
+**Ajuste de identidad y ejemplo:** bienvenida y dashboard reutilizan el mismo
+componente de marca, con icono, color y tipografía Geist idénticos. Se añade una
+[papelería ficticia](../../data/onboarding-example/README.md) con textos para el
+recorrido y 12 filas CSV. Compilación y lint de los componentes modificados
+correctos; totales del CSV comprobados y bienvenida revisada en navegador.
+
+**Navegación al añadir un negocio:** el onboarding oculta el botón «Bienvenida»
+cuando ya existe otro negocio en el espacio. La condición se mantiene al guardar
+el nuevo negocio y recargar sus pasos. La primera alta conserva ese acceso.
+Validado con las ocho pruebas de onboarding, compilación y lint focalizado.
+
+### 2.5.16. Selección de contexto y chat acoplado
+
+**Completado, 27 de septiembre de 2026:** herramienta de selección en el chat,
+adjuntos visuales de bloques de Inicio e informes y conversación lateral ajustable.
+Plegar, ampliar y recargar conservan la misma conversación y los gráficos enviados.
+La página completa permite ampliar cada adjunto y regresar al bloque de origen.
+Referencias versionadas, validación por negocio, retirada y recuperación del agente
+incluyen todos los elementos seleccionados.
+
+**Cierre:** 290 pruebas de regresión Python, dos pruebas adicionales de resolución
+y 45 pruebas de frontend correctas; compilación y lint sin errores. Recorrido en
+navegador de escritorio/móvil y con el modelo real, incluidas cifras contrastadas
+independientemente y corrección de fallos encontrados. Véanse el
+[plan técnico](../technical/contextual-chat-plan.md) y la
+[validación y límites](../validation/2026-09-27-contextual-chat-check.md).
+
+**Ajuste de desplazamiento:** el dashboard y los informes muestran un indicador
+fino solo mientras se desplaza el contenido, sin carril permanente. Validado con
+el chat lateral abierto en navegador, 45 pruebas de frontend, compilación y lint.
+
+**Ampliación transversal:** chat y borrador persistentes entre Inicio, Mi negocio
+e Informes; selección de presentación, hechos activos y resúmenes de informes.
+Referencias resueltas y versionadas por el servidor, con retirada de contenido
+obsoleto. Menú ordenado Inicio, Mi negocio, Informes y Conversaciones, con icono
+propio para el listado de chats. Pruebas de continuidad, alcance y vigencia, más
+recorrido en navegador con modelo real, registrados en la validación del paso.
+
+**Correcciones tras uso con adjuntos:** una sola acción «Abrir en panel» desde la
+conversación completa, con destino Inicio. Seleccionar la fila adjunta el informe
+completo con título y tipo; la memoria aporta procedencia para contrastar su origen.
+Selección sobre toda la fila, estados rojo/verde y papelera recuperable por negocio.
+Validado con 299 pruebas Python, 57 frontend, compilación, lint y navegador con
+modelo real. Véase [comprobación](../validation/2026-09-27-report-context-fixes.md).
+
+**Corrección del inicio y continuidad del chat:** «Nuevo chat» abre una vista
+vacía independiente en `#ask`, con el compositor abajo y sin redirigir a Inicio.
+«Preguntar algo» abre directamente el panel derecho, sin barra intermedia.
+El panel conserva conversación, borrador y adjuntos entre Inicio, Mi negocio,
+Informes y Conversaciones. En el listado se muestra «Continuar conversación»
+solo si hay una conversación o borrador que retomar; «Nuevo chat» sigue siendo
+la acción principal. Se revierte la redirección introducida en el ajuste anterior.
+Validado con 61 pruebas frontend, compilación, lint y navegador con modelo real;
+detalle en la validación de 2.5.16.
+
+**Conversaciones como contexto:** selección de tarjetas del listado, adjuntos con
+vista previa y acceso al original. Lectura por fragmentos y búsqueda dentro de una
+captura versionada, también en seguimientos; historial distinguido de evidencia.
+Preguntar algo abre el panel desde el listado. El borde de la última fila de
+Informes sigue las esquinas de la tarjeta. Validación automática y con modelo
+real descrita en [la comprobación](../validation/2026-09-27-conversation-context-check.md).
+
+### 2.5.17. Aclaraciones con vista de datos y recuperación
+
+**Completado, 27 de septiembre de 2026:** las preguntas del informe, onboarding y
+chat abren una tabla paginada de sus datos y destacan las columnas referenciadas.
+Se impide enviar texto junto con «No dispongo de ese dato». Un bloqueo por una
+aclaración no disponible permite confirmarla y crear un informe con los mismos
+archivos, conservando el intento anterior. Validación HTTP, React, compilación,
+lint y navegador documentada en [la comprobación de aclaraciones](../validation/2026-09-27-clarification-data-check.md).
+
+**Ajuste de controles:** abrir la navegación pliega el chat; retomarlo vuelve a
+acoplarlo. El botón + conserva el panel para escribir una conversación nueva y
+los tres controles muestran etiquetas. Navegador, 51 pruebas frontend, compilación
+y lint comprobados; detalle en la validación de 2.5.16.
+
+**Conversaciones existentes:** «Abrir en panel» está disponible en la cabecera y
+los menús del listado y la navegación. Conserva la conversación y el borrador,
+con el informe/dashboard actual o el último origen visitado. Verificado en
+navegador; 54 pruebas frontend, compilación y lint correctos.
+
+**Distribución de las barras:** el chat pasa fuera de la tarjeta central, con fondo
+gris de navegación y cabecera superior. Apertura y cierre coordinados con la barra
+izquierda, respetando movimiento reducido. Revisión visual en escritorio/móvil y
+ambos temas; 54 pruebas frontend, nueve dirigidas, compilación y lint correctos.
+
+**Contraste:** gris algo más oscuro y compartido para mensajes del usuario y
+resaltado activo/hover de navegación en tema claro. Revisión visual, compilación
+y lint correctos.
+
+**Navegación compacta estable:** al plegar la barra, logo, selector, accesos,
+chats, informes y ayuda conservan la misma altura y posición vertical. Los
+títulos «Chats recientes» e «Informes recientes» se sustituyen por separadores
+en sus propias filas, y los iconos quedan en 18 px. La lista central mantiene
+su desplazamiento en ventanas bajas. Verificado visualmente en el navegador,
+con compilación, lint y 65 pruebas frontend correctos.
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
+
+**Avance, 27 de septiembre de 2026:** completados **3.1** (medición inicial) y
+**3.2** (catálogo versionado, relaciones y diagrama ER compartidos por ficha, chat
+e informes). Véanse [validación de 3.2](../validation/2026-09-27-data-knowledge.md)
+y [secuencia vigente](onboarding-e-informes-plan.md#8-secuencia-de-implementación-y-criterios-de-cierre).
+El siguiente paso es **3.3: investigación por rondas con prioridades y presupuesto**.
+
+**Planificación ampliada, 27 de septiembre de 2026:** el
+[plan de onboarding e informes](onboarding-e-informes-plan.md) concreta la secuencia
+3.1–3.5: evaluación con una base sustancial, catálogo y relaciones,
+investigación por rondas, onboarding conversacional y revisión orientada al
+objetivo. Incorpora una pregunta abierta con opciones para descubrir oportunidades,
+organizar un dashboard, seguir la evolución o resolver una pregunta. Las
+predicciones se reservan como capacidad futura. El estado de ejecución vigente
+se indica en el avance anterior y en el plan enlazado.
 
 **Prioridad actualizada, 23 de septiembre de 2026:** iniciar las ampliaciones siguientes después de cerrar la entrega 2.5. La evaluación del 22 de septiembre descrita a continuación ya se realizó; no se presenta como trabajo pendiente ni sustituye la regresión exigida por los cambios de memoria y conversación.
 

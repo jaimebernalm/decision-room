@@ -1,0 +1,115 @@
+import { useEffect, useRef } from "react";
+import { MessageCircle, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useWorkspace } from "@/lib/workspace";
+import { useAction, useDraft } from "@/lib/hooks";
+import { contextKey, homeDraftKey, launchChat } from "@/lib/api";
+import type { QuestionContext } from "@/lib/types";
+import { useAssistant, contextualRoute } from "@/lib/assistant";
+import { ContextAttachments, SelectionTool } from "./context-selection";
+import { Composer } from "./composer";
+
+export function FloatingAssistant({ inline = false }: { inline?: boolean }) {
+  return inline ? <NewChatComposer /> : <AssistantLauncher />;
+}
+
+function AssistantLauncher() {
+  const assistant = useAssistant();
+  const { workspace, route } = useWorkspace();
+  const [draft] = useDraft(homeDraftKey(workspace.business!.id), "");
+  if (!assistant || !contextualRoute(route) || assistant.dock.open) return null;
+  const continuing = Boolean(
+    assistant.dock.chatId || draft.trim() || assistant.selected.length,
+  );
+  return (
+    <div className="absolute bottom-5 right-5 z-20">
+      <Button
+        className="h-12 rounded-full px-5 shadow-lg"
+        onClick={() =>
+          assistant.setDock({ ...assistant.dock, open: true, origin: route })
+        }
+      >
+        <MessageCircle className="size-4" />
+        {continuing ? "Continuar conversación" : "Preguntar algo"}
+      </Button>
+    </div>
+  );
+}
+
+// Used both in the empty side panel and the standalone new conversation.
+// The page owns the component lifetime, so late sends cannot redirect another page.
+function NewChatComposer() {
+  const assistant = useAssistant();
+  const { workspace, route, refresh } = useWorkspace();
+  const business = workspace.business!;
+  const [text, setText] = useDraft(homeDraftKey(business.id), "");
+  const [context, setContext] = useDraft<QuestionContext>(
+    contextKey(business.id),
+    {},
+  );
+  const container = useRef<HTMLDivElement>(null);
+  const action = useAction();
+  useEffect(() => {
+    container.current
+      ?.querySelector("textarea")
+      ?.focus({ preventScroll: true });
+  }, []);
+  const send = () =>
+    action.run(async () => {
+      if (!text.trim()) return;
+      if (assistant && contextualRoute(route)) {
+        await assistant.launch(text, context, route);
+        if (action.isMounted()) refresh();
+      } else {
+        const chat = await launchChat(business.id, text, context);
+        if (action.isMounted()) {
+          assistant?.setDock({ chatId: chat.id, open: false });
+          refresh();
+          location.hash = `chat/${chat.id}`;
+        }
+      }
+    });
+  return (
+    <div
+      ref={container}
+      role="region"
+      aria-label="Asistente del negocio"
+      className="w-full"
+    >
+      {(context.analysis_id || context.finding_reference) && (
+        <div className="flex items-center gap-2 px-5 pt-2 text-xs text-muted-foreground">
+          <span className="min-w-0 flex-1 truncate" title={context.label}>
+            {context.label || "Contexto seleccionado"}
+          </span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8 shrink-0 rounded-full"
+            aria-label="Quitar contexto"
+            onClick={() => setContext({})}
+          >
+            <X className="size-3" />
+          </Button>
+        </div>
+      )}
+      <Composer
+        compact
+        tools={<SelectionTool />}
+        attachments={
+          assistant?.selected.length ? (
+            <ContextAttachments
+              items={assistant.selected}
+              onRemove={assistant.remove}
+            />
+          ) : undefined
+        }
+        text={text}
+        onChange={setText}
+        onSend={send}
+        busy={action.busy}
+        error={action.error || assistant?.error}
+        placeholder="Pregunta o añade contexto…"
+      />
+    </div>
+  );
+}

@@ -12,7 +12,7 @@ from .service import digest, encoded, lock
 
 class Request(BaseModel):
     model_config = ConfigDict(extra='forbid')
-    tool: Literal['search_datasets', 'inspect_dataset', 'search_memory', 'search_reports', 'open_report', 'open_evidence', 'search_chats']
+    tool: Literal['search_datasets', 'inspect_dataset', 'search_memory', 'search_reports', 'open_report', 'open_evidence', 'search_chats', 'open_chat']
     query: str = Field(max_length=300)
     id: str = Field(max_length=36)
     limit: int = Field(ge=1, le=10)
@@ -32,11 +32,14 @@ facts from original messages, old prose or reports. Unknown data coverage is not
 You may choose action=retrieve, retrieval={tool,query,id,limit}, leaving all other action
 fields empty/null (summary/message may briefly explain the lookup). Otherwise retrieval=null.
 Tools: search_datasets(query) discovers business data from descriptions/names/columns;
-inspect_dataset(id) opens a discovered dataset profile and its scoped memory;
+inspect_dataset(id) opens a discovered dataset profile, persistent data model (column meanings, grain,
+key validation, adjacent ER edges, metric definitions) and its scoped memory;
 search_memory(query,id) reads applicable memory (id may be a discovered table, or empty);
 search_reports(query,id) finds reviewed antecedents (id may be a discovered table, or empty);
 search_chats(query,id) finds historical owner messages and their preceding question (id optionally a table).
 These are historical quotations/hypotheses, never current declared memory; check current memory before use.
+open_report(id) requires a discovered historical report UUID, never an empty id or the current draft.
+The current draft is already in your review context; do not retrieve it as a historical report.
 open_report(id) opens a discovered report with provenance; open_evidence(id) opens a report's
 cited execution. Use empty query/id when unused; limit 1..10. Search metadata reports whether
 hybrid semantic+text search was used or only text (disabled/provider failure). Similarity is
@@ -48,6 +51,15 @@ use only those needed. Similarity and shared tables do not establish applicabili
 antecedents remain tied to their original period and sources; new metrics need calculation
 and review. Tools never authorize Python over a table outside the current plan's table list.
 Do not claim retrieved historical metrics as newly computed evidence for this investigation.
+The persistent data_model and the owner's ER diagram share one revision. Reuse applicable
+column meanings, row grain and metric definitions; inspect relevant datasets before joining.
+For planning citations of that knowledge, use kind=data_model, id exactly as supplied in
+data_model.references[].reference, and column=''. Never invent a memory reference for it.
+Only references with confirmed=true support confirmed meanings; retain their explicit scope/period.
+Metric definitions have explicit tables/periods. Resolve conflicts with other memories instead
+of choosing silently. Rejected relations are not usable; technically checked proposed edges
+still need semantic justification. many-to-many/one-to-many can duplicate parent measures:
+preaggregate at the intended grain and validate row counts/totals in each execution.
 If required material does not fit, narrow the task or explain the missing context. Never
 silently discard a doubt. The manifest records context delivered, not internal model use.
 '''
@@ -170,6 +182,8 @@ def retrieve(config, db, session_id, request, *, manifest=None, opened=None):
     if session_id:
         ctx.ensure(db, session_id)
     dependencies = []
+    if r.tool in ('inspect_dataset', 'open_report', 'open_evidence') and not r.id:
+        raise ValueError('This tool requires a discovered nonempty UUID. The current draft is already in context.')
     if r.id:
         UUID(r.id)
     if r.tool == 'search_datasets':
@@ -208,6 +222,13 @@ def retrieve(config, db, session_id, request, *, manifest=None, opened=None):
                 coverage='First five records are not full date coverage.',
                 authorized_for_current_execution=str(table['analysis_id']) == m['selection']['analysis_id'])
             dependencies.append(dict(kind='table', id=r.id, version=table['parquet_sha256'], metadata_version=ctx.table_version(db,m['business_id'],r.id)))
+            from ..data_knowledge import service as knowledge
+            result['data_model'] = knowledge.inspect(db, m['business_id'], r.id)
+            if result['data_model']:
+                dependencies.append(dict(kind='data_model', analysis_id=result['data_model']['analysis_id'], revision=result['data_model']['revision']))
+    elif r.tool == 'open_chat':
+        from ..conversation_context import read
+        result, dependencies = read(db, m, r)
     elif r.tool == 'search_chats':
         from ..conversations import search_history
         result, dependencies = search_history(config, db, m, r)

@@ -117,8 +117,9 @@ def _model_call(db, session_id, model, context, correction, retry_uncertain, *, 
         db.execute('UPDATE agent_calls SET issue=%s WHERE id=%s', (type(error).__name__, call_id))
         raise
     except Exception as error:
-        db.execute("UPDATE agent_calls SET status='failed',issue=%s,finished_at=now() WHERE id=%s",
-                   (type(error).__name__, call_id))
+        attempts = getattr(error, 'transport_attempts', None)
+        db.execute("UPDATE agent_calls SET status='failed',issue=%s,usage=%s,finished_at=now() WHERE id=%s",
+                   (type(error).__name__, Jsonb({'transport_attempts': attempts, 'rejected_attempt_usage_unknown': True}) if attempts else Jsonb({}), call_id))
         raise
 
 
@@ -160,5 +161,10 @@ def model_call(db, session_id, model, context, correction, retry_uncertain, *, c
             raise ValueError('Retrieval requires application configuration.')
         if any(output.get(k) for k in ('proposal', 'code', 'table_ids', 'report', 'metric_keys', 'question', 'investigation_key')):
             return {'invalid_model_output': 'retrieve requires empty action fields and a retrieval request.'}
-        retrieval.save(config, db, session_id, decision, ordinal, output.get('retrieval'))
+        try:
+            retrieval.save(config, db, session_id, decision, ordinal, output.get('retrieval'))
+        except memory_context.StaleContext:
+            raise
+        except ValueError:
+            return {'invalid_model_output': 'Invalid or unavailable retrieval. Supply tool/query/id/limit with a discovered UUID for inspect_dataset/open_report/open_evidence. Never open the current draft as a historical report; it is already in context. Respect the remaining retrieval budget.'}
         ordinal += 1

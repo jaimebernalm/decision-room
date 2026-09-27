@@ -9,7 +9,7 @@ class Strict(BaseModel):
 
 
 class Reference(Strict):
-    kind: Literal['table', 'column', 'owner_context', 'answer', 'memory']
+    kind: Literal['table', 'column', 'owner_context', 'answer', 'memory', 'data_model']
     id: str = Field(max_length=100)
     column: str = Field(max_length=256)
 
@@ -81,6 +81,8 @@ def validate_action(raw, snapshot, inspected, answers, previous=None):
     records = {r['reference']: r for r in shared.get('memories', [])}
     for event in shared.get('retrievals', []):
         records.update({r['reference']: r for r in event['response'].get('memories', [])})
+    knowledge = {r['reference']: r for e in shared.get('retrievals', [])
+                 for r in (e['response'].get('data_model') or {}).get('references', [])}
     memories = dict(records)
     for row in records.values():
         if sum(r['id'] == row['id'] for r in records.values()) == 1:
@@ -93,6 +95,13 @@ def validate_action(raw, snapshot, inspected, answers, previous=None):
                     raise ValueError('Interpret only tables whose profiles have been inspected.')
                 if ref.kind == 'column' and ref.column not in tables[ref.id]['column_names']:
                     raise ValueError('Unknown column reference.')
+            elif ref.kind == 'data_model':
+                from ..memory.context import intersects
+                r = knowledge.get(ref.id)
+                if not r or ref.column or r['analysis_id'] != shared.get('authorized_analysis_id') or not set(r['table_ids']) <= set(tables):
+                    raise ValueError('Use an exact delivered data_model.references reference with kind=data_model and empty column, scoped to these tables.')
+                if not intersects(r['period'], shared.get('period', {'from':None,'until':None})):
+                    raise ValueError('Data model definition does not apply to this request period.')
             elif ref.kind == 'memory':
                 if ref.id not in memories or ref.column:
                     raise ValueError('Unknown delivered memory reference.')
@@ -108,10 +117,10 @@ def validate_action(raw, snapshot, inspected, answers, previous=None):
     for item in proposal.interpretations:
         references(item.references)
         if item.status == 'confirmed' and not any(
-            r.kind == 'owner_context' or (r.kind == 'memory' and memories[r.id]['status'] == 'declared' and memories[r.id]['content']['temporal_scope'] != 'unresolved' and memories[r.id]['content']['kind'] not in ('result_reference', 'open_question')) or (r.kind == 'answer' and answer_ids[r.id]['disposition'] == 'answered')
+            r.kind == 'owner_context' or (r.kind == 'data_model' and knowledge[r.id]['confirmed']) or (r.kind == 'memory' and memories[r.id]['status'] == 'declared' and memories[r.id]['content']['temporal_scope'] != 'unresolved' and memories[r.id]['content']['kind'] not in ('result_reference', 'open_question')) or (r.kind == 'answer' and answer_ids[r.id]['disposition'] == 'answered')
             for r in item.references
         ):
-            raise ValueError('Confirmed definitions require owner context or an actual answer.')
+            raise ValueError('Confirmed definitions require owner context, an actual answer or a delivered declared memory/data_model reference.')
     for question in proposal.questions:
         references(question.references)
         if not any(question.key in i.depends_on for i in proposal.investigations):

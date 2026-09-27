@@ -1,5 +1,9 @@
 # Memoria versionada · Paso 2.5.2
 
+> Actualización 26-09-2026: la interfaz se ha migrado a React y componentes oficiales.
+> Las referencias al renderer anterior se conservan como contexto del diseño;
+> consulta [la implementación actual](react-ui-migration.md).
+
 ## Plan de implementación
 
 1. Añadir esquema 9 con fuentes originales, trabajos de extracción, llamadas registradas, recuerdos y revisiones. Mantener PostgreSQL como autoridad; los archivos originales permanecen en almacenamiento privado. Markdown puede ser una exportación futura.
@@ -60,7 +64,7 @@ El esquema 9 conserva el perfil actual de cada negocio web como fuente pendiente
 
 ```sh
 .venv/bin/python -m unittest discover -s tests -v
-node --check decision_room/web/static/app.js
+npm --prefix frontend run build
 .venv/bin/python scripts/evaluate_memory.py --model gpt-6-luna --repetitions 3 --output .local/memory-evaluation-new-run
 git diff --check
 ```

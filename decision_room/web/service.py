@@ -27,7 +27,7 @@ from .dashboard import projection as dashboard_projection
 from .errors import WebError, bounded, identifier
 
 MAX_UPLOAD = 20 * 1024**2
-MAX_BATCH_UPLOAD = 2 * 1024**3
+MAX_BATCH_UPLOAD = 2_000_000_000
 LOG = logging.getLogger(__name__)
 
 
@@ -340,6 +340,51 @@ class Workspace:
         self.wake.set()
         return {'id': str(job_id)}
 
+    def create_from_dataset(self, data):
+        """Start the established report worker on a prepared folder batch."""
+        if not isinstance(data, dict):
+            raise WebError('Los datos del análisis no son válidos.')
+        key = identifier(data.get('request_key'))
+        business = self.business_id()
+        if not business or identifier(data.get('business_id')) != business:
+            raise WebError('El negocio activo ha cambiado. Recarga la página.', 409)
+        analysis_id = identifier(data.get('analysis_id'))
+        revision = data.get('profile_revision')
+        if type(revision) is not int or revision < 1:
+            raise WebError('Vuelve a cargar el contexto de tu negocio.', 409)
+        goal = bounded(data.get('goal', ''), 'la pregunta', 2000, False)
+        title = bounded(data.get('title') or goal or 'Exploración general', 'el título', 160)
+        signature = hashlib.sha256(json.dumps([str(analysis_id), revision, goal, title],
+                                              ensure_ascii=False).encode()).hexdigest()
+        with connect(self.config) as db, db.transaction():
+            selected = db.execute('SELECT active_business_id FROM web_workspace WHERE singleton FOR SHARE').fetchone()
+            if selected['active_business_id'] != business:
+                raise WebError('El negocio activo ha cambiado. Recarga la página.', 409)
+            db.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s, 7))', (str(key),))
+            old = db.execute('SELECT id,business_id,request_sha256 FROM web_jobs WHERE request_key=%s', (key,)).fetchone()
+            if old:
+                if old['business_id'] != business or old['request_sha256'] != signature:
+                    raise WebError('Este envío ya se guardó con otros datos.', 409)
+                return {'id': str(old['id'])}
+            current = business_store.profile(db, business)
+            if current['profile_revision'] != revision:
+                raise WebError('El contexto del negocio ha cambiado. Recárgalo.', 409)
+            from .dossier import available
+            if not available(db, business, analysis_id):
+                raise WebError('Los archivos de esta entrega aún no están preparados.', 409)
+            if self.settings is None:
+                raise WebError('Falta configurar el modelo local. Tus datos están guardados.', 503)
+            job_id = uuid4()
+            db.execute('''INSERT INTO web_jobs(id,request_key,request_sha256,business_id,analysis_id,
+                business_name,business_revision,title,context,goal,filename,upload_key,byte_count,
+                model_settings,status,phase,origin)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'Carpeta de datos','',0,%s,'queued','planning','upload')''',
+                (job_id, key, signature, business, analysis_id, current['name'], revision,
+                 title, current['description'], goal, Jsonb(asdict(self.settings))))
+            db.execute("UPDATE web_businesses SET onboarding_status='analysis_started',updated_at=now() WHERE business_id=%s", (business,))
+        self.wake.set()
+        return {'id': str(job_id)}
+
     def row(self, job_id):
         with connect(self.config) as db:
             job = db.execute('SELECT w.*,w.business_name AS business FROM web_jobs w WHERE w.id=%s AND w.business_id=%s',
@@ -387,7 +432,7 @@ class Workspace:
         return j
 
     def public(self, j):
-        fields = ('id', 'business_id', 'title', 'business', 'context', 'goal', 'filename', 'byte_count', 'status', 'phase', 'created_at', 'updated_at', 'issue', 'origin')
+        fields = ('id', 'business_id', 'analysis_id', 'title', 'business', 'context', 'goal', 'filename', 'byte_count', 'status', 'phase', 'created_at', 'updated_at', 'issue', 'origin')
         result = {key: j[key] for key in fields}
         with connect(self.config) as db:
             result['data_version'] = db.execute('SELECT version,superseded_by,corrected FROM dataset_versions WHERE analysis_id=%s AND business_id=%s', (j['analysis_id'], j['business_id'])).fetchone()
@@ -408,19 +453,37 @@ class Workspace:
             LOG.exception('Cannot read evidence for web job %s', j['id'])
             return {'publishable': False, 'pending_questions': [], 'unavailable': True}
 
-    def listing(self):
+    def listing(self, *, deleted=False):
         with connect(self.config) as db:
-            rows = db.execute("SELECT w.*,w.business_name AS business FROM web_jobs w WHERE w.business_id=%s AND (w.origin='upload' OR EXISTS (SELECT 1 FROM chat_turns t WHERE t.business_id=w.business_id AND (t.job_id=w.id OR t.response->>'report_id'=w.review_id::text) AND t.report_requested)) ORDER BY w.created_at DESC",
-                              (self.business_id(),)).fetchall()
+            rows = db.execute("SELECT w.*,w.business_name AS business FROM web_jobs w WHERE w.business_id=%s AND (w.deleted_at IS NOT NULL)=%s AND (w.origin='upload' OR EXISTS (SELECT 1 FROM chat_turns t WHERE t.business_id=w.business_id AND (t.job_id=w.id OR t.response->>'report_id'=w.review_id::text) AND t.report_requested)) ORDER BY w.created_at DESC",
+                              (self.business_id(), deleted)).fetchall()
         result = []
         for j in rows:
             item = self.public(j)
             if j['status'] == 'completed' and j['review_id']:
                 current = self.review_state(j)
-                if not current['publishable']:
+                if current['publishable']:
+                    item['context_reference'] = dict(report_id=str(j['review_id']),
+                        report_version=current['approved_sha256'], kind='report', element_key='report',
+                        title=j['title'], href='#report/' + str(j['id']))
+                else:
                     item.update(status='blocked', presentation_status='withdrawn', phase='review', issue='Informe retirado: necesita un nuevo cálculo y revisión.')
             result.append(item)
         return result
+
+    def delete_report(self, job_id, data, *, restore=False):
+        from .dossier import guard
+        business = guard(self, data)
+        with connect(self.config) as db, db.transaction():
+            job = db.execute('SELECT status FROM web_jobs WHERE id=%s AND business_id=%s FOR UPDATE',
+                             (identifier(job_id), business)).fetchone()
+            if not job:
+                raise WebError('Informe no encontrado.', 404)
+            if not restore and job['status'] in ('queued', 'running', 'waiting'):
+                raise WebError('Espera a que termine el informe antes de eliminarlo.', 409)
+            db.execute('UPDATE web_jobs SET deleted_at=' + ('NULL' if restore else 'coalesce(deleted_at,now())') +
+                       ' WHERE id=%s AND business_id=%s', (job_id, business))
+        return {'saved': True}
 
     def daily_activity(self, listing):
         """Latest chat turns, including work not yet published as a report."""
@@ -496,14 +559,15 @@ class Workspace:
             result['files'] = [{k: f[k] for k in ('original_names', 'status', 'row_count', 'column_count')} for f in data['files']]
         if j['session_id']:
             plan = planning.show(self.config, b, j['session_id'])
-            result['questions'] = [{'id': q['id'], 'phase': 'planning', 'text': q['text'], 'reason': q['reason'],
-                                    'options': q['options'], 'references': q.get('references', [])}
-                                   for q in plan['questions']]
+            result['questions'] = [{'id': q['id'], 'phase': 'planning', 'text': q['text'], 'reason': q['reason'], 'options': q['options'], 'references': q.get('references', [])} for q in plan['questions']]
             if plan.get('context_stale'):
                 result.update(status='failed', phase='planning', issue='La memoria aplicable ha cambiado. Reintenta para recalcular con las definiciones actuales.', questions=[])
-            result['answers'] = [{'text': a['text'], 'disposition': a['disposition'], 'question': a.get('question', '')} for a in plan['answers']]
+            result['answers'] = [{'text': a['text'], 'disposition': a['disposition'], 'question': a.get('question', {}).get('text', ''), 'references': a.get('question', {}).get('references', [])} for a in plan['answers']]
+            result['unresolved_questions'] = [dict(id=str(a['id']), text=a['question']['text'], reason='Esta aclaración se guardó como no disponible.', options=a['question'].get('options', []), references=a['question'].get('references', []), previous_text=a['text']) for a in plan['answers'] if a['disposition'] != 'answered']
             if plan['revisions']:
                 result['interpretations'] = [{'text': i['statement'], 'status': i['status']} for i in plan['revisions'][-1]['proposal']['interpretations']]
+        if j['status'] == 'blocked' and j['phase'] == 'planning' and result.get('unresolved_questions'):
+            result['issue'] = 'Falta una definición necesaria para calcular el informe: una aclaración se guardó como no disponible. Puedes completarla y usar los mismos archivos.'
         if j['review_id']:
             data = self.review_state(j)
             result['publishable'] = data['publishable']
@@ -541,6 +605,8 @@ class Workspace:
         disposition = data.get('disposition', 'answered')
         if disposition not in ('answered', 'unknown', 'declined') or (disposition == 'answered' and not text):
             raise WebError('Escribe una respuesta o selecciona «No lo sé».')
+        if disposition != 'answered' and text:
+            raise WebError('Has escrito una respuesta. Guárdala o borra el texto antes de indicar que no dispones del dato.')
         answer = {'id': str(data.get('question_id', '')), 'phase': data.get('phase'), 'text': text,
                   'disposition': disposition, 'request_key': str(key)}
         questions = self.detail(job_id)['questions']
@@ -590,7 +656,7 @@ class Workspace:
         self.wake.set()
         return {'saved': True}
 
-    def report(self, job_id):
+    def report(self, job_id, *, structured=False):
         j = self.row(job_id)
         if not j['review_id']:
             raise WebError('El informe todavía no está disponible.', 409)
@@ -601,6 +667,9 @@ class Workspace:
             data = self.review_state(j, _db=db)
             if not data['publishable']:
                 raise WebError('Este informe no ha superado la revisión o ha quedado desactualizado.', 409)
+            if structured:
+                from .dashboard import presentation
+                return presentation(data)
             return render_client(data, data['updated_at'].strftime('%d/%m/%Y, %H:%M %Z'), embedded=True)
 
     def upload(self, job_id):
@@ -721,8 +790,8 @@ class Workspace:
                 if data['analysis']['status'] == 'importing':
                     data = ingestion.resume(self.config, b, j['analysis_id'])
             self.update(job_id, analysis_id=data['analysis']['id'])
-            if data['analysis']['status'] != 'ready':
-                self.update(job_id, status='blocked', issue='No hemos podido leer el CSV. Comprueba que tiene encabezados y filas con el mismo número de columnas, y crea un nuevo análisis con el archivo corregido.')
+            if data['analysis']['status'] not in ('ready', 'partial'):
+                self.update(job_id, status='blocked', issue='No hemos podido preparar archivos útiles para este análisis. Corrige los archivos y crea otra entrega.')
                 return
             j = self.sync(job_id)
             # Once review exists it owns continuity, including answers that invalidate research.

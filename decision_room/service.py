@@ -42,10 +42,10 @@ def batch_metadata(hashes, delimiter=None):
     return batch_hash, preparation
 
 
-def import_batch(config, business_id, paths, title='CSV upload', delimiter=None, progress=None, original_names=None):
+def import_batch(config, business_id, paths, title='CSV upload', delimiter=None, progress=None, names=None, original_names=None):
     paths = [Path(p).resolve() for p in paths]
-    if not paths:
-        raise ValueError('Provide at least one CSV file.')
+    if not paths or len(paths) > config.max_files:
+        raise ValueError(f'Provide between 1 and {config.max_files} CSV files.')
     if original_names is not None and (len(original_names) != len(paths) or any(not isinstance(name, str) or not name for name in original_names)):
         raise ValueError('One original name is required for each CSV file.')
     if any(not p.is_file() or p.suffix.lower() != '.csv' for p in paths):
@@ -57,9 +57,9 @@ def import_batch(config, business_id, paths, title='CSV upload', delimiter=None,
     storage = Storage(config.storage)
     grouped, byte_count = {}, 0
     for position, path in enumerate(paths):
-        item = storage.capture(business_id, path, config.max_file_bytes)
-        if original_names is not None:
-            item['original_names'] = [original_names[position]]
+        item = storage.capture(business_id, path, config.max_file_bytes,
+                               original_name=(original_names[position] if original_names is not None
+                                              else names.get(path, path.name) if names else None))
         byte_count += item['byte_count']
         if byte_count > config.max_batch_bytes:
             raise ValueError('Batch exceeds the configured size limit.')
@@ -144,7 +144,15 @@ def resume(config, business_id, analysis_id, progress=None):
         state = 'ready' if counts.get('ready') == len(sources) else ('partial' if counts.get('ready') else 'failed')
         db.execute('UPDATE analyses SET status=%s,updated_at=now() WHERE business_id=%s AND id=%s',
                    (state, business_id, analysis_id))
-    return describe(config, business_id, analysis_id)
+    report = describe(config, business_id, analysis_id)
+    if state in ('ready', 'partial'):
+        from .data_knowledge.service import ensure
+        import duckdb
+        try:
+            report['data_model_revision'] = ensure(config, business_id, analysis_id)['revision']
+        except (ValueError, duckdb.Error):
+            report['data_model_issue'] = 'Los archivos están guardados. Reintenta preparar el modelo de datos desde Mi negocio.'
+    return report
 
 
 def describe(config, business_id, analysis_id, detailed=False):

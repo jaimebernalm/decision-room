@@ -14,8 +14,11 @@ RUBRIC=('definitions','scope_and_limitations','narrative_and_charts','usefulness
 def token_accounting(calls, snapshot_complete=True):
     known = {'input': 0, 'output': 0}
     missing = {'input': 0, 'output': 0}
+    rejected_unknown = 0
     for call in calls:
         usage = call.get('usage') or {}
+        if usage.get('rejected_attempt_usage_unknown'):
+            rejected_unknown += sum(a.get('status') != 200 for a in usage.get('transport_attempts', [])) or 1
         for side, standard, native in [('input', 'prompt_tokens', 'total_input_tokens'),
                                        ('output', 'completion_tokens', 'total_output_tokens')]:
             value = usage.get(standard, usage.get(native))
@@ -25,9 +28,10 @@ def token_accounting(calls, snapshot_complete=True):
                 missing[side] += 1
     return {'known_input_tokens': known['input'], 'known_output_tokens': known['output'],
             'missing_input_usage_calls': missing['input'], 'missing_output_usage_calls': missing['output'],
-            'token_usage_complete': snapshot_complete and not any(missing.values()),
-            'input_tokens': known['input'] if snapshot_complete and not missing['input'] else None,
-            'output_tokens': known['output'] if snapshot_complete and not missing['output'] else None}
+            'rejected_attempts_with_unknown_usage': rejected_unknown,
+            'token_usage_complete': snapshot_complete and not any(missing.values()) and not rejected_unknown,
+            'input_tokens': known['input'] if snapshot_complete and not missing['input'] and not rejected_unknown else None,
+            'output_tokens': known['output'] if snapshot_complete and not missing['output'] and not rejected_unknown else None}
 
 
 def assess(state,report,oracle,assessment=None):

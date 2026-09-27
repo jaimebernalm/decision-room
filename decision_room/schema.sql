@@ -596,6 +596,47 @@ INSERT INTO schema_versions(version) VALUES (14) ON CONFLICT DO NOTHING;
 -- Reversible chat deletion; shared memory and reviewed reports remain independent.
 INSERT INTO schema_versions(version) VALUES (15) ON CONFLICT DO NOTHING;
 
+-- Stable owner selections and pending AI editorial proposals, isolated by business.
+CREATE TABLE IF NOT EXISTS web_home_layouts (
+    business_id uuid PRIMARY KEY REFERENCES businesses(id) ON DELETE CASCADE,
+    revision integer NOT NULL DEFAULT 0,
+    layout jsonb NOT NULL DEFAULT '{}',
+    proposal jsonb
+);
+INSERT INTO schema_versions(version) VALUES (16) ON CONFLICT DO NOTHING;
+
+-- A folder upload retains the files selected by the owner. Excel worksheets are
+-- prepared as traceable CSV tables; the submitted workbook remains downloadable.
+CREATE TABLE IF NOT EXISTS dataset_bundle_files (
+    business_id uuid NOT NULL,
+    analysis_id uuid NOT NULL,
+    relative_path text NOT NULL,
+    sha256 text NOT NULL,
+    byte_count bigint NOT NULL CHECK (byte_count > 0),
+    original_key text NOT NULL,
+    PRIMARY KEY (business_id, analysis_id, relative_path),
+    FOREIGN KEY (business_id, analysis_id) REFERENCES analyses(business_id, id)
+);
+INSERT INTO schema_versions(version) VALUES (17) ON CONFLICT DO NOTHING;
+
+-- Recoverable removal from the report library, preserving evidence and chat links.
+ALTER TABLE web_jobs ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+INSERT INTO schema_versions(version) VALUES (18) ON CONFLICT DO NOTHING;
+
+-- Immutable data model revisions: the ER view and agents read the same document.
+CREATE TABLE IF NOT EXISTS data_model_revisions (
+    business_id uuid NOT NULL,
+    analysis_id uuid NOT NULL,
+    revision integer NOT NULL CHECK (revision > 0),
+    fingerprint text NOT NULL,
+    body jsonb NOT NULL,
+    reason text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (business_id,analysis_id,revision),
+    FOREIGN KEY (business_id,analysis_id) REFERENCES analyses(business_id,id)
+);
+INSERT INTO schema_versions(version) VALUES (19) ON CONFLICT DO NOTHING;
+
 -- Only businesses explicitly created through the guided first-report flow are
 -- enrolled. Existing local workspaces retain their established navigation.
 CREATE TABLE IF NOT EXISTS web_onboarding (
@@ -607,4 +648,4 @@ CREATE TABLE IF NOT EXISTS web_onboarding (
     FOREIGN KEY (business_id, job_id) REFERENCES web_jobs(business_id, id),
     CHECK (NOT completed OR job_id IS NOT NULL)
 );
-INSERT INTO schema_versions(version) VALUES (16) ON CONFLICT DO NOTHING;
+INSERT INTO schema_versions(version) VALUES (20) ON CONFLICT DO NOTHING;

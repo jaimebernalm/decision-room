@@ -1,5 +1,9 @@
 # Inicio y navegación del negocio · 2.5.6
 
+> Actualización 26-09-2026: la interfaz se ha migrado a React y componentes oficiales.
+> Las referencias al renderer anterior se conservan como contexto del diseño;
+> consulta [la implementación actual](react-ui-migration.md).
+
 **Estado:** 2.5.6 implementado y validado sobre la integración del dashboard y la
 ficha/versiones de 2.5.5. La evaluación integrada de 2.5.7 sigue pendiente.
 
@@ -65,8 +69,8 @@ ficha/versiones de 2.5.5. La evaluación integrada de 2.5.7 sigue pendiente.
 ## Comprobación
 
 ```sh
-node --check decision_room/web/static/app.js
-node --test tests/test_dashboard_ui.cjs
+npm --prefix frontend run build
+npm --prefix frontend test
 .venv/bin/python -m unittest discover -s tests
 ```
 

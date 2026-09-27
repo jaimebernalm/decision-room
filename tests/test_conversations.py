@@ -272,6 +272,152 @@ class ConversationTests(unittest.TestCase):
             self.chats.send(self.chat(), {**payload, 'request_key': str(uuid4())})
         self.assertEqual(saved, self.chats.send(other, payload))  # lost response remains recoverable
 
+    def test_context_selections_survive_reload_and_validate_every_reference(self):
+        from decision_room.agent import review
+        from decision_room.context_references import normalize
+        _, turn = self.complete()
+        response = turn['response']
+        base = {k: response[k] for k in ('report_id', 'report_version')}
+        refs = [dict(**base, kind='insight', element_key=response['claims'][0]['key']),
+                dict(**base, kind='section', element_key='summary')]
+        chat = self.chat()
+        payload = dict(business_id=str(self.b), request_key=str(uuid4()), text='Explain selected content', context_references=refs)
+        saved = self.chats.send(chat, payload)
+        self.assertEqual(saved, self.chats.send(chat, payload))
+        self.assertIsNone(self.chats.detail(chat)['conversation']['analysis_id'])
+        reloaded = Conversations(self.ws.scoped(self.b)).detail(chat)['turns'][0]
+        self.assertEqual(len(reloaded['attachments']), 2)
+        self.assertEqual(reloaded['attachments'][0]['content']['statement'], response['claims'][0]['statement'])
+        self.assertEqual(normalize(refs + [refs[0]]), refs)
+        for bad in ([{**refs[0], 'element_key': 'missing'}], [{**refs[0], 'report_version': 'wrong'}],
+                    [{**refs[0], 'content': {'value': 'invented'}}], refs * 5):
+            with self.assertRaises(WebError):
+                self.chats.send(chat, {**payload, 'request_key': str(uuid4()), 'context_references': bad})
+        with self.assertRaises(WebError):
+            self.chats.send(chat, {**payload, 'context_references': refs[:1]})
+        other = self.ws.save_business(dict(request_key=str(uuid4()), name='Other context shop', description='Independent', expected_active_id=str(self.b)))
+        isolated = Conversations(self.ws.scoped(other['id']))
+        isolated_chat = isolated.create(dict(business_id=str(other['id']), request_key=str(uuid4())))
+        with self.assertRaises(WebError):
+            isolated.send(isolated_chat['id'], {**payload, 'business_id': str(other['id'])})
+        review.hold(self.config, self.b, base['report_id'], reason='Controlled withdrawal.')
+        attachments = self.chats.detail(chat)['turns'][0]['attachments']
+        self.assertTrue(all(a['status'] == 'withdrawn' and 'content' not in a for a in attachments))
+        self.assertEqual(saved, self.chats.send(chat, payload))
+        with self.assertRaises(WebError):
+            self.chats.send(chat, {**payload, 'request_key': str(uuid4())})
+
+    def test_full_report_and_memory_selections_keep_identity_and_provenance(self):
+        memory.change(self.config, self.b, action='declare', request_key=str(uuid4()), content=content())
+        _, prior = self.complete()
+        report = prior['response']
+        with connect(self.config) as db:
+            fact = memory.current(db, self.b)[0]
+        refs = [dict(kind='memory', source_id=str(fact['fact_id']), source_version=str(fact['revision']), element_key='fact'),
+                dict(kind='report', report_id=report['report_id'], report_version=report['report_version'], element_key='report')]
+        seen = []
+        def compare(model, context, correction=None):
+            seen.append(context)
+            if not context['retrievals']:
+                return action('retrieve', retrieval=dict(tool='open_report', query='', id=report['report_id'], limit=1)), {}
+            sources = list(context['available_sources'])
+            return action('answer', text='El dato seleccionado procede del contexto del propietario.', sources=[s for s in sources if s.startswith(('selection/', 'tool/'))]), {}
+        with patch.object(ChatModel, 'generate_chat', compare):
+            turn = self.send(self.chat(), '¿Esta información procede del informe seleccionado?', context_references=refs)
+        self.assertEqual(turn['status'], 'completed', turn)
+        selected_report = turn['attachments'][1]
+        self.assertEqual(selected_report['kind'], 'report')
+        self.assertEqual(selected_report['title'], selected_report['report_title'])
+        self.assertNotEqual(selected_report['title'], 'Resumen')
+        self.assertEqual(selected_report['selection_scope'], 'whole_report')
+        selected_fact = seen[-1]['available_sources']['selection/0']['content']
+        self.assertIn('provenance', selected_fact)
+        self.assertTrue(selected_fact['provenance']['origin_key'])
+        self.assertEqual([e['request']['tool'] for e in seen[-1]['retrievals']], ['open_report'])
+        self.assertEqual(seen[-1]['retrievals'][0]['response']['id'], report['report_id'])
+
+    def test_business_selections_are_scoped_versioned_and_available_to_answers(self):
+        from decision_room.context_references import normalize
+        ref = dict(kind='business', source_id=str(self.b), source_version=str(self.business['profile_revision']), element_key='profile')
+        seen = []
+        def answer_selected(model, context, correction=None):
+            seen.append(context)
+            return action('answer', text='Synthetic test business.', sources=['selection/0']), {}
+        chat = self.chat()
+        with patch.object(ChatModel, 'generate_chat', answer_selected):
+            turn = self.send(chat, 'Explain my selected profile', context_references=[ref])
+        self.assertEqual(turn['status'], 'completed', turn)
+        self.assertEqual(turn['attachments'][0]['content']['statement'], self.business['description'])
+        self.assertEqual(turn['attachments'][0]['href'], '#my-business')
+        source = seen[-1]['available_sources']['selection/0']['content']
+        self.assertEqual(source['authority'], 'owner_declared')
+        self.assertEqual(seen[-1]['retrievals'], [])
+        self.assertEqual(normalize([ref]), [ref])
+        for invalid in (ref | {'source_id': str(uuid4())}, ref | {'source_version': '0'}, ref | {'element_key': 'invented'}, ref | {'content': 'injected'}):
+            with self.assertRaises(WebError):
+                self.send(chat, 'Explain this', context_references=[invalid])
+        self.ws.save_business(dict(business_id=str(self.b), name=self.business['name'], description='Updated synthetic profile.', profile_revision=self.business['profile_revision']))
+        attachment = Conversations(self.ws.scoped(self.b)).detail(chat)['turns'][0]['attachments'][0]
+        self.assertEqual(attachment['status'], 'withdrawn')
+        self.assertNotIn('content', attachment)
+        with self.assertRaises(WebError):
+            self.send(chat, 'Explain this', context_references=[ref])
+
+    def test_selected_memory_can_change_before_routing_without_reviving_old_content(self):
+        saved = memory.change(self.config, self.b, action='declare', request_key=str(uuid4()), content=content())
+        with connect(self.config) as db:
+            fact = memory.current(db, self.b)[0]
+        ref = dict(kind='memory', source_id=str(fact['fact_id']), source_version=str(fact['revision']), element_key='fact')
+        chat = self.chat()
+        pending = self.chats.send(chat, dict(business_id=str(self.b), request_key=str(uuid4()), text='What about this?', context_references=[ref]))
+        with connect(self.config) as db:
+            payload = db.execute('SELECT payload FROM memory_sources WHERE id=(SELECT memory_source_id FROM chat_turns WHERE id=%s)', (pending['id'],)).fetchone()['payload']
+            self.assertIn(fact['content']['statement'], payload['question'])
+        memory.change(self.config, self.b, action='withdraw', request_key=str(uuid4()), fact_id=str(fact['fact_id']), expected_revision=fact['revision'])
+        seen = []
+        def answer_changed(model, context, correction=None):
+            seen.append(context)
+            return action('answer', text='La información seleccionada ha cambiado.', sources=['selection/0']), {}
+        with patch.object(ChatModel, 'generate_chat', answer_changed):
+            self.chats.run(pending['id'])
+        turn = self.chats.detail(chat)['turns'][0]
+        self.assertEqual(turn['status'], 'completed', turn)
+        self.assertEqual(seen[-1]['available_sources']['selection/0']['content']['status'], 'withdrawn')
+        self.assertNotIn('content', turn['attachments'][0])
+        with self.assertRaises(WebError):
+            self.send(chat, 'What about this?', context_references=[ref])
+
+    def test_multiple_reports_are_opened_cited_and_carried_into_investigation(self):
+        _, first = self.complete()
+        _, second = self.complete()
+        refs = [dict(report_id=t['response']['report_id'], report_version=t['response']['report_version'],
+                     kind='insight', element_key=t['response']['claims'][0]['key']) for t in (first, second)]
+        chat = self.chat()
+        seen = []
+        def answer_selected(model, context, correction=None):
+            seen.append(context)
+            opened = {e['response'].get('id') for e in context['retrievals']}
+            missing = next((r for r in refs if r['report_id'] not in opened), None)
+            if missing:
+                return action('retrieve', retrieval=dict(tool='open_report', query='', id=missing['report_id'], limit=1)), {}
+            return action('answer', text='Ambos informes describen ventas registradas.', sources=['selection/0', 'selection/1', 'tool/0', 'tool/1']), {}
+        with patch.object(ChatModel, 'generate_chat', answer_selected):
+            turn = self.send(chat, 'Explain both selected reports', context_references=refs)
+        self.assertEqual(turn['status'], 'completed', turn)
+        self.assertEqual(len(turn['attachments']), 2)
+        self.assertEqual(len(seen[-1]['available_sources']['selection/0']['content']['claim_keys']), 1)
+        self.assertIn('statement', seen[-1]['available_sources']['selection/1']['content']['content'])
+        self.assertIsNone(self.chats.detail(chat)['conversation']['analysis_id'])
+        selected_analysis = turn['attachments'][0]['analysis_id']
+        with patch.object(ChatModel, 'generate_chat', return_value=(action('investigate', analysis_id=selected_analysis), {})):
+            follow = self.send(chat, 'Investigate these reports', context_references=refs)
+        self.assertEqual(follow['status'], 'processing', follow)
+        import json
+        continuation = json.loads(self.ws.row(follow['job_id'])['context'])
+        self.assertEqual(continuation['context']['context_references'], refs)
+        for ref in refs:
+            self.assertIn(dict(kind='report', id=ref['report_id'], version=ref['report_version']), continuation['dependencies'])
+
     def test_daily_activity_distinguishes_unpublished_pending_and_withdrawn(self):
         chat = self.chat(self.batch())
         saved = self.chats.send(chat, dict(business_id=str(self.b), request_key=str(uuid4()), text='Calculate sales'))
@@ -660,8 +806,13 @@ class ConversationTests(unittest.TestCase):
         self.assertIsNone(self.ws.dashboard()["report"])
         with self.assertRaises(WebError):
             self.chats.report(chat, t['id'])
+        with self.assertRaises(WebError):
+            self.chats.report(chat, t['id'], structured=True)
         self.chats.report(chat, t['id'], dict(business_id=str(self.b)))
         self.assertIn('Ventas', self.chats.report(chat, t['id']))
+        presentation = self.chats.report(chat, t['id'], structured=True)
+        self.assertIn('Ventas', presentation['title'])
+        self.assertTrue(presentation['claims'][0]['evidence_details']['metrics'])
         self.assertEqual(len(self.ws.listing()), 1)
         listed = self.ws.listing()[0]
         self.assertEqual(listed['origin'], 'chat')
@@ -691,6 +842,8 @@ class ConversationTests(unittest.TestCase):
         self.assertIsNone(self.ws.dashboard()['report'])
         with self.assertRaises(WebError):
             self.chats.report(chat, t['id'])
+        with self.assertRaises(WebError):
+            self.chats.report(chat, t['id'], structured=True)
 
     def test_clock_answer_uses_supplied_runtime_and_no_analytical_job(self):
         chat = self.chat()

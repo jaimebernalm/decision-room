@@ -194,7 +194,7 @@ class DossierTests(unittest.TestCase):
             self.assertEqual(client.get('/api/datasets/file/'+source).content,self.csv)
             invalid = client.post('/api/business/memory',json=dict(business_id=str(self.business['id']),action='declare',request_key='bad',content={}))
             self.assertEqual(invalid.status_code,400)
-            self.assertEqual(client.get('/dossier.js').status_code,200)
+            self.assertIn('/assets/',client.get('/').text)
 
 # Do not collect the imported fixture's test methods a second time.
 del Fixture

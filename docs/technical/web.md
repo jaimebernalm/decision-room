@@ -53,34 +53,26 @@ en la pantalla de acceso. Cada puerto local usa una cookie propia, para poder
 comparar dos vistas de pruebas sin compartir su sesión. No se debe publicar ni
 compartir ese archivo.
 
-Al abrir la web sin sesión se muestra la landing. «Iniciar sesión» y «Empezar en
-este equipo» llevan al acceso con clave local. En un negocio nuevo creado desde
-la entrada guiada, el onboarding ocupa una página independiente: nombre y
-descripción, elección entre exploración general y pregunta concreta, primer CSV,
-aclaraciones del agente e informe revisado. El botón «Entrar a mi espacio»
-aparece después de que el informe sea publicable. El avance queda guardado en
-PostgreSQL y se recupera al volver; los negocios previos no repiten este
-recorrido. Si el análisis se detiene sin informe, se puede reintentar o empezar
-con otros archivos sin borrar el análisis anterior.
+## Entrada actual y compatibilidad
 
-Durante una aclaración, el onboarding permite elegir entre las tablas de los CSV originales junto
-a la pregunta, con las columnas citadas por la referencia validada del agente
-resaltadas. Si no hay referencia de columna, solo resalta un encabezado que
-aparezca literalmente en la pregunta o en su explicación; no adivina una
-columna. Se muestran 30 filas por página y 200 caracteres por celda, con
-navegación por páginas y descarga de cada archivo original. Elegir una respuesta,
-escribirla o marcar «No lo sé» son acciones excluyentes; un borrador anterior no
-permanece visible junto a «No lo sé».
+La interfaz servida es React; véanse [la migración](react-ui-migration.md) y
+[la validación del onboarding](../validation/2026-09-27-onboarding-check.md).
+La bienvenida conduce al acceso local y al recorrido de negocio, datos y primer
+informe. El onboarding utiliza la carga reanudable de carpetas CSV/Excel y crea
+el informe desde el conjunto preparado. El límite actual es 2.000.000.000 bytes
+por entrega. Las aclaraciones abren una vista de los datos preparados; sus
+límites y referencias se describen en
+[la validación de aclaraciones](../validation/2026-09-27-clarification-data-check.md).
+El registro por correo y las cuentas multiusuario siguen pendientes.
 
-El primer informe admite varios CSV UTF-8 en un mismo lote, hasta 2 GiB en total,
-sin un límite de cantidad de archivos. Las subidas y vistas previas se procesan
-por partes y se conservan los nombres originales. La ingesta comparte el lote
-con el agente; no presupone relaciones entre tablas ni las une automáticamente.
-Se pueden añadir más datos después desde «Mi negocio». El agente pide
-aclaraciones cuando las necesita para interpretar o revisar el análisis; no
-promete una cantidad fija de preguntas ni un informe si la evidencia es
-insuficiente. El registro por correo y las cuentas de usuario aún no están
-implementados; el acceso actual sigue siendo local.
+La integración con la implementación del 25 de septiembre conserva las tablas
+`web_onboarding` y `web_job_files`, los trabajos ya guardados y sus API de
+continuación, carga de lotes CSV, descarga y vista previa. Esas API son de
+compatibilidad; la interfaz React usa los bundles y las rutas actuales. Los
+archivos JavaScript y CSS de la interfaz anterior ya no se sirven. La migración
+20 registra esta integración sin reutilizar el número 16 reservado al dashboard.
+Las comprobaciones históricas del 24 y 25 de septiembre describen aquella
+interfaz y no deben interpretarse como el comportamiento actual de React.
 
 ## Experiencia
 
@@ -187,15 +179,20 @@ El dashboard con filtros que recalculan métricas sigue fuera de esta entrega.
 - `decision_room/web/business.py`: identidad, selección y edición del perfil con control de revisión.
 - `decision_room/web/service.py`: orquestación duradera y traducción al estado del producto.
 - `decision_room/web/server.py`: HTTP autenticado, límites y archivos privados.
-- `decision_room/web/static/`: frontend HTML, CSS y JavaScript sin dependencias de ejecución nuevas.
+- `frontend/`: interfaz React 19, TypeScript, Tailwind 4 y componentes oficiales
+  shadcn/ui + AI Elements. Compila a `decision_room/web/dist`, servido por Python.
+  Véase [la migración](react-ui-migration.md) y [el frontend](../../frontend/README.md).
 - `scripts/dev/start_web.py`: apertura del espacio local.
 - `tests/test_business_migration.py`: transición desde esquema 7, selección y recuperación de migraciones fallidas.
 - `tests/test_web.py`: PostgreSQL y sandbox reales con roles controlados, fronteras HTTP y recuperación.
 
 ```sh
+npm ci --prefix frontend
+npm --prefix frontend run build
 .venv/bin/python -m unittest discover -s tests -p 'test_web.py' -v
 .venv/bin/python -m unittest discover -s tests -v
-node --check decision_room/web/static/app.js
+npm --prefix frontend test
+npm --prefix frontend run lint
 ```
 
 Los tests usan bases PostgreSQL temporales y el sandbox local. Los resultados de

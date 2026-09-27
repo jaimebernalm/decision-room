@@ -1,6 +1,7 @@
 """A replaceable model boundary. No model access from the Python sandbox."""
 import json
 import os
+import time
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from urllib.parse import urlsplit
@@ -123,6 +124,10 @@ class ModelClient:
     def review_chat_answer(self, context):
         from ..chat_agent import AnswerReview, REVIEW_SYSTEM
         return self._generate(context, None, REVIEW_SYSTEM, AnswerReview.model_json_schema())
+
+    def generate_dashboard(self, context):
+        from ..web.home import Proposal, SYSTEM as DASHBOARD_SYSTEM
+        return self._generate(context, None, DASHBOARD_SYSTEM, Proposal.model_json_schema())
 
     def generate_memory(self, context, correction=None):
         from ..memory.contracts import Extraction, SYSTEM as MEMORY_SYSTEM
@@ -375,31 +380,51 @@ class ModelClient:
         elif self.settings.protocol == 'openai':
             raise ValueError('Set OPENAI_API_KEY in the private environment before using OpenAI.')
         try:
-            # No proxy inheritance, redirects or automatic retries of billable calls.
+            # Only an explicit 503 rejection is retried. An interrupted response
+            # remains uncertain and requires deliberate recovery.
             with httpx.Client(timeout=self.settings.timeout_seconds, trust_env=False) as client:
-                with client.stream('POST', self.settings.base_url.rstrip('/') + endpoint,
-                                   json=payload, headers=headers) as response:
-                    if response.status_code != 200:
-                        raise ModelAPIError(response.status_code)
-                    body = bytearray()
-                    for chunk in response.iter_bytes():
-                        body.extend(chunk)
-                        if len(body) > 2 * 1024**2:
-                            raise ValueError('Model response exceeds 2 MiB.')
+                attempts = []
+                for attempt in range(3):
+                    with client.stream('POST', self.settings.base_url.rstrip('/') + endpoint,
+                                       json=payload, headers=headers) as response:
+                        attempts.append({'status': response.status_code})
+                        if response.status_code == 503 and attempt < 2:
+                            try:
+                                delay = min(5, max(1, float(response.headers.get('Retry-After', 2 ** attempt))))
+                            except (ValueError, OverflowError):
+                                delay = 2 ** attempt
+                            attempts[-1].update(retry_delay_seconds=delay, usage_unknown=True)
+                        elif response.status_code != 200:
+                            error = ModelAPIError(response.status_code)
+                            error.transport_attempts = attempts
+                            raise error
+                        else:
+                            body = bytearray()
+                            for chunk in response.iter_bytes():
+                                body.extend(chunk)
+                                if len(body) > 2 * 1024**2:
+                                    raise ValueError('Model response exceeds 2 MiB.')
+                            break
+                    time.sleep(delay)
             result = strict_json(body)
             if self.settings.protocol == 'lmstudio':
                 usage = result['stats']
+                if len(attempts) > 1:
+                    usage = {**usage, 'transport_attempts': attempts, 'rejected_attempt_usage_unknown': True}
                 if usage['total_output_tokens'] >= self.settings.max_output_tokens:
                     return {'invalid_model_output': 'Output token budget exhausted. Return a shorter complete JSON action.'}, usage
                 messages = [item['content'] for item in result['output'] if item['type'] == 'message']
                 if len(messages) != 1:
                     return {'invalid_model_output': 'Expected exactly one JSON model message.'}, usage
                 return self._action(messages[0]), usage
+            usage = result.get('usage', {})
+            if len(attempts) > 1:
+                usage = {**usage, 'transport_attempts': attempts, 'rejected_attempt_usage_unknown': True}
             choice = result['choices'][0]
             if choice.get('finish_reason') != 'stop':
-                return {'invalid_model_output': 'Output did not finish normally. Return a shorter complete JSON action.'}, result.get('usage', {})
+                return {'invalid_model_output': 'Output did not finish normally. Return a shorter complete JSON action.'}, usage
             content = choice['message']['content']
-            return self._action(content), result.get('usage', {})
+            return self._action(content), usage
         except httpx.HTTPError as error:
             if isinstance(error, (httpx.ConnectError, httpx.ConnectTimeout)):
                 raise ValueError(f'Model connection failed ({type(error).__name__}); check the configured server.') from None
