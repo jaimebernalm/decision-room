@@ -158,6 +158,80 @@ La selección debe depender de la pregunta y de las relaciones necesarias.
 Aumentar límites sin mejorar descubrimiento, selección y comprobación no resuelve
 el problema. Conservar procedencia, versiones y evidencia de cada cálculo.
 
+### Memoria persistente de la organización de los datos
+
+Construir este conocimiento progresivamente desde la primera inspección y durante
+el análisis. Conservarlo por negocio para reutilizarlo entre informes y
+conversaciones, también después de reiniciar la aplicación. Compartirlo mediante
+consultas selectivas de los agentes, sin exigir que reconstruyan las relaciones
+en cada trabajo.
+
+Distinguir la memoria del negocio —actividad, ubicación, prioridades y contexto—
+del conocimiento estructurado de sus datos —tablas, campos, relaciones y
+definiciones de métricas—, manteniendo vínculos entre ambos. Las definiciones
+aportadas por el usuario complementan las comprobaciones técnicas; no sustituyen
+la validación de claves y uniones.
+
+Cada elemento debe conservar procedencia, archivos y versiones a los que aplica,
+evidencia, fecha de comprobación y estado: propuesto, comprobado, pendiente de
+aclaración u obsoleto. No convertir una inferencia del agente en un hecho validado.
+
+### Modelo de relaciones y diagrama ER
+
+Guardar un modelo estructurado del que se genere el diagrama entidad-relación
+(ER). Ese modelo será consultable por los agentes y representable visualmente
+para el cliente. Debe incluir:
+
+- Tablas, descripción y significado de cada fila.
+- Claves primarias o candidatas, incluidas claves compuestas, y columnas de enlace.
+- Relaciones uno a uno, uno a muchos y muchos a muchos; tablas intermedias y
+  condiciones de unión cuando sean necesarias.
+- Origen de cada relación: declarada por la fuente, explicada por el usuario o
+  inferida; por separado, su estado de verificación y la evidencia que lo respalda.
+- Cardinalidad observada, duplicados de claves, valores sin correspondencia y
+  precauciones para evitar multiplicar filas o sumar importes repetidos.
+
+Por ejemplo, clientes → facturas → líneas de factura, con productos relacionados
+con las líneas. El agente podrá consultar este recorrido para conectar entidades
+en futuros análisis. Las definiciones de ventas, costes y margen seguirán siendo
+necesarias: conocer cómo unir tablas no basta para calcular bien las métricas.
+
+El diagrama y las consultas de los agentes deben derivar de la misma versión del
+modelo, para evitar explicaciones visuales distintas de las relaciones utilizadas.
+
+### Vista en «Mi negocio → Tus datos»
+
+Mostrar una vista comprensible con datos disponibles, periodos y actualización;
+«Cómo los entendemos», con definiciones relevantes; «Cómo se conectan», con
+explicaciones sencillas; y dudas pendientes. Ofrecer «Corregir o aclarar» junto a
+las interpretaciones, conservando la procedencia de la corrección.
+
+Añadir «Ver relaciones» como vista opcional del diagrama ER. Permitir seleccionar
+una tabla o conexión para consultar sus detalles, estado y precauciones. Para
+bases extensas, permitir centrarse en un conjunto de tablas y sus relaciones.
+Los nombres técnicos y comprobaciones detalladas quedan desplegables; entender
+el esquema técnico no será un requisito para usar el producto.
+
+### Actualización, correcciones y criterios de aceptación
+
+Al incorporar archivos, comprobar si cambian esquema, unidades, granularidad o
+cardinalidad antes de reutilizar el conocimiento anterior. Una coincidencia de
+nombres de columnas no demuestra que una definición siga siendo aplicable.
+Revalidar las relaciones afectadas y mantener explícitas las que no se puedan
+comprobar con los datos nuevos.
+
+Al corregir una definición o relación, identificar cálculos e informes
+dependientes, marcar lo que requiere revisión y recalcular cuando corresponda.
+Conservar las versiones y evidencias históricas sin reescribir los resultados
+anteriores como si hubieran usado la nueva interpretación.
+
+Comprobar en el paso 3.2 que un segundo informe y otro chat reutilizan el modelo
+vigente; que un archivo cambiado obliga a revisar las relaciones afectadas; que
+una corrección identifica los resultados dependientes; que el diagrama coincide
+con la versión consultada por el analista; y que ningún acceso mezcla negocios.
+Incluir relaciones propuestas, claves duplicadas y muchos a muchos en los casos
+de prueba, sin presentarlas como uniones seguras por defecto.
+
 ## 5. Investigación por rondas
 
 Ampliar el recorrido actual de planificación, investigación y revisión para que
@@ -260,7 +334,7 @@ en el paso 3.4.
 | Paso | Trabajo | Evidencia necesaria para cerrarlo |
 |---|---|---|
 | 3.1 | Medir el recorrido actual con un caso sustancial y referencias independientes. | Resultados y fallos conservados; métricas de calidad y recursos; límites identificados. |
-| 3.2 | Catálogo consultable, definiciones y relaciones comprobadas. | Selección de tablas pertinente, conversiones verificadas y uniones sin duplicación de métricas. |
+| 3.2 | Catálogo y memoria de datos persistentes y versionados; definiciones, modelo de relaciones y diagrama ER en «Mi negocio». | Reutilización entre informes y chats, uniones sin duplicación, diagrama coherente, revalidación con datos nuevos y revisión de resultados afectados por correcciones. |
 | 3.3 | Investigación por rondas con prioridades y presupuesto. | Profundización útil, parada y recuperación correctas, evidencia y resultados parciales válidos. |
 | 3.4 | Onboarding conversacional y elección abierta del objetivo con sugerencias. | Continuidad con el chat, objetivo editable y persistente, datos visibles al preguntar y contexto opcional no bloqueante. |
 | 3.5 | Selección y revisión adaptadas al objetivo; evaluación completa repetida. | Mejora demostrada frente a 3.1, entregas útiles para cada intención y ausencia de errores materiales en los casos de aceptación. |
