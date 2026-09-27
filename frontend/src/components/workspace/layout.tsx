@@ -9,7 +9,8 @@ import {
   Home,
   MessageSquare,
   Plus,
-  Trash2,
+  MoreHorizontal,
+  PanelRightOpen,
   Sun,
   Moon,
 } from "lucide-react";
@@ -41,7 +42,8 @@ import { Button } from "@/components/ui/button";
 import { Brand } from "@/components/brand";
 import { useWorkspace } from "@/lib/workspace";
 import { store, shortTitle, analysisHref } from "@/lib/api";
-import { AssistantProvider } from "@/lib/assistant";
+import { AssistantProvider, useAssistant } from "@/lib/assistant";
+import { ChatActions } from "./chat-actions";
 import { AssistantFrame } from "./assistant-frame";
 const navigation = [
   ["home", "Inicio", Home],
@@ -55,23 +57,23 @@ export function Layout({ children }: { children: ReactNode }) {
     Number(store.get("dr-sidebar-width", 256)),
   );
   return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": `${Math.max(216, Math.min(width, 420))}px`,
-        } as CSSProperties
-      }
-    >
-      <Navigation width={width} setWidth={setWidth} />
-      <SidebarInset className="relative h-svh min-w-0 overflow-hidden md:h-[calc(100svh-1rem)]">
-        <Topbar />
-        <AssistantProvider key={workspace.business?.id || "empty"}>
+    <AssistantProvider key={workspace.business?.id || "empty"}>
+      <SidebarProvider
+        style={
+          {
+            "--sidebar-width": `${Math.max(216, Math.min(width, 420))}px`,
+          } as CSSProperties
+        }
+      >
+        <Navigation width={width} setWidth={setWidth} />
+        <SidebarInset className="relative h-svh min-w-0 overflow-hidden md:h-[calc(100svh-1rem)]">
+          <Topbar />
           <LayoutGroup>
             <AssistantFrame>{children}</AssistantFrame>
           </LayoutGroup>
-        </AssistantProvider>
-      </SidebarInset>
-    </SidebarProvider>
+        </SidebarInset>
+      </SidebarProvider>
+    </AssistantProvider>
   );
 }
 function Navigation({
@@ -81,7 +83,7 @@ function Navigation({
   width: number;
   setWidth: (v: number) => void;
 }) {
-  const { workspace, listing, route, removeChat } = useWorkspace(),
+  const { workspace, listing, route } = useWorkspace(),
     { isMobile, setOpenMobile, state } = useSidebar();
   const close = () => {
     if (isMobile) setOpenMobile(false);
@@ -100,7 +102,12 @@ function Navigation({
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <a href="#home" onClick={close} className="gap-2.5" aria-label="Decision Room, inicio">
+              <a
+                href="#home"
+                onClick={close}
+                className="gap-2.5"
+                aria-label="Decision Room, inicio"
+              >
                 <Brand />
               </a>
             </SidebarMenuButton>
@@ -199,13 +206,14 @@ function Navigation({
                     <span>{shortTitle(chat.title)}</span>
                   </a>
                 </SidebarMenuButton>
-                <SidebarMenuAction
-                  showOnHover
-                  onClick={() => removeChat(chat)}
-                  aria-label={`Eliminar chat ${chat.title}`}
-                >
-                  <Trash2 />
-                </SidebarMenuAction>
+                <ChatActions chat={chat} onOpenPanel={close}>
+                  <SidebarMenuAction
+                    showOnHover
+                    aria-label={`Opciones de ${chat.title}`}
+                  >
+                    <MoreHorizontal />
+                  </SidebarMenuAction>
+                </ChatActions>
               </SidebarMenuItem>
             ))}
           </SidebarMenu>
@@ -300,6 +308,7 @@ function Navigation({
 }
 function Topbar() {
   const { route } = useWorkspace();
+  const assistant = useAssistant();
   const { theme, setTheme } = useTheme();
   const back = route.startsWith("chat-report/")
     ? {
@@ -322,6 +331,15 @@ function Topbar() {
         </Button>
       )}
       <div className="ml-auto flex items-center gap-2">
+        {route.startsWith("chat/") && assistant && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => assistant.openConversation(route.split("/")[1])}
+          >
+            <PanelRightOpen /> Abrir en panel
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="icon"

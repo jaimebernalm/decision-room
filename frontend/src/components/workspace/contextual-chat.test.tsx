@@ -4,11 +4,12 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { WorkspaceState, type WorkspaceContext } from "@/lib/workspace";
-import { store } from "@/lib/api";
+import { store, messageKey } from "@/lib/api";
 import type { ContextAttachment } from "@/lib/types";
 import { Selectable } from "./context-selection";
 import { FloatingAssistant } from "./floating-assistant";
 import { ChatPage } from "./chat";
+import { Chats } from "./overview";
 import { Layout } from "./layout";
 const item: ContextAttachment = {
   report_id: "review",
@@ -47,8 +48,14 @@ const workspace: WorkspaceContext = {
   refresh: vi.fn(),
   removeChat: vi.fn(),
 };
-function Harness() {
-  const [route, setRoute] = useState("home");
+function Harness({
+  initialRoute = "home",
+  conversations = workspace.listing.conversations,
+}: {
+  initialRoute?: string;
+  conversations?: WorkspaceContext["listing"]["conversations"];
+} = {}) {
+  const [route, setRoute] = useState(initialRoute);
   useEffect(() => {
     const change = () => setRoute(location.hash.slice(1));
     addEventListener("hashchange", change);
@@ -56,10 +63,18 @@ function Harness() {
   }, []);
   return (
     <TooltipProvider>
-      <WorkspaceState.Provider value={{ ...workspace, route }}>
+      <WorkspaceState.Provider
+        value={{
+          ...workspace,
+          route,
+          listing: { ...workspace.listing, conversations },
+        }}
+      >
         <Layout>
           {route.startsWith("chat/") ? (
             <ChatPage id={route.split("/")[1]} />
+          ) : route === "chats" ? (
+            <Chats />
           ) : (
             <>
               <div id="main-content">
@@ -285,7 +300,9 @@ it("starts a new conversation inside the open panel and labels its actions", asy
   render(<Harness />);
   await screen.findByRole("textbox");
   await user.hover(screen.getByRole("button", { name: "Nueva conversación" }));
-  expect(await screen.findByRole("tooltip")).toHaveTextContent("Nueva conversación");
+  expect(await screen.findByRole("tooltip")).toHaveTextContent(
+    "Nueva conversación",
+  );
   await user.keyboard("{Escape}");
   await user.click(screen.getByRole("button", { name: "Nueva conversación" }));
   const panel = screen.getByRole("complementary", {
@@ -306,4 +323,74 @@ it("starts a new conversation inside the open panel and labels its actions", asy
     }),
   ]);
   expect(location.hash).toBe("#home");
+});
+
+const existingChats = [
+  { id: "old", business_id: "a", title: "Anterior", created_at: "2026-09-27" },
+  {
+    id: "existing",
+    business_id: "a",
+    title: "Ya guardada",
+    created_at: "2026-09-27",
+  },
+];
+it("opens an existing conversation from its page on the last report without sending", async () => {
+  location.hash = "chat/existing";
+  store.set("dr-assistant-origin-a", "report/sales");
+  store.set(messageKey("existing"), { text: "Borrador existente" });
+  const calls = server();
+  const user = userEvent.setup();
+  render(<Harness initialRoute="chat/existing" />);
+  await screen.findByRole("textbox");
+  await user.click(screen.getByRole("button", { name: "Abrir en panel" }));
+  const panel = await screen.findByRole("complementary", {
+    name: "Conversación lateral",
+  });
+  expect(await within(panel).findByRole("textbox")).toHaveValue(
+    "Borrador existente",
+  );
+  expect(location.hash).toBe("#report/sales");
+  expect(store.get("dr-dock-a", {})).toMatchObject({
+    chatId: "existing",
+    open: true,
+  });
+  expect(
+    calls.some((c) => c.url.endsWith("/messages") || c.url === "/api/chats"),
+  ).toBe(false);
+});
+it("opens from the conversation list on the dashboard when there is no origin", async () => {
+  location.hash = "chats";
+  server();
+  const user = userEvent.setup();
+  render(<Harness initialRoute="chats" conversations={existingChats} />);
+  const buttons = screen.getAllByRole("button", {
+    name: "Opciones de Ya guardada",
+  });
+  await user.click(buttons[buttons.length - 1]);
+  await user.click(screen.getByRole("menuitem", { name: "Abrir en panel" }));
+  await screen.findByRole("complementary", { name: "Conversación lateral" });
+  expect(location.hash).toBe("#home");
+  expect(store.get("dr-dock-a", {})).toMatchObject({ chatId: "existing" });
+});
+it("switches chats from navigation without leaving the report or losing the previous draft", async () => {
+  location.hash = "report/sales";
+  store.set("dr-dock-a", { chatId: "old", open: true });
+  server();
+  const user = userEvent.setup();
+  render(<Harness initialRoute="report/sales" conversations={existingChats} />);
+  await user.type(await screen.findByRole("textbox"), "Conservar borrador");
+  await user.click(
+    screen.getByRole("button", { name: "Abrir o cerrar navegación" }),
+  );
+  await user.click(
+    screen.getByRole("button", { name: "Opciones de Ya guardada" }),
+  );
+  await user.click(screen.getByRole("menuitem", { name: "Abrir en panel" }));
+  await screen.findByRole("complementary", { name: "Conversación lateral" });
+  expect(location.hash).toBe("#report/sales");
+  expect(await screen.findByRole("textbox")).toHaveValue("");
+  expect(store.get(messageKey("old"), {})).toMatchObject({
+    text: "Conservar borrador",
+  });
+  expect(store.get("dr-dock-a", {})).toMatchObject({ chatId: "existing" });
 });

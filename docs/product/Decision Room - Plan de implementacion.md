@@ -363,6 +363,11 @@ acoplarlo. El botón + conserva el panel para escribir una conversación nueva y
 los tres controles muestran etiquetas. Navegador, 51 pruebas frontend, compilación
 y lint comprobados; detalle en la validación de 2.5.16.
 
+**Conversaciones existentes:** «Abrir en panel» está disponible en la cabecera y
+los menús del listado y la navegación. Conserva la conversación y el borrador,
+con el informe/dashboard actual o el último origen visitado. Verificado en
+navegador; 54 pruebas frontend, compilación y lint correctos.
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Prioridad actualizada, 23 de septiembre de 2026:** iniciar las ampliaciones siguientes después de cerrar la entrega 2.5. La evaluación del 22 de septiembre descrita a continuación ya se realizó; no se presenta como trabajo pendiente ni sustituye la regresión exigida por los cambios de memoria y conversación.

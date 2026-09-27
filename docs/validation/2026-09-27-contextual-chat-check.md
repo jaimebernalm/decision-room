@@ -132,3 +132,21 @@ Validación: 51 pruebas de frontend correctas, incluidas dos nuevas de alternanc
 de paneles y creación/envío desde el panel vacío; compilación y lint sin errores.
 Recorrido en navegador con dashboard real de pruebas: abrir navegación, retomar
 chat, pulsar + y comprobar el compositor dentro del panel y la etiqueta de cierre.
+
+## Conversaciones existentes: Abrir en panel
+
+La cabecera de cualquier conversación completa incluye «Abrir en panel». El
+listado y los chats de la navegación incorporan un menú con la misma acción y
+la eliminación con confirmación existente. Abrir un chat desde un informe o
+dashboard conserva la ruta; desde otra página recupera el último origen visitado
+del negocio, con Inicio como alternativa. Se conserva el identificador del chat,
+el historial y el borrador de texto, sin crear conversaciones ni reenviar mensajes.
+El proveedor compartido abarca ahora navegación y cabecera. Un envío inicial
+tardío no sustituye una conversación que el usuario haya abierto mientras tanto.
+
+Validación: 54 pruebas de frontend correctas, compilación y lint sin errores.
+Tres casos nuevos comprueban cabecera con regreso al informe, listado sin origen
+y cambio de chat desde navegación conservando el borrador anterior. La prueba de
+eliminación se adaptó al menú y mantiene las comprobaciones de cancelación y
+confirmación. En navegador se abrió un chat guardado desde su cabecera y otro
+desde la navegación, manteniendo el dashboard y mostrando el historial correcto.

@@ -211,14 +211,16 @@ it("delete dialog cancel makes no mutation and explicit delete refreshes the lis
   await screen.findByRole("heading", { name: "Conversaciones" });
   const user = userEvent.setup();
   await user.click(
-    screen.getByRole("button", { name: "Eliminar Chat de prueba" }),
+    screen.getAllByRole("button", { name: "Opciones de Chat de prueba" }).at(-1)!,
   );
+  await user.click(screen.getByRole("menuitem", { name: "Eliminar conversación" }));
   expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Cancelar" }));
   expect(writes).toEqual([]);
   await user.click(
-    screen.getByRole("button", { name: "Eliminar Chat de prueba" }),
+    screen.getAllByRole("button", { name: "Opciones de Chat de prueba" }).at(-1)!,
   );
+  await user.click(screen.getByRole("menuitem", { name: "Eliminar conversación" }));
   await user.click(screen.getByRole("button", { name: "Eliminar chat" }));
   await waitFor(() => expect(writes).toEqual(["/api/chats/chat/delete"]));
   expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();

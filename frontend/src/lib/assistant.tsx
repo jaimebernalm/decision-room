@@ -33,6 +33,7 @@ type Dock = {
 type Assistant = {
   dock: Dock;
   setDock: (d: Dock) => void;
+  openConversation: (id: string) => void;
   selecting: boolean;
   setSelecting: (v: boolean) => void;
   selected: ContextAttachment[];
@@ -55,6 +56,11 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const { workspace, route } = useWorkspace();
   const business = workspace.business?.id || "empty";
   const mounted = useRef(true);
+  const launchVersion = useRef(0);
+  useEffect(() => {
+    if (contextualRoute(route))
+      store.set(`dr-assistant-origin-${business}`, route);
+  }, [business, route]);
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -122,6 +128,23 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       value={{
         dock,
         setDock,
+        openConversation: (id) => {
+          launchVersion.current += 1;
+          setLaunching(false);
+          setSelecting(false);
+          setError("");
+          const remembered = store.get<string>(
+            `dr-assistant-origin-${business}`,
+            "home",
+          );
+          const origin = contextualRoute(route)
+            ? route
+            : contextualRoute(remembered)
+              ? remembered
+              : "home";
+          setDock({ chatId: id, open: true, origin });
+          if (route !== origin) location.hash = origin;
+        },
         selecting,
         setSelecting,
         selected,
@@ -130,6 +153,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
         launching,
         clear,
         launch: async (text, selectedContext, origin) => {
+          const version = ++launchVersion.current;
           const startedInPanel = dock.open && !dock.chatId;
           setSelecting(false);
           setError("");
@@ -137,14 +161,14 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
           setDock({ open: true, origin });
           try {
             const chat = await launchChat(business, text, selectedContext);
-            if (mounted.current) {
+            if (mounted.current && launchVersion.current === version) {
               const current = store.get<Dock>(`dr-dock-${business}`, {
                 open: false,
               });
               setDock({ ...current, chatId: chat.id, origin });
             }
           } catch (error) {
-            if (mounted.current) {
+            if (mounted.current && launchVersion.current === version) {
               const current = store.get<Dock>(`dr-dock-${business}`, {
                 open: false,
               });
@@ -153,7 +177,8 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
             }
             throw error;
           } finally {
-            if (mounted.current) setLaunching(false);
+            if (mounted.current && launchVersion.current === version)
+              setLaunching(false);
           }
         },
         remove: (r) => {

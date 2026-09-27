@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useReducedMotion } from "motion/react";
-import { Plus, ArrowUpRight, Trash2, MessageCircle } from "lucide-react";
+import {
+  Plus,
+  ArrowUpRight,
+  MoreHorizontal,
+  MessageCircle,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -25,6 +30,7 @@ import { date, reportState, shortTitle, analysisHref } from "@/lib/api";
 import type { Report } from "@/lib/types";
 import { Heading, Notice, Empty, Loading } from "./shared";
 import { ReportView } from "./report";
+import { ChatActions } from "./chat-actions";
 import { FloatingAssistant } from "./floating-assistant";
 export function StartChat({ home = false }: { home?: boolean }) {
   const reducedMotion = useReducedMotion();
@@ -233,7 +239,7 @@ export function Reports() {
   );
 }
 export function Chats() {
-  const { listing, removeChat } = useWorkspace();
+  const { listing } = useWorkspace();
   const [search, setSearch] = useState("");
   const chats = listing.conversations.filter((c) =>
     c.title.toLowerCase().includes(search.toLowerCase()),
@@ -276,15 +282,16 @@ export function Chats() {
                     {date(c.last_message_at || c.created_at)}
                   </p>
                 </a>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="relative z-10 rounded-full text-muted-foreground hover:bg-transparent hover:text-foreground"
-                  aria-label={`Eliminar ${c.title}`}
-                  onClick={() => removeChat(c)}
-                >
-                  <Trash2 />
-                </Button>
+                <ChatActions chat={c}>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="relative z-10 rounded-full text-muted-foreground hover:bg-transparent hover:text-foreground"
+                    aria-label={`Opciones de ${c.title}`}
+                  >
+                    <MoreHorizontal />
+                  </Button>
+                </ChatActions>
               </CardContent>
             </Card>
           ))}
