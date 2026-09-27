@@ -272,6 +272,41 @@ class ConversationTests(unittest.TestCase):
             self.chats.send(self.chat(), {**payload, 'request_key': str(uuid4())})
         self.assertEqual(saved, self.chats.send(other, payload))  # lost response remains recoverable
 
+    def test_context_selections_survive_reload_and_validate_every_reference(self):
+        from decision_room.agent import review
+        from decision_room.context_references import normalize
+        _, turn = self.complete()
+        response = turn['response']
+        base = {k: response[k] for k in ('report_id', 'report_version')}
+        refs = [dict(**base, kind='insight', element_key=response['claims'][0]['key']),
+                dict(**base, kind='section', element_key='summary')]
+        chat = self.chat()
+        payload = dict(business_id=str(self.b), request_key=str(uuid4()), text='Explain selected content', context_references=refs)
+        saved = self.chats.send(chat, payload)
+        self.assertEqual(saved, self.chats.send(chat, payload))
+        self.assertIsNone(self.chats.detail(chat)['conversation']['analysis_id'])
+        reloaded = Conversations(self.ws.scoped(self.b)).detail(chat)['turns'][0]
+        self.assertEqual(len(reloaded['attachments']), 2)
+        self.assertEqual(reloaded['attachments'][0]['content']['statement'], response['claims'][0]['statement'])
+        self.assertEqual(normalize(refs + [refs[0]]), refs)
+        for bad in ([{**refs[0], 'element_key': 'missing'}], [{**refs[0], 'report_version': 'wrong'}],
+                    [{**refs[0], 'content': {'value': 'invented'}}], refs * 5):
+            with self.assertRaises(WebError):
+                self.chats.send(chat, {**payload, 'request_key': str(uuid4()), 'context_references': bad})
+        with self.assertRaises(WebError):
+            self.chats.send(chat, {**payload, 'context_references': refs[:1]})
+        other = self.ws.save_business(dict(request_key=str(uuid4()), name='Other context shop', description='Independent', expected_active_id=str(self.b)))
+        isolated = Conversations(self.ws.scoped(other['id']))
+        isolated_chat = isolated.create(dict(business_id=str(other['id']), request_key=str(uuid4())))
+        with self.assertRaises(WebError):
+            isolated.send(isolated_chat['id'], {**payload, 'business_id': str(other['id'])})
+        review.hold(self.config, self.b, base['report_id'], reason='Controlled withdrawal.')
+        attachments = self.chats.detail(chat)['turns'][0]['attachments']
+        self.assertTrue(all(a['status'] == 'withdrawn' and 'content' not in a for a in attachments))
+        self.assertEqual(saved, self.chats.send(chat, payload))
+        with self.assertRaises(WebError):
+            self.chats.send(chat, {**payload, 'request_key': str(uuid4())})
+
     def test_daily_activity_distinguishes_unpublished_pending_and_withdrawn(self):
         chat = self.chat(self.batch())
         saved = self.chats.send(chat, dict(business_id=str(self.b), request_key=str(uuid4()), text='Calculate sales'))

@@ -1,5 +1,8 @@
 """Small, evidence-backed projection of an approved report for the home page."""
 
+import hashlib
+import json
+
 from ..agent.review_contract import ReportDraft, checks
 from ..client_report import formatted, metric
 from ..series import saved_series
@@ -15,6 +18,7 @@ def projection(data):
         if not all(check['passed'] for check in checks(report, data['observations'])):
             return None
         highlights = [{
+            'key': hashlib.sha256(json.dumps([item['label'], item['unit'], item['claim_key']], sort_keys=True, default=str).encode()).hexdigest()[:16],
             'label': item['label'],
             'value': formatted(metric(data, item['value']), item['decimals']),
             'unit': item['unit'],
@@ -72,4 +76,4 @@ def presentation(data):
                       for c in charts if c.get('series')]
         claims.append({**{key: claim[key] for key in ('key', 'title', 'statement', 'interpretation', 'method', 'next_step')},
                        'evidence_details': dict(files=files, metrics=metrics, operations=operations)})
-    return {**result, 'claims': claims, 'no_chart_reason': report['no_chart_reason']}
+    return {**result, 'report_id': str(data['id']), 'report_version': data['approved_sha256'], 'claims': claims, 'no_chart_reason': report['no_chart_reason']}
