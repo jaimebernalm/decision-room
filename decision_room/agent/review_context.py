@@ -7,6 +7,7 @@ from ..storage import Storage, digest
 from .context import encoded, fingerprint
 from .persistence import answers
 from .review_contract import checks
+from .review_policy import ledger, delivery_manifest
 
 
 def events(db, review_id):
@@ -61,8 +62,11 @@ def material(config, db, session, run):
     return {'owner_context': run['snapshot']['source']['owner_context'], 'owner_answers': owner_answers,
             'plan': run['snapshot']['proposal'], 'candidate_history': run['snapshot']['findings'],
             'planning_history': run['snapshot']['planning_history'],
+            'review_policy': run['options'].get('review_policy'),
+            'review_issues': ledger(conversation), 'delivery_manifest': delivery_manifest(report, observations),
             'research_coverage': run['snapshot'].get('research_coverage'),
             'delivery_capabilities': {'execution_artifact_downloads': False, 'chart_categories': 36, 'daily_line_points': 366,
+                                      'claim_evidence_refs': 12, 'claims': 6, 'charts': 4,
                                       'surfaces': ['web_report', 'static_html']}, 'tables': run['snapshot']['tables'],
             'conversation': conversation, 'observations': observations,
             'report': report, 'report_step': report_step, 'checks': checks(report, observations),
@@ -111,6 +115,8 @@ def approval_digest(materialized, knowledge):
     cited.update(h['value']['execution_id'] for h in materialized['report'].get('highlights', []))
     for check in materialized['report']['checks']:
         cited.update(ref['execution_id'] for ref in [check['actual'], *check['operands']])
-    return fingerprint({'report': materialized['report'], 'knowledge': knowledge,
+    policy = {'review_issues': materialized['review_issues'], 'delivery_manifest': materialized['delivery_manifest'],
+              'assessment': next((e['action'].get('assessment') for e in reversed(materialized['conversation']) if e['role'] == 'reviewer'), None)} if materialized.get('review_policy') else {}
+    return fingerprint({**policy, 'report': materialized['report'], 'knowledge': knowledge,
                         'evidence': [o for o in materialized['observations'] if o['execution_id'] in cited],
                         'checks': materialized['checks']})

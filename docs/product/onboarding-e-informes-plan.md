@@ -2,7 +2,7 @@
 
 Fecha: 27 de septiembre de 2026.
 
-**Estado: pasos 3.1, 3.2 y 3.3 completados; pasos 3.4–3.5 pendientes.**
+**Estado: pasos 3.1, 3.2, 3.3 y el refuerzo 3.3.1 completados; pasos 3.4–3.5 pendientes.**
 Este documento desarrolla la entrega 3 del [plan de implementación](<Decision Room - Plan de implementacion.md>).
 La [evaluación inicial con una base sustancial](../validation/2026-09-27-substantial-baseline.md)
 aceptó cuatro de seis recorridos y conserva los fallos y límites observados.
@@ -340,6 +340,7 @@ del propietario; su interfaz sigue prevista para el paso 3.4.
 | 3.1 — Completado | Medir el recorrido actual con un caso sustancial y referencias independientes. | Cinco tablas y 299.673 filas, tres objetivos por dos repeticiones; 4/6 aceptados, fallos conservados, métricas y revisión independiente. [Resultados](../validation/2026-09-27-substantial-baseline.md). |
 | 3.2 — Completado | Catálogo y memoria de datos persistentes y versionados; definiciones, modelo de relaciones y diagrama ER en «Mi negocio». | Reutilización entre informes y chats, uniones sin duplicación, diagrama coherente, revalidación con datos nuevos y revisión de resultados afectados por correcciones. 48 tablas/4.713.833 filas, 98 claves de referencia comprobadas, dos informes y otro chat reales; corrección propagada. [Validación](../validation/2026-09-27-data-knowledge.md). |
 | 3.3 — Completado | Investigación por rondas con prioridades y presupuesto. | Agenda persistente, seguimientos vinculados a métricas, límites y recuperación sin duplicaciones; pruebas reales con dos/tres rondas y un informe parcial revisado con 48 valores contrastados. Los intentos fallidos y límites de calidad quedan documentados. [Validación](../validation/2026-09-27-research-rounds.md). |
+| 3.3.1 — Completado | Estabilización del revisor: reparos persistentes, sugerencias no bloqueantes, auditoría de entrega, reutilización y 429 acotados. | Informes 2/2 y 2/3, 49 valores contrastados y recuperación sin duplicación; la prueba adversarial detecta cifra falsa y adjunto inexistente. [Validación](../validation/2026-09-27-reviewer-stability.md). |
 | 3.4 | Onboarding conversacional y elección abierta del objetivo con sugerencias. | Continuidad con el chat, objetivo editable y persistente, datos visibles al preguntar y contexto opcional no bloqueante. |
 | 3.5 | Selección y revisión adaptadas al objetivo; evaluación completa repetida. | Mejora demostrada frente a 3.1, entregas útiles para cada intención y ausencia de errores materiales en los casos de aceptación. |
 
@@ -356,4 +357,16 @@ las correcciones en un lote nuevo. Incorporar relaciones y columnas comprobadas,
 definiciones estables de métricas y nombres legibles; la memoria por sí sola no
 resuelve errores de sintaxis ni la selección y presentación de hallazgos.
 
-**Cierre de 3.2:** [contrato implementado](../technical/data-knowledge.md) y [pruebas, intentos conservados y límites](../validation/2026-09-27-data-knowledge.md). El paso **3.3 está completado**: [contrato de rondas](../technical/research-rounds.md) y [validación con fallos conservados](../validation/2026-09-27-research-rounds.md). El siguiente paso es **3.4: onboarding conversacional y elección abierta del objetivo**.
+**Cierre de 3.2:** [contrato implementado](../technical/data-knowledge.md) y [pruebas, intentos conservados y límites](../validation/2026-09-27-data-knowledge.md). El paso **3.3 está completado**: [contrato de rondas](../technical/research-rounds.md) y [validación con fallos conservados](../validation/2026-09-27-research-rounds.md). El refuerzo **3.3.1 del revisor está completado** ([validación](../validation/2026-09-27-reviewer-stability.md)). El siguiente paso es **3.4: onboarding conversacional y elección abierta del objetivo**.
+
+
+### Evolución posterior: analistas en paralelo
+
+Evaluar después de estabilizar revisión y medir calidad. El interlocutor de negocio
+coordina objetivo y preguntas; un coordinador analítico podría repartir investigaciones
+independientes entre analistas con el mismo catálogo versionado. Cada tarea debe
+entregar evidencia con procedencia, estado y presupuesto; el coordinador reconcilia
+resultados y conflictos antes del revisor independiente. No permitir creación
+recursiva libre de agentes: limitar concurrencia, coste total y duplicaciones.
+Comparar exactitud, utilidad, coste y latencia con la ejecución secuencial antes de
+adoptarlo. Esta ampliación no forma parte de 3.3.1.

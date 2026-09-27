@@ -15,6 +15,10 @@ from .research_agenda import limitation
 REVIEW_GRAPH_VERSION = 'review-v7'
 
 
+class ReviewBudgetReached(ValueError):
+    pass
+
+
 class ReviewState(TypedDict):
     turn: int
     role: str
@@ -41,9 +45,18 @@ def build(config, db, session, run, analyst, reviewer, saver, *, executor=execut
         model = analyst if state['role'] == 'analyst' else reviewer
         correction = None
         for attempt in range(2):
-            raw = model_call(db, session['id'], model, context, correction, retry_uncertain,
-                             config=config, phase='analyst_review' if state['role'] == 'analyst' else 'reviewer',
-                             scope=str(run['id']), max_calls=run['options']['max_calls_per_role'])
+            phase = 'analyst_review' if state['role'] == 'analyst' else 'reviewer'
+            def guard():
+                used = db.execute('SELECT count(*) n FROM agent_calls WHERE session_id=%s AND phase=%s AND scope=%s',
+                                  (session['id'], phase, str(run['id']))).fetchone()['n']
+                if used >= run['options']['max_calls_per_role']:
+                    raise ReviewBudgetReached('Review model-call budget reached.')
+            try:
+                raw = model_call(db, session['id'], model, context, correction, retry_uncertain,
+                                 config=config, phase=phase, scope=str(run['id']),
+                                 max_calls=run['options']['max_calls_per_role'], before_call=guard)
+            except ReviewBudgetReached:
+                return {'outcome': 'limited'}
             try:
                 action = validate(raw, state['role'], context)
                 if action['action'] == 'submit' and context.get('research_coverage'):

@@ -20,7 +20,7 @@ from decision_room.agent.model import ModelAPIError, ModelNotReady, ModelSetting
 from decision_room.web.server import Server
 from decision_room.web.service import Workspace, WebError, MAX_UPLOAD, MAX_BATCH_UPLOAD
 from test_agent import ScriptedModel
-from test_review import DialogueModel, action
+from test_review import DialogueModel, action, assessed
 
 
 SETTINGS = ModelSettings(model='scripted-web-test-only')
@@ -43,7 +43,7 @@ class WebModel(DialogueModel):
         asked = any(e['action']['action'] == 'ask_owner' for e in context['conversation'])
         if not asked:
             return action('ask_owner', question='¿Confirmas que amount es el total de cada fila?'), {}
-        return action('approve', 'Revisión controlada de la evidencia.'), {}
+        return assessed(action('approve', 'Revisión controlada de la evidencia.'), context), {}
 
     def generate_analyst_review(self, context, correction=None):
         response, usage = super().generate_analyst_review(context, correction)

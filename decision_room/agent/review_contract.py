@@ -7,6 +7,7 @@ from typing import Literal
 from pydantic import Field
 
 from .contracts import Strict
+from .review_policy import ReviewAssessment, validate_assessment
 from ..series import saved_series, numeric
 
 
@@ -97,6 +98,7 @@ class ReviewAction(Strict):
     code: str = Field(max_length=48000)
     table_ids: list[str] = Field(max_length=8)
     question: str = Field(max_length=1200)
+    assessment: ReviewAssessment | None = None
 
 
 def checks(report, observations):
@@ -293,6 +295,15 @@ def validate(raw, role, context):
         permitted = {t['id'] for t in context['tables']}
         if not action.code.strip() or not action.table_ids or not set(action.table_ids) <= permitted or len(set(action.table_ids)) != len(action.table_ids):
             raise ValueError('execute requires code and unique authorized table IDs.')
+        # Reuse a successful calculation already made by this role. The reviewer
+        # may independently reproduce research once; owner corrections mark old results stale.
+        own_ids = {e.get('execution_id') for e in context['conversation'] if e['role'] == role}
+        for observed in context['observations']:
+            if (observed['current'] and observed['status'] == 'completed'
+                    and (role == 'analyst' or observed['execution_id'] in own_ids)
+                    and observed['code'].strip() == action.code.strip()
+                    and {t['id'] for t in observed['inputs'].values()} == set(action.table_ids)):
+                raise ValueError('This successful calculation already exists. Reuse its saved evidence; explain a concrete defect before changing code.')
         if context['budgets']['python_used'][role] >= context['budgets']['max_python_per_role']:
             raise ValueError('Python budget reached. Submit supported work, ask the owner or stop without approval.')
     elif action.code or action.table_ids:
@@ -315,4 +326,5 @@ def validate(raw, role, context):
         draft_step = context['report_step']
         if any(e['step'] > draft_step and e['action']['action'] == 'execute' for e in context['conversation']):
             raise ValueError('New checks were executed after this draft. Request an updated draft before approval.')
+    validate_assessment(action, role, context)
     return action.model_dump()

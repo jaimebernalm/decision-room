@@ -455,8 +455,13 @@ y resultados parciales con cobertura de entrega). Véanse [validación de 3.2](.
 y [secuencia vigente](onboarding-e-informes-plan.md#8-secuencia-de-implementación-y-criterios-de-cierre).
 La [validación de 3.3](../validation/2026-09-27-research-rounds.md) conserva también
 los fallos de modelo, revisión y proveedor encontrados; no declara resuelta la
-evaluación general de calidad prevista en 3.5. El siguiente paso es **3.4:
-onboarding conversacional y elección abierta del objetivo**.
+evaluación general de calidad prevista en 3.5. También queda completado **3.3.1: estabilización del revisor**: reparos materiales
+frente a sugerencias, registro de resolución, auditoría de entrega y reintentos
+acotados de 429. Se contrastan un informe completo (2/2), uno parcial (2/3),
+49 valores y recuperación sin duplicaciones. La prueba adversarial bloquea una
+cifra falsa y un adjunto inexistente en la misma revisión. Véanse
+[contrato](../technical/reviewer-stability.md) y [validación, fallos y límites](../validation/2026-09-27-reviewer-stability.md).
+El siguiente paso es **3.4: onboarding conversacional y elección abierta del objetivo**.
 
 **Planificación ampliada, 27 de septiembre de 2026:** el
 [plan de onboarding e informes](onboarding-e-informes-plan.md) concreta la secuencia

@@ -9,7 +9,7 @@ from psycopg.types.json import Jsonb
 from ..database import connect
 from .context import fingerprint, encoded
 from .prompts import PROMPT_VERSION
-from .model import ModelRequestUncertain
+from .model import ModelRequestUncertain, record_transport
 from .research_prompts import RESEARCH_PROMPT_VERSION
 from .review_prompts import REVIEW_PROMPT_VERSION
 
@@ -111,7 +111,12 @@ def _model_call(db, session_id, model, context, correction, retry_uncertain, *, 
     try:
         method = {'planning': 'generate', 'research': 'generate_research',
                   'analyst_review': 'generate_analyst_review', 'reviewer': 'generate_reviewer'}[phase]
-        output, usage = getattr(model, method)(context, correction)
+        def save_attempts(attempts):
+            db.execute('UPDATE agent_calls SET usage=%s WHERE id=%s',
+                       (Jsonb({'transport_attempts': attempts,
+                               'rejected_attempt_usage_unknown': any(a['status'] != 200 for a in attempts)}), call_id))
+        with record_transport(save_attempts):
+            output, usage = getattr(model, method)(context, correction)
         db.execute("UPDATE agent_calls SET status='completed',output=%s,usage=%s,finished_at=now() WHERE id=%s",
                    (Jsonb(output), Jsonb(usage), call_id))
         return output
@@ -120,8 +125,8 @@ def _model_call(db, session_id, model, context, correction, retry_uncertain, *, 
         raise
     except Exception as error:
         attempts = getattr(error, 'transport_attempts', None)
-        db.execute("UPDATE agent_calls SET status='failed',issue=%s,usage=%s,finished_at=now() WHERE id=%s",
-                   (type(error).__name__, Jsonb({'transport_attempts': attempts, 'rejected_attempt_usage_unknown': True}) if attempts else Jsonb({}), call_id))
+        db.execute("UPDATE agent_calls SET status='failed',issue=%s,usage=COALESCE(%s,usage),finished_at=now() WHERE id=%s",
+                   (type(error).__name__, Jsonb({'transport_attempts': attempts, 'rejected_attempt_usage_unknown': True}) if attempts else None, call_id))
         raise
 
 
@@ -164,7 +169,7 @@ def model_call(db, session_id, model, context, correction, retry_uncertain, *, c
             return {k: v for k, v in output.items() if k != 'retrieval'}
         if config is None:
             raise ValueError('Retrieval requires application configuration.')
-        if any(output.get(k) for k in ('proposal', 'code', 'table_ids', 'report', 'metric_keys', 'question', 'investigation_key', 'followups')):
+        if any(output.get(k) for k in ('proposal', 'code', 'table_ids', 'report', 'metric_keys', 'question', 'investigation_key', 'followups', 'assessment')):
             return {'invalid_model_output': 'retrieve requires empty action fields and a retrieval request.'}
         try:
             retrieval.save(config, db, session_id, decision, ordinal, output.get('retrieval'))

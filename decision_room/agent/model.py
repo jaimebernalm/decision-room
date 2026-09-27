@@ -2,6 +2,11 @@
 import json
 import os
 import time
+import math
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
+from contextvars import ContextVar
+from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from urllib.parse import urlsplit
@@ -16,6 +21,37 @@ from .research_contract import ResearchAction
 from .research_prompts import RESEARCH_SYSTEM
 from .review_contract import ReviewAction
 from .review_prompts import ANALYST_SYSTEM, REVIEWER_SYSTEM
+
+
+_TRANSPORT_RECORDER = ContextVar('model_transport_recorder', default=None)
+
+
+@contextmanager
+def record_transport(callback):
+    token = _TRANSPORT_RECORDER.set(callback)
+    try:
+        yield
+    finally:
+        _TRANSPORT_RECORDER.reset(token)
+
+
+def retry_delay(response, attempt):
+    """Honor bounded 429 Retry-After; never retry early when its wait is too long."""
+    raw = response.headers.get('Retry-After')
+    delay = 2 ** (attempt + (response.status_code == 429))
+    if raw:
+        try:
+            delay = float(raw)
+        except ValueError:
+            try:
+                delay = (parsedate_to_datetime(raw) - datetime.now(timezone.utc)).total_seconds()
+            except (ValueError, TypeError, OverflowError):
+                pass
+    if not math.isfinite(delay):
+        return None
+    if response.status_code == 429:
+        return max(1, delay) if delay <= 30 else None
+    return min(5, max(1, delay))
 
 
 class ModelRequestUncertain(ValueError):
@@ -199,6 +235,7 @@ class ModelClient:
 
     def generate_analyst_review(self, context, correction=None):
         schema = ReviewAction.model_json_schema()
+        schema['required'] = list(schema['properties'])
         schema['properties']['action']['enum'] = self._review_actions(context, 'analyst', ['submit', 'execute', 'ask_owner', 'withdraw'])
         self._review_references(schema, context)
         return self._generate(context, correction, ANALYST_SYSTEM, schema)
@@ -210,6 +247,7 @@ class ModelClient:
                             for e in context.get('conversation', []))
         if context.get('report') and all(c['passed'] for c in context.get('checks', [])) and not new_execution:
             allowed.append('approve')
+        schema['required'] = list(schema['properties'])
         schema['properties']['action']['enum'] = self._review_actions(context, 'reviewer', allowed)
         self._review_references(schema, context)
         return self._generate(context, correction, REVIEWER_SYSTEM, schema)
@@ -398,25 +436,34 @@ class ModelClient:
         elif self.settings.protocol == 'openai':
             raise ValueError('Set OPENAI_API_KEY in the private environment before using OpenAI.')
         try:
-            # Only an explicit 503 rejection is retried. An interrupted response
-            # remains uncertain and requires deliberate recovery.
+            # Only explicit rejections are retried, within one logical call.
+            # Read interruptions remain uncertain and need deliberate recovery.
+            deadline = time.monotonic() + self.settings.timeout_seconds
             with httpx.Client(timeout=self.settings.timeout_seconds, trust_env=False) as client:
                 attempts = []
                 for attempt in range(3):
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        error = ModelAPIError(attempts[-1]['status'])
+                        error.transport_attempts = attempts
+                        raise error
                     with client.stream('POST', self.settings.base_url.rstrip('/') + endpoint,
-                                       json=payload, headers=headers) as response:
+                                       json=payload, headers=headers, timeout=remaining) as response:
                         attempts.append({'status': response.status_code})
-                        if response.status_code == 503 and attempt < 2:
-                            try:
-                                delay = min(5, max(1, float(response.headers.get('Retry-After', 2 ** attempt))))
-                            except (ValueError, OverflowError):
-                                delay = 2 ** attempt
-                            attempts[-1].update(retry_delay_seconds=delay, usage_unknown=True)
-                        elif response.status_code != 200:
+                        delay = retry_delay(response, attempt) if response.status_code in (429, 503) and attempt < 2 else None
+                        if delay is not None and delay >= deadline - time.monotonic():
+                            delay = None
+                        if response.status_code != 200:
+                            attempts[-1]['usage_unknown'] = True
+                        if delay is not None:
+                            attempts[-1]['retry_delay_seconds'] = delay
+                        if recorder := _TRANSPORT_RECORDER.get():
+                            recorder(attempts)
+                        if response.status_code != 200 and delay is None:
                             error = ModelAPIError(response.status_code)
                             error.transport_attempts = attempts
                             raise error
-                        else:
+                        if response.status_code == 200:
                             body = bytearray()
                             for chunk in response.iter_bytes():
                                 body.extend(chunk)

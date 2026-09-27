@@ -65,7 +65,7 @@ def start(config, business_id, research_id, *, request_key, analyst=None, review
                     'planning_history': db.execute('SELECT revision,proposal FROM agent_revisions WHERE session_id=%s ORDER BY revision',
                                                    (session['id'],)).fetchall()}
         options = {'max_review_rounds': max_review_rounds, 'max_turns': 20, 'max_calls_per_role': 16,
-                   'max_python_per_role': 3, 'max_questions': 3, 'python_timeout': 30}
+                   'max_python_per_role': 3, 'max_questions': 3, 'python_timeout': 30, 'review_policy': 1}
         request_hash = fingerprint({'snapshot': snapshot, 'reviewer': reviewer.identity, 'options': options, 'version': REVIEW_GRAPH_VERSION})
         row = db.execute('''INSERT INTO agent_reviews(id,business_id,session_id,analysis_id,research_id,request_key,
             request_sha256,knowledge_sha256,snapshot,reviewer_settings,options,graph_version,status)
@@ -197,6 +197,7 @@ def show(config, business_id, review_id, *, _db=None):
                 'model_decision_status': run['status'], 'independent_hold': hold_record,
                 'issue': hold_record['reason'] if hold_record else run['issue'],
                 'publishable': valid_approval, 'verification': 'reviewed_by_agent' if valid_approval else 'not_approved',
+                'review_issues': context['review_issues'], 'delivery_manifest': context['delivery_manifest'],
                 'report': context['report'], 'checks': context['checks'], 'observations': context['observations'],
                 'owner_context': context['owner_context'], 'plan': context['plan'],
                 'planning_history': context['planning_history'],
