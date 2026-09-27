@@ -235,6 +235,7 @@ export type Turn = {
   report_outdated?: boolean;
   report_requested?: boolean;
   job_id?: string;
+  can_retry?: boolean;
   questions?: Question[];
   context_changed_before?: boolean;
 };
@@ -247,6 +248,7 @@ export type ChatDetail = {
   context_changed_after?: boolean;
 };
 export type Job = Analysis & {
+  can_retry?: boolean;
   analysis_id?: string;
   unresolved_questions?: Question[];
   business_id: string;

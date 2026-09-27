@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRight, Check, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { ReportView } from "@/components/workspace/report";
 import { ChatPage } from "@/components/workspace/chat";
 import { Busy, Field, Notice } from "@/components/workspace/shared";
 import { useAction, useDraft, useResource } from "@/lib/hooks";
@@ -19,6 +20,8 @@ import type {
   Dataset,
   Dossier,
   SetupSession,
+  Job,
+  Report as ReportData,
 } from "@/lib/types";
 import { EntryFrame } from "./welcome";
 
@@ -516,16 +519,14 @@ function SetupCards({
               : state.context_stale
                 ? "Revisa y recalcula el informe con la información actual del negocio. Conservamos la conversación y los archivos."
                 : ["failed", "blocked"].includes(state.job_status ?? "")
-                  ? "Tus archivos y respuestas están guardados. Abre el informe para revisar cómo continuar."
+                  ? "Tus archivos y respuestas están guardados. Puedes revisar el estado aquí y usar Reintentar en esta conversación."
                   : "Las aclaraciones y los resultados aparecerán en esta conversación."}
           </p>
-          <Button asChild variant="outline">
-            <a href={`#analysis/${state.job_id}`}>
-              {state.publishable
-                ? "Abrir informe"
-                : "Ver progreso y opciones de recuperación"}
-            </a>
-          </Button>
+          <FirstReport
+            key={`${state.job_id}:${Boolean(state.publishable)}`}
+            id={state.job_id}
+            ready={Boolean(state.publishable)}
+          />
           {(state.publishable || state.stage === "complete") && (
             <Button
               disabled={busy}
@@ -544,5 +545,73 @@ function SetupCards({
         </div>
       )}
     </section>
+  );
+}
+
+function FirstReport({ id, ready }: { id: string; ready: boolean }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div>
+      <Button
+        variant="outline"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        {open ? "Cerrar vista" : ready ? "Abrir informe" : "Ver progreso"}
+      </Button>
+      {open && (
+        <div
+          className="mt-4 space-y-3"
+          role="region"
+          aria-label={
+            ready ? "Primer informe revisado" : "Progreso del informe"
+          }
+        >
+          {ready ? (
+            <FirstReportResult id={id} />
+          ) : (
+            <FirstReportProgress id={id} />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+function FirstReportProgress({ id }: { id: string }) {
+  const { data: job, error } = useResource<Job>(`/api/jobs/${id}`, 3000);
+  return (
+    <>
+      <Notice error>{error}</Notice>
+      {!job && !error && <Busy />}
+      {job && (
+        <>
+          <p className="text-sm">
+            {["queued", "running"].includes(job.status)
+              ? job.activity ||
+                "Analizando los datos y revisando los resultados…"
+              : job.status === "waiting"
+                ? "Responde a la aclaración en esta conversación para continuar."
+                : job.publishable
+                  ? "El informe ha superado la revisión."
+                  : job.can_retry
+                    ? "La revisión se ha detenido. Pulsa Reintentar en el mensaje anterior para continuar con los cálculos guardados."
+                    : job.issue || "El informe necesita atención."}
+          </p>
+          <p className="text-sm whitespace-pre-wrap">{job.context}</p>
+          {job.goal && <p className="text-sm">Objetivo: {job.goal}</p>}
+        </>
+      )}
+    </>
+  );
+}
+function FirstReportResult({ id }: { id: string }) {
+  const { data, error } = useResource<ReportData>(
+    `/api/jobs/${id}/presentation`,
+  );
+  return (
+    <>
+      <Notice error>{error}</Notice>
+      {data ? <ReportView report={data} compact /> : !error && <Busy />}
+    </>
   );
 }

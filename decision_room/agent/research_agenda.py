@@ -63,6 +63,6 @@ def limitation(summary, report):
     text = f'Cobertura del informe: {len(answered)} de {len(items)} preguntas respondidas.'
     if pending:
         text += ' Sin completar en esta entrega: ' + '; '.join(pending) + '.'
-    if not summary['complete'] and summary.get('stop_reason'):
-        text += ' La investigación se detuvo: ' + summary['stop_reason']
+    # The stopping decision belongs to the execution trace, not the delivered
+    # report. In particular, 'no useful work remains' is not a customer limitation.
     return text[:1600]

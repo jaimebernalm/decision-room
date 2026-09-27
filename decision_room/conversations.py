@@ -668,6 +668,8 @@ class Conversations:
                         report_outdated=bool(t['response'] and t['response'].get('report_id')),
                         issue=None if t['response'] else 'El contexto o la evidencia han cambiado. Recalcula este mensaje.',
                     )
+                if t['status'] in ('blocked', 'failed') and t['job_id']:
+                    value['can_retry'] = self.ws.detail(t['job_id'])['can_retry']
                 if t['status'] == 'waiting' and t['job_id']:
                     detail = self.ws.detail(t['job_id'])
                     if detail.get('context_stale'):

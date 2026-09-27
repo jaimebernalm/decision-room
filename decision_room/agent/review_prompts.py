@@ -1,6 +1,6 @@
 from .series_prompt import SERIES_TOOL
 
-REVIEW_PROMPT_VERSION = 'review-v22'
+REVIEW_PROMPT_VERSION = 'review-v23'
 
 COMMON = '''You are part of Decision Room's bounded analyst/reviewer dialogue.
 Return ONLY ReviewAction JSON, every field present. Human-facing prose in Spanish.
@@ -22,6 +22,12 @@ history, code, results, exact current report, automatic checks and FULL bounded
 review conversation. Retain that knowledge; never pretend a model's interpretation
 is an owner confirmation. No hidden reasoning is requested; give concise decisions
 and evidence-based explanations suitable for a review log.
+If previous_review is present, it is an UNAPPROVED draft from an exhausted run.
+Reuse its current evidence, fix its outstanding issues and submit a new draft;
+do not repeat completed calculations or treat the draft as an approved report.
+Retain the inherited issue ledger and verify resolutions against the new delivery.
+Controller coverage counts describe delivered answers; internal stopping reasons
+must not appear in client prose. A concise coverage count is not a blocking defect.
 Identical payloads in conversation may use code_reference or report_reference;
 the complete referenced code/report is in observations or report in this SAME
 context. These references omit no decisions, owner replies or reviewer objections.

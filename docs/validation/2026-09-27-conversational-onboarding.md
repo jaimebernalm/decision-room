@@ -164,3 +164,47 @@ Validación de la corrección:
 - Los tres ensayos reutilizan contexto de la prueba sintética sin modificar el
   turno del usuario ni iniciar su informe. El reintento interactivo queda a cargo
   del usuario. Las trazas completas permanecen locales.
+
+
+## Recuperación del primer informe y continuidad del onboarding
+
+La prueba manual posterior detectó dos fallos adicionales: los enlaces del trabajo
+pendiente abrían el dashboard y representaban como texto el JSON de procedencia;
+la revisión agotaba sus rondas intentando retirar una nota interna que el
+controlador volvía a insertar en cada borrador.
+
+Correcciones:
+
+- Progreso e informe revisado se abren dentro de la misma conversación. Antes de
+  terminar el onboarding, las rutas del espacio vuelven a ese flujo; se conserva
+  «Mis negocios». «Continuar en mi espacio» marca la finalización explícita.
+- La API proyecta descripción y objetivo humanos y conserva la procedencia completa
+  en almacenamiento. Un turno bloqueado deja de mostrar una animación de carga.
+- La cobertura de entrega mantiene sus preguntas pendientes y recuentos, pero no
+  incluye el motivo interno de parada. `review-v23` distingue ambos conceptos.
+- Reintentar una revisión agotada crea una revisión nueva, con presupuesto acotado,
+  borrador anterior no aprobado, reparos y ejecuciones conservadas con su versión
+  de conocimiento. Una clave persistida permite recuperar el mismo intento tras
+  interrupción. No se modifica la revisión anterior ni se eluden obsolescencia,
+  aprobación o bloqueos de validación independiente.
+
+Evidencia:
+
+- 81 pruebas Python de web, investigación, onboarding, robustez y contexto de
+  revisión pasan en 73,101 segundos. La recuperación con pérdida de respuesta
+  conserva sesión/investigación/historial y crea solo una revisión sucesora.
+- 78 pruebas de interfaz pasan; compilación de producción correcta. Lint sin
+  errores, con avisos anteriores en componentes compartidos.
+- Recorrido en navegador: progreso sin salir de onboarding, contexto legible,
+  reintento desde el chat e informe aprobado desplegado dentro de ese mismo chat.
+- Recuperación real de Bruma Café con GPT-6 Luna: aprobada en unos 19 segundos,
+  dos llamadas (borrador y revisión), cero ejecuciones numéricas nuevas. Se
+  conservan el trabajo original y las verificaciones previas.
+- Contraste independiente desde los CSV de prueba: 1.656 filas, 5.975 unidades;
+  junio 1.541, julio 1.979, agosto 2.455. Coinciden los 72 valores de los cuatro
+  gráficos (18 combinaciones por gráfico). Los nueve controles del informe pasan.
+
+La recuperación valida este caso y sus regresiones, no sustituye la evaluación
+amplia de utilidad de 3.6. El informe conserva el alcance de unidades: no calcula
+márgenes ni importes cuya base el usuario dejó sin confirmar. Los archivos,
+conversaciones y trazas sintéticas completas permanecen locales.

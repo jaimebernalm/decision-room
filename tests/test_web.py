@@ -406,6 +406,63 @@ class WebTests(unittest.TestCase):
                 self.assertFalse(self.ws.work_once())
                 drive.assert_not_called()
 
+    def test_chat_job_public_context_is_human_and_provenance_is_preserved(self):
+        job = self.create()
+        stored = json.dumps({'context': {'onboarding_brief': {
+            'business_description': 'A neighborhood shop',
+            'brief': {'objective': 'Compare units', 'business_summary': 'Shop summary'}}},
+            'dependencies': [{'snapshot': 'internal-only'}]})
+        with connect(self.config) as db:
+            db.execute("UPDATE web_jobs SET origin='chat',context=%s WHERE id=%s", (stored, job))
+        public = self.ws.detail(job)
+        self.assertEqual(public['context'], 'A neighborhood shop')
+        self.assertEqual(public['goal'], 'Compare units')
+        self.assertNotIn('internal-only', json.dumps(public, default=str))
+        self.assertEqual(self.ws.row(job)['context'], stored)
+
+    def test_limited_review_explicit_retry_preserves_research_and_recovers_interruption(self):
+        job = self.create()
+        self.ws.run_job(job)
+        self.answer(job)
+        start = review.start
+        def short(*args, **kwargs):
+            return start(*args, **kwargs, max_review_rounds=1)
+        with patch('decision_room.web.service.review.start', side_effect=short):
+            self.ws.run_job(job)
+        self.answer(job, 'Amount is row total.')
+        self.ws.run_job(job)
+        before = self.ws.row(job)
+        previous = self.ws.review_state(before)
+        self.assertEqual(previous['status'], 'limited')
+        self.assertTrue(self.ws.detail(job)['can_retry'])
+        self.assertFalse(self.ws.work_once())
+        self.ws.retry(job)
+        with self.assertRaises(WebError):
+            self.ws.retry(job)
+        restart = review.restart
+        def interrupted(*args, **kwargs):
+            restart(*args, **kwargs)
+            raise ModelRequestUncertain('Simulated response loss after durable review')
+        with patch('decision_room.web.service.review.restart', side_effect=interrupted):
+            self.ws.run_job(job)
+        self.assertEqual(self.ws.row(job)['status'], 'failed')
+        self.ws.retry(job)
+        with patch('decision_room.web.service.review.start', side_effect=AssertionError('Must resume saved retry')):
+            self.ws.run_job(job)
+        after = self.ws.row(job)
+        self.assertEqual(after['session_id'], before['session_id'])
+        self.assertEqual(after['research_id'], before['research_id'])
+        self.assertNotEqual(after['review_id'], before['review_id'])
+        self.assertEqual(self.ws.review_state(before)['conversation'], previous['conversation'])
+        self.answer(job, 'Amount is row total.')
+        self.ws.run_job(job)
+        self.assertTrue(self.ws.detail(job)['publishable'])
+        self.assertFalse(self.ws.detail(job)['can_retry'])
+        with self.assertRaisesRegex(ValueError, 'exhausted review'):
+            review.restart(self.config, self.business['id'], after['review_id'])
+        with connect(self.config) as db:
+            self.assertEqual(db.execute('SELECT count(*) AS n FROM agent_reviews WHERE session_id=%s', (before['session_id'],)).fetchone()['n'], 2)
+
     def test_explicit_retry_recovers_uncertain_call_after_saved_answer(self):
         job = self.create()
         self.ws.run_job(job)

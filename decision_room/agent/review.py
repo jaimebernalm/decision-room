@@ -140,6 +140,37 @@ def resume(config, business_id, review_id, *, analyst=None, reviewer=None, execu
     return show(config, business_id, review_id)
 
 
+def restart(config, business_id, review_id, *, analyst=None, reviewer=None, executor=execute, retry_uncertain=False):
+    """Explicit bounded retry; preserve the exhausted review and its current evidence."""
+    with session_lock(config, business_id, _parent(config, business_id, review_id)) as (db, session):
+        old = db.execute('SELECT * FROM agent_reviews WHERE id=%s', (review_id,)).fetchone()
+        memory_context.ensure(db, session['id'])
+        if old['status'] != 'limited' or _stale(config, db, session, old):
+            raise ValueError('Only a current exhausted review can be restarted.')
+        if db.execute('SELECT 1 FROM agent_review_holds WHERE review_id=%s', (review_id,)).fetchone():
+            raise ValueError('Independent validation hold prevents automatic retry.')
+        request_key = 'retry:' + str(review_id)
+        row = db.execute('SELECT * FROM agent_reviews WHERE session_id=%s AND request_key=%s',
+                         (session['id'], request_key)).fetchone()
+        if not row:
+            context = material(config, db, session, old)
+            executions = {i['execution_id']: i.get('knowledge_sha256', old['snapshot']['initial_knowledge'])
+                          for i in old['snapshot']['executions']}
+            executions.update({e['execution_id']: e['knowledge_sha256'] for e in context['conversation'] if e['execution_id']})
+            snapshot = {**old['snapshot'],
+                'executions': [dict(execution_id=e, knowledge_sha256=k) for e, k in executions.items()],
+                'previous_review': {'id': str(review_id), 'report': context['report'], 'issues': context['review_issues']}}
+            options = {**old['options'], 'max_review_rounds': 4}
+            request_hash = fingerprint({'snapshot': snapshot, 'options': options, 'version': REVIEW_GRAPH_VERSION})
+            row = db.execute("""INSERT INTO agent_reviews(id,business_id,session_id,analysis_id,research_id,request_key,
+                request_sha256,knowledge_sha256,snapshot,reviewer_settings,options,graph_version,status)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'new') RETURNING *""",
+                (uuid4(), business_id, session['id'], old['analysis_id'], old['research_id'], request_key,
+                 request_hash, old['knowledge_sha256'], Jsonb(snapshot), Jsonb(old['reviewer_settings']), Jsonb(options), REVIEW_GRAPH_VERSION)).fetchone()
+        _drive(config, db, session, row, analyst=analyst, reviewer=reviewer, executor=executor, retry_uncertain=retry_uncertain)
+    return show(config, business_id, row['id'])
+
+
 def answer(config, business_id, review_id, *, step, text='', disposition='answered', request_key,
            analyst=None, reviewer=None, executor=execute, retry_uncertain=False):
     _key(request_key)

@@ -199,7 +199,8 @@ function App() {
         ? workspace.businesses.length
           ? "businesses"
           : "welcome"
-        : requestedRoute === "home" &&
+        : !requestedRoute.startsWith("onboarding") &&
+            !["businesses", "how", "welcome"].includes(requestedRoute) &&
             workspace.setup &&
             workspace.setup.stage !== "complete"
           ? `onboarding/${workspace.business!.id}`

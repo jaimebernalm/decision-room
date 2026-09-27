@@ -391,7 +391,8 @@ export function ChatPage({
                         </Notice>
                       )}
                       <div className="mt-3 flex flex-wrap gap-2">
-                        {(["failed", "blocked"].includes(turn.status) ||
+                        {((["failed", "blocked"].includes(turn.status) &&
+                          turn.can_retry !== false) ||
                           (turn.status === "stale" &&
                             (!turn.response || turn.job_id))) &&
                           data.turns
@@ -431,15 +432,14 @@ export function ChatPage({
                             </Button>
                           ))}
                         {turn.report_outdated && <Status status="outdated" />}
-                        {turn.job_id &&
-                          !(setup && turn.response?.first_report) && (
-                            <Button asChild variant="ghost" size="sm">
-                              <a href={`#analysis/${turn.job_id}`}>
-                                Ver informe
-                                <ArrowUpRight />
-                              </a>
-                            </Button>
-                          )}
+                        {turn.job_id && !setup && (
+                          <Button asChild variant="ghost" size="sm">
+                            <a href={`#analysis/${turn.job_id}`}>
+                              Ver informe
+                              <ArrowUpRight />
+                            </a>
+                          </Button>
+                        )}
                       </div>
                     </MessageContent>
                   </Message>
@@ -581,7 +581,15 @@ export function ChatPage({
               })
             }
             onSend={() => send()}
-            busy={sendAction.busy || !data || (setup && Boolean(pending))}
+            busy={
+              sendAction.busy ||
+              !data ||
+              (setup &&
+                data.turns.some((t) =>
+                  ["queued", "routing", "processing"].includes(t.status),
+                ))
+            }
+            disabled={setup && Boolean(pending)}
             error={sendAction.error}
             placeholder={
               selected ? "Escribe tu aclaración…" : "Pregunta o añade contexto…"

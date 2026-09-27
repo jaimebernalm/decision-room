@@ -16,6 +16,7 @@ export function Composer({
   onChange,
   onSend,
   busy,
+  disabled = false,
   error,
   placeholder = "Pregunta sobre tu negocio…",
   suggestions = false,
@@ -27,6 +28,7 @@ export function Composer({
   onChange: (v: string) => void;
   onSend: () => Promise<unknown>;
   busy: boolean;
+  disabled?: boolean;
   error?: string;
   placeholder?: string;
   suggestions?: boolean;
@@ -39,7 +41,7 @@ export function Composer({
       {attachments && <div className="mb-2 px-2">{attachments}</div>}
       <PromptInput
         onSubmit={async () => {
-          await onSend();
+          if (!busy && !disabled) await onSend();
         }}
         onReset={(e) => e.preventDefault()}
         className={`[&_[data-slot=input-group]]:has-disabled:opacity-100 [&_[data-slot=input-group]]:has-disabled:bg-transparent ${compact ? "[&_[data-slot=input-group]]:rounded-[2rem] [&_[data-slot=input-group]]:p-2" : "rounded-2xl"}`}
@@ -71,7 +73,7 @@ export function Composer({
             <PromptInputSubmit
               aria-label="Enviar mensaje"
               className="size-9 rounded-full"
-              disabled={!text.trim() || busy}
+              disabled={!text.trim() || busy || disabled}
               status={busy ? "submitted" : "ready"}
             >
               {busy ? (
@@ -97,7 +99,7 @@ export function Composer({
             </PromptInputTools>
             <PromptInputSubmit
               aria-label="Enviar mensaje"
-              disabled={!text.trim() || busy}
+              disabled={!text.trim() || busy || disabled}
               status={busy ? "submitted" : "ready"}
             >
               {busy ? (

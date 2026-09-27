@@ -437,6 +437,17 @@ class Workspace:
         with connect(self.config) as db:
             result['data_version'] = db.execute('SELECT version,superseded_by,corrected FROM dataset_versions WHERE analysis_id=%s AND business_id=%s', (j['analysis_id'], j['business_id'])).fetchone()
         if j['origin'] == 'chat':
+            # Internal provenance is retained in storage, never rendered as prose.
+            try:
+                stored = json.loads(j['context'])
+            except (ValueError, TypeError):
+                stored = {}
+            if isinstance(stored, dict):
+                context = stored.get('context', {})
+                setup = context.get('onboarding_brief', {}) if isinstance(context, dict) else {}
+                brief = setup.get('brief', {})
+                result['context'] = setup.get('business_description') or brief.get('business_summary', '')
+                result['goal'] = brief.get('objective') or j['goal']
             with connect(self.config) as db:
                 source = db.execute('''SELECT t.conversation_id FROM chat_turns t
                     JOIN chat_conversations c ON c.id=t.conversation_id AND c.deleted_at IS NULL
@@ -595,7 +606,17 @@ class Workspace:
         if (result.get('data_version') or {}).get('corrected'):
             result.update(status='blocked', publishable=False, questions=[],
                           issue='Esta versión de datos se ha corregido. Abre Mi negocio y pregunta con la versión actual; el informe anterior se conserva como registro, pero no como resultado válido.')
+        result['can_retry'] = bool(not (result.get('data_version') or {}).get('corrected') and (
+            result['status'] == 'failed' or result.get('context_stale') or
+            (j['status'] == 'blocked' and j['review_id'] and self.review_retryable(j))))
         return result
+
+    def review_retryable(self, j):
+        if not j['review_id']:
+            return False
+        state = self.review_state(j)
+        return state.get('status') == 'limited' and not any(state.get(k) for k in
+            ('independent_hold', 'unavailable', 'context_stale'))
 
     def reply(self, job_id, data):
         if not isinstance(data, dict):
@@ -638,7 +659,8 @@ class Workspace:
         from ..memory.context import reason
         with connect(self.config) as db:
             stale = j['session_id'] and reason(db, j['session_id'])
-        if j['status'] != 'failed' and not stale:
+        restart_review = j['status'] == 'blocked' and self.review_retryable(j)
+        if j['status'] != 'failed' and not stale and not restart_review:
             raise WebError('Solo se pueden reintentar los análisis con un fallo técnico.', 409)
         model = self.model_factory(ModelSettings(**j['model_settings']))
         try:
@@ -649,8 +671,8 @@ class Workspace:
             # or trigger LM Studio's automatic model-loading attempt.
             raise WebError(str(error), 409) from None
         with (nullcontext(_db) if _db is not None else connect(self.config)) as db:
-            row = db.execute("UPDATE web_jobs SET status='queued',issue=NULL,retry_uncertain=true,updated_at=now() WHERE id=%s AND business_id=%s AND (status='failed' OR %s) RETURNING id",
-                             (identifier(job_id), j['business_id'], bool(stale))).fetchone()
+            row = db.execute("UPDATE web_jobs SET status='queued',issue=NULL,retry_uncertain=true,updated_at=now() WHERE id=%s AND business_id=%s AND (status='failed' OR %s OR (status='blocked' AND %s AND review_id=%s)) RETURNING id",
+                             (identifier(job_id), j['business_id'], bool(stale), bool(restart_review), j['review_id'])).fetchone()
         if not row:
             raise WebError('Solo se pueden reintentar los análisis con un fallo técnico.', 409)
         self.wake.set()
@@ -830,7 +852,9 @@ class Workspace:
                 a = j['pending_answer']
                 review.answer(self.config, b, j['review_id'], step=int(a['id']), text=a['text'], disposition=a['disposition'], request_key=a['request_key'], analyst=model, reviewer=model, retry_uncertain=retry)
                 self.update(job_id, pending_answer=None)
-            if j['review_id']:
+            if j['review_id'] and retry and self.review_retryable(j):
+                result = review.restart(self.config, b, j['review_id'], analyst=model, reviewer=model, retry_uncertain=True)
+            elif j['review_id']:
                 result = review.resume(self.config, b, j['review_id'], analyst=model, reviewer=model, retry_uncertain=retry)
             else:
                 result = review.start(self.config, b, j['research_id'], request_key=key, analyst=model, reviewer=model)
@@ -840,7 +864,7 @@ class Workspace:
             elif result['pending_questions']:
                 self.update(job_id, status='waiting')
             else:
-                self.update(job_id, status='blocked', issue='La revisión no ha aprobado un informe para entregar. Tus archivos y respuestas siguen guardados. Puedes iniciar otro análisis con una pregunta más acotada.')
+                self.update(job_id, status='blocked', issue='La revisión no ha aprobado todavía el informe. Tus archivos, respuestas y cálculos siguen guardados. Si se han agotado las rondas de revisión, puedes reintentar desde esta conversación.')
         except Exception as error:
             LOG.exception('Web job %s failed', job_id)
             self.sync(job_id)

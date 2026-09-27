@@ -202,6 +202,16 @@ class RoundTests(unittest.TestCase):
         self.assertFalse(analyst.contexts[-1]['delivery_capabilities']['execution_artifact_downloads'])
         self.assertFalse(reviewer.contexts[-1]['delivery_capabilities']['execution_artifact_downloads'])
 
+    def test_customer_coverage_never_reinjects_internal_stopping_reason(self):
+        from decision_room.agent.research_agenda import limitation
+        summary = {'investigations': [{'key': 'one', 'question': 'Compare units'}],
+                   'complete': False, 'stop_reason': 'No useful numerical work remains; private execution detail'}
+        for status in ('answered', 'unavailable'):
+            note = limitation(summary, {'question_coverage': [{'investigation_key': 'one', 'status': status}]})
+            self.assertNotIn(summary['stop_reason'], note)
+            self.assertNotIn('La investigación se detuvo', note)
+            self.assertIn('1 de 1' if status == 'answered' else 'Sin completar en esta entrega: Compare units', note)
+
     def test_controller_note_preserves_all_twelve_substantive_limitations(self):
         from test_review import DialogueModel
         class ManyLimits(PartialReview):

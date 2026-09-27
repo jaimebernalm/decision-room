@@ -118,7 +118,7 @@ export function JobPage({
           ))}
         </div>
       )}
-      {(job.status === "failed" || job.context_stale) && (
+      {(job.can_retry || job.status === "failed" || job.context_stale) && (
         <Button
           className="mb-6"
           disabled={action.busy}
@@ -139,7 +139,7 @@ export function JobPage({
       {canClarify && (
         <ClarificationRecovery key={id} job={job} onboarding={onboarding} />
       )}
-      {job.status === "blocked" && !canClarify && (
+      {job.status === "blocked" && !canClarify && !job.can_retry && (
         <Button asChild className="mb-6" variant="outline">
           <a href={onboarding ? `#onboarding/${job.business_id}` : "#new"}>
             {onboarding ? "Revisar mis datos" : "Crear otro informe"}

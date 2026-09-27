@@ -43,7 +43,7 @@ def observation(config, business_id, execution_id, knowledge, current_knowledge,
 
 def material(config, db, session, run):
     history = events(db, run['id'])
-    sources = {i['execution_id']: run['snapshot']['initial_knowledge'] for i in run['snapshot']['executions']}
+    sources = {i['execution_id']: i.get('knowledge_sha256', run['snapshot']['initial_knowledge']) for i in run['snapshot']['executions']}
     sources.update({str(e['execution_id']): e['knowledge_sha256'] for e in history if e['execution_id']})
     verified_files = set()
     observations = [observation(config, session['business_id'], execution_id, key,
@@ -63,7 +63,8 @@ def material(config, db, session, run):
             'plan': run['snapshot']['proposal'], 'candidate_history': run['snapshot']['findings'],
             'planning_history': run['snapshot']['planning_history'],
             'review_policy': run['options'].get('review_policy'),
-            'review_issues': ledger(conversation), 'delivery_manifest': delivery_manifest(report, observations),
+            'previous_review': run['snapshot'].get('previous_review'),
+            'review_issues': ledger(conversation) or (run['snapshot'].get('previous_review') or {}).get('issues', []), 'delivery_manifest': delivery_manifest(report, observations),
             'research_coverage': run['snapshot'].get('research_coverage'),
             'delivery_capabilities': {'execution_artifact_downloads': False, 'chart_categories': 36, 'daily_line_points': 366,
                                       'claim_evidence_refs': 12, 'claims': 6, 'charts': 4,

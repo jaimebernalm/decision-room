@@ -464,6 +464,10 @@ cifra falsa y un adjunto inexistente en la misma revisión. Véanse
 Completado **3.4: onboarding conversacional y elección abierta del objetivo**, con
 confirmación de alcance y continuidad en el mismo chat ([contrato](../technical/conversational-onboarding-plan.md),
 [validación](../validation/2026-09-27-conversational-onboarding.md)).
+La prueba manual posterior corrige el progreso dentro del onboarding, la exposición
+de contexto interno y la recuperación explícita de revisiones agotadas, conservando
+borrador, reparos y cálculos; el primer informe de prueba se recupera y contrasta
+sin nuevas ejecuciones numéricas.
 El siguiente paso, **3.5, implementa los analistas en paralelo** coordinados por el analista
 principal; **3.6 recoge la selección y revisión por objetivo y la evaluación
 integral**, comparando calidad, tiempo y coste frente al modo secuencial.

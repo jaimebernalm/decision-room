@@ -88,6 +88,31 @@ function fixture(stage: SetupSession["stage"] = "goal") {
       });
     if (url === "/api/onboarding/session" || url === "/api/onboarding/start")
       return response({ ...state });
+    if (url === "/api/jobs/job/presentation")
+      return response({
+        title: "Informe revisado de prueba",
+        summary: "Resultados guardados",
+        scope: {
+          business: "Papelería",
+          question: "Comparar ventas",
+          period: "Julio",
+          coverage: "Datos compartidos",
+        },
+        highlights: [],
+        claims: [],
+        charts: [],
+        limitations: [],
+        no_chart_reason: "Sin gráfico",
+      });
+    if (url === "/api/jobs/job")
+      return response({
+        id: "job",
+        status: "running",
+        context: "Papelería en Sevilla",
+        goal: "Comparar ventas",
+        activity: "Contrastando los resultados",
+        publishable: false,
+      });
     if (url === "/api/chats/chat") return response(structuredClone(chat));
     if (url === "/api/onboarding/change") {
       if (lost) {
@@ -341,7 +366,11 @@ it("continues in the same chat after the reviewed report", async () => {
   f.state.job_id = "job";
   f.state.publishable = true;
   render(<App />);
-  await screen.findByRole("link", { name: "Abrir informe" });
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Abrir informe" }),
+  );
+  await screen.findByRole("heading", { name: "Informe revisado de prueba" });
+  expect(location.hash).toBe("#onboarding/business");
   await userEvent.click(
     screen.getByRole("button", { name: "Continuar en mi espacio" }),
   );
@@ -388,4 +417,53 @@ it("preserves unknown disposition and request identity after a lost response", a
   const sends = f.writes.filter((w) => w.url === "/api/chats/chat/messages");
   expect(sends[0].body).toEqual(sends[1].body);
   expect(sends[1].body.disposition).toBe("unknown");
+});
+
+it.each(["home", "my-business", "analysis/job", "report/job", "chats"])(
+  "keeps unfinished onboarding inside the conversation for %s",
+  async (route) => {
+    fixture("report");
+    location.hash = route;
+    render(<App />);
+    await screen.findByLabelText("Pasos de inicio");
+    expect(screen.queryByRole("link", { name: "Nuevo chat" })).toBeNull();
+  },
+);
+it("shows progress inside onboarding and no report link before approval", async () => {
+  const f = fixture("report");
+  f.state.job_id = "job";
+  f.state.job_status = "running";
+  f.chat.turns.push({
+    id: "work",
+    status: "processing",
+    job_id: "job",
+    payload: { text: "Crear informe" },
+  });
+  render(<App />);
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Ver progreso" }),
+  );
+  await screen.findByText("Contrastando los resultados");
+  expect(location.hash).toBe("#onboarding/business");
+  expect(screen.queryByRole("link", { name: "Ver informe" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Abrir informe" })).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: "Cerrar vista" }));
+  expect(
+    screen.queryByRole("region", { name: "Progreso del informe" }),
+  ).toBeNull();
+});
+it("does not show a loading spinner on a blocked turn", async () => {
+  const f = fixture("report");
+  f.chat.turns.push({
+    id: "work",
+    status: "blocked",
+    job_id: "job",
+    can_retry: true,
+    payload: { text: "Crear informe" },
+  });
+  render(<App />);
+  await screen.findByRole("button", { name: "Reintentar" });
+  const send = screen.getByRole("button", { name: "Enviar mensaje" });
+  expect(send).toBeDisabled();
+  expect(send.querySelector(".animate-spin")).toBeNull();
 });
