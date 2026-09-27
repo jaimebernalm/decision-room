@@ -323,6 +323,12 @@ El acceso utiliza la autenticación local existente; el registro comercial no se
 implementa en este paso. La bienvenida se puede abrir desde un espacio existente
 sin crear ni editar negocios. La carga de datos reutiliza el servicio disponible.
 
+**Ajuste de identidad y ejemplo:** bienvenida y dashboard reutilizan el mismo
+componente de marca, con icono, color y tipografía Geist idénticos. Se añade una
+[papelería ficticia](../../data/onboarding-example/README.md) con textos para el
+recorrido y 12 filas CSV. Compilación y lint de los componentes modificados
+correctos; totales del CSV comprobados y bienvenida revisada en navegador.
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Prioridad actualizada, 23 de septiembre de 2026:** iniciar las ampliaciones siguientes después de cerrar la entrega 2.5. La evaluación del 22 de septiembre descrita a continuación ya se realizó; no se presenta como trabajo pendiente ni sustituye la regresión exigida por los cambios de memoria y conversación.

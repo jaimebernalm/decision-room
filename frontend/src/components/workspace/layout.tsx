@@ -10,7 +10,6 @@ import {
   MessageSquare,
   Plus,
   Trash2,
-  PanelLeft,
   Sun,
   Moon,
 } from "lucide-react";
@@ -39,6 +38,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { Brand } from "@/components/brand";
 import { useWorkspace } from "@/lib/workspace";
 import { store, shortTitle, analysisHref } from "@/lib/api";
 const navigation = [
@@ -93,13 +93,8 @@ function Navigation({
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <a href="#home" onClick={close}>
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-foreground text-background">
-                  <PanelLeft className="size-4" />
-                </span>
-                <span className="text-base font-semibold tracking-tight">
-                  Decision Room
-                </span>
+              <a href="#home" onClick={close} className="gap-2.5" aria-label="Decision Room, inicio">
+                <Brand />
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
