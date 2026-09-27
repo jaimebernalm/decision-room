@@ -66,6 +66,27 @@ class BusinessMigrationTests(unittest.TestCase):
         with connect(self.config) as db:
             self.assertEqual(db.execute('SELECT count(*) AS n FROM schema_versions WHERE version=8').fetchone()['n'], 1)
 
+    def test_onboarding_schema_16_keeps_data_when_catalog_migrations_are_added(self):
+        self.old_schema()
+        business, job, content = self.legacy_job()
+        migrate(self.config)
+        with connect(self.config) as db:
+            db.execute('INSERT INTO web_onboarding(business_id,job_id) VALUES (%s,%s)', (business, job))
+            db.execute('DROP TABLE data_model_revisions, dataset_bundle_files, web_home_layouts')
+            db.execute('ALTER TABLE web_jobs DROP COLUMN deleted_at')
+            db.execute('DELETE FROM schema_versions WHERE version > 16')
+        # The former onboarding migration already used number 16. Its presence
+        # must not skip the dashboard/catalog tables from the other branch.
+        migrate(self.config)
+        migrate(self.config)
+        with connect(self.config) as db:
+            self.assertEqual(db.execute('SELECT job_id FROM web_onboarding WHERE business_id=%s',
+                                        (business,)).fetchone()['job_id'], job)
+            for table in ('web_home_layouts', 'dataset_bundle_files', 'data_model_revisions'):
+                self.assertIsNotNone(db.execute('SELECT to_regclass(%s) AS name', (table,)).fetchone()['name'])
+            self.assertEqual(db.execute('SELECT max(version) AS version FROM schema_versions').fetchone()['version'], 20)
+        self.assertEqual(Workspace(self.config).upload(job), ('sales.csv', content))
+
     def test_single_legacy_business_is_selected_without_enrolling_cli_cases(self):
         self.old_schema()
         business, job, content = self.legacy_job()

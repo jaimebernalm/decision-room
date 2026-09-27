@@ -34,7 +34,7 @@ class BundleTests(unittest.TestCase):
 
     def test_folder_csv_excel_resume_originals_and_report_job(self):
         client, _ = self.http()
-        client.cookies.set('dr_session', 'test-local-access')
+        self.assertEqual(client.post('/api/login', json={'token': 'test-local-access'}).status_code, 200)
         raw = [
             ('tienda/ventas.csv', b'id,importe\n1,20\n'),
             ('tienda/sub/otras.csv', b'id,importe\n2,30\n'),

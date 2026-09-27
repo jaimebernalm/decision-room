@@ -183,8 +183,8 @@ class DossierTests(unittest.TestCase):
         self.addCleanup(server.server_close); self.addCleanup(server.shutdown)
         with httpx.Client(base_url=server.origin) as client:
             self.assertEqual(client.get('/api/business/dossier').status_code,401)
-            client.cookies.set('dr_session','dossier-test-only')
             client.headers.update({'Origin':server.origin,'X-Decision-Room':'1'})
+            self.assertEqual(client.post('/api/login',json={'token':'dossier-test-only'}).status_code,200)
             self.assertEqual(client.get('/api/business/dossier').status_code,200)
             metadata = dict(business_id=str(self.business['id']), request_key=str(uuid4()),title='HTTP CSV')
             response = client.post('/api/datasets',files={'metadata':(None,json.dumps(metadata)),'file':('http.csv',self.csv,'text/csv')})

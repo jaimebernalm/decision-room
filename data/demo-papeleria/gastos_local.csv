@@ -1,0 +1,6 @@
+expense_id,month,concept,amount_eur_ex_tax
+G001,2016-04,Alquiler del local,780.00
+G002,2016-04,Electricidad,95.50
+G003,2016-04,Internet,39.90
+G004,2016-04,Seguro del local,64.00
+G005,2016-04,Limpieza,48.00

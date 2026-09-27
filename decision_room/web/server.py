@@ -11,7 +11,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, urlsplit
 
 from ..config import ROOT
-from .service import MAX_UPLOAD, WebError
+from .service import MAX_UPLOAD, MAX_BATCH_UPLOAD, WebError
 
 STATIC = Path(__file__).with_name('dist')
 CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'self'"
@@ -38,6 +38,7 @@ class Server(ThreadingHTTPServer):
         self.token = token or access_key(workspace.config)
         super().__init__(('127.0.0.1', port), Handler)
         self.origin = f'http://127.0.0.1:{self.server_port}'
+        self.cookie_name = f'dr_session_{self.server_port}'
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -85,7 +86,8 @@ class Handler(BaseHTTPRequestHandler):
         cookie = SimpleCookie()
         try:
             cookie.load(self.headers.get('Cookie', ''))
-            value = cookie['dr_session'].value if 'dr_session' in cookie else ''
+            name = self.server.cookie_name
+            value = cookie[name].value if name in cookie else ''
             return hmac.compare_digest(value, self.server.token)
         except Exception:
             return False
@@ -163,7 +165,7 @@ class Handler(BaseHTTPRequestHandler):
                 token = self.json_body().get('token', '')
                 if not isinstance(token, str) or not hmac.compare_digest(token, self.server.token):
                     raise WebError('La clave de acceso no es correcta.', 401)
-                self.send(200, {'ok': True}, headers={'Set-Cookie': f'dr_session={self.server.token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000'})
+                self.send(200, {'ok': True}, headers={'Set-Cookie': f'{self.server.cookie_name}={self.server.token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000'})
                 return
             if not self.authenticated():
                 raise WebError('Introduce tu clave de acceso para abrir el espacio local.', 401)
@@ -176,6 +178,14 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if mutation and path == '/api/business/select':
                 self.send(200, {'business': ws.select_business(self.json_body())})
+                return
+            if mutation and path == '/api/onboarding/complete':
+                self.json_body()
+                self.send(200, ws.complete_onboarding())
+                return
+            if mutation and path == '/api/onboarding/restart':
+                self.json_body()
+                self.send(200, ws.restart_onboarding())
                 return
             if not mutation and path == '/api/sample':
                 sample = ROOT / 'data/reference-cases/01-daily-sales/input/sales.csv'
@@ -287,6 +297,20 @@ class Handler(BaseHTTPRequestHandler):
             if not mutation and path == '/api/reports/deleted':
                 self.send(200, {'items': ws.listing(deleted=True)})
                 return
+            if mutation and path == '/api/jobs/stage':
+                self.close_connection = True
+                requested = parse_qs(urlsplit(self.path).query).get('filename', [''])[0]
+                try:
+                    length = int(self.headers.get('Content-Length', '0'))
+                except ValueError:
+                    raise WebError('La petición no es válida.') from None
+                if self.headers.get('Transfer-Encoding') or not 0 < length <= MAX_BATCH_UPLOAD:
+                    raise WebError('El CSV debe tener datos y el lote no puede superar 2 GB.', 413)
+                self.send(201, ws.stage_upload(requested, self.rfile, length))
+                return
+            if mutation and path == '/api/jobs/batch':
+                self.send(202, ws.create_batch(self.json_body(2 * 1024 * 1024)))
+                return
             if mutation and path == '/api/jobs':
                 self.send(202, ws.create(*self.multipart()))
                 return
@@ -307,6 +331,16 @@ class Handler(BaseHTTPRequestHandler):
                 if mutation and action in ('delete', 'restore'):
                     self.send(200, ws.delete_report(job_id, self.json_body(), restore=action == 'restore'))
                     return
+                if not mutation and action == 'preview':
+                    params = parse_qs(urlsplit(self.path).query)
+                    requested = params.get('offset', ['0'])[0]
+                    try:
+                        offset = int(requested)
+                        file_index = int(params.get('file', ['0'])[0])
+                    except ValueError:
+                        raise WebError('La página de datos no es válida.') from None
+                    self.send(200, ws.preview(job_id, offset, file_index))
+                    return
                 if mutation and action == 'answers':
                     self.send(202, ws.reply(job_id, self.json_body()))
                     return
@@ -321,8 +355,12 @@ class Handler(BaseHTTPRequestHandler):
                     self.send(200, ws.report(job_id), 'text/html; charset=utf-8')
                     return
                 if not mutation and action == 'file':
-                    name, content = ws.upload(job_id)
-                    self.send(200, content, 'text/csv; charset=utf-8', {'Content-Disposition': "attachment; filename*=UTF-8''" + quote(name)})
+                    try:
+                        file_index = int(parse_qs(urlsplit(self.path).query).get('file', ['0'])[0])
+                    except ValueError:
+                        raise WebError('El CSV solicitado no existe.', 404) from None
+                    name, path, _ = ws.download_path(job_id, file_index)
+                    self.send_file(path, name)
                     return
             raise WebError('Esta página no existe.', 404)
         except WebError as error:

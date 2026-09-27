@@ -4,6 +4,8 @@
   Microsoft seleccionado para el MVP, originales y exportaciones CSV/Excel.
 - [reference-cases/](reference-cases/README.md): casos pequeños derivados de WWI,
   con entradas, variantes y respuestas de evaluación separadas.
+- [demo-papeleria/](demo-papeleria/README.md): dos CSV sintéticos para explorar
+  relaciones y límites entre fuentes junto a un caso de ventas existente.
 - [exploratory/](exploratory/README.md): otros datasets públicos que se investigaron
   antes de seleccionar WWI.
 

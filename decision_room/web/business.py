@@ -27,7 +27,9 @@ def state(config):
             LEFT JOIN web_jobs j ON j.business_id=b.id
             GROUP BY b.id ORDER BY b.created_at DESC,b.id''').fetchall()
         active = profile(db, selected['active_business_id']) if selected['active_business_id'] else None
-    return {'business': active, 'businesses': businesses}
+        onboarding = db.execute('SELECT job_id,completed FROM web_onboarding WHERE business_id=%s',
+                                (selected['active_business_id'],)).fetchone() if active else None
+    return {'business': active, 'businesses': businesses, 'onboarding': onboarding}
 
 
 def save(config, data):
@@ -70,6 +72,8 @@ def save(config, data):
             db.execute('INSERT INTO businesses(id,name,description) VALUES (%s,%s,%s)', (business_id, name, description))
             db.execute('INSERT INTO web_businesses(business_id,creation_key,creation_sha256) VALUES (%s,%s,%s)',
                        (business_id, key, signature))
+            if data.get('onboarding') is True:
+                db.execute('INSERT INTO web_onboarding(business_id) VALUES (%s)', (business_id,))
             db.execute('UPDATE web_workspace SET active_business_id=%s WHERE singleton', (business_id,))
         saved = profile(db, business_id)
         capture(db, business_id, f"profile:{saved['profile_revision']}", kind='profile',

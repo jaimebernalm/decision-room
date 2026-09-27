@@ -49,7 +49,30 @@ El acceso inicial usa una clave generada en el almacenamiento privado
 (`.local/storage/.web-access-key` por defecto). `--open` la pasa al navegador en
 un fragmento que se intercambia por una cookie HttpOnly y se retira enseguida de
 la URL; no entra en URLs HTTP ni logs de acceso. La clave también se puede pegar
-en la pantalla de acceso. No se debe publicar ni compartir ese archivo.
+en la pantalla de acceso. Cada puerto local usa una cookie propia, para poder
+comparar dos vistas de pruebas sin compartir su sesión. No se debe publicar ni
+compartir ese archivo.
+
+## Entrada actual y compatibilidad
+
+La interfaz servida es React; véanse [la migración](react-ui-migration.md) y
+[la validación del onboarding](../validation/2026-09-27-onboarding-check.md).
+La bienvenida conduce al acceso local y al recorrido de negocio, datos y primer
+informe. El onboarding utiliza la carga reanudable de carpetas CSV/Excel y crea
+el informe desde el conjunto preparado. El límite actual es 2.000.000.000 bytes
+por entrega. Las aclaraciones abren una vista de los datos preparados; sus
+límites y referencias se describen en
+[la validación de aclaraciones](../validation/2026-09-27-clarification-data-check.md).
+El registro por correo y las cuentas multiusuario siguen pendientes.
+
+La integración con la implementación del 25 de septiembre conserva las tablas
+`web_onboarding` y `web_job_files`, los trabajos ya guardados y sus API de
+continuación, carga de lotes CSV, descarga y vista previa. Esas API son de
+compatibilidad; la interfaz React usa los bundles y las rutas actuales. Los
+archivos JavaScript y CSS de la interfaz anterior ya no se sirven. La migración
+20 registra esta integración sin reutilizar el número 16 reservado al dashboard.
+Las comprobaciones históricas del 24 y 25 de septiembre describen aquella
+interfaz y no deben interpretarse como el comportamiento actual de React.
 
 ## Experiencia
 
