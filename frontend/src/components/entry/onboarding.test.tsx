@@ -77,6 +77,9 @@ it("lets an existing owner view the new experience without changing the active b
   expect(screen.getByLabelText("Nombre del negocio")).toHaveValue("");
   expect(screen.queryByRole("link", { name: "Nuevo chat" })).toBeNull();
   expect(screen.queryByText("Cambiar de negocio")).toBeNull();
+  expect(
+    screen.queryByRole("link", { name: "Bienvenida" }),
+  ).toBeNull();
   expect(fetch.mock.calls.some(([url]) => url === "/api/business")).toBe(false);
 });
 

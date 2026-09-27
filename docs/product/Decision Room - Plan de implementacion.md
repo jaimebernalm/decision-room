@@ -329,6 +329,11 @@ componente de marca, con icono, color y tipografía Geist idénticos. Se añade 
 recorrido y 12 filas CSV. Compilación y lint de los componentes modificados
 correctos; totales del CSV comprobados y bienvenida revisada en navegador.
 
+**Navegación al añadir un negocio:** el onboarding oculta el botón «Bienvenida»
+cuando ya existe otro negocio en el espacio. La condición se mantiene al guardar
+el nuevo negocio y recargar sus pasos. La primera alta conserva ese acceso.
+Validado con las ocho pruebas de onboarding, compilación y lint focalizado.
+
 ### 2.5.16. Selección de contexto y chat acoplado
 
 **Completado, 27 de septiembre de 2026:** herramienta de selección en el chat,

@@ -51,15 +51,20 @@ export function Onboarding({
     heading.current?.focus();
   }, [route, stage]);
   const mismatch = businessId && workspace.business?.id !== businessId;
+  const hasExistingBusiness =
+    workspace.businesses.some((business) => business.id !== businessId) ||
+    (!businessId && Boolean(workspace.business));
   return (
     <EntryFrame
       action={
-        <Button asChild variant="ghost" size="sm" className="rounded-full">
-          <a href="#welcome">
-            <ArrowLeft className="size-4" />
-            Bienvenida
-          </a>
-        </Button>
+        !hasExistingBusiness && (
+          <Button asChild variant="ghost" size="sm" className="rounded-full">
+            <a href="#welcome">
+              <ArrowLeft className="size-4" />
+              Bienvenida
+            </a>
+          </Button>
+        )
       }
     >
       <div className="mx-auto w-full max-w-2xl px-5 pb-12 pt-7 sm:px-8 sm:pt-12">
