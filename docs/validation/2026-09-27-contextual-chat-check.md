@@ -256,3 +256,15 @@ en la sección siguiente. Se conserva la comprobación original como historial.
   el mensaje, respuesta y borrador permanecen. Plegar y continuar desde el listado
   recupera el mismo chat y borrador. Revisadas visualmente la página independiente
   y la biblioteca con el panel abierto. No hay cambios de backend.
+
+## Espaciado de la navegación compacta
+
+Revisión posterior del carril izquierdo en un navegador local. El selector del
+negocio se separó del logo y no invade su área al activarse. Los iconos de
+navegación, chats, informes, ayuda y nuevo chat miden 20 px. Los controles
+compactos miden 36 px a 720 px de alto y pueden crecer a 40 px en ventanas más
+altas; las filas dejan al menos unos píxeles entre sí. Las etiquetas se ocultan
+completamente en el carril y vuelven a verse al expandirlo. A 1000 × 600 px se
+comprobó que el área central desplaza hasta el último informe (último borde
+523,9 px frente a límite visible 532 px), con el acceso de ayuda fijo. El
+viewport temporal se restauró. Compilación, lint y 65 pruebas frontend correctos.
