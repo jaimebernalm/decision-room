@@ -16,7 +16,7 @@ class HomeTests(unittest.TestCase):
     create, answer, complete, http = test_web.WebTests.create, test_web.WebTests.answer, test_web.WebTests.complete, test_web.WebTests.http
 
     def catalogue(self):
-        items = [dict(id=str(i), kind='metric', title=f'Metric {i}', content={'unit': 'EUR'}, source={'period': '2025', 'coverage': 'Sample'}) for i in range(7)]
+        items = [dict(id=str(i), kind='metric', title=f'Metric {i}', content={'unit': 'EUR'}, source={'period': '2025', 'coverage': 'Sample'}) for i in range(11)]
         return dict(items=items, sources=[], context={'name': 'Test shop'}, fingerprint='v1', activity=[], limited=False)
 
     def body(self, view, **changes):
@@ -56,13 +56,16 @@ class HomeTests(unittest.TestCase):
             self.assertEqual(saved['pinned'], ['0'])
             for invalid in [body, self.body(saved, invalid=True) | {'selected': ['alien']},
                             self.body(saved) | {'selected': ['1']},
-                            self.body(saved) | {'selected': [str(i) for i in range(6)]},
+                            self.body(saved) | {'selected': [str(i) for i in range(11)]},
                             self.body(saved) | {'business_id': str(uuid4())},
                             self.body(saved) | {'fingerprint': 'old'},
                             self.body(saved) | {'selected': [{}]}]:
                 with self.assertRaises(WebError):
                     home.save(self.ws, invalid)
             self.assertEqual(home.load(self.ws)['revision'], saved['revision'])
+            expanded = home.save(self.ws, self.body(saved) | {'selected': [str(i) for i in range(10)]})
+            self.assertEqual(len(expanded['selected']), 10)
+            self.assertEqual(expanded['pinned'], ['0'])
             other = self.ws.save_business({'request_key': str(uuid4()), 'name': 'Other shop', 'description': 'Other context', 'expected_active_id': data['business_id']})
             self.assertNotEqual(str(other['id']), saved['business_id'])
             self.assertEqual(home.load(self.ws)['layout'], {})
@@ -92,7 +95,7 @@ class HomeTests(unittest.TestCase):
         with patch.object(home, 'collect', return_value=self.catalogue()):
             data = home.view(self.ws)
             data = home.save(self.ws, self.body(data) | {'selected': ['0'], 'pinned': ['0']})
-            for ids in [['unknown'], ['4'], ['0', '1'], ['0', '0'], [str(i) for i in range(7)]]:
+            for ids in [['unknown'], ['4'], ['0', '1'], ['0', '0'], [str(i) for i in range(11)]]:
                 model = Mock()
                 model.generate_dashboard.return_value = ({'picks': [{'id': id, 'reason': 'Reason'} for id in ids]}, {})
                 self.ws.model_factory = lambda _: model

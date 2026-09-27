@@ -90,3 +90,15 @@ Ahora es un Button de shadcn con nombre accesible «Añadir tarjetas al dashboar
 y abre el mismo selector que Personalizar. Respeta el bloqueo durante guardados.
 Comprobados clic y Enter en el navegador, sin modificar la selección guardada.
 Pasan las 31 pruebas de frontend y la compilación TypeScript/Vite.
+
+## Ampliación a diez indicadores — 27 de septiembre de 2026
+
+Se amplía de cinco a diez el máximo de indicadores seleccionables. El selector,
+la validación persistente y las instrucciones del agente usan el mismo límite.
+El contrato de propuestas admite la suma de los límites por tipo (15 elementos),
+para poder conservar diez indicadores fijados junto a gráficos y hallazgos.
+Se mantienen los máximos de dos gráficos y tres hallazgos.
+
+Validación: siete pruebas dirigidas de backend, incluida aceptación de diez
+indicadores y rechazo de once; tres pruebas de interfaz de Inicio y compilación
+TypeScript/Vite correctas. Los cambios se limitan a esta ampliación de 2.5.14.

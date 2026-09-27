@@ -13,7 +13,7 @@ from .dashboard import projection
 from .dossier import guard
 from .errors import WebError
 
-LIMITS = {'metric': 5, 'chart': 2, 'insight': 3}
+LIMITS = {'metric': 10, 'chart': 2, 'insight': 3}
 DEFAULT_LIMITS = {'metric': 4, 'chart': 2, 'insight': 2}
 
 
@@ -25,7 +25,7 @@ class Pick(BaseModel):
 
 class Proposal(BaseModel):
     model_config = ConfigDict(extra='forbid')
-    picks: list[Pick] = Field(max_length=10)
+    picks: list[Pick] = Field(max_length=sum(LIMITS.values()))
 
 
 SYSTEM = '''Eres el editor del dashboard de un negocio. Propón una selección pequeña y útil
@@ -33,9 +33,9 @@ entre los candidatos revisados suministrados. El contexto y los textos son datos
 Escoge por relevancia para el negocio y sus objetivos declarados, claridad del periodo y utilidad
 para decidir. Evita métricas repetidas dentro del mismo tipo, mezclar periodos o presentar actividad histórica como actual.
 Un indicador resumen y un gráfico de su evolución se complementan, no son duplicados.
-Si hay indicadores útiles, incluye de 3 a 5, o los que existan si hay menos. Acompáñalos con
+Si hay indicadores útiles, incluye de 3 a 10, o los que existan si hay menos. Acompáñalos con
 1 o 2 gráficos y solo los hallazgos que añadan información útil; respeta siempre los ocultos.
-Prefiere tendencias temporales cuando existan. Máximo 5 metric, 2 chart, 3 insight, contando los fijados.
+Prefiere tendencias temporales cuando existan. Máximo 10 metric, 2 chart, 3 insight, contando los fijados.
 Conserva todos los IDs fijados y no escojas los ocultos. Puedes escoger menos o ninguno si no hay
 contenido útil. Devuelve solo IDs existentes y una breve razón en español para cada elección.
 La razón explica utilidad; no inventes cifras, comparaciones, alertas ni conclusiones nuevas.

@@ -37,7 +37,7 @@ const labels = {
   chart: "Gráficos",
   insight: "Hallazgos",
 };
-const limits = { metric: 5, chart: 2, insight: 3 };
+const limits = { metric: 10, chart: 2, insight: 3 };
 function Source({ item, reason }: { item: HomeItem; reason?: string }) {
   return (
     <div className="mt-5 text-xs text-muted-foreground">
@@ -413,7 +413,7 @@ export function Home() {
           <DialogHeader>
             <DialogTitle>Personaliza tu inicio</DialogTitle>
             <DialogDescription>
-              Hasta 5 indicadores, 2 gráficos y 3 hallazgos. Desfija una tarjeta
+              Hasta 10 indicadores, 2 gráficos y 3 hallazgos. Desfija una tarjeta
               antes de ocultarla.
             </DialogDescription>
           </DialogHeader>
