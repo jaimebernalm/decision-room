@@ -1,12 +1,19 @@
 import {
   useEffect,
   useState,
+  useRef,
   lazy,
   Suspense,
   type ReactNode,
   type CSSProperties,
 } from "react";
 import { Maximize2, PanelRightClose, Plus, ArrowLeft } from "lucide-react";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
+import { FloatingAssistant } from "./floating-assistant";
 import { Button } from "@/components/ui/button";
 import { useAssistant, contextualRoute } from "@/lib/assistant";
 import { useWorkspace } from "@/lib/workspace";
@@ -21,14 +28,24 @@ import "./contextual-chat.css";
 export function AssistantFrame({ children }: { children: ReactNode }) {
   const a = useAssistant()!;
   const { route } = useWorkspace();
-  const { setOpen } = useSidebar();
+  const { open, openMobile, isMobile, setOpen, setOpenMobile } = useSidebar();
+  const navigationOpen = isMobile ? openMobile : open;
+  const previous = useRef({ panel: false, navigationOpen });
   const [width, setWidth] = useState(() =>
     Number(store.get("dr-chat-panel-width", 420)),
   );
   const panel = a.dock.open && contextualRoute(route);
   useEffect(() => {
-    if (panel) setOpen(false);
-  }, [panel, setOpen]);
+    const was = previous.current;
+    previous.current = { panel, navigationOpen };
+    if (panel && !was.panel) {
+      setOpen(false);
+      setOpenMobile(false);
+    } else if (panel && navigationOpen && !was.navigationOpen) {
+      a.setSelecting(false);
+      a.setDock({ ...a.dock, open: false });
+    }
+  }, [panel, navigationOpen, setOpen, setOpenMobile, a]);
   useEffect(() => {
     if (route !== a.dock.origin) return;
     // Lazy report loading may finish after navigation. Observe until the target arrives.
@@ -128,56 +145,89 @@ export function AssistantFrame({ children }: { children: ReactNode }) {
           />
           <header className="flex h-12 shrink-0 items-center gap-1 border-b px-3">
             <span className="mr-auto text-sm font-medium">Conversación</span>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Nueva conversación"
-              disabled={!a.dock.chatId}
-              onClick={() => {
-                a.clear();
-                a.setDock({ open: false });
-              }}
-            >
-              <Plus />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Abrir conversación completa"
-              disabled={!a.dock.chatId}
-              onClick={() => {
-                a.setSelecting(false);
-                a.setDock({
-                  ...a.dock,
-                  origin: route,
-                  scroll: document.getElementById("main-content")?.scrollTop,
-                });
-                location.hash = `chat/${a.dock.chatId}`;
-              }}
-            >
-              <Maximize2 />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Plegar conversación"
-              onClick={() => a.setDock({ ...a.dock, open: false })}
-            >
-              <PanelRightClose />
-            </Button>
+            <PanelAction label="Nueva conversación">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Nueva conversación"
+                disabled={!a.dock.chatId}
+                onClick={() => {
+                  a.clear();
+                  a.setDock({ open: true, origin: route });
+                }}
+              >
+                <Plus />
+              </Button>
+            </PanelAction>
+            <PanelAction label="Ampliar">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Abrir conversación completa"
+                disabled={!a.dock.chatId}
+                onClick={() => {
+                  a.setSelecting(false);
+                  a.setDock({
+                    ...a.dock,
+                    origin: route,
+                    scroll: document.getElementById("main-content")?.scrollTop,
+                  });
+                  location.hash = `chat/${a.dock.chatId}`;
+                }}
+              >
+                <Maximize2 />
+              </Button>
+            </PanelAction>
+            <PanelAction label="Cerrar">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Plegar conversación"
+                onClick={() => a.setDock({ ...a.dock, open: false })}
+              >
+                <PanelRightClose />
+              </Button>
+            </PanelAction>
           </header>
           {a.dock.chatId ? (
             <Suspense fallback={<Loading />}>
               <ChatPage key={a.dock.chatId} id={a.dock.chatId} docked />
             </Suspense>
-          ) : (
+          ) : a.launching ? (
             <div className="p-5">
               <Loading />
               <p className="mt-3 text-sm">Preparando tu conversación…</p>
+            </div>
+          ) : (
+            <div className="flex min-h-0 flex-1 flex-col">
+              <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
+                Pregunta sobre tu negocio o selecciona algo del dashboard o
+                informe.
+              </div>
+              <div className="p-3">
+                <FloatingAssistant inline />
+              </div>
             </div>
           )}
         </aside>
       )}
     </div>
+  );
+}
+
+function PanelAction({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent side="bottom" sideOffset={6}>
+        {label}
+      </TooltipContent>
+    </Tooltip>
   );
 }

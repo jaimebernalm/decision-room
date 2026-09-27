@@ -114,3 +114,21 @@ barra nativa oculta, indicador visible durante el desplazamiento, fondo del carr
 transparente y ausencia del indicador en reposo. PageDown/End y desplazamiento
 normal mantienen acceso al contenido. Pasan las 45 pruebas frontend, compilación,
 lint sin errores y revisión de diferencias.
+
+## Ajuste posterior: navegación y acciones del panel
+
+Abrir la navegación pliega el chat, conservando la conversación para retomarla.
+Abrir de nuevo el chat cierra la navegación; la coordinación responde a cambios
+de apertura, sin volver a cerrar la navegación que el usuario acaba de solicitar.
+Incluye el estado de navegación móvil y el atajo del componente Sidebar.
+
+Las acciones del panel tienen etiquetas al pasar el ratón o recibir foco:
+«Nueva conversación», «Ampliar» y «Cerrar». El botón + mantiene el panel abierto
+con un compositor vacío; la conversación nueva se crea al enviar. La conversación
+anterior permanece en el historial. Se distingue el panel vacío del envío inicial
+en curso y se conserva el borrador dentro del panel si falla ese envío.
+
+Validación: 51 pruebas de frontend correctas, incluidas dos nuevas de alternancia
+de paneles y creación/envío desde el panel vacío; compilación y lint sin errores.
+Recorrido en navegador con dashboard real de pruebas: abrir navegación, retomar
+chat, pulsar + y comprobar el compositor dentro del panel y la etiqueta de cierre.

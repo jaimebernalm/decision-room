@@ -46,6 +46,7 @@ type Assistant = {
     origin: string,
   ) => Promise<void>;
   error: string;
+  launching: boolean;
   returnToSource: (r: ContextAttachment, chatId?: string) => void;
 };
 const AssistantContext = createContext<Assistant | null>(null);
@@ -69,8 +70,10 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   );
   const [selectionRoute, setSelectionRoute] = useState<string | null>(null);
   const selecting = selectionRoute === route;
-  const setSelecting = (value: boolean) => setSelectionRoute(value ? route : null);
+  const setSelecting = (value: boolean) =>
+    setSelectionRoute(value ? route : null);
   const [error, setError] = useState("");
+  const [launching, setLaunching] = useState(false);
   const [previews, setPreviews] = useState<Record<string, ContextAttachment>>(
     {},
   );
@@ -124,10 +127,13 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
         selected,
         register,
         error,
+        launching,
         clear,
         launch: async (text, selectedContext, origin) => {
+          const startedInPanel = dock.open && !dock.chatId;
           setSelecting(false);
           setError("");
+          setLaunching(true);
           setDock({ open: true, origin });
           try {
             const chat = await launchChat(business, text, selectedContext);
@@ -139,10 +145,15 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
             }
           } catch (error) {
             if (mounted.current) {
-              setDock({ open: false, origin });
+              const current = store.get<Dock>(`dr-dock-${business}`, {
+                open: false,
+              });
+              setDock({ open: startedInPanel && current.open, origin });
               setError((error as Error).message);
             }
             throw error;
+          } finally {
+            if (mounted.current) setLaunching(false);
           }
         },
         remove: (r) => {

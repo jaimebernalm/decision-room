@@ -358,6 +358,11 @@ aclaración no disponible permite confirmarla y crear un informe con los mismos
 archivos, conservando el intento anterior. Validación HTTP, React, compilación,
 lint y navegador documentada en [la comprobación de aclaraciones](../validation/2026-09-27-clarification-data-check.md).
 
+**Ajuste de controles:** abrir la navegación pliega el chat; retomarlo vuelve a
+acoplarlo. El botón + conserva el panel para escribir una conversación nueva y
+los tres controles muestran etiquetas. Navegador, 51 pruebas frontend, compilación
+y lint comprobados; detalle en la validación de 2.5.16.
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Prioridad actualizada, 23 de septiembre de 2026:** iniciar las ampliaciones siguientes después de cerrar la entrega 2.5. La evaluación del 22 de septiembre descrita a continuación ya se realizó; no se presenta como trabajo pendiente ni sustituye la regresión exigida por los cambios de memoria y conversación.

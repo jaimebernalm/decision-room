@@ -244,3 +244,66 @@ it("uses the edited attachment selection after a failed follow-up", async () => 
   expect(sends[1].data.context_references).toBeUndefined();
   expect(sends[0].data.request_key).not.toBe(sends[1].data.request_key);
 });
+
+it("opens navigation by folding the chat and can resume it", async () => {
+  location.hash = "home";
+  store.set("dr-dock-a", { chatId: "chat", open: true });
+  server();
+  const user = userEvent.setup();
+  render(<Harness />);
+  await screen.findByRole("textbox");
+  await user.click(
+    screen.getByRole("button", { name: "Abrir o cerrar navegación" }),
+  );
+  await waitFor(() =>
+    expect(screen.queryByRole("complementary")).not.toBeInTheDocument(),
+  );
+  expect(document.querySelector('[data-slot="sidebar"]')).toHaveAttribute(
+    "data-state",
+    "expanded",
+  );
+  await user.click(
+    screen.getByRole("button", { name: "Continuar conversación" }),
+  );
+  await screen.findByRole("complementary", { name: "Conversación lateral" });
+  await waitFor(() =>
+    expect(document.querySelector('[data-slot="sidebar"]')).toHaveAttribute(
+      "data-state",
+      "collapsed",
+    ),
+  );
+  expect(
+    store.get<{ chatId: string }>("dr-dock-a", { chatId: "" }).chatId,
+  ).toBe("chat");
+});
+
+it("starts a new conversation inside the open panel and labels its actions", async () => {
+  location.hash = "home";
+  store.set("dr-dock-a", { chatId: "previous-chat", open: true });
+  const calls = server();
+  const user = userEvent.setup();
+  render(<Harness />);
+  await screen.findByRole("textbox");
+  await user.hover(screen.getByRole("button", { name: "Nueva conversación" }));
+  expect(await screen.findByRole("tooltip")).toHaveTextContent("Nueva conversación");
+  await user.keyboard("{Escape}");
+  await user.click(screen.getByRole("button", { name: "Nueva conversación" }));
+  const panel = screen.getByRole("complementary", {
+    name: "Conversación lateral",
+  });
+  expect(within(panel).getByRole("textbox")).toHaveValue("");
+  expect(calls.filter((c) => c.url === "/api/chats")).toHaveLength(0);
+  await user.type(within(panel).getByRole("textbox"), "Una pregunta nueva");
+  await user.click(
+    within(panel).getByRole("button", { name: "Enviar mensaje" }),
+  );
+  await within(panel).findByText("Ventas revisadas.");
+  expect(calls.filter((c) => c.url === "/api/chats")).toHaveLength(1);
+  expect(calls.filter((c) => c.url.endsWith("/messages"))).toEqual([
+    expect.objectContaining({
+      url: "/api/chats/chat/messages",
+      data: expect.objectContaining({ text: "Una pregunta nueva" }),
+    }),
+  ]);
+  expect(location.hash).toBe("#home");
+});
