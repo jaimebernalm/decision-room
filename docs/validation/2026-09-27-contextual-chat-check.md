@@ -209,3 +209,24 @@ en pantalla, compilación y lint sin errores; ajuste exclusivamente de color.
   adjunto en conversación completa, reacoplamiento, navegación y selección desde
   Informes. Revisión visual de Mi negocio con panel abierto, sin errores de consola.
 - Servidor local actualizado tras verificar que no había trabajos ni turnos activos.
+
+
+## Transición desde Nuevo chat
+
+- Se captura la posición de la barra central al completar un primer envío válido.
+  La conversación recibe esa geometría de forma efímera y anima la barra hasta su
+  posición inferior durante 420 ms. Los mensajes aparecen después, con una entrada
+  suave de 180 ms. Se mantiene un único compositor y se recupera el foco al llegar.
+- La barra de destino existe mientras se cargan los mensajes, evitando sustituirla
+  por un indicador de carga. El módulo de chat se precarga durante el envío.
+  Los errores mantienen el borrador en la pantalla original; salir cancela el
+  movimiento y las respuestas tardías no cambian de página.
+- Movimiento reducido omite el desplazamiento y la aparición gradual. Abrir una
+  conversación existente no reproduce la entrada del primer envío.
+- 60 pruebas frontend aprobadas, incluidas tres nuevas de secuenciación antes de
+  mostrar mensajes, movimiento reducido y cancelación. Compilación correcta y
+  lint sin errores; se mantienen avisos de Fast Refresh y tamaño de paquetes.
+- Navegador con negocio ficticio: se midió la barra en y=276, 314, 350, 405, 469,
+  530, 586 y 623 px durante el movimiento, todavía sin mensajes en el contenido.
+  Al terminar quedó en y=638 px, con un único compositor, el mensaje y la respuesta
+  visibles. Comprobación visual del destino y foco. No se modifica el backend.

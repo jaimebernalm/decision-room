@@ -37,7 +37,13 @@ type Dock = {
   scroll?: number;
   block?: string;
 };
+export type ChatEntry = {
+  chatId: string;
+  rect: { x: number; y: number; width: number; height: number };
+};
 type Assistant = {
+  chatEntry: ChatEntry | null;
+  setChatEntry: (entry: ChatEntry | null) => void;
   dock: Dock;
   setDock: (d: Dock) => void;
   openConversation: (id: string) => void;
@@ -85,6 +91,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const selecting = selectionRoute === route;
   const setSelecting = (value: boolean) =>
     setSelectionRoute(value ? route : null);
+  const [chatEntry, setChatEntry] = useState<ChatEntry | null>(null);
   const [error, setError] = useState("");
   const [launching, setLaunching] = useState(false);
   const [previews, setPreviews] = useState<Record<string, ContextAttachment>>(
@@ -135,6 +142,8 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       value={{
         dock,
         setDock,
+        chatEntry,
+        setChatEntry,
         openConversation: (id) => {
           launchVersion.current += 1;
           setLaunching(false);

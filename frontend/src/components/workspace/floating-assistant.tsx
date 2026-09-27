@@ -38,6 +38,7 @@ export function FloatingAssistant({
       route === "ask" || !store.get<boolean>("dr-assistant-collapsed", false),
   );
   const container = useRef<HTMLDivElement>(null);
+  const bar = useRef<HTMLDivElement>(null);
   const focusOnChange = useRef(route === "ask");
   const action = useAction();
   useEffect(() => {
@@ -60,8 +61,18 @@ export function FloatingAssistant({
         await assistant.launch(text, context, route);
         if (action.isMounted()) refresh();
       } else {
-        const chat = await launchChat(business.id, text, context);
+        const [chat] = await Promise.all([
+          launchChat(business.id, text, context),
+          route === "ask" ? import("./chat") : Promise.resolve(),
+        ]);
         if (action.isMounted()) {
+          if (route === "ask" && inline && bar.current) {
+            const { x, y, width, height } = bar.current.getBoundingClientRect();
+            assistant?.setChatEntry({
+              chatId: chat.id,
+              rect: { x, y, width, height },
+            });
+          }
           refresh();
           location.hash = `chat/${chat.id}`;
         }
@@ -121,6 +132,7 @@ export function FloatingAssistant({
         )}
         <CollapsibleContent asChild>
           <motion.div
+            ref={bar}
             layoutId={`assistant-bar-${business.id}`}
             initial={false}
             onLayoutAnimationComplete={onArrive}
