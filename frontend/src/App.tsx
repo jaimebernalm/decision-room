@@ -20,6 +20,7 @@ import { WorkspaceState } from "@/lib/workspace";
 import { useAction } from "@/lib/hooks";
 import { FloatingAssistant } from "@/components/workspace/floating-assistant";
 import { Layout } from "@/components/workspace/layout";
+import { MainContent } from "@/components/workspace/main-content";
 import { EntryFrame, Welcome } from "@/components/entry/welcome";
 const Onboarding = lazy(() =>
   import("@/components/entry/onboarding").then((m) => ({
@@ -269,15 +270,9 @@ function App() {
           />
         ) : (
           <Layout>
-            <div
+            <MainContent
               key={`${workspace.business?.id || "empty"}:${activeRoute}`}
-              id="main-content"
-              tabIndex={-1}
-              className={
-                activeRoute.startsWith("chat/")
-                  ? "flex min-h-0 flex-1 flex-col outline-none"
-                  : "min-h-0 flex-1 overflow-y-auto outline-none"
-              }
+              scrollable={!activeRoute.startsWith("chat/")}
             >
               <Notice error>{error}</Notice>
               <Suspense
@@ -297,7 +292,7 @@ function App() {
                   </div>
                 )}
               </Suspense>
-            </div>
+            </MainContent>
             {showAssistant && (
               <FloatingAssistant
                 key={`assistant:${workspace.business!.id}:${activeRoute}`}

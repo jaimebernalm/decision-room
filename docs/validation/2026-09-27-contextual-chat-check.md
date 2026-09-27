@@ -101,3 +101,16 @@ del contexto del agente; un exceso produce un error conservando el borrador.
   comprobada con compilación, lint y las cuatro pruebas de interfaz contextual.
 
 La ampliación no cierra la entrega 3 ni modifica la aceptación analítica general.
+
+## Ajuste posterior: desplazamiento sin carril permanente
+
+El contenido principal utiliza ScrollArea de Radix en modo `scroll`. Su indicador
+fino se superpone al contenido, sin carril visible ni ancho reservado, y se oculta
+600 ms después del fin del desplazamiento. Se conserva `main-content` en el
+viewport para navegación por teclado y retorno al bloque de origen.
+
+Comprobado en navegador de escritorio con dashboard y chat lateral abiertos:
+barra nativa oculta, indicador visible durante el desplazamiento, fondo del carril
+transparente y ausencia del indicador en reposo. PageDown/End y desplazamiento
+normal mantienen acceso al contenido. Pasan las 45 pruebas frontend, compilación,
+lint sin errores y revisión de diferencias.

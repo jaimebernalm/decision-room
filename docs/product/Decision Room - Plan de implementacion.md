@@ -345,6 +345,10 @@ independientemente y corrección de fallos encontrados. Véanse el
 [plan técnico](../technical/contextual-chat-plan.md) y la
 [validación y límites](../validation/2026-09-27-contextual-chat-check.md).
 
+**Ajuste de desplazamiento:** el dashboard y los informes muestran un indicador
+fino solo mientras se desplaza el contenido, sin carril permanente. Validado con
+el chat lateral abierto en navegador, 45 pruebas de frontend, compilación y lint.
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Prioridad actualizada, 23 de septiembre de 2026:** iniciar las ampliaciones siguientes después de cerrar la entrega 2.5. La evaluación del 22 de septiembre descrita a continuación ya se realizó; no se presenta como trabajo pendiente ni sustituye la regresión exigida por los cambios de memoria y conversación.
