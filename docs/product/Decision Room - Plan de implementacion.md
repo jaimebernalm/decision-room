@@ -461,8 +461,10 @@ acotados de 429. Se contrastan un informe completo (2/2), uno parcial (2/3),
 49 valores y recuperación sin duplicaciones. La prueba adversarial bloquea una
 cifra falsa y un adjunto inexistente en la misma revisión. Véanse
 [contrato](../technical/reviewer-stability.md) y [validación, fallos y límites](../validation/2026-09-27-reviewer-stability.md).
-El siguiente paso es **3.4: onboarding conversacional y elección abierta del objetivo**.
-Después, **3.5 implementa los analistas en paralelo** coordinados por el analista
+Completado **3.4: onboarding conversacional y elección abierta del objetivo**, con
+confirmación de alcance y continuidad en el mismo chat ([contrato](../technical/conversational-onboarding-plan.md),
+[validación](../validation/2026-09-27-conversational-onboarding.md)).
+El siguiente paso, **3.5, implementa los analistas en paralelo** coordinados por el analista
 principal; **3.6 recoge la selección y revisión por objetivo y la evaluación
 integral**, comparando calidad, tiempo y coste frente al modo secuencial.
 Esta reorganización adelanta el paralelismo para incluirlo en la evaluación final;

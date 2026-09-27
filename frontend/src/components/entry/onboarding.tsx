@@ -24,6 +24,7 @@ import {
   FOLDER_LIMIT,
 } from "@/lib/api";
 import type { Business, Dataset, Dossier } from "@/lib/types";
+import { GuidedOnboarding } from "./guided-onboarding";
 import { EntryFrame } from "./welcome";
 
 const steps = ["Tu negocio", "Tus datos", "Primer informe"];
@@ -38,6 +39,9 @@ export function Onboarding({
   const { workspace } = useWorkspace();
   const [, businessId, page, jobId] = route.split("/");
   const review = page === "review";
+  const visibleSteps = !businessId
+    ? ["Tu negocio", "Tu objetivo", "Tus datos", "El alcance", "Tu informe"]
+    : steps;
   const [files, setFiles] = useState<File[]>([]);
   const [ignored, setIgnored] = useState(0);
   const stage =
@@ -54,6 +58,12 @@ export function Onboarding({
   const hasExistingBusiness =
     workspace.businesses.some((business) => business.id !== businessId) ||
     (!businessId && Boolean(workspace.business));
+  if (
+    businessId &&
+    !mismatch &&
+    !["business", "report", "review"].includes(page)
+  )
+    return <GuidedOnboarding business={workspace.business!} />;
   return (
     <EntryFrame
       action={
@@ -70,13 +80,13 @@ export function Onboarding({
       <div className="mx-auto w-full max-w-2xl px-5 pb-12 pt-7 sm:px-8 sm:pt-12">
         <nav aria-label="Pasos de inicio" className="mb-10 sm:mb-14">
           <ol className="flex items-start">
-            {steps.map((label, index) => (
+            {visibleSteps.map((label, index) => (
               <li
                 key={label}
                 aria-current={stage === index ? "step" : undefined}
                 className="relative flex flex-1 flex-col items-center gap-2 text-center text-xs"
               >
-                {index < 2 && (
+                {index < visibleSteps.length - 1 && (
                   <span
                     aria-hidden="true"
                     className={`absolute left-[calc(50%+1.25rem)] right-[calc(-50%+1.25rem)] top-4 h-px ${stage > index ? "bg-primary/50" : "bg-border"}`}

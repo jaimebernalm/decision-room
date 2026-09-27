@@ -24,8 +24,10 @@ type Preview = {
 export function DataPreview({
   jobId,
   questions = [],
+  endpoint,
 }: {
-  jobId: string;
+  jobId?: string;
+  endpoint?: string;
   questions?: Question[];
 }) {
   const refs = questions.flatMap((q) => q.references || []);
@@ -40,7 +42,9 @@ export function DataPreview({
   if (columnOffset !== null) query.set("column_offset", String(columnOffset));
   else if (first?.column && table === first.id)
     query.set("column", first.column);
-  const resource = useResource<Preview>(`/api/jobs/${jobId}/data?${query}`);
+  const resource = useResource<Preview>(
+    `${endpoint || `/api/jobs/${jobId}/data`}?${query}`,
+  );
   const data = resource.data;
   const selected = data?.tables.find((item) => item.id === data.table_id);
   const highlighted = new Set(

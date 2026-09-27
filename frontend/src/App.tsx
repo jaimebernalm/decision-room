@@ -200,10 +200,14 @@ function App() {
           ? "businesses"
           : "welcome"
         : requestedRoute === "home" &&
-            workspace.business?.onboarding_status === "context_saved" &&
-            !workspace.analyses.length
-          ? `onboarding/${workspace.business.id}`
-          : requestedRoute;
+            workspace.setup &&
+            workspace.setup.stage !== "complete"
+          ? `onboarding/${workspace.business!.id}`
+          : requestedRoute === "home" &&
+              workspace.business?.onboarding_status === "context_saved" &&
+              !workspace.analyses.length
+            ? `onboarding/${workspace.business.id}`
+            : requestedRoute;
     const showAssistant =
       Boolean(workspace.business) &&
       !activeRoute.startsWith("chat/") &&

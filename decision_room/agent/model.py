@@ -153,9 +153,18 @@ class ModelClient:
         )
 
     def generate_chat(self, context, correction=None):
-        from ..chat_agent import Decision, SYSTEM
+        from ..chat_agent import Decision, SYSTEM, ONBOARDING_SYSTEM
         schema = Decision.model_json_schema()
-        return self._generate(context, correction, SYSTEM, schema)
+        # Optional Python fields preserve historical stored decisions; the provider's
+        # strict schema requires every property, using null for unused guide fields.
+        for node in [schema, *schema.get('$defs', {}).values()]:
+            if node.get('type') == 'object':
+                node['required'] = list(node.get('properties', {}))
+                for prop in node.get('properties', {}).values():
+                    prop.pop('default', None)
+        if context.get('onboarding'):
+            schema['properties']['action']['enum'] = ['retrieve', 'answer']
+        return self._generate(context, correction, SYSTEM + (ONBOARDING_SYSTEM if context.get("onboarding") else ""), schema)
 
     def review_chat_answer(self, context):
         from ..chat_agent import AnswerReview, REVIEW_SYSTEM

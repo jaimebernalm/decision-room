@@ -53,7 +53,7 @@ class Handler(BaseHTTPRequestHandler):
         self.connection.settimeout(30)
 
     def send(self, status, body, content_type='application/json; charset=utf-8', headers=None):
-        if isinstance(body, (dict, list)):
+        if body is None or isinstance(body, (dict, list)):
             body = json.dumps(body, ensure_ascii=False, default=str).encode()
         elif isinstance(body, str):
             body = body.encode()
@@ -197,6 +197,23 @@ class Handler(BaseHTTPRequestHandler):
             # Pin this request. A selection change in another tab must not
             # redirect a pending read/write to a different business halfway through.
             ws = ws.scoped(ws.business_id())
+            if path in ('/api/onboarding/session', '/api/onboarding/start', '/api/onboarding/change', '/api/onboarding/data'):
+                from . import onboarding
+                if path.endswith('/data') and not mutation:
+                    from .preview import dataset_page
+                    state = onboarding.read(ws)
+                    if not state or not state['analysis_id']:
+                        raise WebError('Todavía no has compartido datos.', 409)
+                    self.send(200, dataset_page(ws, state['analysis_id'], parse_qs(urlsplit(self.path).query)))
+                elif path.endswith('/session') and not mutation:
+                    self.send(200, onboarding.read(ws))
+                elif mutation and path.endswith('/start'):
+                    self.send(200, onboarding.start(ws, self.json_body()))
+                elif mutation and path.endswith('/change'):
+                    self.send(200, onboarding.change(ws, self.json_body()))
+                else:
+                    raise WebError('Operación no disponible.', 404)
+                return
             if path == '/api/chats' or path.startswith('/api/chats/'):
                 from ..conversations import Conversations
                 chats = Conversations(ws)

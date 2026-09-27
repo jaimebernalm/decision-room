@@ -84,7 +84,7 @@ class BusinessMigrationTests(unittest.TestCase):
                                         (business,)).fetchone()['job_id'], job)
             for table in ('web_home_layouts', 'dataset_bundle_files', 'data_model_revisions'):
                 self.assertIsNotNone(db.execute('SELECT to_regclass(%s) AS name', (table,)).fetchone()['name'])
-            self.assertEqual(db.execute('SELECT max(version) AS version FROM schema_versions').fetchone()['version'], 20)
+            self.assertEqual(db.execute('SELECT max(version) AS version FROM schema_versions').fetchone()['version'], 21)
         self.assertEqual(Workspace(self.config).upload(job), ('sales.csv', content))
 
     def test_single_legacy_business_is_selected_without_enrolling_cli_cases(self):

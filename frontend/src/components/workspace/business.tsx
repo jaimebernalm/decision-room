@@ -224,7 +224,7 @@ export function BusinessForm({
             >
               {action.busy ? <Busy /> : <ArrowRight />}
               {onboarding
-                ? "Continuar con mis datos"
+                ? "Empezar conversación"
                 : current
                   ? "Guardar presentación"
                   : "Crear negocio"}
@@ -295,7 +295,10 @@ export function UploadForm({
         (done) => setUploaded(done),
       );
       let job: { id: string } | null = null;
-      if (!dataOnly && (result.status === "ready" || result.status === "partial")) {
+      if (
+        !dataOnly &&
+        (result.status === "ready" || result.status === "partial")
+      ) {
         job = await api<{ id: string }>("/api/jobs/from-dataset", {
           ...metadata,
           analysis_id: result.analysis_id,

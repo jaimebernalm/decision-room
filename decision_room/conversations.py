@@ -41,6 +41,7 @@ class Action(BaseModel):
     sources: list[str] = Field(default_factory=list, max_length=20)
     reply_kind: Literal['', 'date', 'time', 'capabilities', 'help', 'thanks', 'unavailable',
                         'greeting', 'greeting_repair', 'acknowledgement'] = ''
+    onboarding: chat_agent.SetupGuide | None = None
     answer_mode: Literal['summary', 'method', 'recency'] = 'summary'
 
 
@@ -48,7 +49,7 @@ def runtime_context():
     now = datetime.now().astimezone()
     return dict(server_time=now.isoformat(timespec='seconds'), timezone=str(now.tzinfo),
                 web_access=False, live_business_feed=False,
-                can_analyze_uploaded_datasets=True,
+                can_analyze_uploaded_datasets=True, can_predict_future=False,
                 available_sources=['saved business context', 'uploaded datasets', 'reviewed reports'])
 
 
@@ -400,6 +401,10 @@ class Conversations:
     def delete(self, chat_id, data):
         self.guard(data)
         with connect(self.config) as db, db.transaction():
+            from .web import onboarding
+            setup = onboarding.current(db, self.business, lock=True)
+            if setup and str(setup['conversation_id']) == str(chat_id) and setup['stage'] != 'complete':
+                raise WebError('Esta conversación contiene el primer análisis en curso.', 409)
             self.conversation(db, chat_id, lock=True)
             db.execute('UPDATE chat_conversations SET deleted_at=now() WHERE id=%s', (chat_id,))
         return {'saved': True}
@@ -474,6 +479,8 @@ class Conversations:
         if disposition not in ('answered', 'unknown', 'declined'):
             raise WebError('Respuesta no válida.')
         with connect(self.config) as db, db.transaction():
+            from .web import onboarding
+            onboarding.current(db, self.business, lock=True)
             chat = self.conversation(db, chat_id, lock=True)
             prior = db.execute(
                 'SELECT * FROM chat_turns WHERE conversation_id=%s AND request_key=%s', (chat_id, key)
@@ -513,7 +520,10 @@ class Conversations:
             waiting = db.execute(
                 "SELECT * FROM chat_turns WHERE conversation_id=%s AND status='waiting' ORDER BY ordinal LIMIT 1", (chat_id,)
             ).fetchone()
+            setup = onboarding.before_message(db, self.business, chat, previous)
             job, question, phase = None, '', None
+            if setup and setup['question']:
+                question = setup['question']['text']
             if waiting:
                 questions = self.ws.detail(waiting['job_id'])['questions']
                 chosen = next((q for q in questions if str(q['id']) == question_id), None)
@@ -548,6 +558,10 @@ class Conversations:
                 text=text, question_id=question_id, disposition=disposition, question=question, phase=phase,
                 memory_deferred=defer_memory,
             )
+            if setup:
+                payload['onboarding_revision'] = setup['revision']
+                if setup['question']:
+                    payload['onboarding_question'] = dict(**setup['question'], source_turn_id=setup['question_turn_id'])
             if refs:
                 payload['context_references'] = refs
             if reference:
@@ -803,6 +817,7 @@ class Conversations:
         unknown = set(action.sources) - available.keys()
         cited = {key: available[key] for key in dict.fromkeys(action.sources) if key in available}
         source_issues = ['Use only available source keys; unknown: ' + ', '.join(sorted(unknown))] if unknown else []
+        source_issues.extend(chat_agent.setup_issues(action.onboarding, context))
         for reference in selections.pointers(context['message'], reports_only=True):
             if not any(e['request']['tool'] == 'open_report'
                        and e['response'].get('id') == reference['report_id']
@@ -818,13 +833,19 @@ class Conversations:
                            and f'tool/{e.get('ordinal', i)}' in cited
                            for i, e in enumerate(context['retrievals'])):
                     source_issues.append('Open and cite the selected conversation before answering about it; its preview is not its full content.')
+        visible_text = action.text
+        if action.onboarding and action.onboarding.question and action.onboarding.question.text not in visible_text:
+            visible_text += '\n\n' + action.onboarding.question.text
         check_context = dict(message=context['message'], recent_dialogue=context['recent_dialogue'],
-                             draft=action.text, cited_sources=cited,
+                             draft=visible_text, cited_sources=cited,
                              runtime=context['chat_context'].get('runtime', {}),
                              memory_status=context['chat_context'].get('memory_status', {}),
                              saved_corrections=context['chat_context'].get('saved_corrections', []),
                              finding_reference=context['message'].get('finding_reference'),
                              context_references=context['message'].get('context_references', []))
+        if context.get('onboarding'):
+            check_context['onboarding'] = context['onboarding']
+            check_context['proposed_guide'] = action.onboarding.model_dump() if action.onboarding else None
         row = db.execute('SELECT * FROM chat_answer_reviews WHERE turn_id=%s AND attempt=%s AND ordinal=%s',
                          (turn['id'], turn['attempt'], ordinal)).fetchone()
         if row and row['status'] != 'completed':
@@ -845,8 +866,10 @@ class Conversations:
                        (Jsonb(result), Jsonb(usage), turn['id'], turn['attempt'], ordinal))
         if not result['approved']:
             return None
-        response = dict(kind='grounded_answer', text=action.text.strip(),
+        response = dict(kind='grounded_answer', text=visible_text.strip(),
                         sources=[dict(reference=key, label=item['label']) for key, item in cited.items()])
+        if action.onboarding:
+            response['onboarding'] = action.onboarding.model_dump(mode='json')
         # An optional evidence attachment retains report export and version checks.
         opened = [e['response'] for i, e in enumerate(context['retrievals'])
                   if f'tool/{e.get("ordinal", i)}' in cited and e['request']['tool'] == 'open_report' and 'error' not in e['response']]
@@ -970,7 +993,7 @@ class Conversations:
                                 request_key=str(turn['id']),
                                 question_id=a['question_id'],
                                 phase=a['phase'],
-                                text=a['text'],
+                                text=a['text'] if a['disposition'] == 'answered' else '',
                                 disposition=a['disposition'],
                             ),
                         )
@@ -982,7 +1005,15 @@ class Conversations:
                     db.execute('UPDATE chat_turns SET snapshot=%s WHERE id=%s', (Jsonb(saved), turn_id))
                     if job['publishable']:
                         row = self.ws.row(turn['job_id'])
-                        self._save(db, turn, 'completed', brief(self.ws.review_state(row)))
+                        delivery = brief(self.ws.review_state(row))
+                        setup = db.execute('SELECT 1 FROM onboarding_sessions WHERE business_id=%s AND job_id=%s',
+                                           (self.business, turn['job_id'])).fetchone()
+                        if setup:
+                            delivery = dict(kind='grounded_answer', first_report=True,
+                                            text='Tu primer informe está listo.\n\n' + '\n\n'.join(delivery.get('paragraphs', [])[:2]),
+                                            evidence=delivery, report_id=delivery['report_id'], report_version=delivery['report_version'])
+                            db.execute('UPDATE chat_turns SET report_requested=true WHERE id=%s', (turn['id'],))
+                        self._save(db, turn, 'completed', delivery)
                     elif job['status'] == 'waiting':
                         self._save(db, turn, 'waiting', dict(kind='questions', questions=job['questions']))
                     else:
@@ -1031,6 +1062,11 @@ class Conversations:
                                             for saved in turn['snapshot']['saved_corrections'])):
                                     turn['snapshot']['saved_corrections'].append(dict(
                                         statement=candidate['content']['statement'], profile_updated=True))
+                        setup_record = db.execute('SELECT goal,confirmed,job_id FROM onboarding_sessions WHERE business_id=%s AND conversation_id=%s',
+                                                  (self.business, chat['id'])).fetchone()
+                        if setup_record:
+                            turn['snapshot']['first_report_request'] = dict(goal=setup_record['goal'], confirmed=setup_record['confirmed'],
+                                                                          job_id=str(setup_record['job_id']) if setup_record['job_id'] else None)
                         previous_selections = db.execute(
                             'SELECT payload FROM chat_turns WHERE conversation_id=%s AND ordinal<%s ORDER BY ordinal DESC LIMIT 12',
                             (chat['id'], turn['ordinal'])).fetchall()
@@ -1109,6 +1145,8 @@ class Conversations:
                             recent_dialogue=dialogue,
                             retrievals=[{k: e[k] for k in ('ordinal', 'request', 'response')} for e in events],
                         )
+                        from .web import onboarding
+                        context['onboarding'] = onboarding.chat_state(db, self.business, chat['id'])
                         context['available_sources'] = chat_agent.sources_for(context)
                         for index, ref in enumerate(turn['payload'].get('context_references', [])):
                             selected = self.selected_context(db, ref)
@@ -1203,6 +1241,8 @@ class Conversations:
                     if action.reply_kind and action.action != 'respond':
                         raise ValueError('Conversational reply cannot mix actions.')
                     if action.action == 'investigate':
+                        if context.get('onboarding'):
+                            raise ValueError('Confirm the onboarding scope before starting an investigation.')
                         self._job(db, chat, turn, action.analysis_id)
                         return
                     if action.action == 'answer':
@@ -1289,9 +1329,12 @@ class Conversations:
                             text='He revisado la información disponible, pero todavía no encuentro lo necesario para responderte con seguridad. Si me das más contexto o añades datos, podré intentarlo de nuevo.',
                         )
                     with db.transaction():
+                        from .web import onboarding
+                        onboarding.current(db, self.business, lock=True)
                         memory.lock(db, self.business)
                         if not dependencies_current(self.config, db, turn['snapshot'], events):
                             raise ctx.StaleContext('Context changed before publication.')
+                        onboarding.publish(db, self.business, turn, response, context)
                         self._save(db, turn, 'completed', response)
                     return
             except Exception as error:

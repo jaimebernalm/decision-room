@@ -37,6 +37,7 @@ export type Analysis = {
   data_version?: Dataset;
 };
 export type Workspace = {
+  setup?: { conversation_id: string; stage: string } | null;
   business: Business | null;
   businesses: Business[];
   analyses: Analysis[];
@@ -198,6 +199,8 @@ export type Dossier = {
 };
 export type Response = Partial<Report> & {
   kind: string;
+  onboarding?: SetupGuide;
+  first_report?: boolean;
   text?: string;
   paragraphs?: string[];
   sources?: { label: string; reference: string }[];
@@ -311,4 +314,29 @@ export type HomeDashboard = {
   can_suggest: boolean;
   activity: Dashboard["activity"];
   limited: boolean;
+};
+
+export type SetupBrief = {
+  objective: string;
+  business_summary: string;
+  questions: string[];
+  limitations: string[];
+};
+export type SetupGuide = {
+  goal_suggestion?: string | null;
+  question?: (Omit<Question, "id"> & { optional: boolean }) | null;
+  brief?: SetupBrief | null;
+};
+export type SetupSession = {
+  business_id: string;
+  conversation_id: string;
+  revision: number;
+  stage: "goal" | "data" | "scope" | "report" | "complete";
+  goal: { text?: string; choices?: string[] };
+  analysis_id?: string;
+  brief?: SetupBrief;
+  job_id?: string;
+  publishable?: boolean;
+  job_status?: string;
+  context_stale?: boolean;
 };

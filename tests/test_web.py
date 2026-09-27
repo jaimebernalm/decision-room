@@ -751,6 +751,8 @@ class WebTests(unittest.TestCase):
         html = self.ws.report(job)
         # Recreate the schema-7 boundary, keeping all analytical rows and files.
         with connect(self.config) as db, db.transaction():
+            db.execute('DROP TABLE onboarding_events')
+            db.execute('DROP TABLE onboarding_sessions')
             db.execute('DROP TABLE web_onboarding')
             db.execute('DROP TABLE web_workspace')
             db.execute('DROP TABLE web_businesses')
@@ -837,6 +839,7 @@ class WebTests(unittest.TestCase):
         job = self.complete()
         report = self.ws.report(job)
         with connect(self.config) as db, db.transaction():
+            db.execute('DROP TABLE onboarding_events,onboarding_sessions')
             db.execute('DROP TABLE chat_answer_reviews,chat_retrievals,chat_calls,chat_turns,chat_conversations')
             db.execute('DROP TABLE memory_commands,memory_calls,memory_revisions,memory_facts,memory_heads,memory_sources')
             db.execute('DELETE FROM schema_versions WHERE version=9')

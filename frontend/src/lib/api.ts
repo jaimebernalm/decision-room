@@ -135,6 +135,7 @@ export const referenceWire = (r: ContextReference): ContextReference =>
         element_key: r.element_key,
       };
 export type MessageDraft = {
+  disposition?: string;
   context_references?: ContextReference[];
   question_id?: string;
   text: string;

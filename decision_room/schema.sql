@@ -649,3 +649,28 @@ CREATE TABLE IF NOT EXISTS web_onboarding (
     CHECK (NOT completed OR job_id IS NOT NULL)
 );
 INSERT INTO schema_versions(version) VALUES (20) ON CONFLICT DO NOTHING;
+
+-- Guided setup shares the durable chat; legacy onboarding jobs remain untouched.
+CREATE TABLE IF NOT EXISTS onboarding_sessions (
+    business_id uuid PRIMARY KEY REFERENCES web_businesses(business_id) ON DELETE CASCADE,
+    conversation_id uuid NOT NULL,
+    revision integer NOT NULL DEFAULT 1,
+    stage text NOT NULL DEFAULT 'goal' CHECK(stage IN ('goal','data','scope','report','complete')),
+    analysis_id uuid,
+    goal jsonb NOT NULL DEFAULT '{}',
+    brief jsonb,
+    proposal_turn_id uuid REFERENCES chat_turns(id),
+    confirmed jsonb,
+    job_id uuid,
+    FOREIGN KEY(business_id,conversation_id) REFERENCES chat_conversations(business_id,id),
+    FOREIGN KEY(business_id,analysis_id) REFERENCES analyses(business_id,id),
+    FOREIGN KEY(business_id,job_id) REFERENCES web_jobs(business_id,id)
+);
+CREATE TABLE IF NOT EXISTS onboarding_events (
+    business_id uuid NOT NULL REFERENCES onboarding_sessions(business_id) ON DELETE CASCADE,
+    request_key uuid NOT NULL,
+    payload jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY(business_id,request_key)
+);
+INSERT INTO schema_versions(version) VALUES (21) ON CONFLICT DO NOTHING;
