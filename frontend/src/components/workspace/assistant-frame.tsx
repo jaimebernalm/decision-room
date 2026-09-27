@@ -154,10 +154,7 @@ export function AssistantFrame({
                     size="icon"
                     aria-label="Nueva conversación"
                     disabled={!a.dock.chatId}
-                    onClick={() => {
-                      a.clear();
-                      a.setDock({ open: true, origin: route });
-                    }}
+                    onClick={a.newConversation}
                   >
                     <Plus />
                   </Button>
@@ -205,8 +202,7 @@ export function AssistantFrame({
               ) : (
                 <div className="flex min-h-0 flex-1 flex-col">
                   <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
-                    Pregunta sobre tu negocio o selecciona algo del dashboard o
-                    informe.
+                    Pregunta sobre tu negocio o selecciona algo de esta página.
                   </div>
                   <div className="p-3">
                     <FloatingAssistant inline />

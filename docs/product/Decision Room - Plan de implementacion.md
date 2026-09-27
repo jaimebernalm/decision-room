@@ -368,11 +368,11 @@ Selección sobre toda la fila, estados rojo/verde y papelera recuperable por neg
 Validado con 299 pruebas Python, 57 frontend, compilación, lint y navegador con
 modelo real. Véase [comprobación](../validation/2026-09-27-report-context-fixes.md).
 
-**Transición del primer envío:** al enviar desde Nuevo chat, la barra desciende
-suavemente desde su posición central al pie de la conversación; los mensajes se
-revelan después de llegar. Respeta movimiento reducido, conserva borradores si
-falla el envío y cancela la animación al salir. Validado en navegador y con 60
-pruebas frontend, compilación y lint; detalle en la validación de 2.5.16.
+**Inicio unificado de conversaciones:** «Nuevo chat» abre un panel vacío a la
+derecha. Conserva Inicio, Mi negocio o Informes como fondo; desde Conversaciones
+o una conversación ampliada lleva a Inicio. La ruta antigua `#ask` redirige al
+mismo panel. La antigua barra central y su transición al primer envío se han
+retirado. Los chats existentes siguen accesibles desde la navegación.
 
 ### 2.5.17. Aclaraciones con vista de datos y recuperación
 

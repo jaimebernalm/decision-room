@@ -36,35 +36,46 @@ const context = {
   refresh: vi.fn(),
   removeChat: vi.fn(),
 } satisfies WorkspaceContext;
-it("keeps one page and one assistant while navigating, preserving and clearing drafts", async () => {
+it("redirects legacy new-chat links to a blank right panel", async () => {
   location.hash = "ask";
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string) => ({
       ok: true,
-      json: async () => (url === "/api/workspace" ? ws : listing),
+      json: async () =>
+        url === "/api/workspace"
+          ? ws
+          : url === "/api/home"
+            ? {
+                business_id: "b",
+                items: [],
+                sources: [],
+                selected: [],
+                pinned: [],
+                hidden: [],
+                unavailable: 0,
+                reasons: {},
+                activity: [],
+                limited: false,
+              }
+            : listing,
     })),
   );
   render(<App />);
-  await screen.findByRole("heading", { name: "¿Qué quieres entender hoy?" });
+  await screen.findByRole("complementary", { name: "Conversación lateral" });
+  await waitFor(() => expect(location.hash).toBe("#home"));
   const user = userEvent.setup();
+  expect(screen.queryByRole("heading", { name: "¿Qué quieres entender hoy?" })).toBeNull();
   await user.type(screen.getByRole("textbox", { name: "Mensaje" }), "Borrador");
   await user.click(screen.getByRole("link", { name: "Conversaciones" }));
   await screen.findByRole("heading", { name: "Conversaciones" });
   expect(document.querySelectorAll("#main-content")).toHaveLength(1);
-  expect(
-    screen.queryByRole("heading", { name: "¿Qué quieres entender hoy?" }),
-  ).toBeNull();
-  expect(screen.getByRole("textbox", { name: "Mensaje" })).toHaveValue(
-    "Borrador",
-  );
-  await user.clear(screen.getByRole("textbox", { name: "Mensaje" }));
-  await user.click(screen.getAllByRole("link", { name: "Nuevo chat" })[0]);
-  await screen.findByRole("heading", { name: "¿Qué quieres entender hoy?" });
+  expect(screen.queryByRole("textbox", { name: "Mensaje" })).toBeNull();
+  await user.click(screen.getAllByRole("button", { name: "Nuevo chat" })[0]);
+  await waitFor(() => expect(location.hash).toBe("#home"));
   expect(document.querySelectorAll("#main-content")).toHaveLength(1);
-  expect(
-    screen.getAllByRole("region", { name: "Asistente del negocio" }),
-  ).toHaveLength(1);
+  const panel = await screen.findByRole("complementary", { name: "Conversación lateral" });
+  expect(panel).toHaveTextContent("Conversación");
   expect(screen.getByRole("textbox", { name: "Mensaje" })).toHaveValue("");
 });
 it("keeps onboarding available with no business and supports form editing", async () => {

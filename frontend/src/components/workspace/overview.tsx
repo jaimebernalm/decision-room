@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
-import { useReducedMotion } from "motion/react";
+import { useState } from "react";
 import {
   Plus,
   ArrowUpRight,
@@ -17,111 +16,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { useWorkspace } from "@/lib/workspace";
 import { useResource } from "@/lib/hooks";
-import { date, shortTitle } from "@/lib/api";
+import { date } from "@/lib/api";
 import type { Report } from "@/lib/types";
 import { Heading, Notice, Empty, Loading } from "./shared";
 import { ReportView } from "./report";
 import { ChatActions } from "./chat-actions";
-import { FloatingAssistant } from "./floating-assistant";
-export function StartChat({ home = false }: { home?: boolean }) {
-  const reducedMotion = useReducedMotion();
-  const [arrived, setArrived] = useState(false);
-  const reveal = useCallback(() => setArrived(true), []);
-  const showIntro = home || reducedMotion || arrived;
-  useEffect(() => {
-    if (showIntro) return;
-    // Direct visits have no shared-layout animation to signal arrival.
-    const timer = setTimeout(reveal, 320);
-    return () => clearTimeout(timer);
-  }, [showIntro, reveal]);
-  const revealStyle = {
-    opacity: showIntro ? 1 : 0,
-    visibility: showIntro ? ("visible" as const) : ("hidden" as const),
-  };
-  const { workspace, listing } = useWorkspace(),
-    business = workspace.business!;
-  return (
-    <div
-      className={
-        home
-          ? "mb-10"
-          : "mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center py-8 sm:py-12"
-      }
-    >
-      <div
-        style={revealStyle}
-        className={
-          home ? "mb-7" : "mb-8 text-center transition-opacity duration-150"
-        }
-      >
-        <p className="mb-3 text-xs font-medium text-muted-foreground">
-          {business.name}
-        </p>
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-          {home
-            ? "Una mirada clara a tu negocio."
-            : "¿Qué quieres entender hoy?"}
-        </h1>
-        <p className="mt-3 text-sm text-muted-foreground">
-          {home
-            ? "Tus datos, tus conversaciones y las decisiones que vienen."
-            : "Pregunta, añade contexto o explora tus datos con la IA."}
-        </p>
-      </div>
-      {!home && (
-        <>
-          <FloatingAssistant inline onArrive={reveal} />
-          {listing.conversations.length > 0 && (
-            <section
-              aria-label="Conversaciones recientes"
-              style={revealStyle}
-              className="mt-10 transition-opacity duration-150"
-            >
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <h2 className="text-xs font-medium text-muted-foreground">
-                  Conversaciones recientes
-                </h2>
-                <Button
-                  variant="link"
-                  size="sm"
-                  className="h-auto p-0 text-xs"
-                  asChild
-                >
-                  <a href="#chats">Ver todas</a>
-                </Button>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {listing.conversations.slice(0, 4).map((chat) => (
-                  <a
-                    key={chat.id}
-                    href={`#chat/${chat.id}`}
-                    className="conversation-tile flex min-w-0 items-center gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <MessageCircle
-                      className="size-4 shrink-0 text-muted-foreground"
-                      aria-hidden="true"
-                    />
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">
-                        {shortTitle(chat.title)}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {date(chat.last_message_at || chat.created_at)}
-                      </p>
-                    </div>
-                  </a>
-                ))}
-              </div>
-            </section>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
+import { useAssistant } from "@/lib/assistant";
 export { Reports } from "./reports";
 export function Chats() {
   const { listing } = useWorkspace();
+  const assistant = useAssistant();
   const [search, setSearch] = useState("");
   const chats = listing.conversations.filter((c) =>
     c.title.toLowerCase().includes(search.toLowerCase()),
@@ -132,11 +36,9 @@ export function Chats() {
         title="Conversaciones"
         description="Retoma una pregunta o empieza a explorar algo nuevo."
       >
-        <Button asChild>
-          <a href="#ask">
-            <Plus />
-            Nuevo chat
-          </a>
+        <Button onClick={() => assistant?.newConversation()}>
+          <Plus />
+          Nuevo chat
         </Button>
       </Heading>
       <Input
@@ -182,7 +84,7 @@ export function Chats() {
         <Empty
           title="Un espacio para pensar con tus datos"
           description="Tus conversaciones se guardan dentro de cada negocio."
-          href="#ask"
+          onAction={() => assistant?.newConversation()}
         />
       )}
     </>
@@ -214,6 +116,7 @@ export function Presentation({
   );
 }
 export function How() {
+  const assistant = useAssistant();
   return (
     <>
       <Heading
@@ -252,11 +155,9 @@ export function How() {
         contener errores: revisa el alcance, las fuentes y las limitaciones
         antes de tomar decisiones.
       </Notice>
-      <Button asChild className="mt-4">
-        <a href="#ask">
-          Empezar una conversación
-          <ArrowUpRight />
-        </a>
+      <Button className="mt-4" onClick={() => assistant?.newConversation()}>
+        Empezar una conversación
+        <ArrowUpRight />
       </Button>
     </>
   );

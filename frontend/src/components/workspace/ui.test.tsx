@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Composer } from "./composer";
 import { ReportView } from "./report";
 import { FloatingAssistant } from "./floating-assistant";
-import { StartChat, Reports } from "./overview";
+import { Reports } from "./overview";
 import { WorkspaceState, type WorkspaceContext } from "@/lib/workspace";
 import { store } from "@/lib/api";
 const workspace = {
@@ -65,50 +65,6 @@ it("opens available reports directly and keeps progress or recovery for other st
       `#${["completed", "historical"].includes(status) ? "report" : "analysis"}/${status}`,
     );
   expect(screen.getByText("En preparación")).toBeInTheDocument();
-});
-it("new chat offers the four latest conversations below one expanded composer", async () => {
-  store.set("dr-assistant-collapsed", true);
-  render(
-    <WorkspaceState.Provider
-      value={{
-        ...workspace,
-        listing: {
-          ...workspace.listing,
-          conversations: Array.from({ length: 5 }, (_, i) => ({
-            id: `chat-${i}`,
-            business_id: "a",
-            title: `Conversación ${i}`,
-            created_at: "2026-09-26",
-          })),
-        },
-      }}
-    >
-      <StartChat />
-    </WorkspaceState.Provider>,
-  );
-  expect(
-    screen.queryByRole("heading", { name: "¿Qué quieres entender hoy?" }),
-  ).toBeNull();
-  expect(screen.getByRole("textbox", { name: "Mensaje" })).toBeVisible();
-  expect(
-    await screen.findByRole("heading", { name: "¿Qué quieres entender hoy?" }),
-  ).toBeInTheDocument();
-  expect(screen.getAllByRole("textbox", { name: "Mensaje" })).toHaveLength(1);
-  expect(
-    screen.getByRole("region", { name: "Conversaciones recientes" }),
-  ).toBeInTheDocument();
-  for (let i = 0; i < 4; i++)
-    expect(
-      screen.getByRole("link", { name: new RegExp(`Conversación ${i}`) }),
-    ).toHaveAttribute("href", `#chat/chat-${i}`);
-  expect(screen.queryByRole("link", { name: /Conversación 4/ })).toBeNull();
-  expect(screen.getByRole("link", { name: "Ver todas" })).toHaveAttribute(
-    "href",
-    "#chats",
-  );
-  expect(
-    screen.queryByRole("button", { name: "Minimizar asistente" }),
-  ).toBeNull();
 });
 it("official composer keeps controlled draft after submit failure and supports Shift+Enter", async () => {
   const send = vi.fn(async () => {
@@ -271,7 +227,8 @@ it("folds into an accessible button and restores the draft and keyboard focus", 
   expect(screen.getByRole("textbox", { name: "Mensaje" })).toHaveFocus();
   await user.click(screen.getByRole("button", { name: "Minimizar asistente" }));
   next.unmount();
-  renderDock("ask");
+  store.set("dr-assistant-collapsed", false);
+  renderDock("my-business");
   expect(screen.getByRole("textbox", { name: "Mensaje" })).toHaveValue(
     "Mi borrador",
   );

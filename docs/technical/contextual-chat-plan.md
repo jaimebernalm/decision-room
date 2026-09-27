@@ -9,6 +9,12 @@ Ejecutado después del paso 2.5.15, conservando los trabajos de onboarding.
 
 ## Experiencia acordada
 
+«Nuevo chat» abre directamente el panel derecho sin crear una conversación hasta
+el primer envío. Desde Inicio, Mi negocio e Informes mantiene la página; desde
+Conversaciones o un chat ampliado vuelve a Inicio. La ruta antigua `#ask`
+redirige al mismo resultado. Los chats recientes permanecen en la navegación,
+sin un selector duplicado dentro del panel.
+
 La barra del chat incorpora una herramienta visible «Seleccionar», con icono.
 No se añaden botones «Preguntar sobre esto» en cada tarjeta del dashboard o
 sección del informe. Al activar la herramienta, los bloques seleccionables se

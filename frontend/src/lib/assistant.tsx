@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useWorkspace } from "./workspace";
-import { contextKey, referenceWire, launchChat, store } from "./api";
+import { contextKey, homeDraftKey, referenceWire, launchChat, store } from "./api";
 import { useDraft } from "./hooks";
 import type {
   ContextAttachment,
@@ -37,16 +37,11 @@ type Dock = {
   scroll?: number;
   block?: string;
 };
-export type ChatEntry = {
-  chatId: string;
-  rect: { x: number; y: number; width: number; height: number };
-};
 type Assistant = {
-  chatEntry: ChatEntry | null;
-  setChatEntry: (entry: ChatEntry | null) => void;
   dock: Dock;
   setDock: (d: Dock) => void;
   openConversation: (id: string) => void;
+  newConversation: () => void;
   selecting: boolean;
   setSelecting: (v: boolean) => void;
   selected: ContextAttachment[];
@@ -91,7 +86,6 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const selecting = selectionRoute === route;
   const setSelecting = (value: boolean) =>
     setSelectionRoute(value ? route : null);
-  const [chatEntry, setChatEntry] = useState<ChatEntry | null>(null);
   const [error, setError] = useState("");
   const [launching, setLaunching] = useState(false);
   const [previews, setPreviews] = useState<Record<string, ContextAttachment>>(
@@ -142,8 +136,15 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       value={{
         dock,
         setDock,
-        chatEntry,
-        setChatEntry,
+        newConversation: () => {
+          launchVersion.current += 1;
+          setLaunching(false);
+          clear();
+          store.remove(homeDraftKey(business));
+          const origin = contextualRoute(route) ? route : "home";
+          setDock({ open: true, origin });
+          if (route !== origin) location.hash = origin;
+        },
         openConversation: (id) => {
           launchVersion.current += 1;
           setLaunching(false);

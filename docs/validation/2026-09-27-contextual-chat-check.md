@@ -211,7 +211,18 @@ en pantalla, compilación y lint sin errores; ajuste exclusivamente de color.
 - Servidor local actualizado tras verificar que no había trabajos ni turnos activos.
 
 
-## Transición desde Nuevo chat
+## Transición desde Nuevo chat (sustituida)
+
+La pantalla central descrita a continuación se retiró después de la validación
+original. Actualmente «Nuevo chat» abre un panel vacío a la derecha, también al
+entrar mediante `#ask`. Las conversaciones anteriores se eligen desde la barra
+lateral o el listado de Conversaciones. El historial siguiente documenta la
+implementación anterior y no describe el comportamiento actual.
+
+Validación del cambio: 61 pruebas frontend, compilación y lint sin errores.
+En navegador local, el listado de Conversaciones no muestra barra de mensaje;
+«Nuevo chat» abre Inicio con el panel vacío y el primer envío permanece allí.
+La ruta antigua `#ask` también termina en Inicio con el panel enfocado.
 
 - Se captura la posición de la barra central al completar un primer envío válido.
   La conversación recibe esa geometría de forma efímera y anima la barra hasta su

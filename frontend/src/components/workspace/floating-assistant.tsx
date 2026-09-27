@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { motion, useReducedMotion } from "motion/react";
 import { MessageCircle, ChevronDown, X, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,13 +18,10 @@ import { Composer } from "./composer";
 // while late sends cannot redirect a different page or business.
 export function FloatingAssistant({
   inline = false,
-  onArrive,
 }: {
   inline?: boolean;
-  onArrive?: () => void;
 }) {
   const assistant = useAssistant();
-  const reducedMotion = useReducedMotion();
   const { workspace, route, refresh } = useWorkspace();
   const business = workspace.business!;
   const [text, setText] = useDraft(homeDraftKey(business.id), "");
@@ -35,11 +31,10 @@ export function FloatingAssistant({
   );
   const [open, setOpen] = useState<boolean>(
     () =>
-      route === "ask" || !store.get<boolean>("dr-assistant-collapsed", false),
+      !store.get<boolean>("dr-assistant-collapsed", false),
   );
   const container = useRef<HTMLDivElement>(null);
-  const bar = useRef<HTMLDivElement>(null);
-  const focusOnChange = useRef(route === "ask");
+  const focusOnChange = useRef(inline);
   const action = useAction();
   useEffect(() => {
     if (focusOnChange.current) {
@@ -61,18 +56,8 @@ export function FloatingAssistant({
         await assistant.launch(text, context, route);
         if (action.isMounted()) refresh();
       } else {
-        const [chat] = await Promise.all([
-          launchChat(business.id, text, context),
-          route === "ask" ? import("./chat") : Promise.resolve(),
-        ]);
+        const chat = await launchChat(business.id, text, context);
         if (action.isMounted()) {
-          if (route === "ask" && inline && bar.current) {
-            const { x, y, width, height } = bar.current.getBoundingClientRect();
-            assistant?.setChatEntry({
-              chatId: chat.id,
-              rect: { x, y, width, height },
-            });
-          }
           refresh();
           location.hash = `chat/${chat.id}`;
         }
@@ -131,14 +116,7 @@ export function FloatingAssistant({
           </CollapsibleTrigger>
         )}
         <CollapsibleContent asChild>
-          <motion.div
-            ref={bar}
-            layoutId={`assistant-bar-${business.id}`}
-            initial={false}
-            onLayoutAnimationComplete={onArrive}
-            transition={{
-              layout: { duration: reducedMotion ? 0 : 0.24, ease: "easeInOut" },
-            }}
+          <div
             className="relative rounded-[2rem] bg-background shadow-[0_8px_40px_-8px_rgba(0,0,0,0.25)] dark:shadow-[0_8px_40px_-8px_rgba(0,0,0,0.6)]"
           >
             {!inline && (
@@ -193,7 +171,7 @@ export function FloatingAssistant({
               error={action.error || assistant?.error}
               placeholder="Pregunta algo…"
             />
-          </motion.div>
+          </div>
         </CollapsibleContent>
       </Collapsible>
     </div>

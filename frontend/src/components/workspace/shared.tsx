@@ -155,12 +155,14 @@ export function Empty({
   title,
   description,
   href,
+  onAction,
   label = "Nuevo chat",
   iconAction,
 }: {
   title: string;
   description: string;
   href?: string;
+  onAction?: () => void;
   label?: string;
   iconAction?: { label: string; onClick: () => void; disabled?: boolean };
 }) {
@@ -187,14 +189,19 @@ export function Empty({
         )}
         <h2 className="text-lg font-semibold">{title}</h2>
         <p className="max-w-md text-sm text-muted-foreground">{description}</p>
-        {href && (
+        {onAction ? (
+          <Button className="mt-3" onClick={onAction}>
+            {label}
+            <ArrowUpRight />
+          </Button>
+        ) : href ? (
           <Button asChild className="mt-3">
             <a href={href}>
               {label}
               <ArrowUpRight />
             </a>
           </Button>
-        )}
+        ) : null}
       </CardContent>
     </Card>
   );

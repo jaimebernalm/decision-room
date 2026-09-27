@@ -83,6 +83,7 @@ function Navigation({
 }) {
   const { workspace, listing, route } = useWorkspace(),
     { isMobile, setOpenMobile, state } = useSidebar();
+  const assistant = useAssistant();
   const close = () => {
     if (isMobile) setOpenMobile(false);
   };
@@ -137,15 +138,15 @@ function Navigation({
           </SidebarMenuItem>
         </SidebarMenu>
         <Button
-          asChild
+          aria-label="Nuevo chat"
+          onClick={() => {
+            assistant?.newConversation();
+            close();
+          }}
           className="w-full group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:p-0"
         >
-          <a href="#ask" onClick={close}>
-            <Plus />
-            <span className="group-data-[collapsible=icon]:hidden">
-              Nuevo chat
-            </span>
-          </a>
+          <Plus />
+          <span className="group-data-[collapsible=icon]:hidden">Nuevo chat</span>
         </Button>
       </SidebarHeader>
       <SidebarContent>
@@ -158,8 +159,7 @@ function Navigation({
                   isActive={
                     route === key ||
                     (key === "chats" &&
-                      (route === "ask" ||
-                        route.startsWith("chat/") ||
+                      (route.startsWith("chat/") ||
                         route.startsWith("chat-report/"))) ||
                     (key === "reports" &&
                       (route === "new" ||

@@ -1,4 +1,4 @@
-import { useEffect, useState, lazy, Suspense } from "react";
+import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import { ThemeProvider } from "next-themes";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
@@ -17,6 +17,7 @@ import {
 import { api, ApiError } from "@/lib/api";
 import type { Workspace, ChatListing, Chat } from "@/lib/types";
 import { WorkspaceState } from "@/lib/workspace";
+import { useAssistant } from "@/lib/assistant";
 import { useAction } from "@/lib/hooks";
 import { FloatingAssistant } from "@/components/workspace/floating-assistant";
 import { Layout } from "@/components/workspace/layout";
@@ -36,11 +37,6 @@ import {
 } from "@/components/workspace/shared";
 const Home = lazy(() =>
   import("@/components/workspace/home").then((m) => ({ default: m.Home })),
-);
-const StartChat = lazy(() =>
-  import("@/components/workspace/overview").then((m) => ({
-    default: m.StartChat,
-  })),
 );
 const Chats = lazy(() =>
   import("@/components/workspace/overview").then((m) => ({ default: m.Chats })),
@@ -207,7 +203,7 @@ function App() {
     const showAssistant =
       Boolean(workspace.business) &&
       !activeRoute.startsWith("chat/") &&
-      !["business-new", "businesses", "ask"].includes(activeRoute);
+      !["business-new", "businesses", "ask", "chats"].includes(activeRoute);
     body = (
       <WorkspaceState.Provider
         value={{
@@ -286,7 +282,7 @@ function App() {
                   <ChatPage id={activeRoute.split("/")[1]} />
                 ) : (
                   <div
-                    className={`mx-auto w-full max-w-7xl px-5 py-8 sm:px-8 lg:px-10 ${showAssistant ? "pb-64" : ""} ${activeRoute === "ask" ? "flex min-h-full flex-col" : ""}`}
+                    className={`mx-auto w-full max-w-7xl px-5 py-8 sm:px-8 lg:px-10 ${showAssistant ? "pb-64" : ""}`}
                   >
                     <Route route={activeRoute} />
                   </div>
@@ -364,13 +360,23 @@ function App() {
     </ThemeProvider>
   );
 }
+function NewChatRedirect() {
+  const assistant = useAssistant();
+  const started = useRef(false);
+  useEffect(() => {
+    if (started.current || !assistant) return;
+    started.current = true;
+    assistant.newConversation();
+  }, [assistant]);
+  return null;
+}
 function Route({ route }: { route: string }) {
   const [page, id, turn] = route.split("/");
   switch (page) {
     case "home":
       return <Home />;
     case "ask":
-      return <StartChat />;
+      return <NewChatRedirect />;
     case "chats":
       return <Chats />;
     case "reports":

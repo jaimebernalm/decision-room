@@ -355,6 +355,28 @@ it("starts a new conversation inside the open panel and labels its actions", asy
   expect(location.hash).toBe("#home");
 });
 
+it.each([
+  ["home", "#home"],
+  ["my-business", "#my-business"],
+  ["reports", "#reports"],
+  ["chats", "#home"],
+  ["chat/previous-chat", "#home"],
+])("opens a blank right panel from %s", async (route, destination) => {
+  location.hash = route;
+  store.set("dr-dock-a", { chatId: "previous-chat", open: false });
+  const calls = server();
+  render(<Harness initialRoute={route} />);
+  await userEvent.click(screen.getAllByRole("button", { name: "Nuevo chat" })[0]);
+  await waitFor(() => expect(location.hash).toBe(destination));
+  const panel = await screen.findByRole("complementary", {
+    name: "Conversación lateral",
+  });
+  expect(within(panel).getByRole("textbox", { name: "Mensaje" })).toHaveValue("");
+  expect(within(panel).getByRole("button", { name: "Abrir conversación completa" })).toBeDisabled();
+  expect(calls.filter((call) => call.url === "/api/chats")).toHaveLength(0);
+  expect(screen.queryByRole("heading", { name: "¿Qué quieres entender hoy?" })).toBeNull();
+});
+
 const existingChats = [
   { id: "old", business_id: "a", title: "Anterior", created_at: "2026-09-27" },
   {

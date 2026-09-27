@@ -1,5 +1,4 @@
-import { useRef, useState, useLayoutEffect } from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { useRef, useState } from "react";
 import { FileText, RotateCcw, ArrowUpRight } from "lucide-react";
 import {
   Conversation,
@@ -212,50 +211,6 @@ export function ChatPage({
   const { workspace, refresh } = useWorkspace(),
     business = workspace.business!.id;
   const resource = useResource<ChatDetail>(`/api/chats/${id}`, 3000);
-  const reducedMotion = useReducedMotion();
-  const [entry] = useState(() =>
-    !docked && assistant?.chatEntry?.chatId === id ? assistant.chatEntry : null,
-  );
-  const [arrived, setArrived] = useState(!entry || Boolean(reducedMotion));
-  const composer = useRef<HTMLDivElement>(null);
-  const setChatEntry = assistant?.setChatEntry;
-  useLayoutEffect(() => {
-    if (!entry || !composer.current) return;
-    setChatEntry?.(null);
-    const element = composer.current;
-    let active = true;
-    const finish = () => {
-      if (!active) return;
-      setArrived(true);
-      element.querySelector("textarea")?.focus({ preventScroll: true });
-    };
-    const target = element.getBoundingClientRect();
-    if (
-      reducedMotion ||
-      !element.animate ||
-      !target.width ||
-      !entry.rect.width
-    ) {
-      finish();
-      return;
-    }
-    // Keep the visual bar at the old position while its new layout is already at the bottom.
-    const animation = element.animate(
-      [
-        {
-          transform: `translate(${entry.rect.x - target.x}px, ${entry.rect.y - target.y}px) scale(${entry.rect.width / target.width}, ${entry.rect.height / Math.max(1, target.height)})`,
-          transformOrigin: "top left",
-        },
-        { transform: "none", transformOrigin: "top left" },
-      ],
-      { duration: 420, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
-    );
-    void animation.finished.then(finish, finish);
-    return () => {
-      active = false;
-      animation.cancel();
-    };
-  }, [entry, reducedMotion, setChatEntry]);
   const [draft, persistDraft] = useDraft<MessageDraft>(messageKey(id), {
       text: "",
     }),
@@ -337,20 +292,13 @@ export function ChatPage({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <h1 className="sr-only">Conversación con IA</h1>
-      {!arrived ? (
-        <div className="min-h-0 flex-1" aria-hidden="true" />
-      ) : !data ? (
+      {!data ? (
         <div className="flex-1 p-6">
           <Notice error>{resource.error}</Notice>
           {!resource.error && <Loading />}
         </div>
       ) : (
-        <motion.div
-          className="flex min-h-0 flex-1 flex-col"
-          initial={entry && !reducedMotion ? { opacity: 0, y: 6 } : false}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: reducedMotion ? 0 : 0.18 }}
-        >
+        <div className="flex min-h-0 flex-1 flex-col">
           <Conversation>
             <ConversationContent
               className={`mx-auto w-full max-w-4xl px-4 py-8 ${docked ? "" : "sm:px-8"}`}
@@ -516,14 +464,12 @@ export function ChatPage({
             </ConversationContent>
             <ConversationScrollButton aria-label="Ir al último mensaje" />
           </Conversation>
-        </motion.div>
+        </div>
       )}
       <div
         className={`shrink-0 px-4 pb-4 pt-2 ${docked ? "bg-sidebar" : "bg-background sm:px-8"}`}
       >
         <div
-          ref={composer}
-          data-composer-entry={arrived ? "ready" : "moving"}
           className="relative z-10 mx-auto max-w-2xl"
         >
           {selected && (
@@ -568,7 +514,7 @@ export function ChatPage({
               })
             }
             onSend={send}
-            busy={sendAction.busy || !arrived || !data}
+            busy={sendAction.busy || !data}
             error={sendAction.error}
             placeholder={
               selected ? "Escribe tu aclaración…" : "Pregunta o añade contexto…"
