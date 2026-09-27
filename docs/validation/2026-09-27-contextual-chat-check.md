@@ -173,3 +173,11 @@ tarjeta a 8 px del borde superior y panel desde el borde superior, fuera de ella
 Se observó un ancho intermedio de 35 px durante la apertura hacia 444 px y la
 conservación del panel al empezar el cierre. El dashboard termina desplazado a
 la derecha al abrir la navegación. La ventana de pruebas se restauró al finalizar.
+
+## Contraste de mensajes y navegación
+
+El fondo compartido por el mensaje del usuario y los estados activo/hover de la
+navegación pasa de luminosidad OKLCH 0,97 a 0,93 en tema claro. Los mensajes usan
+el token `sidebar-accent` para mantener coherencia con el resaltado de navegación.
+Se conserva el valor del tema oscuro. Verificación visual con ambos elementos
+en pantalla, compilación y lint sin errores; ajuste exclusivamente de color.

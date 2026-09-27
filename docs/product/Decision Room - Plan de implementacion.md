@@ -378,6 +378,10 @@ gris de navegación y cabecera superior. Apertura y cierre coordinados con la ba
 izquierda, respetando movimiento reducido. Revisión visual en escritorio/móvil y
 ambos temas; 54 pruebas frontend, nueve dirigidas, compilación y lint correctos.
 
+**Contraste:** gris algo más oscuro y compartido para mensajes del usuario y
+resaltado activo/hover de navegación en tema claro. Revisión visual, compilación
+y lint correctos.
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Prioridad actualizada, 23 de septiembre de 2026:** iniciar las ampliaciones siguientes después de cerrar la entrega 2.5. La evaluación del 22 de septiembre descrita a continuación ya se realizó; no se presenta como trabajo pendiente ni sustituye la regresión exigida por los cambios de memoria y conversación.
