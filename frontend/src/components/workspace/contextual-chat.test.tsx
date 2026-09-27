@@ -43,7 +43,12 @@ const workspace: WorkspaceContext = {
         filename: "ventas.csv",
         created_at: "2026-09-27",
         status: "completed",
-        context_reference: { ...item, title: "Informe de ventas" },
+        context_reference: {
+          ...item,
+          kind: "report",
+          element_key: "report",
+          title: "Informe de ventas",
+        },
       },
     ],
     configured: true,
@@ -359,7 +364,7 @@ const existingChats = [
     created_at: "2026-09-27",
   },
 ];
-it("opens an existing conversation from its page on the last report without sending", async () => {
+it("opens an existing conversation from its page on home without duplicate return actions or sending", async () => {
   location.hash = "chat/existing";
   store.set("dr-assistant-origin-a", "report/sales");
   store.set(messageKey("existing"), { text: "Borrador existente" });
@@ -367,6 +372,11 @@ it("opens an existing conversation from its page on the last report without send
   const user = userEvent.setup();
   render(<Harness initialRoute="chat/existing" />);
   await screen.findByRole("textbox");
+  expect(
+    screen.queryByRole("button", {
+      name: /Volver al dashboard|Volver al informe/,
+    }),
+  ).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Abrir en panel" }));
   const panel = await screen.findByRole("complementary", {
     name: "Conversación lateral",
@@ -374,7 +384,7 @@ it("opens an existing conversation from its page on the last report without send
   expect(await within(panel).findByRole("textbox")).toHaveValue(
     "Borrador existente",
   );
-  expect(location.hash).toBe("#report/sales");
+  expect(location.hash).toBe("#home");
   expect(store.get("dr-dock-a", {})).toMatchObject({
     chatId: "existing",
     open: true,
@@ -433,12 +443,8 @@ it("keeps the same dock and draft across home, business and reports and sends bo
     await within(panel).findByRole("textbox"),
     "Explica la selección",
   );
-  await user.click(
-    screen.getByRole("link", { name: "Mi negocio" }),
-  );
-  await user.click(
-    screen.getByRole("button", { name: "Seleccionar" }),
-  );
+  await user.click(screen.getByRole("link", { name: "Mi negocio" }));
+  await user.click(screen.getByRole("button", { name: "Seleccionar" }));
   await user.click(
     await screen.findByRole("button", {
       name: "Seleccionar: Presentación de Negocio",
@@ -450,9 +456,7 @@ it("keeps the same dock and draft across home, business and reports and sends bo
   expect(within(panel).getByRole("textbox")).toHaveValue(
     "Explica la selección",
   );
-  await user.click(
-    screen.getByRole("button", { name: "Seleccionar" }),
-  );
+  await user.click(screen.getByRole("button", { name: "Seleccionar" }));
   await user.click(
     screen.getByRole("button", { name: "Seleccionar: Informe de ventas" }),
   );
@@ -480,8 +484,8 @@ it("keeps the same dock and draft across home, business and reports and sends bo
           {
             report_id: "review",
             report_version: "v1",
-            kind: "metric",
-            element_key: "total",
+            kind: "report",
+            element_key: "report",
           },
         ],
       }),

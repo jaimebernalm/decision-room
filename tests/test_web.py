@@ -117,6 +117,35 @@ class WebTests(unittest.TestCase):
         self.assertTrue(self.ws.detail(job)['publishable'])
         return job
 
+    def test_report_trash_is_recoverable_scoped_and_keeps_evidence(self):
+        job = self.complete()
+        report = self.ws.report(job, structured=True)
+        client, server = self.http()
+        body = {'business_id': str(self.business['id'])}
+        self.assertEqual(client.post(f'/api/jobs/{job}/delete', json=body).status_code, 401)
+        client.post('/api/login', json={'token': server.token})
+        item = self.ws.listing()[0]
+        self.assertEqual(item['context_reference']['kind'], 'report')
+        self.assertEqual(item['context_reference']['element_key'], 'report')
+        self.assertEqual(client.post(f'/api/jobs/{job}/delete', json=body).status_code, 200)
+        self.assertEqual(self.ws.listing(), [])
+        self.assertEqual(str(client.get('/api/reports/deleted').json()['items'][0]['id']), str(job))
+        self.assertEqual(self.ws.report(job, structured=True), report)
+        self.assertEqual(client.post(f'/api/jobs/{job}/delete', json=body).status_code, 200)
+        self.assertEqual(client.post(f'/api/jobs/{job}/restore', json=body).status_code, 200)
+        self.assertEqual(len(self.ws.listing()), 1)
+        self.assertEqual(client.get('/api/reports/deleted').json()['items'], [])
+        review.hold(self.config, self.business['id'], self.ws.row(job)['review_id'], reason='Test withdrawal')
+        self.assertEqual(self.ws.listing()[0]['presentation_status'], 'withdrawn')
+        self.assertEqual(client.post(f'/api/jobs/{job}/delete', json=body).status_code, 200)
+        self.assertEqual(self.ws.listing(), [])
+        queued = self.create(request_key=str(uuid4()))
+        self.assertEqual(client.post(f'/api/jobs/{queued}/delete', json=body).status_code, 409)
+        other = self.ws.save_business({'request_key': str(uuid4()), 'name': 'Other', 'description': 'Other business', 'expected_active_id': str(self.business['id'])})
+        self.assertEqual(client.get('/api/reports/deleted').json()['items'], [])
+        self.assertEqual(client.post(f'/api/jobs/{job}/restore', json=body).status_code, 409)
+        self.assertEqual(client.post(f'/api/jobs/{job}/restore', json={'business_id': str(other['id'])}).status_code, 404)
+
     def test_question_references_preview_pagination_and_scope(self):
         from decision_room.web.preview import page
         self.csv = ('quantity,amount\n' + ''.join(f'{i},{i * 10}\n' for i in range(1, 56))).encode()

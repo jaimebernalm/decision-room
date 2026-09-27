@@ -269,10 +269,10 @@ class Workspace:
             LOG.exception('Cannot read evidence for web job %s', j['id'])
             return {'publishable': False, 'pending_questions': [], 'unavailable': True}
 
-    def listing(self):
+    def listing(self, *, deleted=False):
         with connect(self.config) as db:
-            rows = db.execute("SELECT w.*,w.business_name AS business FROM web_jobs w WHERE w.business_id=%s AND (w.origin='upload' OR EXISTS (SELECT 1 FROM chat_turns t WHERE t.business_id=w.business_id AND (t.job_id=w.id OR t.response->>'report_id'=w.review_id::text) AND t.report_requested)) ORDER BY w.created_at DESC",
-                              (self.business_id(),)).fetchall()
+            rows = db.execute("SELECT w.*,w.business_name AS business FROM web_jobs w WHERE w.business_id=%s AND (w.deleted_at IS NOT NULL)=%s AND (w.origin='upload' OR EXISTS (SELECT 1 FROM chat_turns t WHERE t.business_id=w.business_id AND (t.job_id=w.id OR t.response->>'report_id'=w.review_id::text) AND t.report_requested)) ORDER BY w.created_at DESC",
+                              (self.business_id(), deleted)).fetchall()
         result = []
         for j in rows:
             item = self.public(j)
@@ -280,12 +280,26 @@ class Workspace:
                 current = self.review_state(j)
                 if current['publishable']:
                     item['context_reference'] = dict(report_id=str(j['review_id']),
-                        report_version=current['approved_sha256'], kind='section', element_key='summary',
+                        report_version=current['approved_sha256'], kind='report', element_key='report',
                         title=j['title'], href='#report/' + str(j['id']))
                 else:
                     item.update(status='blocked', presentation_status='withdrawn', phase='review', issue='Informe retirado: necesita un nuevo cálculo y revisión.')
             result.append(item)
         return result
+
+    def delete_report(self, job_id, data, *, restore=False):
+        from .dossier import guard
+        business = guard(self, data)
+        with connect(self.config) as db, db.transaction():
+            job = db.execute('SELECT status FROM web_jobs WHERE id=%s AND business_id=%s FOR UPDATE',
+                             (identifier(job_id), business)).fetchone()
+            if not job:
+                raise WebError('Informe no encontrado.', 404)
+            if not restore and job['status'] in ('queued', 'running', 'waiting'):
+                raise WebError('Espera a que termine el informe antes de eliminarlo.', 409)
+            db.execute('UPDATE web_jobs SET deleted_at=' + ('NULL' if restore else 'coalesce(deleted_at,now())') +
+                       ' WHERE id=%s AND business_id=%s', (job_id, business))
+        return {'saved': True}
 
     def daily_activity(self, listing):
         """Latest chat turns, including work not yet published as a report."""

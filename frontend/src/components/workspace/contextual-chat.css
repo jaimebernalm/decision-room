@@ -158,3 +158,25 @@
     transition-duration: 0ms;
   }
 }
+.report-pick-row {
+  position: relative;
+}
+.report-selection-hit {
+  border-radius: 0;
+}
+.report-selection-hit .context-check {
+  top: 50%;
+  transform: translateY(-50%);
+  right: 16px;
+}
+.report-unselectable {
+  cursor: not-allowed;
+  background: var(--muted);
+}
+.report-unselectable:hover {
+  background: var(--muted);
+}
+
+.assistant-selecting .assistant-content {
+  padding-top: 3.5rem;
+}

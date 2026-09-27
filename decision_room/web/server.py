@@ -273,6 +273,9 @@ class Handler(BaseHTTPRequestHandler):
                 requested = parse_qs(urlsplit(self.path).query).get('report', [None])
                 self.send(200, ws.dashboard(requested[0]))
                 return
+            if not mutation and path == '/api/reports/deleted':
+                self.send(200, {'items': ws.listing(deleted=True)})
+                return
             if mutation and path == '/api/jobs':
                 self.send(202, ws.create(*self.multipart()))
                 return
@@ -289,6 +292,9 @@ class Handler(BaseHTTPRequestHandler):
                 if not mutation and action == 'data':
                     from .preview import page
                     self.send(200, page(ws, job_id, parse_qs(urlsplit(self.path).query)))
+                    return
+                if mutation and action in ('delete', 'restore'):
+                    self.send(200, ws.delete_report(job_id, self.json_body(), restore=action == 'restore'))
                     return
                 if mutation and action == 'answers':
                     self.send(202, ws.reply(job_id, self.json_body()))

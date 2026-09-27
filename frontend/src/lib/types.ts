@@ -115,7 +115,7 @@ export type Dashboard = {
 export type ReportReference = {
   report_id: string;
   report_version: string;
-  kind: "chart" | "metric" | "insight" | "section";
+  kind: "chart" | "metric" | "insight" | "section" | "report";
   element_key: string;
 };
 export type ContextReference =

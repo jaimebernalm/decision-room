@@ -603,3 +603,7 @@ CREATE TABLE IF NOT EXISTS dataset_bundle_files (
     FOREIGN KEY (business_id, analysis_id) REFERENCES analyses(business_id, id)
 );
 INSERT INTO schema_versions(version) VALUES (17) ON CONFLICT DO NOTHING;
+
+-- Recoverable removal from the report library, preserving evidence and chat links.
+ALTER TABLE web_jobs ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+INSERT INTO schema_versions(version) VALUES (18) ON CONFLICT DO NOTHING;

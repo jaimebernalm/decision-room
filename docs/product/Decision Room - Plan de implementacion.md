@@ -361,6 +361,13 @@ obsoleto. Menú ordenado Inicio, Mi negocio, Informes y Conversaciones, con icon
 propio para el listado de chats. Pruebas de continuidad, alcance y vigencia, más
 recorrido en navegador con modelo real, registrados en la validación del paso.
 
+**Correcciones tras uso con adjuntos:** una sola acción «Abrir en panel» desde la
+conversación completa, con destino Inicio. Seleccionar la fila adjunta el informe
+completo con título y tipo; la memoria aporta procedencia para contrastar su origen.
+Selección sobre toda la fila, estados rojo/verde y papelera recuperable por negocio.
+Validado con 299 pruebas Python, 57 frontend, compilación, lint y navegador con
+modelo real. Véase [comprobación](../validation/2026-09-27-report-context-fixes.md).
+
 ### 2.5.17. Aclaraciones con vista de datos y recuperación
 
 **Completado, 27 de septiembre de 2026:** las preguntas del informe, onboarding y

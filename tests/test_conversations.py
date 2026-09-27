@@ -307,6 +307,35 @@ class ConversationTests(unittest.TestCase):
         with self.assertRaises(WebError):
             self.chats.send(chat, {**payload, 'request_key': str(uuid4())})
 
+    def test_full_report_and_memory_selections_keep_identity_and_provenance(self):
+        memory.change(self.config, self.b, action='declare', request_key=str(uuid4()), content=content())
+        _, prior = self.complete()
+        report = prior['response']
+        with connect(self.config) as db:
+            fact = memory.current(db, self.b)[0]
+        refs = [dict(kind='memory', source_id=str(fact['fact_id']), source_version=str(fact['revision']), element_key='fact'),
+                dict(kind='report', report_id=report['report_id'], report_version=report['report_version'], element_key='report')]
+        seen = []
+        def compare(model, context, correction=None):
+            seen.append(context)
+            if not context['retrievals']:
+                return action('retrieve', retrieval=dict(tool='open_report', query='', id=report['report_id'], limit=1)), {}
+            sources = list(context['available_sources'])
+            return action('answer', text='El dato seleccionado procede del contexto del propietario.', sources=[s for s in sources if s.startswith(('selection/', 'tool/'))]), {}
+        with patch.object(ChatModel, 'generate_chat', compare):
+            turn = self.send(self.chat(), '¿Esta información procede del informe seleccionado?', context_references=refs)
+        self.assertEqual(turn['status'], 'completed', turn)
+        selected_report = turn['attachments'][1]
+        self.assertEqual(selected_report['kind'], 'report')
+        self.assertEqual(selected_report['title'], selected_report['report_title'])
+        self.assertNotEqual(selected_report['title'], 'Resumen')
+        self.assertEqual(selected_report['selection_scope'], 'whole_report')
+        selected_fact = seen[-1]['available_sources']['selection/0']['content']
+        self.assertIn('provenance', selected_fact)
+        self.assertTrue(selected_fact['provenance']['origin_key'])
+        self.assertEqual([e['request']['tool'] for e in seen[-1]['retrievals']], ['open_report'])
+        self.assertEqual(seen[-1]['retrievals'][0]['response']['id'], report['report_id'])
+
     def test_business_selections_are_scoped_versioned_and_available_to_answers(self):
         from decision_room.context_references import normalize
         ref = dict(kind='business', source_id=str(self.b), source_version=str(self.business['profile_revision']), element_key='profile')

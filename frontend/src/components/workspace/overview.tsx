@@ -14,23 +14,13 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import {
-  Table,
-  TableHeader,
-  TableRow,
-  TableHead,
-  TableBody,
-  TableCell,
-} from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { useWorkspace } from "@/lib/workspace";
 import { useResource } from "@/lib/hooks";
-import { date, reportState, shortTitle, analysisHref } from "@/lib/api";
+import { date, shortTitle } from "@/lib/api";
 import type { Report } from "@/lib/types";
 import { Heading, Notice, Empty, Loading } from "./shared";
 import { ReportView } from "./report";
-import { Selectable } from "./context-selection";
 import { ChatActions } from "./chat-actions";
 import { FloatingAssistant } from "./floating-assistant";
 export function StartChat({ home = false }: { home?: boolean }) {
@@ -129,118 +119,7 @@ export function StartChat({ home = false }: { home?: boolean }) {
     </div>
   );
 }
-export function Reports() {
-  const { workspace } = useWorkspace();
-  const [search, setSearch] = useState("");
-  const items = workspace.analyses.filter((a) =>
-    `${a.title} ${a.filename}`
-      .toLocaleLowerCase()
-      .includes(search.toLocaleLowerCase()),
-  );
-  return (
-    <>
-      <Heading
-        title="Informes"
-        description="Resultados, contexto y evidencia en un mismo lugar."
-      >
-        <Button asChild>
-          <a href="#new">
-            <Plus />
-            Crear informe
-          </a>
-        </Button>
-      </Heading>
-      <Input
-        aria-label="Buscar informes"
-        placeholder="Buscar por título o archivo…"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="mb-6 max-w-sm"
-      />
-      {items.length ? (
-        <Card className="gap-0 overflow-hidden py-0 shadow-none">
-          <Table className="[&_th]:px-4 [&_td]:px-4">
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead>Informe</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead className="hidden sm:table-cell">Creado</TableHead>
-                <TableHead className="hidden sm:table-cell">
-                  <span className="sr-only">Abrir</span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.map((a) => (
-                <TableRow
-                  key={a.id}
-                  className="cursor-pointer hover:bg-muted focus-within:bg-muted"
-                  onClick={(event) => {
-                    if (!(event.target as HTMLElement).closest("a, button"))
-                      location.hash = analysisHref(a);
-                  }}
-                >
-                  <TableCell className="whitespace-normal">
-                    <Selectable item={a.context_reference}>
-                      <a
-                        className="break-words font-medium hover:underline"
-                        href={analysisHref(a)}
-                      >
-                        {a.title}
-                      </a>
-                      <p className="mt-1 break-all text-xs text-muted-foreground">
-                        {a.filename}
-                      </p>
-                    </Selectable>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">
-                      {(
-                        {
-                          completed: "Disponible",
-                          historical: "Versión anterior",
-                          outdated: "Contexto cambiado",
-                          withdrawn: "Retirado",
-                          queued: "En preparación",
-                          waiting: "Necesita tu respuesta",
-                          running: "En preparación",
-                          failed: "Interrumpido",
-                          blocked: "Necesita atención",
-                        } as Record<string, string>
-                      )[reportState(a)] || reportState(a)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="hidden text-muted-foreground sm:table-cell">
-                    {date(a.created_at)}
-                  </TableCell>
-                  <TableCell className="hidden sm:table-cell">
-                    <Button
-                      asChild
-                      variant="ghost"
-                      size="icon"
-                      className="hover:bg-transparent"
-                    >
-                      <a href={analysisHref(a)} aria-label={`Abrir ${a.title}`}>
-                        <ArrowUpRight />
-                      </a>
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
-      ) : (
-        <Empty
-          title="Todavía no hay resultados"
-          description="Empieza con una pregunta o crea un informe de tus datos."
-          href="#new"
-          label="Crear informe"
-        />
-      )}
-    </>
-  );
-}
+export { Reports } from "./reports";
 export function Chats() {
   const { listing } = useWorkspace();
   const [search, setSearch] = useState("");

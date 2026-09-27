@@ -19,7 +19,7 @@ def normalize(values):
             raise WebError('La selección no es válida.')
         identity, version = fields[:2]
         item = dict(value, **{identity: str(identifier(value[identity]))})
-        kinds = ('business', 'memory') if fields == SOURCE_FIELDS else ('chart', 'metric', 'insight', 'section')
+        kinds = ('business', 'memory') if fields == SOURCE_FIELDS else ('chart', 'metric', 'insight', 'section', 'report')
         if (item['kind'] not in kinds or
             any(not isinstance(item[k], str) or not 0 < len(item[k]) <= 180
                 for k in (version, 'element_key'))):
@@ -43,7 +43,10 @@ def resolve(reference, reviewed):
     display = presentation(reviewed)
     kind, key = reference['kind'], reference['element_key']
     entries = {'chart': display['charts'], 'metric': display['highlights'], 'insight': display['claims']}
-    if kind == 'section':
+    if kind == 'report' and key == 'report':
+        content = dict(key=key, title=display['title'], statement=display.get('summary') or display['title'])
+        claims = [c['key'] for c in display['claims']]
+    elif kind == 'section':
         text = {'summary': display.get('summary'), 'scope': display['scope']['coverage'],
                 'limitations': '\n'.join(display['limitations'])}.get(key)
         labels = {'summary': 'Resumen', 'scope': 'Alcance', 'limitations': 'Limitaciones'}
@@ -57,6 +60,7 @@ def resolve(reference, reviewed):
     return dict(**reference, title=content.get('title', content.get('label')),
                 period=display['scope']['period'], report_title=display['title'],
                 analysis_id=str(reviewed['analysis_id']), claim_keys=claims, content=content,
+                authority='reviewed_report', selection_scope='whole_report' if kind == 'report' else 'report_element',
                 status='available')
 
 
@@ -71,15 +75,19 @@ def resolve_source(reference, db, business):
         content = dict(key=key, title=title, statement=row['description'])
         details = dict(authority='owner_declared')
     elif kind == 'memory' and key == 'fact':
-        row = db.execute("""SELECT * FROM memory_revisions WHERE business_id=%s AND fact_id=%s
-            ORDER BY revision DESC LIMIT 1""", (business, reference['source_id'])).fetchone()
+        row = db.execute("""SELECT r.*,s.origin_key,s.payload FROM memory_revisions r
+            JOIN memory_sources s ON s.id=r.source_id AND s.business_id=r.business_id
+            WHERE r.business_id=%s AND r.fact_id=%s ORDER BY r.revision DESC LIMIT 1""", (business, reference['source_id'])).fetchone()
         if not row or row['status'] in ('withdrawn', 'superseded'):
             raise WebError('La información seleccionada ya no está disponible.', 409)
         version = str(row['revision'])
         title = row['content']['statement'][:100]
         content = dict(key=key, title=title, statement=row['content']['statement'])
         details = dict(authority='business_memory', memory_status=row['status'],
-                       memory_content=row['content'], alternatives=row.get('alternatives') or [])
+                       memory_content=row['content'], alternatives=row.get('alternatives') or [],
+                       provenance=dict(source_id=str(row['source_id']), origin_key=row['origin_key'],
+                           kind=row['payload'].get('kind'), original_text=row['payload'].get('text'),
+                           question=row['payload'].get('question')))
     else:
         raise WebError('El elemento seleccionado no pertenece a este negocio.', 409)
     if version != reference['source_version']:

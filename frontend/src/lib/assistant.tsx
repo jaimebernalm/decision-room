@@ -140,15 +140,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
           setLaunching(false);
           setSelecting(false);
           setError("");
-          const remembered = store.get<string>(
-            `dr-assistant-origin-${business}`,
-            "home",
-          );
-          const origin = contextualRoute(route)
-            ? route
-            : contextualRoute(remembered)
-              ? remembered
-              : "home";
+          const origin = contextualRoute(route) ? route : "home";
           setDock({ chatId: id, open: true, origin });
           if (route !== origin) location.hash = origin;
         },
@@ -212,7 +204,8 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
             chatId: chatId || dock.chatId,
             open: !matchMedia("(max-width: 767px)").matches,
             origin,
-            block: blockId(r),
+            block: r.kind === "report" ? undefined : blockId(r),
+            scroll: r.kind === "report" ? 0 : undefined,
           });
           location.hash = origin;
         },

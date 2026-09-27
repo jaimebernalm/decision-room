@@ -7,7 +7,7 @@ import {
   type ReactNode,
   type CSSProperties,
 } from "react";
-import { Maximize2, PanelRightClose, Plus, ArrowLeft } from "lucide-react";
+import { Maximize2, PanelRightClose, Plus } from "lucide-react";
 import {
   Tooltip,
   TooltipTrigger,
@@ -95,33 +95,6 @@ export function AssistantFrame({
       <SidebarInset className="assistant-page">
         {header}
         <div className="assistant-content">
-          {route.startsWith("chat/") &&
-            a.dock.chatId === route.split("/")[1] &&
-            a.dock.origin && (
-              <Button
-                variant="secondary"
-                size="sm"
-                className="my-1 mr-4 ml-auto shrink-0"
-                onClick={() => {
-                  a.setDock({
-                    ...a.dock,
-                    open: !matchMedia("(max-width: 767px)").matches,
-                  });
-                  location.hash = a.dock.origin!;
-                }}
-              >
-                <ArrowLeft className="size-3" />
-                {a.dock.origin === "home"
-                  ? "Volver al dashboard"
-                  : a.dock.origin === "my-business" ||
-                      a.dock.origin === "files" ||
-                      a.dock.origin === "business"
-                    ? "Volver a Mi negocio"
-                    : a.dock.origin === "reports"
-                      ? "Volver a informes"
-                      : "Volver al informe"}
-              </Button>
-            )}
           {children}
           {a.selecting && (
             <div className="selection-banner" role="status">

@@ -27,13 +27,7 @@ import type {
 } from "@/lib/types";
 import { EvidenceChart } from "./report";
 
-export function Selectable({
-  item,
-  children,
-}: {
-  item?: ContextAttachment;
-  children: ReactNode;
-}) {
+export function useBlockSelection(item?: ContextAttachment) {
   const assistant = useAssistant();
   const register = assistant?.register;
   const serialized = item ? JSON.stringify(item) : "";
@@ -44,6 +38,16 @@ export function Selectable({
   const selected =
     item &&
     assistant?.selected.some((r) => referenceId(r) === referenceId(item));
+  return { assistant, active, selected };
+}
+export function Selectable({
+  item,
+  children,
+}: {
+  item?: ContextAttachment;
+  children: ReactNode;
+}) {
+  const { assistant, active, selected } = useBlockSelection(item);
   return (
     <div
       id={item ? blockId(item) : undefined}
@@ -197,6 +201,14 @@ export function ContextAttachments({
               onClick={() => setOpened(referenceId(r))}
               aria-label={`Ver adjunto: ${r.title || "Elemento seleccionado"}`}
             >
+              <div className="mb-1 flex items-center gap-1 text-[10px] text-muted-foreground">
+                {r.kind === "report" && <FileText className="size-3" />}
+                {r.kind === "report"
+                  ? "Informe"
+                  : r.kind === "business" || r.kind === "memory"
+                    ? "Mi negocio"
+                    : "Fragmento de informe"}
+              </div>
               <div className="mb-1 flex h-12 items-center overflow-hidden">
                 {r.status === "withdrawn" ? (
                   <span className="text-xs text-muted-foreground">

@@ -243,3 +243,26 @@ la respuesta dispone del perfil y memoria vigentes sin recuperar el texto retira
 como evidencia actual. Las selecciones de informes siguen obligando al agente a
 abrir y citar la revisión exacta. El listado solo ofrece referencias de informes
 publicables; seleccionar un resumen no lanza un nuevo cálculo.
+
+
+## Corrección del listado y procedencia de adjuntos
+
+Desde la conversación completa queda una sola acción «Abrir en panel», que abre
+Inicio con la misma identidad y borrador. Abrir un adjunto conserva su acceso al
+origen concreto. El control duplicado de regreso se retira.
+
+Seleccionar una fila de Informes usa `kind=report`, `element_key=report`, el
+identificador de revisión y su versión. `selection_scope=whole_report` diferencia
+el informe completo de un fragmento; su resumen sirve de miniatura, pero el agente
+debe abrir la revisión íntegra. Las referencias antiguas `section/summary` siguen
+siendo fragmentos válidos. La memoria incorpora fuente, tipo, texto original y
+pregunta de procedencia para contrastar de dónde procede un dato, sin inferirlo
+solo a partir del resumen del informe.
+
+Esquema 18 añade `web_jobs.deleted_at`: el listado y recientes excluyen eliminados;
+`GET /api/reports/deleted` ofrece la papelera del negocio activo. Los POST
+`/api/jobs/:id/delete` y `/restore` validan negocio y trabajo con bloqueo, son
+idempotentes y no purgan datos ni revisiones. No se elimina un trabajo en curso.
+La interfaz permite confirmar, cancelar y restaurar; las referencias históricas
+siguen apuntando a los originales. Véase la
+[validación](../validation/2026-09-27-report-context-fixes.md).
