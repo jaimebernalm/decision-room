@@ -4,7 +4,7 @@
 
 Endurecer el circuito existente antes del onboarding 3.4. Mantiene analista y
 revisor; no incorpora agentes paralelos ni evalúa todavía toda la calidad por
-objetivos de 3.5.
+objetivos de 3.6.
 
 ## Reparos persistentes
 

@@ -2,7 +2,7 @@
 
 Fecha: 27 de septiembre de 2026.
 
-**Estado: pasos 3.1, 3.2, 3.3 y el refuerzo 3.3.1 completados; pasos 3.4–3.5 pendientes.**
+**Estado: pasos 3.1, 3.2, 3.3 y el refuerzo 3.3.1 completados; pasos 3.4–3.6 pendientes.**
 Este documento desarrolla la entrega 3 del [plan de implementación](<Decision Room - Plan de implementacion.md>).
 La [evaluación inicial con una base sustancial](../validation/2026-09-27-substantial-baseline.md)
 aceptó cuatro de seis recorridos y conserva los fallos y límites observados.
@@ -332,7 +332,7 @@ no demuestra que el sistema generalice.
 ## 8. Secuencia de implementación y criterios de cierre
 
 El paso **3.1 está completado como medición inicial** y los pasos **3.2 y 3.3 están
-completados**; los pasos **3.4–3.5 están pendientes**. El diseño de objetivos de la sección 2 se evaluó mediante contexto
+completados**; los pasos **3.4–3.6 están pendientes**. El diseño de objetivos de la sección 2 se evaluó mediante contexto
 del propietario; su interfaz sigue prevista para el paso 3.4.
 
 | Paso | Trabajo | Evidencia necesaria para cerrarlo |
@@ -342,7 +342,8 @@ del propietario; su interfaz sigue prevista para el paso 3.4.
 | 3.3 — Completado | Investigación por rondas con prioridades y presupuesto. | Agenda persistente, seguimientos vinculados a métricas, límites y recuperación sin duplicaciones; pruebas reales con dos/tres rondas y un informe parcial revisado con 48 valores contrastados. Los intentos fallidos y límites de calidad quedan documentados. [Validación](../validation/2026-09-27-research-rounds.md). |
 | 3.3.1 — Completado | Estabilización del revisor: reparos persistentes, sugerencias no bloqueantes, auditoría de entrega, reutilización y 429 acotados. | Informes 2/2 y 2/3, 49 valores contrastados y recuperación sin duplicación; la prueba adversarial detecta cifra falsa y adjunto inexistente. [Validación](../validation/2026-09-27-reviewer-stability.md). |
 | 3.4 | Onboarding conversacional y elección abierta del objetivo con sugerencias. | Continuidad con el chat, objetivo editable y persistente, datos visibles al preguntar y contexto opcional no bloqueante. |
-| 3.5 | Selección y revisión adaptadas al objetivo; evaluación completa repetida. | Mejora demostrada frente a 3.1, entregas útiles para cada intención y ausencia de errores materiales en los casos de aceptación. |
+| 3.5 | Analistas en paralelo coordinados por el analista principal, con evidencia compartida y presupuesto global. | Ramas independientes concurrentes, dependencias respetadas, resultados reconciliados y recuperación sin duplicaciones. Registrar calidad, tiempo y coste, conservando un modo secuencial comparable para 3.6. |
+| 3.6 | Selección y revisión adaptadas al objetivo; evaluación completa repetida, incluida la ejecución paralela de 3.5. | Comparación frente a 3.1 y entre ejecución secuencial y paralela sobre los mismos casos y presupuestos comparables. Medir exactitud, utilidad, cobertura, tiempo total, tokens y coste; entregas útiles para cada intención y ausencia de errores materiales en los casos de aceptación. |
 
 En cada paso: cambios acotados, comprobaciones apropiadas, resultados documentados
 y commit local. No marcar un paso como completado por haber escrito este plan.
@@ -360,13 +361,46 @@ resuelve errores de sintaxis ni la selección y presentación de hallazgos.
 **Cierre de 3.2:** [contrato implementado](../technical/data-knowledge.md) y [pruebas, intentos conservados y límites](../validation/2026-09-27-data-knowledge.md). El paso **3.3 está completado**: [contrato de rondas](../technical/research-rounds.md) y [validación con fallos conservados](../validation/2026-09-27-research-rounds.md). El refuerzo **3.3.1 del revisor está completado** ([validación](../validation/2026-09-27-reviewer-stability.md)). El siguiente paso es **3.4: onboarding conversacional y elección abierta del objetivo**.
 
 
-### Evolución posterior: analistas en paralelo
+### 3.5 — Analistas en paralelo
 
-Evaluar después de estabilizar revisión y medir calidad. El interlocutor de negocio
-coordina objetivo y preguntas; un coordinador analítico podría repartir investigaciones
-independientes entre analistas con el mismo catálogo versionado. Cada tarea debe
-entregar evidencia con procedencia, estado y presupuesto; el coordinador reconcilia
-resultados y conflictos antes del revisor independiente. No permitir creación
-recursiva libre de agentes: limitar concurrencia, coste total y duplicaciones.
-Comparar exactitud, utilidad, coste y latencia con la ejecución secuencial antes de
-adoptarlo. Esta ampliación no forma parte de 3.3.1.
+**Pendiente de implementación.** Se realiza después de 3.4 y antes de la evaluación
+integral de 3.6. El antiguo paso 3.5 de selección, revisión y evaluación pasa a ser
+3.6; las validaciones históricas conservan la numeración que tenían al redactarse.
+
+El interlocutor de negocio mantiene la conversación, concreta el objetivo y recoge
+aclaraciones. Encarga la investigación al analista principal, que actúa como
+coordinador y crea subanalistas para preguntas concretas que puedan investigarse
+en paralelo. Empezar con un máximo de dos o tres subanalistas simultáneos; ejecutar
+secuencialmente las ramas que dependan de resultados anteriores.
+
+Los subanalistas comparten la misma versión del catálogo, relaciones ER y
+definiciones. Devuelven hallazgos, cálculos reproducibles, procedencia, limitaciones,
+estado y propuestas de siguientes comprobaciones. Sus resultados y necesidades
+se comunican mediante un registro compartido y el coordinador, que puede encargar
+nuevas ramas a partir de lo encontrado. El coordinador reconcilia contradicciones,
+evita trabajo duplicado y prepara el informe para el revisor independiente.
+
+Mantener presupuesto global de llamadas, ejecuciones, tiempo y coste, además de
+límites por tarea; ninguna rama puede crear subagentes recursivamente sin control.
+Conservar tareas y resultados para reanudar interrupciones sin duplicar trabajo.
+El sistema debe poder ejecutar el mismo encargo en modo secuencial para comparar.
+
+**Cierre de 3.5:** comprobar reparto de tareas, concurrencia acotada, dependencias,
+coherencia de fuentes, reconciliación de resultados contradictorios, presupuestos
+y recuperación ante fallo de una rama. Registrar las medidas para 3.6. Implementar
+paralelismo no demuestra por sí mismo una mejora de calidad ni una reducción del
+tiempo total: ambas se evaluarán, incluyendo el coste de coordinación y revisión.
+
+### 3.6 — Evaluación de calidad, utilidad y rendimiento
+
+Conservar la selección y revisión adaptadas al objetivo previstas en el antiguo
+3.5. Repetir los casos completos con los componentes de 3.4 y 3.5 integrados.
+Comparar ejecución secuencial y paralela sobre las mismas fuentes, objetivos,
+configuración de modelos y presupuestos comparables, con repeticiones y validación
+independiente. Contrastar también con la medición inicial de 3.1.
+
+Medir exactitud, utilidad de los hallazgos, cobertura de la pregunta, contradicciones,
+revisiones, duplicaciones, tiempo total hasta la entrega, tokens y coste. Incluir
+informes completos, parciales y recuperaciones. Documentar en qué escenarios
+compensa el paralelismo y mantener el recorrido secuencial cuando no aporte una
+ventaja comprobada. No asumir que añadir analistas mejora automáticamente el resultado.

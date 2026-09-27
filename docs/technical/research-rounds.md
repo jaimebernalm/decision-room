@@ -19,7 +19,7 @@ Criterios fijados antes de la evaluación real: al menos una profundización út
 vinculada a un resultado, cifras reproducibles sin errores materiales, límites y
 paradas observables, recuperación sin duplicaciones, aislamiento entre negocios y
 posibilidad de revisar un resultado parcial sin dar el resto por completado.
-La comparación completa entre objetivos y contra 3.1 sigue correspondiendo a 3.5.
+La comparación completa entre objetivos y contra 3.1 sigue correspondiendo a 3.6.
 
 ## Contrato
 

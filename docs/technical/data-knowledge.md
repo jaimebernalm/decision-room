@@ -108,4 +108,4 @@ presentar el total de tokens como completo. No se asume un precio ni coste cero.
 El catálogo aporta estructura reutilizable y definiciones explícitas. No implica
 que el sistema ya descubra todos los insights, que un diagrama autorice sumar
 medidas de cabecera tras unir detalles, ni que se hayan cerrado investigación
-por rondas, onboarding conversacional o evaluación final: son 3.3, 3.4 y 3.5.
+por rondas, onboarding conversacional o evaluación final: son 3.3, 3.4 y 3.6.
