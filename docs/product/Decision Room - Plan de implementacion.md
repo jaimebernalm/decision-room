@@ -306,6 +306,23 @@ conservación de fijados y aplicación explícita verificadas. Véanse
 **Corrección del acceso vacío:** el + abre Personalizar mediante clic o teclado.
 Verificado en navegador, con 31 pruebas de frontend y compilación correctas.
 
+### 2.5.15. Bienvenida y onboarding antes del dashboard
+
+**Completado, 27 de septiembre de 2026:** página de bienvenida con presentación
+del producto y acceso al espacio; recorrido independiente por negocio, datos y
+primer informe, con navegación atrás, borradores y progreso real. La interfaz
+habitual se abre al publicarse el primer resultado.
+
+**Cierre:** comprobadas entrada sin sesión, regreso, respuestas perdidas,
+aislamiento y diseño en escritorio/móvil. Recorrido HTTP con datos sintéticos,
+aclaraciones y publicación, incluida la integración con las entregas de archivos.
+Pruebas React y del servicio web aprobadas, compilación y lint sin errores propios.
+Véase [validación](../validation/2026-09-27-onboarding-check.md).
+
+El acceso utiliza la autenticación local existente; el registro comercial no se
+implementa en este paso. La bienvenida se puede abrir desde un espacio existente
+sin crear ni editar negocios. La carga de datos reutiliza el servicio disponible.
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Prioridad actualizada, 23 de septiembre de 2026:** iniciar las ampliaciones siguientes después de cerrar la entrega 2.5. La evaluación del 22 de septiembre descrita a continuación ya se realizó; no se presenta como trabajo pendiente ni sustituye la regresión exigida por los cambios de memoria y conversación.

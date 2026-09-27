@@ -142,3 +142,7 @@
 .conversation-tile {
   @apply relative rounded-2xl bg-muted/70 transition-colors hover:bg-foreground/[0.08] focus-within:bg-foreground/[0.08] dark:hover:bg-muted dark:focus-within:bg-muted;
 }
+
+.entry-page {
+  background: radial-gradient(ellipse at 85% 0%, color-mix(in oklch, var(--primary) 7%, transparent), transparent 48%), var(--background);
+}

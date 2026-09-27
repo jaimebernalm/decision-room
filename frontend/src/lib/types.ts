@@ -3,6 +3,7 @@ export type Business = {
   name: string;
   description: string;
   profile_revision: number;
+  onboarding_status?: "context_saved" | "analysis_started";
   analysis_count?: number;
   created_at?: string;
 };

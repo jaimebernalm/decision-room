@@ -16,7 +16,13 @@ import {
   Disclosure,
   Busy,
 } from "./shared";
-export function JobPage({ id }: { id: string }) {
+export function JobPage({
+  id,
+  onboarding = false,
+}: {
+  id: string;
+  onboarding?: boolean;
+}) {
   const resource = useResource<Job>(`/api/jobs/${id}`, 3000),
     action = useAction(),
     { refresh } = useWorkspace();
@@ -34,7 +40,18 @@ export function JobPage({ id }: { id: string }) {
   return (
     <>
       <Heading
-        title={job.title}
+        title={
+          onboarding
+            ? job.status === "waiting"
+              ? "Una aclaración antes de continuar"
+              : job.publishable
+                ? "Tu primer informe está listo"
+                : ["failed", "blocked"].includes(job.status) ||
+                    job.context_stale
+                  ? "Tu informe necesita atención"
+                  : "Tu primer informe, en preparación"
+            : job.title
+        }
         description={`${date(job.created_at)} · ${job.filename}`}
       >
         <Status
@@ -108,7 +125,9 @@ export function JobPage({ id }: { id: string }) {
       )}
       {job.status === "blocked" && (
         <Button asChild className="mb-6" variant="outline">
-          <a href="#new">Crear otro informe</a>
+          <a href={onboarding ? `#onboarding/${job.business_id}` : "#new"}>
+            {onboarding ? "Revisar mis datos" : "Crear otro informe"}
+          </a>
         </Button>
       )}
       <div className="grid gap-4">
@@ -121,10 +140,17 @@ export function JobPage({ id }: { id: string }) {
           <div className="flex flex-wrap gap-3">
             {job.origin !== "chat" ? (
               <Button asChild variant="outline" size="sm">
-                <a href={`/api/jobs/${id}/file`} download>
-                  <Download />
-                  Descargar CSV original
-                </a>
+                {job.byte_count > 0 ? (
+                  <a href={`/api/jobs/${id}/file`} download>
+                    <Download />
+                    Descargar CSV original
+                  </a>
+                ) : (
+                  <a href="#files">
+                    <FileText />
+                    Ver archivos del negocio
+                  </a>
+                )}
               </Button>
             ) : (
               job.conversation_id && (

@@ -20,8 +20,14 @@ import {
 } from "@/components/ui/card";
 import { useWorkspace } from "@/lib/workspace";
 import { useDraft, useAction } from "@/lib/hooks";
-import { api, store, selectedDataFiles, uploadFolder, FOLDER_LIMIT } from "@/lib/api";
-import type { Dataset } from "@/lib/types";
+import {
+  api,
+  store,
+  selectedDataFiles,
+  uploadFolder,
+  FOLDER_LIMIT,
+} from "@/lib/api";
+import type { Business, Dataset } from "@/lib/types";
 import { Heading, Field, Notice, ChoiceSelect, Busy } from "./shared";
 export function BusinessPicker() {
   const { workspace, refresh } = useWorkspace(),
@@ -80,45 +86,80 @@ export function BusinessPicker() {
     </>
   );
 }
-export function BusinessForm({ create = false }: { create?: boolean }) {
+export function BusinessForm({
+  create = false,
+  onSaved,
+  onboarding = false,
+}: {
+  create?: boolean;
+  onSaved?: (business: Business) => void;
+  onboarding?: boolean;
+}) {
   const { workspace, refresh } = useWorkspace(),
     current = create ? null : workspace.business,
-    key = current
-      ? `dr-profile-${current.id}`
-      : `dr-profile-new-${workspace.business?.id || "empty"}`;
+    key =
+      onboarding && create
+        ? "dr-onboarding-profile"
+        : current
+          ? `dr-profile-${current.id}`
+          : `dr-profile-new-${workspace.business?.id || "empty"}`;
   const [draft, setDraft] = useDraft(key, {
     name: current?.name || "",
     description: current?.description || "",
     profile_revision: current?.profile_revision,
     request_key: crypto.randomUUID(),
+    expected_active_id: workspace.business?.id || null,
   });
   const action = useAction();
   return (
     <div className="mx-auto max-w-2xl">
       <Heading
         title={
-          current ? "Presentación del negocio" : "Empecemos por tu negocio"
+          onboarding
+            ? "Cuéntanos sobre tu negocio"
+            : current
+              ? "Presentación del negocio"
+              : "Empecemos por tu negocio"
         }
-        description="Este contexto ayuda a interpretar tus datos y responder con más criterio."
+        description={
+          onboarding
+            ? "Antes de mirar los números, queremos entender qué haces. Una explicación breve es suficiente para empezar."
+            : "Este contexto ayuda a interpretar tus datos y responder con más criterio."
+        }
       />
-      <Card className="shadow-none">
-        <CardContent>
+      <Card
+        className={
+          onboarding
+            ? "overflow-visible border-0 bg-transparent p-0 shadow-none ring-0"
+            : "shadow-none"
+        }
+      >
+        <CardContent className={onboarding ? "p-0" : undefined}>
           <form
             className="space-y-6"
             onSubmit={(e) => {
               e.preventDefault();
               void action.run(async () => {
-                await api("/api/business", {
-                  ...draft,
-                  business_id: current?.id,
-                  expected_active_id: workspace.business?.id || null,
-                });
+                const { business: saved } = await api<{ business: Business }>(
+                  "/api/business",
+                  {
+                    ...draft,
+                    business_id: current?.id,
+                    expected_active_id:
+                      onboarding && create
+                        ? draft.expected_active_id
+                        : workspace.business?.id || null,
+                  },
+                );
                 store.remove(key);
-                refresh();
                 if (action.isMounted()) {
-                  location.hash = "home";
-                  toast.success("Presentación guardada");
+                  if (onSaved) onSaved(saved);
+                  else {
+                    location.hash = "home";
+                    toast.success("Presentación guardada");
+                  }
                 }
+                refresh();
               });
             }}
           >
@@ -126,6 +167,7 @@ export function BusinessForm({ create = false }: { create?: boolean }) {
               <Input
                 id="business-name"
                 autoComplete="organization"
+                placeholder={onboarding ? "¿Cómo se llama?" : undefined}
                 required
                 maxLength={100}
                 value={draft.name}
@@ -142,6 +184,11 @@ export function BusinessForm({ create = false }: { create?: boolean }) {
                 required
                 maxLength={6000}
                 className="min-h-48"
+                placeholder={
+                  onboarding
+                    ? "Por ejemplo: tengo una papelería. Vendemos material escolar y regalos, y registramos las ventas en la caja."
+                    : undefined
+                }
                 value={draft.description}
                 onChange={(e) =>
                   setDraft({ ...draft, description: e.target.value })
@@ -170,9 +217,17 @@ export function BusinessForm({ create = false }: { create?: boolean }) {
                 </Button>
               </Notice>
             )}
-            <Button disabled={action.busy} type="submit">
+            <Button
+              className={onboarding ? "rounded-full px-6" : undefined}
+              disabled={action.busy}
+              type="submit"
+            >
               {action.busy ? <Busy /> : <ArrowRight />}
-              {current ? "Guardar presentación" : "Crear negocio"}
+              {onboarding
+                ? "Continuar con mis datos"
+                : current
+                  ? "Guardar presentación"
+                  : "Crear negocio"}
             </Button>
           </form>
         </CardContent>

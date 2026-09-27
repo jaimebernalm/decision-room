@@ -20,6 +20,12 @@ import { WorkspaceState } from "@/lib/workspace";
 import { useAction } from "@/lib/hooks";
 import { FloatingAssistant } from "@/components/workspace/floating-assistant";
 import { Layout } from "@/components/workspace/layout";
+import { EntryFrame, Welcome } from "@/components/entry/welcome";
+const Onboarding = lazy(() =>
+  import("@/components/entry/onboarding").then((m) => ({
+    default: m.Onboarding,
+  })),
+);
 import {
   Heading,
   Notice,
@@ -158,11 +164,15 @@ function App() {
     };
   }, [revision]);
   let body;
-  if (login)
+  if (route === "welcome" || (login && route === "home"))
+    body = <Welcome signedIn={Boolean(workspace)} />;
+  else if (login)
     body = (
       <Login
         onDone={() => {
           loginPromise = undefined;
+          if (route === "login/start") location.hash = "onboarding";
+          else if (route === "login") location.hash = "home";
           refresh();
         }}
       />
@@ -175,13 +185,24 @@ function App() {
       </div>
     );
   else {
+    const requestedRoute =
+      route === "login/start" || route === "business-new"
+        ? "onboarding"
+        : route === "login"
+          ? "home"
+          : route;
     const activeRoute =
       !workspace.business &&
-      !["business-new", "businesses", "how"].includes(route)
+      !requestedRoute.startsWith("onboarding") &&
+      !["businesses", "how"].includes(requestedRoute)
         ? workspace.businesses.length
           ? "businesses"
-          : "business-new"
-        : route;
+          : "welcome"
+        : requestedRoute === "home" &&
+            workspace.business?.onboarding_status === "context_saved" &&
+            !workspace.analyses.length
+          ? `onboarding/${workspace.business.id}`
+          : requestedRoute;
     const showAssistant =
       Boolean(workspace.business) &&
       !activeRoute.startsWith("chat/") &&
@@ -196,52 +217,94 @@ function App() {
           removeChat: setDeleting,
         }}
       >
-        <a
-          href="#main-content"
-          className="skip-link"
-          onClick={(e) => {
-            e.preventDefault();
-            document.getElementById("main-content")?.focus();
-          }}
-        >
-          Saltar al contenido
-        </a>
-        <Layout>
-          <div
-            key={`${workspace.business?.id || "empty"}:${activeRoute}`}
-            id="main-content"
-            tabIndex={-1}
-            className={
-              activeRoute.startsWith("chat/")
-                ? "flex min-h-0 flex-1 flex-col outline-none"
-                : "min-h-0 flex-1 overflow-y-auto outline-none"
-            }
+        {activeRoute !== "welcome" && !activeRoute.startsWith("onboarding") && (
+          <a
+            href="#main-content"
+            className="skip-link"
+            onClick={(e) => {
+              e.preventDefault();
+              document.getElementById("main-content")?.focus();
+            }}
           >
-            <Notice error>{error}</Notice>
-            <Suspense
-              fallback={
-                <div className="p-6">
-                  <Loading />
-                </div>
+            Saltar al contenido
+          </a>
+        )}
+        {activeRoute === "welcome" ? (
+          <Welcome signedIn />
+        ) : activeRoute.startsWith("onboarding") ? (
+          <Onboarding
+            key={activeRoute.split("/")[1] || "new"}
+            route={activeRoute}
+            onSaved={(saved) => {
+              setWorkspace((current) =>
+                current
+                  ? {
+                      ...current,
+                      business: saved,
+                      businesses: [
+                        saved,
+                        ...current.businesses.filter((b) => b.id !== saved.id),
+                      ],
+                      analyses:
+                        current.business?.id === saved.id
+                          ? current.analyses
+                          : [],
+                    }
+                  : current,
+              );
+              if (saved.id !== workspace.business?.id)
+                setListing({
+                  business_id: saved.id,
+                  conversations: [],
+                  datasets: { items: [], more: false },
+                });
+              if (activeRoute === "onboarding")
+                history.replaceState(
+                  null,
+                  "",
+                  `${location.pathname}${location.search}#onboarding/${saved.id}/business`,
+                );
+              location.hash = `onboarding/${saved.id}`;
+            }}
+          />
+        ) : (
+          <Layout>
+            <div
+              key={`${workspace.business?.id || "empty"}:${activeRoute}`}
+              id="main-content"
+              tabIndex={-1}
+              className={
+                activeRoute.startsWith("chat/")
+                  ? "flex min-h-0 flex-1 flex-col outline-none"
+                  : "min-h-0 flex-1 overflow-y-auto outline-none"
               }
             >
-              {activeRoute.startsWith("chat/") ? (
-                <ChatPage id={activeRoute.split("/")[1]} />
-              ) : (
-                <div
-                  className={`mx-auto w-full max-w-7xl px-5 py-8 sm:px-8 lg:px-10 ${showAssistant ? "pb-64" : ""} ${activeRoute === "ask" ? "flex min-h-full flex-col" : ""}`}
-                >
-                  <Route route={activeRoute} />
-                </div>
-              )}
-            </Suspense>
-          </div>
-          {showAssistant && (
-            <FloatingAssistant
-              key={`assistant:${workspace.business!.id}:${activeRoute}`}
-            />
-          )}
-        </Layout>
+              <Notice error>{error}</Notice>
+              <Suspense
+                fallback={
+                  <div className="p-6">
+                    <Loading />
+                  </div>
+                }
+              >
+                {activeRoute.startsWith("chat/") ? (
+                  <ChatPage id={activeRoute.split("/")[1]} />
+                ) : (
+                  <div
+                    className={`mx-auto w-full max-w-7xl px-5 py-8 sm:px-8 lg:px-10 ${showAssistant ? "pb-64" : ""} ${activeRoute === "ask" ? "flex min-h-full flex-col" : ""}`}
+                  >
+                    <Route route={activeRoute} />
+                  </div>
+                )}
+              </Suspense>
+            </div>
+            {showAssistant && (
+              <FloatingAssistant
+                key={`assistant:${workspace.business!.id}:${activeRoute}`}
+              />
+            )}
+          </Layout>
+        )}
         <AlertDialog
           open={Boolean(deleting)}
           onOpenChange={(v) => {
@@ -292,7 +355,15 @@ function App() {
       scriptProps={{ type: "application/json" }}
     >
       <TooltipProvider>
-        {body}
+        <Suspense
+          fallback={
+            <div className="mx-auto max-w-2xl p-8">
+              <Loading />
+            </div>
+          }
+        >
+          {body}
+        </Suspense>
         <Toaster />
       </TooltipProvider>
     </ThemeProvider>
@@ -356,42 +427,50 @@ function Login({ onDone }: { onDone: () => void }) {
   const [token, setToken] = useState(""),
     action = useAction();
   return (
-    <div className="flex min-h-svh items-center justify-center p-5">
-      <Card className="w-full max-w-md shadow-none">
-        <CardContent>
-          <Heading
-            title="Decision Room"
-            description="Abre tu espacio local con la clave de acceso del servidor."
-          />
-          <form
-            className="space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void action.run(async () => {
-                await api("/api/login", { token });
-                setToken("");
-                onDone();
-              });
-            }}
-          >
-            <Field label="Clave de acceso" id="access-key">
-              <Input
-                id="access-key"
-                type="password"
-                autoComplete="current-password"
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                required
-              />
-            </Field>
-            <Notice error>{action.error}</Notice>
-            <Button className="w-full" disabled={action.busy} type="submit">
-              {action.busy && <Busy />}Abrir mi espacio
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+    <EntryFrame
+      action={
+        <Button asChild variant="ghost">
+          <a href="#welcome">Volver</a>
+        </Button>
+      }
+    >
+      <div className="flex items-center justify-center px-5 py-16 sm:py-24">
+        <Card className="w-full max-w-md shadow-none">
+          <CardContent>
+            <Heading
+              title="Entra a tu espacio"
+              description="Abre tu espacio local con la clave de acceso del servidor."
+            />
+            <form
+              className="space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void action.run(async () => {
+                  await api("/api/login", { token });
+                  setToken("");
+                  onDone();
+                });
+              }}
+            >
+              <Field label="Clave de acceso" id="access-key">
+                <Input
+                  id="access-key"
+                  type="password"
+                  autoComplete="current-password"
+                  value={token}
+                  onChange={(e) => setToken(e.target.value)}
+                  required
+                />
+              </Field>
+              <Notice error>{action.error}</Notice>
+              <Button className="w-full" disabled={action.busy} type="submit">
+                {action.busy && <Busy />}Abrir mi espacio
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    </EntryFrame>
   );
 }
 export default App;

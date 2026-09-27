@@ -78,8 +78,13 @@ it("keeps onboarding available with no business and supports form editing", asyn
   );
   render(<App />);
   expect(
-    await screen.findByRole("heading", { name: "Empecemos por tu negocio" }),
+    await screen.findByRole("heading", {
+      name: "Tus datos tienen mucho que contarte.",
+    }),
   ).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Nuevo chat" })).toBeNull();
+  await userEvent.click(screen.getByRole("link", { name: "Empezar" }));
+  await screen.findByRole("heading", { name: "Cuéntanos sobre tu negocio" });
   await userEvent.type(
     screen.getByLabelText("Nombre del negocio"),
     "Mi tienda",
