@@ -248,7 +248,7 @@ class Workspace:
         return j
 
     def public(self, j):
-        fields = ('id', 'business_id', 'title', 'business', 'context', 'goal', 'filename', 'byte_count', 'status', 'phase', 'created_at', 'updated_at', 'issue', 'origin')
+        fields = ('id', 'business_id', 'analysis_id', 'title', 'business', 'context', 'goal', 'filename', 'byte_count', 'status', 'phase', 'created_at', 'updated_at', 'issue', 'origin')
         result = {key: j[key] for key in fields}
         with connect(self.config) as db:
             result['data_version'] = db.execute('SELECT version,superseded_by,corrected FROM dataset_versions WHERE analysis_id=%s AND business_id=%s', (j['analysis_id'], j['business_id'])).fetchone()
@@ -357,12 +357,15 @@ class Workspace:
             result['files'] = [{k: f[k] for k in ('original_names', 'status', 'row_count', 'column_count')} for f in data['files']]
         if j['session_id']:
             plan = planning.show(self.config, b, j['session_id'])
-            result['questions'] = [{'id': q['id'], 'phase': 'planning', 'text': q['text'], 'reason': q['reason'], 'options': q['options']} for q in plan['questions']]
+            result['questions'] = [{'id': q['id'], 'phase': 'planning', 'text': q['text'], 'reason': q['reason'], 'options': q['options'], 'references': q.get('references', [])} for q in plan['questions']]
             if plan.get('context_stale'):
                 result.update(status='failed', phase='planning', issue='La memoria aplicable ha cambiado. Reintenta para recalcular con las definiciones actuales.', questions=[])
-            result['answers'] = [{'text': a['text'], 'disposition': a['disposition'], 'question': a.get('question', '')} for a in plan['answers']]
+            result['answers'] = [{'text': a['text'], 'disposition': a['disposition'], 'question': a.get('question', {}).get('text', ''), 'references': a.get('question', {}).get('references', [])} for a in plan['answers']]
+            result['unresolved_questions'] = [dict(id=str(a['id']), text=a['question']['text'], reason='Esta aclaración se guardó como no disponible.', options=a['question'].get('options', []), references=a['question'].get('references', []), previous_text=a['text']) for a in plan['answers'] if a['disposition'] != 'answered']
             if plan['revisions']:
                 result['interpretations'] = [{'text': i['statement'], 'status': i['status']} for i in plan['revisions'][-1]['proposal']['interpretations']]
+        if j['status'] == 'blocked' and j['phase'] == 'planning' and result.get('unresolved_questions'):
+            result['issue'] = 'Falta una definición necesaria para calcular el informe: una aclaración se guardó como no disponible. Puedes completarla y usar los mismos archivos.'
         if j['review_id']:
             data = self.review_state(j)
             result['publishable'] = data['publishable']
@@ -400,6 +403,8 @@ class Workspace:
         disposition = data.get('disposition', 'answered')
         if disposition not in ('answered', 'unknown', 'declined') or (disposition == 'answered' and not text):
             raise WebError('Escribe una respuesta o selecciona «No lo sé».')
+        if disposition != 'answered' and text:
+            raise WebError('Has escrito una respuesta. Guárdala o borra el texto antes de indicar que no dispones del dato.')
         answer = {'id': str(data.get('question_id', '')), 'phase': data.get('phase'), 'text': text,
                   'disposition': disposition, 'request_key': str(key)}
         questions = self.detail(job_id)['questions']

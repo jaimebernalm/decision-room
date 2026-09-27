@@ -117,6 +117,68 @@ class WebTests(unittest.TestCase):
         self.assertTrue(self.ws.detail(job)['publishable'])
         return job
 
+    def test_question_references_preview_pagination_and_scope(self):
+        from decision_room.web.preview import page
+        self.csv = ('quantity,amount\n' + ''.join(f'{i},{i * 10}\n' for i in range(1, 56))).encode()
+        job = self.create()
+        self.ws.run_job(job)
+        detail = self.ws.detail(job)
+        table_id = detail['questions'][0]['references'][0]['id']
+        first = page(self.ws, job, {'table': [table_id]})
+        self.assertEqual(first['columns'], ['quantity', 'amount'])
+        self.assertEqual(len(first['rows']), 50)
+        self.assertEqual(first['rows'][0], {'number': 1, 'values': ['1', '10']})
+        last = page(self.ws, job, {'offset': ['50']})
+        self.assertEqual(last['rows'][-1], {'number': 55, 'values': ['55', '550']})
+        self.assertNotIn('parquet_key', json.dumps(first))
+        for query in ({'offset': ['-1']}, {'offset': ['55']}, {'column_offset': ['2']}, {'offset': ['no']}, {'table': [str(uuid4())]}):
+            with self.assertRaises(WebError):
+                page(self.ws, job, query)
+        other = self.ws.save_business({'request_key': str(uuid4()), 'name': 'Other', 'description': 'Other business', 'expected_active_id': str(self.business['id'])})
+        with self.assertRaises(WebError):
+            page(self.ws.scoped(other['id']), job, {})
+        client, server = self.http()
+        self.assertEqual(client.get(f'/api/jobs/{job}/data').status_code, 401)
+        client.post('/api/login', json={'token': server.token})
+        self.assertEqual(client.get(f'/api/jobs/{job}/data').status_code, 404)
+        self.ws.select_business({'business_id': str(self.business['id'])})
+        self.assertEqual(client.get(f'/api/jobs/{job}/data?offset=50').json()['rows'], last['rows'])
+
+    def test_preview_wide_columns_nulls_truncation_and_integrity(self):
+        from decision_room.web.preview import page
+        self.csv = (','.join(f'c{i}' for i in range(14)) + '\n' + ','.join([''] + ['value'] * 12 + ['z' * 510]) + '\n').encode()
+        job = self.create()
+        from decision_room import service as ingestion
+        original = Path(self.temp.name) / 'wide.csv'
+        original.write_bytes(self.csv)
+        dataset = ingestion.import_batch(self.config, self.business['id'], [original])['analysis']['id']
+        self.ws.update(job, analysis_id=dataset)
+        first = page(self.ws, job, {})
+        self.assertIsNone(first['rows'][0]['values'][0])
+        last = page(self.ws, job, {'column': ['c13']})
+        self.assertEqual(last['column_offset'], 12)
+        self.assertEqual(last['columns'], ['c12', 'c13'])
+        self.assertEqual(last['rows'][0]['values'][-1], 'z' * 500 + '…')
+        with connect(self.config) as db:
+            db.execute("UPDATE prepared_tables SET parquet_sha256=%s WHERE analysis_id=%s", ('0' * 64, dataset))
+        with self.assertRaises(WebError):
+            page(self.ws, job, {})
+
+    def test_unknown_with_text_rejected_and_blocked_answer_explained(self):
+        job = self.create()
+        self.ws.run_job(job)
+        with self.assertRaisesRegex(WebError, 'Has escrito una respuesta'):
+            self.answer(job, 'Total de cada fila', 'unknown')
+        self.assertEqual(self.ws.detail(job)['status'], 'waiting')
+        self.answer(job, '', 'unknown')
+        self.ws.run_job(job)
+        detail = self.ws.detail(job)
+        self.assertEqual(detail['status'], 'blocked')
+        self.assertIn('aclaración se guardó como no disponible', detail['issue'])
+        self.assertEqual(detail['answers'][0]['question'], '¿Precio unitario o total de fila?')
+        self.assertEqual(detail['unresolved_questions'][0]['text'], detail['answers'][0]['question'])
+        self.assertEqual(detail['analysis_id'], self.ws.row(job)['analysis_id'])
+
     def test_upload_idempotency_and_changed_payload_rejected(self):
         job = self.create()
         self.assertEqual(self.create(), job)

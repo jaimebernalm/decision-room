@@ -16,6 +16,7 @@ import {
   SourcesContent,
 } from "@/components/ai-elements/sources";
 import { Button } from "@/components/ui/button";
+import { DataPreview } from "./data-preview";
 import { Badge } from "@/components/ui/badge";
 import { useResource, useDraft, useAction } from "@/lib/hooks";
 import { useWorkspace } from "@/lib/workspace";
@@ -452,6 +453,13 @@ export function ChatPage({
                 ))}
               </Disclosure>
             ))}
+          {selected && waiting?.job_id && (
+            <DataPreview
+              key={`${waiting.job_id}:${selected.id}`}
+              jobId={waiting.job_id}
+              questions={[selected]}
+            />
+          )}
         </ConversationContent>
         <ConversationScrollButton aria-label="Ir al último mensaje" />
       </Conversation>

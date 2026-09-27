@@ -139,6 +139,8 @@ export type QuestionContext = {
   label?: string;
 };
 export type Question = {
+  references?: { kind: string; id: string; column: string }[];
+  previous_text?: string;
   id: string;
   text: string;
   reason: string;
@@ -232,6 +234,8 @@ export type ChatDetail = {
   context_changed_after?: boolean;
 };
 export type Job = Analysis & {
+  analysis_id?: string;
+  unresolved_questions?: Question[];
   business_id: string;
   business: string;
   context: string;

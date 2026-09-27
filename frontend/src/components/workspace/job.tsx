@@ -6,6 +6,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { useResource, useDraft, useAction } from "@/lib/hooks";
 import { api, date, store } from "@/lib/api";
 import { useWorkspace } from "@/lib/workspace";
+import { DataPreview } from "./data-preview";
 import type { Job, Question } from "@/lib/types";
 import {
   Heading,
@@ -37,6 +38,13 @@ export function JobPage({
       </>
     );
   const job = resource.data;
+  const canClarify =
+    job.status === "blocked" &&
+    job.phase === "planning" &&
+    !job.context_stale &&
+    !!job.unresolved_questions?.length &&
+    !!job.analysis_id &&
+    !job.data_version?.corrected;
   return (
     <>
       <Heading
@@ -92,6 +100,11 @@ export function JobPage({
       )}
       {job.status === "waiting" && !job.context_stale && (
         <div className="mb-6 space-y-4">
+          <DataPreview
+            key={job.questions.map((q) => q.id).join(":")}
+            jobId={id}
+            questions={job.questions}
+          />
           {job.questions.map((q) => (
             <QuestionForm
               key={q.id}
@@ -123,7 +136,10 @@ export function JobPage({
             : "Reintentar informe"}
         </Button>
       )}
-      {job.status === "blocked" && (
+      {canClarify && (
+        <ClarificationRecovery key={id} job={job} onboarding={onboarding} />
+      )}
+      {job.status === "blocked" && !canClarify && (
         <Button asChild className="mb-6" variant="outline">
           <a href={onboarding ? `#onboarding/${job.business_id}` : "#new"}>
             {onboarding ? "Revisar mis datos" : "Crear otro informe"}
@@ -219,7 +235,7 @@ function QuestionForm({
         request_key: pending.current.key,
         question_id: question.id,
         phase: question.phase || job.phase,
-        text,
+        text: disposition === "answered" ? text : "",
         disposition,
       });
       store.remove(key);
@@ -245,7 +261,9 @@ function QuestionForm({
               type="button"
               variant="outline"
               size="sm"
-              className="mr-2"
+              className="mr-2 h-auto whitespace-normal text-left"
+              disabled={action.busy}
+              aria-pressed={text === o}
               onClick={() => setText(o)}
             >
               {o}
@@ -261,12 +279,18 @@ function QuestionForm({
             />
           </Field>
           <Notice error>{action.error}</Notice>
+          {text.trim() && (
+            <p className="text-xs text-muted-foreground">
+              Pulsa «Guardar respuesta» para confirmar este texto. Para indicar
+              que no dispones del dato, borra primero la respuesta.
+            </p>
+          )}
           <div className="flex flex-wrap gap-2">
             <Button disabled={action.busy || !text.trim()} type="submit">
               {action.busy && <Busy />}Guardar respuesta
             </Button>
             <Button
-              disabled={action.busy}
+              disabled={action.busy || Boolean(text.trim())}
               type="button"
               variant="ghost"
               onClick={() => submit("unknown")}
@@ -277,5 +301,115 @@ function QuestionForm({
         </form>
       </CardContent>
     </Card>
+  );
+}
+
+function ClarificationRecovery({
+  job,
+  onboarding,
+}: {
+  job: Job;
+  onboarding: boolean;
+}) {
+  const { workspace, refresh } = useWorkspace();
+  const key = `dr-clarify-${job.id}`;
+  const questions = job.unresolved_questions || [];
+  const [answers, setAnswers] = useDraft<Record<string, string>>(
+    key,
+    Object.fromEntries(questions.map((q) => [q.id, q.previous_text || ""])),
+  );
+  const action = useAction();
+  const goal = [
+    job.goal,
+    "Aclaraciones confirmadas para este nuevo informe:",
+    ...questions.map((q) => `${q.text}\n${answers[q.id] || ""}`),
+  ].join("\n\n");
+  return (
+    <div className="mb-6 space-y-4">
+      <DataPreview jobId={job.id} questions={questions} />
+      <Card className="shadow-none">
+        <CardHeader>
+          <CardTitle>Completa la aclaración con los datos a la vista</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Revisa y confirma las respuestas. Crearemos un informe con los
+            mismos archivos; el intento anterior se conservará como registro.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void action.run(async () => {
+                if (workspace.business?.id !== job.business_id)
+                  throw new Error(
+                    "El negocio activo ha cambiado. Recarga la página.",
+                  );
+                const payload = {
+                  business_id: job.business_id,
+                  profile_revision: workspace.business.profile_revision,
+                  analysis_id: job.analysis_id,
+                  title: job.title,
+                  goal,
+                };
+                const signature = JSON.stringify(payload);
+                const previous = store.get<{
+                  signature: string;
+                  key: string;
+                } | null>(`${key}-pending`, null);
+                const pending =
+                  previous?.signature === signature
+                    ? previous
+                    : { signature, key: crypto.randomUUID() };
+                store.set(`${key}-pending`, pending);
+                const result = await api<{ id: string }>(
+                  "/api/jobs/from-dataset",
+                  { ...payload, request_key: pending.key },
+                );
+                store.remove(key);
+                store.remove(`${key}-pending`);
+                if (action.isMounted())
+                  location.hash = onboarding
+                    ? `onboarding/${job.business_id}/report/${result.id}`
+                    : `analysis/${result.id}`;
+                refresh();
+              });
+            }}
+          >
+            {questions.map((q) => (
+              <Field key={q.id} label={q.text} id={`clarify-${q.id}`}>
+                <Textarea
+                  id={`clarify-${q.id}`}
+                  value={answers[q.id] || ""}
+                  required
+                  disabled={action.busy}
+                  maxLength={2000}
+                  onChange={(event) =>
+                    setAnswers({ ...answers, [q.id]: event.target.value })
+                  }
+                />
+              </Field>
+            ))}
+            {goal.length > 2000 && (
+              <Notice error>
+                Acorta las aclaraciones: el objetivo y las respuestas admiten
+                hasta 2.000 caracteres en total.
+              </Notice>
+            )}
+            <Notice error>{action.error}</Notice>
+            <Button
+              type="submit"
+              disabled={
+                action.busy ||
+                goal.length > 2000 ||
+                questions.some((q) => !answers[q.id]?.trim())
+              }
+            >
+              {action.busy && <Busy />}Confirmar aclaración y crear informe
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

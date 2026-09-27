@@ -286,6 +286,10 @@ class Handler(BaseHTTPRequestHandler):
                 if not mutation and not action:
                     self.send(200, ws.detail(job_id))
                     return
+                if not mutation and action == 'data':
+                    from .preview import page
+                    self.send(200, page(ws, job_id, parse_qs(urlsplit(self.path).query)))
+                    return
                 if mutation and action == 'answers':
                     self.send(202, ws.reply(job_id, self.json_body()))
                     return

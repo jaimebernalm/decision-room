@@ -349,6 +349,15 @@ independientemente y corrección de fallos encontrados. Véanse el
 fino solo mientras se desplaza el contenido, sin carril permanente. Validado con
 el chat lateral abierto en navegador, 45 pruebas de frontend, compilación y lint.
 
+### 2.5.17. Aclaraciones con vista de datos y recuperación
+
+**Completado, 27 de septiembre de 2026:** las preguntas del informe, onboarding y
+chat abren una tabla paginada de sus datos y destacan las columnas referenciadas.
+Se impide enviar texto junto con «No dispongo de ese dato». Un bloqueo por una
+aclaración no disponible permite confirmarla y crear un informe con los mismos
+archivos, conservando el intento anterior. Validación HTTP, React, compilación,
+lint y navegador documentada en [la comprobación de aclaraciones](../validation/2026-09-27-clarification-data-check.md).
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Prioridad actualizada, 23 de septiembre de 2026:** iniciar las ampliaciones siguientes después de cerrar la entrega 2.5. La evaluación del 22 de septiembre descrita a continuación ya se realizó; no se presenta como trabajo pendiente ni sustituye la regresión exigida por los cambios de memoria y conversación.
