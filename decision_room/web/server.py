@@ -17,8 +17,8 @@ STATIC = Path(__file__).with_name('dist')
 CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'self'"
 
 
-def access_key(config):
-    path = config.storage / '.web-access-key'
+def access_key(config, name='.web-access-key'):
+    path = config.storage / name
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     try:
         with path.open('x') as stream:
@@ -33,12 +33,17 @@ class Server(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, workspace, port=8787, token=None):
+    def __init__(self, workspace, port=8787, token=None, *, internal_monitor=False, internal_token=None):
         self.workspace = workspace
         self.token = token or access_key(workspace.config)
         super().__init__(('127.0.0.1', port), Handler)
         self.origin = f'http://127.0.0.1:{self.server_port}'
         self.cookie_name = f'dr_session_{self.server_port}'
+        self.internal_cookie_name = f'dr_internal_{self.server_port}'
+        self.internal_token = (internal_token or access_key(workspace.config, '.internal-access-key')) if internal_monitor else None
+        if self.internal_token and hmac.compare_digest(self.internal_token, self.token):
+            self.server_close()
+            raise ValueError('Internal access key must differ from customer access key.')
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -82,13 +87,13 @@ class Handler(BaseHTTPRequestHandler):
             while chunk := stream.read(1024 * 1024):
                 self.wfile.write(chunk)
 
-    def authenticated(self):
+    def authenticated(self, internal=False):
         cookie = SimpleCookie()
         try:
             cookie.load(self.headers.get('Cookie', ''))
-            name = self.server.cookie_name
+            name = self.server.internal_cookie_name if internal else self.server.cookie_name
             value = cookie[name].value if name in cookie else ''
-            return hmac.compare_digest(value, self.server.token)
+            return hmac.compare_digest(value, (self.server.internal_token if internal else self.server.token) or '') and bool(value)
         except Exception:
             return False
 
@@ -167,6 +172,43 @@ class Handler(BaseHTTPRequestHandler):
                     raise WebError('La clave de acceso no es correcta.', 401)
                 self.send(200, {'ok': True}, headers={'Set-Cookie': f'{self.server.cookie_name}={self.server.token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000'})
                 return
+            if path.startswith('/api/internal/'):
+                if not self.server.internal_token:
+                    raise WebError('Monitor interno no disponible.', 404)
+                if mutation and path == '/api/internal/login':
+                    token = self.json_body().get('token', '')
+                    if not isinstance(token, str) or not hmac.compare_digest(token, self.server.internal_token):
+                        raise WebError('La clave interna no es correcta.', 401)
+                    self.send(200, {'ok': True}, headers={'Set-Cookie': f'{self.server.internal_cookie_name}={self.server.internal_token}; HttpOnly; SameSite=Strict; Path=/api/internal; Max-Age=28800'})
+                    return
+                if not self.authenticated(internal=True):
+                    raise WebError('Introduce la clave interna para abrir el monitor.', 401)
+                if path == '/api/internal/logout' and mutation:
+                    self.json_body()
+                    self.send(200, {'ok': True}, headers={'Set-Cookie': f'{self.server.internal_cookie_name}=; HttpOnly; SameSite=Strict; Path=/api/internal; Max-Age=0'})
+                    return
+                if mutation:
+                    raise WebError('El monitor es de consulta.', 405)
+                if path == '/api/internal/session':
+                    self.send(200, {'authorized': True})
+                    return
+                from . import internal_monitor
+                parts = path.strip('/').split('/')
+                query = parse_qs(urlsplit(self.path).query)
+                ws = self.server.workspace
+                if parts == ['api','internal','investigations']:
+                    self.send(200, internal_monitor.listing(ws, query))
+                    return
+                if len(parts) == 4 and parts[:3] == ['api','internal','investigations']:
+                    self.send(200, internal_monitor.read(ws, parts[3], query))
+                    return
+                if len(parts) == 5 and parts[:3] == ['api','internal','investigations'] and parts[4] == 'events':
+                    self.send(200, internal_monitor.read(ws, parts[3], query))
+                    return
+                if len(parts) == 6 and parts[:3] == ['api','internal','investigations']:
+                    self.send(200, internal_monitor.detail(ws, parts[3], parts[4], parts[5]))
+                    return
+                raise WebError('Operación interna no encontrada.', 404)
             if not self.authenticated():
                 raise WebError('Introduce tu clave de acceso para abrir el espacio local.', 401)
             ws = self.server.workspace
@@ -222,6 +264,10 @@ class Handler(BaseHTTPRequestHandler):
                     self.send(202 if mutation else 200, chats.create(self.json_body()) if mutation else chats.listing())
                     return
                 chat_id = parts[2]
+                if not mutation and len(parts) == 6 and parts[3] == 'turns' and parts[5] == 'activity':
+                    from . import activity
+                    self.send(200, activity.read(ws, 'turn', parts[4], parse_qs(urlsplit(self.path).query), chat_id=chat_id))
+                    return
                 action = parts[3] if len(parts) == 4 else ''
                 if len(parts) == 3 and not mutation:
                     self.send(200, chats.detail(chat_id))
@@ -340,6 +386,10 @@ class Handler(BaseHTTPRequestHandler):
                 action = pieces[3] if len(pieces) == 4 else ''
                 if not mutation and not action:
                     self.send(200, ws.detail(job_id))
+                    return
+                if not mutation and action == 'activity':
+                    from . import activity
+                    self.send(200, activity.read(ws, 'job', job_id, parse_qs(urlsplit(self.path).query)))
                     return
                 if not mutation and action == 'data':
                     from .preview import page

@@ -1,4 +1,5 @@
 """Choose → isolated Python → inspect/correct → candidate; never host exec()."""
+from ..observability.runtime import notify
 from typing import TypedDict
 from datetime import datetime, timezone
 
@@ -100,6 +101,7 @@ def build(config, db, session, run, model, saver, *, retry_uncertain=False, exec
             raise ValueError('Research replay produced a different action for an existing step.')
         db.execute('''INSERT INTO agent_research_steps(research_id,step,business_id,action)
             VALUES (%s,%s,%s,%s) ON CONFLICT DO NOTHING''', (run_id, step, session['business_id'], Jsonb(action)))
+        notify(db)
         return {'turn': step, 'action': action}
 
     def python(state):

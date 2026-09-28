@@ -4,6 +4,7 @@ The parent session lock remains held. Workers own connections and checkpoints,
 never session locks or recursive delegates. Quotas are reserved before launch.
 """
 from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
 from copy import deepcopy
 from uuid import uuid4
 
@@ -112,7 +113,7 @@ def dispatch(config, db, session, run, state, model, executor, retry_uncertain):
 
     errors = []
     with ThreadPoolExecutor(max_workers=run['options']['max_parallel']) as pool:
-        futures = [pool.submit(work, b) for b in reserved]
+        futures = [pool.submit(copy_context().run, work, b) for b in reserved]
         for future in futures:
             try:
                 future.result()

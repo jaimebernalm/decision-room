@@ -1,4 +1,5 @@
 """Business-scoped entry points for persistent review, owner replies and reports."""
+from ..observability.runtime import session_tracked
 from uuid import uuid4
 from contextlib import nullcontext
 
@@ -89,6 +90,7 @@ def start(config, business_id, research_id, *, request_key, analyst=None, review
     return show(config, business_id, row['id'])
 
 
+@session_tracked
 def _drive(config, db, session, run, *, analyst=None, reviewer=None, executor=execute, retry_uncertain=False):
     if db.execute('SELECT 1 FROM agent_review_holds WHERE review_id=%s', (run['id'],)).fetchone():
         raise ValueError('Review has an independent validation hold; correct the work in a new review.')

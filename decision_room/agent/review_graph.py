@@ -1,4 +1,5 @@
 """Persistent reviewer-led conversation; all generated code stays in the sandbox."""
+from ..observability.runtime import notify
 from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -87,6 +88,7 @@ def build(config, db, session, run, analyst, reviewer, saver, *, executor=execut
         db.execute('''INSERT INTO agent_review_events(review_id,step,business_id,role,action,knowledge_sha256)
             VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING''',
                    (run['id'], step, session['business_id'], state['role'], Jsonb(action), current['knowledge_sha256']))
+        notify(db)
         return {'turn': step, 'action': action}
 
     def python(state):

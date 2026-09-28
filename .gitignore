@@ -14,6 +14,7 @@
 !.env.*.example
 .envrc
 .web-access-key
+.internal-access-key
 .credentials/
 credentials/
 secrets/

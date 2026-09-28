@@ -2,6 +2,7 @@
 import threading
 import unittest
 from dataclasses import replace
+from pathlib import Path
 from uuid import uuid4
 from unittest.mock import patch
 from psycopg import sql
@@ -39,6 +40,21 @@ class ActivityTests(unittest.TestCase):
             except RuntimeError: pass
             self.assertEqual(db.execute('SELECT last_sequence FROM activity_traces WHERE id=%s',(self.trace,)).fetchone()['last_sequence'],1)
             self.assertEqual(db.execute('SELECT count(*) n FROM activity_events WHERE trace_id=%s',(self.trace,)).fetchone()['n'],1)
+    def test_migration_from_schema_24_preserves_existing_records(self):
+        name='dr_activity_legacy_'+uuid4().hex
+        with connect(self.base) as db: db.execute(sql.SQL('CREATE DATABASE {}').format(sql.Identifier(name)))
+        config=replace(self.config,dsn=make_conninfo(self.base.dsn,dbname=name))
+        try:
+            schema=Path('decision_room/schema.sql').read_text().split('-- 3.8:')[0]
+            with connect(config) as db: db.execute(schema)
+            existing=create_business(config,'Legacy business')['id']
+            migrate(config);migrate(config)
+            with connect(config) as db:
+                self.assertEqual(db.execute('SELECT max(version) n FROM schema_versions').fetchone()['n'],25)
+                self.assertEqual(db.execute('SELECT name FROM businesses WHERE id=%s',(existing,)).fetchone()['name'],'Legacy business')
+                self.assertEqual(db.execute('SELECT count(*) n FROM activity_traces').fetchone()['n'],0)
+        finally:
+            with connect(self.base) as db: db.execute(sql.SQL('DROP DATABASE {} WITH (FORCE)').format(sql.Identifier(name)))
     def test_concurrent_commit_order_has_no_cursor_gap(self):
         entered=threading.Event();release=threading.Event();done=threading.Event();errors=[]
         def first():
@@ -79,3 +95,19 @@ class ActivityTests(unittest.TestCase):
             result=diagnostic({'reasoning':'hidden','headers':{'x':'hidden'},'output':'canary-private-credential /Users/person/private/file https://host/?token=secret'})
             self.assertNotIn('reasoning',result);self.assertNotIn('headers',result)
             self.assertNotIn('canary',str(result));self.assertNotIn('/Users/',str(result));self.assertNotIn('https://',str(result))
+
+    def test_thousand_events_from_three_producers_are_contiguous(self):
+        barrier=threading.Barrier(3);errors=[]
+        def producer(number,count):
+            try:
+                barrier.wait(timeout=5)
+                for i in range(count):
+                    with connect(self.config) as db: self.event(db,f'producer-{number}-{i}')
+            except BaseException as error: errors.append(error)
+        threads=[threading.Thread(target=producer,args=(i,334 if i==0 else 333)) for i in range(3)]
+        for thread in threads: thread.start()
+        for thread in threads: thread.join(30)
+        self.assertFalse(any(t.is_alive() for t in threads));self.assertEqual(errors,[])
+        with connect(self.config) as db:
+            sequences=[r['sequence'] for r in db.execute('SELECT sequence FROM activity_events WHERE trace_id=%s ORDER BY sequence',(self.trace,)).fetchall()]
+            self.assertEqual(sequences,list(range(1,1001)))

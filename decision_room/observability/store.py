@@ -39,7 +39,7 @@ def link(db,business,trace_id,kind,source_id):
 
 def append(db,business,trace_id,*,kind,source_id,role='system',actor_id=None,
            status,public_text,dedupe_key,event_type=None,parent_id=None,purpose='',refs=(),
-           source=None,payload=None,occurred_at=None,reconstructed=False):
+           source=None,payload=None,occurred_at=None,reconstructed=False,started_at=None,finished_at=None):
     if status not in STATES:
         raise ValueError('Invalid activity state.')
     business,trace_id=UUID(str(business)),UUID(str(trace_id))
@@ -76,14 +76,15 @@ def append(db,business,trace_id,*,kind,source_id,role='system',actor_id=None,
                 status=excluded.status,public_text=excluded.public_text,purpose=excluded.purpose,
                 refs=excluded.refs,source=excluded.source,last_sequence=excluded.last_sequence,
                 started_at=COALESCE(activity_tasks.started_at,excluded.started_at),
-                finished_at=excluded.finished_at,parent_task_id=COALESCE(activity_tasks.parent_task_id,excluded.parent_task_id)''',
+                finished_at=excluded.finished_at,parent_task_id=COALESCE(excluded.parent_task_id,activity_tasks.parent_task_id),
+                actor_id=excluded.actor_id,role=excluded.role''',
             (task_id,business,trace_id,parent_id,actor_id or role,role,kind,str(source_id),status,
              public_text[:500],purpose[:500],Jsonb(list(refs)),Jsonb(source or {}),
-             status,occurred_at,terminal,occurred_at,sequence))
+             status,started_at or occurred_at,terminal,finished_at or occurred_at,sequence))
         db.execute('''INSERT INTO activity_events(id,business_id,trace_id,sequence,task_id,dedupe_key,type,status,payload,occurred_at,reconstructed)
             VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)''',
             (uuid5(trace_id,dedupe_key),business,trace_id,sequence,task_id,dedupe_key,
-             event_type or f'{kind}.{status}',status,Jsonb(payload or {}),occurred_at,reconstructed))
+             event_type or f'{kind}.{status}',status,Jsonb({**(payload or {}),'activity_text':public_text[:500]}),occurred_at,reconstructed))
         db.execute('UPDATE activity_traces SET last_sequence=%s WHERE id=%s',(sequence,trace_id))
     return task_id
 

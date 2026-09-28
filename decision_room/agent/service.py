@@ -1,4 +1,5 @@
 """Scoped CLI/application entry points; provider and checkpoint IDs stay internal."""
+from ..observability.runtime import session_tracked
 from uuid import UUID, uuid4
 
 from langgraph.types import Command
@@ -103,6 +104,7 @@ def show(config, business_id, session_id):
                 'cost': {'amount': None, 'note': 'Tokens recorded when supplied; no provider pricing assumed.'}}
 
 
+@session_tracked
 def _drive(config, db, session, model=None, retry_uncertain=False):
     session_id = session['id']
     if session['superseded_by']:

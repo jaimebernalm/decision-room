@@ -15,7 +15,7 @@ def text(value,limit=500):
     value=re.sub(r'(?i)((?:api[_-]?key|password|token|secret)\s*[:=]\s*)[\"\x27]?[^\s,;\"\x27]+',r'\1[omitido]',value)
     value=re.sub(r'/(?:Users|home|var/folders)/[^\s\"\x27<>]*','[ruta privada]',value)
     value=re.sub(r'(?i)(?:postgres(?:ql)?|https?)://[^\s\"\x27<>]+','[dirección omitida]',value)
-    return value[:limit]
+    return value if len(value)<=limit else value[:max(0,limit-1)].rstrip()+'…'
 
 
 def diagnostic(value,depth=0):

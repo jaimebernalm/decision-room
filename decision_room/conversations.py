@@ -3,6 +3,7 @@
 Legacy templates remain readable/replayable; new decisions use chat_agent.Decision.
 """
 
+from .observability.runtime import created, tracked, notify, call_context, transport
 from dataclasses import asdict
 from datetime import datetime
 import re
@@ -16,7 +17,7 @@ from psycopg.types.json import Jsonb
 from .database import connect
 from . import chat_agent, context_references as selections, conversation_context
 from .greetings import is_greeting, salutation
-from .agent.model import ModelSettings, ModelRequestUncertain
+from .agent.model import ModelSettings, ModelRequestUncertain, record_transport
 from .agent import review
 from .memory import context as ctx, service as memory, extraction, retrieval, semantic
 from .web.errors import WebError, identifier, bounded
@@ -469,6 +470,7 @@ class Conversations:
             return dict(**reference, title='Información actualizada o no disponible', status='withdrawn',
                         report_title='Mi negocio', href='#my-business')
 
+    @created('turn')
     def send(self, chat_id, data):
         self.guard(data)
         key = identifier(data.get('request_key'))
@@ -614,6 +616,8 @@ class Conversations:
             attachment_cache = {}
             previous_snapshot = None
             for t in turns:
+                from .observability.store import linked
+                trace=linked(db,self.business,'turn',t['id'])
                 value = {
                     k: t[k]
                     for k in (
@@ -628,6 +632,7 @@ class Conversations:
                         'created_at',
                     )
                 }
+                value['activity_trace_id']=str(trace) if trace else None
                 attachments = []
                 for ref in selections.pointers(t['payload']):
                     cache_key = tuple(sorted(ref.items()))
@@ -864,12 +869,22 @@ class Conversations:
             if source_issues:
                 result, usage = dict(approved=False, issues=source_issues), {}
             else:
-                result, usage = model.review_chat_answer(check_context)
+                notify(db)
+                def review_attempts(attempts):
+                    transport(attempts)
+                    db.execute('UPDATE chat_answer_reviews SET usage=%s WHERE turn_id=%s AND attempt=%s AND ordinal=%s',
+                               (Jsonb({'transport_attempts':attempts,'rejected_attempt_usage_unknown':any(a['status']!=200 for a in attempts)}),turn['id'],turn['attempt'],ordinal))
+                with call_context(f'chat-review:{turn["id"]}:{turn["attempt"]}:{ordinal}'), record_transport(review_attempts):
+                    result, usage = model.review_chat_answer(check_context)
+                recorded=db.execute('SELECT usage FROM chat_answer_reviews WHERE turn_id=%s AND attempt=%s AND ordinal=%s',
+                                    (turn['id'],turn['attempt'],ordinal)).fetchone()['usage'] or {}
+                usage={**recorded,**usage}
             checked = chat_agent.AnswerReview.model_validate(result)
             if checked.approved and checked.issues:
                 raise ValueError('Approved review must not contain unresolved issues.')
             db.execute("UPDATE chat_answer_reviews SET response=%s,usage=%s,status='completed' WHERE turn_id=%s AND attempt=%s AND ordinal=%s",
                        (Jsonb(result), Jsonb(usage), turn['id'], turn['attempt'], ordinal))
+            notify(db)
         if not result['approved']:
             return None
         response = dict(kind='grounded_answer', text=visible_text.strip(),
@@ -956,6 +971,7 @@ class Conversations:
             db.execute("UPDATE chat_turns SET job_id=%s,status='processing' WHERE id=%s", (job, turn['id']))
             db.execute('UPDATE chat_conversations SET analysis_id=%s WHERE id=%s', (analysis_id, chat['id']))
 
+    @tracked('turn')
     def run(self, turn_id):
         with connect(self.config) as db:
             if not db.execute(
@@ -1170,11 +1186,21 @@ class Conversations:
                             "INSERT INTO chat_calls(turn_id,attempt,ordinal,prompt_version,context,status) VALUES (%s,%s,%s,%s,%s,'running')",
                             (turn_id, turn['attempt'], ordinal, PROMPT_VERSION, Jsonb(context)),
                         )
-                        output, usage = model.generate_chat(context)
+                        notify(db)
+                        def chat_attempts(attempts):
+                            transport(attempts)
+                            db.execute('UPDATE chat_calls SET usage=%s WHERE turn_id=%s AND attempt=%s AND ordinal=%s',
+                                       (Jsonb({'transport_attempts':attempts,'rejected_attempt_usage_unknown':any(a['status']!=200 for a in attempts)}),turn_id,turn['attempt'],ordinal))
+                        with call_context(f'chat:{turn_id}:{turn["attempt"]}:{ordinal}'), record_transport(chat_attempts):
+                            output, usage = model.generate_chat(context)
+                        recorded=db.execute('SELECT usage FROM chat_calls WHERE turn_id=%s AND attempt=%s AND ordinal=%s',
+                                            (turn_id,turn['attempt'],ordinal)).fetchone()['usage'] or {}
+                        usage={**recorded,**usage}
                         db.execute(
                             "UPDATE chat_calls SET response=%s,usage=%s,status='completed' WHERE turn_id=%s AND attempt=%s AND ordinal=%s",
                             (Jsonb(output), Jsonb(usage), turn_id, turn['attempt'], ordinal),
                         )
+                        notify(db)
                     else:
                         output = call['response']
                         context = call['context']

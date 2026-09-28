@@ -1,4 +1,5 @@
 """Business-scoped research runs tied to immutable planning knowledge."""
+from ..observability.runtime import session_tracked
 from uuid import uuid4
 
 from langsmith import tracing_context
@@ -103,6 +104,7 @@ def start(config, business_id, session_id, *, request_key, max_investigations=No
     return show(config, business_id, row['id'])
 
 
+@session_tracked
 def _drive(config, db, session, run, *, model=None, executor=execute, retry_uncertain=False):
     try:
         memory_context.ensure(db, session['id'])

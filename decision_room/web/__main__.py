@@ -19,6 +19,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--port', type=int, default=8787)
     parser.add_argument('--open', action='store_true', help='Open the authenticated local workspace in your browser.')
+    parser.add_argument('--internal-monitor', action='store_true', help='Enable the separately authenticated read-only internal monitor.')
     args = parser.parse_args()
     config = Config.load()
     config.storage.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -30,7 +31,7 @@ def main():
         settings = None
     workspace = Workspace(config, settings)
     try:
-        server = Server(workspace, args.port)
+        server = Server(workspace, args.port, internal_monitor=args.internal_monitor)
     except OSError as exc:
         if exc.errno != errno.EADDRINUSE:
             raise
@@ -47,10 +48,15 @@ def main():
     except BaseException:
         server.server_close()
         raise
+    from ..observability.runtime import reconcile_pending
+    reconcile_pending(config)
     thread = threading.Thread(target=workspace.worker, name='decision-room-worker', daemon=True)
     thread.start()
     print(f'Decision Room: {server.origin}', flush=True)
     print('Local access key is stored privately in the configured storage directory (.web-access-key).', flush=True)
+    if args.internal_monitor:
+        print('Internal monitor: ' + server.origin + '/#internal/investigations', flush=True)
+        print('Internal key is stored privately as .internal-access-key in configured storage.', flush=True)
     if args.open:
         # Fragment is exchanged by JS then immediately removed; never sent in HTTP URLs.
         webbrowser.open(server.origin + '/#access=' + server.token)

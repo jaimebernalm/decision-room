@@ -7,6 +7,7 @@ import logging
 import os
 import tempfile
 import threading
+from ..observability.runtime import created, tracked
 from dataclasses import asdict
 from contextlib import nullcontext
 from pathlib import Path
@@ -203,6 +204,7 @@ class Workspace:
         finally:
             Path(temporary).unlink(missing_ok=True)
 
+    @created('job')
     def create_batch(self, data):
         if not isinstance(data, dict) or not isinstance(data.get('files'), list) or not data['files']:
             raise WebError('Selecciona al menos un CSV.')
@@ -271,6 +273,7 @@ class Workspace:
         self.wake.set()
         return {'id': str(job_id)}
 
+    @created('job')
     def create(self, data, filename, content):
         if not isinstance(data, dict):
             raise WebError('Los datos del análisis no son válidos.')
@@ -340,6 +343,7 @@ class Workspace:
         self.wake.set()
         return {'id': str(job_id)}
 
+    @created('job')
     def create_from_dataset(self, data):
         """Start the established report worker on a prepared folder batch."""
         if not isinstance(data, dict):
@@ -434,6 +438,10 @@ class Workspace:
     def public(self, j):
         fields = ('id', 'business_id', 'analysis_id', 'title', 'business', 'context', 'goal', 'filename', 'byte_count', 'status', 'phase', 'created_at', 'updated_at', 'issue', 'origin')
         result = {key: j[key] for key in fields}
+        from ..observability.store import linked
+        with connect(self.config) as db:
+            trace=linked(db,j['business_id'],'job',j['id'])
+            result['activity_trace_id']=str(trace) if trace else None
         with connect(self.config) as db:
             result['data_version'] = db.execute('SELECT version,superseded_by,corrected FROM dataset_versions WHERE analysis_id=%s AND business_id=%s', (j['analysis_id'], j['business_id'])).fetchone()
         if j['origin'] == 'chat':
@@ -766,6 +774,7 @@ class Workspace:
                 'offset': offset, 'has_more': len(rows) > 30,
                 'cell_limit': 200, 'files': files, 'file_index': file_index}
 
+    @tracked('job')
     def run_job(self, job_id):
         j = self.sync(job_id)
         b, key = j['business_id'], 'web:' + str(j['id'])

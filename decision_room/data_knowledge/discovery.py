@@ -1,4 +1,6 @@
 """Agent proposals, deterministic full-file validation, immutable shared knowledge."""
+from ..observability import runtime as activity_runtime, store as activity_store
+from uuid import UUID,uuid5
 from copy import deepcopy
 
 from pydantic import Field
@@ -119,9 +121,23 @@ def discover(config, business, analysis, model, *, retry_uncertain=False):
                 args = (business, analysis, call_key, attempt)
                 db.execute('''INSERT INTO data_model_discoveries(business_id,analysis_id,call_key,attempt,status,context_payload,model_settings)
                     VALUES (%s,%s,%s,%s,'running',%s,%s)''', (*args, Jsonb(payload), Jsonb(model.identity)))
+                activity=activity_runtime.CURRENT.get()
+                if activity:
+                    discovery_id=uuid5(UUID(str(analysis)),f'{call_key}:{attempt}')
+                    activity_store.safe(db,business,activity[2],activity_store.link,'discovery',discovery_id)
+                    activity_runtime.notify(db)
                 try:
-                    output, usage = model.generate_data_discovery(payload, correction)
+                    from ..agent.model import record_transport
+                    def save_attempts(attempts):
+                        activity_runtime.transport(attempts)
+                        db.execute('UPDATE data_model_discoveries SET usage=%s WHERE business_id=%s AND analysis_id=%s AND call_key=%s AND attempt=%s',
+                            (Jsonb({'transport_attempts':attempts,'rejected_attempt_usage_unknown':any(a['status']!=200 for a in attempts)}),*args))
+                    with activity_runtime.call_context(uuid5(UUID(str(analysis)),f'{call_key}:{attempt}')), record_transport(save_attempts):
+                        output, usage = model.generate_data_discovery(payload, correction)
+                    recorded=db.execute('SELECT usage FROM data_model_discoveries WHERE business_id=%s AND analysis_id=%s AND call_key=%s AND attempt=%s',args).fetchone()['usage'] or {}
+                    usage={**recorded,**usage}
                     db.execute("UPDATE data_model_discoveries SET status='completed',output=%s,usage=%s WHERE business_id=%s AND analysis_id=%s AND call_key=%s AND attempt=%s", (Jsonb(output),Jsonb(usage),*args))
+                    activity_runtime.notify(db)
                 except Exception as error:
                     from ..agent.model import ModelRequestUncertain
                     db.execute('UPDATE data_model_discoveries SET status=%s,issue=%s WHERE business_id=%s AND analysis_id=%s AND call_key=%s AND attempt=%s',

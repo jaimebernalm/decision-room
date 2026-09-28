@@ -1,4 +1,5 @@
 """Domain records and private LangGraph checkpoints in the existing PostgreSQL."""
+from ..observability.runtime import notify, call_context, transport, reused
 from contextlib import contextmanager
 from uuid import UUID, uuid4, uuid5
 
@@ -94,6 +95,7 @@ def _model_call(db, session_id, model, context, correction, retry_uncertain, *, 
         ORDER BY created_at DESC''', (session_id, key)).fetchall()
     for row in prior:
         if row['status'] == 'completed':
+            reused(db,'call',row['id'])
             return row['output']
     if any(r['status'] == 'running' for r in prior):
         if not retry_uncertain:
@@ -109,25 +111,32 @@ def _model_call(db, session_id, model, context, correction, retry_uncertain, *, 
     call_id = uuid4()
     db.execute('''INSERT INTO agent_calls(id,session_id,call_key,status,prompt_version,phase,scope,context_payload)
         VALUES (%s,%s,%s,'running',%s,%s,%s,%s)''', (call_id, session_id, key, version, phase, scope, Jsonb(context)))
+    notify(db)
     try:
         method = {'planning': 'generate', 'research': 'generate_research', 'business_planner': 'generate_business_planner',
                   'analyst_review': 'generate_analyst_review', 'reviewer': 'generate_reviewer'}[phase]
         def save_attempts(attempts):
+            transport(attempts)
             db.execute('UPDATE agent_calls SET usage=%s WHERE id=%s',
                        (Jsonb({'transport_attempts': attempts,
                                'rejected_attempt_usage_unknown': any(a['status'] != 200 for a in attempts)}), call_id))
-        with record_transport(save_attempts):
+        with call_context(call_id), record_transport(save_attempts):
             output, usage = getattr(model, method)(context, correction)
+        recorded=db.execute('SELECT usage FROM agent_calls WHERE id=%s',(call_id,)).fetchone()['usage'] or {}
+        usage={**recorded,**usage}
         db.execute("UPDATE agent_calls SET status='completed',output=%s,usage=%s,finished_at=now() WHERE id=%s",
                    (Jsonb(output), Jsonb(usage), call_id))
+        notify(db)
         return output
     except ModelRequestUncertain as error:
         db.execute('UPDATE agent_calls SET issue=%s WHERE id=%s', (type(error).__name__, call_id))
+        notify(db)
         raise
     except Exception as error:
         attempts = getattr(error, 'transport_attempts', None)
         db.execute("UPDATE agent_calls SET status='failed',issue=%s,usage=COALESCE(%s,usage),finished_at=now() WHERE id=%s",
                    (type(error).__name__, Jsonb({'transport_attempts': attempts, 'rejected_attempt_usage_unknown': True}) if attempts else None, call_id))
+        notify(db)
         raise
 
 

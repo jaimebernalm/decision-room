@@ -6,6 +6,7 @@ import shutil
 import time
 import uuid
 
+from .observability import runtime as activity_runtime, store as activity_store
 from psycopg.types.json import Jsonb
 
 from .database import connect
@@ -99,6 +100,11 @@ def execute(config, business_id, analysis_id, *, code, tables, definitions=None,
         if previous:
             if previous['request_sha256'] != fingerprint:
                 raise ValueError('Request key already used for different code, inputs, definitions or runtime.')
+            activity=activity_runtime.CURRENT.get()
+            if activity:
+                activity_store.safe(db,business_id,activity[2],activity_store.link,'execution',previous['id'])
+                activity_runtime.reused(db,'execution',previous['id'])
+                activity_runtime.notify(db)
             return get_execution(config, business_id, previous['id'])
         # Serialize admission only, not computation. Abandoned controllers also
         # consume capacity until explicit recovery stops their containers.
@@ -117,6 +123,10 @@ def execute(config, business_id, analysis_id, *, code, tables, definitions=None,
                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'preparing')''',
                        (execution_id, business_id, analysis_id, request_key, fingerprint, sha(code.encode()), code_key,
                         Jsonb(inputs), Jsonb(definitions), Jsonb(limits), Jsonb(backend.manifest)))
+        activity = activity_runtime.CURRENT.get()
+        if activity:
+            activity_store.safe(db, business_id, activity[2], activity_store.link, 'execution', execution_id)
+            activity_runtime.notify(db)
         stage = INPUT_ROOT / str(execution_id)
         started = time.monotonic()
         status, logs, runtime, result, issue, artifacts = 'failed', {}, {}, None, None, []
@@ -191,6 +201,7 @@ def execute(config, business_id, analysis_id, *, code, tables, definitions=None,
                        (status, Jsonb(result), Jsonb(logs), Jsonb(runtime), issue, status, time.monotonic()-started, execution_id))
         if interrupted:
             raise KeyboardInterrupt()
+        activity_runtime.notify(db)
         return get_execution(config, business_id, execution_id)
 
 
