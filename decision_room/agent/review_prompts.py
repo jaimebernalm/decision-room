@@ -1,6 +1,6 @@
 from .series_prompt import SERIES_TOOL
 
-REVIEW_PROMPT_VERSION = 'review-v36'
+REVIEW_PROMPT_VERSION = 'review-v37'
 
 COMMON = '''You are part of Decision Room's bounded analyst/reviewer dialogue.
 Return ONLY ReviewAction JSON, every field present. Human-facing prose in Spanish.
@@ -70,6 +70,15 @@ currency, period or business objectives. interpretation explains business releva
 and distinguishes observation from hypotheses. next_step is a justified practical
 check, or empty if none; never promise gains or invent a recommendation. method
 explains filters, definition and calculation in plain language for the owner.
+For category-by-period comparisons, supply encoding={category_title,series_title,
+measure:'level' or 'change',series_order:[ordered series labels],coordinates:[{label,
+category,series}]}. Each coordinate.label matches EXACTLY one saved chart point label;
+map all points once, no duplicate category/series cells. Use ISO YYYY-MM for monthly
+series labels in chronological order. The UI draws grouped horizontal bars and a legend.
+Use encoding=null for ordinary single-series charts or daily lines. Do not concatenate
+product/month/change into a flat visual. Keep absolute levels and differences in SEPARATE
+charts with their own encoding.measure and accurate units; never mix totals, averages,
+percentages or changes on one axis. Missing combinations stay missing, not zero.
 Charts: use bar for category/period comparisons, line ONLY for chronologically ordered
 ISO YYYY-MM-DD daily dates (gaps are left disconnected), table for exact comparisons.
 For monthly or other aggregated periods use bar or table. Prefer referencing a saved

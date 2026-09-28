@@ -64,6 +64,20 @@ class QuestionCoverage(Strict):
     explanation: str = Field(min_length=1, max_length=800)
 
 
+class ChartCoordinate(Strict):
+    label: str = Field(min_length=1, max_length=100)
+    category: str = Field(min_length=1, max_length=100)
+    series: str = Field(min_length=1, max_length=100)
+
+
+class ChartEncoding(Strict):
+    category_title: str = Field(min_length=1, max_length=80)
+    series_title: str = Field(min_length=1, max_length=80)
+    measure: Literal['level', 'change']
+    series_order: list[str] = Field(min_length=1, max_length=6)
+    coordinates: list[ChartCoordinate] = Field(min_length=2, max_length=36)
+
+
 class Chart(Strict):
     key: str = Field(pattern=r'^[a-z][a-z0-9_]{0,63}$')
     claim_key: str = Field(pattern=r'^[a-z][a-z0-9_]{0,63}$')
@@ -74,6 +88,7 @@ class Chart(Strict):
     caption: str = Field(min_length=1, max_length=1200)
     points: list[ChartPoint] = Field(max_length=36)
     series: SeriesRef | None = None
+    encoding: ChartEncoding | None = None
 
 
 class NumericCheck(Strict):
@@ -154,6 +169,8 @@ def checks(report, observations):
             labels = [p['label'] for p in points]
             if len(set(labels)) != len(labels):
                 raise ValueError('Chart labels must be unique.')
+            from ..chart_layout import validate_encoding
+            validate_encoding(chart, points)
             if chart['claim_key'] not in {c['key'] for c in report['claims']}:
                 raise ValueError('Chart must belong to an existing finding.')
             if chart['kind'] == 'line':

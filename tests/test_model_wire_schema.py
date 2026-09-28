@@ -10,6 +10,32 @@ from decision_room.series import evidence_value
 
 
 class WireSchemaTests(unittest.TestCase):
+    def test_chart_coordinates_and_attachment_option_have_provider_strict_schemas(self):
+        client=ModelClient(ModelSettings('test'))
+        with patch.object(client,'_generate',return_value=({},{})) as request:
+            client.generate_analyst_review({})
+        schema=request.call_args.args[3]
+        for name in ('ChartEncoding','ChartCoordinate'):
+            definition=schema['$defs'][name]
+            self.assertEqual(set(definition['required']),set(definition['properties']))
+        self.assertIn('encoding',schema['$defs']['Chart']['required'])
+        with patch.object(client,'_generate',return_value=({},{})) as request:
+            client.generate_chat({})
+        schema=request.call_args.args[3]
+        self.assertIn('include_report',schema['required'])
+        self.assertNotIn('default',schema['properties']['include_report'])
+
+    def test_saved_series_without_redundant_scalars_can_support_a_report(self):
+        client=ModelClient(ModelSettings('test'))
+        context={'observations':[{'execution_id':'e','current':True,'status':'completed','result':{
+            'metrics':{},'evidence':[],'series':{'monthly':{'unit':'units','grain':'month',
+            'points':[{'label':'2026-06','value':2},{'label':'2026-07','value':3}]}}}}]}
+        with patch.object(client,'_generate',return_value=({},{})) as request:
+            client.generate_analyst_review(context)
+        schema=request.call_args.args[3]
+        self.assertIn('submit',schema['properties']['action']['enum'])
+        self.assertNotIn('#/$defs/MetricRef',json.dumps(schema))
+
     def test_candidate_metric_choices_use_latest_saved_results(self):
         client=ModelClient(ModelSettings('test'))
         context={'observations':[

@@ -724,3 +724,8 @@ Ver [validación completa](../validation/2026-09-22-luna-validation.md) e
 **Listado de conversaciones, 25 de septiembre de 2026:** la biblioteca de chats muestra tarjetas separadas y más compactas, con título y fecha del último mensaje. Toda la tarjeta es un enlace y cambia de fondo al pasar el cursor o recibir foco; la acción de eliminar permanece independiente. Se elimina el texto redundante «Abrir conversación». Véanse [comprobaciones](../validation/2026-09-25-conversation-list-check.md).
 
 **Confirmación de eliminación y centrado, 25 de septiembre de 2026:** el listado de conversaciones se centra dentro del área de contenido. La eliminación usa un diálogo de la aplicación con título del chat, aviso de que ya no se podrá acceder a la conversación y acciones de cancelar o eliminar, en lugar de la confirmación del navegador. No se muestra una sección de chats eliminados ni se ofrece restauración al usuario. Véanse [comprobaciones](../validation/2026-09-25-delete-dialog-check.md).
+
+**Gráficos y continuidad del chat, 28 de septiembre de 2026 (3.8.10):** dimensiones
+explícitas para comparaciones agrupadas, leyendas coherentes, actividad pública
+compacta y presentación progresiva del texto ya revisado. Metadatos de aprobación
+accesibles al asistente. Ver [validación](../validation/2026-09-28-charts-and-chat-flow.md).

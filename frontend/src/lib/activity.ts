@@ -3,7 +3,7 @@ import { api, ApiError } from "./api";
 
 export type ActivityTask = {
   id: string; parent_id: string | null; status: string; text: string;
-  purpose: string; kind: string; sequence: number;
+  purpose: string; kind: string; sequence: number; phase?: string | null;
   references: { kind: string; id: string; column: string }[];
   data_endpoint?: string | null; started_at?: string; finished_at?: string;
   question_id?: string | null;
@@ -118,4 +118,35 @@ export function useActivity(endpoint: string, traceId?: string | null, internal 
 export function clearActivityCache() {
   entries.forEach((e) => { clearTimeout(e.timer); e.controller?.abort(); });
   entries.clear();
+}
+
+/** Public milestones; the operator view retains every call and revision. */
+export function compactChatActivity(tasks: ActivityTask[]): ActivityTask[] {
+  const groups = new Map<string, ActivityTask>();
+  const result: ActivityTask[] = [];
+  for (const task of tasks) {
+    if (!["chat_call", "chat_review", "retrieval"].includes(task.kind) || task.status !== "completed") {
+      result.push(task); continue;
+    }
+    if (task.kind === "chat_call" && task.phase === "retrieve") continue;
+    if (task.kind === "chat_call" && task.phase === "investigate") { result.push({ ...task, text: "Análisis encargado" }); continue; }
+    const key = `${task.parent_id}:${task.kind}`;
+    const previous = groups.get(key);
+    const newer = !previous || (task.started_at || "") >= (previous.started_at || "");
+    const latest = newer ? task : previous;
+    groups.set(key, { ...latest, text: task.kind === "retrieval" ? "Fuentes y contexto consultados" : task.kind === "chat_call" ? "Respuesta preparada" : latest.text.includes("ajustes") ? "Revisión con ajustes pendientes" : "Respuesta revisada",
+      purpose: task.kind === "chat_review" && (task.text.includes("ajustes") || previous?.purpose) ? "Se detectaron ajustes durante la revisión." : latest.purpose });
+  }
+  // Do not show a completed draft/review alongside another round still running.
+  for (const task of result) {
+    if (["chat_call", "chat_review"].includes(task.kind) && task.status !== "completed")
+      groups.delete(`${task.parent_id}:${task.kind}`);
+  }
+  return [...result, ...groups.values()].sort((a, b) => {
+    if (a.parent_id === b.parent_id) {
+      const stages = ["retrieval", "chat_call", "chat_review"];
+      if (stages.includes(a.kind) && stages.includes(b.kind)) return stages.indexOf(a.kind) - stages.indexOf(b.kind);
+    }
+    return (a.started_at || "").localeCompare(b.started_at || "") || a.sequence - b.sequence;
+  });
 }

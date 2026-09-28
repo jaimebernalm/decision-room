@@ -402,3 +402,24 @@ historia, hitos públicos y etiquetas breves del agente, tiempos reales de chat,
 detalle estructurado y recuperación de vistas antiguas. Estado: validado con pruebas automatizadas, revisión visual y Bruma recuperado
 con informe aprobado, contexto vigente e historial completo (esquema 26). No tomar el cierre original como evidencia de ausencia de estos
 fallos; conservar la auditoría y los resultados del seguimiento.
+
+### 3.8.10 · Gráficos compartidos y continuidad de la respuesta
+
+Alcance acordado: dimensiones explícitas elegidas por el agente y verificadas contra
+los puntos guardados; barras horizontales agrupadas, leyenda estable y cambios
+separados de cantidades. Compatibilidad conservadora para informes anteriores sin
+alterar cifras ni aprobación. Aplicar a presentación web y exportación HTML.
+
+Actividad pública: hitos semánticos compactos; conservar llamadas y revisiones en
+el monitor. Presentar gradualmente solo texto aprobado de respuestas nuevas,
+coordinando el estado de actividad; historial inmediato, movimiento reducido y
+opción de mostrar todo. Corregir metadatos de fechas de informes y evitar adjuntar
+un informe completo a respuestas administrativas.
+
+Validación prevista: contratos, procedencia, ausencias y orden; actividad agrupada;
+texto nuevo/histórico, navegación y accesibilidad; pruebas de regresión, compilación
+y comprobación visual con el informe guardado de Bruma Café y un chat real.
+
+**Cerrado:** 3.8.10 implementado y validado. Véase
+[gráficos y continuidad del chat](../validation/2026-09-28-charts-and-chat-flow.md).
+No cambia el alcance pendiente de otras entregas del producto.

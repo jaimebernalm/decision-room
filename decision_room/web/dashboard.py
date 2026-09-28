@@ -7,6 +7,7 @@ import json
 from ..agent.review_contract import ReportDraft, checks
 from ..client_report import formatted, metric
 from ..series import saved_series
+from ..chart_layout import panels, series_colors
 
 
 def projection(data):
@@ -36,10 +37,15 @@ def projection(data):
                 'key': chart['key'], 'kind': chart['kind'], 'title': chart['title'],
                 'unit': chart['unit'], 'caption': chart['caption'],
                 'claim_key': chart['claim_key'],
+                'panels': panels(chart, points),
                 'points': [{'label': point['label'], 'value': str(point['value']),
                             'formatted': formatted(point['value'], chart['decimals'])}
                            for point in points],
             })
+        colors = series_colors(s for chart in charts for panel in chart['panels'] for s in panel['series_order'])
+        for chart in charts:
+            for panel in chart['panels']:
+                panel['colors'] = {s: colors[s] for s in panel['series_order']}
     except (ValueError, KeyError, ArithmeticError):
         return None
     return {

@@ -144,6 +144,13 @@ def _datasets(config, db, m, query, limit):
     return dict(items=items, more=search.get('more', False), search=search)
 
 
+def _report_dates(db, run):
+    approval = db.execute("SELECT created_at FROM agent_review_events WHERE review_id=%s AND action->>'action'='approve' ORDER BY step DESC LIMIT 1", (run['id'],)).fetchone()
+    return dict(review_started_at=run['created_at'].isoformat(),
+                approved_at=approval['created_at'].isoformat() if approval else None,
+                date_meaning='approved_at is report publication approval, not the period covered by the data; timestamps include UTC offset.')
+
+
 def _reports(config, db, m, scope, request):
     # Scope before embedding; report.show verifies approval, source integrity and
     # numerical evidence. No stale/held report prose is put in the search corpus.
@@ -163,14 +170,20 @@ def _reports(config, db, m, scope, request):
             continue
         available[key] = (run, data)
         docs.append(dict(key=key, version=run['approved_sha256'], text=encoded(data['report'])))
-    keys, search = semantic.rank(config, db, m['business_id'], 'report', docs, request.query, request.limit)
+    if request.query.strip():
+        keys, search = semantic.rank(config, db, m['business_id'], 'report', docs, request.query, request.limit)
+    else:
+        from datetime import datetime, timezone
+        dates = {key: _report_dates(db, run) for key, (run, _) in available.items()}
+        keys = sorted(available, key=lambda key: (datetime.fromisoformat(dates[key]['approved_at']) if dates[key]['approved_at'] else datetime.min.replace(tzinfo=timezone.utc), key), reverse=True)[:request.limit]
+        search = dict(order='approved_at_desc', approval_dates_complete=all(d['approved_at'] for d in dates.values()))
     items, dependencies = [], []
     for key in keys:
         run, data = _report(config, db, m, key)  # Recheck after unlocked embedding calls.
         if run['approved_sha256'] != available[key][0]['approved_sha256']:
             raise ctx.StaleContext('Report changed during search; retry.')
         items.append(dict(id=key, version=run['approved_sha256'], title=data['report']['title'],
-                          summary=data['report']['summary'], scope=data['report']['scope'], analysis_id=str(run['analysis_id'])))
+                          summary=data['report']['summary'], scope=data['report']['scope'], analysis_id=str(run['analysis_id']), **_report_dates(db, run)))
         dependencies.append(dict(kind='report', id=key, version=run['approved_sha256']))
     return dict(items=items, candidate_scan_limit=semantic.MAX_DOCUMENTS,
                 more_possible=len(docs) > len(keys), search=search), dependencies
@@ -238,7 +251,7 @@ def retrieve(config, db, session_id, request, *, manifest=None, opened=None):
     elif r.tool == 'open_report':
         run, data = _report(config, db, m, r.id)
         evidence_ids = sorted({ref['execution_id'] for c in data['report']['claims'] for ref in c['evidence']})
-        result = dict(id=r.id, version=run['approved_sha256'], report=data['report'], evidence_ids=evidence_ids,
+        result = dict(id=r.id, version=run['approved_sha256'], report=data['report'], evidence_ids=evidence_ids, **_report_dates(db, run),
                       manifest_id=str(run['session_id']), analysis_id=str(run['analysis_id']),
                       evidence_class='Reviewed historical result, not a new calculation.')
         dependencies.append(dict(kind='report', id=r.id, version=run['approved_sha256']))

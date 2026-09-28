@@ -1,3 +1,4 @@
+import { ProgressiveAnswer } from "./progressive-answer";
 import { AnalysisActivity } from "./analysis-activity";
 import { useRef, useState, type ReactNode } from "react";
 import { FileText, RotateCcw, ArrowUpRight } from "lucide-react";
@@ -300,6 +301,8 @@ export function ChatPage({
       }
     });
   const data = resource.data;
+  const [initialTurns, setInitialTurns] = useState<Set<string> | null>(null);
+  if (data && !initialTurns) setInitialTurns(new Set(data.turns.map(t => t.id)));
   // Answers to owner questions can create several turns for the same process.
   // Keep its durable activity at the latest turn instead of repeating the panel.
   const activityOwners = new Map<string,string>();
@@ -364,19 +367,25 @@ export function ChatPage({
                           Respuesta con contexto anterior
                         </Badge>
                       )}
-                      {turn.response && (
-                        <Answer
-                          response={turn.response}
+                      <ProgressiveAnswer id={turn.id} response={turn.response} animate={!turn.historical && !initialTurns?.has(turn.id)}>
+                      {(visibleResponse, revealing) => <>
+                      {visibleResponse && (
+                        <div aria-hidden={revealing || undefined}><Answer
+                          response={visibleResponse}
                           ownerText={turn.payload.text}
-                        />
+                        /></div>
                       )}
                       <Notice error>{turn.historical ? "" : turn.issue}</Notice>
                       {activityOwners.get(turn.activity_trace_id || turn.job_id || turn.id)===turn.id && <AnalysisActivity
                         endpoint={turn.job_id ? `/api/jobs/${turn.job_id}/activity` : `/api/chats/${id}/turns/${turn.id}/activity`}
                         traceId={turn.activity_trace_id}
+                        revealing={revealing}
+                        responseReady={Boolean(visibleResponse) && !turn.job_id && turn.status === "completed"}
                         onQuestion={(questionId) => { setQuestion(questionId);requestAnimationFrame(() => { const input=document.querySelector<HTMLTextAreaElement>('textarea[placeholder="Escribe tu aclaración…"]');input?.scrollIntoView({block:'center'});input?.focus(); }); }}
                         fallback={queuePosition(data.turns,index) ? `En cola · posición ${queuePosition(data.turns,index)}` : "Preparando respuesta…"}
                       />}
+                      </>}
+                      </ProgressiveAnswer>
                       {turn.status === "waiting" && (
                         <Notice>
                           El análisis necesita una aclaración. Responde a la

@@ -28,7 +28,7 @@ def public_task(row,*,data_endpoint=None):
     references=[{k:r.get(k,'') for k in ('kind','id','column')} for r in row['refs'] if r.get('kind') in ('table','column')]
     return dict(id=str(row['id']),parent_id=str(row['parent_task_id']) if row['parent_task_id'] else None,
                 status=row['status'],text=text(row['public_text'],240),purpose=text(row['purpose'],240),
-                kind=row['kind'],references=references[:4],data_endpoint=data_endpoint if references else None,
+                kind=row['kind'],phase=row['source'].get('action') if row['kind']=='chat_call' and row['source'].get('action') in ('retrieve','answer','investigate') else None,references=references[:4],data_endpoint=data_endpoint if references else None,
                 question_id=str(row['source'].get('step') if row['kind']=='review_step' else row['source'].get('id')) if row['status']=='waiting_owner' and row['kind'] in ('question','planner_consult','review_step') else None,
                 started_at=row['started_at'],finished_at=row['finished_at'],sequence=row['last_sequence'])
 

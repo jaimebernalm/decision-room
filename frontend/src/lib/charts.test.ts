@@ -31,3 +31,32 @@ it("preserves reviewed decimal formatting even beyond floating point precision",
   expect(points[0].formatted).toBe("9.007.199.254.740.993,01");
   expect(points[0].axis).toBe("Total");
 });
+
+import { groupedPoints, seriesColor } from "./charts";
+it("groups exact values with missing cells absent, never synthesized zero", () => {
+  const grouped = {
+    ...chart,
+    kind: "bar" as const,
+    panels: [
+      {
+        title: "",
+        category_title: "Producto",
+        series_title: "Mes",
+        measure: "level" as const,
+        series_order: ["2026-06", "2026-07"],
+        coordinates: [
+          { label: "2026-01-01", category: "A", series: "2026-06" },
+          { label: "2026-01-03", category: "B", series: "2026-07" },
+        ],
+      },
+    ],
+  };
+  const rows = groupedPoints(grouped, grouped.panels[0]);
+  expect(rows.map((r) => [r.s0, r.s1])).toEqual([
+    [10.001, null],
+    [null, 20.005],
+  ]);
+  expect(rows[1].s1Exact).toBe("20,01");
+  expect(seriesColor("junio")).toBe(seriesColor("2026-06"));
+  expect(seriesColor("2026-07")).not.toBe(seriesColor("2026-06"));
+});

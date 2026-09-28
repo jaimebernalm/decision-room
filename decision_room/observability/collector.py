@@ -71,13 +71,13 @@ def reconcile(db,business,trace,*,reconstructed=False):
         if turn['job_id']: store.safe(db,business,trace,store.link,'job',turn['job_id'])
         for c in db.execute('SELECT * FROM chat_calls WHERE turn_id=%s ORDER BY attempt,ordinal',(turn_id,)).fetchall():
             key=f'{turn_id}:{c["attempt"]}:{c["ordinal"]}'
-            observe('chat_call',key,c['status'],'Respuesta preparada' if c['status']=='completed' else 'Preparando tu respuesta',role='chat',actor='chat',parent=parent,
-                    at=c['finished_at'] or (c['created_at'] if c['status']=='running' else None),started_at=c['created_at'],finished_at=c['finished_at'],finish_unknown=c['status']!='running' and c['finished_at'] is None,source={'kind':'chat_call','turn_id':str(turn_id),'attempt':c['attempt'],'ordinal':c['ordinal']})
+            observe('chat_call',key,c['status'],('Fuentes seleccionadas' if (c['response'] or {}).get('action')=='retrieve' else 'Respuesta preparada') if c['status']=='completed' else 'Preparando tu respuesta',role='chat',actor='chat',parent=parent,
+                    at=c['finished_at'] or (c['created_at'] if c['status']=='running' else None),started_at=c['created_at'],finished_at=c['finished_at'],finish_unknown=c['status']!='running' and c['finished_at'] is None,source={'kind':'chat_call','action':(c['response'] or {}).get('action',''),'turn_id':str(turn_id),'attempt':c['attempt'],'ordinal':c['ordinal']})
         for r in db.execute('SELECT * FROM chat_retrievals WHERE turn_id=%s ORDER BY attempt,ordinal',(turn_id,)).fetchall():
-            observe('retrieval',f'{turn_id}:{r["attempt"]}:{r["ordinal"]}','completed','Contexto consultado',role='chat',actor='chat',parent=parent,
+            observe('retrieval',f'{turn_id}:{r["attempt"]}:{r["ordinal"]}','completed',{'search_reports':'Informes consultados','open_report':'Informe revisado consultado','inspect_dataset':'Datos inspeccionados','search_memory':'Contexto del negocio consultado'}.get(r['request'].get('tool'),'Contexto consultado'),role='chat',actor='chat',parent=parent,
                     source={'kind':'retrieval','turn_id':str(turn_id),'attempt':r['attempt'],'ordinal':r['ordinal']})
         for r in db.execute('SELECT * FROM chat_answer_reviews WHERE turn_id=%s ORDER BY attempt,ordinal',(turn_id,)).fetchall():
-            observe('chat_review',f'{turn_id}:{r["attempt"]}:{r["ordinal"]}',r['status'],'Respuesta revisada' if r['status']=='completed' else 'Revisando la respuesta',role='chat_reviewer',actor='chat_reviewer',parent=parent,at=r['finished_at'] or (r['created_at'] if r['status']=='running' else None),started_at=r['created_at'],finished_at=r['finished_at'],finish_unknown=r['status']!='running' and r['finished_at'] is None,source={'kind':'chat_review','turn_id':str(turn_id),'attempt':r['attempt'],'ordinal':r['ordinal']})
+            observe('chat_review',f'{turn_id}:{r["attempt"]}:{r["ordinal"]}',r['status'],('Respuesta revisada' if (r['response'] or {}).get('approved') else 'Revisión con ajustes pendientes') if r['status']=='completed' else 'Revisando la respuesta',role='chat_reviewer',actor='chat_reviewer',parent=parent,at=r['finished_at'] or (r['created_at'] if r['status']=='running' else None),started_at=r['created_at'],finished_at=r['finished_at'],finish_unknown=r['status']!='running' and r['finished_at'] is None,source={'kind':'chat_review','turn_id':str(turn_id),'attempt':r['attempt'],'ordinal':r['ordinal']})
     session_tasks={}
     research_tasks={}
     review_tasks={}

@@ -522,6 +522,17 @@ class ModelClient:
             # Keep each execution paired with its own saved metrics. This prevents
             # invented references, not wrong labels or business interpretations.
             schema['$defs']['MetricRef'] = {'anyOf': choices}
+        elif point_choices:
+            # Saved series points are evidence too; no redundant scalar required.
+            # Some numeric-check definitions have already become anyOf branches.
+            def point_only(node):
+                if isinstance(node, dict):
+                    if node.get('$ref') == '#/$defs/MetricRef':
+                        node['$ref'] = '#/$defs/SeriesPointRef'
+                    for value in node.values(): point_only(value)
+                elif isinstance(node, list):
+                    for value in node: point_only(value)
+            point_only(schema)
         else:
             # A draft needs evidence. Keep execute/question/withdraw available,
             # without constructing an invalid empty union or inventing a sentinel ID.

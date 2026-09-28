@@ -38,13 +38,140 @@ import {
 } from "@/components/ai-elements/sources";
 import { Selectable } from "./context-selection";
 import { Disclosure } from "./shared";
-import { chartPoints } from "@/lib/charts";
+import { groupedPoints, seriesColor, chartPoints } from "@/lib/charts";
 import type {
   ChartData,
+  ChartPanel,
   Report as ReportData,
   ContextAttachment,
 } from "@/lib/types";
 const config = { value: { label: "Valor", color: "var(--chart-1)" } };
+function GroupedBars({
+  chart,
+  panel,
+}: {
+  chart: ChartData;
+  panel: ChartPanel;
+}) {
+  const rows = groupedPoints(chart, panel);
+  const series = panel.series_order.map((name, i) => ({
+    key: `s${i}`,
+    name,
+    color: panel.colors?.[name] || seriesColor(name),
+  }));
+  const extent = Math.max(
+    ...rows.flatMap((row) =>
+      series.map((s) => Math.abs(Number(row[s.key] ?? 0))),
+    ),
+    1,
+  );
+  return (
+    <section
+      className="min-w-0 space-y-3"
+      aria-label={panel.title || chart.title}
+    >
+      {panel.title && <h4 className="text-sm font-medium">{panel.title}</h4>}
+      <ul
+        className="flex flex-wrap gap-x-5 gap-y-2 text-xs"
+        aria-label={`Leyenda: ${panel.series_title}`}
+      >
+        {series.map((s) => (
+          <li key={s.key} className="flex items-center gap-2">
+            <span
+              aria-hidden
+              className="size-2.5 rounded-sm"
+              style={{ background: s.color }}
+            />
+            {s.name}
+          </li>
+        ))}
+      </ul>
+      <ChartContainer
+        config={Object.fromEntries(
+          series.map((s) => [s.key, { label: s.name, color: s.color }]),
+        )}
+        className="w-full"
+        style={{
+          height: Math.max(240, rows.length * (series.length * 22 + 28) + 32),
+        }}
+        aria-label={panel.title || chart.title}
+      >
+        <BarChart
+          layout="vertical"
+          data={rows}
+          accessibilityLayer
+          margin={{ left: 0, right: 16 }}
+          barGap={3}
+          barCategoryGap={14}
+        >
+          <CartesianGrid horizontal={false} />
+          <XAxis
+            type="number"
+            tickLine={false}
+            axisLine={false}
+            ticks={
+              panel.measure === "change"
+                ? [-extent, -extent / 2, 0, extent / 2, extent]
+                : undefined
+            }
+            domain={
+              panel.measure === "change"
+                ? [-extent, extent]
+                : [(v: number) => Math.min(0, v), (v: number) => Math.max(0, v)]
+            }
+            tickFormatter={(v) =>
+              new Intl.NumberFormat("es", { notation: "compact" }).format(v)
+            }
+          />
+          <YAxis
+            dataKey="category"
+            type="category"
+            width={145}
+            interval={0}
+            tickLine={false}
+            axisLine={false}
+            tick={({ x, y, payload }) => (
+              <g transform={`translate(${x},${y})`}>
+                <foreignObject x={-140} y={-26} width={132} height={52}>
+                  <div className="flex h-full items-center justify-end text-right text-xs leading-tight text-muted-foreground break-words">
+                    {payload.value}
+                  </div>
+                </foreignObject>
+              </g>
+            )}
+          />
+          <ReferenceLine x={0} stroke="var(--muted-foreground)" />
+          <ChartTooltip
+            content={
+              <ChartTooltipContent
+                labelFormatter={(_, items) => items[0]?.payload?.category}
+                formatter={(_, name, item) => (
+                  <span className="flex w-full justify-between gap-4">
+                    <span>{name}</span>
+                    <span className="font-mono">
+                      {item.payload[`${item.dataKey}Exact`]} {chart.unit}
+                    </span>
+                  </span>
+                )}
+              />
+            }
+          />
+          {series.map((s) => (
+            <Bar
+              key={s.key}
+              dataKey={s.key}
+              name={s.name}
+              fill={s.color}
+              radius={3}
+              maxBarSize={20}
+              isAnimationActive={false}
+            />
+          ))}
+        </BarChart>
+      </ChartContainer>
+    </section>
+  );
+}
 export function EvidenceChart({
   chart,
   actions,
@@ -148,7 +275,14 @@ export function EvidenceChart({
         </div>
       </CardHeader>
       <CardContent>
-        {chart.kind !== "table" && (
+        {chart.kind === "bar" && Boolean(chart.panels?.length) && (
+          <div className="space-y-8">
+            {chart.panels!.map((panel, i) => (
+              <GroupedBars key={i} chart={chart} panel={panel} />
+            ))}
+          </div>
+        )}
+        {chart.kind !== "table" && !chart.panels?.length && (
           <ChartContainer
             config={config}
             className="w-full"
@@ -393,7 +527,7 @@ export function ReportView({
                 </CardContent>
               </Card>
             </Selectable>
-            <div className="grid gap-5 xl:grid-cols-2">
+            <div className="grid gap-5">
               {report.charts
                 ?.filter((c) => c.claim_key === claim.key)
                 .map((c) => (

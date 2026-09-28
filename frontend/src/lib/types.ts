@@ -71,6 +71,15 @@ export type Claim = {
     operations: string[];
   };
 };
+export type ChartPanel = {
+  title: string;
+  category_title: string;
+  series_title: string;
+  measure: "level" | "change";
+  series_order: string[];
+  colors?: Record<string, string>;
+  coordinates: { label: string; category: string; series: string }[];
+};
 export type ChartData = {
   key: string;
   kind: "line" | "bar" | "table";
@@ -79,6 +88,7 @@ export type ChartData = {
   caption: string;
   claim_key: string;
   points: { label: string; value: string; formatted: string }[];
+  panels?: ChartPanel[];
 };
 export type Report = {
   partial?: boolean;

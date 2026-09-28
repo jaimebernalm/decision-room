@@ -48,6 +48,7 @@ class Action(BaseModel):
                         'greeting', 'greeting_repair', 'acknowledgement'] = ''
     onboarding: chat_agent.SetupGuide | None = None
     answer_mode: Literal['summary', 'method', 'recency'] = 'summary'
+    include_report: bool = True  # Historical Actions retain their existing attachment behavior.
 
 
 def runtime_context():
@@ -894,7 +895,7 @@ class Conversations:
         # An optional evidence attachment retains report export and version checks.
         opened = [e['response'] for i, e in enumerate(context['retrievals'])
                   if f'tool/{e.get("ordinal", i)}' in cited and e['request']['tool'] == 'open_report' and 'error' not in e['response']]
-        if opened:
+        if opened and action.include_report:
             ref = context['message'].get('finding_reference')
             report = next((r for r in opened if ref and r['id'] == ref['report_id']), opened[-1])
             keys = [ref['claim_key']] if ref else None

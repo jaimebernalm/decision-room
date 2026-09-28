@@ -27,7 +27,7 @@ it('catches up pages without duplicate events or resetting a completed task',asy
  const fetch=vi.fn(async(url:string)=>response(url.includes('after=') ? {...page,task_updates:[task],events:page.events} : {...page,terminal:false,has_more:true,next_cursor:'trace:1',task_updates:[{...task,status:'running',sequence:1}],events:[{...page.events[0],id:'start',sequence:1,status:'running'}]}));
  vi.stubGlobal('fetch',fetch);render(<AnalysisActivity endpoint='/api/jobs/paged/activity' traceId='paged'/>);
  const button=await screen.findByRole('button',{name:page.headline});await userEvent.click(button);
- await screen.findByText('Comparación por producto completada');expect(screen.getAllByText('Completado')).toHaveLength(1);
+ await screen.findByText('Comparación por producto completada');expect(screen.getAllByText('Comparación por producto completada')).toHaveLength(1);
  expect(fetch.mock.calls.some(([url])=>String(url).includes('after='))).toBe(true);
 });
 it('preserves history after a network failure and refreshes on focus',async()=>{
@@ -163,4 +163,25 @@ it('keeps results from a superseded investigation in a separate history',async()
  expect(screen.getByText('Cálculo de la versión anterior')).not.toBeVisible();
  await userEvent.click(screen.getByText('Actividad de versiones anteriores (2)'));
  expect(screen.getByText('Cálculo de la versión anterior')).toBeVisible();
+});
+
+it('summarizes repeated chat calls but retains a revision milestone and internal task identity',async()=>{
+ const {compactChatActivity}=await import('@/lib/activity');
+ const list=[
+  {...task,id:'select',kind:'chat_call',phase:'retrieve'},
+  {...task,id:'search',kind:'retrieval'}, {...task,id:'open',kind:'retrieval'},
+  {...task,id:'draft',kind:'chat_call',phase:'answer'}, {...task,id:'final',kind:'chat_call',phase:'answer'},
+  {...task,id:'reject',kind:'chat_review',text:'Revisión con ajustes pendientes',started_at:'2026-01-01'},
+  {...task,id:'approve',kind:'chat_review',text:'Respuesta revisada',started_at:'2026-01-02'},
+ ];
+ const result=compactChatActivity(list);
+ expect(result.map(t=>t.text)).toEqual(['Fuentes y contexto consultados','Respuesta preparada','Respuesta revisada']);
+ expect(result[2].purpose).toContain('ajustes');expect(list).toHaveLength(7);
+});
+it('keeps a coherent headline during presentation even if terminal activity arrives before the text',async()=>{
+ vi.stubGlobal('fetch',vi.fn(async()=>response(page)));
+ const view=render(<AnalysisActivity endpoint='/api/jobs/reveal/activity' traceId='reveal' revealing responseReady/>);
+ expect(await screen.findByRole('button',{name:'Mostrando respuesta…'})).toBeVisible();
+ view.rerender(<AnalysisActivity endpoint='/api/jobs/reveal/activity' traceId='reveal' responseReady/>);
+ expect(screen.getByRole('button',{name:'Respuesta lista · Ver proceso'})).toBeVisible();
 });

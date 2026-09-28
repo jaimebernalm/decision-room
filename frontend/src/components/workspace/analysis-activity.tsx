@@ -3,7 +3,7 @@ import { Check, ChevronDown, Circle, CircleAlert, LoaderCircle, Pause, Database 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { useActivity, type ActivityTask } from "@/lib/activity";
+import { useActivity, compactChatActivity, type ActivityTask } from "@/lib/activity";
 import { DataPreview } from "./data-preview";
 const openStates = new Map<string,boolean>();
 const waiting = new Set(["waiting_owner","waiting_dependency","retry_wait"]);
@@ -15,13 +15,13 @@ function Icon({ status }: { status: string }) {
   return <Circle className="size-3.5" aria-hidden />;
 }
 const labels: Record<string,string> = { completed: "Completado", running: "En curso", queued: "En cola", waiting_owner: "Esperando tu respuesta", waiting_dependency: "Esperando resultados", retry_wait: "Esperando al proveedor", failed: "Necesita atención", interrupted: "Interrumpido", superseded: "Contexto anterior" };
-export function AnalysisActivity({ endpoint, traceId, fallback = "Preparando el análisis…", onQuestion }: { endpoint: string; traceId?: string | null; fallback?: string; onQuestion?:(id:string)=>void }) {
+export function AnalysisActivity({ endpoint, traceId, fallback = "Preparando el análisis…", revealing = false, responseReady = false, onQuestion }: { endpoint: string; traceId?: string | null; fallback?: string; revealing?: boolean; responseReady?: boolean; onQuestion?:(id:string)=>void }) {
   const activity = useActivity(endpoint,traceId);
   const key = traceId || endpoint;
   const [open,setOpen] = useState(() => openStates.get(key) || false);
   const [selected,setSelected] = useState<ActivityTask | null>(null);
   const data = activity.data;
-  const headline = data?.headline || fallback;
+  const headline = revealing ? "Mostrando respuesta…" : responseReady ? "Respuesta lista · Ver proceso" : data?.headline || fallback;
   const tasks = activity.tasks.filter((t) => !["job","turn","call","research_step","transport"].includes(t.kind));
   const byId=new Map(activity.tasks.map(t=>[t.id,t]));
   function previousVersion(task:ActivityTask) {
@@ -32,14 +32,14 @@ export function AnalysisActivity({ endpoint, traceId, fallback = "Preparando el 
     }
     return false;
   }
-  const currentTasks=tasks.filter(t=>!previousVersion(t));
+  const currentTasks=compactChatActivity(tasks.filter(t=>!previousVersion(t)));
   const previousTasks=tasks.filter(previousVersion);
   const taskRow=(task:ActivityTask)=>(<li key={task.id} className="flex items-start gap-2">
             <span className="mt-0.5 text-muted-foreground"><Icon status={task.status} /></span>
             <div className="min-w-0 flex-1">
               <p className="break-words">{task.text}</p>
               {task.purpose && <p className="mt-0.5 text-xs text-muted-foreground">{task.purpose}</p>}
-              <span className="text-xs text-muted-foreground">{labels[task.status] || task.status}</span>
+              {task.status !== "completed" && <span className="text-xs text-muted-foreground">{labels[task.status] || task.status}</span>}
               {task.question_id && <Button type="button" variant="ghost" size="sm" className="ml-2 h-6 text-xs" onClick={() => {
                 if (onQuestion) onQuestion(task.question_id!);
                 else { const input=document.getElementById(`answer-${task.question_id}`);input?.scrollIntoView({block:'center'});input?.focus(); }
@@ -50,7 +50,7 @@ export function AnalysisActivity({ endpoint, traceId, fallback = "Preparando el 
   return <div id={data?.trace_id ? `activity-${data.trace_id}` : undefined} className="my-3 min-w-0 text-sm">
     <Collapsible open={open} onOpenChange={(value) => { setOpen(value); openStates.set(key,value); if (value) void activity.refresh(); }}>
       <CollapsibleTrigger className="flex max-w-full items-center gap-2 rounded-md py-1.5 text-left text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring">
-        <Icon status={data?.terminal ? data.status === "completed" ? "completed" : "failed" : data?.status === "waiting" ? "waiting_owner" : "running"} />
+        <Icon status={revealing ? "running" : responseReady ? "completed" : data?.terminal ? data.status === "completed" ? "completed" : "failed" : data?.status === "waiting" ? "waiting_owner" : "running"} />
         <span aria-live="polite" aria-atomic>{headline}</span>
         <ChevronDown className={`size-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden />
       </CollapsibleTrigger>

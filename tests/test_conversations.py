@@ -785,6 +785,25 @@ class ConversationTests(unittest.TestCase):
         with connect(self.config) as db:
             self.assertEqual(db.execute('SELECT status FROM chat_answer_reviews WHERE turn_id=%s', (turn['id'],)).fetchone()['status'], 'uncertain')
 
+    def test_report_metadata_answer_can_omit_full_report_attachment(self):
+        chat, original = self.complete()
+        report_id = original['response']['report_id']
+        def respond(model, context, correction=None):
+            if not context['retrievals']:
+                return dict(action='retrieve', retrieval=dict(tool='open_report', id=report_id, query='', limit=5),
+                            text='', analysis_id='', sources=[], include_report=False), {}
+            result = context['retrievals'][0]['response']
+            self.assertTrue(result['approved_at'])
+            self.assertTrue(result['review_started_at'])
+            self.assertIn('not the period', result['date_meaning'])
+            return dict(action='answer', retrieval=None, analysis_id='', text='El informe ya está aprobado.',
+                        sources=['tool/0'], include_report=False), {}
+        with patch.object(ChatModel, 'generate_chat', respond):
+            turn = self.send(chat, 'When was the report made?')
+        self.assertEqual(turn['status'], 'completed', turn)
+        self.assertTrue(turn['response']['sources'])
+        self.assertNotIn('evidence', turn['response'])
+
     def test_model_authored_report_explanation_exports_and_stales(self):
         chat, original = self.complete()
         report_id = original['response']['report_id']

@@ -3,6 +3,7 @@ from datetime import date
 from decimal import Decimal, ROUND_HALF_UP, localcontext
 from html import escape
 
+from .chart_layout import panels, series_colors
 from .agent.review_contract import ReportDraft, checks
 from .series import saved_series, evidence_value, evidence_label, evidence_key
 
@@ -20,6 +21,44 @@ def formatted(value, decimals):
         ctx.prec = 120
         number = Decimal(str(value)).quantize(Decimal(1).scaleb(-decimals), rounding=ROUND_HALF_UP)
     return f'{number:,.{decimals}f}'.translate(str.maketrans({',': '.', '.': ','}))
+
+
+def grouped_svg(chart, layout, points, values, colors):
+    import textwrap
+    def color(label): return colors[label]
+    saved = {p['label']: v for p, v in zip(points, values)}
+    output = []
+    for index, panel in enumerate(layout):
+        order = panel['series_order']
+        categories = list(dict.fromkeys(p['category'] for p in panel['coordinates']))
+        cells = {(p['category'], p['series']): saved[p['label']] for p in panel['coordinates']}
+        low, high = min(min(cells.values()), Decimal(0)), max(max(cells.values()), Decimal(0))
+        if panel['measure'] == 'change':
+            low, high = -max(abs(low), abs(high)), max(abs(low), abs(high))
+        span = high - low or Decimal(1)
+        def x(value): return 205 + float((value-low)/span) * 390
+        top = 25 + 24 * ((len(order)+2)//3)
+        row_height = len(order)*24 + 28
+        height = top + len(categories)*row_height + 10
+        shapes = []
+        for i, name in enumerate(order):
+            left, y = 20 + (i % 3)*230, 18 + (i//3)*24
+            shapes.append(f'<rect x="{left}" y="{y-10}" width="10" height="10" fill="{color(name)}"/><text x="{left+17}" y="{y}" class="tick">{e(name)}</text>')
+        shapes.append(f'<line x1="{x(0):.2f}" x2="{x(0):.2f}" y1="{top}" y2="{height}" class="axis"/>')
+        for i, category in enumerate(categories):
+            y = top + i*row_height
+            for j, line in enumerate(textwrap.wrap(category, width=23)):
+                shapes.append(f'<text x="10" y="{y+18+j*18}" class="chart-label">{e(line)}</text>')
+            for j, name in enumerate(order):
+                value = cells.get((category, name))
+                if value is None:
+                    continue
+                number = formatted(value, chart['decimals'])
+                shapes.append(f'<rect x="{min(x(value),x(0)):.2f}" y="{y+j*24}" width="{abs(x(value)-x(0)):.2f}" height="18" rx="3" fill="{color(name)}"><title>{e(category)} · {e(name)}: {e(number)}</title></rect>')
+                shapes.append(f'<text x="700" y="{y+j*24+14}" text-anchor="end" class="chart-number">{e(number)}</text>')
+        title = panel['title'] or chart['title']
+        output.append(f'<h4>{e(title)}</h4><div class="plot"><svg viewBox="0 0 720 {height}" role="img" aria-label="{e(title)}">' + ''.join(shapes) + '</svg></div>')
+    return ''.join(output)
 
 
 def chart_html(data, chart):
@@ -70,6 +109,11 @@ def chart_html(data, chart):
             for i in ticks:
                 shapes.append(f'<text x="{x(days[i]):.2f}" y="260" text-anchor="middle" class="tick">{e(labels[i])}</text>')
         svg = f'<div class="plot"><svg viewBox="0 0 720 {height}" role="img" aria-labelledby="{title_id} {caption_id}">' + ''.join(shapes) + '</svg></div>'
+        layout = panels(chart, points)
+        if chart['kind'] == 'bar' and layout:
+            all_layouts = [p for c in data['report']['charts'] for p in panels(c, saved_series(data['observations'], c['series'])['points'] if c.get('series') else c['points'])]
+            colors = series_colors(s for panel in all_layouts for s in panel['series_order'])
+            svg = grouped_svg(chart, layout, points, values, colors)
         table = '<details><summary>Ver los valores del gráfico</summary>' + table + '</details>'
     return (f'<figure><h3 id="{title_id}">{e(chart["title"])}</h3><p class="unit">{e(chart["unit"])}</p>' + svg + ('<p class="scroll-hint">Desliza el gráfico para ver todos los valores.</p>' if svg else '') +
             f'<figcaption id="{caption_id}">{e(chart["caption"])}</figcaption>' + table +
