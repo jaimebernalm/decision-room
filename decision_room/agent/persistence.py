@@ -169,7 +169,7 @@ def model_call(db, session_id, model, context, correction, retry_uncertain, *, c
             return {k: v for k, v in output.items() if k != 'retrieval'}
         if config is None:
             raise ValueError('Retrieval requires application configuration.')
-        if any(output.get(k) for k in ('proposal', 'code', 'table_ids', 'report', 'metric_keys', 'question', 'investigation_key', 'followups', 'assessment')):
+        if any(output.get(k) for k in ('proposal', 'code', 'table_ids', 'report', 'metric_keys', 'question', 'investigation_key', 'followups', 'assignments', 'synthesis', 'assessment')):
             return {'invalid_model_output': 'retrieve requires empty action fields and a retrieval request.'}
         try:
             retrieval.save(config, db, session_id, decision, ordinal, output.get('retrieval'))

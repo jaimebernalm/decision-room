@@ -692,3 +692,20 @@ CREATE TABLE IF NOT EXISTS data_model_discoveries (
     FOREIGN KEY(business_id,analysis_id) REFERENCES analyses(business_id,id)
 );
 INSERT INTO schema_versions(version) VALUES (22) ON CONFLICT DO NOTHING;
+
+-- Durable parent/worker links. Child runs reuse isolated research checkpoints.
+CREATE TABLE IF NOT EXISTS agent_research_branches (
+    business_id uuid NOT NULL,
+    parent_id uuid NOT NULL,
+    dispatch_step integer NOT NULL,
+    ordinal integer NOT NULL,
+    child_id uuid NOT NULL UNIQUE,
+    assignment jsonb NOT NULL,
+    PRIMARY KEY(parent_id,dispatch_step,ordinal),
+    FOREIGN KEY(business_id,parent_id) REFERENCES agent_research(business_id,id),
+    FOREIGN KEY(business_id,child_id) REFERENCES agent_research(business_id,id),
+    CHECK(parent_id <> child_id)
+);
+ALTER TABLE agent_research_branches ADD COLUMN IF NOT EXISTS started_at timestamptz;
+ALTER TABLE agent_research_branches ADD COLUMN IF NOT EXISTS finished_at timestamptz;
+INSERT INTO schema_versions(version) VALUES (23) ON CONFLICT DO NOTHING;

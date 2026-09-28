@@ -335,67 +335,73 @@ export function ReportView({
           {report.no_chart_reason}
         </p>
       )}
-      <div className="grid gap-5 xl:grid-cols-2">
-        {report.charts?.map((c) => (
-          <Selectable key={c.key} item={item("chart", c.key, c)}>
-            <EvidenceChart chart={c} />
-          </Selectable>
-        ))}
-      </div>
       <div className="space-y-4">
         {report.claims.map((claim, i) => (
-          <Selectable key={claim.key} item={item("insight", claim.key, claim)}>
-            <Card id={`finding-${claim.key}`} className="shadow-none">
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs text-muted-foreground">
-                    {String(i + 1).padStart(2, "0")}
-                  </span>
-                  <CardTitle>{claim.title}</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm leading-7">
-                <p>{claim.statement}</p>
-                {claim.interpretation && (
-                  <p className="text-muted-foreground">
-                    {claim.interpretation}
-                  </p>
-                )}
-                {claim.next_step && (
-                  <p className="rounded-lg bg-muted p-4">
-                    <strong>Siguiente comprobación: </strong>
-                    {claim.next_step}
-                  </p>
-                )}
-                {claim.method && (
-                  <Disclosure title="Cómo se ha calculado">
-                    <p>{claim.method}</p>
-                  </Disclosure>
-                )}
-                {claim.evidence_details && (
-                  <Sources>
-                    <SourcesTrigger count={claim.evidence_details.files.length}>
-                      <span>Fuentes y evidencia</span>
-                      <ArrowUpRight className="size-4" />
-                    </SourcesTrigger>
-                    <SourcesContent>
-                      <div className="rounded-lg border p-4 space-y-3">
-                        <p>{claim.evidence_details.files.join(" · ")}</p>
-                        {claim.evidence_details.metrics.map((m, j) => (
-                          <p key={j} className="font-mono text-xs">
-                            {m.label}: {m.value}
-                          </p>
-                        ))}
-                        {claim.evidence_details.operations.map((o, j) => (
-                          <p key={j}>{o}</p>
-                        ))}
-                      </div>
-                    </SourcesContent>
-                  </Sources>
-                )}
-              </CardContent>
-            </Card>
-          </Selectable>
+          <section key={claim.key} className="space-y-4">
+            <Selectable item={item("insight", claim.key, claim)}>
+              <Card id={`finding-${claim.key}`} className="shadow-none">
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs text-muted-foreground">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <CardTitle>{claim.title}</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm leading-7">
+                  <p>{claim.statement}</p>
+                  {claim.interpretation && (
+                    <p className="text-muted-foreground">
+                      {claim.interpretation}
+                    </p>
+                  )}
+                  {claim.next_step && (
+                    <p className="rounded-lg bg-muted p-4">
+                      <strong>Siguiente comprobación: </strong>
+                      {claim.next_step}
+                    </p>
+                  )}
+                  {claim.method && (
+                    <Disclosure title="Cómo se ha calculado">
+                      <p>{claim.method}</p>
+                    </Disclosure>
+                  )}
+                  {claim.evidence_details && (
+                    <Sources>
+                      <SourcesTrigger
+                        count={claim.evidence_details.files.length}
+                      >
+                        <span>Fuentes y evidencia</span>
+                        <ArrowUpRight className="size-4" />
+                      </SourcesTrigger>
+                      <SourcesContent>
+                        <div className="rounded-lg border p-4 space-y-3">
+                          <p>{claim.evidence_details.files.join(" · ")}</p>
+                          {claim.evidence_details.metrics.map((m, j) => (
+                            <p key={j} className="font-mono text-xs">
+                              {m.label}: {m.value}
+                            </p>
+                          ))}
+                          {claim.evidence_details.operations.map((o, j) => (
+                            <p key={j}>{o}</p>
+                          ))}
+                        </div>
+                      </SourcesContent>
+                    </Sources>
+                  )}
+                </CardContent>
+              </Card>
+            </Selectable>
+            <div className="grid gap-5 xl:grid-cols-2">
+              {report.charts
+                ?.filter((c) => c.claim_key === claim.key)
+                .map((c) => (
+                  <Selectable key={c.key} item={item("chart", c.key, c)}>
+                    <EvidenceChart chart={c} />
+                  </Selectable>
+                ))}
+            </div>
+          </section>
         ))}
       </div>
       {report.limitations?.length > 0 && (

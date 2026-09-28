@@ -61,7 +61,8 @@ def start(config, business_id, research_id, *, request_key, analyst=None, review
         executions = [{'execution_id': str(s['execution_id'])} for s in steps(db, research_id)
                       if s['action']['action'] == 'execute' and s['execution_id']]
         history = steps(db, research_id)
-        snapshot = {**agenda(research['snapshot'], history), 'research_coverage': coverage(research['snapshot'], history, candidates, research['options'], research['issue'] or ''), 'findings': candidates, 'executions': executions, 'initial_knowledge': key,
+        from .parallel_research import synthesis
+        snapshot = {'research_synthesis': synthesis(history), **agenda(research['snapshot'], history), 'research_coverage': coverage(research['snapshot'], history, candidates, research['options'], research['issue'] or ''), 'findings': candidates, 'executions': executions, 'initial_knowledge': key,
                     'planning_history': db.execute('SELECT revision,proposal FROM agent_revisions WHERE session_id=%s ORDER BY revision',
                                                    (session['id'],)).fetchall()}
         options = {'max_review_rounds': max_review_rounds, 'max_turns': 20, 'max_calls_per_role': 16,

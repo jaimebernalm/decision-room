@@ -44,6 +44,7 @@ def prompt_context(snapshot, observations, findings, options, turns):
     result = {'phase': 'python_research', 'owner_context': snapshot['source']['owner_context'],
               'answers': snapshot['answers'], 'plan': snapshot['proposal'],
               'table_catalog': snapshot['tables'], 'observations': feedback, 'findings': findings,
+              'coordination': snapshot.get('coordination'), 'delegations': snapshot.get('delegations', []),
               'budgets': {**options, 'model_turns_used': turns,
                           'attempts_used': {key: sum(o['investigation_key'] == key for o in observations)
                                             for key in latest}}}

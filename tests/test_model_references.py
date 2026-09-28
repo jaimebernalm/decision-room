@@ -125,6 +125,7 @@ class ModelReferenceTests(unittest.TestCase):
             pairs = set()
             for branch in branches:
                 props = branch['properties']
+                self.assertLess(list(props).index('series'), list(props).index('unit'))
                 if props['series'] == {'type': 'null'}: continue
                 self.assertEqual(props['points']['maxItems'], 0)
                 for ref in props['series']['anyOf']:

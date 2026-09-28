@@ -228,14 +228,35 @@ class ModelClient:
                 allowed.append('record_candidate')
             if not (latest.keys() - finished):
                 allowed.append('finish')
+            if context.get('budgets', {}).get('delegation') and any(key not in latest for key in unfinished):
+                allowed.append('delegate')
+                # The principal may make one broad exploration when only one
+                # question is initially ready. Independent later work is handed
+                # to workers, rather than advertising two interchangeable roles.
+                if (latest or len(unfinished) > 1) and not (latest.keys() - finished):
+                    allowed.remove('execute')
+                    allowed.remove('block')
+            expandable = [f['investigation_key'] for f in context['findings'] if f.get('status') == 'candidate'] if context.get('budgets', {}).get('delegation') else []
+            if expandable:
+                allowed.append('expand')
+            if context.get('budgets', {}).get('delegation') and any(
+                i['key'] in unfinished and i.get('round', 1) <= context['budgets'].get('max_rounds', 3)
+                for i in context['plan']['investigations']):
+                if 'finish' in allowed:
+                    allowed.remove('finish')
             if allowed:
                 schema['properties']['action']['enum'] = allowed
-                schema['properties']['investigation_key']['enum'] = unfinished + ([''] if 'finish' in allowed else [])
+                schema['properties']['investigation_key']['enum'] = list(dict.fromkeys(unfinished + expandable)) + ([''] if 'finish' in allowed or 'delegate' in allowed else [])
                 if allowed == ['finish']:
                     for key in ('code', 'investigation_key'):
                         schema['properties'][key]['enum'] = ['']
                     for key in ('table_ids', 'metric_keys'):
                         schema['properties'][key]['maxItems'] = 0
+            assignable = [key for key in unfinished if key not in latest]
+            if 'delegate' in allowed and assignable:
+                schema['$defs']['Assignment']['properties']['investigation_key']['enum'] = assignable
+            else:
+                schema['properties']['assignments']['maxItems'] = 0
             if 'table_catalog' in context:
                 authorized = {t['id'] for t in context['table_catalog']}
                 pending_tables = {table_id for item in context['plan']['investigations']
@@ -244,7 +265,9 @@ class ModelClient:
         schema['required'] = list(schema['properties'])
         if 'table_catalog' in context:
             self._table_choices(schema['$defs']['Followup']['properties']['table_ids'], [t['id'] for t in context['table_catalog']])
-        return self._generate(context, correction, RESEARCH_SYSTEM, schema)
+        role = 'You are the subanalyst for budgets.worker_assignment; complete only that assignment.' if context.get('budgets', {}).get('worker_assignment') else (
+            'You are the PRINCIPAL COORDINATOR. Your available calculation tool is action=delegate: workers execute Python. When execute is absent from your action schema, delegate IS available; never claim Python is unavailable. After expand, delegate the ready tasks. Retain synthesis and prioritization. Explicitly discard a ready task only with a concrete reason of low value or insufficient evidence.' if context.get('budgets', {}).get('delegation') else 'You are the sole analyst.')
+        return self._generate(context, correction, role + '\n' + RESEARCH_SYSTEM, schema)
 
     def generate_analyst_review(self, context, correction=None):
         schema = ReviewAction.model_json_schema()
@@ -327,6 +350,12 @@ class ModelClient:
                             reference['properties']['series']['enum'] = sorted(eligible)
                             series_by_chart.setdefault((unit, kind), []).append(reference)
         original_chart = schema['$defs']['Chart']
+        # Select evidence before its display unit. With unit first, constrained
+        # decoding can lock an edited chart into the old source's unit branch
+        # and force a wrong series even while the analyst intends to replace it.
+        properties = original_chart['properties']
+        original_chart['properties'] = {key: properties[key] for key in
+            ['series', 'points', *[key for key in properties if key not in ('series', 'points')]]}
         scalar_chart = deepcopy(original_chart)
         scalar_chart['properties']['series'] = {'type': 'null'}
         scalar_chart['properties']['points']['minItems'] = 2

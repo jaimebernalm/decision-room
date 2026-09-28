@@ -61,6 +61,8 @@ def build(config, db, session, run, analyst, reviewer, saver, *, executor=execut
                 action = validate(raw, state['role'], context)
                 if action['action'] == 'submit' and context.get('research_coverage'):
                     report = action['report']
+                    from .review_policy import prioritize_claims
+                    prioritize_claims(report, context.get('research_synthesis'))
                     note = limitation(context['research_coverage'], report)
                     # Replace only reserved controller scope notes, preserving all
                     # substantive caveats. Computed candidates are not delivered answers.

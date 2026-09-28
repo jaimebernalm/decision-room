@@ -472,11 +472,15 @@ Completado **3.4.1: conocimiento de datos y utilidad del informe**,
 según el [plan de mejora](../technical/agent-data-discovery-plan.md), motivado por la prueba manual de Bruma Café.
 Incluye propuestas de relaciones por el agente, comprobaciones completas, auditoría de utilidad
 y citas a series guardadas. Véase la [validación, intentos fallidos y límites](../validation/2026-09-27-agent-data-and-insights.md).
-El siguiente paso, **3.5, implementa los analistas en paralelo** coordinados por el analista
-principal; **3.6 recoge la selección y revisión por objetivo y la evaluación
-integral**, comparando calidad, tiempo y coste frente al modo secuencial.
-Esta reorganización adelanta el paralelismo para incluirlo en la evaluación final;
-el antiguo paso 3.5 pasa a ser 3.6. Ambos están pendientes.
+Completado **3.5: analistas en paralelo**, con delegación dirigida, expansión desde
+la evidencia de las ramas, cuotas globales, recuperación y síntesis priorizada.
+El informe de Bruma profundiza ahora en productos dentro del canal que disminuye;
+los gráficos acompañan a sus hallazgos. Véanse el [contrato](../technical/parallel-analysts-plan.md)
+y la [validación, iteraciones y límites](../validation/2026-09-27-parallel-analysts.md).
+El siguiente paso pendiente es **3.6: evaluación de calidad, utilidad y rendimiento**,
+comparando varios objetivos y fuentes en modo secuencial y paralelo. La mejora
+observada en Bruma no demuestra todavía una reducción general de tiempo o coste.
+El antiguo paso 3.5 de evaluación conserva su nueva numeración 3.6.
 
 **Planificación ampliada, 27 de septiembre de 2026:** el
 [plan de onboarding e informes](onboarding-e-informes-plan.md) concreta la secuencia

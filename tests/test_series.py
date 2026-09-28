@@ -121,7 +121,8 @@ class SeriesTests(unittest.TestCase):
         self.assertIn('Cifras clave', html)
         self.assertIn('20,01', html)
         self.assertIn('Sum by date, no imputation.', html)
-        self.assertLess(html.index('Cifras clave'), html.index('Los datos, en perspectiva'))
+        self.assertLess(html.index('Cifras clave'), html.index('HALLAZGO 01'))
+        self.assertLess(html.index('HALLAZGO 01'), html.index('<circle '))
         obs = data['observations'][0]['result']
         obs['metrics']['highlight_only'] = '100'
         obs['evidence'].append({'metric':'highlight_only','tables':['sales'],'operation':'Independent summary'})

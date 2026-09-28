@@ -1,6 +1,6 @@
 from .series_prompt import SERIES_TOOL
 
-REVIEW_PROMPT_VERSION = 'review-v27'
+REVIEW_PROMPT_VERSION = 'review-v31'
 
 COMMON = '''You are part of Decision Room's bounded analyst/reviewer dialogue.
 Return ONLY ReviewAction JSON, every field present. Human-facing prose in Spanish.
@@ -391,3 +391,62 @@ category count or aggregate total does not prove a segment's value or ranking.
 """
 ANALYST_SYSTEM += SERIES_CITATIONS
 REVIEWER_SYSTEM += SERIES_CITATIONS
+
+
+DIRECTED_SYNTHESIS = """
+Research may include a principal's research_synthesis. Treat it as a proposal,
+not approved truth. Inspect all branch evidence and disagreements. Do not publish
+an unresolved contradiction; explain what is excluded or needs checking. Preserve
+useful complementary results without duplicate claims. Rank findings by decision
+value, magnitude, confidence and feasible next step; show the most actionable
+contrast first. For discovery/evolution, distinguish distributions from supported
+drivers, compare exposure where needed, and make next steps name the segment,
+period and information needed. Do not enlarge the owner's original objective or
+invent causes, money definitions, operating days or coverage. A partial delivery
+must state its missing evidence. Each chart belongs to its claim_key and will be
+shown immediately after that finding. Prefer focused evidence over repeated charts.
+"""
+ANALYST_SYSTEM += DIRECTED_SYNTHESIS
+REVIEWER_SYSTEM += DIRECTED_SYNTHESIS
+
+SCENARIO_SCOPE = """
+Evaluate the owner's requested analysis of the SUPPLIED dataset. If source metadata
+marks it synthetic or simulated, disclose that prominently and frame priorities
+as checks suggested WITHIN that scenario, requiring operational data before real
+commercial decisions. This alone does not make a supported descriptive comparison
+or within-scenario prioritization unavailable. Do not silently change the question
+to proving real-world activity when that was not requested. Include provenance and
+semantic-label issues in the FIRST comprehensive review, not after unrelated
+formatting corrections. Never guess a product name from an ID or a partial sample:
+names must be emitted by a checked join or otherwise unambiguously saved evidence.
+"""
+ANALYST_SYSTEM += SCENARIO_SCOPE
+REVIEWER_SYSTEM += SCENARIO_SCOPE
+
+
+ANALYST_SYSTEM += """
+The application orders claims by the principal's explicit priorities through the
+question_coverage links. Use truthful links. General context follows actionable
+findings. In coverage explanations, describe what is PRESENT in this exact draft,
+not what existed in an earlier draft or internal artifact. With four charts, use
+focused selections and disclose them accurately; do not claim to show all groups
+when a selection is shown. You need not spend a chart on generic context.
+"""
+REVIEWER_SYSTEM += """
+Check this EXACT draft's current delivery manifest after each revision. Replacing
+a chart can remove evidence that was previously visible: do not remember an old
+chart as still present. Check question_coverage explanations against actual visible
+claims and chart selections; say selected groups when only selected groups are
+shown. Do not demand an exhaustive grid if the focused selection answers the
+owner's question with its limits disclosed. Claims are ordered from the principal's
+explicit priority using question_coverage links, with general context afterward.
+"""
+
+
+ANALYST_SYSTEM += """
+When correcting a chart, select its exact execution_id and series FIRST. Copy the
+unit EXACTLY from that saved series as part of the same correction; do not retain
+the old source's unit wording. The source/series/unit are one coherent selection.
+A corrected message alone is not a change: inspect the actual report JSON you
+submit. Keep the chart caption and claim consistent with the selected scope.
+"""

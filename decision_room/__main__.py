@@ -89,6 +89,8 @@ def main():
             command.add_argument('--research', type=uuid.UUID, required=True)
         if name == 'agent-research':
             command.add_argument('--max-investigations', type=int, default=6)
+            command.add_argument('--max-parallel', type=int, default=3, help='Use 1 for identical delegated tasks scheduled sequentially; at most 3.')
+            command.add_argument('--no-delegation', action='store_true', help='Use only the principal analyst.')
             command.add_argument('--max-rounds', type=int, default=3)
             command.add_argument('--max-executions', type=int, default=12)
             command.add_argument('--max-model-calls', type=int, default=32)
@@ -199,7 +201,7 @@ def main():
             from .agent.model import ModelClient, ModelSettings
             if args.command == 'agent-research':
                 report = research.start(config, args.business, args.session, request_key=args.request_key,
-                                        max_investigations=args.max_investigations,
+                                        max_investigations=args.max_investigations, max_parallel=args.max_parallel, delegation=not args.no_delegation,
                                         investigation_keys=args.investigation, python_timeout=args.timeout,
                                         max_rounds=args.max_rounds, max_executions=args.max_executions,
                                         max_model_calls=args.max_model_calls, max_seconds=args.max_seconds)

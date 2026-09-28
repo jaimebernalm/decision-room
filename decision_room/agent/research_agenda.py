@@ -24,7 +24,9 @@ def agenda(snapshot, history):
         for child in action.get('followups', []):
             if child['key'] in by_key:
                 continue
-            item = {**child, 'round': by_key[action['investigation_key']]['round'] + 1,
+            dependency_rounds = [by_key[key]['round'] for key in child.get('depends_on', []) if key in by_key]
+            depth = max([by_key[action['investigation_key']]['round'], *dependency_rounds]) + 1
+            item = {**child, 'round': depth,
                     'parent_key': action['investigation_key']}
             work.append(item)
             by_key[item['key']] = item

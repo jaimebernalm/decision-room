@@ -250,7 +250,12 @@ def validate_coverage(report, context):
     if len(set(keys)) != len(keys) or not expected <= set(keys) or not set(keys) <= known:
         raise ValueError('question_coverage must address every ready investigation exactly once, using only known investigations.')
     claims = {c['key'] for c in report['claims']}
+    synthesis = context.get('research_synthesis') or {}
+    unresolved = {key for d in synthesis.get('disagreements', []) if d['resolution'] != 'resolved'
+                  for key in d['investigation_keys']}
     for entry in entries:
+        if entry['investigation_key'] in unresolved and entry['status'] != 'unavailable':
+            raise ValueError('Unresolved research disagreements must remain unavailable in this report.')
         if entry['investigation_key'] not in expected and entry['status'] != 'unavailable':
             raise ValueError('Blocked or not-possible investigations must remain unavailable.')
         if not set(entry['claim_keys']) <= claims or (entry['status'] == 'answered' and not entry['claim_keys']):

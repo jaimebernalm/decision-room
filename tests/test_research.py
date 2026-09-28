@@ -45,6 +45,9 @@ class ResearchModel:
 
     def generate_research(self, context, correction=None):
         self.calls += 1
+        closed = {f['investigation_key'] for f in context['findings']}
+        if all(i['key'] in closed or i['status'] != 'ready' for i in context['plan']['investigations']):
+            return dict(action='finish', investigation_key='', code='', table_ids=[], metric_keys=[], summary='Finalizado.'), {}
         target = next(i['key'] for i in context['plan']['investigations'] if i['status'] == 'ready')
         base = {'action': 'execute', 'investigation_key': target, 'code': '', 'table_ids': [],
                 'summary': 'Calcular el total con la definición indicada.', 'metric_keys': []}
@@ -100,7 +103,7 @@ class ResearchTests(unittest.TestCase):
 
     def start(self, **kwargs):
         return research.start(self.config, self.business, self.plan['id'], request_key='research',
-                              model=kwargs.pop('model', self.model), **kwargs)
+                              model=kwargs.pop('model', self.model), delegation=kwargs.pop('delegation', False), **kwargs)
 
     def test_generated_program_candidate_evidence_and_idempotency(self):
         result = self.start()
@@ -140,7 +143,7 @@ from decision_room.config import Config
 def die_after_execute(*args,**kwargs):
     result=execute(*args,**kwargs)
     raise SystemExit(17)
-research.start(Config.load(),{str(self.business)!r},{str(self.plan['id'])!r},request_key='restart',model=ResearchModel(),executor=die_after_execute)
+research.start(Config.load(),{str(self.business)!r},{str(self.plan['id'])!r},request_key='restart',model=ResearchModel(),executor=die_after_execute,delegation=False)
 """
         process = subprocess.run([sys.executable, '-c', first], env=env, capture_output=True, text=True)
         self.assertEqual(process.returncode, 17, process.stderr)

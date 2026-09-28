@@ -56,6 +56,24 @@ class ModelActionTests(unittest.TestCase):
         self.assertEqual(schema()['action']['enum'], ['finish'])
         self.assertEqual(schema()['metric_keys']['maxItems'], 0)
 
+    def test_coordinator_delegates_but_can_repair_its_initial_execution(self):
+        client = ModelClient(ModelSettings('test'))
+        context = dict(plan={'investigations': [dict(key='root', status='ready'), dict(key='branch', status='ready')]},
+                       findings=[dict(investigation_key='root')], observations=[dict(investigation_key='root', status='completed')],
+                       budgets={'delegation': True})
+        def properties():
+            with patch.object(client, '_generate', return_value=({}, {})) as request:
+                client.generate_research(context)
+            return request.call_args.args[3]['properties']
+        self.assertIn('delegate', properties()['action']['enum'])
+        self.assertNotIn('execute', properties()['action']['enum'])
+        context['findings'] = []
+        context['observations'][0]['status'] = 'failed'
+        self.assertIn('execute', properties()['action']['enum'])
+        context['budgets'] = {'delegation': False, 'worker_assignment': {'investigation_key': 'branch'}}
+        self.assertNotIn('delegate', properties()['action']['enum'])
+        self.assertEqual(properties()['assignments']['maxItems'], 0)
+
     def test_role_boundaries_and_failed_checks_limit_offered_actions(self):
         client = ModelClient(ModelSettings('test'))
         with patch.object(client, '_generate', return_value=({}, {})) as request:

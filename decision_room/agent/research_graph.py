@@ -12,7 +12,7 @@ from .research_context import observations, prompt_context
 from .research_contract import validate_research_action
 from .research_agenda import agenda, ResearchBudgetReached
 
-RESEARCH_GRAPH_VERSION = 'research-v4'
+RESEARCH_GRAPH_VERSION = 'research-v5'
 
 
 class ResearchState(TypedDict):
@@ -39,8 +39,8 @@ def build(config, db, session, run, model, saver, *, retry_uncertain=False, exec
     def guard():
         if (datetime.now(timezone.utc) - run['created_at']).total_seconds() >= options['max_seconds']:
             raise ResearchBudgetReached('Presupuesto de tiempo alcanzado; se conservan los resultados parciales.')
-        count = db.execute("SELECT count(*) n FROM agent_calls WHERE session_id=%s AND phase='research' AND scope=%s",
-                           (session['id'], str(run_id))).fetchone()['n']
+        from .parallel_research import calls
+        count = len(calls(db, session['id'], run_id))
         if count >= options['max_model_calls']:
             raise ResearchBudgetReached('Presupuesto de llamadas alcanzado; se conservan los resultados parciales.')
 
@@ -49,13 +49,20 @@ def build(config, db, session, run, model, saver, *, retry_uncertain=False, exec
         saved = next((s for s in prior_steps if s['step'] == state['turn'] + 1), None)
         if saved:
             return {'turn': saved['step'], 'action': saved['action']}
-        if state['turn'] >= options['max_turns']:
+        from .parallel_research import decisions
+        if decisions(db, run_id) >= options['max_turns']:
             return {'stop_reason': 'Presupuesto de decisiones alcanzado.'}
         results = observations(config, session['business_id'], prior_steps)
         recorded = findings(db, run_id)
         current = agenda(snapshot, prior_steps)
-        current_options = {**options, 'discarded_keys': [s['action']['investigation_key'] for s in prior_steps if s['action']['action'] == 'discard']}
+        current_options = {**options, 'delegated': any(s['action']['action'] == 'delegate' for s in prior_steps), 'discarded_keys': [s['action']['investigation_key'] for s in prior_steps if s['action']['action'] == 'discard']}
         try:
+            from .parallel_research import branches
+            current_options['assigned_keys'] = [b['assignment']['investigation_key'] for b in branches(db, run_id)]
+            current_options['decisions_used'] = decisions(db, run_id)
+            current['delegations'] = [dict(investigation_key=b['assignment']['investigation_key'],
+                instruction=b['assignment']['instruction'], status=b['status'], issue=b['issue'])
+                for b in branches(db, run_id)]
             context = prompt_context(current, results, recorded, current_options, state['turn'])
         except ResearchBudgetReached as error:
             return {'stop_reason': str(error)}
@@ -68,7 +75,7 @@ def build(config, db, session, run, model, saver, *, retry_uncertain=False, exec
                 return {'stop_reason': str(error)}
             try:
                 action = validate_research_action(raw, current, results, recorded, current_options)
-                if action['action'] == 'record_candidate':
+                if action['action'] in ('record_candidate', 'expand'):
                     last = next(o for o in reversed(context['observations'])
                                 if o['investigation_key'] == action['investigation_key'])
                     if last.get('result_omitted'):
@@ -128,6 +135,13 @@ def build(config, db, session, run, model, saver, *, retry_uncertain=False, exec
                         'candidate' if execution_id else 'blocked', action['summary'], Jsonb(action['metric_keys'])))
         return {}
 
+    def delegate(state):
+        from .parallel_research import dispatch
+        try:
+            return dispatch(config, db, session, run, state, model, executor, retry_uncertain)
+        except ResearchBudgetReached as error:
+            return {'stop_reason': str(error)}
+
     def route(state):
         if state.get('stop_reason') or state['action'].get('action') == 'finish':
             return 'stop'
@@ -138,7 +152,8 @@ def build(config, db, session, run, model, saver, *, retry_uncertain=False, exec
         closed = {r['investigation_key'] for r in recorded} | {s['action']['investigation_key'] for s in history if s['action']['action'] == 'discard'}
         attempted = {s['action']['investigation_key'] for s in history if s['action']['action'] == 'execute'}
         if ready <= closed:
-            return 'stop'
+            # Reconcile all branch deliveries even when no calculations remain.
+            return 'decide' if options.get('delegation') else 'stop'
         # Always give an attempted investigation a chance to record its result.
         if attempted <= closed and (len(attempted) >= options['max_investigations'] or
                 sum(s['action']['action'] == 'execute' for s in history) >= options['max_executions']):
@@ -171,13 +186,17 @@ def build(config, db, session, run, model, saver, *, retry_uncertain=False, exec
     graph = StateGraph(ResearchState)
     graph.add_node('decide', decide)
     graph.add_node('python', python)
+    graph.add_node('delegate', delegate)
     graph.add_node('record', record)
     graph.add_node('stop', stop)
     graph.add_node('discard', lambda state: {})
+    graph.add_node('expand', lambda state: {})
     graph.add_edge(START, 'decide')
     graph.add_conditional_edges('decide', lambda s: 'stop' if s.get('stop_reason') else s['action']['action'],
-                                {'execute': 'python', 'record_candidate': 'record', 'block': 'record', 'discard': 'discard', 'finish': 'stop', 'stop': 'stop'})
+                                {'expand': 'expand', 'delegate': 'delegate', 'execute': 'python', 'record_candidate': 'record', 'block': 'record', 'discard': 'discard', 'finish': 'stop', 'stop': 'stop'})
     graph.add_conditional_edges('python', route)
+    graph.add_conditional_edges('delegate', route)
+    graph.add_conditional_edges('expand', route)
     graph.add_conditional_edges('record', route)
     graph.add_conditional_edges('discard', route)
     graph.add_edge('stop', END)

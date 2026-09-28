@@ -357,13 +357,14 @@ las correcciones en un lote nuevo. Incorporar relaciones y columnas comprobadas,
 definiciones estables de métricas y nombres legibles; la memoria por sí sola no
 resuelve errores de sintaxis ni la selección y presentación de hallazgos.
 
-**Cierre de 3.2:** [contrato implementado](../technical/data-knowledge.md) y [pruebas, intentos conservados y límites](../validation/2026-09-27-data-knowledge.md). El paso **3.3 está completado**: [contrato de rondas](../technical/research-rounds.md) y [validación con fallos conservados](../validation/2026-09-27-research-rounds.md). El refuerzo **3.3.1 del revisor está completado** ([validación](../validation/2026-09-27-reviewer-stability.md)). El paso **3.4 está completado**: [contrato](../technical/conversational-onboarding-plan.md) y [validación](../validation/2026-09-27-conversational-onboarding.md). El siguiente paso es **3.5: analistas en paralelo**.
+**Cierre de 3.2:** [contrato implementado](../technical/data-knowledge.md) y [pruebas, intentos conservados y límites](../validation/2026-09-27-data-knowledge.md). El paso **3.3 está completado**: [contrato de rondas](../technical/research-rounds.md) y [validación con fallos conservados](../validation/2026-09-27-research-rounds.md). El refuerzo **3.3.1 del revisor está completado** ([validación](../validation/2026-09-27-reviewer-stability.md)). El paso **3.4 está completado**: [contrato](../technical/conversational-onboarding-plan.md) y [validación](../validation/2026-09-27-conversational-onboarding.md). El paso **3.5 está completado** ([contrato](../technical/parallel-analysts-plan.md), [validación](../validation/2026-09-27-parallel-analysts.md)); el siguiente paso es **3.6: evaluación de calidad y rendimiento**.
 
 
 ### 3.5 — Analistas en paralelo
 
-**Pendiente de implementación.** Se realiza después de 3.4 y antes de la evaluación
-integral de 3.6. El antiguo paso 3.5 de selección, revisión y evaluación pasa a ser
+**Completado el 27 de septiembre de 2026**, después de 3.4 y 3.4.1 y antes de la evaluación
+integral de 3.6. Véanse el [contrato](../technical/parallel-analysts-plan.md) y la
+[validación](../validation/2026-09-27-parallel-analysts.md). El antiguo paso 3.5 de selección, revisión y evaluación pasa a ser
 3.6; las validaciones históricas conservan la numeración que tenían al redactarse.
 
 El interlocutor de negocio mantiene la conversación, concreta el objetivo y recoge
@@ -403,3 +404,12 @@ revisiones, duplicaciones, tiempo total hasta la entrega, tokens y coste. Inclui
 informes completos, parciales y recuperaciones. Documentar en qué escenarios
 compensa el paralelismo y mantener el recorrido secuencial cuando no aporte una
 ventaja comprobada. No asumir que añadir analistas mejora automáticamente el resultado.
+
+
+**Criterios de entrada a 3.6 tras Bruma:** conservar el informe de 3.4.1 como
+referencia y comparar también la versión 3.5. Medir profundidad dentro de segmentos,
+contribuciones reconciliadas, comparabilidad temporal, prioridad explícita,
+comprobaciones siguientes concretas, duplicación de hallazgos y correspondencia
+entre gráfico, nombre, unidad y evidencia. La exposición por fechas observadas no
+acredita días de apertura ni cobertura completa. Contar también intentos fallidos,
+correcciones, recuperación y revisión; no medir solo la última aprobación.

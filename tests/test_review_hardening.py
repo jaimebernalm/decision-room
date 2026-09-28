@@ -40,6 +40,24 @@ class HardeningTests(unittest.TestCase):
         good['assessment']['usefulness']=None
         validate(good,'reviewer',legacy)
 
+    def test_unresolved_parallel_disagreement_cannot_be_published_as_answered(self):
+        self.run_review()
+        ctx = deepcopy(self.roles.contexts[-1])
+        key = ctx['report']['question_coverage'][0]['investigation_key']
+        ctx['research_synthesis'] = {'disagreements': [dict(investigation_keys=[key, 'other'],
+            explanation='Las ramas aplicaron alcances incompatibles.', resolution='unresolved')]}
+        with self.assertRaisesRegex(ValueError, 'Unresolved research disagreements'):
+            validate(assessed(action('approve'), ctx), 'reviewer', ctx)
+
+    def test_priority_order_uses_declared_links_and_preserves_claim_evidence(self):
+        from decision_room.agent.review_policy import prioritize_claims
+        report = {'claims': [dict(key='context', evidence=['a']), dict(key='secondary', evidence=['b']), dict(key='focus', evidence=['c'])],
+                  'question_coverage': [dict(investigation_key='deep',claim_keys=['focus']),dict(investigation_key='overview',claim_keys=['secondary'])]}
+        before = deepcopy(report['claims'])
+        prioritize_claims(report, {'priorities': [dict(investigation_key='deep'),dict(investigation_key='overview')]})
+        self.assertEqual([c['key'] for c in report['claims']], ['focus','secondary','context'])
+        self.assertEqual({c['key']:c['evidence'] for c in report['claims']}, {c['key']:c['evidence'] for c in before})
+
     def test_issues_cannot_disappear_and_suggestions_do_not_block(self):
         result = self.run_review()
         context = self.roles.contexts[-1]

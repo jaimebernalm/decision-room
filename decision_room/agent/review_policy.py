@@ -129,3 +129,20 @@ def validate_assessment(action, role, context):
                 raise ValueError('Unavailable work cannot pass as a useful delivered answer.')
         if action.action == 'approve' and (utility.goal_alignment != 'pass' or any(q.verdict == 'fail' for q in utility.questions)):
             raise ValueError('Cannot approve failed usefulness or misleading question coverage.')
+
+
+def prioritize_claims(report, synthesis):
+    """Apply the principal's declared priority via explicit question/claim links.
+
+    Stable order for ties and context-only claims. Never infer a priority from
+    wording, chart size or numerical magnitude across incompatible measures.
+    """
+    if not synthesis:
+        return
+    ranks = {entry['investigation_key']: i for i, entry in enumerate(synthesis['priorities'])}
+    linked = {}
+    for entry in report['question_coverage']:
+        if entry['investigation_key'] in ranks:
+            for key in entry['claim_keys']:
+                linked[key] = min(linked.get(key, len(ranks)), ranks[entry['investigation_key']])
+    report['claims'].sort(key=lambda claim: linked.get(claim['key'], len(ranks)))

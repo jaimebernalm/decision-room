@@ -153,16 +153,13 @@ def render_client(data, exported_at, *, embedded=False):
                 value = formatted(metric(data, highlight['value']), highlight['decimals'])
                 body += [f'<a class="highlight" href="#finding-{e(highlight["claim_key"])}"><span>{e(highlight["label"])}</span><strong>{e(value)}</strong><small>{e(highlight["unit"])}</small></a>']
             body += ['</section>']
-        if draft['charts']:
-            body += ['<section class="visuals"><h2>Los datos, en perspectiva</h2>']
-            body += [chart_html(data, c) for c in draft['charts']]
-            body += ['</section>']
         for i, claim in enumerate(draft['claims'], 1):
             charts = [c for c in draft['charts'] if c['claim_key'] == claim['key']]
             body += [f'<section class="finding" id="finding-{e(claim["key"])}"><p class="number">HALLAZGO {i:02d}</p><h2>{e(claim["title"])}</h2><p>{e(claim["statement"])}</p>']
             body += [f'<div class="interpretation"><h3>Qué significa para el negocio</h3><p>{e(claim["interpretation"])}</p></div>']
             if claim['next_step']:
                 body += [f'<p class="next"><strong>Siguiente comprobación</strong>{e(claim["next_step"])}</p>']
+            body += [chart_html(data, chart) for chart in charts]
             body += [evidence_html(data, claim, charts), '</section>']
         if not draft['charts']:
             body += [f'<p class="empty">{e(draft["no_chart_reason"])}</p>']
