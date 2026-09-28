@@ -21,7 +21,7 @@ def branches(db, run_id):
 
 
 def calls(db, session_id, run_id):
-    return db.execute('''SELECT c.id,c.scope,c.status,c.usage,c.issue,c.created_at,c.finished_at,c.prompt_version FROM agent_calls c WHERE c.session_id=%s AND c.phase='research'
+    return db.execute('''SELECT c.id,c.scope,c.status,c.usage,c.issue,c.created_at,c.finished_at,c.prompt_version FROM agent_calls c WHERE c.session_id=%s AND c.phase IN ('research','business_planner')
         AND (c.scope=%s OR c.scope IN (SELECT child_id::text FROM agent_research_branches WHERE parent_id=%s))
         ORDER BY c.created_at,c.id''', (session_id, str(run_id), run_id)).fetchall()
 
@@ -43,15 +43,17 @@ def reserve(db, session, run, state):
         return existing
     history = steps(db, run['id'])
     current = agenda(run['snapshot'], history)
+    from .business_planner import enrich
+    current = enrich(db, run['id'], current)
     assignments = state['action']['assignments']
     n = len(assignments)
     options = run['options']
     # Keep room for the principal's reconciliation and synthesis. Sum of all
     # reserved quotas cannot exceed remaining parent budgets, even on recovery.
     quotas = {
-        'max_model_calls': min(8, (options['max_model_calls'] - len(calls(db, session['id'], run['id'])) - 3) // n),
-        'max_turns': min(8, (options['max_turns'] - decisions(db, run['id']) - 2) // n),
-        'max_executions': min(3, (options['max_executions'] - sum(s['action']['action'] == 'execute' for s in history)) // n),
+        'max_model_calls': min(16 if options.get('quality_first') else 8, (options['max_model_calls'] - len(calls(db, session['id'], run['id'])) - (6 if options.get('quality_first') else 3)) // n),
+        'max_turns': min(16 if options.get('quality_first') else 8, (options['max_turns'] - decisions(db, run['id']) - 2) // n),
+        'max_executions': min(6 if options.get('quality_first') else 3, (options['max_executions'] - sum(s['action']['action'] == 'execute' for s in history)) // n),
         'max_agenda': 1 + min(3, (options['max_agenda'] - len(current['proposal']['investigations'])) // n),
     }
     if quotas['max_model_calls'] < 2 or quotas['max_turns'] < 2 or quotas['max_executions'] < 1:
@@ -67,7 +69,7 @@ def reserve(db, session, run, state):
             snapshot = deepcopy(current)
             snapshot['proposal']['investigations'] = [task]
             snapshot['coordination'] = shared
-            child_options = {**options, **quotas, 'delegation': False, 'worker_assignment': assignment,
+            child_options = {**options, **quotas, 'delegation': False, 'business_planner': False, 'worker_assignment': assignment,
                              'max_investigations': 1, 'max_rounds': 1, 'max_parallel': 1,
                              'existing_questions': [i['question'].strip().casefold() for i in current['proposal']['investigations']]}
 
@@ -82,6 +84,7 @@ def reserve(db, session, run, state):
             db.execute('''INSERT INTO agent_research_branches(business_id,parent_id,dispatch_step,ordinal,child_id,assignment)
                 VALUES (%s,%s,%s,%s,%s,%s)''',
                 (session['business_id'], run['id'], state['turn'], ordinal, child, Jsonb(assignment)))
+            db.execute('UPDATE agent_research SET paused_seconds=%s WHERE id=%s', (run.get('paused_seconds',0),child))
     return [b for b in branches(db, run['id']) if b['dispatch_step'] == state['turn']]
 
 

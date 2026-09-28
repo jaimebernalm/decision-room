@@ -44,7 +44,8 @@ def build(config, db, session, run, analyst, reviewer, saver, *, executor=execut
             return {'outcome': 'limited'}
         model = analyst if state['role'] == 'analyst' else reviewer
         correction = None
-        for attempt in range(2):
+        attempts = run['options'].get('max_validation_attempts', 2)
+        for attempt in range(attempts):
             phase = 'analyst_review' if state['role'] == 'analyst' else 'reviewer'
             def guard():
                 used = db.execute('SELECT count(*) n FROM agent_calls WHERE session_id=%s AND phase=%s AND scope=%s',
@@ -72,8 +73,13 @@ def build(config, db, session, run, analyst, reviewer, saver, *, executor=execut
                 break
             except ValueError as error:
                 correction = str(error)[:1800]
-                if attempt:
-                    raise ValueError('Review action failed validation twice: ' + correction) from None
+                if attempt + 1 == attempts:
+                    count = 'twice' if attempts == 2 else f'{attempts} times'
+                    raise ValueError(f'Review action failed validation {count}: ' + correction) from None
+                if attempts > 2:
+                    # A distinct correction key prevents replaying the same invalid
+                    # cached repair forever. No invalid event is accepted or saved.
+                    correction = f'Repair {attempt + 1}/{attempts}: {correction} Return complete corrected JSON; all evidence and approval requirements still apply.'
         step = state['turn'] + 1
         existing = db.execute('SELECT action FROM agent_review_events WHERE review_id=%s AND step=%s', (run['id'], step)).fetchone()
         if existing and fingerprint(existing['action']) != fingerprint(action):

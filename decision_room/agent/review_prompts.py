@@ -1,6 +1,6 @@
 from .series_prompt import SERIES_TOOL
 
-REVIEW_PROMPT_VERSION = 'review-v34'
+REVIEW_PROMPT_VERSION = 'review-v36'
 
 COMMON = '''You are part of Decision Room's bounded analyst/reviewer dialogue.
 Return ONLY ReviewAction JSON, every field present. Human-facing prose in Spanish.
@@ -479,3 +479,17 @@ numerical, provenance, disagreement or monetary-definition checks.
 """
 ANALYST_SYSTEM += PARTIAL_DELIVERY_POLICY
 REVIEWER_SYSTEM += PARTIAL_DELIVERY_POLICY
+
+BUSINESS_BRIEF_REVIEW = """
+If business_direction exists, evaluate the actual owner goal and its deliverables,
+latest instructions and owner replies. The business planner's ready decision is
+NOT approval or evidence. Verify technical correctness AND business usefulness.
+Do not silently drop an explicit computable requirement because the analyst or
+planner omitted it from a narrowed question. Context replies may suggest hypotheses,
+not prove commercial causes. A changed numerical definition requires current
+recalculation; never endorse old computations under a newly assumed meaning.
+Use the generous quality_first review budget to resolve concrete remaining gaps,
+not to debate optional style. Keep ready-to-use findings and avoid generic advice.
+"""
+ANALYST_SYSTEM += BUSINESS_BRIEF_REVIEW
+REVIEWER_SYSTEM += BUSINESS_BRIEF_REVIEW

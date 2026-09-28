@@ -62,6 +62,28 @@ def expected_value(binding, metrics):
     op, args = binding['op'], binding['args']
     if not isinstance(args, list) or not 1 <= len(args) <= 100:
         raise ValueError('Invalid reference expression')
+    if op == 'format':
+        # Some saved citations contain several labelled values in one string.
+        # Every value still comes from oracle expressions, never literal answers.
+        from string import Formatter
+        template = binding.get('template', '')
+        if not isinstance(template, str) or len(template) > 16000:
+            raise ValueError('Invalid reference text template')
+        used, parts = set(), []
+        for literal, field, spec, conversion in Formatter().parse(template):
+            if any(c.isdigit() for c in literal) or conversion:
+                raise ValueError('Reference text cannot embed literal numbers or conversions')
+            parts.append(literal)
+            if field is None:
+                continue
+            if not field.isdigit() or int(field) >= len(args) or spec not in ('', *[f'.{n}f' for n in range(13)]):
+                raise ValueError('Use positional source values and bounded decimal formatting')
+            index = int(field); used.add(index)
+            value = expected_value(args[index], metrics)
+            parts.append(format(Decimal(str(value)), spec) if spec else str(value))
+        if used != set(range(len(args))):
+            raise ValueError('Every reference value must appear in the text')
+        return ''.join(parts)
     if op == 'text':
         if len(args) != 1 or not isinstance(args[0], str) or not isinstance(metrics[args[0]], str):
             raise ValueError('Text must come from a source reference value')
@@ -150,7 +172,7 @@ def assess(state, review, oracle, assessment=None):
             expected = expected_value(target, {**oracle['metrics'], **{'count|' + k: v for k, v in oracle.get('counts', {}).items()}})
             if isinstance(expected, bool):
                 passed = type(value) is bool and value == expected and bool(binding['meaning'].strip())
-            elif isinstance(target, dict) and target.get('op') in ('name', 'join_names', 'text'):
+            elif isinstance(target, dict) and target.get('op') in ('name', 'join_names', 'text', 'format'):
                 passed = value == expected and bool(binding['meaning'].strip())
             else:
                 actual, wanted = Decimal(str(value)), Decimal(str(expected))
@@ -188,7 +210,7 @@ def resources(calls, complete=True, rates=None):
     return result
 
 
-def compare(rows):
+def compare(rows, pair_modes=('serial', 'parallel')):
     """Keep missing/failed jobs in denominator; matched results aren't causal evidence."""
     groups = defaultdict(list)
     for row in rows:
@@ -212,8 +234,9 @@ def compare(rows):
         pairs[key][row['mode']] = row
     matched = []
     for (case, repetition), pair in pairs.items():
-        a, b = pair.get('serial', {}), pair.get('parallel', {})
+        a, b = (pair.get(mode, {}) for mode in pair_modes)
         comparable = bool(a.get('accepted') and b.get('accepted'))
         matched.append(dict(case=case, repetition=repetition, both_accepted=comparable,
-            parallel_minus_serial_seconds=b['seconds'] - a['seconds'] if comparable else None))
+            **{'parallel_minus_serial_seconds' if pair_modes==('serial','parallel') else 'planner_minus_control_seconds':
+               b['seconds'] - a['seconds'] if comparable else None}))
     return dict(modes=modes, pairs=matched, recommendation='No automatic mode promotion; inspect paired utility, failures and resources. Small stochastic sample, not a causal speed benchmark.')

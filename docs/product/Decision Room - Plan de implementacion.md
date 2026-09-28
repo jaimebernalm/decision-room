@@ -489,6 +489,15 @@ La aceptación general de calidad sigue abierta: falta profundidad y cobertura
 consistentes; no está demostrada una mejora general de tiempo o coste del paralelismo.
 El antiguo paso 3.5 de evaluación conserva su nueva numeración 3.6.
 
+**3.7 implementado y evaluado, 28 de septiembre:** planificador de negocio especializado, encargo compartido,
+diálogo con el analista y preguntas al cliente durante la investigación. Presupuesto
+orientado a calidad y comparación controlada con el planificador desactivado.
+Véanse el [plan técnico y registro de continuidad](../technical/business-planner-plan.md)
+y los [resultados de 24 intentos y tres recuperaciones](../validation/2026-09-28-business-planner.md).
+La capacidad funciona; no queda demostrada una mejora consistente de calidad ni de
+latencia. Se mantienen abiertos los criterios de aceptación general del producto.
+
+
 **Planificación ampliada, 27 de septiembre de 2026:** el
 [plan de onboarding e informes](onboarding-e-informes-plan.md) concreta la secuencia
 3.1–3.6: evaluación con una base sustancial, catálogo y relaciones,

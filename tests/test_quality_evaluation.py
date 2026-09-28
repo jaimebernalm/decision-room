@@ -5,9 +5,9 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
-from decision_room.evaluation.quality import assess, compare, digest, ref_key, resources, RUBRIC, delivered_values
+from decision_room.evaluation.quality import assess, compare, digest, ref_key, resources, RUBRIC, delivered_values, expected_value
 from decision_room.evaluation.quality_cases import bruma_reference
-from decision_room.evaluation.quality_runner import summary
+from decision_room.evaluation.quality_runner import summary, evaluation_reference
 from decision_room.evaluation.runner import write
 
 
@@ -60,6 +60,25 @@ class QualityTests(unittest.TestCase):
         next(iter(a['bindings'].values()))['meaning'] = ''
         self.assertFalse(assess(state, review, oracle, a)['accepted'])
 
+    def test_compound_citation_checks_each_source_value(self):
+        state, review, oracle, a = self.fixture()
+        oracle['metrics'].update(label='165 | Original product', earlier='100', later='120')
+        expression = dict(op='format', template='{0} ({1:.6f})', args=[
+            dict(op='text', args=['label']), dict(op='difference', args=['earlier', 'later'])])
+        oracle['required'] = ['earlier', 'later']
+        next(iter(a['bindings'].values()))['reference'] = expression
+        review['observations'][0]['result']['metrics']['sales'] = '165 | Original product (20.000000)'
+        self.assertTrue(assess(state, review, oracle, a)['accepted'])
+        review['observations'][0]['result']['metrics']['sales'] = '165 | Original product (21.000000)'
+        self.assertFalse(assess(state, review, oracle, a)['accepted'])
+
+    def test_compound_reference_cannot_embed_numbers_or_access_objects(self):
+        metrics = dict(x='10', y='20')
+        for template, args in [('100 {0}', ['x']), ('{0.real}', ['x']),
+                               ('{0!r}', ['x']), ('{0:.13f}', ['x']),
+                               ('{0}', ['x', 'y']), ('{1}', ['x'])]:
+            with self.subTest(template=template), self.assertRaises(ValueError):
+                expected_value(dict(op='format', template=template, args=args), metrics)
     def test_every_chart_point_must_be_bound_and_correct_unit(self):
         state, review, oracle, a = self.fixture()
         review['observations'][0]['result']['series'] = {'daily': {'unit': 'units', 'points': [{'label': 'x', 'value': 1}, {'label': 'y', 'value': 2}]}}
@@ -118,6 +137,30 @@ class QualityTests(unittest.TestCase):
         self.assertIsNone(resources(calls + [{'usage': None}], rates=rates)['estimated_cost'])
         calls[0]['usage'].pop('prompt_tokens_details')
         self.assertIsNone(resources(calls, rates=rates)['estimated_cost'])
+
+    def test_planner_comparison_uses_explicit_modes_and_accepted_pairs(self):
+        rows = [dict(case='c', repetition=1, mode='control', accepted=True, seconds=20),
+                dict(case='c', repetition=1, mode='planner', accepted=True, seconds=30),
+                dict(case='c', repetition=2, mode='control', accepted=True, seconds=20),
+                dict(case='c', repetition=2, mode='planner', accepted=False, seconds=5)]
+        got = compare(rows, ('control', 'planner'))
+        self.assertEqual(got['pairs'][0]['planner_minus_control_seconds'], 10)
+        self.assertIsNone(got['pairs'][1]['planner_minus_control_seconds'])
+        self.assertEqual(got['modes']['planner']['total'], 2)
+
+    def test_supplement_adds_dimensions_without_overriding_frozen_answers(self):
+        oracle = dict(metrics={'total': 5}, required=['total'])
+        manifest = dict(fixtures={'wwi': {'source.csv': 'source-digest'}})
+        supplement = dict(metrics={'cross': 3}, base_reference_sha256=digest(oracle),
+                          fixtures=manifest['fixtures']['wwi'], producer_sha256='a' * 64)
+        got = evaluation_reference(oracle, supplement, manifest, 'wwi')
+        self.assertEqual(got['metrics'], dict(total=5, cross=3))
+        self.assertEqual(got['required'], ['total'])
+        self.assertEqual(oracle['metrics'], {'total': 5})
+        for change in [dict(metrics={'total': 3}), dict(fixtures={'other.csv': 'changed'}),
+                       dict(base_reference_sha256='changed'), dict(producer_sha256='')]:
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                evaluation_reference(oracle, {**supplement, **change}, manifest, 'wwi')
 
     def test_missing_jobs_remain_in_summary(self):
         with TemporaryDirectory() as temporary:

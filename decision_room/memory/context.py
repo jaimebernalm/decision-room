@@ -67,7 +67,10 @@ def own_origins(db, session_id):
     rows = db.execute('''SELECT 'planning_answer:' || a.id AS key FROM agent_answers a
         JOIN agent_questions q ON q.id=a.question_id WHERE q.session_id=%s
         UNION ALL SELECT 'review_answer:' || a.id FROM agent_review_answers a
-        JOIN agent_reviews r ON r.id=a.review_id WHERE r.session_id=%s''', (session_id, session_id)).fetchall()
+        JOIN agent_reviews r ON r.id=a.review_id WHERE r.session_id=%s
+        UNION ALL SELECT 'planning_answer:' || a.id FROM business_planner_answers a
+        JOIN agent_research r ON r.id=a.research_id WHERE r.session_id=%s''',
+        (session_id, session_id, session_id)).fetchall()
     return {r['key'] for r in rows}
 
 

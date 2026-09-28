@@ -37,7 +37,7 @@ class Synthesis(Strict):
 
 
 class ResearchAction(Strict):
-    action: Literal['execute', 'record_candidate', 'block', 'discard', 'finish', 'delegate', 'expand']
+    action: Literal['execute', 'record_candidate', 'block', 'discard', 'finish', 'delegate', 'expand', 'consult_business']
     investigation_key: str = Field(max_length=64)
     table_ids: list[str] = Field(max_length=8)
     code: str = Field(max_length=48000)
@@ -72,6 +72,12 @@ def validate_research_action(raw, snapshot, observations, findings, options):
         raise ValueError('Only delegate may contain assignments.')
     if action.synthesis is not None and action.action != 'finish':
         raise ValueError('Only finish may contain synthesis.')
+    if action.action == 'consult_business':
+        if not options.get('business_planner') or options.get('worker_assignment'):
+            raise ValueError('Only the principal can consult the business planner when enabled.')
+        if action.investigation_key or action.code or action.table_ids or action.metric_keys or action.followups or action.assignments:
+            raise ValueError('Consultation requires only a concrete summary and empty work fields.')
+        return action.model_dump()
     if action.action == 'delegate':
         if options.get('worker_assignment') or not options.get('delegation'):
             raise ValueError('Workers cannot delegate; delegation is disabled for this run.')

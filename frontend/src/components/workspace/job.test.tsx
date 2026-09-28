@@ -68,7 +68,7 @@ function mockFetch(current = job) {
             job_id: "job",
             status: "waiting",
             payload: { text: "Analiza mis ventas" },
-            questions: [question],
+            questions: current.questions,
           },
         ],
         memory: {},
@@ -91,9 +91,9 @@ function mockFetch(current = job) {
   return { writes, fetch };
 }
 
-it("opens the data with the question, highlights its column and pages without losing the answer", async () => {
+it.each(["planning", "research"])("opens referenced data and submits the answer during %s", async (phase) => {
   location.hash = "analysis/job";
-  const { writes } = mockFetch();
+  const { writes } = mockFetch({ ...job, phase, questions: [{ ...question, phase }] });
   render(<App />);
   const user = userEvent.setup();
   expect(
@@ -116,6 +116,7 @@ it("opens the data with the question, highlights its column and pages without lo
   expect(writes[0].body).toMatchObject({
     text: "Total de fila",
     disposition: "answered",
+    phase,
   });
 });
 
@@ -162,9 +163,9 @@ it("recovers a blocked clarification using the same dataset only after the owner
   );
 });
 
-it("opens the same data preview for an analytical question in chat", async () => {
+it.each(["planning", "research"])("opens the referenced data for a %s question in the same chat", async (phase) => {
   location.hash = "chat/chat";
-  mockFetch();
+  mockFetch({ ...job, phase, questions: [{ ...question, phase }] });
   render(<App />);
   expect(
     await screen.findByRole("table", { name: "Datos de ventas.csv" }),

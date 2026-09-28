@@ -83,8 +83,9 @@ def save_revision(db, session_id, revision, proposal, inspected):
 
 
 def _model_call(db, session_id, model, context, correction, retry_uncertain, *, phase='planning', scope='', max_calls=20, before_call=None):
+    from .business_planner import VERSION as BUSINESS_VERSION
     version = {'planning': PROMPT_VERSION, 'research': RESEARCH_PROMPT_VERSION,
-               'analyst_review': REVIEW_PROMPT_VERSION, 'reviewer': REVIEW_PROMPT_VERSION}[phase]
+               'business_planner': BUSINESS_VERSION, 'analyst_review': REVIEW_PROMPT_VERSION, 'reviewer': REVIEW_PROMPT_VERSION}[phase]
     identity = {'context': context, 'correction': correction, 'prompt': version}
     if phase != 'planning':
         identity.update(phase=phase, scope=scope)
@@ -109,7 +110,7 @@ def _model_call(db, session_id, model, context, correction, retry_uncertain, *, 
     db.execute('''INSERT INTO agent_calls(id,session_id,call_key,status,prompt_version,phase,scope,context_payload)
         VALUES (%s,%s,%s,'running',%s,%s,%s,%s)''', (call_id, session_id, key, version, phase, scope, Jsonb(context)))
     try:
-        method = {'planning': 'generate', 'research': 'generate_research',
+        method = {'planning': 'generate', 'research': 'generate_research', 'business_planner': 'generate_business_planner',
                   'analyst_review': 'generate_analyst_review', 'reviewer': 'generate_reviewer'}[phase]
         def save_attempts(attempts):
             db.execute('UPDATE agent_calls SET usage=%s WHERE id=%s',
@@ -155,11 +156,12 @@ def model_call(db, session_id, model, context, correction, retry_uncertain, *, c
                                    (session_id, decision, ordinal)).fetchall()
             business_context['retrievals'] = baseline['retrievals'] + additions
             payload = {**context, 'business_context': business_context, 'decision_key': decision}
-            if len(encoded(payload).encode()) > memory_context.CONTEXT_BYTES:
+            limit = context.get('budgets', {}).get('max_context_bytes', memory_context.CONTEXT_BYTES)
+            if len(encoded(payload).encode()) > limit:
                 if phase == 'research':
                     from .research_agenda import ResearchBudgetReached
-                    raise ResearchBudgetReached('Presupuesto de contexto de investigación alcanzado (200 KB).')
-                raise ValueError('Model context exceeds 200 KB. Narrow the investigation; no material context was silently dropped.')
+                    raise ResearchBudgetReached(f'Presupuesto de contexto de investigación alcanzado ({limit // 1000} KB).')
+                raise ValueError(f'Model context exceeds {limit // 1000} KB. Narrow the investigation; no material context was silently dropped.')
         output = _model_call(db, session_id, model, payload, correction, retry_uncertain,
                              phase=phase, scope=scope, max_calls=max_calls, before_call=before_call)
         memory_context.ensure(db, session_id)

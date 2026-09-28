@@ -12,13 +12,15 @@ from .research_context import observations, prompt_context
 from .research_contract import validate_research_action
 from .research_agenda import agenda, ResearchBudgetReached
 
-RESEARCH_GRAPH_VERSION = 'research-v5'
+RESEARCH_GRAPH_VERSION = 'research-v6'
 
 
 class ResearchState(TypedDict):
     turn: int
     action: dict
     stop_reason: str
+    planner_ready: bool
+    replan_required: bool
 
 
 def steps(db, run_id):
@@ -35,9 +37,10 @@ def findings(db, run_id):
 
 def build(config, db, session, run, model, saver, *, retry_uncertain=False, executor=execute):
     snapshot, options, run_id = run['snapshot'], run['options'], run['id']
+    has_planner = options.get('business_planner') and not options.get('worker_assignment')
 
     def guard():
-        if (datetime.now(timezone.utc) - run['created_at']).total_seconds() >= options['max_seconds']:
+        if (datetime.now(timezone.utc) - run['created_at']).total_seconds() - run.get('paused_seconds',0) >= options['max_seconds']:
             raise ResearchBudgetReached('Presupuesto de tiempo alcanzado; se conservan los resultados parciales.')
         from .parallel_research import calls
         count = len(calls(db, session['id'], run_id))
@@ -55,6 +58,8 @@ def build(config, db, session, run, model, saver, *, retry_uncertain=False, exec
         results = observations(config, session['business_id'], prior_steps)
         recorded = findings(db, run_id)
         current = agenda(snapshot, prior_steps)
+        from .business_planner import enrich
+        current = enrich(db,run_id,current)
         current_options = {**options, 'delegated': any(s['action']['action'] == 'delegate' for s in prior_steps), 'discarded_keys': [s['action']['investigation_key'] for s in prior_steps if s['action']['action'] == 'discard']}
         try:
             from .parallel_research import branches
@@ -103,7 +108,7 @@ def build(config, db, session, run, model, saver, *, retry_uncertain=False, exec
         action = state['action']
         prior = db.execute('SELECT id FROM executions WHERE business_id=%s AND request_key=%s',
                            (session['business_id'], f'research:{run_id}:{state["turn"]}')).fetchone()
-        if not prior and (datetime.now(timezone.utc) - run['created_at']).total_seconds() >= options['max_seconds']:
+        if not prior and (datetime.now(timezone.utc) - run['created_at']).total_seconds() - run.get('paused_seconds',0) >= options['max_seconds']:
             return {'stop_reason': 'Presupuesto de tiempo alcanzado antes de ejecutar Python.'}
         selected = {t['alias']: t['id'] for t in snapshot['tables'] if t['id'] in action['table_ids']}
         definition = {'owner_context': snapshot['source']['owner_context'], 'answers': snapshot['answers'],
@@ -141,6 +146,13 @@ def build(config, db, session, run, model, saver, *, retry_uncertain=False, exec
             return dispatch(config, db, session, run, state, model, executor, retry_uncertain)
         except ResearchBudgetReached as error:
             return {'stop_reason': str(error)}
+
+    def business(state):
+        from .business_planner import checkpoint
+        try:
+            return checkpoint(config,db,session,run,model,state,guard,retry_uncertain)
+        except ResearchBudgetReached as error:
+            return {'stop_reason': str(error), 'planner_ready': False}
 
     def route(state):
         if state.get('stop_reason') or state['action'].get('action') == 'finish':
@@ -191,13 +203,16 @@ def build(config, db, session, run, model, saver, *, retry_uncertain=False, exec
     graph.add_node('stop', stop)
     graph.add_node('discard', lambda state: {})
     graph.add_node('expand', lambda state: {})
-    graph.add_edge(START, 'decide')
+    if has_planner:
+        graph.add_node('business',business)
+        graph.add_conditional_edges('business', lambda s: 'stop' if s.get('stop_reason') or s.get('planner_ready') else 'decide')
+    graph.add_edge(START, 'business' if has_planner else 'decide')
     graph.add_conditional_edges('decide', lambda s: 'stop' if s.get('stop_reason') else s['action']['action'],
-                                {'expand': 'expand', 'delegate': 'delegate', 'execute': 'python', 'record_candidate': 'record', 'block': 'record', 'discard': 'discard', 'finish': 'stop', 'stop': 'stop'})
+                                {'expand': 'expand', 'delegate': 'delegate', 'execute': 'python', 'record_candidate': 'record', 'block': 'record', 'discard': 'discard', 'finish': 'business' if has_planner else 'stop', 'consult_business': 'business' if has_planner else 'stop', 'stop': 'stop'})
     graph.add_conditional_edges('python', route)
-    graph.add_conditional_edges('delegate', route)
+    graph.add_conditional_edges('delegate', lambda s: 'business' if has_planner and not s.get('stop_reason') else route(s))
     graph.add_conditional_edges('expand', route)
-    graph.add_conditional_edges('record', route)
+    graph.add_conditional_edges('record', lambda s: 'business' if has_planner and s['action']['action']=='record_candidate' and not s.get('stop_reason') else route(s))
     graph.add_conditional_edges('discard', route)
     graph.add_edge('stop', END)
     return graph.compile(checkpointer=saver)

@@ -35,21 +35,23 @@ def _stale(config, db, session, run):
 
 
 def start(config, business_id, research_id, *, request_key, analyst=None, reviewer=None,
-          max_review_rounds=4, executor=execute):
+          max_review_rounds=None, executor=execute):
     _key(request_key)
-    if type(max_review_rounds) is not int or not 1 <= max_review_rounds <= 6:
-        raise ValueError('Review rounds must be between 1 and 6.')
     with connect(config) as db:
         research = db.execute('SELECT * FROM agent_research WHERE id=%s AND business_id=%s', (research_id, business_id)).fetchone()
     if not research:
         raise ValueError('Research does not belong to this business.')
+    quality = research['options'].get('quality_first',False)
+    max_review_rounds = max_review_rounds if max_review_rounds is not None else (8 if quality else 4)
+    if type(max_review_rounds) is not int or not 1 <= max_review_rounds <= 12:
+        raise ValueError('Review rounds must be between 1 and 12.')
     with session_lock(config, business_id, research['session_id']) as (db, session):
         memory_context.ensure(db, session['id'])
         research = db.execute('SELECT * FROM agent_research WHERE id=%s', (research_id,)).fetchone()
         _, _, key = knowledge(db, session)
         if session['superseded_by'] or research['status'] == 'stale' or research['knowledge_sha256'] != key:
             raise ValueError('Research is obsolete. Recalculate with the current owner knowledge first.')
-        if research['status'] in ('new', 'running'):
+        if research['status'] in ('new', 'running', 'waiting', 'replan_required'):
             raise ValueError('Wait for research to stop before reviewing its snapshot.')
         candidates = findings(db, research_id)
         if not any(f['status'] == 'candidate' for f in candidates):
@@ -65,8 +67,13 @@ def start(config, business_id, research_id, *, request_key, analyst=None, review
         snapshot = {'research_synthesis': synthesis(history), **agenda(research['snapshot'], history), 'research_coverage': coverage(research['snapshot'], history, candidates, research['options'], research['issue'] or ''), 'findings': candidates, 'executions': executions, 'initial_knowledge': key,
                     'planning_history': db.execute('SELECT revision,proposal FROM agent_revisions WHERE session_id=%s ORDER BY revision',
                                                    (session['id'],)).fetchall()}
+        from .business_planner import enrich
+        snapshot = enrich(db,research_id,snapshot)
         options = {'max_review_rounds': max_review_rounds, 'max_turns': 20, 'max_calls_per_role': 16,
                    'max_python_per_role': 3, 'max_questions': 3, 'python_timeout': 30, 'review_policy': 3}
+        if quality:
+            options.update(max_turns=48,max_calls_per_role=48,max_python_per_role=6,max_questions=6,
+                           quality_first=True,max_context_bytes=512000,max_validation_attempts=4)
         request_hash = fingerprint({'snapshot': snapshot, 'reviewer': reviewer.identity, 'options': options, 'version': REVIEW_GRAPH_VERSION})
         row = db.execute('''INSERT INTO agent_reviews(id,business_id,session_id,analysis_id,research_id,request_key,
             request_sha256,knowledge_sha256,snapshot,reviewer_settings,options,graph_version,status)
@@ -161,7 +168,7 @@ def restart(config, business_id, review_id, *, analyst=None, reviewer=None, exec
             snapshot = {**old['snapshot'],
                 'executions': [dict(execution_id=e, knowledge_sha256=k) for e, k in executions.items()],
                 'previous_review': {'id': str(review_id), 'report': context['report'], 'issues': context['review_issues']}}
-            options = {**old['options'], 'max_review_rounds': 4}
+            options = {**old['options'], 'max_review_rounds': 8 if old['options'].get('quality_first') else 4}
             request_hash = fingerprint({'snapshot': snapshot, 'options': options, 'version': REVIEW_GRAPH_VERSION})
             row = db.execute("""INSERT INTO agent_reviews(id,business_id,session_id,analysis_id,research_id,request_key,
                 request_sha256,knowledge_sha256,snapshot,reviewer_settings,options,graph_version,status)

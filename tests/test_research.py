@@ -24,6 +24,13 @@ from decision_room.agent.research_context import prompt_context
 class ResearchModel:
     identity = {'model': 'scripted-research-test-only'}
 
+    def generate_business_planner(self, context, correction=None):
+        return dict(action='ready' if context['stage']=='delivery' else 'guide',
+            brief=dict(objective='Conocer las ventas del extracto',decision='Entender actividad',intent='question',
+                       deliverables=['Total conforme a definición del propietario'],known_context=[],assumptions=[],exclusions=['Causas no verificadas']),
+            rationale='Fixture de protocolo, no evaluación de utilidad.',instructions=['Completar la pregunta del propietario.'],
+            priority_keys=[i['key'] for i in context['plan']['investigations']],evidence_keys=[],question=None), {}
+
     def __init__(self, fail_first=False, invalid_table=False, invented_metric=False, always_fail=False):
         self.calls = 0
         self.fail_first = fail_first

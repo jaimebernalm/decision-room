@@ -125,9 +125,21 @@ def worker(directory):
         if plan['questions']:
             raise ValueError('Planning questions remain after bounded owner replies')
         phase = 'research'
+        workflow = manifest.get('workflow', {})
         work = research.start(config, business, plan['id'], request_key=state['key'] + '-research',
-                              model=model, max_parallel=1 if state['mode'] == 'serial' else 3)
+                              model=model, max_parallel=1 if state['mode'] == 'serial' else 3,
+                              quality_first=workflow.get('quality_first', False),
+                              business_planner=state['mode'] in workflow.get('business_planner_modes', []))
         state['research_id'] = str(work['id']); write(directory / 'state.json', state)
+        for _ in range(12):
+            if not work.get('pending_questions'): break
+            q=work['pending_questions'][0]
+            # Owner knowledge was declared before the run. Do not improvise
+            # operational answers after seeing findings or the oracle.
+            work=research.answer(config,business,work['id'],question_id=q['id'],disposition='unknown',
+                                 request_key='unknown-'+q['id'],model=model)
+        if work.get('pending_questions') or work['status']=='replan_required':
+            raise ValueError('Owner input remains required; no invented evaluation answer.')
         phase = 'review'
         result = review.start(config, business, work['id'], request_key=state['key'] + '-review', analyst=model, reviewer=model)
         state['review_id'] = str(result['id']); write(directory / 'state.json', state)
@@ -161,6 +173,24 @@ def worker(directory):
     return 0
 
 
+def evaluation_reference(oracle, supplement, manifest, dataset):
+    """Add independently computed dimensions without rewriting frozen answers.
+
+    This is evaluation-only material, never input to the product agents. The
+    reviewer remains responsible for inspecting the independent producer.
+    """
+    if not supplement:
+        return oracle
+    metrics = supplement.get('metrics', {})
+    if (supplement.get('base_reference_sha256') != digest(oracle)
+            or supplement.get('fixtures') != manifest.get('fixtures', {}).get(dataset)
+            or len(supplement.get('producer_sha256', '')) != 64
+            or not isinstance(metrics, dict) or not metrics
+            or set(metrics) & set(oracle['metrics'])):
+        raise ValueError('Supplement must identify the frozen sources/producer and add new reference keys only.')
+    return {**oracle, 'metrics': {**oracle['metrics'], **metrics}}
+
+
 def summary(directory):
     manifest = read(directory / 'manifest.json')
     rows = []
@@ -169,7 +199,9 @@ def summary(directory):
         state = read(job / 'state.json', manifest['jobs'][name])
         report = read(job / 'review.json', {})
         oracle = read(directory / (state['dataset'] + '-reference.json'))
-        result = assess(state, report, oracle, read(job / 'assessment.json'))
+        supplement = read(directory / (state['dataset'] + '-supplement.json'))
+        result = assess(state, report, evaluation_reference(oracle, supplement, manifest, state['dataset']), read(job / 'assessment.json'))
+        result['supplemental_reference_sha256'] = digest(supplement) if supplement else None
         result['checks']['reference_unchanged'] = digest(oracle) == manifest.get('reference_sha256', {}).get(state['dataset'])
         result['checks']['fixtures_unchanged'] = state.get('fixtures_stable') is True
         result['accepted'] = result['accepted'] and result['checks']['reference_unchanged'] and result['checks']['fixtures_unchanged']
@@ -183,9 +215,12 @@ def summary(directory):
         result['execution_failures'] = sum(e['status'] != 'completed' for e in data.get('executions', []))
         result['review_rounds'] = sum(e.get('role') == 'reviewer' for e in report.get('conversation', []))
         rows.append(result)
-    result = dict(runs=rows, evaluator_sha256=hashlib.sha256(Path(__file__).with_name('quality.py').read_bytes()).hexdigest(), **compare(rows))
+    result = dict(runs=rows, evaluator_sha256=hashlib.sha256(Path(__file__).with_name('quality.py').read_bytes()).hexdigest(),
+                  summary_producer_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+                  **compare(rows, tuple(manifest.get('comparison_modes', ('serial','parallel')))))
     write(directory / 'summary.json', result)
-    html = ['<!doctype html><html lang="es"><meta charset="utf-8"><title>Evaluación 3.6</title><style>body{font:16px/1.5 system-ui;max-width:1250px;margin:40px auto;padding:20px;color:#123}table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:10px;border-bottom:1px solid #ddd}a{color:#246b8c}</style><h1>Evaluación de calidad · 3.6</h1><p>Aprobación del producto y aceptación independiente se muestran por separado. Los fallos permanecen en la matriz; los tiempos no prueban una mejora causal.</p><table><tr><th>Caso</th><th>Modo</th><th>Producto</th><th>Evaluación</th><th>Segundos</th><th>Llamadas</th><th>Evidencia</th></tr>']
+    step = '3.7' if manifest.get('workflow') else '3.6'
+    html = ['<!doctype html><html lang="es"><meta charset="utf-8"><title>Evaluación {step}</title><style>body{font:16px/1.5 system-ui;max-width:1250px;margin:40px auto;padding:20px;color:#123}table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:10px;border-bottom:1px solid #ddd}a{color:#246b8c}</style><h1>Evaluación de calidad · {step}</h1><p>Aprobación del producto y aceptación independiente se muestran por separado. Los fallos permanecen en la matriz; los tiempos no prueban una mejora causal.</p><table><tr><th>Caso</th><th>Modo</th><th>Producto</th><th>Evaluación</th><th>Segundos</th><th>Llamadas</th><th>Evidencia</th></tr>'.replace('{step}', step)]
     for row in rows:
         name = row['job']
         links = [f'<a href="{escape(name)}/{filename}">{label}</a>' for filename, label in
@@ -203,13 +238,15 @@ def summary(directory):
     return result
 
 
-def run(directory, datasets, repeats, selected=None):
+def run(directory, datasets, repeats, selected=None, workflow=None):
     cases = {key: CASES[key] for key in (selected or CASES)}
     fixtures = {dataset: {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in files(dataset, folder)}
                 for dataset, folder in datasets.items() if dataset in {c['dataset'] for c in cases.values()}}
     if any(not v for v in fixtures.values()):
         raise ValueError('Missing fixture files')
     expected = dict(source_sha256=source_version(), model=asdict(ModelSettings.load()), repeats=repeats, cases=cases, fixtures=fixtures)
+    if workflow:
+        expected.update(workflow=workflow, comparison_modes=['control','planner'])
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
     manifest = read(directory / 'manifest.json')
     if manifest:
@@ -219,14 +256,15 @@ def run(directory, datasets, repeats, selected=None):
         jobs = {}
         for case, definition in cases.items():
             for repetition in range(1, repeats + 1):
-                for mode in (('serial', 'parallel') if repetition % 2 else ('parallel', 'serial')):
+                modes=('control','planner') if workflow else ('serial','parallel')
+                for mode in (modes if repetition % 2 else tuple(reversed(modes))):
                     jobs[f'{case}-{repetition}-{mode}'] = dict(case=case, dataset=definition['dataset'], intent=definition['intent'],
                         repetition=repetition, mode=mode, status='not_run', key='quality-' + uuid4().hex)
         name = 'dr_quality_' + uuid4().hex
         with connect(Config.load()) as db:
             db.execute(sql.SQL('CREATE DATABASE {}').format(sql.Identifier(name)))
         manifest = dict(**expected, database=name, storage=str(directory / 'storage'), jobs=jobs,
-                        comparison='Independent plans, same inputs/budgets; serial worker scheduling vs parallel, not single-analyst baseline')
+                        comparison='Independent plans, identical quality-first budgets and three workers; business planner enabled vs disabled' if workflow else 'Independent plans, same inputs/budgets; serial worker scheduling vs parallel, not single-analyst baseline')
         for dataset in fixtures:
             write(directory / (dataset + '-reference.json'), reference(dataset, datasets[dataset]))
         manifest['reference_sha256'] = {d: digest(read(directory / (d + '-reference.json'))) for d in fixtures}
@@ -246,13 +284,14 @@ def run(directory, datasets, repeats, selected=None):
         write(job / 'state.json', initial)
         print(json.dumps(dict(job=name, event='start')), flush=True)
         started = time.monotonic()
+        timeout = 7200 if manifest.get('workflow', {}).get('quality_first') else 1800
         try:
             with (job / 'run.log').open('a') as log:
                 result = subprocess.run([sys.executable, '-m', __package__ + '.quality_runner', 'worker', str(job)],
-                                        cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, timeout=1800)
+                                        cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, timeout=timeout)
             problem = 'Worker exited unexpectedly' if result.returncode else None
         except subprocess.TimeoutExpired:
-            problem = 'Worker exceeded 1800 seconds; inspect before explicit recovery'
+            problem = f'Worker exceeded {timeout} seconds; inspect before explicit recovery'
         if problem:
             state = read(job / 'state.json')
             state.update(status='interrupted', issue=problem, seconds=round(time.monotonic() - started, 3), source_stable=source_version() == manifest['source_sha256'])

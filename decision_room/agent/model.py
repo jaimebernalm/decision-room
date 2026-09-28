@@ -257,6 +257,18 @@ class ModelClient:
             choices.append(shared)
         schema['$defs']['Reference'] = {'anyOf': choices}
 
+    def generate_business_planner(self, context, correction=None):
+        from .business_planner import Direction, SYSTEM
+        schema = Direction.model_json_schema()
+        self._planning_references(schema, {'profiles': context['table_catalog']})
+        self._table_choices(schema['properties']['priority_keys'], [i['key'] for i in context['plan']['investigations']])
+        self._table_choices(schema['properties']['evidence_keys'], [f['investigation_key'] for f in context['findings'] if f['status']=='candidate'])
+        if context['stage'] != 'delivery':
+            schema['properties']['action']['enum'] = ['guide', 'ask_owner', 'replan']
+        if not any(r['disposition']=='answered' for r in context['owner_replies']):
+            schema['properties']['action']['enum'].remove('replan')
+        return self._generate(context, correction, SYSTEM, schema)
+
     def generate_research(self, context, correction=None):
         schema = ResearchAction.model_json_schema()
         if 'plan' in context:
@@ -292,9 +304,11 @@ class ModelClient:
                 # A candidate is still unverified; a concrete unusable result may be blocked.
                 allowed = ['record_candidate', 'block']
                 unfinished, expandable = unrecorded_success, []
+            if context.get('budgets', {}).get('business_planner') and not unrecorded_success:
+                allowed.append('consult_business')
             if allowed:
                 schema['properties']['action']['enum'] = allowed
-                schema['properties']['investigation_key']['enum'] = list(dict.fromkeys(unfinished + expandable)) + ([''] if 'finish' in allowed or 'delegate' in allowed else [])
+                schema['properties']['investigation_key']['enum'] = list(dict.fromkeys(unfinished + expandable)) + ([''] if any(a in allowed for a in ('finish','delegate','consult_business')) else [])
                 if allowed == ['finish']:
                     for key in ('code', 'investigation_key'):
                         schema['properties'][key]['enum'] = ['']

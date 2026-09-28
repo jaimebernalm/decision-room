@@ -45,9 +45,11 @@ def prompt_context(snapshot, observations, findings, options, turns):
               'answers': snapshot['answers'], 'plan': snapshot['proposal'],
               'table_catalog': snapshot['tables'], 'observations': feedback, 'findings': findings,
               'coordination': snapshot.get('coordination'), 'delegations': snapshot.get('delegations', []),
+              'business_direction': snapshot.get('business_direction'),
               'budgets': {**options, 'model_turns_used': turns,
                           'attempts_used': {key: sum(o['investigation_key'] == key for o in observations)
                                             for key in latest}}}
-    if len(encoded(result).encode()) > 200000:
-        raise ResearchBudgetReached('Research context exceeds 200 KB; automatic compaction is not implemented yet.')
+    limit = options.get('max_context_bytes', 200000)
+    if len(encoded(result).encode()) > limit:
+        raise ResearchBudgetReached(f'Research context exceeds {limit // 1000} KB; automatic compaction is not implemented yet.')
     return result

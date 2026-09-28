@@ -709,3 +709,35 @@ CREATE TABLE IF NOT EXISTS agent_research_branches (
 ALTER TABLE agent_research_branches ADD COLUMN IF NOT EXISTS started_at timestamptz;
 ALTER TABLE agent_research_branches ADD COLUMN IF NOT EXISTS finished_at timestamptz;
 INSERT INTO schema_versions(version) VALUES (23) ON CONFLICT DO NOTHING;
+
+-- 3.7: durable business direction and owner clarification during research.
+ALTER TABLE agent_research DROP CONSTRAINT IF EXISTS agent_research_status_check;
+ALTER TABLE agent_research ADD CONSTRAINT agent_research_status_check
+    CHECK (status IN ('new','running','completed','partial','waiting','replan_required','failed','stale'));
+ALTER TABLE agent_research ADD COLUMN IF NOT EXISTS paused_seconds double precision NOT NULL DEFAULT 0;
+CREATE TABLE IF NOT EXISTS business_planner_events (
+    id uuid PRIMARY KEY,
+    research_id uuid NOT NULL,
+    business_id uuid NOT NULL,
+    ordinal integer NOT NULL,
+    checkpoint_key text NOT NULL,
+    stage text NOT NULL CHECK (stage IN ('initial','checkpoint','delivery')),
+    direction jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    FOREIGN KEY (business_id,research_id) REFERENCES agent_research(business_id,id),
+    UNIQUE (research_id,checkpoint_key), UNIQUE (research_id,ordinal),
+    UNIQUE (business_id,research_id,id)
+);
+CREATE TABLE IF NOT EXISTS business_planner_answers (
+    id uuid PRIMARY KEY,
+    event_id uuid NOT NULL UNIQUE,
+    research_id uuid NOT NULL,
+    business_id uuid NOT NULL,
+    disposition text NOT NULL CHECK (disposition IN ('answered','unknown','declined')),
+    text text NOT NULL,
+    request_key text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    FOREIGN KEY (business_id,research_id,event_id) REFERENCES business_planner_events(business_id,research_id,id),
+    UNIQUE (research_id,request_key)
+);
+INSERT INTO schema_versions(version) VALUES (24) ON CONFLICT DO NOTHING;

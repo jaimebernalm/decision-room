@@ -2,7 +2,7 @@
 
 Fecha: 27 de septiembre de 2026.
 
-**Estado, 28 de septiembre: pasos 3.1–3.5 completados; implementación y evaluación de 3.6 terminadas, con aceptación general de calidad todavía abierta.**
+**Estado, 28 de septiembre: pasos 3.1–3.5 completados; implementación y evaluación de 3.6–3.7 terminadas, con aceptación general de calidad todavía abierta.**
 Este documento desarrolla la entrega 3 del [plan de implementación](<Decision Room - Plan de implementacion.md>).
 La [evaluación inicial con una base sustancial](../validation/2026-09-27-substantial-baseline.md)
 aceptó cuatro de seis recorridos y conserva los fallos y límites observados.
@@ -415,3 +415,25 @@ acredita días de apertura ni cobertura completa. Contar también intentos falli
 correcciones, recuperación y revisión; no medir solo la última aprobación.
 
 **Cierre de implementación y evaluación de 3.6, 28 de septiembre:** [protocolo y criterios](../technical/quality-evaluation-plan.md) y [resultados completos](../validation/2026-09-27-quality-evaluation.md). Matriz de 16 intentos: ocho aprobados por el producto, cuatro aceptados independientemente. Lote posterior: una entrega aceptada de cuatro; dos revisiones HTTP 400 recuperadas y aceptadas sin repetir investigación. Se corrigen contratos de generación, preservación de evidencia, cobertura y entrega parcial; pasan 209 pruebas backend y 78 frontend, más controles específicos posteriores. La aceptación general de calidad sigue abierta: profundidad, cobertura consistente y concreción de acciones aún necesitan mejora. No se ha demostrado ventaja general del modo paralelo ni coste monetario completo.
+
+
+### 3.7 — Planificador de negocio y diálogo durante el análisis
+
+**Implementado y evaluado, 28 de septiembre.** [Plan técnico y registro de continuidad](../technical/business-planner-plan.md).
+Nuevo rol especializado que convierte el objetivo del usuario en un encargo,
+consulta el contexto y prioriza trabajo útil. El analista conserva la ejecución y
+la coordinación de subanalistas. Ambos se consultan en puntos relevantes; el
+planificador puede preguntar al cliente mediante el conversacional también durante
+la investigación. Las respuestas que cambian definiciones o alcance generan una
+planificación sucesora; las contextuales permiten continuar sin repetir las ramas.
+
+El usuario prioriza calidad sobre ahorro: presupuesto amplio con límites contra
+bucles, uso registrado y recuperación. Comparación contra el mismo sistema sin
+planificador, con idéntico presupuesto y fuentes, además de la referencia histórica
+3.6. Preparar encargos por objetivo sin afirmar que predicción o brainstorming
+analítico estén ya implementados.
+
+Validado con pruebas de integración y 24 intentos reales, más tres recuperaciones
+que conservan el trabajo. Hay mejoras puntuales, pero no se demuestra mejora general
+de calidad: persisten problemas de priorización, significado monetario y síntesis.
+Véanse [resultados y pendientes](../validation/2026-09-28-business-planner.md).

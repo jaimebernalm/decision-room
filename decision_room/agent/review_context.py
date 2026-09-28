@@ -67,6 +67,7 @@ def material(config, db, session, run):
             'review_issues': ledger(conversation) or (run['snapshot'].get('previous_review') or {}).get('issues', []), 'delivery_manifest': delivery_manifest(report, observations),
             'research_coverage': run['snapshot'].get('research_coverage'),
             'research_synthesis': run['snapshot'].get('research_synthesis'),
+            'business_direction': run['snapshot'].get('business_direction'),
             'delivery_capabilities': {'execution_artifact_downloads': False, 'chart_categories': 36, 'daily_line_points': 366,
                                       'claim_evidence_refs': 12, 'claims': 6, 'charts': 4,
                                       'surfaces': ['web_report', 'static_html']}, 'tables': run['snapshot']['tables'],
@@ -103,8 +104,9 @@ def model_context(materialized, role):
             item['result_omitted'] = True
     # Full conversation is retained. Exceeding the budget pauses safely, rather
     # than dropping an objection or silently presenting a truncated conversation.
-    if len(encoded(context).encode()) > 200000:
-        raise ValueError('Review context exceeds 200 KB; automatic compaction is not implemented.')
+    limit = context.get('budgets', {}).get('max_context_bytes', 200000)
+    if len(encoded(context).encode()) > limit:
+        raise ValueError(f'Review context exceeds {limit // 1000} KB; automatic compaction is not implemented.')
     return json.loads(encoded(context))
 
 

@@ -10,6 +10,21 @@ from decision_room.series import evidence_value
 
 
 class WireSchemaTests(unittest.TestCase):
+    def test_business_planner_question_references_and_actions_are_scoped(self):
+        client = ModelClient(ModelSettings('test'))
+        context = dict(stage='checkpoint', table_catalog=[dict(id='sales',column_names=['amount'])],
+                       plan={'investigations':[{'key':'q'}]}, findings=[], owner_replies=[])
+        with patch.object(client, '_generate', return_value=({}, {})) as request:
+            client.generate_business_planner(context)
+        schema = request.call_args.args[3]
+        self.assertEqual(schema['properties']['action']['enum'], ['guide','ask_owner'])
+        self.assertEqual(schema['properties']['evidence_keys']['maxItems'],0)
+        branches = schema['$defs']['Reference']['anyOf']
+        self.assertEqual([b['properties']['kind']['enum'][0] for b in branches], ['owner_context','table','column'])
+        column = branches[-1]['properties']
+        self.assertEqual(column['id']['enum'],['sales'])
+        self.assertEqual(column['column']['enum'],['amount'])
+
     def test_discovery_can_only_choose_actual_table_ids(self):
         client = ModelClient(ModelSettings('test'))
         with patch.object(client, '_generate', return_value=({}, {})) as request:

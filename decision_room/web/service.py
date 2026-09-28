@@ -579,6 +579,13 @@ class Workspace:
                 result['interpretations'] = [{'text': i['statement'], 'status': i['status']} for i in plan['revisions'][-1]['proposal']['interpretations']]
         if j['status'] == 'blocked' and j['phase'] == 'planning' and result.get('unresolved_questions'):
             result['issue'] = 'Falta una definición necesaria para calcular el informe: una aclaración se guardó como no disponible. Puedes completarla y usar los mismos archivos.'
+        if j['research_id']:
+            work = research.show(self.config,b,j['research_id'])
+            if not j['review_id']:
+                result['questions'] = [dict(**q,phase='research') for q in work['pending_questions']]
+            result['answers'] += [dict(text=a['text'],disposition=a['disposition'],question=a['question']['text'],references=a['question'].get('references',[])) for a in work['business_answers']]
+            if work['business_direction']:
+                result['activity'] = 'Estamos contrastando los hallazgos con tu objetivo y preparando las siguientes comprobaciones.'
         if j['review_id']:
             data = self.review_state(j)
             result['publishable'] = data['publishable']
@@ -774,8 +781,16 @@ class Workspace:
                     # Create the successor before driving it; sync recovers this link after a crash.
                     from ..agent.service import _create_session
                     from ..agent.persistence import session_lock
-                    with session_lock(self.config, b, j['session_id']):
-                        successor = _create_session(self.config, b, j['analysis_id'], owner_context=j['goal'] or 'Exploración general de la actividad disponible.',
+                    with session_lock(self.config, b, j['session_id']) as (db,session):
+                        context = j['goal'] or 'Exploración general de la actividad disponible.'
+                        if j['research_id']:
+                            from ..agent.business_planner import successor_context, save_answer
+                            old_work=db.execute('SELECT * FROM agent_research WHERE id=%s',(j['research_id'],)).fetchone()
+                            if j['pending_answer'] and j['pending_answer']['phase']=='research':
+                                a=j['pending_answer']
+                                save_answer(db,session,old_work,a['id'],a['text'],a['disposition'],a['request_key'])
+                            context=successor_context(db,old_work)
+                        successor = _create_session(self.config, b, j['analysis_id'], owner_context=context,
                             request_key='web-replan:' + str(j['session_id']), model=model, supersedes=j['session_id'])
                     self.update(job_id, session_id=successor['id'], research_id=None, review_id=None, pending_answer=None, phase='planning')
                     j = self.sync(job_id)
@@ -840,11 +855,26 @@ class Workspace:
                     return
                 j = self.sync(job_id)
                 self.update(job_id, phase='research')
+                if j['pending_answer'] and j['pending_answer']['phase']=='research':
+                    a=j['pending_answer']
+                    research.answer(self.config,b,j['research_id'],question_id=a['id'],text=a['text'],disposition=a['disposition'],request_key=a['request_key'],model=model,retry_uncertain=retry)
+                    self.update(job_id,pending_answer=None)
                 if j['research_id']:
                     work = research.resume(self.config, b, j['research_id'], model=model, retry_uncertain=retry)
                 else:
-                    work = research.start(self.config, b, plan['id'], request_key=key, model=model)
+                    work = research.start(self.config, b, plan['id'], request_key=key, model=model, business_planner=True, quality_first=True)
                 self.update(job_id, research_id=work['id'])
+                if work['pending_questions']:
+                    self.update(job_id,status='waiting',retry_uncertain=False)
+                    return
+                if work['status']=='replan_required':
+                    from ..agent.business_planner import successor_context
+                    with connect(self.config) as db:
+                        saved=db.execute('SELECT * FROM agent_research WHERE id=%s',(work['id'],)).fetchone()
+                        context=successor_context(db,saved)
+                    successor=planning.replan(self.config,b,plan['id'],owner_context=context,request_key='business-replan:'+str(work['id']),model=model)
+                    self.update(job_id,session_id=successor['id'],research_id=None,review_id=None,pending_answer=None,status='queued',phase='planning',retry_uncertain=False)
+                    return
                 if not any(f['status'] == 'candidate' for f in work['findings']):
                     self.update(job_id, status='blocked', issue='El análisis no produjo hallazgos que puedan pasar a revisión. Puedes crear otro análisis con una pregunta más concreta o datos adicionales.')
                     return

@@ -14,6 +14,14 @@ QUALITY BY OWNER INTENT (interpret the actual request, not file names or keyword
   and investigate one useful finer breakdown when feasible. Explain why it merits
   attention relative to other signals. Name the segment and evidence to check next;
   distinguish an arithmetic contribution from an unproven commercial cause.
+  Highest volume alone is not an explanation of why to act there first. State why
+  the selected contrast merits attention relative to other observed signals.
+  A useful next check names the segment/period, the specific missing operational
+  fact and how it could change the decision or distinguish possible explanations.
+  Conditional hypotheses are allowed when clearly unconfirmed; never state them
+  as causes. Repeating 'verify source records/coverage' for every finding does not
+  fulfil a request for business opportunities or problems. If context is unknown,
+  give that concrete conditional check instead of inventing it or asking again.
 - Concrete question: answer each requested component directly, including changes
   in amounts versus percentage points where applicable. Extra exploration is
   optional, never a substitute for the requested answer.
