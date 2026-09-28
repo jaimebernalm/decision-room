@@ -33,6 +33,8 @@ mantiene en los archivos Markdown enlazados arriba.
 - [Informe del cliente y gráficos con evidencia](technical/client-report.md).
 - [Evaluación integrada y repeticiones, paso 1.7](technical/evaluation-plan.md).
 - [Aplicación web local, entrega 2](technical/web.md).
+- [Actividad en directo y monitor interno, 3.8](technical/live-investigation.md).
+- [Diseño y cierre de los ocho incrementos de 3.8](technical/live-investigation-plan.md).
 - [Diseño y alcance de la experiencia web](technical/web-plan.md).
 - [Memoria del negocio y experiencia cotidiana, entrega 2.5](technical/business-memory-plan.md): identidad, memoria versionada y contexto compartido implementados; chats y nueva experiencia pendientes.
 - [Ejecución incremental de los siete pasos de 2.5](technical/business-memory-implementation.md): incrementos, dependencias, archivos afectados y comprobaciones para implementar poco a poco.
@@ -42,6 +44,8 @@ mantiene en los archivos Markdown enlazados arriba.
 - [Búsqueda híbrida con OpenAI embeddings y pgvector](technical/semantic-retrieval.md).
 
 ## Comprobaciones realizadas
+
+- [Actividad, acceso interno, recuperación y Bruma real, 3.8](validation/2026-09-28-live-investigation.md).
 
 - [Ingesta de las 48 tablas de WWI](validation/2026-09-21-ingestion-check.md).
 - [Aislamiento, cálculos y bibliotecas](validation/2026-09-21-sandbox-check.md).

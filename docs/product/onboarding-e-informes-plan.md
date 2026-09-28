@@ -4,7 +4,7 @@ Fecha: 27 de septiembre de 2026.
 
 **Estado, 28 de septiembre: pasos 3.1–3.5 completados; implementación y evaluación de 3.6–3.7 terminadas, con aceptación general de calidad todavía abierta.**
 
-**3.8 planificado; implementación pendiente:** [actividad del cliente y monitor interno](../technical/live-investigation-plan.md).
+**3.8 implementado y validado:** [actividad del cliente y monitor interno](../technical/live-investigation.md), con [pruebas funcionales y Bruma real](../validation/2026-09-28-live-investigation.md). La aceptación analítica sigue abierta.
 
 Este documento desarrolla la entrega 3 del [plan de implementación](<Decision Room - Plan de implementacion.md>).
 La [evaluación inicial con una base sustancial](../validation/2026-09-27-substantial-baseline.md)
@@ -347,7 +347,7 @@ completados**; el paso **3.4 está completado** y **3.5 está completado**. La i
 | 3.5 | Analistas en paralelo coordinados por el analista principal, con evidencia compartida y presupuesto global. | Ramas independientes concurrentes, dependencias respetadas, resultados reconciliados y recuperación sin duplicaciones. Registrar calidad, tiempo y coste, conservando un modo secuencial comparable para 3.6. |
 | 3.6 | Selección y revisión adaptadas al objetivo; evaluación completa repetida, incluida la ejecución paralela de 3.5. | Comparación frente a 3.1 y entre ejecución secuencial y paralela sobre los mismos casos y presupuestos comparables. Medir exactitud, utilidad, cobertura, tiempo total, tokens y coste; entregas útiles para cada intención y ausencia de errores materiales en los casos de aceptación. |
 | 3.7 — Implementado y evaluado | Planificador de negocio, diálogo con el analista y preguntas durante la investigación; presupuesto amplio. | Capacidad comprobada; mejora general de calidad no demostrada. [Resultados de 24 intentos y tres recuperaciones](../validation/2026-09-28-business-planner.md). |
-| 3.8 — Planificado | Línea de actividad del cliente con enfoque e historial; monitor interno de agentes, tareas, cálculos e intercambios. | Eventos reales y duraderos, acceso interno independiente, recuperación sin duplicación, pruebas de interfaz y demostración con Bruma. [Plan detallado](../technical/live-investigation-plan.md). |
+| 3.8 — Completado | Línea de actividad del cliente con enfoque e historial; monitor interno de agentes, tareas, cálculos e intercambios. | Eventos reales y duraderos, acceso interno independiente, recuperación sin duplicación, 92 pruebas de interfaz y Bruma real con tres subanalistas. [Validación](../validation/2026-09-28-live-investigation.md). |
 
 En cada paso: cambios acotados, comprobaciones apropiadas, resultados documentados
 y commit local. No marcar un paso como completado por haber escrito este plan.
@@ -445,8 +445,9 @@ Véanse [resultados y pendientes](../validation/2026-09-28-business-planner.md).
 
 ### 3.8 — Actividad del cliente y monitor interno en directo
 
-**Planificado el 28 de septiembre; implementación pendiente.** El [plan técnico](../technical/live-investigation-plan.md)
-concreta el comportamiento acordado y ocho incrementos con pruebas y criterios de cierre.
+**Implementado y validado el 28 de septiembre.** El [plan técnico](../technical/live-investigation-plan.md)
+registra los ocho incrementos completados. Véanse [uso y contratos](../technical/live-investigation.md) y
+[pruebas, demostración y límites](../validation/2026-09-28-live-investigation.md).
 
 El cliente ve una línea que explica qué se está investigando y para qué, desplegable
 para consultar lo ya realizado y abrir datos relacionados. El historial permanece
@@ -455,8 +456,8 @@ El monitor interno muestra actores reales, tareas delegadas, consultas entre
 planificador y analista, cálculos, evidencia, revisión y consumo conocido.
 
 Los dos recorridos comparten eventos persistentes con proyecciones y permisos
-distintos. El plan exige controlar concurrencia, reintentos, caché, replanteación,
+distintos. Se comprobaron concurrencia, reintentos, caché, replanteación,
 sesiones antiguas, publicación y obsolescencia. Incluye acceso interno independiente,
 pruebas automáticas y demostración real dirigida con Bruma, sin repetir la matriz
-de calidad de 3.7. El implementador debe resolver problemas encontrados y registrar
-adaptaciones y evidencia, manteniendo estos criterios de producto.
+de calidad de 3.7. La medición local hasta pantalla fue 1,54 s. El cierre de observabilidad
+no cierra la aceptación de calidad analítica.

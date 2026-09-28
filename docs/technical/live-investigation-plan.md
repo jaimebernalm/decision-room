@@ -1,9 +1,9 @@
 # 3.8 — Actividad para el cliente y monitor interno de investigación
 
-**Estado:** implementación en curso; 3.8.1 comprobado.  
+**Estado:** implementado y validado; incrementos 3.8.1–3.8.8 completados.  
 **Fecha:** 28 de septiembre de 2026.  
 **Base inspeccionada:** `3eaa3ae`, rama `feature/insights-pipeline`.  
-**Destino:** guía de implementación para el siguiente agente, incluido GPT-6 Sol.  
+**Destino:** diseño ejecutado y guía de continuidad; [contratos finales y uso](live-investigation.md).  
 **Enlaces:** [plan general](../product/Decision%20Room%20-%20Plan%20de%20implementacion.md), [onboarding e informes](../product/onboarding-e-informes-plan.md), [3.7](business-planner-plan.md), [resultados de 3.7](../validation/2026-09-28-business-planner.md).
 
 El checkout de referencia al redactar está en `.local/insights-pipeline-worktree` respecto al repositorio principal. Confirmarlo con `git worktree list` y `git status --short --branch`; no editar por accidente otro checkout compartido si la siguiente tarea arranca en la raíz principal.
@@ -19,7 +19,7 @@ La línea del cliente combina enfoque actual e historial de tareas terminadas. E
 
 El usuario prioriza buen producto y calidad sobre ahorro. La observabilidad no debe reducir el presupuesto de investigación. Tampoco debe consumir nuevas llamadas al modelo para narrar cada evento: aprovechar las tareas y decisiones explícitas ya generadas. Este paso no demuestra ni pretende cerrar la mejora de calidad pendiente de 3.7.
 
-**Autorización de esta entrega documental:** preparar el plan. La implementación se hará en una tarea posterior. No marcar 3.8 como implementado por haber creado este documento.
+**Autorización:** el usuario solicitó implementar este plan. Implementación completada en el checkout asignado; [evidencia y límites](../validation/2026-09-28-live-investigation.md). El cierre funcional no acepta la calidad analítica de 3.7.
 
 ## 2. Instrucciones al agente que lo implemente
 
@@ -260,43 +260,43 @@ Crear contratos de eventos/estados/referencias, esquema incremental, escritor id
 
 **Salida:** migración vacía y desde esquema previo; dos productores concurrentes sin pérdida; rollback sin evento ficticio; reejecución idempotente; aislamiento entre negocios. Documento del contrato final y decisión de secuenciación.
 
-### [ ] 3.8.2 — Instrumentación completa del recorrido
+### [x] 3.8.2 — Instrumentación completa del recorrido
 
 Conectar productores de §7, pasando contexto al hilo de cada subanalista. Incorporar inicios duraderos de llamadas/cálculos, intentos, preguntas, revisión y publicación. Añadir heartbeat/reconciliación. No cambiar selección de ramas, modelos, límites o política de revisión para conseguir una animación mejor.
 
 **Salida:** recorrido guionizado con dos ramas, consulta al planificador, pregunta, respuesta, revisión y entrega; ver eventos intermedios desde otra conexión antes de acabar. Verificar que abrir/cerrar observadores no altera número de llamadas, ejecuciones ni resultado. Una llamada de varias decenas de segundos sigue visible durante su espera.
 
-### [ ] 3.8.3 — Proyección pública y API incremental
+### [x] 3.8.3 — Proyección pública y API incremental
 
 Implementar resumen de enfoque, estado agregado, cursor/páginas, detalle público y datos relacionados. Dar formato a tareas y agrupar operaciones técnicas. Añadir tests de campos exactos permitidos y de ausencia de contenido interno en toda la respuesta.
 
 **Salida:** job/turno resuelven la misma historia; reconexión y paginación recuperan eventos sin pérdidas/duplicados; replan conserva cadena y obsolescencia; GET no inicia llamadas, cálculos, reintentos ni escrituras de eventos.
 
-### [ ] 3.8.4 — Componente del cliente e integración
+### [x] 3.8.4 — Componente del cliente e integración
 
 Crear `frontend/src/components/workspace/analysis-activity.tsx` y hook compartido (nombres adaptables). Integrar chat, `JobPage`, `FirstReportProgress` y acceso desde informe terminado. Reutilizar Collapsible/Sheet y el estilo existente. Adaptar acceso a datos al contexto de tarea sin simular una pregunta al usuario.
 
 **Salida:** línea estable, propósito, historial persistente, paralelismo agrupado, pregunta en el chat con datos, final/parcial/fallo coherentes. Pruebas de teclado, 375 px, escritorio, modo oscuro, reconexión y no duplicar polling ni spinners.
 
-### [ ] 3.8.5 — API interna y control de acceso
+### [x] 3.8.5 — API interna y control de acceso
 
 Implementar flag de activación, clave/cookie independiente, rutas tipadas y acceso por proceso a llamadas/cálculos/eventos. Desacoplar la ruta interna del onboarding del cliente. Añadir pruebas negativas antes de conectar la UI.
 
 **Salida:** sesión cliente no accede al monitor; desactivado no responde datos; detalles de otro proceso/negocio se rechazan; secretos canario ausentes; lectura interna no altera selección ni ejecución.
 
-### [ ] 3.8.6 — Monitor interno
+### [x] 3.8.6 — Monitor interno
 
 Construir lista y filtros, mapa con actores/tareas reales, timeline y panel de detalle. Usar CSS/SVG y componentes existentes para el mapa; no incorporar un editor de grafos si no hace falta. Timeline accesible como alternativa al mapa. Datos grandes bajo demanda; consultas ligeras durante seguimiento.
 
 **Salida:** seguir dos ramas en paralelo, abrir consulta planificador↔analista, localizar un cálculo y su evidencia, revisar objeción/corrección, ver tokens conocidos e incertidumbres. Un clic desde evento público interno localiza el evento de origen. Refrescar mantiene filtro, selección e historial.
 
-### [ ] 3.8.7 — Recuperación, rendimiento y demostración real
+### [x] 3.8.7 — Recuperación, rendimiento y demostración real
 
 Ejecutar matriz de §10 con PostgreSQL y sandbox reales donde corresponda. Realizar un informe nuevo de Bruma en negocio/dataset de prueba aislados. Seguir simultáneamente cliente e interno y conservar mediciones/evidencia de la ejecución. La pregunta del planificador puede no ocurrir naturalmente: cubrirla con escenario determinista, y declarar cuál fue real.
 
 **Salida:** evidencia visual del cliente plegado/desplegado, datos de pregunta, dos agentes activos, consulta y revisión; registro de IDs/eventos y latencia medida. Si el informe falla o queda bloqueado, conservarlo y comprobar que ambas vistas lo dicen correctamente. No repetir hasta obtener una captura favorable ni afirmar mejora de calidad del informe por este paso.
 
-### [ ] 3.8.8 — Revisión y cierre
+### [x] 3.8.8 — Revisión y cierre
 
 Revisar diff, controles de acceso, tamaño de respuestas, compatibilidad de sesiones anteriores y efectos sobre el recorrido del cliente. Crear `docs/validation/<fecha>-live-investigation.md` con comandos, resultados, capturas locales y límites. Actualizar este documento y ambos planes de producto sin alterar los resultados históricos de 3.7. Revisar staged para secretos/rutas/datasets privados; commit local y comunicar hash y comprobaciones.
 
@@ -356,35 +356,37 @@ Añadir regresión de ejecución/revisión/memoria si se tocan esas zonas. Tras 
 
 ## 11. Criterios para darlo por terminado
 
-- [ ] El cliente ve enfoque actual real e historial plegable sin recibir mensajes internos.
-- [ ] Chat, onboarding e informe comparten proceso y componente; no hay spinners o suscripciones duplicadas.
-- [ ] Datos y preguntas conservan referencias, versión y continuidad de conversación.
-- [ ] El monitor muestra actores/ramas reales, intercambios explícitos, cálculos, revisión y uso conocido.
-- [ ] Acceso interno independiente comprobado por servidor; cliente no puede consultar detalles internos.
-- [ ] Pausas, errores, reintentos, caché, paralelismo, sucesores y obsolescencia se representan correctamente.
-- [ ] Eventos duraderos y ordenados; paginación/reconexión no pierden trabajo; GET no ejecuta acciones.
-- [ ] El observador no cambia decisiones, llamadas ni cálculos; fallos de telemetría quedan señalados y recuperables.
-- [ ] Pruebas relevantes pasan, demostración visual y ejecución real registradas, límites explícitos.
-- [ ] Migración/compatibilidad verificadas; documentación y commits locales revisados; sin datos privados en Git.
+- [x] El cliente ve enfoque actual real e historial plegable sin recibir mensajes internos.
+- [x] Chat, onboarding e informe comparten proceso y componente; no hay spinners o suscripciones duplicadas.
+- [x] Datos y preguntas conservan referencias, versión y continuidad de conversación.
+- [x] El monitor muestra actores/ramas reales, intercambios explícitos, cálculos, revisión y uso conocido.
+- [x] Acceso interno independiente comprobado por servidor; cliente no puede consultar detalles internos.
+- [x] Pausas, errores, reintentos, caché, paralelismo, sucesores y obsolescencia se representan correctamente.
+- [x] Eventos duraderos y ordenados; paginación/reconexión no pierden trabajo; GET no ejecuta acciones.
+- [x] El observador no cambia decisiones, llamadas ni cálculos; fallos de telemetría quedan señalados y recuperables.
+- [x] Pruebas relevantes pasan, demostración visual y ejecución real registradas, límites explícitos.
+- [x] Migración/compatibilidad verificadas; documentación y commits locales revisados; sin datos privados en Git.
 
 Fuera del cierre obligatorio: replay animado, exportación pública de trazas, mando para pausar/cancelar agentes, ejecución manual de código desde monitor, proveedor externo de trazas, predicciones, brainstorming y otra ronda de mejoras analíticas. Si durante implementación se detecta un defecto real del recorrido que impide cumplir lo anterior, corregirlo y registrar su prueba.
 
 ## 12. Registro de continuidad para compactación
 
-**Continuidad vigente:** implementación autorizada. Base `2063fc5`, checkout `feature/insights-pipeline`. Esquema 25 y escritor de eventos comprobados; siguiente incremento 3.8.2: instrumentación. Las pruebas usan bases temporales; no se ha migrado ni reiniciado la vista del usuario. Cinco pruebas de `test_activity` pasan. La aceptación analítica de 3.7 sigue abierta.
+**Continuidad vigente:** 3.8 implementado y validado. Base de implementación `2063fc5`, rama `feature/insights-pipeline`. Esquema 25, PostgreSQL y sandbox reales. No se migró ni reinició la vista original de 8791. Demostración aislada en 8792: job `44717add-6254-409f-af3c-7e103deebf9c`, trace `bf5bb200-1851-55a4-8df3-04258980d36f`, Bruma ficticio, una creación y reanudación del mismo job. Resultado aprobado; 22 llamadas, tres cálculos, tres subanalistas, cuatro consultas al planificador. La aceptación analítica de 3.7 sigue abierta.
 
-Al empezar implementación, actualizar este bloque con: commit base real, incremento activo, archivos tocados, decisiones adaptadas, comandos/estado de pruebas, IDs de procesos de prueba sin secretos, servidor/esquema usados, errores pendientes y siguiente acción concreta. Mantener artefactos privados en `.local/` y documentos versionables sin rutas personales.
+El cliente y el monitor están implementados sobre eventos compartidos y proyecciones distintas. Polling incremental de 2 s; monitor desactivado por defecto, clave/cookie independiente, GET sin efectos. Worker sampler y mantenimiento explícito; reconstrucción identificada. Detalle estructurado bajo demanda y acotado. Tokens desconocidos se declaran; no se calcula precio monetario. Ver [uso y contrato final](live-investigation.md) y [validación completa](../validation/2026-09-28-live-investigation.md).
 
-| Incremento | Estado inicial | Evidencia/commit al completarlo |
+| Incremento | Estado final | Evidencia/commit |
 |---|---|---|
-| Plan documental | Completado; código de referencia, enlaces y consistencia revisados | Commit comunicado en la respuesta de entrega |
-| 3.8.1 Contratos/persistencia | Completado | Cinco pruebas PostgreSQL: secuencia concurrente, rollback, idempotencia, aislamiento, savepoint y filtrado diagnóstico. |
-| 3.8.2 Instrumentación | Pendiente | — |
-| 3.8.3 API pública | Pendiente | — |
-| 3.8.4 Cliente | Pendiente | — |
-| 3.8.5 Acceso/API interna | Pendiente | — |
-| 3.8.6 Monitor | Pendiente | — |
-| 3.8.7 Validación integrada | Pendiente | — |
-| 3.8.8 Cierre | Pendiente | — |
+| Plan documental | Completado | `2063fc5` |
+| 3.8.1 Contratos/persistencia | Completado | `551902a`; migración, orden por commit, savepoint, aislamiento. Pruebas ampliadas en `4eb62ac`. |
+| 3.8.2 Instrumentación | Completado | `4eb62ac`; llamadas lentas visibles, ramas, preguntas, revisión, transporte y reconstrucción. |
+| 3.8.3 API pública | Completado | `4eb62ac`; snapshots/cursor, whitelist, continuidad y GET sin efectos. |
+| 3.8.4 Cliente | Completado | `274b5ac`; historial compartido, datos, chat/onboarding/informes y móvil. |
+| 3.8.5 Acceso/API interna | Completado | `4eb62ac`, `bc0cdc6`; flag, cookie/clave independientes, detalles acotados y evento exacto autorizado. |
+| 3.8.6 Monitor | Completado | `274b5ac`, `bc0cdc6`; actores reales, filtros, evento exacto, intercambios, cálculos y recursos. |
+| 3.8.7 Validación integrada | Completado | 21 pruebas específicas más 7 del monitor final, regresiones de 122 y 54, 92 UI, build/lint, Bruma real y latencia visible de 1,54 s. Los conjuntos se solapan. |
+| 3.8.8 Cierre | Completado | Documentación de uso/validación, planes actualizados, revisión de staged y commits locales. Sin push. |
 
-Validación de esta entrega documental: 133 enlaces locales comprobados entre los tres documentos afectados, bloques de código equilibrados, ocho incrementos pendientes, diff sin errores de espacios y revisión de staged sin rutas personales ni credenciales. No se ejecutan pruebas del producto por este cambio de documentación.
+Correcciones finales: pregunta inicial fechada desde revisión, metadata de intentos preservada, duración fijada al fin del dominio, actor del redactor unificado, numeración solo de subanalistas, caché interna borrada al caducar autorización, ScrollArea sin ensanchar móvil e historial único para turnos del mismo proceso. El detalle localiza el evento seleccionado incluso fuera del historial reciente. Pruebas y demostración guardadas; archivos privados permanecen en `.local/evaluation/live-38/` e ignorados por Git.
+
+No quedan defectos conocidos bloqueantes del alcance 3.8. La siguiente decisión de producto sigue siendo la calidad y utilidad analítica; no usar este cierre como evidencia de mejora de insights. No modificar ni mezclar las generaciones históricas de 3.7.
