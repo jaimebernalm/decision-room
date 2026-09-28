@@ -130,3 +130,21 @@ class MonitorTests(unittest.TestCase):
             self.assertEqual(result['http_attempts'],1)
             self.assertEqual(result['unknown_http_calls'],result['logical_calls']-1)
             self.assertLessEqual(result['provider_wait_seconds'],10)
+
+    def test_event_detail_locates_older_origin_and_rejects_foreign_task_event(self):
+        job=self.create()
+        with connect(self.config) as db:
+            trace=store.linked(db,self.business['id'],'job',job)
+            for i in range(25):
+                task=store.append(db,self.business['id'],trace,kind='inspection',source_id='repeated-task',status='completed',
+                    public_text=f'Comprobación {i}',dedupe_key=f'origin-{i}')
+            selected=db.execute("SELECT id,sequence FROM activity_events WHERE trace_id=%s AND dedupe_key='origin-0'",(trace,)).fetchone()
+            store.append(db,self.business['id'],trace,kind='inspection',source_id='another-task',status='completed',public_text='Otra tarea',dedupe_key='another-task')
+            foreign=db.execute("SELECT id FROM activity_events WHERE trace_id=%s AND dedupe_key='another-task'",(trace,)).fetchone()['id']
+        client,_=self.http();client.post('/api/internal/login',json={'token':'operator-test-key'})
+        url=f'/api/internal/investigations/{trace}/tasks/{task}'
+        result=client.get(url,params={'event_id':str(selected['id'])})
+        self.assertEqual(result.status_code,200)
+        self.assertEqual(result.json()['content']['selected_event']['sequence'],selected['sequence'])
+        self.assertEqual(len(result.json()['content']['events']),20)
+        self.assertEqual(client.get(url,params={'event_id':str(foreign)}).status_code,404)

@@ -125,13 +125,18 @@ def bounded(value):
     return {'content':safe,'truncated':limited(value)} if len(raw.encode())<=64000 else {'content':raw[:16000],'truncated':True}
 
 
-def detail(ws,trace_id,kind,object_id):
+def detail(ws,trace_id,kind,object_id,*,event_id=None):
     with connect(ws.config) as db:
         root=authorized(db,trace_id);business,trace=root['business_id'],root['id']
         if kind=='tasks':
             task=db.execute('SELECT * FROM activity_tasks WHERE business_id=%s AND trace_id=%s AND id=%s',(business,trace,identifier(object_id))).fetchone()
             if not task: raise WebError('Tarea no encontrada en este proceso.',404)
             source=task['source'];content={'task':projection.public_task(task),'source':source}
+            if event_id:
+                selected=db.execute('SELECT id,sequence,type,status,payload,occurred_at,recorded_at,reconstructed FROM activity_events WHERE business_id=%s AND trace_id=%s AND task_id=%s AND id=%s',
+                                    (business,trace,task['id'],identifier(event_id))).fetchone()
+                if not selected: raise WebError('Evento no encontrado en esta tarea.',404)
+                content['selected_event']=selected
             sk=source.get('kind')
             if sk=='call':
                 call=db.execute('SELECT phase,prompt_version,context_payload,output,usage,status,issue FROM agent_calls WHERE id=%s',(source['id'],)).fetchone()
@@ -166,5 +171,5 @@ def detail(ws,trace_id,kind,object_id):
             source_kind='call' if kind=='calls' else 'execution'
             task=db.execute("SELECT id FROM activity_tasks WHERE business_id=%s AND trace_id=%s AND source->>'kind'=%s AND source->>'id'=%s",(business,trace,source_kind,str(identifier(object_id)))).fetchone()
             if not task: raise WebError('Registro no encontrado en este proceso.',404)
-            return detail(ws,trace_id,'tasks',str(task['id']))
+            return detail(ws,trace_id,'tasks',str(task['id']),event_id=event_id)
         raise WebError('Detalle interno no encontrado.',404)

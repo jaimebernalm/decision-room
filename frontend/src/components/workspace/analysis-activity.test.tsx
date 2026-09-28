@@ -102,6 +102,7 @@ it('filters real actors and activities, opens evidence and preserves selection a
  await userEvent.selectOptions(screen.getByLabelText('Filtrar tipo de actividad'),'execution');
  expect(screen.queryByRole('button',{name:/Investigación del canal/})).toBeNull();
  await userEvent.click(screen.getByRole('button',{name:/Cálculo guardado/}));await screen.findByText(/result = sum\(rows\)/);
+ expect(vi.mocked(globalThis.fetch).mock.calls.some(([url])=>String(url).endsWith('/tasks/task?event_id=event'))).toBe(true);
  await userEvent.click(screen.getByRole('button',{name:'Actualizar'}));
  expect(screen.getByLabelText('Filtrar tipo de actividad')).toHaveValue('execution');
  expect(screen.getByText(/result = sum\(rows\)/)).toBeInTheDocument();

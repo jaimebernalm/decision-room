@@ -206,7 +206,7 @@ class Handler(BaseHTTPRequestHandler):
                     self.send(200, internal_monitor.read(ws, parts[3], query))
                     return
                 if len(parts) == 6 and parts[:3] == ['api','internal','investigations']:
-                    self.send(200, internal_monitor.detail(ws, parts[3], parts[4], parts[5]))
+                    self.send(200, internal_monitor.detail(ws, parts[3], parts[4], parts[5], event_id=query.get('event_id', [None])[0]))
                     return
                 raise WebError('Operación interna no encontrada.', 404)
             if not self.authenticated():

@@ -65,6 +65,7 @@ function Investigation({ trace,onUnauthorized }: { trace:string;onUnauthorized:(
   const [actor,setActor] = useState("");const [phase,setPhase] = useState("");const [errorsOnly,setErrorsOnly] = useState(false);const [selected,setSelected] = useState<string | null>(null);
   const [detail,setDetail] = useState<{content:unknown;truncated:boolean} | null>(null);const [detailError,setDetailError] = useState("");
   const action = useAction();
+  const [selectedEvent,setSelectedEvent] = useState<string | null>(null);
   const actors = new Map<string,{role:string;status:string;taskIds:Set<string>;parents:Set<string>}>();
   const taskActor = new Map(data?.actors?.map((a) => [a.task_id,a.id]));
   data?.actors?.forEach((a) => {
@@ -76,10 +77,10 @@ function Investigation({ trace,onUnauthorized }: { trace:string;onUnauthorized:(
   const tasks = new Map(activity.tasks.map((t) => [t.id,t]));
   const phases = [...new Set(activity.tasks.map((t) => t.kind))].sort();
   const events = activity.events.filter((e) => (!actor || actors.get(actor)?.taskIds.has(e.task_id)) && (!phase || tasks.get(e.task_id)?.kind===phase) && (!errorsOnly || ['failed','interrupted','retry_wait'].includes(e.status)));
-  async function select(taskId:string) {
+  async function select(taskId:string,eventId:string) {
     if (action.busy) return;
-    setSelected(taskId);setDetail(null);setDetailError('');
-    await action.run(async () => {try {const result=await api<{content:unknown;truncated:boolean}>(`${base}/tasks/${taskId}`);setDetail(result);} catch(error) {if (error instanceof ApiError && error.status===401) onUnauthorized();setDetailError((error as Error).message);}});
+    setSelected(taskId);setSelectedEvent(eventId);setDetail(null);setDetailError('');
+    await action.run(async () => {try {const result=await api<{content:unknown;truncated:boolean}>(`${base}/tasks/${taskId}?event_id=${encodeURIComponent(eventId)}`);setDetail(result);} catch(error) {if (error instanceof ApiError && error.status===401) onUnauthorized();setDetailError((error as Error).message);}});
   }
   return <>
     <Button asChild variant="ghost" className="mb-4"><a href="#internal/investigations"><ArrowLeft />Todos los procesos</a></Button>
@@ -107,7 +108,7 @@ function Investigation({ trace,onUnauthorized }: { trace:string;onUnauthorized:(
           {actor && <Button variant="ghost" size="sm" onClick={() => setActor('')}>Ver todos los agentes</Button>}
           {data.previous_cursor && <Button variant="outline" size="sm" disabled={activity.loadingOlder} onClick={() => void activity.loadOlder()}>Cargar eventos anteriores</Button>}
           <ol className="mt-3 max-h-[65vh] space-y-1 overflow-auto" aria-label="Eventos registrados">
-            {events.map((e) => <li key={e.id}><button onClick={() => void select(e.task_id)} className={`w-full rounded-md px-3 py-2 text-left text-sm ${selected===e.task_id ? 'bg-primary/10' : 'hover:bg-muted'}`}>
+            {events.map((e) => <li key={e.id}><button onClick={() => void select(e.task_id,e.id)} className={`w-full rounded-md px-3 py-2 text-left text-sm ${selectedEvent===e.id ? 'bg-primary/10' : 'hover:bg-muted'}`}>
               <span className="mr-2 text-xs text-muted-foreground">#{e.sequence} · {new Date(e.recorded_at).toLocaleTimeString()}</span><span>{e.text || tasks.get(e.task_id)?.text || e.type}</span>
               <span className="mt-1 block text-xs text-muted-foreground">{statuses[e.status] || e.status} · {e.type}{e.reconstructed ? ' · Reconstruido desde el registro' : ''}</span>
             </button></li>)}
