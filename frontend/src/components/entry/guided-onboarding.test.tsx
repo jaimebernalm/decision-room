@@ -104,6 +104,7 @@ function fixture(stage: SetupSession["stage"] = "goal") {
         limitations: [],
         no_chart_reason: "Sin gráfico",
       });
+    if (url.startsWith("/api/jobs/job/activity")) return response({schema_version:1,trace_id:"job-trace",status:"running",headline:"Contrastando los resultados",terminal:false,history_complete:true,task_updates:[],active_tasks:[],events:[],next_cursor:"job-trace:0",previous_cursor:null,has_more:false,worker_health:"live"});
     if (url === "/api/jobs/job")
       return response({
         id: "job",

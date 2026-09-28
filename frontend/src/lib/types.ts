@@ -236,6 +236,7 @@ export type Turn = {
   report_outdated?: boolean;
   report_requested?: boolean;
   job_id?: string;
+  activity_trace_id?: string | null;
   can_retry?: boolean;
   questions?: Question[];
   context_changed_before?: boolean;
@@ -259,6 +260,7 @@ export type Job = Analysis & {
   phase: string;
   issue?: string;
   activity?: string;
+  activity_trace_id?: string | null;
   publishable: boolean;
   origin: string;
   byte_count: number;
@@ -339,6 +341,7 @@ export type SetupSession = {
   analysis_id?: string;
   brief?: SetupBrief;
   job_id?: string;
+  activity_trace_id?: string | null;
   publishable?: boolean;
   job_status?: string;
   context_stale?: boolean;

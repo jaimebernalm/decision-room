@@ -585,18 +585,7 @@ function FirstReportProgress({ id }: { id: string }) {
       {!job && !error && <Busy />}
       {job && (
         <>
-          <p className="text-sm">
-            {["queued", "running"].includes(job.status)
-              ? job.activity ||
-                "Analizando los datos y revisando los resultados…"
-              : job.status === "waiting"
-                ? "Responde a la aclaración en esta conversación para continuar."
-                : job.publishable
-                  ? "El informe ha superado la revisión."
-                  : job.can_retry
-                    ? "La revisión se ha detenido. Pulsa Reintentar en el mensaje anterior para continuar con los cálculos guardados."
-                    : job.issue || "El informe necesita atención."}
-          </p>
+          <p className="text-sm text-muted-foreground">Puedes seguir las comprobaciones y las aclaraciones en esta conversación.</p>
           <p className="text-sm whitespace-pre-wrap">{job.context}</p>
           {job.goal && <p className="text-sm">Objetivo: {job.goal}</p>}
         </>

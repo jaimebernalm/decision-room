@@ -1,3 +1,4 @@
+import { AnalysisActivity } from "./analysis-activity";
 import { useRef, useState, type ReactNode } from "react";
 import { FileText, RotateCcw, ArrowUpRight } from "lucide-react";
 import {
@@ -36,7 +37,6 @@ import {
   Status,
   ChoiceSelect,
   Disclosure,
-  Busy,
 } from "./shared";
 import { ReportView } from "./report";
 import { useAssistant } from "@/lib/assistant";
@@ -300,6 +300,10 @@ export function ChatPage({
       }
     });
   const data = resource.data;
+  // Answers to owner questions can create several turns for the same process.
+  // Keep its durable activity at the latest turn instead of repeating the panel.
+  const activityOwners = new Map<string,string>();
+  data?.turns.forEach((turn) => activityOwners.set(turn.activity_trace_id || turn.job_id || turn.id,turn.id));
   const latest = data?.turns.at(-1);
   const setupQuestion =
     latest?.status === "completed"
@@ -367,23 +371,12 @@ export function ChatPage({
                         />
                       )}
                       <Notice error>{turn.historical ? "" : turn.issue}</Notice>
-                      {["queued", "routing", "processing"].includes(
-                        turn.status,
-                      ) && (
-                        <div
-                          role="status"
-                          className="flex items-center gap-2 text-sm text-muted-foreground"
-                        >
-                          <Busy />
-                          {queuePosition(data.turns, index)
-                            ? `En cola · posición ${queuePosition(data.turns, index)}`
-                            : turn.status === "queued"
-                              ? "Preparando tu pregunta…"
-                              : turn.status === "routing"
-                                ? "Preparando respuesta…"
-                                : "Analizando los datos…"}
-                        </div>
-                      )}
+                      {activityOwners.get(turn.activity_trace_id || turn.job_id || turn.id)===turn.id && <AnalysisActivity
+                        endpoint={turn.job_id ? `/api/jobs/${turn.job_id}/activity` : `/api/chats/${id}/turns/${turn.id}/activity`}
+                        traceId={turn.activity_trace_id}
+                        onQuestion={(questionId) => { setQuestion(questionId);requestAnimationFrame(() => { const input=document.querySelector<HTMLTextAreaElement>('textarea[placeholder="Escribe tu aclaración…"]');input?.scrollIntoView({block:'center'});input?.focus(); }); }}
+                        fallback={queuePosition(data.turns,index) ? `En cola · posición ${queuePosition(data.turns,index)}` : "Preparando respuesta…"}
+                      />}
                       {turn.status === "waiting" && (
                         <Notice>
                           El análisis necesita una aclaración. Responde a la

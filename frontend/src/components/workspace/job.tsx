@@ -1,3 +1,4 @@
+import { AnalysisActivity } from "./analysis-activity";
 import { useEffect, useRef } from "react";
 import { FileText, Download, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -89,15 +90,7 @@ export function JobPage({
           </CardContent>
         </Card>
       )}
-      {["queued", "running"].includes(job.status) && (
-        <Notice>
-          <span role="status" className="flex items-center gap-3">
-            <Busy />
-            {job.activity ||
-              "El análisis está en curso. Puedes seguir usando el espacio."}
-          </span>
-        </Notice>
-      )}
+      <AnalysisActivity endpoint={`/api/jobs/${id}/activity`} traceId={job.activity_trace_id} fallback={job.activity || "Preparando el análisis…"} />
       {job.status === "waiting" && !job.context_stale && (
         <div className="mb-6 space-y-4">
           <DataPreview

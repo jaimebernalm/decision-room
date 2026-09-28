@@ -1,3 +1,4 @@
+import { AnalysisActivity } from "./analysis-activity";
 import { useState } from "react";
 import {
   Plus,
@@ -115,6 +116,7 @@ export function Presentation({
   exportUrl: string;
 }) {
   const { data, error } = useResource<Report>(path, 5000);
+  const activityPath = path.startsWith('/api/jobs/') ? `${path.split('/presentation')[0]}/activity` : path.replace(/\/presentation\/([^/]+)$/, '/turns/$1/activity');
   return (
     <>
       <Heading title="Informe del negocio">
@@ -128,6 +130,7 @@ export function Presentation({
         </div>
       </Heading>
       <Notice error>{error}</Notice>
+      <AnalysisActivity endpoint={activityPath} />
       {error ? null : data ? <ReportView report={data} /> : <Loading />}
     </>
   );

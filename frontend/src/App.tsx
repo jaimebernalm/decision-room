@@ -1,3 +1,4 @@
+import { InternalMonitor } from "@/components/workspace/internal-monitor";
 import { useEffect, useState, lazy, Suspense } from "react";
 import { ThemeProvider } from "next-themes";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -111,6 +112,7 @@ function App() {
     [login, setLogin] = useState(false),
     [revision, setRevision] = useState(0),
     [deleting, setDeleting] = useState<Chat | null>(null);
+  const internal = route.startsWith("internal/");
   const deletion = useAction(),
     refresh = () => setRevision((v) => v + 1);
   useEffect(() => {
@@ -119,6 +121,7 @@ function App() {
     return () => removeEventListener("hashchange", change);
   }, []);
   useEffect(() => {
+    if (internal) return;
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
     async function read() {
@@ -163,9 +166,10 @@ function App() {
       controller.abort();
       clearTimeout(timer);
     };
-  }, [revision]);
+  }, [revision, internal]);
   let body;
-  if (route === "welcome" || (login && route === "home"))
+  if (internal) body = <InternalMonitor route={route} />;
+  else if (route === "welcome" || (login && route === "home"))
     body = <Welcome signedIn={Boolean(workspace)} />;
   else if (login)
     body = (
