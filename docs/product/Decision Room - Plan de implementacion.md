@@ -497,6 +497,13 @@ y los [resultados de 24 intentos y tres recuperaciones](../validation/2026-09-28
 La capacidad funciona; no queda demostrada una mejora consistente de calidad ni de
 latencia. Se mantienen abiertos los criterios de aceptación general del producto.
 
+**3.8 planificado, 28 de septiembre; implementación pendiente:** actividad del cliente
+con enfoque breve e historial desplegable, y monitor interno de agentes, tareas,
+intercambios, cálculos y revisión. Ambos parten de eventos duraderos; el monitor
+requiere autorización independiente. El [plan detallado de implementación](../technical/live-investigation-plan.md)
+incluye diagnóstico del código, contratos, ocho incrementos, recuperación,
+pruebas y demostración con Bruma. Su cierre no implica aceptación de calidad analítica.
+
 
 **Planificación ampliada, 27 de septiembre de 2026:** el
 [plan de onboarding e informes](onboarding-e-informes-plan.md) concreta la secuencia

@@ -3,6 +3,9 @@
 Fecha: 27 de septiembre de 2026.
 
 **Estado, 28 de septiembre: pasos 3.1–3.5 completados; implementación y evaluación de 3.6–3.7 terminadas, con aceptación general de calidad todavía abierta.**
+
+**3.8 planificado; implementación pendiente:** [actividad del cliente y monitor interno](../technical/live-investigation-plan.md).
+
 Este documento desarrolla la entrega 3 del [plan de implementación](<Decision Room - Plan de implementacion.md>).
 La [evaluación inicial con una base sustancial](../validation/2026-09-27-substantial-baseline.md)
 aceptó cuatro de seis recorridos y conserva los fallos y límites observados.
@@ -343,6 +346,8 @@ completados**; el paso **3.4 está completado** y **3.5 está completado**. La i
 | 3.4 — Completado | Onboarding conversacional y elección abierta del objetivo con sugerencias. | Continuidad con el chat, objetivo editable y persistente, datos visibles al preguntar y contexto opcional no bloqueante; dos recorridos reales, cifras contrastadas y recuperación. [Validación](../validation/2026-09-27-conversational-onboarding.md). |
 | 3.5 | Analistas en paralelo coordinados por el analista principal, con evidencia compartida y presupuesto global. | Ramas independientes concurrentes, dependencias respetadas, resultados reconciliados y recuperación sin duplicaciones. Registrar calidad, tiempo y coste, conservando un modo secuencial comparable para 3.6. |
 | 3.6 | Selección y revisión adaptadas al objetivo; evaluación completa repetida, incluida la ejecución paralela de 3.5. | Comparación frente a 3.1 y entre ejecución secuencial y paralela sobre los mismos casos y presupuestos comparables. Medir exactitud, utilidad, cobertura, tiempo total, tokens y coste; entregas útiles para cada intención y ausencia de errores materiales en los casos de aceptación. |
+| 3.7 — Implementado y evaluado | Planificador de negocio, diálogo con el analista y preguntas durante la investigación; presupuesto amplio. | Capacidad comprobada; mejora general de calidad no demostrada. [Resultados de 24 intentos y tres recuperaciones](../validation/2026-09-28-business-planner.md). |
+| 3.8 — Planificado | Línea de actividad del cliente con enfoque e historial; monitor interno de agentes, tareas, cálculos e intercambios. | Eventos reales y duraderos, acceso interno independiente, recuperación sin duplicación, pruebas de interfaz y demostración con Bruma. [Plan detallado](../technical/live-investigation-plan.md). |
 
 En cada paso: cambios acotados, comprobaciones apropiadas, resultados documentados
 y commit local. No marcar un paso como completado por haber escrito este plan.
@@ -437,3 +442,21 @@ Validado con pruebas de integración y 24 intentos reales, más tres recuperacio
 que conservan el trabajo. Hay mejoras puntuales, pero no se demuestra mejora general
 de calidad: persisten problemas de priorización, significado monetario y síntesis.
 Véanse [resultados y pendientes](../validation/2026-09-28-business-planner.md).
+
+### 3.8 — Actividad del cliente y monitor interno en directo
+
+**Planificado el 28 de septiembre; implementación pendiente.** El [plan técnico](../technical/live-investigation-plan.md)
+concreta el comportamiento acordado y ocho incrementos con pruebas y criterios de cierre.
+
+El cliente ve una línea que explica qué se está investigando y para qué, desplegable
+para consultar lo ya realizado y abrir datos relacionados. El historial permanece
+al terminar y distingue actividad completada, espera, interrupción y entrega parcial.
+El monitor interno muestra actores reales, tareas delegadas, consultas entre
+planificador y analista, cálculos, evidencia, revisión y consumo conocido.
+
+Los dos recorridos comparten eventos persistentes con proyecciones y permisos
+distintos. El plan exige controlar concurrencia, reintentos, caché, replanteación,
+sesiones antiguas, publicación y obsolescencia. Incluye acceso interno independiente,
+pruebas automáticas y demostración real dirigida con Bruma, sin repetir la matriz
+de calidad de 3.7. El implementador debe resolver problemas encontrados y registrar
+adaptaciones y evidencia, manteniendo estos criterios de producto.
