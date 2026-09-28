@@ -390,3 +390,15 @@ El cliente y el monitor están implementados sobre eventos compartidos y proyecc
 Correcciones finales: pregunta inicial fechada desde revisión, metadata de intentos preservada, duración fijada al fin del dominio, actor del redactor unificado, numeración solo de subanalistas, caché interna borrada al caducar autorización, ScrollArea sin ensanchar móvil e historial único para turnos del mismo proceso. El detalle localiza el evento seleccionado incluso fuera del historial reciente. Pruebas y demostración guardadas; archivos privados permanecen en `.local/evaluation/live-38/` e ignorados por Git.
 
 No quedan defectos conocidos bloqueantes del alcance 3.8. La siguiente decisión de producto sigue siendo la calidad y utilidad analítica; no usar este cierre como evidencia de mejora de insights. No modificar ni mezclar las generaciones históricas de 3.7.
+
+### [x] 3.8.9 — Correcciones posteriores a la auditoría
+
+La auditoría posterior encontró defectos que matizan el cierre original de 3.8:
+memoria inicial aplicada tarde, proceso vacío del chat, tiempos de chat sin fin
+real y detalle interno poco legible. El seguimiento está en
+[validación de las correcciones](../validation/2026-09-28-live-investigation-fixes.md).
+Incluye barrera de memoria, invalidación observable y recuperación conservando
+historia, hitos públicos y etiquetas breves del agente, tiempos reales de chat,
+detalle estructurado y recuperación de vistas antiguas. Estado: validado con pruebas automatizadas, revisión visual y Bruma recuperado
+con informe aprobado, contexto vigente e historial completo (esquema 26). No tomar el cierre original como evidencia de ausencia de estos
+fallos; conservar la auditoría y los resultados del seguimiento.

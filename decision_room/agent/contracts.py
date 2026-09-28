@@ -38,6 +38,8 @@ class ResearchPriority(Strict):
 
 
 class Investigation(Strict):
+    activity_label: str | None = Field(default=None, min_length=1, max_length=90,
+        description='Brief public Spanish task label: dimensions and comparison, never findings, figures, IDs or causal claims.')
     priority: ResearchPriority | None = None
     key: str = Field(pattern=r'^[a-z][a-z0-9_]{0,63}$')
     question: str = Field(min_length=1, max_length=1000)

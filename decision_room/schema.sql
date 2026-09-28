@@ -806,3 +806,8 @@ CREATE TABLE IF NOT EXISTS activity_events (
 CREATE INDEX IF NOT EXISTS activity_events_page ON activity_events(business_id,trace_id,sequence);
 CREATE INDEX IF NOT EXISTS activity_traces_recent ON activity_traces(business_id,created_at DESC,id);
 INSERT INTO schema_versions(version) VALUES (25) ON CONFLICT DO NOTHING;
+
+-- 3.8 follow-up: unknown legacy finishes stay NULL, never invented as starts.
+ALTER TABLE chat_calls ADD COLUMN IF NOT EXISTS finished_at timestamptz;
+ALTER TABLE chat_answer_reviews ADD COLUMN IF NOT EXISTS finished_at timestamptz;
+INSERT INTO schema_versions(version) VALUES (26) ON CONFLICT DO NOTHING;

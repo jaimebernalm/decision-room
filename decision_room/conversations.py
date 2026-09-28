@@ -882,7 +882,7 @@ class Conversations:
             checked = chat_agent.AnswerReview.model_validate(result)
             if checked.approved and checked.issues:
                 raise ValueError('Approved review must not contain unresolved issues.')
-            db.execute("UPDATE chat_answer_reviews SET response=%s,usage=%s,status='completed' WHERE turn_id=%s AND attempt=%s AND ordinal=%s",
+            db.execute("UPDATE chat_answer_reviews SET response=%s,usage=%s,status='completed',finished_at=clock_timestamp() WHERE turn_id=%s AND attempt=%s AND ordinal=%s",
                        (Jsonb(result), Jsonb(usage), turn['id'], turn['attempt'], ordinal))
             notify(db)
         if not result['approved']:
@@ -1197,7 +1197,7 @@ class Conversations:
                                             (turn_id,turn['attempt'],ordinal)).fetchone()['usage'] or {}
                         usage={**recorded,**usage}
                         db.execute(
-                            "UPDATE chat_calls SET response=%s,usage=%s,status='completed' WHERE turn_id=%s AND attempt=%s AND ordinal=%s",
+                            "UPDATE chat_calls SET response=%s,usage=%s,status='completed',finished_at=clock_timestamp() WHERE turn_id=%s AND attempt=%s AND ordinal=%s",
                             (Jsonb(output), Jsonb(usage), turn_id, turn['attempt'], ordinal),
                         )
                         notify(db)
@@ -1374,7 +1374,7 @@ class Conversations:
                     return
             except Exception as error:
                 db.execute(
-                    "UPDATE chat_calls SET status=%s WHERE turn_id=%s AND attempt=%s AND status='running'",
+                    "UPDATE chat_calls SET status=%s,finished_at=clock_timestamp() WHERE turn_id=%s AND attempt=%s AND status='running'",
                     (
                         'uncertain' if isinstance(error, ModelRequestUncertain) else 'failed',
                         turn_id,
@@ -1382,7 +1382,7 @@ class Conversations:
                     ),
                 )
                 db.execute(
-                    "UPDATE chat_answer_reviews SET status=%s WHERE turn_id=%s AND attempt=%s AND status='running'",
+                    "UPDATE chat_answer_reviews SET status=%s,finished_at=clock_timestamp() WHERE turn_id=%s AND attempt=%s AND status='running'",
                     ('uncertain' if isinstance(error, ModelRequestUncertain) else 'failed', turn_id, turn['attempt']))
                 import logging
 

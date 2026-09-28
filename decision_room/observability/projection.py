@@ -4,7 +4,7 @@ from uuid import UUID
 from ..web.errors import WebError
 from .privacy import text,diagnostic
 
-PUBLIC_KINDS=frozenset(('planning','research','branch','execution','planner_consult','question','inspection','data_model','review','review_step','retrieval','discovery','plan','research_step','transport'))
+PUBLIC_KINDS=frozenset(('context','chat_call','chat_review','memory', 'planning','research','branch','execution','planner_consult','question','inspection','data_model','review','review_step','retrieval','discovery','plan','research_step','transport'))
 HIDDEN_STEPS=frozenset(('execute','finish','record_candidate','consult_business'))
 
 
@@ -56,7 +56,7 @@ def state(db,business,trace,*,config=None):
             if status=='completed' and not publishable: status='blocked'
             final=db.execute("SELECT action->'report' AS report FROM agent_review_events WHERE review_id=%s AND action->>'action'='submit' ORDER BY step DESC LIMIT 1",(job['review_id'],)).fetchone()
             partial=bool(final and final['report'] and (final['report'].get('delivery_status')=='partial' or any(q.get('status')!='answered' for q in final['report'].get('question_coverage',[]))))
-        if job['session_id'] and status in ('completed','blocked','failed'):
+        if job['session_id'] and status in ('completed','blocked','failed','waiting'):
             from ..memory.context import reason
             outdated=outdated or bool(reason(db,job['session_id']))
         if outdated: status='stale';publishable=False
@@ -73,11 +73,12 @@ def state(db,business,trace,*,config=None):
             try: missing=any(not storage.path(business,f['key']).is_file() for f in files)
             except ValueError: missing=True
             if missing: status='blocked';publishable=False
+        context_notice = ('Se ha incorporado o corregido información del negocio después de preparar este análisis. Actualízalo para usar el contexto vigente; tus archivos y respuestas siguen guardados.' if outdated else None)
         headline={'queued':'En cola para preparar el análisis','running':'Investigando los datos','waiting':'Esperando tu respuesta',
                   'completed':'Análisis completado · Ver proceso','blocked':'El análisis necesita atención','failed':'El análisis se ha interrumpido','stale':'El análisis usa contexto anterior'}.get(status,'Preparando el análisis')
         if status=='completed' and partial: headline='Análisis parcial completado · Ver proceso'
         return dict(status=status,headline=headline,terminal=status in ('completed','blocked','failed','stale'),publishable=publishable,
-                    partial=partial,job_id=str(job['id']),phase=job['phase'],created_at=job['created_at'],finished_at=job['updated_at'] if job['status'] in ('completed','blocked','failed') else None)
+                    context_notice=context_notice,recovery_href=f'#analysis/{job["id"]}' if outdated else None,partial=partial,job_id=str(job['id']),phase=job['phase'],created_at=job['created_at'],finished_at=job['updated_at'] if job['status'] in ('completed','blocked','failed') else None)
     turn=db.execute('''SELECT t.* FROM chat_turns t JOIN activity_links l ON l.source_id=t.id AND l.kind='turn' AND l.business_id=t.business_id
         WHERE l.business_id=%s AND l.trace_id=%s ORDER BY t.created_at DESC LIMIT 1''',(business,trace)).fetchone()
     if turn:
@@ -152,5 +153,5 @@ def page(db,business,trace,query,*,internal=False,data_endpoint=None,config=None
         if internal:
             changed=db.execute("SELECT * FROM activity_tasks WHERE business_id=%s AND trace_id=%s AND role NOT IN ('system','calculation','transport','data') ORDER BY last_sequence",(business,trace)).fetchall()
             result['actors']=[dict(id=r['actor_id'],role=r['role'],task_id=str(r['id']),parent_id=str(r['parent_task_id']) if r['parent_task_id'] else None,
-                                   status=r['status'],source=diagnostic(r['source'])) for r in changed]
+                                   status=r['status'],assignment_label=text(r['public_text'],240) if r['kind']=='branch' else None,source=diagnostic(r['source'])) for r in changed]
         return result

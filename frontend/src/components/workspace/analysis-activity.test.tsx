@@ -123,3 +123,44 @@ it('keeps the process accessible from a report created within a chat',async()=>{
  await screen.findByRole('button',{name:page.headline});
  expect(fetch.mock.calls.some(([url])=>url==='/api/chats/chat/turns/turn/activity')).toBe(true);
 });
+it('shows completed chat milestones and explains a stale report outside the disclosure',async()=>{
+ vi.stubGlobal('fetch',vi.fn(async()=>response({...page,context_notice:'Se ha incorporado información del negocio.',recovery_href:'#analysis/repair',task_updates:[{...task,kind:'chat_call',text:'Respuesta preparada'},{...task,id:'review',kind:'chat_review',text:'Respuesta revisada'}]})));
+ render(<AnalysisActivity endpoint='/api/chats/milestones/activity' traceId='milestones'/>);
+ await screen.findByText('Se ha incorporado información del negocio.');
+ expect(screen.getByRole('link',{name:'Actualizar el informe'})).toHaveAttribute('href','#analysis/repair');
+ await userEvent.click(screen.getByRole('button',{name:page.headline}));
+ expect(screen.getByText('Respuesta preparada')).toBeVisible();expect(screen.getByText('Respuesta revisada')).toBeVisible();
+});
+it('does not promise future events in a finished empty process',async()=>{
+ vi.stubGlobal('fetch',vi.fn(async()=>response({...page,task_updates:[],events:[]})));
+ render(<AnalysisActivity endpoint='/api/jobs/empty/activity' traceId='empty'/>);
+ await userEvent.click(await screen.findByRole('button',{name:page.headline}));
+ expect(screen.getByText('Este proceso ha terminado y no tiene más actividades para mostrar.')).toBeVisible();
+});
+it('presents planner exchanges without exposing raw JSON by default',async()=>{
+ const {InvestigationDetail}=await import('./investigation-detail');
+ render(<InvestigationDetail content={{task:{text:'Prioridades revisadas'},exchange:{analyst_message:{summary:'La tienda física pierde unidades.'},direction:{rationale:'Comprobar si la caída se concentra en productos.',instructions:['Comparar productos por canal.']}}}}/>);
+ expect(screen.getByText('La tienda física pierde unidades.')).toBeVisible();
+ expect(screen.getByText('Comprobar si la caída se concentra en productos.')).toBeVisible();
+ expect(screen.getByText('Comparar productos por canal.')).toBeVisible();
+ expect(document.querySelector('pre')).toBeNull();
+ await userEvent.click(screen.getByRole('button',{name:'Ver JSON técnico'}));expect(document.querySelector('pre')).not.toBeNull();
+});
+it('provides a recovery screen when a lazily loaded view fails',async()=>{
+ const {AppRecovery}=await import('../app-recovery');
+ const log=vi.spyOn(console,'error').mockImplementation(()=>{});
+ function Broken():never {throw new Error('Failed to fetch dynamically imported module');}
+ render(<AppRecovery><Broken/></AppRecovery>);
+ expect(screen.getByRole('alert')).toHaveTextContent('No se ha podido cargar esta vista');
+ expect(screen.getByRole('button',{name:'Recargar la página'})).toBeVisible();log.mockRestore();
+});
+it('keeps results from a superseded investigation in a separate history',async()=>{
+ const old={...task,id:'old',kind:'planning',status:'superseded',text:'Alcance anterior'};
+ vi.stubGlobal('fetch',vi.fn(async()=>response({...page,task_updates:[old,{...task,id:'old-result',parent_id:'old',text:'Cálculo de la versión anterior'},task]})));
+ render(<AnalysisActivity endpoint='/api/jobs/successor/activity' traceId='successor'/>);
+ await userEvent.click(await screen.findByRole('button',{name:page.headline}));
+ expect(screen.getByText(task.text)).toBeVisible();
+ expect(screen.getByText('Cálculo de la versión anterior')).not.toBeVisible();
+ await userEvent.click(screen.getByText('Actividad de versiones anteriores (2)'));
+ expect(screen.getByText('Cálculo de la versión anterior')).toBeVisible();
+});

@@ -497,6 +497,11 @@ y los [resultados de 24 intentos y tres recuperaciones](../validation/2026-09-28
 La capacidad funciona; no queda demostrada una mejora consistente de calidad ni de
 latencia. Se mantienen abiertos los criterios de aceptación general del producto.
 
+**3.8.9, correcciones de auditoría validadas:** preparación de memoria antes del
+manifiesto, recuperación conservando versiones, proceso visible del chat, tiempos
+reales y monitor con intercambios legibles. Bruma recuperado y aprobado con
+contexto vigente. Ver [evidencia y límites](../validation/2026-09-28-live-investigation-fixes.md).
+
 **3.8 implementado y validado, 28 de septiembre:** actividad del cliente con
 historial persistente y datos relacionados; monitor interno con actores reales,
 intercambios, cálculos, revisión y recursos. Autorización interna independiente,

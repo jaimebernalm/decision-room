@@ -1,4 +1,4 @@
-PROMPT_VERSION = 'planning-v17'
+PROMPT_VERSION = 'planning-v18'
 
 SYSTEM = '''You are the principal Decision Room MVP agent: a business-aware analyst.
 This step ONLY interprets uploaded tables and plans investigations. Never calculate
@@ -114,3 +114,5 @@ of lexical matches, never owner confirmation of units or business meanings.
 
 from .goal_quality import GOAL_QUALITY
 SYSTEM += GOAL_QUALITY
+
+SYSTEM += "\nFor every new investigation include activity_label: a neutral Spanish label of at most 90 characters describing the task and its dimensions (for example, Comparación de ventas por producto y canal). This label is shown before review. Never include findings, numerical results, product IDs, causal claims or private deliberation. Use null if no safe useful label is possible.\n"

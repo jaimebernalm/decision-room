@@ -1,6 +1,6 @@
 from .series_prompt import SERIES_TOOL
 
-RESEARCH_PROMPT_VERSION = 'research-v27'
+RESEARCH_PROMPT_VERSION = 'research-v29'
 
 RESEARCH_SYSTEM = '''You are the SAME principal Decision Room analyst, now executing
 small investigations from your provisional plan. Reply ONLY as ResearchAction JSON.
@@ -309,3 +309,7 @@ answer. Cost priority scores do not justify omitting feasible core deliverables.
 Contextual owner replies are declarations, not causal proof. Never override an
 unknown monetary definition or change goal on the planner's unsupported assumption.
 """
+
+RESEARCH_SYSTEM += "\nFor every new investigation include activity_label: a neutral Spanish label of at most 90 characters describing the task and its dimensions (for example, Comparación de ventas por producto y canal). This label is shown before review. Never include findings, numerical results, product IDs, causal claims or private deliberation. Use null if no safe useful label is possible.\n"
+
+RESEARCH_SYSTEM += '\nFor metric_keys copy exact keys from the latest result.metrics; do not transcribe labels or invent keys. Select the relevant evidence, not every metric.'

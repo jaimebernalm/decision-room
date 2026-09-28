@@ -35,6 +35,9 @@ LOG = logging.getLogger(__name__)
 def failure_message(error):
     # Agent services wrap failures to persist stage diagnostics. Inspect the
     # original typed exception, never copy arbitrary exception/server text to UI.
+    from ..memory.context import PendingMemory
+    if isinstance(error, PendingMemory):
+        return str(error)
     seen = set()
     while error is not None and id(error) not in seen:
         seen.add(id(error))
@@ -783,6 +786,7 @@ class Workspace:
         retry = j['retry_uncertain']
         self.update(job_id, status='running', issue=None)
         try:
+            memory_extraction.prepare(self.config, b, model)
             if j['session_id']:
                 from ..memory.context import reason
                 with connect(self.config) as db:

@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { InvestigationDetail } from "./investigation-detail";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, LogOut, RefreshCw, ChevronRight } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { useAction, useResource } from "@/lib/hooks";
@@ -65,38 +66,42 @@ function Investigation({ trace,onUnauthorized }: { trace:string;onUnauthorized:(
   const [actor,setActor] = useState("");const [phase,setPhase] = useState("");const [errorsOnly,setErrorsOnly] = useState(false);const [selected,setSelected] = useState<string | null>(null);
   const [detail,setDetail] = useState<{content:unknown;truncated:boolean} | null>(null);const [detailError,setDetailError] = useState("");
   const action = useAction();
+  const detailPanel=useRef<HTMLElement>(null);
   const [selectedEvent,setSelectedEvent] = useState<string | null>(null);
-  const actors = new Map<string,{role:string;status:string;taskIds:Set<string>;parents:Set<string>}>();
+  const actors = new Map<string,{role:string;status:string;assignmentLabel?:string;taskIds:Set<string>;parents:Set<string>}>();
   const taskActor = new Map(data?.actors?.map((a) => [a.task_id,a.id]));
   data?.actors?.forEach((a) => {
     const old=actors.get(a.id);const parent=a.parent_id ? taskActor.get(a.parent_id) : null;
-    if (!old) actors.set(a.id,{role:a.role,status:a.status,taskIds:new Set([a.task_id]),parents:new Set(parent && parent!==a.id ? [parent] : [])});
-    else {old.taskIds.add(a.task_id);if (parent && parent!==a.id) old.parents.add(parent);if (activeStates.has(a.status) || !activeStates.has(old.status)) old.status=a.status;}
+    if (!old) actors.set(a.id,{role:a.role,status:a.status,assignmentLabel:a.assignment_label || undefined,taskIds:new Set([a.task_id]),parents:new Set(parent && parent!==a.id ? [parent] : [])});
+    else {if (a.assignment_label) old.assignmentLabel=a.assignment_label;old.taskIds.add(a.task_id);if (parent && parent!==a.id) old.parents.add(parent);if (activeStates.has(a.status) || !activeStates.has(old.status)) old.status=a.status;}
   });
   const subanalysts = [...actors].filter(([,a]) => a.role==='subanalyst').map(([id]) => id);
   const tasks = new Map(activity.tasks.map((t) => [t.id,t]));
+  const labels:Record<string,string>={branch:'Investigaciones delegadas',call:'Llamadas de agentes',execution:'Cálculos',planner_consult:'Consultas al planificador',planning:'Planificación',plan:'Alcance',research:'Investigación',research_step:'Pasos de investigación',review:'Revisión',review_step:'Pasos de revisión',transport:'Peticiones al proveedor',job:'Informe',turn:'Turno',chat_call:'Preparación de respuesta',chat_review:'Revisión de respuesta',context:'Cambios de contexto',discovery:'Relaciones de datos',inspection:'Archivos',data_model:'Modelo de datos',question:'Preguntas al cliente'};
   const phases = [...new Set(activity.tasks.map((t) => t.kind))].sort();
   const events = activity.events.filter((e) => (!actor || actors.get(actor)?.taskIds.has(e.task_id)) && (!phase || tasks.get(e.task_id)?.kind===phase) && (!errorsOnly || ['failed','interrupted','retry_wait'].includes(e.status)));
   async function select(taskId:string,eventId:string) {
     if (action.busy) return;
     setSelected(taskId);setSelectedEvent(eventId);setDetail(null);setDetailError('');
-    await action.run(async () => {try {const result=await api<{content:unknown;truncated:boolean}>(`${base}/tasks/${taskId}?event_id=${encodeURIComponent(eventId)}`);setDetail(result);} catch(error) {if (error instanceof ApiError && error.status===401) onUnauthorized();setDetailError((error as Error).message);}});
+    await action.run(async () => {try {const result=await api<{content:unknown;truncated:boolean}>(`${base}/tasks/${taskId}?event_id=${encodeURIComponent(eventId)}`);setDetail(result);if (window.matchMedia('(max-width: 1023px)').matches) detailPanel.current?.scrollIntoView({behavior:'smooth',block:'start'});} catch(error) {if (error instanceof ApiError && error.status===401) onUnauthorized();setDetailError((error as Error).message);}});
   }
   return <>
     <Button asChild variant="ghost" className="mb-4"><a href="#internal/investigations"><ArrowLeft />Todos los procesos</a></Button>
     <Notice error>{activity.error}</Notice>{!data && !activity.error && <Loading />}
     {data && <>
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-medium">{data.business}</h2><p className="mt-1 text-sm text-muted-foreground" aria-live="polite">{data.headline}</p></div><Button size="sm" variant="outline" onClick={() => void activity.refresh()}><RefreshCw />Actualizar</Button></div>
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-medium">{data.title || data.business}</h2><p className="mt-1 text-sm text-muted-foreground">{data.title ? data.business : null}</p>{data.goal && <p className="mt-2 max-w-3xl text-sm">{data.goal}</p>}<p className="mt-1 text-sm text-muted-foreground" aria-live="polite">{data.headline}</p></div><Button size="sm" variant="outline" onClick={() => void activity.refresh()}><RefreshCw />Actualizar</Button></div>
+      {data.context_notice && <Notice>{data.context_notice}</Notice>}
       {!data.history_complete && <Notice>El historial contiene una interrupción de captura; los eventos reconstruidos están identificados.</Notice>}
       {data.worker_health==='unconfirmed' && !data.terminal && <Notice>Worker sin actualización: interrupción por confirmar.</Notice>}
       {data.resources && <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-        {[["Tiempo de proceso",`${data.resources.wall_seconds.toFixed(1)} s`],["Llamadas / intentos HTTP",`${data.resources.logical_calls} / ${data.resources.http_attempts}`],["Cálculos / reutilizaciones",`${data.resources.executions} / ${data.resources.cache_hits}`],["Tokens conocidos",`${data.resources.input_tokens ?? '—'} entrada · ${data.resources.output_tokens ?? '—'} salida`]].map(([label,value]) => <div key={label} className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 break-words text-sm font-medium">{value}</p></div>)}
-        <p className="col-span-full text-xs text-muted-foreground">Espera del cliente: {data.resources.owner_wait_seconds.toFixed(1)} s · Espera del proveedor: {data.resources.provider_wait_seconds.toFixed(1)} s · Uso desconocido en {data.resources.unknown_usage_calls} llamadas · Intentos HTTP sin registro en {data.resources.unknown_http_calls || 0} llamadas · Coste monetario no calculado</p>
+        {[["Tiempo transcurrido",`${data.resources.wall_seconds.toFixed(1)} s`],["Llamadas / intentos HTTP",`${data.resources.logical_calls} / ${data.resources.http_attempts}`],["Cálculos / reutilizaciones",`${data.resources.executions} / ${data.resources.cache_hits}`],["Tokens conocidos",`${data.resources.input_tokens ?? '—'} entrada · ${data.resources.output_tokens ?? '—'} salida`]].map(([label,value]) => <div key={label} className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 break-words text-sm font-medium">{value}</p></div>)}
+        <p className="col-span-full text-xs text-muted-foreground">Incluye pausas y reintentos. Espera del cliente: {data.resources.owner_wait_seconds.toFixed(1)} s · Espera del proveedor: {data.resources.provider_wait_seconds.toFixed(1)} s · Uso desconocido en {data.resources.unknown_usage_calls} llamadas · Intentos HTTP sin registro en {data.resources.unknown_http_calls || 0} llamadas · Coste monetario no calculado</p>
       </div>}
       <section aria-label="Mapa de agentes" className="mb-6 rounded-xl border p-4">
         <h3 className="mb-3 font-medium">Agentes participantes</h3><div className="flex flex-wrap gap-3">
           {[...actors].map(([id,a]) => <button key={id} className={`min-w-40 rounded-lg border p-3 text-left text-sm ${actor===id ? 'border-primary bg-primary/5' : 'hover:bg-muted'}`} onClick={() => setActor(actor===id ? '' : id)}>
             <p className="font-medium">{roles[a.role] || a.role}{a.role==='subanalyst' ? ` · ${subanalysts.indexOf(id)+1}` : ''}</p><p className="mt-1 text-xs text-muted-foreground">{statuses[a.status] || a.status}</p>
+            {a.role==='subanalyst' && <p className="mt-2 max-w-64 text-xs">{a.assignmentLabel || [...a.taskIds].map((id)=>tasks.get(id)).find((t)=>t?.kind==='branch')?.text}</p>}
             {[...a.parents].map((parent) => <p key={parent} className="mt-2 flex items-center gap-1 text-xs text-muted-foreground"><ChevronRight className="size-3" />Encargo de {roles[actors.get(parent)?.role || ''] || 'otro agente'}</p>)}
           </button>)}
         </div>
@@ -104,7 +109,7 @@ function Investigation({ trace,onUnauthorized }: { trace:string;onUnauthorized:(
       <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <section className="min-w-0 rounded-xl border p-4" aria-label="Cronología de investigación">
           <div className="mb-4 flex flex-wrap justify-between gap-3"><h3 className="font-medium">Cronología</h3><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={errorsOnly} onChange={(e) => setErrorsOnly(e.target.checked)} />Errores y esperas</label></div>
-          <label className="mb-3 block text-sm">Tipo de actividad<select aria-label="Filtrar tipo de actividad" className="ml-2 rounded-md border bg-background p-1" value={phase} onChange={(e) => setPhase(e.target.value)}><option value="">Todos</option>{phases.map((kind) => <option key={kind} value={kind}>{kind}</option>)}</select></label>
+          <label className="mb-3 block text-sm">Tipo de actividad<select aria-label="Filtrar tipo de actividad" className="ml-2 rounded-md border bg-background p-1" value={phase} onChange={(e) => setPhase(e.target.value)}><option value="">Todos</option>{phases.map((kind) => <option key={kind} value={kind}>{labels[kind] || kind}</option>)}</select></label>
           {actor && <Button variant="ghost" size="sm" onClick={() => setActor('')}>Ver todos los agentes</Button>}
           {data.previous_cursor && <Button variant="outline" size="sm" disabled={activity.loadingOlder} onClick={() => void activity.loadOlder()}>Cargar eventos anteriores</Button>}
           <ol className="mt-3 max-h-[65vh] space-y-1 overflow-auto" aria-label="Eventos registrados">
@@ -114,11 +119,11 @@ function Investigation({ trace,onUnauthorized }: { trace:string;onUnauthorized:(
             </button></li>)}
           </ol>
         </section>
-        <section className="min-w-0 rounded-xl border p-4" aria-label="Detalle de actividad"><h3 className="mb-3 font-medium">Encargo, intercambio y evidencia</h3>
+        <section ref={detailPanel} className="min-w-0 rounded-xl border p-4 lg:max-h-[85vh] lg:overflow-auto" aria-label="Detalle de actividad"><h3 className="mb-3 font-medium">Encargo, intercambio y evidencia</h3>
           {!selected && <p className="text-sm text-muted-foreground">Selecciona un evento para abrir sus entradas, resultados y referencias.</p>}
           <Notice error>{detailError || action.error}</Notice>{selected && !detail && !detailError && <Loading />}
           {detail?.truncated && <p className="mb-3 text-xs text-muted-foreground">Vista acotada: contenido truncado.</p>}
-          {detail && <pre className="max-h-[65vh] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted p-3 text-xs">{JSON.stringify(detail.content,null,2)}</pre>}
+          {detail && <InvestigationDetail key={selectedEvent} content={detail.content}/>}
         </section>
       </div>
     </>}

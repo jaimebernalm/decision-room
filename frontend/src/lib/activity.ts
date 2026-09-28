@@ -20,11 +20,11 @@ export type Activity = {
   events: ActivityEvent[]; next_cursor: string | null;
   previous_cursor: string | null; has_more: boolean;
   worker_health: string; last_activity_at?: string;
-  actors?: { id: string; role: string; task_id: string; parent_id: string | null; status: string; source: Record<string, unknown> }[];
+  actors?: { assignment_label?: string | null; id: string; role: string; task_id: string; parent_id: string | null; status: string; source: Record<string, unknown> }[];
   resources?: { logical_calls: number; http_attempts: number; unknown_http_calls?: number; executions: number; cache_hits: number;
     input_tokens: number | null; output_tokens: number | null; unknown_usage_calls: number;
     wall_seconds: number; owner_wait_seconds: number; provider_wait_seconds: number };
-  business?: string;
+  business?: string; title?: string; goal?: string; context_notice?: string | null; recovery_href?: string | null;
 };
 type Snapshot = { data: Activity | null; tasks: ActivityTask[]; events: ActivityEvent[]; error: string; errorStatus: number | null; loadingOlder: boolean };
 type Entry = { endpoint: string; listeners: Set<() => void>; snapshot: Snapshot;

@@ -108,6 +108,32 @@ class ConversationTests(unittest.TestCase):
         path.write_text('quantity,amount\n2,10\n3,20\n')
         return import_batch(self.config, self.b, [path], title='Synthetic sales')['analysis']['id']
 
+    def test_public_chat_process_and_real_finish_times_survive_reconciliation(self):
+        import time
+        from decision_room.observability import collector, store, projection
+        class Slow(ChatModel):
+            def generate_chat(self, *args, **kwargs):
+                time.sleep(.03)
+                return super().generate_chat(*args, **kwargs)
+        self.ws.model_factory = Slow
+        turn = self.send(self.chat(), 'Hola')
+        with connect(self.config) as db:
+            trace = store.linked(db, self.b, 'turn', turn['id'])
+            page = projection.page(db, self.b, trace, {})
+            kinds = {t['kind'] for t in page['task_updates']}
+            self.assertTrue({'chat_call', 'chat_review'} <= kinds)
+            for table in ('chat_calls', 'chat_answer_reviews'):
+                rows = db.execute(f'SELECT created_at,finished_at FROM {table} WHERE turn_id=%s', (turn['id'],)).fetchall()
+                self.assertTrue(rows)
+                self.assertTrue(all(r['finished_at'] > r['created_at'] for r in rows))
+            db.execute('UPDATE chat_calls SET finished_at=NULL WHERE turn_id=%s', (turn['id'],))
+            collector.reconcile(db, self.b, trace, reconstructed=True)
+            saved = db.execute("SELECT finished_at FROM activity_tasks WHERE trace_id=%s AND kind='chat_call'", (trace,)).fetchall()
+            self.assertTrue(all(r['finished_at'] is None for r in saved))
+            count = db.execute('SELECT last_sequence FROM activity_traces WHERE id=%s', (trace,)).fetchone()['last_sequence']
+            collector.reconcile(db, self.b, trace, reconstructed=True)
+            self.assertEqual(count, db.execute('SELECT last_sequence FROM activity_traces WHERE id=%s', (trace,)).fetchone()['last_sequence'])
+
     def test_http_string_scoped_business_accepts_chat_and_rejects_other_business(self):
         # Preview/worker manifests deserialize UUIDs as strings. Keep the same
         # identity representation as requests and database rows.

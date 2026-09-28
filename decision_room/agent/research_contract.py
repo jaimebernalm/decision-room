@@ -162,7 +162,8 @@ def validate_research_action(raw, snapshot, observations, findings, options):
             if expanding and not set(action.metric_keys) <= set(next(f['metric_keys'] for f in findings if f['investigation_key'] == action.investigation_key)):
                 raise ValueError('Expansion must use the registered parent candidate metrics.')
             if not set(action.metric_keys) <= set(latest['result']['metrics']):
-                raise ValueError('Candidate refers to missing metrics in the latest execution.')
+                missing = sorted(set(action.metric_keys) - set(latest['result']['metrics']))
+                raise ValueError('Candidate refers to missing metrics in the latest execution: ' + ', '.join(missing[:8]) + '. Copy exact keys from result.metrics, or remove unsupported references.')
         elif action.metric_keys:
             raise ValueError('block/discard requires empty metric_keys.')
     if action.followups:

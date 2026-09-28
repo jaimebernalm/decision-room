@@ -10,6 +10,28 @@ from decision_room.series import evidence_value
 
 
 class WireSchemaTests(unittest.TestCase):
+    def test_candidate_metric_choices_use_latest_saved_results(self):
+        client=ModelClient(ModelSettings('test'))
+        context={'observations':[
+            {'investigation_key':'sales','status':'completed','result':{'metrics':{'old':1}}},
+            {'investigation_key':'sales','status':'completed','result':{'metrics':{'current':2}}},
+            {'investigation_key':'other','status':'failed','result':{'metrics':{'invalid':3}}}]}
+        with patch.object(client,'_generate',return_value=({},{})) as request:
+            client.generate_research(context)
+        self.assertEqual(request.call_args.args[3]['properties']['metric_keys']['items']['enum'],['current'])
+
+    def test_activity_labels_keep_planning_and_followups_provider_strict(self):
+        client = ModelClient(ModelSettings('test'))
+        for method in ('generate', 'generate_research'):
+            with patch.object(client, '_generate', return_value=({}, {})) as request:
+                getattr(client, method)({})
+            schema = request.call_args.args[3]
+            for definition in schema.get('$defs', {}).values():
+                if definition.get('type') == 'object':
+                    self.assertEqual(set(definition.get('required', [])), set(definition['properties']))
+            field = schema['$defs']['Investigation' if method == 'generate' else 'Followup']['properties']['activity_label']
+            self.assertNotIn('default', field)
+
     def test_business_planner_question_references_and_actions_are_scoped(self):
         client = ModelClient(ModelSettings('test'))
         context = dict(stage='checkpoint', table_catalog=[dict(id='sales',column_names=['amount'])],

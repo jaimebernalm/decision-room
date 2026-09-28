@@ -211,7 +211,8 @@ class ModelClient:
     def generate(self, context, correction=None):
         schema = Action.model_json_schema()
         schema['$defs']['Investigation']['required'] = list(schema['$defs']['Investigation']['properties'])
-        schema['$defs']['Investigation']['properties']['priority'].pop('default', None)
+        for prop in schema['$defs']['Investigation']['properties'].values():
+            prop.pop('default', None)
         if 'uninspected_table_ids' in context:
             self._table_choices(schema['properties']['table_ids'], context['uninspected_table_ids'])
         if 'catalog' in context:
@@ -271,6 +272,10 @@ class ModelClient:
 
     def generate_research(self, context, correction=None):
         schema = ResearchAction.model_json_schema()
+        followup = schema['$defs']['Followup']
+        followup['required'] = list(followup['properties'])
+        for prop in followup['properties'].values():
+            prop.pop('default', None)
         if 'plan' in context:
             finished = {f['investigation_key'] for f in context['findings']} | set(context.get('budgets', {}).get('discarded_keys', []))
             unfinished = [i['key'] for i in context['plan']['investigations']
@@ -324,6 +329,12 @@ class ModelClient:
                 pending_tables = {table_id for item in context['plan']['investigations']
                                   if item['key'] in unfinished for table_id in item['table_ids']}
                 self._table_choices(schema['properties']['table_ids'], authorized & pending_tables)
+        # Restrict evidence references to actual latest metrics. The validator
+        # still checks the chosen investigation; a typo must never become evidence.
+        latest_results = {o['investigation_key']: o for o in context.get('observations', [])}
+        metric_names = {key for o in latest_results.values() if o.get('status') == 'completed'
+                        for key in o.get('result', {}).get('metrics', {})}
+        self._table_choices(schema['properties']['metric_keys'], metric_names)
         candidates = [f['investigation_key'] for f in context.get('findings', []) if f.get('status') == 'candidate']
         if candidates:
             schema['$defs']['RankedFinding']['properties']['investigation_key']['enum'] = candidates

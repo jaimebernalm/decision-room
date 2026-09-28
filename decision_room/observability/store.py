@@ -39,7 +39,7 @@ def link(db,business,trace_id,kind,source_id):
 
 def append(db,business,trace_id,*,kind,source_id,role='system',actor_id=None,
            status,public_text,dedupe_key,event_type=None,parent_id=None,purpose='',refs=(),
-           source=None,payload=None,occurred_at=None,reconstructed=False,started_at=None,finished_at=None):
+           source=None,payload=None,occurred_at=None,reconstructed=False,started_at=None,finished_at=None,finish_unknown=False):
     if status not in STATES:
         raise ValueError('Invalid activity state.')
     business,trace_id=UUID(str(business)),UUID(str(trace_id))
@@ -71,7 +71,7 @@ def append(db,business,trace_id,*,kind,source_id,role='system',actor_id=None,
             status,public_text,purpose,refs,source,started_at,finished_at,last_sequence)
             VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
                 CASE WHEN %s='queued' THEN NULL ELSE COALESCE(%s,clock_timestamp()) END,
-                CASE WHEN %s THEN COALESCE(%s,clock_timestamp()) ELSE NULL END,%s)
+                CASE WHEN %s THEN NULL WHEN %s THEN COALESCE(%s,clock_timestamp()) ELSE NULL END,%s)
             ON CONFLICT (trace_id,kind,source_id) DO UPDATE SET
                 status=excluded.status,public_text=excluded.public_text,purpose=excluded.purpose,
                 refs=excluded.refs,source=excluded.source,last_sequence=excluded.last_sequence,
@@ -80,7 +80,7 @@ def append(db,business,trace_id,*,kind,source_id,role='system',actor_id=None,
                 actor_id=excluded.actor_id,role=excluded.role''',
             (task_id,business,trace_id,parent_id,actor_id or role,role,kind,str(source_id),status,
              public_text[:500],purpose[:500],Jsonb(list(refs)),Jsonb(source or {}),
-             status,started_at or occurred_at,terminal,finished_at or occurred_at,sequence))
+             status,started_at or occurred_at,finish_unknown,terminal,finished_at or occurred_at,sequence))
         db.execute('''INSERT INTO activity_events(id,business_id,trace_id,sequence,task_id,dedupe_key,type,status,payload,occurred_at,reconstructed)
             VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)''',
             (uuid5(trace_id,dedupe_key),business,trace_id,sequence,task_id,dedupe_key,

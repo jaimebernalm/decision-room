@@ -867,10 +867,10 @@ class WebTests(unittest.TestCase):
         self.assertEqual([s['payload']['kind'] for s in sources], ['profile', 'planning_answer', 'review_answer'])
         self.assertEqual([s['payload']['text'] for s in sources][1:], ['unit price', 'Amount is row total.'])
         self.assertTrue(all(s['payload']['default_scope'] == 'source' for s in sources[1:]))
-        self.assertEqual(self.ws.state()['memory']['pending'], 3)
+        self.assertEqual(self.ws.state()['memory']['pending'], 1)
+        self.assertEqual(self.ws.state()['memory']['applied'], 2)
         restarted = Workspace(self.config, SETTINGS, WebModel)
-        for _ in range(3):
-            self.assertTrue(extraction.work_once(self.config, WebModel, SETTINGS))
+        self.assertTrue(extraction.work_once(self.config, WebModel, SETTINGS))
         self.assertEqual(restarted.state()['memory']['pending'], 0)
         self.assertEqual(restarted.state()['memory']['applied'], 3)
         self.assertFalse(extraction.work_once(self.config, WebModel, SETTINGS))
@@ -915,6 +915,7 @@ class WebTests(unittest.TestCase):
         from decision_room.memory import service as memory
         from decision_room.service import import_batch
         class Model(MemoryAwareModel):
+            generate_memory = WebModel.generate_memory
             def __init__(self, settings):
                 super().__init__()
                 self.identity=asdict(settings)
@@ -972,6 +973,51 @@ class WebTests(unittest.TestCase):
         self.assertEqual(recovered.detail(job)['status'],'waiting')
         with connect(self.config) as db:
             self.assertEqual(db.execute('SELECT count(*) n FROM agent_sessions WHERE business_id=%s',(self.business['id'],)).fetchone()['n'],2)
+
+    def test_initial_profile_is_prepared_before_manifest_and_later_correction_still_invalidates(self):
+        from test_memory import candidate, content
+        from decision_room.memory import extraction, service as memory
+        from decision_room.observability import projection, store
+        class Model(WebModel):
+            def generate_memory(self, context, correction=None):
+                return {'candidates': [candidate('unit price, selected sales only', topic='business_scope')]}, {}
+        self.ws.model_factory = Model
+        job = self.create()
+        self.ws.run_job(job)
+        row = self.ws.row(job)
+        with connect(self.config) as db:
+            manifest = db.execute('SELECT * FROM context_manifests WHERE session_id=%s', (row['session_id'],)).fetchone()
+            self.assertEqual(len(manifest['initial_context']['memories']), 1)
+            self.assertIsNone(manifest['stale_reason'])
+            fact = manifest['initial_context']['memories'][0]
+        self.assertFalse(extraction.work_once(self.config, Model, SETTINGS))
+        self.assertFalse(self.ws.detail(job).get('context_stale'))
+        memory.change(self.config, self.business['id'], action='correct', request_key='actual-correction',
+                      fact_id=fact['id'], expected_revision=1,
+                      content=content('Amounts are row totals.', topic='business_scope'))
+        with connect(self.config) as db:
+            from decision_room.memory.context import reason
+            self.assertTrue(reason(db, row['session_id']))
+        with connect(self.config) as db:
+            trace = store.linked(db, self.business['id'], 'job', job)
+            page = projection.page(db, self.business['id'], trace, {})
+            self.assertTrue(page['context_notice'])
+            self.assertEqual(page['recovery_href'], f'#analysis/{job}')
+            self.assertTrue(db.execute("SELECT 1 FROM activity_events WHERE trace_id=%s AND type='context.invalidated'", (trace,)).fetchone())
+
+    def test_unresolved_memory_blocks_new_manifest_without_losing_job(self):
+        from decision_room.memory import context
+        with connect(self.config) as db:
+            db.execute("UPDATE memory_sources SET status='uncertain' WHERE business_id=%s", (self.business['id'],))
+            with self.assertRaises(context.PendingMemory):
+                context.ensure_prepared(db, self.business['id'])
+        job = self.create()
+        self.ws.run_job(job)
+        row = self.ws.row(job)
+        self.assertEqual(row['status'], 'failed')
+        self.assertIsNone(row['session_id'])
+        self.assertIn('Mi negocio', row['issue'])
+        self.assertEqual(self.ws.upload(job)[1], self.csv)
 
 
 if __name__ == '__main__':

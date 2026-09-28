@@ -110,6 +110,9 @@ def read(ws,trace_id,query):
         result=projection.page(db,root['business_id'],root['id'],query,internal=True,config=ws.config)
         result['resources']=resources(db,root)
         result['business']=text(root['business']);result['business_id']=str(root['business_id'])
+        job=db.execute("SELECT j.title,j.goal FROM web_jobs j JOIN activity_links l ON l.source_id=j.id AND l.kind='job' WHERE l.trace_id=%s ORDER BY j.created_at DESC LIMIT 1",(root['id'],)).fetchone()
+        result['title']=text(job['title']) if job else 'Conversación del negocio'
+        result['goal']=text(job['goal'],1500) if job else ''
         return result
 
 
@@ -131,14 +134,24 @@ def detail(ws,trace_id,kind,object_id,*,event_id=None):
         if kind=='tasks':
             task=db.execute('SELECT * FROM activity_tasks WHERE business_id=%s AND trace_id=%s AND id=%s',(business,trace,identifier(object_id))).fetchone()
             if not task: raise WebError('Tarea no encontrada en este proceso.',404)
-            source=task['source'];content={'task':projection.public_task(task),'source':source}
+            source=task['source'];content={'task':{**projection.public_task(task),'role':task['role']},'source':source}
             if event_id:
                 selected=db.execute('SELECT id,sequence,type,status,payload,occurred_at,recorded_at,reconstructed FROM activity_events WHERE business_id=%s AND trace_id=%s AND task_id=%s AND id=%s',
                                     (business,trace,task['id'],identifier(event_id))).fetchone()
                 if not selected: raise WebError('Evento no encontrado en esta tarea.',404)
                 content['selected_event']=selected
             sk=source.get('kind')
-            if sk=='call':
+            if sk=='planner_consult':
+                event=db.execute('SELECT * FROM business_planner_events WHERE id=%s AND business_id=%s',(source['id'],business)).fetchone()
+                if event:
+                    call=db.execute("""SELECT context_payload->'analyst_message' AS message FROM agent_calls
+                        WHERE scope=%s AND phase='business_planner' AND status='completed'
+                        AND context_payload->>'stage'=%s
+                        AND jsonb_array_length(COALESCE(context_payload->'prior_checkpoints','[]'::jsonb))=%s
+                        AND finished_at<=%s ORDER BY finished_at DESC LIMIT 1""",
+                        (str(event['research_id']),event['stage'],event['ordinal']-1,event['created_at'])).fetchone()
+                    content['exchange']={'analyst_message':call['message'] if call else None,'direction':event['direction'],'stage':event['stage']}
+            elif sk=='call':
                 call=db.execute('SELECT phase,prompt_version,context_payload,output,usage,status,issue FROM agent_calls WHERE id=%s',(source['id'],)).fetchone()
                 if call:
                     context=call.pop('context_payload') or {}

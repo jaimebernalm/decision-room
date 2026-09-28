@@ -18,7 +18,7 @@ STATE={'new':'queued','ready':'completed','approved':'completed','partial':'comp
 
 
 def emit(db,business,trace,kind,key,status,label,*,role='system',actor=None,parent=None,source=None,
-         purpose='',refs=(),at=None,payload=None,reconstructed=False,event_type=None,started_at=None,finished_at=None):
+         purpose='',refs=(),at=None,payload=None,reconstructed=False,event_type=None,started_at=None,finished_at=None,finish_unknown=False):
     state=STATE.get(status,status)
     if state not in store.STATES: state='running'
     source=source or {'kind':kind,'id':str(key)}
@@ -27,12 +27,12 @@ def emit(db,business,trace,kind,key,status,label,*,role='system',actor=None,pare
         old=db.execute('SELECT * FROM activity_tasks WHERE trace_id=%s AND kind=%s AND source_id=%s',
                        (trace,kind,str(key))).fetchone()
         label=text(label);purpose=text(purpose)
-        if old and old['status']==state and old['public_text']==label and old['purpose']==purpose and (parent is None or old['parent_task_id']==parent) and old['role']==role and old['actor_id']==(actor or role) and old['refs']==list(refs) and old['source']==source:
+        if old and old['status']==state and old['public_text']==label and old['purpose']==purpose and (parent is None or old['parent_task_id']==parent) and old['role']==role and old['actor_id']==(actor or role) and old['refs']==list(refs) and old['source']==source and (finished_at is None or old['finished_at']==finished_at) and (not finish_unknown or old['finished_at'] is None):
             return old['id']
         return store.append(db,business,trace,kind=kind,source_id=key,role=role,actor_id=actor,
             parent_id=parent,status=state,public_text=label,purpose=purpose,refs=refs,source=source,
             payload=payload,dedupe_key=f'{kind}:{key}:{old["last_sequence"] if old else 0}:{state}',
-            occurred_at=at,reconstructed=reconstructed,event_type=event_type,started_at=started_at,finished_at=finished_at)
+            occurred_at=at,reconstructed=reconstructed,event_type=event_type,started_at=started_at,finished_at=finished_at,finish_unknown=finish_unknown)
 
 
 def refs_for(db,business,ids):
@@ -71,13 +71,13 @@ def reconcile(db,business,trace,*,reconstructed=False):
         if turn['job_id']: store.safe(db,business,trace,store.link,'job',turn['job_id'])
         for c in db.execute('SELECT * FROM chat_calls WHERE turn_id=%s ORDER BY attempt,ordinal',(turn_id,)).fetchall():
             key=f'{turn_id}:{c["attempt"]}:{c["ordinal"]}'
-            observe('chat_call',key,c['status'],'Preparando tu respuesta',role='chat',actor='chat',parent=parent,
-                    at=c['created_at'],source={'kind':'chat_call','turn_id':str(turn_id),'attempt':c['attempt'],'ordinal':c['ordinal']})
+            observe('chat_call',key,c['status'],'Respuesta preparada' if c['status']=='completed' else 'Preparando tu respuesta',role='chat',actor='chat',parent=parent,
+                    at=c['finished_at'] or (c['created_at'] if c['status']=='running' else None),started_at=c['created_at'],finished_at=c['finished_at'],finish_unknown=c['status']!='running' and c['finished_at'] is None,source={'kind':'chat_call','turn_id':str(turn_id),'attempt':c['attempt'],'ordinal':c['ordinal']})
         for r in db.execute('SELECT * FROM chat_retrievals WHERE turn_id=%s ORDER BY attempt,ordinal',(turn_id,)).fetchall():
             observe('retrieval',f'{turn_id}:{r["attempt"]}:{r["ordinal"]}','completed','Contexto consultado',role='chat',actor='chat',parent=parent,
                     source={'kind':'retrieval','turn_id':str(turn_id),'attempt':r['attempt'],'ordinal':r['ordinal']})
         for r in db.execute('SELECT * FROM chat_answer_reviews WHERE turn_id=%s ORDER BY attempt,ordinal',(turn_id,)).fetchall():
-            observe('chat_review',f'{turn_id}:{r["attempt"]}:{r["ordinal"]}',r['status'],'Revisando la respuesta',role='chat_reviewer',actor='chat_reviewer',parent=parent,at=r['created_at'],source={'kind':'chat_review','turn_id':str(turn_id),'attempt':r['attempt'],'ordinal':r['ordinal']})
+            observe('chat_review',f'{turn_id}:{r["attempt"]}:{r["ordinal"]}',r['status'],'Respuesta revisada' if r['status']=='completed' else 'Revisando la respuesta',role='chat_reviewer',actor='chat_reviewer',parent=parent,at=r['finished_at'] or (r['created_at'] if r['status']=='running' else None),started_at=r['created_at'],finished_at=r['finished_at'],finish_unknown=r['status']!='running' and r['finished_at'] is None,source={'kind':'chat_review','turn_id':str(turn_id),'attempt':r['attempt'],'ordinal':r['ordinal']})
     session_tasks={}
     research_tasks={}
     review_tasks={}
@@ -86,6 +86,9 @@ def reconcile(db,business,trace,*,reconstructed=False):
         s=db.execute('SELECT * FROM agent_sessions WHERE business_id=%s AND id=%s',(business,session_id)).fetchone()
         if not s: continue
         analyses.add(s['analysis_id'])
+        manifest=db.execute('SELECT stale_reason FROM context_manifests WHERE session_id=%s',(session_id,)).fetchone()
+        if manifest and manifest['stale_reason']:
+            observe('context',session_id,'superseded','La información del negocio ha cambiado',source={'kind':'context','id':str(session_id)},payload={'reason':manifest['stale_reason']},event_type='context.invalidated')
         state='superseded' if s.get('superseded_by') else s['status']
         owner=db.execute('''SELECT t.id FROM chat_turns t JOIN web_jobs j ON j.id=t.job_id AND j.business_id=t.business_id
             WHERE t.business_id=%s AND j.session_id=%s ORDER BY t.created_at LIMIT 1''',(business,session_id)).fetchone()
@@ -104,17 +107,22 @@ def reconcile(db,business,trace,*,reconstructed=False):
         for run in db.execute('SELECT * FROM agent_research WHERE business_id=%s AND session_id=%s ORDER BY created_at,id',(business,session_id)).fetchall():
             runs[run['id']]=run
             store.safe(db,business,trace,store.link,'research',run['id'])
+    branch_number=0
+    run_labels={}
     for run_id,run in sorted(runs.items(),key=lambda pair:bool(pair[1]['options'].get('worker_assignment'))):
         branch=db.execute('SELECT * FROM agent_research_branches WHERE business_id=%s AND child_id=%s',(business,run_id)).fetchone()
         role='subanalyst' if branch else 'research'
         questions={i['key']:i for i in run['snapshot'].get('proposal',{}).get('investigations',[])}
         assignment=branch['assignment'] if branch else None
         task=questions.get((assignment or {}).get('investigation_key'),{}) if assignment else next(iter(questions.values())) if len(questions)==1 else {}
-        label='Investigar: '+task['question'] if task else 'Investigando los datos'
+        if branch: branch_number+=1
+        topic=task.get('activity_label') or (f'Comprobación {branch_number} de los datos' if branch else 'Investigación de los datos')
+        run_labels[run_id]=topic
+        label=topic
         parent=research_tasks.get(branch['parent_id']) if branch else session_tasks.get(run['session_id'])
         research_tasks[run_id]=observe('branch' if branch else 'research',run_id,run['status'],label,role=role,actor=str(run_id) if branch else 'research',parent=parent,
-            at=run['updated_at'],started_at=branch['started_at'] if branch else run['created_at'],purpose=task.get('business_value',''),refs=refs_for(db,business,task.get('table_ids',[])),
-            source={'kind':'research','id':str(run_id),'assignment':assignment,'parent_id':str(branch['parent_id']) if branch else None})
+            at=run['updated_at'],started_at=branch['started_at'] if branch else run['created_at'],purpose='',refs=refs_for(db,business,task.get('table_ids',[])),
+            source={'kind':'research','id':str(run_id),'assignment':assignment,'question':task.get('question',''),'parent_id':str(branch['parent_id']) if branch else None})
         for step in db.execute('SELECT * FROM agent_research_steps WHERE research_id=%s ORDER BY step',(run_id,)).fetchall():
             a=step['action'];kind=a['action'];name={'expand':'Ampliando la investigación','record_candidate':'Comprobación registrada, pendiente de revisión',
                  'discard':'Comprobación descartada','block':'Comprobación limitada','delegate':'Investigaciones delegadas','consult_business':'Consultando el enfoque del negocio',
@@ -129,7 +137,7 @@ def reconcile(db,business,trace,*,reconstructed=False):
             d=event['direction'];q=d.get('question')
             answer=db.execute('SELECT id,created_at FROM business_planner_answers WHERE event_id=%s',(event['id'],)).fetchone()
             observe('planner_consult',event['id'],'waiting_owner' if q and not answer else 'completed',
-                'Esperando tu respuesta' if q and not answer else 'Enfoque contrastado con tu objetivo',role='business_planner',actor='business_planner',parent=research_tasks[run_id],
+                'Esperando tu respuesta' if q and not answer else {'initial':'Enfoque inicial definido','checkpoint':f'Prioridades revisadas · paso {event["ordinal"]}','delivery':'Cobertura del objetivo revisada'}[event['stage']],role='business_planner',actor='business_planner',parent=research_tasks[run_id],
                 at=answer['created_at'] if answer else event['created_at'],started_at=event['created_at'],finished_at=answer['created_at'] if answer else None,
                 refs=[r for r in (q or {}).get('references',[]) if r['kind'] in ('table','column')],
                 source={'kind':'planner_consult','id':str(event['id']),'research_id':str(run_id)},payload={'direction':d})
@@ -171,7 +179,7 @@ def reconcile(db,business,trace,*,reconstructed=False):
             except ValueError: pass
         parent=research_tasks.get(owner)
         worker=bool(runs.get(owner,{}).get('options',{}).get('worker_assignment'))
-        observe('execution',ex['id'],ex['status'],'Cálculo completado' if ex['status']=='completed' else 'Comprobando los datos mediante un cálculo',
+        observe('execution',ex['id'],ex['status'],('Cálculo terminado' if ex['status']=='completed' else 'Calculando') + ' · ' + run_labels.get(owner,'Datos del informe'),
                 role='subanalyst' if worker else 'research',actor=str(owner) if worker else 'research',parent=parent,at=ex['finished_at'] or ex['created_at'],started_at=ex['created_at'],finished_at=ex['finished_at'],
                 refs=refs_for(db,business,[i['id'] for i in ex['inputs'].values()]),source={'kind':'execution','id':str(ex['id'])})
     for analysis in analyses:

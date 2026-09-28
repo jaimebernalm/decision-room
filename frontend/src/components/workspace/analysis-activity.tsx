@@ -22,21 +22,19 @@ export function AnalysisActivity({ endpoint, traceId, fallback = "Preparando el 
   const [selected,setSelected] = useState<ActivityTask | null>(null);
   const data = activity.data;
   const headline = data?.headline || fallback;
-  const tasks = activity.tasks.filter((t) => !["job","turn","call","chat_call","chat_review","research_step","transport"].includes(t.kind));
-  return <div id={data?.trace_id ? `activity-${data.trace_id}` : undefined} className="my-3 min-w-0 text-sm">
-    <Collapsible open={open} onOpenChange={(value) => { setOpen(value); openStates.set(key,value); if (value) void activity.refresh(); }}>
-      <CollapsibleTrigger className="flex max-w-full items-center gap-2 rounded-md py-1.5 text-left text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring">
-        <Icon status={data?.terminal ? data.status === "completed" ? "completed" : "failed" : data?.status === "waiting" ? "waiting_owner" : "running"} />
-        <span aria-live="polite" aria-atomic>{headline}</span>
-        <ChevronDown className={`size-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden />
-      </CollapsibleTrigger>
-      <CollapsibleContent className="mt-2 space-y-2 border-l pl-4">
-        {activity.error && <p className="text-xs text-muted-foreground">Reconectando con el progreso… <button className="underline" onClick={() => void activity.refresh()}>Actualizar</button></p>}
-        {data?.worker_health === "unconfirmed" && !data.terminal && <p className="text-xs text-muted-foreground">Sin actualización del proceso. Estamos comprobando su estado.</p>}
-        {data && !data.history_complete && <p className="text-xs text-muted-foreground">Parte del historial detallado no está disponible.</p>}
-        {data?.previous_cursor && <Button size="sm" variant="ghost" disabled={activity.loadingOlder} onClick={() => void activity.loadOlder()}>Ver actividad anterior</Button>}
-        <ol className="space-y-3" aria-label="Historial del análisis">
-          {tasks.map((task) => <li key={task.id} className="flex items-start gap-2">
+  const tasks = activity.tasks.filter((t) => !["job","turn","call","research_step","transport"].includes(t.kind));
+  const byId=new Map(activity.tasks.map(t=>[t.id,t]));
+  function previousVersion(task:ActivityTask) {
+    const seen=new Set<string>();let current:ActivityTask|undefined=task;
+    while (current && !seen.has(current.id)) {
+      if (current.status==='superseded') return true;
+      seen.add(current.id);current=current.parent_id ? byId.get(current.parent_id) : undefined;
+    }
+    return false;
+  }
+  const currentTasks=tasks.filter(t=>!previousVersion(t));
+  const previousTasks=tasks.filter(previousVersion);
+  const taskRow=(task:ActivityTask)=>(<li key={task.id} className="flex items-start gap-2">
             <span className="mt-0.5 text-muted-foreground"><Icon status={task.status} /></span>
             <div className="min-w-0 flex-1">
               <p className="break-words">{task.text}</p>
@@ -48,9 +46,28 @@ export function AnalysisActivity({ endpoint, traceId, fallback = "Preparando el 
               }}>Responder pregunta</Button>}
               {task.references.length > 0 && task.data_endpoint && <Button type="button" variant="ghost" size="sm" className="ml-2 h-6 text-xs" onClick={() => setSelected(task)}><Database className="size-3" />Ver datos</Button>}
             </div>
-          </li>)}
+          </li>);
+  return <div id={data?.trace_id ? `activity-${data.trace_id}` : undefined} className="my-3 min-w-0 text-sm">
+    <Collapsible open={open} onOpenChange={(value) => { setOpen(value); openStates.set(key,value); if (value) void activity.refresh(); }}>
+      <CollapsibleTrigger className="flex max-w-full items-center gap-2 rounded-md py-1.5 text-left text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring">
+        <Icon status={data?.terminal ? data.status === "completed" ? "completed" : "failed" : data?.status === "waiting" ? "waiting_owner" : "running"} />
+        <span aria-live="polite" aria-atomic>{headline}</span>
+        <ChevronDown className={`size-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden />
+      </CollapsibleTrigger>
+      {data?.context_notice && <div className="mt-2 max-w-2xl rounded-lg border p-3 text-sm">
+        <p>{data.context_notice}</p>
+        {data.recovery_href && <Button asChild variant="outline" size="sm" className="mt-3"><a href={data.recovery_href}>Actualizar el informe</a></Button>}
+      </div>}
+      <CollapsibleContent className="mt-2 space-y-2 border-l pl-4">
+        {activity.error && <p className="text-xs text-muted-foreground">Reconectando con el progreso… <button className="underline" onClick={() => void activity.refresh()}>Actualizar</button></p>}
+        {data?.worker_health === "unconfirmed" && !data.terminal && <p className="text-xs text-muted-foreground">Sin actualización del proceso. Estamos comprobando su estado.</p>}
+        {data && !data.history_complete && <p className="text-xs text-muted-foreground">Parte del historial detallado no está disponible.</p>}
+        {data?.previous_cursor && <Button size="sm" variant="ghost" disabled={activity.loadingOlder} onClick={() => void activity.loadOlder()}>Ver actividad anterior</Button>}
+        <ol className="space-y-3" aria-label="Historial del análisis">
+          {currentTasks.map(taskRow)}
         </ol>
-        {!tasks.length && <p className="text-xs text-muted-foreground">{data?.status === "historical" ? "Este análisis se creó antes de disponer del historial detallado." : "Las comprobaciones aparecerán aquí cuando se registren."}</p>}
+        {previousTasks.length > 0 && <details className="mt-4 text-muted-foreground"><summary className="cursor-pointer text-xs">Actividad de versiones anteriores ({previousTasks.length})</summary><p className="my-3 text-xs">Este trabajo se conserva como historial; el informe actual utiliza la versión más reciente del contexto.</p><ol className="space-y-3" aria-label="Historial de versiones anteriores">{previousTasks.map(taskRow)}</ol></details>}
+        {!tasks.length && <p className="text-xs text-muted-foreground">{data?.status === "historical" ? "Este análisis se creó antes de disponer del historial detallado." : data?.terminal ? "Este proceso ha terminado y no tiene más actividades para mostrar." : "Las comprobaciones aparecerán aquí cuando se registren."}</p>}
       </CollapsibleContent>
     </Collapsible>
     <Sheet open={Boolean(selected)} onOpenChange={(value) => { if (!value) setSelected(null); }}>
