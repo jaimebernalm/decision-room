@@ -36,7 +36,11 @@ def assessed(response, context):
             issue.update(status='resolved', resolution='Checked the saved definition and calculation in this scripted fixture.')
     return {**response, 'assessment': dict(report_step=context['report_step'], issues=issues,
             delivery=dict(numbers='pass', meaning='pass', charts='pass' if context['report']['charts'] else 'not_applicable',
-                          coverage='pass', files='pass'))}
+                          coverage='pass', files='pass'),
+            usefulness=dict(goal_alignment='pass', reason='Scripted factual total goal only.', questions=[
+                dict(investigation_key=q['investigation_key'], verdict='pass' if q['status']=='answered' else 'unavailable',
+                     claim_keys=q['claim_keys'], reason='Scripted protocol fixture, not semantic evaluation.')
+                for q in context['report'].get('question_coverage', [])]))}
 
 
 def draft(context, text='Total registrado en este extracto.'):

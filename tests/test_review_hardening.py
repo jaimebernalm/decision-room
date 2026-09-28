@@ -22,6 +22,24 @@ class HardeningTests(unittest.TestCase):
     setUp = review_tests.ReviewTests.setUp
     run_review = review_tests.ReviewTests.run_review
 
+    def test_usefulness_failure_missing_questions_and_false_coverage_block_approval(self):
+        self.run_review()
+        ctx=self.roles.contexts[-1]
+        self.assertEqual(ctx['review_policy'],2)
+        good=assessed(action('approve'),ctx)
+        for mutation in ('missing','goal','question','coverage'):
+            bad=deepcopy(good)
+            audit=bad['assessment']['usefulness']
+            if mutation=='missing': bad['assessment']['usefulness']=None
+            if mutation=='goal': audit['goal_alignment']='fail'
+            if mutation=='question': audit['questions'][0]['verdict']='fail'
+            if mutation=='coverage': audit['questions']=[]
+            with self.subTest(mutation=mutation),self.assertRaises(ValueError):
+                validate(bad,'reviewer',ctx)
+        legacy={**ctx,'review_policy':1}
+        good['assessment']['usefulness']=None
+        validate(good,'reviewer',legacy)
+
     def test_issues_cannot_disappear_and_suggestions_do_not_block(self):
         result = self.run_review()
         context = self.roles.contexts[-1]

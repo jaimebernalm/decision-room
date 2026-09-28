@@ -61,6 +61,8 @@ def summary(db, business, analysis):
     return dict(analysis_id=str(analysis),revision=row['revision'],
         tables=len(body['tables']),relations=len(body['relations']),
         confirmed_relations=sum(r['semantic_status']=='confirmed' for r in body['relations']),
+        relationships=[{k:r[k] for k in ('id','source','target','source_columns','target_columns','description','semantic_status','verification','cardinality','evidence')} for r in body['relations']],
+        discovery_limits=body.get('discovery',{}).get('limitations',[]),
         definitions=[{k:m[k] for k in ('key','name','unit','table_ids','period')} for m in body['metrics']],
         instruction='Use inspect_dataset(table id) for full column knowledge and adjacent ER edges. Technical checks are not confirmed business meaning. No automatic joins or implicit numeric conversions.')
 
@@ -126,10 +128,28 @@ def ensure(config,business,analysis):
             return old
         with profiling.engine(config,business,rows) as (engine,views):
             tables=[profiling.profile(engine,views[str(r['id'])],r) for r in rows]
-            relations=[profiling.validate_relation(engine,views,tables,*args) for args in profiling.candidates(tables)]
+            relations=[]
+            if old and old['fingerprint']==source_hash:
+                for previous in old['body']['relations']:
+                    checked=profiling.validate_relation(engine,views,tables,previous['source'],previous['target'],
+                        previous['source_columns'],previous['target_columns'])
+                    checked.update({k:v for k,v in previous.items() if k in ('origin','semantic_status','description','provenance')})
+                    relations.append(checked)
         body=dict(version=profiling.VERSION,tables=tables,relations=relations,metrics=[],
                   scope='This dataset version only. New files are profiled afresh; definitions and semantic confirmations are never copied by matching names.',
-                  inference='Conservative entity-specific name candidates. Absence of an edge does not establish absence of a relationship; add composite or differently named keys explicitly.')
+                  inference='Relationships are proposed by the analyst and checked on full files. No proposal is proof of business meaning; absence of an edge does not establish absence of a relationship.')
+        if old and old['fingerprint']==source_hash:
+            # A profiler upgrade must preserve owner meanings and prior discoveries.
+            body.update({k:v for k,v in old['body'].items() if k not in ('version','tables','relations','inference')})
+            previous={t['id']:t for t in old['body']['tables']}
+            for table in tables:
+                before=previous[table['id']]
+                for key in ('description','grain','semantic_status','declared_keys'):
+                    table[key]=before[key]
+                columns={c['name']:c for c in before['columns']}
+                for column in table['columns']:
+                    for key in ('meaning','unit','conversion','semantic_status'):
+                        column[key]=columns[column['name']][key]
         with db.transaction():
             if fingerprint(records(db,business,analysis))!=source_hash:
                 raise ValueError('Los archivos han cambiado durante la comprobación. Reintenta.')

@@ -29,9 +29,93 @@ class DataKnowledgeTests(unittest.TestCase):
             model=knowledge.latest(db,self.business,analysis)
         return analysis,model
 
+    def propose_customer_relation(self, analysis, row):
+        from decision_room.data_knowledge.discovery import discover
+        class Proposer:
+            identity={'model':'explicit-proposal-test'}
+            def generate_data_discovery(inner, payload, correction=None):
+                by={t['name']:t['id'] for t in payload['profiles']}
+                return dict(tables=[], limitations=[], relations=[dict(source=by['Invoices.csv'], target=by['Customers.csv'],
+                    source_columns=['CustomerID'],target_columns=['CustomerID'],description='Proposed customer link')]),{}
+        return discover(self.config,self.business,analysis,Proposer())
+
+    def test_agent_discovery_arbitrary_names_composite_cache_owner_and_dates(self):
+        from decision_room.data_knowledge.discovery import discover
+        analysis,row=self.tables({'Workbook.xlsx [Movimientos].csv':'ref,area,fecha,valor\n01,a,2026-06-01 00:00:00,2\n01,a,2026-08-31 12:30:00,3\n',
+                                 'opaque.csv':'code,region,label\n01,a,One\n02,b,Two\n'})
+        a,b=row['body']['tables']
+        date=next(c for c in a['columns'] if c['name']=='fecha')
+        self.assertEqual(date['logical_type'],'date')
+        self.assertEqual(date['period'],{'from':'2026-06-01','until':'2026-08-31'})
+        class Model:
+            identity={'model':'arbitrary-composite'}
+            calls=0
+            def generate_data_discovery(inner,payload,correction=None):
+                inner.calls+=1
+                return dict(tables=[dict(id=a['id'],description='Movement',grain='One movement')],
+                    relations=[dict(source=a['id'],target=b['id'],source_columns=['ref','area'],
+                        target_columns=['code','region'],description='Proposed composite link')], limitations=[]),{'tokens':1}
+        model=Model()
+        found=discover(self.config,self.business,analysis,model)
+        rel=found['body']['relations'][0]
+        self.assertEqual((rel['origin'],rel['semantic_status'],rel['verification']),('agent','proposed','checked'))
+        self.assertEqual(rel['evidence']['left_join_rows'],2)
+        self.assertEqual(discover(self.config,self.business,analysis,model)['revision'],2)
+        self.assertEqual(model.calls,1)
+        corrected=knowledge.change(self.config,self.business,analysis,2,'relation',
+            {k:rel[k] for k in ('source','target','source_columns','target_columns')}|dict(semantic_status='rejected',description='Owner rejects meaning'))
+        model.identity={'model':'different-model'}
+        refreshed=discover(self.config,self.business,analysis,model)
+        self.assertEqual(refreshed['body']['relations'][0]['semantic_status'],'rejected')
+        self.assertEqual(refreshed['body']['relations'][0]['description'],'Owner rejects meaning')
+        # Profiler upgrades keep semantic corrections on the exact same files.
+        from unittest.mock import patch
+        with patch('decision_room.data_knowledge.profiling.VERSION','test-profiler-upgrade'):
+            upgraded=knowledge.ensure(self.config,self.business,analysis)
+        self.assertEqual(upgraded['body']['relations'],refreshed['body']['relations'])
+        other=ingestion.create_business(self.config,'Isolated')['id']
+        with self.assertRaises(ValueError):
+            discover(self.config,other,analysis,model)
+
+    def test_discovery_uncertain_and_apply_interruption_reuse_saved_proposal(self):
+        from decision_room.data_knowledge.discovery import discover
+        from decision_room.agent.model import ModelRequestUncertain
+        from unittest.mock import patch
+        class Model:
+            identity={'model':'interruption'}
+            calls=0
+            def generate_data_discovery(inner,payload,correction=None):
+                inner.calls+=1
+                if inner.calls==1: raise ModelRequestUncertain('Transport interrupted')
+                return dict(tables=[],relations=[],limitations=['No supported relation']),{}
+        model=Model()
+        with self.assertRaises(ModelRequestUncertain):
+            discover(self.config,self.business,self.analysis,model)
+        with self.assertRaisesRegex(ValueError,'interrumpió'):
+            discover(self.config,self.business,self.analysis,model)
+        with patch('decision_room.data_knowledge.service.persist',side_effect=RuntimeError('Crash after response')):
+            with self.assertRaises(RuntimeError):
+                discover(self.config,self.business,self.analysis,model,retry_uncertain=True)
+        result=discover(self.config,self.business,self.analysis,model)
+        self.assertEqual(model.calls,2)
+        self.assertEqual(result['body']['discovery']['status'],'completed')
+
+    def test_discovery_rejects_out_of_scope_proposals_without_partial_mutation(self):
+        from decision_room.data_knowledge.discovery import discover
+        class Model:
+            identity={'model':'invalid-scope'}
+            def generate_data_discovery(inner,payload,correction=None):
+                return dict(tables=[dict(id=str(uuid4()),description='Foreign',grain='Unknown')],relations=[],limitations=[]),{}
+        with self.assertRaisesRegex(ValueError,'validación'):
+            discover(self.config,self.business,self.analysis,Model())
+        with connect(self.config) as db:
+            self.assertEqual(knowledge.latest(db,self.business,self.analysis)['revision'],1)
+
     def test_whole_file_profiles_and_unsafe_relation(self):
         analysis,model=self.tables({'Customers.csv':'CustomerID,name\n01,A\n02,B\n02,C\n',
             'Invoices.csv':'InvoiceID,CustomerID,amount,date\n1,01,10,2025-01-01\n2,02,20,2025-02-01\n3,03,bad,invalid\n4,,40,2025-03-01\n'})
+        self.assertEqual(model['body']['relations'], [])
+        model=self.propose_customer_relation(analysis, model)
         relations=model['body']['relations']
         self.assertEqual(len(relations),1)
         r=relations[0]
@@ -45,7 +129,7 @@ class DataKnowledgeTests(unittest.TestCase):
         amount=next(c for c in invoice['columns'] if c['name']=='amount')
         self.assertEqual(amount['logical_type'],'text')
         self.assertEqual(amount['numeric_parseable'],3)
-        self.assertEqual(knowledge.ensure(self.config,self.business,analysis)['revision'],1)
+        self.assertEqual(knowledge.ensure(self.config,self.business,analysis)['revision'],2)
 
     def test_composite_many_to_many_and_lexical_identity(self):
         analysis,model=self.tables({'left.csv':'a,b,amount\n01,x,10\n01,x,20\n2,y,30\n',
@@ -93,9 +177,11 @@ class DataKnowledgeTests(unittest.TestCase):
 
     def test_replacement_revalidates_and_isolation(self):
         analysis,model=self.tables({'Customers.csv':'CustomerID,name\n1,A\n2,B\n','Invoices.csv':'InvoiceID,CustomerID\n1,1\n2,2\n'})
+        model=self.propose_customer_relation(analysis, model)
         r=model['body']['relations'][0]
-        knowledge.change(self.config,self.business,analysis,1,'relation',{k:r[k] for k in ('source','target','source_columns','target_columns')}|{'semantic_status':'confirmed'})
+        knowledge.change(self.config,self.business,analysis,2,'relation',{k:r[k] for k in ('source','target','source_columns','target_columns')}|{'semantic_status':'confirmed'})
         newer,newmodel=self.tables({'Customers.csv':'CustomerID,name\n1,A\n1,B\n','Invoices.csv':'InvoiceID,CustomerID\n1,1\n2,2\n'})
+        newmodel=self.propose_customer_relation(newer,newmodel)
         self.assertNotEqual(analysis,newer)
         self.assertEqual(newmodel['body']['relations'][0]['semantic_status'],'proposed')
         self.assertEqual(newmodel['body']['relations'][0]['verification'],'attention')

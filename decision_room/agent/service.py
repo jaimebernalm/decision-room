@@ -23,6 +23,8 @@ def _create_session(config, business_id, analysis_id, *, owner_context, request_
     _key(request_key)
     from ..data_knowledge.service import ensure
     ensure(config, business_id, analysis_id)
+    from ..data_knowledge.discovery import discover
+    discover(config, business_id, analysis_id, model)
     source = snapshot(config, business_id, analysis_id, owner_context)
     identity = {'source': source, 'model': model.identity, 'graph': GRAPH_VERSION}
     if request_period is not None:

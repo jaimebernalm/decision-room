@@ -1,4 +1,5 @@
 """Small, evidence-backed projection of an approved report for the home page."""
+from ..series import evidence_key, evidence_label
 
 import hashlib
 import json
@@ -68,10 +69,10 @@ def presentation(data):
                         for item in o['inputs'].values() for name in item['original_names']})
         metrics, seen = [], set()
         for ref in refs:
-            key = (ref['execution_id'], ref['metric'])
+            key = evidence_key(ref)
             if key not in seen:
                 seen.add(key)
-                metrics.append({'label': ref['metric'], 'value': str(metric(data, ref))})
+                metrics.append({'label': evidence_label(ref), 'value': str(metric(data, ref))})
         operations = [saved_series(data['observations'], c['series'])['evidence']['operation']
                       for c in charts if c.get('series')]
         claims.append({**{key: claim[key] for key in ('key', 'title', 'statement', 'interpretation', 'method', 'next_step')},

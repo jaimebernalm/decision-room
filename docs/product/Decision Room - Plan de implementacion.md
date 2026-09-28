@@ -468,6 +468,10 @@ La prueba manual posterior corrige el progreso dentro del onboarding, la exposic
 de contexto interno y la recuperación explícita de revisiones agotadas, conservando
 borrador, reparos y cálculos; el primer informe de prueba se recupera y contrasta
 sin nuevas ejecuciones numéricas.
+Completado **3.4.1: conocimiento de datos y utilidad del informe**,
+según el [plan de mejora](../technical/agent-data-discovery-plan.md), motivado por la prueba manual de Bruma Café.
+Incluye propuestas de relaciones por el agente, comprobaciones completas, auditoría de utilidad
+y citas a series guardadas. Véase la [validación, intentos fallidos y límites](../validation/2026-09-27-agent-data-and-insights.md).
 El siguiente paso, **3.5, implementa los analistas en paralelo** coordinados por el analista
 principal; **3.6 recoge la selección y revisión por objetivo y la evaluación
 integral**, comparando calidad, tiempo y coste frente al modo secuencial.

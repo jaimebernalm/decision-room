@@ -277,6 +277,7 @@ def dependencies_current(config, db, saved, events):
 
 
 def brief(data, keys=None, mode='summary'):
+    from .series import evidence_label, evidence_value
     if not data['publishable']:
         raise WebError('La evidencia necesita una nueva revisión.', 409)
     report = data['report']
@@ -284,15 +285,13 @@ def brief(data, keys=None, mode='summary'):
     if not claims or (keys and set(keys) != {c['key'] for c in claims}):
         raise ValueError('Unknown reviewed claim reference.')
     metrics = []
-    observations = {o['execution_id']: o for o in data['observations'] if o['current'] and o['result']}
     for claim in claims:
         for ref in claim['evidence']:
-            observation = observations[ref['execution_id']]
             metrics.append(
                 dict(
                     execution_id=ref['execution_id'],
-                    metric=ref['metric'],
-                    value=observation['result']['metrics'][ref['metric']],
+                    metric=evidence_label(ref),
+                    value=evidence_value(data['observations'], ref),
                 )
             )
     display = projection(data) or {}
@@ -1040,6 +1039,9 @@ class Conversations:
                     if source['status'] != 'applied':
                         raise ValueError('Memory extraction needs explicit retry.')
                 if not turn['snapshot']:
+                    if chat['analysis_id']:
+                        from .data_knowledge.discovery import discover
+                        discover(self.config, self.business, chat['analysis_id'], model, retry_uncertain=turn['attempt'] > 0)
                     with db.transaction():
                         memory.lock(db, self.business)
                         turn['snapshot'] = snapshot(

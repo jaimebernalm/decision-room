@@ -24,10 +24,24 @@ class DeliveryAudit(Strict):
     files: Literal['pass', 'fail']
 
 
+class QuestionUtility(Strict):
+    investigation_key: str = Field(min_length=1, max_length=64)
+    verdict: Literal['pass', 'fail', 'unavailable']
+    claim_keys: list[str] = Field(max_length=6)
+    reason: str = Field(min_length=1, max_length=1000)
+
+
+class UsefulnessAudit(Strict):
+    goal_alignment: Literal['pass', 'fail']
+    reason: str = Field(min_length=1, max_length=1200)
+    questions: list[QuestionUtility] = Field(max_length=24)
+
+
 class ReviewAssessment(Strict):
     report_step: int = Field(ge=1)
     issues: list[ReviewIssue] = Field(max_length=16)
     delivery: DeliveryAudit
+    usefulness: UsefulnessAudit | None = None
 
 
 def ledger(conversation):
@@ -96,3 +110,22 @@ def validate_assessment(action, role, context):
             raise ValueError('Cannot approve open material blockers or a failed delivery audit.')
         if context['report'].get('charts') and assessment.delivery.charts != 'pass':
             raise ValueError('Existing charts require an explicit passing chart audit.')
+
+    if context.get('review_policy', 0) >= 2:
+        utility = assessment.usefulness
+        if utility is None:
+            raise ValueError('Review requires an explicit usefulness audit against the owner goal.')
+        coverage = {q['investigation_key']: q for q in context['report']['question_coverage']}
+        questions = {q.investigation_key: q for q in utility.questions}
+        if len(questions) != len(utility.questions) or questions.keys() != coverage.keys():
+            raise ValueError('Assess usefulness of every delivered question exactly once.')
+        for key, item in questions.items():
+            delivered = coverage[key]
+            if set(item.claim_keys) != set(delivered['claim_keys']):
+                raise ValueError('Usefulness must assess the actual delivered claim references.')
+            if delivered['status'] == 'answered' and item.verdict == 'unavailable':
+                raise ValueError('An answered question cannot have unavailable usefulness.')
+            if delivered['status'] == 'unavailable' and item.verdict == 'pass':
+                raise ValueError('Unavailable work cannot pass as a useful delivered answer.')
+        if action.action == 'approve' and (utility.goal_alignment != 'pass' or any(q.verdict == 'fail' for q in utility.questions)):
+            raise ValueError('Cannot approve failed usefulness or misleading question coverage.')

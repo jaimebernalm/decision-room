@@ -4,7 +4,7 @@ from decimal import Decimal, ROUND_HALF_UP, localcontext
 from html import escape
 
 from .agent.review_contract import ReportDraft, checks
-from .series import saved_series
+from .series import saved_series, evidence_value, evidence_label, evidence_key
 
 
 def e(value):
@@ -12,8 +12,7 @@ def e(value):
 
 
 def metric(data, ref):
-    observation = next(o for o in data['observations'] if o['execution_id'] == ref['execution_id'])
-    return observation['result']['metrics'][ref['metric']]
+    return evidence_value(data['observations'], ref)
 
 
 def formatted(value, decimals):
@@ -86,11 +85,11 @@ def evidence_html(data, claim, charts):
                     for item in o['inputs'].values() for name in item['original_names']})
     rows, seen = [], set()
     for ref in refs:
-        key = (ref['execution_id'], ref['metric'])
+        key = evidence_key(ref)
         if key in seen:
             continue
         seen.add(key)
-        rows.append(f'<tr><th scope="row">{e(ref["metric"])}</th><td>{e(metric(data, ref))}</td></tr>')
+        rows.append(f'<tr><th scope="row">{e(evidence_label(ref))}</th><td>{e(metric(data, ref))}</td></tr>')
     series_details = []
     for chart in charts:
         if chart.get('series'):

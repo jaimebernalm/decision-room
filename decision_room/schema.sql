@@ -674,3 +674,21 @@ CREATE TABLE IF NOT EXISTS onboarding_events (
     PRIMARY KEY(business_id,request_key)
 );
 INSERT INTO schema_versions(version) VALUES (21) ON CONFLICT DO NOTHING;
+
+-- Durable bounded discovery before chat/planning snapshots.
+CREATE TABLE IF NOT EXISTS data_model_discoveries (
+    business_id uuid NOT NULL,
+    analysis_id uuid NOT NULL,
+    call_key text NOT NULL,
+    attempt integer NOT NULL,
+    status text NOT NULL CHECK(status IN ('running','completed','failed','interrupted')),
+    context_payload jsonb NOT NULL,
+    model_settings jsonb NOT NULL,
+    output jsonb,
+    usage jsonb,
+    issue text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY(business_id,analysis_id,call_key,attempt),
+    FOREIGN KEY(business_id,analysis_id) REFERENCES analyses(business_id,id)
+);
+INSERT INTO schema_versions(version) VALUES (22) ON CONFLICT DO NOTHING;

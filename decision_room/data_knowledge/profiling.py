@@ -11,7 +11,7 @@ from ..csv_ingest import identifier as quote
 from ..storage import Storage, digest
 from ..memory.service import digest as fingerprint
 
-VERSION = 'data-knowledge-v1'
+VERSION = 'data-knowledge-v2'
 
 
 @contextmanager
@@ -47,7 +47,7 @@ def profile(db, view, record):
         c = quote(name)
         # Parse checks preserve lexical identifiers and never alter the Parquet.
         numeric = f"regexp_full_match({c}, '[+-]?[0-9]+([.][0-9]+)?') AND try_cast({c} AS DECIMAL(38,10)) IS NOT NULL"
-        dates = f"regexp_full_match({c}, '[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}') AND try_cast({c} AS DATE) IS NOT NULL"
+        dates = f"regexp_full_match({c}, '[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}([ T][0-9]{{2}}:[0-9]{{2}}:[0-9]{{2}}([.][0-9]+)?)?') AND try_cast({c} AS TIMESTAMP) IS NOT NULL"
         values = db.execute(f'''SELECT count(*) FILTER (WHERE {c} IS NULL OR {c}=''),
             count(DISTINCT {c}) FILTER (WHERE {c} IS NOT NULL AND {c}<>''),
             count(*) FILTER (WHERE {numeric}), count(*) FILTER (WHERE {dates}),
@@ -107,7 +107,7 @@ def validate_relation(db, views, tables, source, target, source_columns, target_
         coalesce(sum(CASE WHEN b.n IS NOT NULL THEN a.n ELSE 0 END),0)
         FROM ({left}) a LEFT JOIN ({right}) b ON {on}''').fetchone()
     cardinality = ('many' if a['duplicate_keys'] else 'one') + '-to-' + ('many' if b['duplicate_keys'] else 'one')
-    safe = bool(a['complete_rows'] and b['complete_rows'] and not b['duplicate_keys'] and not unmatched)
+    safe = bool(a['complete_rows'] and b['complete_rows'] and not a['missing_rows'] and not b['missing_rows'] and not b['duplicate_keys'] and not unmatched)
     return dict(id=relation_id(source,target,source_columns,target_columns), source=source, target=target,
         source_columns=source_columns, target_columns=target_columns, cardinality=cardinality,
         origin='inferred', semantic_status='proposed', description='',
@@ -118,22 +118,3 @@ def validate_relation(db, views, tables, source, target, source_columns, target_
                       coverage=float(matched/a['complete_rows']) if a['complete_rows'] else None),
         join=dict(operator='equality', comparison='Exact lexical equality; no implicit casts', direction='source → target'),
         precaution='Technical checks do not establish business meaning. Aggregate at the intended grain; never sum parent measures after a one-to-many join.')
-
-
-def candidates(tables):
-    # Only entity-specific key names, never generic id/name/date or arbitrary overlap.
-    for target in tables:
-        stem = re.sub(r'[^a-z0-9]', '', target['name'].rsplit('/',1)[-1].rsplit('.',1)[0].split('.')[-1].lower())
-        for key in target['columns']:
-            normalized = re.sub(r'[^a-z0-9]', '', key['name'].lower())
-            if not normalized.endswith('id') or len(normalized) <= 2:
-                continue
-            entity = normalized[:-2]
-            if stem not in (entity, entity+'s', entity[:-1]+'ies' if entity.endswith('y') else entity):
-                continue
-            for source in tables:
-                if source['id'] == target['id']:
-                    continue
-                for col in source['columns']:
-                    if col['name'].casefold() == key['name'].casefold():
-                        yield source['id'],target['id'],[col['name']],[key['name']]

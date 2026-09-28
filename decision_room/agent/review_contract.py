@@ -8,7 +8,7 @@ from pydantic import Field
 
 from .contracts import Strict
 from .review_policy import ReviewAssessment, validate_assessment
-from ..series import saved_series, numeric
+from ..series import saved_series, numeric, evidence_value
 
 
 class MetricRef(Strict):
@@ -16,11 +16,17 @@ class MetricRef(Strict):
     metric: str = Field(min_length=1, max_length=120)
 
 
+class SeriesPointRef(Strict):
+    execution_id: str = Field(max_length=36)
+    series: str = Field(min_length=1, max_length=100)
+    label: str = Field(min_length=1, max_length=100)
+
+
 class Claim(Strict):
     key: str = Field(pattern=r'^[a-z][a-z0-9_]{0,63}$')
     title: str = Field(min_length=1, max_length=160)
     statement: str = Field(min_length=1, max_length=1800)
-    evidence: list[MetricRef] = Field(min_length=1, max_length=12)
+    evidence: list[MetricRef | SeriesPointRef] = Field(min_length=1, max_length=12)
     interpretation: str = Field(min_length=1, max_length=1200)
     next_step: str = Field(max_length=1200)
     method: str = Field(min_length=1, max_length=1200)
@@ -35,7 +41,7 @@ class ReportScope(Strict):
 
 class ChartPoint(Strict):
     label: str = Field(min_length=1, max_length=100)
-    value: MetricRef
+    value: MetricRef | SeriesPointRef
 
 
 class SeriesRef(Strict):
@@ -45,7 +51,7 @@ class SeriesRef(Strict):
 
 class Highlight(Strict):
     label: str = Field(min_length=1, max_length=80)
-    value: MetricRef
+    value: MetricRef | SeriesPointRef
     unit: str = Field(min_length=1, max_length=80)
     decimals: int = Field(ge=0, le=4)
     claim_key: str = Field(pattern=r'^[a-z][a-z0-9_]{0,63}$')
@@ -73,8 +79,8 @@ class Chart(Strict):
 class NumericCheck(Strict):
     key: str = Field(pattern=r'^[a-z][a-z0-9_]{0,63}$')
     operation: Literal['equal', 'sum', 'percent_change', 'ratio_percent', 'zero', 'nonnegative']
-    actual: MetricRef
-    operands: list[MetricRef] = Field(max_length=16)
+    actual: MetricRef | SeriesPointRef
+    operands: list[MetricRef | SeriesPointRef] = Field(max_length=16)
     tolerance: str = Field(pattern=r'^0(?:\.\d{1,8})?$')
 
 
@@ -105,18 +111,10 @@ def checks(report, observations):
     """Resolve actual saved metrics and recompute declared numerical relationships."""
     if not report:
         return [{'check': 'report_present', 'passed': False, 'detail': 'No draft submitted.'}]
-    available = {o['execution_id']: o for o in observations}
     result = []
 
     def value(ref):
-        item = available.get(ref['execution_id'])
-        if not item or not item['current'] or item['status'] != 'completed' or item.get('result_omitted'):
-            raise ValueError('Evidence is missing, failed, obsolete or omitted.')
-        payload = item['result']
-        key = ref['metric']
-        if key not in payload['metrics'] or not any(e['metric'] == key for e in payload['evidence']):
-            raise ValueError('Metric or its source evidence does not exist.')
-        return payload['metrics'][key]
+        return evidence_value(observations, ref)
 
     def number(ref):
         raw = value(ref)

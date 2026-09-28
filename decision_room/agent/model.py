@@ -170,6 +170,10 @@ class ModelClient:
         from ..chat_agent import AnswerReview, REVIEW_SYSTEM
         return self._generate(context, None, REVIEW_SYSTEM, AnswerReview.model_json_schema())
 
+    def generate_data_discovery(self, context, correction=None):
+        from ..data_knowledge.discovery import Discovery, SYSTEM as DISCOVERY_SYSTEM
+        return self._generate(context, correction, DISCOVERY_SYSTEM, Discovery.model_json_schema())
+
     def generate_dashboard(self, context):
         from ..web.home import Proposal, SYSTEM as DASHBOARD_SYSTEM
         return self._generate(context, None, DASHBOARD_SYSTEM, Proposal.model_json_schema())
@@ -270,12 +274,33 @@ class ModelClient:
 
     @classmethod
     def _review_references(cls, schema, context):
+        assessment = schema['$defs']['ReviewAssessment']
+        assessment['required'] = list(assessment['properties'])
+        assessment['properties']['usefulness'].pop('default', None)
         # Runtime defaults retain old reports; model output supplies all fields.
         for name in ('ReportDraft', 'Chart'):
             definition = schema['$defs'][name]
             definition['required'] = list(definition['properties'])
             for field in definition['properties'].values():
                 field.pop('default', None)
+        point_choices = []
+        for item in context.get('observations', []):
+            if item.get('current') and item['status'] == 'completed' and item.get('result') and not item.get('result_omitted'):
+                for key, series in item['result'].get('series', {}).items():
+                    if not series.get('points') or any('label' not in p for p in series['points']):
+                        continue
+                    branch = deepcopy(schema['$defs']['SeriesPointRef'])
+                    branch['properties']['execution_id']['enum'] = [item['execution_id']]
+                    branch['properties']['series']['enum'] = [key]
+                    branch['properties']['label']['enum'] = [p['label'] for p in series['points']]
+                    point_choices.append(branch)
+        if point_choices:
+            schema['$defs']['SeriesPointRef'] = {'anyOf': point_choices}
+        else:
+            schema['$defs']['Claim']['properties']['evidence']['items'] = {'$ref': '#/$defs/MetricRef'}
+            for name, field in (('Highlight','value'),('ChartPoint','value'),('NumericCheck','actual')):
+                schema['$defs'][name]['properties'][field] = {'$ref': '#/$defs/MetricRef'}
+            schema['$defs']['NumericCheck']['properties']['operands']['items'] = {'$ref': '#/$defs/MetricRef'}
         series_choices = []
         series_by_chart = {}
         for item in context.get('observations', []):

@@ -826,6 +826,8 @@ class Workspace:
                 if j['session_id']:
                     plan = planning.resume(self.config, b, j['session_id'], model=model, retry_uncertain=retry)
                 else:
+                    from ..data_knowledge.discovery import discover
+                    discover(self.config, b, j['analysis_id'], model, retry_uncertain=retry)
                     context = j['goal'] or 'Exploración general de la actividad disponible.'
                     plan = planning.start(self.config, b, j['analysis_id'], owner_context=context, request_key=key, model=model)
                 self.update(job_id, session_id=plan['id'])
