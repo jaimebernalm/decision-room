@@ -1,6 +1,6 @@
 # 3.8 — Actividad para el cliente y monitor interno de investigación
 
-**Estado:** planificación terminada; implementación pendiente.  
+**Estado:** implementación en curso; 3.8.1 comprobado.  
 **Fecha:** 28 de septiembre de 2026.  
 **Base inspeccionada:** `3eaa3ae`, rama `feature/insights-pipeline`.  
 **Destino:** guía de implementación para el siguiente agente, incluido GPT-6 Sol.  
@@ -254,7 +254,7 @@ Excluir por contrato claves de API, cookies, DSN, cabeceras, razonamiento privad
 
 ## 9. Secuencia de implementación y entregables
 
-### [ ] 3.8.1 — Contratos, identidad y migración
+### [x] 3.8.1 — Contratos, identidad y migración
 
 Crear contratos de eventos/estados/referencias, esquema incremental, escritor idempotente y proyectores iniciales. Definir y probar creación de raíz, vínculos turno→trabajo→sesiones→ramas y secuencia ordenada por commit. Implementar la política de fallo de observación con reconciliación.
 
@@ -371,14 +371,14 @@ Fuera del cierre obligatorio: replay animado, exportación pública de trazas, m
 
 ## 12. Registro de continuidad para compactación
 
-**Situación al redactar:** plan 3.8 guardado; cero cambios funcionales realizados en este paso. La base 3.7 está implementada pero no demostró mejora consistente de calidad. La solicitud actual solo pide plan detallado para implementación posterior.
+**Continuidad vigente:** implementación autorizada. Base `2063fc5`, checkout `feature/insights-pipeline`. Esquema 25 y escritor de eventos comprobados; siguiente incremento 3.8.2: instrumentación. Las pruebas usan bases temporales; no se ha migrado ni reiniciado la vista del usuario. Cinco pruebas de `test_activity` pasan. La aceptación analítica de 3.7 sigue abierta.
 
 Al empezar implementación, actualizar este bloque con: commit base real, incremento activo, archivos tocados, decisiones adaptadas, comandos/estado de pruebas, IDs de procesos de prueba sin secretos, servidor/esquema usados, errores pendientes y siguiente acción concreta. Mantener artefactos privados en `.local/` y documentos versionables sin rutas personales.
 
 | Incremento | Estado inicial | Evidencia/commit al completarlo |
 |---|---|---|
 | Plan documental | Completado; código de referencia, enlaces y consistencia revisados | Commit comunicado en la respuesta de entrega |
-| 3.8.1 Contratos/persistencia | Pendiente | — |
+| 3.8.1 Contratos/persistencia | Completado | Cinco pruebas PostgreSQL: secuencia concurrente, rollback, idempotencia, aislamiento, savepoint y filtrado diagnóstico. |
 | 3.8.2 Instrumentación | Pendiente | — |
 | 3.8.3 API pública | Pendiente | — |
 | 3.8.4 Cliente | Pendiente | — |

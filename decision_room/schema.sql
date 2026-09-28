@@ -741,3 +741,68 @@ CREATE TABLE IF NOT EXISTS business_planner_answers (
     UNIQUE (research_id,request_key)
 );
 INSERT INTO schema_versions(version) VALUES (24) ON CONFLICT DO NOTHING;
+
+-- 3.8: durable process activity, independent of analytical checkpoints.
+CREATE TABLE IF NOT EXISTS activity_traces (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL REFERENCES businesses(id),
+    origin_kind text NOT NULL,
+    origin_id uuid NOT NULL,
+    last_sequence bigint NOT NULL DEFAULT 0,
+    history_complete boolean NOT NULL DEFAULT true,
+    heartbeat_at timestamptz,
+    worker_active boolean NOT NULL DEFAULT false,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    UNIQUE(business_id,id), UNIQUE(business_id,origin_kind,origin_id)
+);
+CREATE TABLE IF NOT EXISTS activity_links (
+    business_id uuid NOT NULL,
+    trace_id uuid NOT NULL,
+    kind text NOT NULL,
+    source_id uuid NOT NULL,
+    PRIMARY KEY(business_id,kind,source_id),
+    FOREIGN KEY(business_id,trace_id) REFERENCES activity_traces(business_id,id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS activity_links_trace ON activity_links(business_id,trace_id,kind);
+CREATE TABLE IF NOT EXISTS activity_tasks (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    trace_id uuid NOT NULL,
+    parent_task_id uuid,
+    actor_id text NOT NULL,
+    role text NOT NULL,
+    kind text NOT NULL,
+    source_id text NOT NULL,
+    status text NOT NULL,
+    public_text text NOT NULL,
+    purpose text NOT NULL DEFAULT '',
+    refs jsonb NOT NULL DEFAULT '[]',
+    source jsonb NOT NULL DEFAULT '{}',
+    started_at timestamptz,
+    finished_at timestamptz,
+    last_sequence bigint NOT NULL,
+    UNIQUE(business_id,trace_id,id), UNIQUE(trace_id,kind,source_id),
+    FOREIGN KEY(business_id,trace_id) REFERENCES activity_traces(business_id,id) ON DELETE CASCADE,
+    FOREIGN KEY(business_id,trace_id,parent_task_id) REFERENCES activity_tasks(business_id,trace_id,id),
+    CHECK(parent_task_id IS NULL OR parent_task_id<>id),
+    CHECK(status IN ('queued','running','waiting_owner','waiting_dependency','retry_wait','completed','failed','interrupted','superseded'))
+);
+CREATE TABLE IF NOT EXISTS activity_events (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    trace_id uuid NOT NULL,
+    sequence bigint NOT NULL,
+    task_id uuid NOT NULL,
+    dedupe_key text NOT NULL,
+    type text NOT NULL,
+    status text NOT NULL,
+    payload jsonb NOT NULL DEFAULT '{}',
+    occurred_at timestamptz,
+    recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    reconstructed boolean NOT NULL DEFAULT false,
+    UNIQUE(trace_id,sequence), UNIQUE(trace_id,dedupe_key),
+    FOREIGN KEY(business_id,trace_id,task_id) REFERENCES activity_tasks(business_id,trace_id,id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS activity_events_page ON activity_events(business_id,trace_id,sequence);
+CREATE INDEX IF NOT EXISTS activity_traces_recent ON activity_traces(business_id,created_at DESC,id);
+INSERT INTO schema_versions(version) VALUES (25) ON CONFLICT DO NOTHING;
