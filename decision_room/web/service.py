@@ -64,6 +64,7 @@ class Workspace:
     def scoped(self, business_id):
         """Pin a request/worker to one authorized business, even during selection changes."""
         if business_id is not None:
+            business_id = identifier(business_id)
             with connect(self.config) as db:
                 business_store.profile(db, business_id)
         scoped = Workspace(self.config, self.settings, self.model_factory)

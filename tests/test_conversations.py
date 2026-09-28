@@ -108,6 +108,29 @@ class ConversationTests(unittest.TestCase):
         path.write_text('quantity,amount\n2,10\n3,20\n')
         return import_batch(self.config, self.b, [path], title='Synthetic sales')['analysis']['id']
 
+    def test_http_string_scoped_business_accepts_chat_and_rejects_other_business(self):
+        # Preview/worker manifests deserialize UUIDs as strings. Keep the same
+        # identity representation as requests and database rows.
+        self.ws = self.ws.scoped(str(self.b))
+        client, server = self.http()
+        client.post('/api/login', json={'token': server.token})
+        payload = dict(business_id=str(self.b), request_key=str(uuid4()))
+        created = client.post('/api/chats', json=payload)
+        self.assertEqual(created.status_code, 202, created.text)
+        self.assertEqual(client.post('/api/chats', json=payload).json(), created.json())
+        chat = created.json()['id']
+        sent = client.post(f'/api/chats/{chat}/messages', json=dict(
+            business_id=str(self.b), request_key=str(uuid4()), text='hola'))
+        self.assertEqual(sent.status_code, 202, sent.text)
+        Conversations(self.ws).run(sent.json()['id'])
+        detail = client.get(f'/api/chats/{chat}').json()
+        self.assertEqual(detail['turns'][-1]['status'], 'completed')
+        rejected = client.post('/api/chats', json=dict(
+            business_id=str(uuid4()), request_key=str(uuid4())))
+        self.assertEqual(rejected.status_code, 409)
+        self.assertEqual(self.ws.business_id(), self.b)
+        self.assertIsNone(self.ws.scoped(None).business_id())
+
     def test_messages_queue_in_order_and_keep_prior_dialogue(self):
         chat = self.chat()
         first = self.chats.send(chat, dict(business_id=str(self.b), request_key=str(uuid4()), text='hola'))
