@@ -477,9 +477,16 @@ la evidencia de las ramas, cuotas globales, recuperación y síntesis priorizada
 El informe de Bruma profundiza ahora en productos dentro del canal que disminuye;
 los gráficos acompañan a sus hallazgos. Véanse el [contrato](../technical/parallel-analysts-plan.md)
 y la [validación, iteraciones y límites](../validation/2026-09-27-parallel-analysts.md).
-El siguiente paso pendiente es **3.6: evaluación de calidad, utilidad y rendimiento**,
-comparando varios objetivos y fuentes en modo secuencial y paralelo. La mejora
-observada en Bruma no demuestra todavía una reducción general de tiempo o coste.
+**3.6: implementación y evaluación terminadas, 28 de septiembre.** Se compararon
+16 intentos en modo secuencial y paralelo: ocho aprobados internamente, cuatro
+aceptados independientemente. Se conservan fallos, recursos y referencias históricas;
+se corrigen contratos, cobertura, preservación de evidencia y entrega parcial.
+El lote posterior acepta 1/4 y dos revisiones fallidas se recuperan con 2/2 aceptadas,
+sin repetir investigación. Pasan 209 pruebas backend y 78 frontend, más controles
+específicos posteriores. Véanse [protocolo](../technical/quality-evaluation-plan.md)
+y [resultados y límites](../validation/2026-09-27-quality-evaluation.md).
+La aceptación general de calidad sigue abierta: falta profundidad y cobertura
+consistentes; no está demostrada una mejora general de tiempo o coste del paralelismo.
 El antiguo paso 3.5 de evaluación conserva su nueva numeración 3.6.
 
 **Planificación ampliada, 27 de septiembre de 2026:** el

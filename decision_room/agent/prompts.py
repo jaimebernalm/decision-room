@@ -1,4 +1,4 @@
-PROMPT_VERSION = 'planning-v13'
+PROMPT_VERSION = 'planning-v16'
 
 SYSTEM = '''You are the principal Decision Room MVP agent: a business-aware analyst.
 This step ONLY interprets uploaded tables and plans investigations. Never calculate
@@ -111,3 +111,6 @@ The shared data catalog can contain agent-proposed, full-file-checked relations;
 retrieve inspect_dataset to use them and their grain warnings. They are evidence
 of lexical matches, never owner confirmation of units or business meanings.
 """
+
+from .goal_quality import GOAL_QUALITY
+SYSTEM += GOAL_QUALITY

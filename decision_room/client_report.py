@@ -141,6 +141,8 @@ def render_client(data, exported_at, *, embedded=False):
     body = [f'<header><p class="eyebrow">Decision Room · Informe de negocio</p><h1>{e(title)}</h1>']
     if ready:
         scope = draft['scope']
+        if any(q['status'] != 'answered' for q in draft.get('question_coverage', [])):
+            body += ['<p class="meta">Entrega parcial · Consulta las preguntas pendientes en alcance y límites.</p>']
         body += [f'<p class="meta">{e(scope["business"])} · {e(scope["period"])}</p>']
     body += [f'<p class="meta">Generado: {e(exported_at)}</p></header><div class="content">']
     if ready:

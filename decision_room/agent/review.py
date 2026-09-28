@@ -66,7 +66,7 @@ def start(config, business_id, research_id, *, request_key, analyst=None, review
                     'planning_history': db.execute('SELECT revision,proposal FROM agent_revisions WHERE session_id=%s ORDER BY revision',
                                                    (session['id'],)).fetchall()}
         options = {'max_review_rounds': max_review_rounds, 'max_turns': 20, 'max_calls_per_role': 16,
-                   'max_python_per_role': 3, 'max_questions': 3, 'python_timeout': 30, 'review_policy': 2}
+                   'max_python_per_role': 3, 'max_questions': 3, 'python_timeout': 30, 'review_policy': 3}
         request_hash = fingerprint({'snapshot': snapshot, 'reviewer': reviewer.identity, 'options': options, 'version': REVIEW_GRAPH_VERSION})
         row = db.execute('''INSERT INTO agent_reviews(id,business_id,session_id,analysis_id,research_id,request_key,
             request_sha256,knowledge_sha256,snapshot,reviewer_settings,options,graph_version,status)

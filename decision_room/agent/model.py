@@ -172,7 +172,17 @@ class ModelClient:
 
     def generate_data_discovery(self, context, correction=None):
         from ..data_knowledge.discovery import Discovery, SYSTEM as DISCOVERY_SYSTEM
-        return self._generate(context, correction, DISCOVERY_SYSTEM, Discovery.model_json_schema())
+        schema = Discovery.model_json_schema()
+        if 'tables' in context:
+            ids = [t['id'] for t in context['tables']]
+            if ids:
+                schema['$defs']['TableMeaning']['properties']['id']['enum'] = ids
+                for field in ('source', 'target'):
+                    schema['$defs']['RelationProposal']['properties'][field]['enum'] = ids
+            else:
+                for field in ('tables', 'relations'):
+                    schema['properties'][field]['maxItems'] = 0
+        return self._generate(context, correction, DISCOVERY_SYSTEM, schema)
 
     def generate_dashboard(self, context):
         from ..web.home import Proposal, SYSTEM as DASHBOARD_SYSTEM
@@ -206,7 +216,13 @@ class ModelClient:
             self._table_choices(schema['properties']['table_ids'], context['uninspected_table_ids'])
         if 'catalog' in context:
             self._table_choices(schema['$defs']['Investigation']['properties']['table_ids'],
-                                [t['id'] for t in context['catalog']])
+                                [t['id'] for t in context.get('profiles', context['catalog'])])
+        if 'profiles' in context:
+            self._planning_references(schema, context)
+            if not context['profiles'] and context.get('uninspected_table_ids'):
+                schema['properties']['action']['enum'] = ['inspect']
+                schema['properties']['proposal'] = {'type': 'null'}
+                schema['properties']['table_ids']['minItems'] = 1
         if context.get('uninspected_table_ids') == []:
             # Small uploads are already profiled before the first model turn.
             # Do not offer an impossible inspect action to constrained decoding.
@@ -215,6 +231,31 @@ class ModelClient:
             if not context.get('business_context'):
                 schema['properties']['proposal'] = {'$ref': '#/$defs/Proposal'}
         return self._generate(context, correction, SYSTEM, schema)
+
+    @staticmethod
+    def _planning_references(schema, context):
+        from copy import deepcopy
+        original = schema['$defs']['Reference']
+        choices = []
+        def branch(kind, ids, columns):
+            if not ids or not columns:
+                return
+            item = deepcopy(original)
+            item['properties']['kind']['enum'] = [kind]
+            item['properties']['id']['enum'] = ids
+            item['properties']['column']['enum'] = columns
+            choices.append(item)
+        branch('owner_context', ['owner_context'], [''])
+        branch('answer', [str(a['id']) for a in context.get('answers', [])], [''])
+        for table in context['profiles']:
+            branch('table', [table['id']], [''])
+            branch('column', [table['id']], table['column_names'])
+        # Memory references retain their separate retrieved-evidence validator.
+        if context.get('business_context'):
+            shared = deepcopy(original)
+            shared['properties']['kind']['enum'] = ['memory', 'data_model']
+            choices.append(shared)
+        schema['$defs']['Reference'] = {'anyOf': choices}
 
     def generate_research(self, context, correction=None):
         schema = ResearchAction.model_json_schema()
@@ -244,6 +285,13 @@ class ModelClient:
                 for i in context['plan']['investigations']):
                 if 'finish' in allowed:
                     allowed.remove('finish')
+            unrecorded_success = [key for key in unfinished if latest.get(key, {}).get('status') == 'completed'
+                                  and not latest[key].get('result_omitted')]
+            if unrecorded_success:
+                # Preserve a usable result before another program can hide it.
+                # A candidate is still unverified; a concrete unusable result may be blocked.
+                allowed = ['record_candidate', 'block']
+                unfinished, expandable = unrecorded_success, []
             if allowed:
                 schema['properties']['action']['enum'] = allowed
                 schema['properties']['investigation_key']['enum'] = list(dict.fromkeys(unfinished + expandable)) + ([''] if 'finish' in allowed or 'delegate' in allowed else [])
@@ -262,6 +310,13 @@ class ModelClient:
                 pending_tables = {table_id for item in context['plan']['investigations']
                                   if item['key'] in unfinished for table_id in item['table_ids']}
                 self._table_choices(schema['properties']['table_ids'], authorized & pending_tables)
+        candidates = [f['investigation_key'] for f in context.get('findings', []) if f.get('status') == 'candidate']
+        if candidates:
+            schema['$defs']['RankedFinding']['properties']['investigation_key']['enum'] = candidates
+            schema['$defs']['Disagreement']['properties']['investigation_keys']['items']['enum'] = candidates
+        else:
+            for name in ('priorities', 'excluded', 'disagreements'):
+                schema['$defs']['Synthesis']['properties'][name]['maxItems'] = 0
         schema['required'] = list(schema['properties'])
         if 'table_catalog' in context:
             self._table_choices(schema['$defs']['Followup']['properties']['table_ids'], [t['id'] for t in context['table_catalog']])
@@ -294,6 +349,8 @@ class ModelClient:
             field['items']['enum'] = sorted(set(identifiers))
         else:
             field['maxItems'] = 0
+            if 'minItems' in field:
+                field['minItems'] = 0
 
     @classmethod
     def _review_references(cls, schema, context):
@@ -381,7 +438,9 @@ class ModelClient:
             coverage = schema['$defs']['ReportDraft']['properties']['question_coverage']
             coverage.update(minItems=len(ready), maxItems=len(investigations))
             branches = []
-            for keys, statuses in ((ready, ['answered', 'unavailable']), (blocked, ['unavailable'])):
+            deferred = sorted(i['key'] for i in investigations if i['status'] == 'ready' and i.get('parent_key')) if context.get('review_policy', 0) >= 3 else []
+            standard = [key for key in ready if key not in deferred]
+            for keys, statuses in ((standard, ['answered', 'unavailable']), (deferred, ['answered', 'unavailable', 'deferred']), (blocked, ['unavailable'])):
                 if not keys:
                     continue
                 branch = deepcopy(schema['$defs']['QuestionCoverage'])
@@ -391,6 +450,19 @@ class ModelClient:
                     branch['properties']['claim_keys']['maxItems'] = 0
                 branches.append(branch)
             schema['$defs']['QuestionCoverage'] = {'anyOf': branches}
+        delivered = (context.get('report') or {}).get('question_coverage', [])
+        if delivered:
+            branches = []
+            for entry in delivered:
+                branch = deepcopy(schema['$defs']['QuestionUtility'])
+                branch['properties']['investigation_key']['enum'] = [entry['investigation_key']]
+                branch['properties']['verdict']['enum'] = {
+                    'answered': ['pass', 'fail'], 'unavailable': ['unavailable', 'fail'],
+                    'deferred': ['deferred', 'fail'],
+                }[entry['status']]
+                cls._table_choices(branch['properties']['claim_keys'], entry['claim_keys'])
+                branches.append(branch)
+            schema['$defs']['QuestionUtility'] = {'anyOf': branches}
         # Offer only the arity that each supported numerical operation accepts.
         # A combined numerator must be a saved metric, not an extra ratio operand.
         original_check = schema['$defs']['NumericCheck']
@@ -464,6 +536,8 @@ class ModelClient:
             from ..memory.retrieval import schema_for, INSTRUCTIONS
             schema = schema_for(schema)
             system += INSTRUCTIONS
+        if self.settings.protocol == 'openai':
+            schema = self._wire_schema(schema)
         messages = [{'role': 'system', 'content': system},
                     {'role': 'user', 'content': encoded(context)}]
         if correction:
@@ -560,3 +634,26 @@ class ModelClient:
                                         'Use agent-resume --retry-model to retry deliberately.') from None
         except (KeyError, IndexError, TypeError, json.JSONDecodeError):
             raise ValueError('Model API returned an invalid JSON completion.') from None
+
+    @staticmethod
+    def _wire_schema(schema):
+        """Preserve source labels when provider strict enums reject quote literals.
+
+        Exact source/column/label/unit validation still runs after generation.
+        Relax only the affected string enum, never change the underlying data or
+        silently remove a legitimate label from the selectable source evidence.
+        """
+        schema = deepcopy(schema)
+        def visit(node):
+            if isinstance(node, dict):
+                values = node.get('enum', [])
+                if values and all(isinstance(v, str) for v in values) and any('"' in v for v in values):
+                    node.pop('enum')
+                    node.setdefault('type', 'string')
+                for value in node.values():
+                    visit(value)
+            elif isinstance(node, list):
+                for value in node:
+                    visit(value)
+        visit(schema)
+        return schema

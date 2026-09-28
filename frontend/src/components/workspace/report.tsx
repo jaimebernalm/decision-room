@@ -265,6 +265,7 @@ export function ReportView({
         <div className="mb-3 flex flex-wrap gap-2">
           <Badge variant="outline">{report.scope.period}</Badge>
           <Badge variant="secondary">Revisado</Badge>
+          {report.partial && <Badge variant="outline">Entrega parcial</Badge>}
         </div>
         <h2
           className={

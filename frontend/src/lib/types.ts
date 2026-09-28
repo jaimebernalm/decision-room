@@ -81,6 +81,7 @@ export type ChartData = {
   points: { label: string; value: string; formatted: string }[];
 };
 export type Report = {
+  partial?: boolean;
   report_id?: string;
   report_version?: string;
   title: string;

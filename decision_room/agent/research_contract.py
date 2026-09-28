@@ -110,7 +110,7 @@ def validate_research_action(raw, snapshot, observations, findings, options):
             ranked = [i.investigation_key for i in synth.priorities]
             excluded = [i.investigation_key for i in synth.excluded]
             if len(set(ranked + excluded)) != len(ranked + excluded) or set(ranked + excluded) != candidates:
-                raise ValueError('Account for every candidate exactly once in priorities or excluded.')
+                raise ValueError('Account for every candidate exactly once in priorities or excluded. Candidate keys: ' + ', '.join(sorted(candidates)) + '; blocked/discarded tasks are not candidates.')
             for conflict in synth.disagreements:
                 keys = set(conflict.investigation_keys)
                 if len(keys) < 2 or not keys <= candidates:
@@ -131,6 +131,9 @@ def validate_research_action(raw, snapshot, observations, findings, options):
     attempts = [o for o in observations if o['investigation_key'] == action.investigation_key]
     latest = attempts[-1] if attempts else None
     if action.action == 'execute':
+        from .context import encoded
+        if latest and latest['status'] == 'completed' and len(encoded(latest.get('result')).encode()) <= 64000:
+            raise ValueError('Preserve the completed result first: record_candidate (still pending independent review), or block if unusable. Expand through a new followup rather than overwriting successful evidence.')
         if not action.code.strip() or not action.table_ids or action.metric_keys:
             raise ValueError('execute requires Python code, table_ids and empty metric_keys.')
         if len(action.table_ids) != len(set(action.table_ids)) or not set(action.table_ids) <= set(investigation['table_ids']):

@@ -2,7 +2,7 @@
 
 Fecha: 27 de septiembre de 2026.
 
-**Estado: pasos 3.1–3.4 y el refuerzo 3.3.1 completados; pasos 3.5–3.6 pendientes.**
+**Estado, 28 de septiembre: pasos 3.1–3.5 completados; implementación y evaluación de 3.6 terminadas, con aceptación general de calidad todavía abierta.**
 Este documento desarrolla la entrega 3 del [plan de implementación](<Decision Room - Plan de implementacion.md>).
 La [evaluación inicial con una base sustancial](../validation/2026-09-27-substantial-baseline.md)
 aceptó cuatro de seis recorridos y conserva los fallos y límites observados.
@@ -332,7 +332,7 @@ no demuestra que el sistema generalice.
 ## 8. Secuencia de implementación y criterios de cierre
 
 El paso **3.1 está completado como medición inicial** y los pasos **3.2 y 3.3 están
-completados**; el paso **3.4 está completado** y **3.5–3.6 están pendientes**. El diseño de objetivos de la sección 2 ya dispone de interfaz conversacional; su evaluación amplia queda en 3.6.
+completados**; el paso **3.4 está completado** y **3.5 está completado**. La implementación y evaluación de **3.6 están terminadas**, con aceptación general del producto todavía abierta. El diseño de objetivos de la sección 2 ya dispone de interfaz conversacional; su evaluación amplia y sus límites se documentan en 3.6.
 
 | Paso | Trabajo | Evidencia necesaria para cerrarlo |
 |---|---|---|
@@ -357,7 +357,7 @@ las correcciones en un lote nuevo. Incorporar relaciones y columnas comprobadas,
 definiciones estables de métricas y nombres legibles; la memoria por sí sola no
 resuelve errores de sintaxis ni la selección y presentación de hallazgos.
 
-**Cierre de 3.2:** [contrato implementado](../technical/data-knowledge.md) y [pruebas, intentos conservados y límites](../validation/2026-09-27-data-knowledge.md). El paso **3.3 está completado**: [contrato de rondas](../technical/research-rounds.md) y [validación con fallos conservados](../validation/2026-09-27-research-rounds.md). El refuerzo **3.3.1 del revisor está completado** ([validación](../validation/2026-09-27-reviewer-stability.md)). El paso **3.4 está completado**: [contrato](../technical/conversational-onboarding-plan.md) y [validación](../validation/2026-09-27-conversational-onboarding.md). El paso **3.5 está completado** ([contrato](../technical/parallel-analysts-plan.md), [validación](../validation/2026-09-27-parallel-analysts.md)); el siguiente paso es **3.6: evaluación de calidad y rendimiento**.
+**Cierre de 3.2:** [contrato implementado](../technical/data-knowledge.md) y [pruebas, intentos conservados y límites](../validation/2026-09-27-data-knowledge.md). El paso **3.3 está completado**: [contrato de rondas](../technical/research-rounds.md) y [validación con fallos conservados](../validation/2026-09-27-research-rounds.md). El refuerzo **3.3.1 del revisor está completado** ([validación](../validation/2026-09-27-reviewer-stability.md)). El paso **3.4 está completado**: [contrato](../technical/conversational-onboarding-plan.md) y [validación](../validation/2026-09-27-conversational-onboarding.md). El paso **3.5 está completado** ([contrato](../technical/parallel-analysts-plan.md), [validación](../validation/2026-09-27-parallel-analysts.md)); la implementación y evaluación de **3.6 están terminadas**, con [resultados y límites](../validation/2026-09-27-quality-evaluation.md).
 
 
 ### 3.5 — Analistas en paralelo
@@ -413,3 +413,5 @@ comprobaciones siguientes concretas, duplicación de hallazgos y correspondencia
 entre gráfico, nombre, unidad y evidencia. La exposición por fechas observadas no
 acredita días de apertura ni cobertura completa. Contar también intentos fallidos,
 correcciones, recuperación y revisión; no medir solo la última aprobación.
+
+**Cierre de implementación y evaluación de 3.6, 28 de septiembre:** [protocolo y criterios](../technical/quality-evaluation-plan.md) y [resultados completos](../validation/2026-09-27-quality-evaluation.md). Matriz de 16 intentos: ocho aprobados por el producto, cuatro aceptados independientemente. Lote posterior: una entrega aceptada de cuatro; dos revisiones HTTP 400 recuperadas y aceptadas sin repetir investigación. Se corrigen contratos de generación, preservación de evidencia, cobertura y entrega parcial; pasan 209 pruebas backend y 78 frontend, más controles específicos posteriores. La aceptación general de calidad sigue abierta: profundidad, cobertura consistente y concreción de acciones aún necesitan mejora. No se ha demostrado ventaja general del modo paralelo ni coste monetario completo.

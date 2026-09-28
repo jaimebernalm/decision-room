@@ -44,6 +44,7 @@ def projection(data):
         return None
     return {
         'title': report['title'], 'summary': report['summary'],
+        'partial': any(q['status'] != 'answered' for q in report.get('question_coverage', [])),
         'scope': report['scope'], 'highlights': highlights,
         'claims': [{'key': claim['key'], 'title': claim['title'],
                     'statement': claim['statement']} for claim in report['claims'][:3]],

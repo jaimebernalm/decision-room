@@ -1,6 +1,6 @@
 from .series_prompt import SERIES_TOOL
 
-REVIEW_PROMPT_VERSION = 'review-v31'
+REVIEW_PROMPT_VERSION = 'review-v34'
 
 COMMON = '''You are part of Decision Room's bounded analyst/reviewer dialogue.
 Return ONLY ReviewAction JSON, every field present. Human-facing prose in Spanish.
@@ -450,3 +450,32 @@ the old source's unit wording. The source/series/unit are one coherent selection
 A corrected message alone is not a change: inspect the actual report JSON you
 submit. Keep the chart caption and claim consistent with the selected scope.
 """
+
+from .goal_quality import GOAL_QUALITY
+ANALYST_SYSTEM += GOAL_QUALITY
+REVIEWER_SYSTEM += GOAL_QUALITY
+
+PARTIAL_DELIVERY_POLICY = """
+For review_policy >= 3, distinguish unavailable data from deferred work. This
+supersedes treating every omitted computable FOLLOWUP as a reason to withdraw.
+The controller offers question_coverage.status='deferred' only for agent-generated
+followups (parent_key present), with claim_keys=[] and an honest explanation of
+what THIS report does not deliver. Its usefulness verdict must also be 'deferred'.
+The source data may support that work; do not call it a missing-data limitation.
+
+Approve a useful PARTIAL delivery only if the original accepted owner objective
+still has a material, supported answer and the omitted followup is secondary to
+it. The reviewer must justify that judgment in usefulness.reason. Do not defer an
+expressly requested core result, a necessary validation or a known material error.
+A self-generated agenda is not a promise to deliver every possible secondary view.
+A computable missing CORE answer remains a blocker; revise, calculate within the
+budget or decline that unsupported delivery. Never relabel unfinished work as
+answered. Avoid scope expansion that crowds out the owner's priorities.
+
+The client sees a partial-delivery marker and the list of unanswered questions.
+Keep the limitation specific, avoid implying full coverage in summary/scope, and
+retain the useful verified findings. This distinction does not relax factual,
+numerical, provenance, disagreement or monetary-definition checks.
+"""
+ANALYST_SYSTEM += PARTIAL_DELIVERY_POLICY
+REVIEWER_SYSTEM += PARTIAL_DELIVERY_POLICY

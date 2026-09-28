@@ -26,7 +26,7 @@ class DeliveryAudit(Strict):
 
 class QuestionUtility(Strict):
     investigation_key: str = Field(min_length=1, max_length=64)
-    verdict: Literal['pass', 'fail', 'unavailable']
+    verdict: Literal['pass', 'fail', 'unavailable', 'deferred']
     claim_keys: list[str] = Field(max_length=6)
     reason: str = Field(min_length=1, max_length=1000)
 
@@ -123,10 +123,13 @@ def validate_assessment(action, role, context):
             delivered = coverage[key]
             if set(item.claim_keys) != set(delivered['claim_keys']):
                 raise ValueError('Usefulness must assess the actual delivered claim references.')
-            if delivered['status'] == 'answered' and item.verdict == 'unavailable':
+            if delivered['status'] == 'answered' and item.verdict in ('unavailable', 'deferred'):
                 raise ValueError('An answered question cannot have unavailable usefulness.')
-            if delivered['status'] == 'unavailable' and item.verdict == 'pass':
-                raise ValueError('Unavailable work cannot pass as a useful delivered answer.')
+            if delivered['status'] != 'answered' and item.verdict == 'pass':
+                raise ValueError('Undelivered work cannot pass as a useful delivered answer.')
+            if ((item.verdict == 'deferred' and delivered['status'] != 'deferred') or
+                    (delivered['status'] == 'deferred' and item.verdict not in ('deferred', 'fail'))):
+                raise ValueError('Deferred work requires an explicit matching deferred usefulness assessment.')
         if action.action == 'approve' and (utility.goal_alignment != 'pass' or any(q.verdict == 'fail' for q in utility.questions)):
             raise ValueError('Cannot approve failed usefulness or misleading question coverage.')
 

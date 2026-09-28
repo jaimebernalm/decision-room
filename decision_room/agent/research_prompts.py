@@ -1,6 +1,6 @@
 from .series_prompt import SERIES_TOOL
 
-RESEARCH_PROMPT_VERSION = 'research-v21'
+RESEARCH_PROMPT_VERSION = 'research-v25'
 
 RESEARCH_SYSTEM = '''You are the SAME principal Decision Room analyst, now executing
 small investigations from your provisional plan. Reply ONLY as ResearchAction JSON.
@@ -136,8 +136,9 @@ for review when a budget is exhausted; neither finish nor exhaustion approves th
 RESEARCH_SYSTEM += """
 Keep each round focused. After a successful execution, register its supported
 result (even a partial answer) BEFORE expanding the scope with another program;
-use an evidence-linked followup for that expansion. Only replace a successful
-execution within the same investigation to correct a concrete defect. This avoids
+use an evidence-linked followup for that expansion. Preserve supported partial evidence before opening a verification/correction
+followup. Block a demonstrably unusable result with its concrete defect. A result
+omitted by the context size guard may be regenerated more compactly. This avoids
 losing a valid partial result if later, more ambitious code fails.
 
 Ask narrow followup questions that can be answered with a few visible metrics or
@@ -279,4 +280,16 @@ a real budget exhaustion is recorded by the controller. Workers still execute.
 When using labels for IDs, include descriptive tables in the assignment and save
 names together with values from a checked join. Never infer an ID's name from a
 partial sample, row position or a model's memory of a prior calculation.
+"""
+
+from .goal_quality import GOAL_QUALITY
+RESEARCH_SYSTEM += GOAL_QUALITY
+
+RESEARCH_SYSTEM += """
+After a successful bounded result, save it as an UNVERIFIED candidate before any
+additional calculation. The controller will then allow a new verification or
+breakdown followup, preserving the earlier evidence. If the result is demonstrably
+unusable, block it with the exact defect; never describe a successful result as a
+failed execution. SQL identifiers may be reserved words: use explicit AS clauses
+and quote aliases or choose names such as month_key and observed_date_count.
 """

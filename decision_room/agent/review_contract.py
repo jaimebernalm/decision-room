@@ -59,7 +59,7 @@ class Highlight(Strict):
 
 class QuestionCoverage(Strict):
     investigation_key: str = Field(min_length=1, max_length=64)
-    status: Literal['answered', 'unavailable']
+    status: Literal['answered', 'unavailable', 'deferred']
     claim_keys: list[str] = Field(max_length=6)
     explanation: str = Field(min_length=1, max_length=800)
 
@@ -260,8 +260,14 @@ def validate_coverage(report, context):
             raise ValueError('Blocked or not-possible investigations must remain unavailable.')
         if not set(entry['claim_keys']) <= claims or (entry['status'] == 'answered' and not entry['claim_keys']):
             raise ValueError('Answered investigations must link to existing report claims.')
-        if entry['status'] == 'unavailable' and entry['claim_keys']:
-            raise ValueError('Unavailable investigations need a limitation, not answer claims.')
+        if entry['status'] != 'answered' and entry['claim_keys']:
+            raise ValueError('Undelivered investigations need a limitation, not answer claims.')
+        if entry['status'] == 'deferred':
+            investigation = next(i for i in investigations if i['key'] == entry['investigation_key'])
+            if context.get('review_policy', 0) < 3 or not investigation.get('parent_key'):
+                raise ValueError('Only an agent-generated followup may be deferred under review policy 3.')
+            if not any(e['status'] == 'answered' for e in entries):
+                raise ValueError('A partial delivery must answer a useful part of the goal.')
 
 
 def validate(raw, role, context):

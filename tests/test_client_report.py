@@ -33,6 +33,17 @@ def sample():
 
 
 class ClientReportTests(unittest.TestCase):
+    def test_partial_delivery_is_visible_in_web_and_export(self):
+        from decision_room.web.dashboard import projection
+        data=sample()
+        data['report']['question_coverage']=[dict(investigation_key='root',status='answered',claim_keys=['sales'],explanation='Delivered'),
+            dict(investigation_key='followup',status='deferred',claim_keys=[],explanation='Optional comparison pending')]
+        self.assertTrue(projection(data)['partial'])
+        self.assertIn('Entrega parcial',render_client(data,'today'))
+        data['report']['question_coverage']=data['report']['question_coverage'][:1]
+        self.assertFalse(projection(data)['partial'])
+        self.assertNotIn('Entrega parcial',render_client(data,'today'))
+
     def test_client_contains_business_context_chart_and_evidence_but_no_internal_log(self):
         data = sample()
         ReportDraft.model_validate(data['report'])
