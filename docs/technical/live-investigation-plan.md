@@ -454,3 +454,15 @@ convierte datos ausentes en ceros.
 Validado con las 15 pruebas de gráficos/exportación, las cuatro pruebas de
 utilidades frontend y compilación TypeScript/Vite. La definición compartida
 evita que frontend y backend mantengan listas de colores distintas.
+
+### [x] 3.8.12 · Lectura breve y descarga completa
+
+Resumen breve, contexto/hallazgos independientes con «Ver detalle», foco y hover;
+gráficos visibles. Icono de descarga sin etiqueta visible, tooltip «Descargar
+informe» y PDF completo desde la presentación aprobada, con gráficos vectoriales,
+tablas, métodos y fuentes abiertos. No cambia la evidencia ni la aprobación.
+
+Véanse [plan](report-reading-plan.md) y
+[validación](../validation/2026-09-28-report-reading-and-pdf.md): 111 pruebas UI,
+18 backend, integración HTTP/PostgreSQL, build/lint, escritorio/móvil y PDF de
+Bruma de 14 páginas. La aceptación analítica permanece separada.

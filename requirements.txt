@@ -9,3 +9,7 @@ langgraph==1.2.12
 langgraph-checkpoint-postgres==3.1.2
 pydantic==2.13.5
 httpx==0.28.1
+
+# Complete static report export and independent PDF verification.
+reportlab==4.4.9
+pypdf==6.10.0

@@ -119,6 +119,28 @@ class WebTests(unittest.TestCase):
         self.assertTrue(self.ws.detail(job)['publishable'])
         return job
 
+    def test_pdf_download_reuses_authentication_and_publication_gate(self):
+        job = self.complete()
+        client, server = self.http()
+        path = f'/api/jobs/{job}/pdf'
+        self.assertEqual(client.get(path).status_code, 401)
+        client.post('/api/login', json={'token': server.token})
+        response = client.get(path)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers['Content-Type'], 'application/pdf')
+        self.assertIn('attachment', response.headers['Content-Disposition'])
+        self.assertEqual(response.headers['Cache-Control'], 'no-store')
+        self.assertTrue(response.content.startswith(b'%PDF-'))
+        from decision_room.conversations import Conversations
+        ready = self.ws.report(job, structured=True)
+        with patch.object(Conversations, 'report', return_value=ready) as published:
+            chat_pdf = client.get(f'/api/chats/{uuid4()}/pdf/{uuid4()}')
+            self.assertEqual(chat_pdf.status_code, 200)
+            self.assertTrue(chat_pdf.content.startswith(b'%PDF-'))
+            self.assertTrue(published.call_args.kwargs['structured'])
+        with patch.object(Workspace, 'report', side_effect=WebError('Necesita revisión.', 409)):
+            self.assertEqual(client.get(path).status_code, 409)
+
     def test_report_trash_is_recoverable_scoped_and_keeps_evidence(self):
         job = self.complete()
         report = self.ws.report(job, structured=True)

@@ -408,14 +408,14 @@ function Route({ route }: { route: string }) {
       return (
         <Presentation
           path={`/api/jobs/${id}/presentation`}
-          exportUrl={`/api/jobs/${id}/report`}
+          exportUrl={`/api/jobs/${id}/pdf`}
         />
       );
     case "chat-report":
       return (
         <Presentation
           path={`/api/chats/${id}/presentation/${turn}`}
-          exportUrl={`/api/chats/${id}/report/${turn}`}
+          exportUrl={`/api/chats/${id}/pdf/${turn}`}
         />
       );
     case "how":

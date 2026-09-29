@@ -69,3 +69,7 @@ node_modules/
 
 # Original working document; maintained Markdown is the public documentation.
 /docs/product/Decision Room para Excel_CSV.docx
+
+# Generated report exports and visual QA pages.
+/output/pdf/
+/tmp/pdfs/

@@ -75,6 +75,11 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def send_pdf(self, report):
+        from ..report_pdf import render_pdf
+        self.send(200, render_pdf(report), 'application/pdf',
+                  headers={'Content-Disposition': 'attachment; filename="decision-room-informe.pdf"'})
+
     def send_file(self, path, name):
         self.send_response(200)
         self.send_header('Content-Type', 'application/octet-stream')
@@ -284,6 +289,9 @@ class Handler(BaseHTTPRequestHandler):
                 if not mutation and len(parts) == 5 and parts[3] == 'presentation':
                     self.send(200, chats.report(chat_id, parts[4], structured=True))
                     return
+                if not mutation and len(parts) == 5 and parts[3] == 'pdf':
+                    self.send_pdf(chats.report(chat_id, parts[4], structured=True))
+                    return
                 if not mutation and len(parts) == 5 and parts[3] == 'report':
                     self.send(200,chats.report(chat_id,parts[4]),'text/html; charset=utf-8')
                     return
@@ -417,6 +425,9 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 if not mutation and action == 'presentation':
                     self.send(200, ws.report(job_id, structured=True))
+                    return
+                if not mutation and action == 'pdf':
+                    self.send_pdf(ws.report(job_id, structured=True))
                     return
                 if not mutation and action == 'report':
                     self.send(200, ws.report(job_id), 'text/html; charset=utf-8')

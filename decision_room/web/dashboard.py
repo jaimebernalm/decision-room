@@ -85,4 +85,4 @@ def presentation(data):
         claims.append({**{key: claim[key] for key in ('key', 'title', 'statement', 'interpretation', 'method', 'next_step')},
                        'evidence_details': dict(files=files, metrics=metrics, operations=operations)})
     identity = dict(report_id=str(data['id']), report_version=data['approved_sha256']) if data.get('id') and data.get('approved_sha256') else {}
-    return {**result, **identity, 'claims': claims, 'no_chart_reason': report['no_chart_reason']}
+    return {**result, **identity, 'claims': claims, 'no_chart_reason': report['no_chart_reason'], 'question_coverage': report.get('question_coverage', [])}

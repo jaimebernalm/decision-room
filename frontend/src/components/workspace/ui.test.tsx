@@ -140,7 +140,7 @@ it("unmounting the floating assistant prevents a late response redirecting anoth
   await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
   expect(location.hash).toBe("#businesses");
 });
-it("shows approved formatting and exact values, with escaped claim text", () => {
+it("shows approved formatting and exact values, with escaped claim text", async () => {
   render(
     <ReportView
       report={{
@@ -167,6 +167,8 @@ it("shows approved formatting and exact values, with escaped claim text", () => 
   expect(screen.getByText("1.234,56")).toBeInTheDocument();
   expect(screen.getByText("<img src=x onerror=alert(1)>")).toBeInTheDocument();
   expect(document.querySelector("img")).toBeNull();
+  expect(screen.queryByText(/Revisar detalle/)).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: /Resultado/ }));
   expect(screen.getByText(/Revisar detalle/)).toBeInTheDocument();
 });
 

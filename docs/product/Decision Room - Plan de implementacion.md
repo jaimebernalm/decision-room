@@ -729,3 +729,9 @@ Ver [validación completa](../validation/2026-09-22-luna-validation.md) e
 explícitas para comparaciones agrupadas, leyendas coherentes, actividad pública
 compacta y presentación progresiva del texto ya revisado. Metadatos de aprobación
 accesibles al asistente. Ver [validación](../validation/2026-09-28-charts-and-chat-flow.md).
+
+**Lectura breve y descarga, 28 de septiembre de 2026 (3.8.12):** resumen compacto,
+contexto/hallazgos desplegables e icono de descarga con PDF completo, sin secciones
+ocultas en la exportación. Se conservan aprobación, referencias y paleta.
+Ver [plan](../technical/report-reading-plan.md) y
+[validación](../validation/2026-09-28-report-reading-and-pdf.md).
