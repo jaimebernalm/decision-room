@@ -1,6 +1,8 @@
 import { it, expect } from "vitest";
 import {
   CHART_PALETTE,
+  CHART_SERIES_PALETTE,
+  CHART_NEUTRALS,
   chartPoints,
   groupedPoints,
   seriesColor,
@@ -66,11 +68,20 @@ it("groups exact values with missing cells absent, never synthesized zero", () =
 });
 
 it("keeps every fallback series within the product's fixed palette", () => {
+  expect(CHART_PALETTE).toEqual([
+    ...CHART_SERIES_PALETTE,
+    ...Object.values(CHART_NEUTRALS),
+  ]);
+  expect(Object.keys(CHART_NEUTRALS)).toEqual([
+    "reference",
+    "secondary",
+    "muted",
+  ]);
   for (const series of [
     "junio",
     "2026-06",
     "cambio julio-agosto",
     ...Array.from({ length: 40 }, (_, i) => `series-${i}`),
   ])
-    expect(CHART_PALETTE).toContain(seriesColor(series));
+    expect(CHART_SERIES_PALETTE).toContain(seriesColor(series));
 });

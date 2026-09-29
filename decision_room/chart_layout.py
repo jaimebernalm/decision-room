@@ -7,7 +7,10 @@ import re
 import json
 from pathlib import Path
 
-CHART_PALETTE = tuple(json.loads(Path(__file__).with_name("chart_palette.json").read_text()))
+_palette = json.loads(Path(__file__).with_name("chart_palette.json").read_text())
+CHART_SERIES_PALETTE = tuple(_palette["series"])
+CHART_NEUTRALS = _palette["neutrals"]
+CHART_PALETTE = CHART_SERIES_PALETTE + tuple(CHART_NEUTRALS.values())
 
 MONTHS = 'enero febrero marzo abril mayo junio julio agosto septiembre octubre noviembre diciembre'.split()
 
@@ -72,7 +75,7 @@ def panels(chart, points):
 
 def series_colors(labels):
     """One report-wide legend using only the fixed product palette."""
-    palette = CHART_PALETTE
+    palette = CHART_SERIES_PALETTE
     result = {}
     for label in sorted(set(labels)):
         if label in MONTHS:

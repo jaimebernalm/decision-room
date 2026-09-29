@@ -440,3 +440,17 @@ líneas; no modificar evidencia ni informes aprobados.
 **Cerrado:** pruebas de paleta y exportación, contenido completo del tooltip,
 regresión frontend, compilación, lint y comprobación visual de Bruma Café en
 escritorio y móvil. Véase [paleta y tooltips](../validation/2026-09-28-chart-palette.md).
+
+#### [x] 3.8.11 · Ampliación de neutros
+
+La paleta incluye tres grises de apoyo: referencia `#7d8792`, comparación secundaria
+`#a8b0b9` y contexto atenuado `#c8cdd3`. Se exponen con roles nombrados en Python,
+React y tokens CSS. Los seis azules siguen siendo la selección automática de
+series, conservando las asignaciones existentes. El catálogo completo permite
+usar neutros cuando una visual necesite distinguir una referencia o información
+secundaria. Los gráficos mantienen etiquetas, leyenda y valores; el gris no
+convierte datos ausentes en ceros.
+
+Validado con las 15 pruebas de gráficos/exportación, las cuatro pruebas de
+utilidades frontend y compilación TypeScript/Vite. La definición compartida
+evita que frontend y backend mantengan listas de colores distintas.
