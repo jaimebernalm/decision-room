@@ -10,11 +10,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import { ArrowUpRight } from "lucide-react";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
+import { ChartContainer, ChartTooltip } from "@/components/ui/chart";
 import {
   Card,
   CardHeader,
@@ -38,14 +34,20 @@ import {
 } from "@/components/ai-elements/sources";
 import { Selectable } from "./context-selection";
 import { Disclosure } from "./shared";
-import { groupedPoints, seriesColor, chartPoints } from "@/lib/charts";
+import {
+  CHART_PALETTE,
+  groupedPoints,
+  seriesColor,
+  chartPoints,
+} from "@/lib/charts";
+import { ReportChartTooltip } from "./report-chart-tooltip";
 import type {
   ChartData,
   ChartPanel,
   Report as ReportData,
   ContextAttachment,
 } from "@/lib/types";
-const config = { value: { label: "Valor", color: "var(--chart-1)" } };
+const config = { value: { label: "Valor", color: CHART_PALETTE[0] } };
 function GroupedBars({
   chart,
   panel,
@@ -57,7 +59,9 @@ function GroupedBars({
   const series = panel.series_order.map((name, i) => ({
     key: `s${i}`,
     name,
-    color: panel.colors?.[name] || seriesColor(name),
+    color: CHART_PALETTE.includes(panel.colors?.[name] || "")
+      ? panel.colors![name]
+      : seriesColor(name),
   }));
   const extent = Math.max(
     ...rows.flatMap((row) =>
@@ -92,6 +96,7 @@ function GroupedBars({
         )}
         className="w-full"
         style={{
+          containerType: "inline-size",
           height: Math.max(240, rows.length * (series.length * 22 + 28) + 32),
         }}
         aria-label={panel.title || chart.title}
@@ -142,18 +147,22 @@ function GroupedBars({
           />
           <ReferenceLine x={0} stroke="var(--muted-foreground)" />
           <ChartTooltip
-            content={
-              <ChartTooltipContent
-                labelFormatter={(_, items) => items[0]?.payload?.category}
-                formatter={(_, name, item) => (
-                  <span className="flex w-full justify-between gap-4">
-                    <span>{name}</span>
-                    <span className="font-mono">
-                      {item.payload[`${item.dataKey}Exact`]} {chart.unit}
-                    </span>
-                  </span>
-                )}
-              />
+            allowEscapeViewBox={{ x: false, y: false }}
+            position={{ x: 8 }}
+            content={({ active, payload }) =>
+              active && payload?.length ? (
+                <ReportChartTooltip
+                  title={String(payload[0].payload.category)}
+                  unit={chart.unit}
+                  items={payload
+                    .filter((item) => item.value != null)
+                    .map((item) => ({
+                      label: String(item.name),
+                      value: String(item.payload[`${item.dataKey}Exact`]),
+                      color: item.color,
+                    }))}
+                />
+              ) : null
             }
           />
           {series.map((s) => (
@@ -249,16 +258,22 @@ export function EvidenceChart({
       />
       <ReferenceLine {...(bars ? { x: 0 } : { y: 0 })} stroke="var(--border)" />
       <ChartTooltip
-        content={
-          <ChartTooltipContent
-            className="max-w-[calc(100vw-3rem)]"
-            labelFormatter={(_, payload) => payload[0]?.payload?.label}
-            formatter={(_, __, item) => (
-              <span className="font-mono tabular-nums">
-                {item.payload.formatted} {chart.unit}
-              </span>
-            )}
-          />
+        allowEscapeViewBox={{ x: false, y: false }}
+        position={{ x: 8 }}
+        content={({ active, payload }) =>
+          active && payload?.length ? (
+            <ReportChartTooltip
+              title={String(payload[0].payload.label)}
+              unit={chart.unit}
+              items={payload
+                .filter((item) => item.value != null)
+                .map((item) => ({
+                  label: "Valor",
+                  value: String(item.payload.formatted),
+                  color: item.color,
+                }))}
+            />
+          ) : null
         }
       />
     </>
@@ -287,6 +302,7 @@ export function EvidenceChart({
             config={config}
             className="w-full"
             style={{
+              containerType: "inline-size",
               height: bars ? Math.max(256, chart.points.length * 36) : 256,
             }}
             aria-label={chart.title}

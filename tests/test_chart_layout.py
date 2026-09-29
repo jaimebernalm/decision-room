@@ -63,3 +63,15 @@ class ChartLayoutTests(unittest.TestCase):
         colors=series_colors(labels)
         self.assertEqual(len(set(colors.values())),len(labels))
         self.assertEqual(colors,series_colors(reversed(labels)))
+
+    def test_palette_remains_fixed_even_when_a_report_has_many_distinct_series(self):
+        from decision_room.chart_layout import CHART_PALETTE, series_colors
+        self.assertEqual(len(CHART_PALETTE), 6)
+        colors=series_colors(f'series-{i}' for i in range(40))
+        self.assertEqual(len(colors),40)
+        self.assertLessEqual(set(colors.values()),set(CHART_PALETTE))
+        html=render_client(self.data(),'today')
+        view=projection(self.data())
+        for color in view['charts'][0]['panels'][0]['colors'].values():
+            self.assertIn(color,CHART_PALETTE)
+            self.assertIn(f'fill="{color}"',html)

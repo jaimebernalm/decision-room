@@ -1,4 +1,6 @@
+import palette from "../../../decision_room/chart_palette.json";
 import type { ChartData } from "./types";
+export const CHART_PALETTE: readonly string[] = palette;
 /** Numeric coordinates are for drawing only; display keeps the server's decimal strings. */
 export function chartPoints(chart: ChartData) {
   const temporal = chart.kind === "line";
@@ -40,9 +42,7 @@ export function seriesColor(series: string) {
     index >= 0
       ? index
       : [...series].reduce((n, c) => (n * 31 + c.charCodeAt(0)) >>> 0, 0);
-  return ["#367da5", "#ad7130", "#6b75b8", "#43867a", "#ac6584", "#78923d"][
-    hash % 6
-  ];
+  return CHART_PALETTE[hash % CHART_PALETTE.length];
 }
 export function groupedPoints(
   chart: ChartData,

@@ -1,5 +1,10 @@
 import { it, expect } from "vitest";
-import { chartPoints } from "./charts";
+import {
+  CHART_PALETTE,
+  chartPoints,
+  groupedPoints,
+  seriesColor,
+} from "./charts";
 import type { ChartData } from "./types";
 const chart: ChartData = {
   key: "x",
@@ -32,7 +37,6 @@ it("preserves reviewed decimal formatting even beyond floating point precision",
   expect(points[0].axis).toBe("Total");
 });
 
-import { groupedPoints, seriesColor } from "./charts";
 it("groups exact values with missing cells absent, never synthesized zero", () => {
   const grouped = {
     ...chart,
@@ -59,4 +63,14 @@ it("groups exact values with missing cells absent, never synthesized zero", () =
   expect(rows[1].s1Exact).toBe("20,01");
   expect(seriesColor("junio")).toBe(seriesColor("2026-06"));
   expect(seriesColor("2026-07")).not.toBe(seriesColor("2026-06"));
+});
+
+it("keeps every fallback series within the product's fixed palette", () => {
+  for (const series of [
+    "junio",
+    "2026-06",
+    "cambio julio-agosto",
+    ...Array.from({ length: 40 }, (_, i) => `series-${i}`),
+  ])
+    expect(CHART_PALETTE).toContain(seriesColor(series));
 });

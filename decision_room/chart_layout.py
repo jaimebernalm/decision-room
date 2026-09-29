@@ -4,6 +4,10 @@ Legacy adaptation only recognizes an unambiguous category | month grammar. It
 never changes values, aggregates observations or rewrites the approved artifact.
 """
 import re
+import json
+from pathlib import Path
+
+CHART_PALETTE = tuple(json.loads(Path(__file__).with_name("chart_palette.json").read_text()))
 
 MONTHS = 'enero febrero marzo abril mayo junio julio agosto septiembre octubre noviembre diciembre'.split()
 
@@ -67,8 +71,8 @@ def panels(chart, points):
 
 
 def series_colors(labels):
-    """One report-wide legend; resolve palette collisions deterministically."""
-    palette = ['#367da5', '#ad7130', '#6b75b8', '#43867a', '#ac6584', '#78923d']
+    """One report-wide legend using only the fixed product palette."""
+    palette = CHART_PALETTE
     result = {}
     for label in sorted(set(labels)):
         if label in MONTHS:
@@ -79,6 +83,6 @@ def series_colors(labels):
                 index = (index * 31 + ord(character)) & 0xffffffff
         color = palette[index % len(palette)]
         if color in result.values():
-            color = next((c for c in palette if c not in result.values()), f'hsl({len(result) * 137.508 % 360:.1f} 45% 45%)')
+            color = next((c for c in palette if c not in result.values()), palette[index % len(palette)])
         result[label] = color
     return result

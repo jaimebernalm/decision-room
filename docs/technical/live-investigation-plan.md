@@ -423,3 +423,20 @@ y comprobación visual con el informe guardado de Bruma Café y un chat real.
 **Cerrado:** 3.8.10 implementado y validado. Véase
 [gráficos y continuidad del chat](../validation/2026-09-28-charts-and-chat-flow.md).
 No cambia el alcance pendiente de otras entregas del producto.
+
+### [x] 3.8.11 · Paleta fija y lectura de gráficos
+
+Usar una familia de seis azules suaves acorde con la marca. La fuente compartida
+es `decision_room/chart_palette.json`: series web, proyección y exportación HTML
+solo utilizan esos tonos; al agotar la paleta se reutilizan, sin generar nuevos
+matices. Los tokens de gráficos del tema también pertenecen a esa familia.
+
+El tooltip muestra categoría completa, unidad una sola vez y filas de serie y
+valor exacto. Su ancho depende de la tarjeta, el texto puede saltar de línea y la
+posición horizontal se ancla dentro del gráfico completo para evitar el recorte
+en pantallas estrechas. Aplicar el componente común a barras agrupadas, simples y
+líneas; no modificar evidencia ni informes aprobados.
+
+**Cerrado:** pruebas de paleta y exportación, contenido completo del tooltip,
+regresión frontend, compilación, lint y comprobación visual de Bruma Café en
+escritorio y móvil. Véase [paleta y tooltips](../validation/2026-09-28-chart-palette.md).

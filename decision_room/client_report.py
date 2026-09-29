@@ -3,7 +3,7 @@ from datetime import date
 from decimal import Decimal, ROUND_HALF_UP, localcontext
 from html import escape
 
-from .chart_layout import panels, series_colors
+from .chart_layout import CHART_PALETTE, panels, series_colors
 from .agent.review_contract import ReportDraft, checks
 from .series import saved_series, evidence_value, evidence_label, evidence_key
 
@@ -145,7 +145,7 @@ def evidence_html(data, claim, charts):
             '<th scope="col">Valor guardado</th></tr></thead><tbody>' + ''.join(rows) + '</tbody></table>' + ''.join(series_details) + '</details>')
 
 
-CSS = '''
+CSS = ':root{--chart-primary:' + CHART_PALETTE[0] + '}\n' + '''
 *{box-sizing:border-box}body{margin:0;color:#203b3b;background:#f3f2ec;font:16px/1.65 system-ui,sans-serif}
 main{max-width:1080px;margin:40px auto;background:#fffefa;border:1px solid #d9dfd8;border-radius:18px;overflow:hidden}
 header{background:#163e3b;color:#fffefa;padding:42px 48px}.eyebrow{font-size:12px;letter-spacing:.18em;text-transform:uppercase;font-weight:700}
@@ -154,7 +154,7 @@ h1{font-size:clamp(28px,4vw,42px);line-height:1.15;max-width:850px;margin:22px 0
 .highlights{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin:26px 0 36px}.highlight{display:flex;flex-direction:column;padding:22px;border:1px solid #d9dfd8;border-radius:12px;background:#f7f8f3;text-decoration:none;color:inherit}.highlight span{font-size:13px;color:#52665f}.highlight strong{font-size:clamp(22px,3vw,30px);line-height:1.3;margin:12px 0;font-variant-numeric:tabular-nums;white-space:nowrap}.highlight small{font-size:12px;color:#52665f}.highlight:hover{border-color:#26766a}.highlight:focus-visible,a:focus-visible{outline:3px solid #26766a;outline-offset:4px}.visuals{margin:36px 0}.finding-link{font-size:13px;color:#26766a}.plot{overflow-x:auto}.scroll-hint{display:none;font-size:12px;color:#52665f}section[id]{scroll-margin-top:20px}
 .finding{padding:30px 0;border-top:1px solid #dbe1db}.number{color:#66837a;font-size:12px;letter-spacing:.15em;font-weight:700}.interpretation{padding:0 0 0 18px;border-left:3px solid #c3d5cb}.next{background:#eaf1eb;padding:18px 22px;border-radius:8px}.next strong{display:block}
 figure{margin:26px 0;padding:22px;background:#f7f8f3;border:1px solid #e0e5dc;border-radius:10px}svg{display:block;width:100%;height:auto;margin:8px 0}figcaption,.unit{font-size:14px;color:#52665f}.unit{margin:4px 0}
-.bar,.dot{fill:#26766a}.trend{stroke:#26766a;stroke-width:2.5}.axis{stroke:#8a9f97;stroke-width:1}.grid{stroke:#dce4dd;stroke-width:1}.chart-label,.chart-number{font:15px system-ui;fill:#203b3b}.chart-number{font-weight:650}.tick{font:12px system-ui;fill:#52665f}
+.bar,.dot{fill:var(--chart-primary)}.trend{stroke:var(--chart-primary);stroke-width:2.5}.axis{stroke:#8a9f97;stroke-width:1}.grid{stroke:#dce4dd;stroke-width:1}.chart-label,.chart-number{font:15px system-ui;fill:#203b3b}.chart-number{font-weight:650}.tick{font:12px system-ui;fill:#52665f}
 p,li,td,th{overflow-wrap:anywhere}p{white-space:pre-line}table{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px}th,td{padding:10px 12px;text-align:left;border-bottom:1px solid #dce4dd}td{text-align:right;font-variant-numeric:tabular-nums}thead th{background:#eaf0e9}tbody th{font-weight:500}
 details{margin:16px 0;padding:15px 18px;border:1px solid #d9e1d8;border-radius:8px;background:#fffefa}summary{cursor:pointer;font-size:14px;font-weight:650}summary:focus-visible{outline:3px solid #26766a;outline-offset:5px}
 footer{padding:24px 48px;border-top:1px solid #d9e1d8;color:#52665f;font-size:12px}.limits{padding-top:28px;border-top:1px solid #d9e1d8}.empty{color:#52665f;font-size:14px}
