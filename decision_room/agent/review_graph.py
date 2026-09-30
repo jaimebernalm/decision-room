@@ -1,4 +1,5 @@
 """Persistent reviewer-led conversation; all generated code stays in the sandbox."""
+from ..observability.runtime import notify
 from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -10,8 +11,13 @@ from .context import fingerprint
 from .persistence import model_call, answers
 from .review_context import approval_digest, material, model_context
 from .review_contract import validate
+from .research_agenda import limitation
 
 REVIEW_GRAPH_VERSION = 'review-v7'
+
+
+class ReviewBudgetReached(ValueError):
+    pass
 
 
 class ReviewState(TypedDict):
@@ -39,17 +45,42 @@ def build(config, db, session, run, analyst, reviewer, saver, *, executor=execut
             return {'outcome': 'limited'}
         model = analyst if state['role'] == 'analyst' else reviewer
         correction = None
-        for attempt in range(2):
-            raw = model_call(db, session['id'], model, context, correction, retry_uncertain,
-                             config=config, phase='analyst_review' if state['role'] == 'analyst' else 'reviewer',
-                             scope=str(run['id']), max_calls=run['options']['max_calls_per_role'])
+        attempts = run['options'].get('max_validation_attempts', 2)
+        for attempt in range(attempts):
+            phase = 'analyst_review' if state['role'] == 'analyst' else 'reviewer'
+            def guard():
+                used = db.execute('SELECT count(*) n FROM agent_calls WHERE session_id=%s AND phase=%s AND scope=%s',
+                                  (session['id'], phase, str(run['id']))).fetchone()['n']
+                if used >= run['options']['max_calls_per_role']:
+                    raise ReviewBudgetReached('Review model-call budget reached.')
+            try:
+                raw = model_call(db, session['id'], model, context, correction, retry_uncertain,
+                                 config=config, phase=phase, scope=str(run['id']),
+                                 max_calls=run['options']['max_calls_per_role'], before_call=guard)
+            except ReviewBudgetReached:
+                return {'outcome': 'limited'}
             try:
                 action = validate(raw, state['role'], context)
+                if action['action'] == 'submit' and context.get('research_coverage'):
+                    report = action['report']
+                    from .review_policy import prioritize_claims
+                    prioritize_claims(report, context.get('research_synthesis'))
+                    note = limitation(context['research_coverage'], report)
+                    # Replace only reserved controller scope notes, preserving all
+                    # substantive caveats. Computed candidates are not delivered answers.
+                    limits = [l for l in report['limitations'] if not l.startswith(('Cobertura del informe:', 'Cobertura de investigación:'))]
+                    report['limitations'] = [*limits, note]
+                    action = validate(action, state['role'], context)
                 break
             except ValueError as error:
                 correction = str(error)[:1800]
-                if attempt:
-                    raise ValueError('Review action failed validation twice: ' + correction) from None
+                if attempt + 1 == attempts:
+                    count = 'twice' if attempts == 2 else f'{attempts} times'
+                    raise ValueError(f'Review action failed validation {count}: ' + correction) from None
+                if attempts > 2:
+                    # A distinct correction key prevents replaying the same invalid
+                    # cached repair forever. No invalid event is accepted or saved.
+                    correction = f'Repair {attempt + 1}/{attempts}: {correction} Return complete corrected JSON; all evidence and approval requirements still apply.'
         step = state['turn'] + 1
         existing = db.execute('SELECT action FROM agent_review_events WHERE review_id=%s AND step=%s', (run['id'], step)).fetchone()
         if existing and fingerprint(existing['action']) != fingerprint(action):
@@ -57,6 +88,7 @@ def build(config, db, session, run, analyst, reviewer, saver, *, executor=execut
         db.execute('''INSERT INTO agent_review_events(review_id,step,business_id,role,action,knowledge_sha256)
             VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING''',
                    (run['id'], step, session['business_id'], state['role'], Jsonb(action), current['knowledge_sha256']))
+        notify(db)
         return {'turn': step, 'action': action}
 
     def python(state):

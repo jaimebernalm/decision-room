@@ -7,6 +7,7 @@ import logging
 import os
 import tempfile
 import threading
+from ..observability.runtime import created, tracked
 from dataclasses import asdict
 from contextlib import nullcontext
 from pathlib import Path
@@ -34,6 +35,9 @@ LOG = logging.getLogger(__name__)
 def failure_message(error):
     # Agent services wrap failures to persist stage diagnostics. Inspect the
     # original typed exception, never copy arbitrary exception/server text to UI.
+    from ..memory.context import PendingMemory
+    if isinstance(error, PendingMemory):
+        return str(error)
     seen = set()
     while error is not None and id(error) not in seen:
         seen.add(id(error))
@@ -63,6 +67,7 @@ class Workspace:
     def scoped(self, business_id):
         """Pin a request/worker to one authorized business, even during selection changes."""
         if business_id is not None:
+            business_id = identifier(business_id)
             with connect(self.config) as db:
                 business_store.profile(db, business_id)
         scoped = Workspace(self.config, self.settings, self.model_factory)
@@ -203,6 +208,7 @@ class Workspace:
         finally:
             Path(temporary).unlink(missing_ok=True)
 
+    @created('job')
     def create_batch(self, data):
         if not isinstance(data, dict) or not isinstance(data.get('files'), list) or not data['files']:
             raise WebError('Selecciona al menos un CSV.')
@@ -271,6 +277,7 @@ class Workspace:
         self.wake.set()
         return {'id': str(job_id)}
 
+    @created('job')
     def create(self, data, filename, content):
         if not isinstance(data, dict):
             raise WebError('Los datos del análisis no son válidos.')
@@ -340,6 +347,7 @@ class Workspace:
         self.wake.set()
         return {'id': str(job_id)}
 
+    @created('job')
     def create_from_dataset(self, data):
         """Start the established report worker on a prepared folder batch."""
         if not isinstance(data, dict):
@@ -434,9 +442,24 @@ class Workspace:
     def public(self, j):
         fields = ('id', 'business_id', 'analysis_id', 'title', 'business', 'context', 'goal', 'filename', 'byte_count', 'status', 'phase', 'created_at', 'updated_at', 'issue', 'origin')
         result = {key: j[key] for key in fields}
+        from ..observability.store import linked
+        with connect(self.config) as db:
+            trace=linked(db,j['business_id'],'job',j['id'])
+            result['activity_trace_id']=str(trace) if trace else None
         with connect(self.config) as db:
             result['data_version'] = db.execute('SELECT version,superseded_by,corrected FROM dataset_versions WHERE analysis_id=%s AND business_id=%s', (j['analysis_id'], j['business_id'])).fetchone()
         if j['origin'] == 'chat':
+            # Internal provenance is retained in storage, never rendered as prose.
+            try:
+                stored = json.loads(j['context'])
+            except (ValueError, TypeError):
+                stored = {}
+            if isinstance(stored, dict):
+                context = stored.get('context', {})
+                setup = context.get('onboarding_brief', {}) if isinstance(context, dict) else {}
+                brief = setup.get('brief', {})
+                result['context'] = setup.get('business_description') or brief.get('business_summary', '')
+                result['goal'] = brief.get('objective') or j['goal']
             with connect(self.config) as db:
                 source = db.execute('''SELECT t.conversation_id FROM chat_turns t
                     JOIN chat_conversations c ON c.id=t.conversation_id AND c.deleted_at IS NULL
@@ -568,6 +591,13 @@ class Workspace:
                 result['interpretations'] = [{'text': i['statement'], 'status': i['status']} for i in plan['revisions'][-1]['proposal']['interpretations']]
         if j['status'] == 'blocked' and j['phase'] == 'planning' and result.get('unresolved_questions'):
             result['issue'] = 'Falta una definición necesaria para calcular el informe: una aclaración se guardó como no disponible. Puedes completarla y usar los mismos archivos.'
+        if j['research_id']:
+            work = research.show(self.config,b,j['research_id'])
+            if not j['review_id']:
+                result['questions'] = [dict(**q,phase='research') for q in work['pending_questions']]
+            result['answers'] += [dict(text=a['text'],disposition=a['disposition'],question=a['question']['text'],references=a['question'].get('references',[])) for a in work['business_answers']]
+            if work['business_direction']:
+                result['activity'] = 'Estamos contrastando los hallazgos con tu objetivo y preparando las siguientes comprobaciones.'
         if j['review_id']:
             data = self.review_state(j)
             result['publishable'] = data['publishable']
@@ -595,7 +625,17 @@ class Workspace:
         if (result.get('data_version') or {}).get('corrected'):
             result.update(status='blocked', publishable=False, questions=[],
                           issue='Esta versión de datos se ha corregido. Abre Mi negocio y pregunta con la versión actual; el informe anterior se conserva como registro, pero no como resultado válido.')
+        result['can_retry'] = bool(not (result.get('data_version') or {}).get('corrected') and (
+            result['status'] == 'failed' or result.get('context_stale') or
+            (j['status'] == 'blocked' and j['review_id'] and self.review_retryable(j))))
         return result
+
+    def review_retryable(self, j):
+        if not j['review_id']:
+            return False
+        state = self.review_state(j)
+        return state.get('status') == 'limited' and not any(state.get(k) for k in
+            ('independent_hold', 'unavailable', 'context_stale'))
 
     def reply(self, job_id, data):
         if not isinstance(data, dict):
@@ -638,7 +678,8 @@ class Workspace:
         from ..memory.context import reason
         with connect(self.config) as db:
             stale = j['session_id'] and reason(db, j['session_id'])
-        if j['status'] != 'failed' and not stale:
+        restart_review = j['status'] == 'blocked' and self.review_retryable(j)
+        if j['status'] != 'failed' and not stale and not restart_review:
             raise WebError('Solo se pueden reintentar los análisis con un fallo técnico.', 409)
         model = self.model_factory(ModelSettings(**j['model_settings']))
         try:
@@ -649,8 +690,8 @@ class Workspace:
             # or trigger LM Studio's automatic model-loading attempt.
             raise WebError(str(error), 409) from None
         with (nullcontext(_db) if _db is not None else connect(self.config)) as db:
-            row = db.execute("UPDATE web_jobs SET status='queued',issue=NULL,retry_uncertain=true,updated_at=now() WHERE id=%s AND business_id=%s AND (status='failed' OR %s) RETURNING id",
-                             (identifier(job_id), j['business_id'], bool(stale))).fetchone()
+            row = db.execute("UPDATE web_jobs SET status='queued',issue=NULL,retry_uncertain=true,updated_at=now() WHERE id=%s AND business_id=%s AND (status='failed' OR %s OR (status='blocked' AND %s AND review_id=%s)) RETURNING id",
+                             (identifier(job_id), j['business_id'], bool(stale), bool(restart_review), j['review_id'])).fetchone()
         if not row:
             raise WebError('Solo se pueden reintentar los análisis con un fallo técnico.', 409)
         self.wake.set()
@@ -737,6 +778,7 @@ class Workspace:
                 'offset': offset, 'has_more': len(rows) > 30,
                 'cell_limit': 200, 'files': files, 'file_index': file_index}
 
+    @tracked('job')
     def run_job(self, job_id):
         j = self.sync(job_id)
         b, key = j['business_id'], 'web:' + str(j['id'])
@@ -744,6 +786,7 @@ class Workspace:
         retry = j['retry_uncertain']
         self.update(job_id, status='running', issue=None)
         try:
+            memory_extraction.prepare(self.config, b, model)
             if j['session_id']:
                 from ..memory.context import reason
                 with connect(self.config) as db:
@@ -752,8 +795,16 @@ class Workspace:
                     # Create the successor before driving it; sync recovers this link after a crash.
                     from ..agent.service import _create_session
                     from ..agent.persistence import session_lock
-                    with session_lock(self.config, b, j['session_id']):
-                        successor = _create_session(self.config, b, j['analysis_id'], owner_context=j['goal'] or 'Exploración general de la actividad disponible.',
+                    with session_lock(self.config, b, j['session_id']) as (db,session):
+                        context = j['goal'] or 'Exploración general de la actividad disponible.'
+                        if j['research_id']:
+                            from ..agent.business_planner import successor_context, save_answer
+                            old_work=db.execute('SELECT * FROM agent_research WHERE id=%s',(j['research_id'],)).fetchone()
+                            if j['pending_answer'] and j['pending_answer']['phase']=='research':
+                                a=j['pending_answer']
+                                save_answer(db,session,old_work,a['id'],a['text'],a['disposition'],a['request_key'])
+                            context=successor_context(db,old_work)
+                        successor = _create_session(self.config, b, j['analysis_id'], owner_context=context,
                             request_key='web-replan:' + str(j['session_id']), model=model, supersedes=j['session_id'])
                     self.update(job_id, session_id=successor['id'], research_id=None, review_id=None, pending_answer=None, phase='planning')
                     j = self.sync(job_id)
@@ -804,6 +855,8 @@ class Workspace:
                 if j['session_id']:
                     plan = planning.resume(self.config, b, j['session_id'], model=model, retry_uncertain=retry)
                 else:
+                    from ..data_knowledge.discovery import discover
+                    discover(self.config, b, j['analysis_id'], model, retry_uncertain=retry)
                     context = j['goal'] or 'Exploración general de la actividad disponible.'
                     plan = planning.start(self.config, b, j['analysis_id'], owner_context=context, request_key=key, model=model)
                 self.update(job_id, session_id=plan['id'])
@@ -816,11 +869,26 @@ class Workspace:
                     return
                 j = self.sync(job_id)
                 self.update(job_id, phase='research')
+                if j['pending_answer'] and j['pending_answer']['phase']=='research':
+                    a=j['pending_answer']
+                    research.answer(self.config,b,j['research_id'],question_id=a['id'],text=a['text'],disposition=a['disposition'],request_key=a['request_key'],model=model,retry_uncertain=retry)
+                    self.update(job_id,pending_answer=None)
                 if j['research_id']:
                     work = research.resume(self.config, b, j['research_id'], model=model, retry_uncertain=retry)
                 else:
-                    work = research.start(self.config, b, plan['id'], request_key=key, model=model)
+                    work = research.start(self.config, b, plan['id'], request_key=key, model=model, business_planner=True, quality_first=True)
                 self.update(job_id, research_id=work['id'])
+                if work['pending_questions']:
+                    self.update(job_id,status='waiting',retry_uncertain=False)
+                    return
+                if work['status']=='replan_required':
+                    from ..agent.business_planner import successor_context
+                    with connect(self.config) as db:
+                        saved=db.execute('SELECT * FROM agent_research WHERE id=%s',(work['id'],)).fetchone()
+                        context=successor_context(db,saved)
+                    successor=planning.replan(self.config,b,plan['id'],owner_context=context,request_key='business-replan:'+str(work['id']),model=model)
+                    self.update(job_id,session_id=successor['id'],research_id=None,review_id=None,pending_answer=None,status='queued',phase='planning',retry_uncertain=False)
+                    return
                 if not any(f['status'] == 'candidate' for f in work['findings']):
                     self.update(job_id, status='blocked', issue='El análisis no produjo hallazgos que puedan pasar a revisión. Puedes crear otro análisis con una pregunta más concreta o datos adicionales.')
                     return
@@ -830,7 +898,9 @@ class Workspace:
                 a = j['pending_answer']
                 review.answer(self.config, b, j['review_id'], step=int(a['id']), text=a['text'], disposition=a['disposition'], request_key=a['request_key'], analyst=model, reviewer=model, retry_uncertain=retry)
                 self.update(job_id, pending_answer=None)
-            if j['review_id']:
+            if j['review_id'] and retry and self.review_retryable(j):
+                result = review.restart(self.config, b, j['review_id'], analyst=model, reviewer=model, retry_uncertain=True)
+            elif j['review_id']:
                 result = review.resume(self.config, b, j['review_id'], analyst=model, reviewer=model, retry_uncertain=retry)
             else:
                 result = review.start(self.config, b, j['research_id'], request_key=key, analyst=model, reviewer=model)
@@ -840,7 +910,7 @@ class Workspace:
             elif result['pending_questions']:
                 self.update(job_id, status='waiting')
             else:
-                self.update(job_id, status='blocked', issue='La revisión no ha aprobado un informe para entregar. Tus archivos y respuestas siguen guardados. Puedes iniciar otro análisis con una pregunta más acotada.')
+                self.update(job_id, status='blocked', issue='La revisión no ha aprobado todavía el informe. Tus archivos, respuestas y cálculos siguen guardados. Si se han agotado las rondas de revisión, puedes reintentar desde esta conversación.')
         except Exception as error:
             LOG.exception('Web job %s failed', job_id)
             self.sync(job_id)

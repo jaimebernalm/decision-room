@@ -29,7 +29,7 @@ export function MainContent({
       <ScrollArea.Viewport
         id="main-content"
         tabIndex={-1}
-        className="size-full outline-none"
+        className="size-full outline-none [&>div]:block! [&>div]:w-full"
       >
         {children}
       </ScrollArea.Viewport>

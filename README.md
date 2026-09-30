@@ -97,6 +97,10 @@ the authenticated workspace at
 CSV upload, actual agent questions, durable progress and reviewed reports with
 charts and evidence. `--model` selects another installed model. See the
 [web guide](docs/technical/web.md) for access, recovery and operational limits.
+Live investigation activity (3.8) is available in chat, onboarding and completed
+reports. Start with `--internal-monitor` to enable the separately authenticated
+operator view; it is off by default. See [access and contracts](docs/technical/live-investigation.md)
+and [Bruma validation](docs/validation/2026-09-28-live-investigation.md).
 The web workspace does not automatically import historical CLI evaluations.
 The agent's known analytical errors remain open; delivery 2 does not accept
 or certify the analytical quality of delivery 1.

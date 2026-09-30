@@ -1,3 +1,4 @@
+import { AnalysisActivity } from "./analysis-activity";
 import { useState } from "react";
 import {
   Plus,
@@ -19,6 +20,7 @@ import { useResource } from "@/lib/hooks";
 import { date } from "@/lib/api";
 import type { Report } from "@/lib/types";
 import { Heading, Notice, Empty, Loading } from "./shared";
+import { ReportDownload } from "./report-download";
 import { ReportView } from "./report";
 import { ChatActions } from "./chat-actions";
 import { FloatingAssistant } from "./floating-assistant";
@@ -115,19 +117,16 @@ export function Presentation({
   exportUrl: string;
 }) {
   const { data, error } = useResource<Report>(path, 5000);
+  const activityPath = path.startsWith("/api/jobs/")
+    ? `${path.split("/presentation")[0]}/activity`
+    : path.replace(/\/presentation\/([^/]+)$/, "/turns/$1/activity");
   return (
     <>
       <Heading title="Informe del negocio">
-        <div className="flex gap-2">
-          <Button asChild variant="outline">
-            <a href={exportUrl} target="_blank" rel="noreferrer">
-              Vista para imprimir
-              <ArrowUpRight />
-            </a>
-          </Button>
-        </div>
+        <ReportDownload url={exportUrl} disabled={!data || Boolean(error)} />
       </Heading>
       <Notice error>{error}</Notice>
+      <AnalysisActivity endpoint={activityPath} />
       {error ? null : data ? <ReportView report={data} /> : <Loading />}
     </>
   );

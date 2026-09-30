@@ -649,3 +649,165 @@ CREATE TABLE IF NOT EXISTS web_onboarding (
     CHECK (NOT completed OR job_id IS NOT NULL)
 );
 INSERT INTO schema_versions(version) VALUES (20) ON CONFLICT DO NOTHING;
+
+-- Guided setup shares the durable chat; legacy onboarding jobs remain untouched.
+CREATE TABLE IF NOT EXISTS onboarding_sessions (
+    business_id uuid PRIMARY KEY REFERENCES web_businesses(business_id) ON DELETE CASCADE,
+    conversation_id uuid NOT NULL,
+    revision integer NOT NULL DEFAULT 1,
+    stage text NOT NULL DEFAULT 'goal' CHECK(stage IN ('goal','data','scope','report','complete')),
+    analysis_id uuid,
+    goal jsonb NOT NULL DEFAULT '{}',
+    brief jsonb,
+    proposal_turn_id uuid REFERENCES chat_turns(id),
+    confirmed jsonb,
+    job_id uuid,
+    FOREIGN KEY(business_id,conversation_id) REFERENCES chat_conversations(business_id,id),
+    FOREIGN KEY(business_id,analysis_id) REFERENCES analyses(business_id,id),
+    FOREIGN KEY(business_id,job_id) REFERENCES web_jobs(business_id,id)
+);
+CREATE TABLE IF NOT EXISTS onboarding_events (
+    business_id uuid NOT NULL REFERENCES onboarding_sessions(business_id) ON DELETE CASCADE,
+    request_key uuid NOT NULL,
+    payload jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY(business_id,request_key)
+);
+INSERT INTO schema_versions(version) VALUES (21) ON CONFLICT DO NOTHING;
+
+-- Durable bounded discovery before chat/planning snapshots.
+CREATE TABLE IF NOT EXISTS data_model_discoveries (
+    business_id uuid NOT NULL,
+    analysis_id uuid NOT NULL,
+    call_key text NOT NULL,
+    attempt integer NOT NULL,
+    status text NOT NULL CHECK(status IN ('running','completed','failed','interrupted')),
+    context_payload jsonb NOT NULL,
+    model_settings jsonb NOT NULL,
+    output jsonb,
+    usage jsonb,
+    issue text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY(business_id,analysis_id,call_key,attempt),
+    FOREIGN KEY(business_id,analysis_id) REFERENCES analyses(business_id,id)
+);
+INSERT INTO schema_versions(version) VALUES (22) ON CONFLICT DO NOTHING;
+
+-- Durable parent/worker links. Child runs reuse isolated research checkpoints.
+CREATE TABLE IF NOT EXISTS agent_research_branches (
+    business_id uuid NOT NULL,
+    parent_id uuid NOT NULL,
+    dispatch_step integer NOT NULL,
+    ordinal integer NOT NULL,
+    child_id uuid NOT NULL UNIQUE,
+    assignment jsonb NOT NULL,
+    PRIMARY KEY(parent_id,dispatch_step,ordinal),
+    FOREIGN KEY(business_id,parent_id) REFERENCES agent_research(business_id,id),
+    FOREIGN KEY(business_id,child_id) REFERENCES agent_research(business_id,id),
+    CHECK(parent_id <> child_id)
+);
+ALTER TABLE agent_research_branches ADD COLUMN IF NOT EXISTS started_at timestamptz;
+ALTER TABLE agent_research_branches ADD COLUMN IF NOT EXISTS finished_at timestamptz;
+INSERT INTO schema_versions(version) VALUES (23) ON CONFLICT DO NOTHING;
+
+-- 3.7: durable business direction and owner clarification during research.
+ALTER TABLE agent_research DROP CONSTRAINT IF EXISTS agent_research_status_check;
+ALTER TABLE agent_research ADD CONSTRAINT agent_research_status_check
+    CHECK (status IN ('new','running','completed','partial','waiting','replan_required','failed','stale'));
+ALTER TABLE agent_research ADD COLUMN IF NOT EXISTS paused_seconds double precision NOT NULL DEFAULT 0;
+CREATE TABLE IF NOT EXISTS business_planner_events (
+    id uuid PRIMARY KEY,
+    research_id uuid NOT NULL,
+    business_id uuid NOT NULL,
+    ordinal integer NOT NULL,
+    checkpoint_key text NOT NULL,
+    stage text NOT NULL CHECK (stage IN ('initial','checkpoint','delivery')),
+    direction jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    FOREIGN KEY (business_id,research_id) REFERENCES agent_research(business_id,id),
+    UNIQUE (research_id,checkpoint_key), UNIQUE (research_id,ordinal),
+    UNIQUE (business_id,research_id,id)
+);
+CREATE TABLE IF NOT EXISTS business_planner_answers (
+    id uuid PRIMARY KEY,
+    event_id uuid NOT NULL UNIQUE,
+    research_id uuid NOT NULL,
+    business_id uuid NOT NULL,
+    disposition text NOT NULL CHECK (disposition IN ('answered','unknown','declined')),
+    text text NOT NULL,
+    request_key text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    FOREIGN KEY (business_id,research_id,event_id) REFERENCES business_planner_events(business_id,research_id,id),
+    UNIQUE (research_id,request_key)
+);
+INSERT INTO schema_versions(version) VALUES (24) ON CONFLICT DO NOTHING;
+
+-- 3.8: durable process activity, independent of analytical checkpoints.
+CREATE TABLE IF NOT EXISTS activity_traces (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL REFERENCES businesses(id),
+    origin_kind text NOT NULL,
+    origin_id uuid NOT NULL,
+    last_sequence bigint NOT NULL DEFAULT 0,
+    history_complete boolean NOT NULL DEFAULT true,
+    heartbeat_at timestamptz,
+    worker_active boolean NOT NULL DEFAULT false,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    UNIQUE(business_id,id), UNIQUE(business_id,origin_kind,origin_id)
+);
+CREATE TABLE IF NOT EXISTS activity_links (
+    business_id uuid NOT NULL,
+    trace_id uuid NOT NULL,
+    kind text NOT NULL,
+    source_id uuid NOT NULL,
+    PRIMARY KEY(business_id,kind,source_id),
+    FOREIGN KEY(business_id,trace_id) REFERENCES activity_traces(business_id,id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS activity_links_trace ON activity_links(business_id,trace_id,kind);
+CREATE TABLE IF NOT EXISTS activity_tasks (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    trace_id uuid NOT NULL,
+    parent_task_id uuid,
+    actor_id text NOT NULL,
+    role text NOT NULL,
+    kind text NOT NULL,
+    source_id text NOT NULL,
+    status text NOT NULL,
+    public_text text NOT NULL,
+    purpose text NOT NULL DEFAULT '',
+    refs jsonb NOT NULL DEFAULT '[]',
+    source jsonb NOT NULL DEFAULT '{}',
+    started_at timestamptz,
+    finished_at timestamptz,
+    last_sequence bigint NOT NULL,
+    UNIQUE(business_id,trace_id,id), UNIQUE(trace_id,kind,source_id),
+    FOREIGN KEY(business_id,trace_id) REFERENCES activity_traces(business_id,id) ON DELETE CASCADE,
+    FOREIGN KEY(business_id,trace_id,parent_task_id) REFERENCES activity_tasks(business_id,trace_id,id),
+    CHECK(parent_task_id IS NULL OR parent_task_id<>id),
+    CHECK(status IN ('queued','running','waiting_owner','waiting_dependency','retry_wait','completed','failed','interrupted','superseded'))
+);
+CREATE TABLE IF NOT EXISTS activity_events (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    trace_id uuid NOT NULL,
+    sequence bigint NOT NULL,
+    task_id uuid NOT NULL,
+    dedupe_key text NOT NULL,
+    type text NOT NULL,
+    status text NOT NULL,
+    payload jsonb NOT NULL DEFAULT '{}',
+    occurred_at timestamptz,
+    recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    reconstructed boolean NOT NULL DEFAULT false,
+    UNIQUE(trace_id,sequence), UNIQUE(trace_id,dedupe_key),
+    FOREIGN KEY(business_id,trace_id,task_id) REFERENCES activity_tasks(business_id,trace_id,id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS activity_events_page ON activity_events(business_id,trace_id,sequence);
+CREATE INDEX IF NOT EXISTS activity_traces_recent ON activity_traces(business_id,created_at DESC,id);
+INSERT INTO schema_versions(version) VALUES (25) ON CONFLICT DO NOTHING;
+
+-- 3.8 follow-up: unknown legacy finishes stay NULL, never invented as starts.
+ALTER TABLE chat_calls ADD COLUMN IF NOT EXISTS finished_at timestamptz;
+ALTER TABLE chat_answer_reviews ADD COLUMN IF NOT EXISTS finished_at timestamptz;
+INSERT INTO schema_versions(version) VALUES (26) ON CONFLICT DO NOTHING;

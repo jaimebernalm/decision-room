@@ -22,6 +22,27 @@ def action(kind, message='Explicación apoyada en la evidencia.', **kwargs):
     return {'action': kind, 'message': message, 'report': None, 'code': '', 'table_ids': [], 'question': '', **kwargs}
 
 
+def assessed(response, context):
+    """Scripted protocol fixture; these assessments are not quality evidence."""
+    if response['action'] not in ('revise', 'approve', 'reject'):
+        return response
+    issues = [{k: v for k, v in i.items() if k not in ('first_step', 'last_step')}
+              for i in context.get('review_issues', [])]
+    if response['action'] in ('revise', 'reject') and not issues:
+        issues = [dict(key='definition', severity='blocker', status='open', target='claims.sales.method',
+                       detail=response['message'], resolution='', introduced_because='')]
+    for issue in issues:
+        if response['action'] == 'approve':
+            issue.update(status='resolved', resolution='Checked the saved definition and calculation in this scripted fixture.')
+    return {**response, 'assessment': dict(report_step=context['report_step'], issues=issues,
+            delivery=dict(numbers='pass', meaning='pass', charts='pass' if context['report']['charts'] else 'not_applicable',
+                          coverage='pass', files='pass'),
+            usefulness=dict(goal_alignment='pass', reason='Scripted factual total goal only.', questions=[
+                dict(investigation_key=q['investigation_key'], verdict='pass' if q['status']=='answered' else 'unavailable',
+                     claim_keys=q['claim_keys'], reason='Scripted protocol fixture, not semantic evaluation.')
+                for q in context['report'].get('question_coverage', [])]))}
+
+
 def draft(context, text='Total registrado en este extracto.'):
     available = [o for o in context['observations'] if o['current'] and o['status'] == 'completed']
     ref = {'execution_id': available[-1]['execution_id'], 'metric': 'total'}
@@ -82,6 +103,10 @@ write_result({{'total':str(total)}},evidence=[{{'metric':'total','tables':[{tabl
         return action('submit', message, report=report), {}
 
     def generate_reviewer(self, context, correction=None):
+        response, usage = self._reviewer_response(context, correction)
+        return assessed(response, context), usage
+
+    def _reviewer_response(self, context, correction=None):
         self.contexts.append(deepcopy(context))
         own = [e for e in context['conversation'] if e['role'] == 'reviewer']
         if self.scenario in ('defense', 'fix', 'owner') and not own:
@@ -216,7 +241,7 @@ print(json.dumps(r,default=str))
             validate(action('submit', report=bad), 'analyst', context)
         with self.assertRaisesRegex(ValueError, 'authorized'):
             validate(action('execute', code='pass', table_ids=[str(uuid4())]), 'reviewer', context)
-        harmless = validate({'action': 'revise', 'message': 'Justifica el alcance.'}, 'reviewer', context)
+        harmless = validate(assessed(action('revise', 'Justifica el alcance.'), context), 'reviewer', context)
         self.assertIsNone(harmless['report'])
         self.assertEqual(harmless['code'], '')
         with self.assertRaisesRegex(ValueError, 'requires code'):

@@ -1,5 +1,12 @@
 import { it, expect } from "vitest";
-import { chartPoints } from "./charts";
+import {
+  CHART_PALETTE,
+  CHART_SERIES_PALETTE,
+  CHART_NEUTRALS,
+  chartPoints,
+  groupedPoints,
+  seriesColor,
+} from "./charts";
 import type { ChartData } from "./types";
 const chart: ChartData = {
   key: "x",
@@ -30,4 +37,51 @@ it("preserves reviewed decimal formatting even beyond floating point precision",
   });
   expect(points[0].formatted).toBe("9.007.199.254.740.993,01");
   expect(points[0].axis).toBe("Total");
+});
+
+it("groups exact values with missing cells absent, never synthesized zero", () => {
+  const grouped = {
+    ...chart,
+    kind: "bar" as const,
+    panels: [
+      {
+        title: "",
+        category_title: "Producto",
+        series_title: "Mes",
+        measure: "level" as const,
+        series_order: ["2026-06", "2026-07"],
+        coordinates: [
+          { label: "2026-01-01", category: "A", series: "2026-06" },
+          { label: "2026-01-03", category: "B", series: "2026-07" },
+        ],
+      },
+    ],
+  };
+  const rows = groupedPoints(grouped, grouped.panels[0]);
+  expect(rows.map((r) => [r.s0, r.s1])).toEqual([
+    [10.001, null],
+    [null, 20.005],
+  ]);
+  expect(rows[1].s1Exact).toBe("20,01");
+  expect(seriesColor("junio")).toBe(seriesColor("2026-06"));
+  expect(seriesColor("2026-07")).not.toBe(seriesColor("2026-06"));
+});
+
+it("keeps every fallback series within the product's fixed palette", () => {
+  expect(CHART_PALETTE).toEqual([
+    ...CHART_SERIES_PALETTE,
+    ...Object.values(CHART_NEUTRALS),
+  ]);
+  expect(Object.keys(CHART_NEUTRALS)).toEqual([
+    "reference",
+    "secondary",
+    "muted",
+  ]);
+  for (const series of [
+    "junio",
+    "2026-06",
+    "cambio julio-agosto",
+    ...Array.from({ length: 40 }, (_, i) => `series-${i}`),
+  ])
+    expect(CHART_SERIES_PALETTE).toContain(seriesColor(series));
 });

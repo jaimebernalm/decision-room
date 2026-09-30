@@ -1,4 +1,5 @@
 """Domain records and private LangGraph checkpoints in the existing PostgreSQL."""
+from ..observability.runtime import notify, call_context, transport, reused
 from contextlib import contextmanager
 from uuid import UUID, uuid4, uuid5
 
@@ -9,7 +10,7 @@ from psycopg.types.json import Jsonb
 from ..database import connect
 from .context import fingerprint, encoded
 from .prompts import PROMPT_VERSION
-from .model import ModelRequestUncertain
+from .model import ModelRequestUncertain, record_transport
 from .research_prompts import RESEARCH_PROMPT_VERSION
 from .review_prompts import REVIEW_PROMPT_VERSION
 
@@ -82,9 +83,10 @@ def save_revision(db, session_id, revision, proposal, inspected):
                         question['key'], Jsonb(question)))
 
 
-def _model_call(db, session_id, model, context, correction, retry_uncertain, *, phase='planning', scope='', max_calls=20):
+def _model_call(db, session_id, model, context, correction, retry_uncertain, *, phase='planning', scope='', max_calls=20, before_call=None):
+    from .business_planner import VERSION as BUSINESS_VERSION
     version = {'planning': PROMPT_VERSION, 'research': RESEARCH_PROMPT_VERSION,
-               'analyst_review': REVIEW_PROMPT_VERSION, 'reviewer': REVIEW_PROMPT_VERSION}[phase]
+               'business_planner': BUSINESS_VERSION, 'analyst_review': REVIEW_PROMPT_VERSION, 'reviewer': REVIEW_PROMPT_VERSION}[phase]
     identity = {'context': context, 'correction': correction, 'prompt': version}
     if phase != 'planning':
         identity.update(phase=phase, scope=scope)
@@ -93,6 +95,7 @@ def _model_call(db, session_id, model, context, correction, retry_uncertain, *, 
         ORDER BY created_at DESC''', (session_id, key)).fetchall()
     for row in prior:
         if row['status'] == 'completed':
+            reused(db,'call',row['id'])
             return row['output']
     if any(r['status'] == 'running' for r in prior):
         if not retry_uncertain:
@@ -101,30 +104,44 @@ def _model_call(db, session_id, model, context, correction, retry_uncertain, *, 
                    (session_id, key))
     count = db.execute('SELECT count(*) AS n FROM agent_calls WHERE session_id=%s AND phase=%s AND scope=%s',
                        (session_id, phase, scope)).fetchone()['n']
+    if before_call:
+        before_call()
     if count >= max_calls:
         raise ValueError(f'Session model-call budget exhausted ({max_calls}). Inspect the saved state before starting another session.')
     call_id = uuid4()
     db.execute('''INSERT INTO agent_calls(id,session_id,call_key,status,prompt_version,phase,scope,context_payload)
         VALUES (%s,%s,%s,'running',%s,%s,%s,%s)''', (call_id, session_id, key, version, phase, scope, Jsonb(context)))
+    notify(db)
     try:
-        method = {'planning': 'generate', 'research': 'generate_research',
+        method = {'planning': 'generate', 'research': 'generate_research', 'business_planner': 'generate_business_planner',
                   'analyst_review': 'generate_analyst_review', 'reviewer': 'generate_reviewer'}[phase]
-        output, usage = getattr(model, method)(context, correction)
+        def save_attempts(attempts):
+            transport(attempts)
+            db.execute('UPDATE agent_calls SET usage=%s WHERE id=%s',
+                       (Jsonb({'transport_attempts': attempts,
+                               'rejected_attempt_usage_unknown': any(a['status'] != 200 for a in attempts)}), call_id))
+        with call_context(call_id), record_transport(save_attempts):
+            output, usage = getattr(model, method)(context, correction)
+        recorded=db.execute('SELECT usage FROM agent_calls WHERE id=%s',(call_id,)).fetchone()['usage'] or {}
+        usage={**recorded,**usage}
         db.execute("UPDATE agent_calls SET status='completed',output=%s,usage=%s,finished_at=now() WHERE id=%s",
                    (Jsonb(output), Jsonb(usage), call_id))
+        notify(db)
         return output
     except ModelRequestUncertain as error:
         db.execute('UPDATE agent_calls SET issue=%s WHERE id=%s', (type(error).__name__, call_id))
+        notify(db)
         raise
     except Exception as error:
         attempts = getattr(error, 'transport_attempts', None)
-        db.execute("UPDATE agent_calls SET status='failed',issue=%s,usage=%s,finished_at=now() WHERE id=%s",
-                   (type(error).__name__, Jsonb({'transport_attempts': attempts, 'rejected_attempt_usage_unknown': True}) if attempts else Jsonb({}), call_id))
+        db.execute("UPDATE agent_calls SET status='failed',issue=%s,usage=COALESCE(%s,usage),finished_at=now() WHERE id=%s",
+                   (type(error).__name__, Jsonb({'transport_attempts': attempts, 'rejected_attempt_usage_unknown': True}) if attempts else None, call_id))
+        notify(db)
         raise
 
 
 def model_call(db, session_id, model, context, correction, retry_uncertain, *, config=None,
-               phase='planning', scope='', max_calls=20):
+               phase='planning', scope='', max_calls=20, before_call=None):
     from ..memory import context as memory_context, retrieval
     from ..memory.service import lock
     decision = fingerprint(dict(context=context, correction=correction, phase=phase, scope=scope))
@@ -148,10 +165,14 @@ def model_call(db, session_id, model, context, correction, retry_uncertain, *, c
                                    (session_id, decision, ordinal)).fetchall()
             business_context['retrievals'] = baseline['retrievals'] + additions
             payload = {**context, 'business_context': business_context, 'decision_key': decision}
-            if len(encoded(payload).encode()) > memory_context.CONTEXT_BYTES:
-                raise ValueError('Model context exceeds 200 KB. Narrow the investigation; no material context was silently dropped.')
+            limit = context.get('budgets', {}).get('max_context_bytes', memory_context.CONTEXT_BYTES)
+            if len(encoded(payload).encode()) > limit:
+                if phase == 'research':
+                    from .research_agenda import ResearchBudgetReached
+                    raise ResearchBudgetReached(f'Presupuesto de contexto de investigación alcanzado ({limit // 1000} KB).')
+                raise ValueError(f'Model context exceeds {limit // 1000} KB. Narrow the investigation; no material context was silently dropped.')
         output = _model_call(db, session_id, model, payload, correction, retry_uncertain,
-                             phase=phase, scope=scope, max_calls=max_calls)
+                             phase=phase, scope=scope, max_calls=max_calls, before_call=before_call)
         memory_context.ensure(db, session_id)
         if output.get('action') != 'retrieve':
             if output.get('retrieval') is not None:
@@ -159,7 +180,7 @@ def model_call(db, session_id, model, context, correction, retry_uncertain, *, c
             return {k: v for k, v in output.items() if k != 'retrieval'}
         if config is None:
             raise ValueError('Retrieval requires application configuration.')
-        if any(output.get(k) for k in ('proposal', 'code', 'table_ids', 'report', 'metric_keys', 'question', 'investigation_key')):
+        if any(output.get(k) for k in ('proposal', 'code', 'table_ids', 'report', 'metric_keys', 'question', 'investigation_key', 'followups', 'assignments', 'synthesis', 'assessment')):
             return {'invalid_model_output': 'retrieve requires empty action fields and a retrieval request.'}
         try:
             retrieval.save(config, db, session_id, decision, ordinal, output.get('retrieval'))

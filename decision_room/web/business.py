@@ -29,7 +29,8 @@ def state(config):
         active = profile(db, selected['active_business_id']) if selected['active_business_id'] else None
         onboarding = db.execute('SELECT job_id,completed FROM web_onboarding WHERE business_id=%s',
                                 (selected['active_business_id'],)).fetchone() if active else None
-    return {'business': active, 'businesses': businesses, 'onboarding': onboarding}
+        setup = db.execute('SELECT conversation_id,stage FROM onboarding_sessions WHERE business_id=%s', (selected['active_business_id'],)).fetchone() if active else None
+    return {'business': active, 'businesses': businesses, 'onboarding': onboarding, 'setup': setup}
 
 
 def save(config, data):

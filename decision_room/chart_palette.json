@@ -1,0 +1,15 @@
+{
+  "series": [
+    "#367da5",
+    "#89bbd7",
+    "#28658a",
+    "#62a1c5",
+    "#4c8db3",
+    "#b3d1e3"
+  ],
+  "neutrals": {
+    "reference": "#7d8792",
+    "secondary": "#a8b0b9",
+    "muted": "#c8cdd3"
+  }
+}

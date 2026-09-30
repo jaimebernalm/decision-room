@@ -1,4 +1,5 @@
 """Business-scoped entry points for persistent review, owner replies and reports."""
+from ..observability.runtime import session_tracked
 from uuid import uuid4
 from contextlib import nullcontext
 
@@ -15,6 +16,7 @@ from .context import fingerprint, snapshot as source_snapshot
 from .model import ModelClient, ModelSettings
 from .persistence import checkpointer, session_lock
 from .research import knowledge, mark_stale
+from .research_agenda import agenda, coverage
 from .research_graph import findings, steps
 from .review_context import approval_digest, material
 from .review_graph import REVIEW_GRAPH_VERSION, build
@@ -34,21 +36,23 @@ def _stale(config, db, session, run):
 
 
 def start(config, business_id, research_id, *, request_key, analyst=None, reviewer=None,
-          max_review_rounds=4, executor=execute):
+          max_review_rounds=None, executor=execute):
     _key(request_key)
-    if type(max_review_rounds) is not int or not 1 <= max_review_rounds <= 6:
-        raise ValueError('Review rounds must be between 1 and 6.')
     with connect(config) as db:
         research = db.execute('SELECT * FROM agent_research WHERE id=%s AND business_id=%s', (research_id, business_id)).fetchone()
     if not research:
         raise ValueError('Research does not belong to this business.')
+    quality = research['options'].get('quality_first',False)
+    max_review_rounds = max_review_rounds if max_review_rounds is not None else (8 if quality else 4)
+    if type(max_review_rounds) is not int or not 1 <= max_review_rounds <= 12:
+        raise ValueError('Review rounds must be between 1 and 12.')
     with session_lock(config, business_id, research['session_id']) as (db, session):
         memory_context.ensure(db, session['id'])
         research = db.execute('SELECT * FROM agent_research WHERE id=%s', (research_id,)).fetchone()
         _, _, key = knowledge(db, session)
         if session['superseded_by'] or research['status'] == 'stale' or research['knowledge_sha256'] != key:
             raise ValueError('Research is obsolete. Recalculate with the current owner knowledge first.')
-        if research['status'] in ('new', 'running'):
+        if research['status'] in ('new', 'running', 'waiting', 'replan_required'):
             raise ValueError('Wait for research to stop before reviewing its snapshot.')
         candidates = findings(db, research_id)
         if not any(f['status'] == 'candidate' for f in candidates):
@@ -59,11 +63,18 @@ def start(config, business_id, research_id, *, request_key, analyst=None, review
             raise ValueError('The analyst must retain the original session model settings.')
         executions = [{'execution_id': str(s['execution_id'])} for s in steps(db, research_id)
                       if s['action']['action'] == 'execute' and s['execution_id']]
-        snapshot = {**research['snapshot'], 'findings': candidates, 'executions': executions, 'initial_knowledge': key,
+        history = steps(db, research_id)
+        from .parallel_research import synthesis
+        snapshot = {'research_synthesis': synthesis(history), **agenda(research['snapshot'], history), 'research_coverage': coverage(research['snapshot'], history, candidates, research['options'], research['issue'] or ''), 'findings': candidates, 'executions': executions, 'initial_knowledge': key,
                     'planning_history': db.execute('SELECT revision,proposal FROM agent_revisions WHERE session_id=%s ORDER BY revision',
                                                    (session['id'],)).fetchall()}
+        from .business_planner import enrich
+        snapshot = enrich(db,research_id,snapshot)
         options = {'max_review_rounds': max_review_rounds, 'max_turns': 20, 'max_calls_per_role': 16,
-                   'max_python_per_role': 3, 'max_questions': 3, 'python_timeout': 30}
+                   'max_python_per_role': 3, 'max_questions': 3, 'python_timeout': 30, 'review_policy': 3}
+        if quality:
+            options.update(max_turns=48,max_calls_per_role=48,max_python_per_role=6,max_questions=6,
+                           quality_first=True,max_context_bytes=512000,max_validation_attempts=4)
         request_hash = fingerprint({'snapshot': snapshot, 'reviewer': reviewer.identity, 'options': options, 'version': REVIEW_GRAPH_VERSION})
         row = db.execute('''INSERT INTO agent_reviews(id,business_id,session_id,analysis_id,research_id,request_key,
             request_sha256,knowledge_sha256,snapshot,reviewer_settings,options,graph_version,status)
@@ -79,6 +90,7 @@ def start(config, business_id, research_id, *, request_key, analyst=None, review
     return show(config, business_id, row['id'])
 
 
+@session_tracked
 def _drive(config, db, session, run, *, analyst=None, reviewer=None, executor=execute, retry_uncertain=False):
     if db.execute('SELECT 1 FROM agent_review_holds WHERE review_id=%s', (run['id'],)).fetchone():
         raise ValueError('Review has an independent validation hold; correct the work in a new review.')
@@ -138,6 +150,37 @@ def resume(config, business_id, review_id, *, analyst=None, reviewer=None, execu
     return show(config, business_id, review_id)
 
 
+def restart(config, business_id, review_id, *, analyst=None, reviewer=None, executor=execute, retry_uncertain=False):
+    """Explicit bounded retry; preserve the exhausted review and its current evidence."""
+    with session_lock(config, business_id, _parent(config, business_id, review_id)) as (db, session):
+        old = db.execute('SELECT * FROM agent_reviews WHERE id=%s', (review_id,)).fetchone()
+        memory_context.ensure(db, session['id'])
+        if old['status'] != 'limited' or _stale(config, db, session, old):
+            raise ValueError('Only a current exhausted review can be restarted.')
+        if db.execute('SELECT 1 FROM agent_review_holds WHERE review_id=%s', (review_id,)).fetchone():
+            raise ValueError('Independent validation hold prevents automatic retry.')
+        request_key = 'retry:' + str(review_id)
+        row = db.execute('SELECT * FROM agent_reviews WHERE session_id=%s AND request_key=%s',
+                         (session['id'], request_key)).fetchone()
+        if not row:
+            context = material(config, db, session, old)
+            executions = {i['execution_id']: i.get('knowledge_sha256', old['snapshot']['initial_knowledge'])
+                          for i in old['snapshot']['executions']}
+            executions.update({e['execution_id']: e['knowledge_sha256'] for e in context['conversation'] if e['execution_id']})
+            snapshot = {**old['snapshot'],
+                'executions': [dict(execution_id=e, knowledge_sha256=k) for e, k in executions.items()],
+                'previous_review': {'id': str(review_id), 'report': context['report'], 'issues': context['review_issues']}}
+            options = {**old['options'], 'max_review_rounds': 8 if old['options'].get('quality_first') else 4}
+            request_hash = fingerprint({'snapshot': snapshot, 'options': options, 'version': REVIEW_GRAPH_VERSION})
+            row = db.execute("""INSERT INTO agent_reviews(id,business_id,session_id,analysis_id,research_id,request_key,
+                request_sha256,knowledge_sha256,snapshot,reviewer_settings,options,graph_version,status)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'new') RETURNING *""",
+                (uuid4(), business_id, session['id'], old['analysis_id'], old['research_id'], request_key,
+                 request_hash, old['knowledge_sha256'], Jsonb(snapshot), Jsonb(old['reviewer_settings']), Jsonb(options), REVIEW_GRAPH_VERSION)).fetchone()
+        _drive(config, db, session, row, analyst=analyst, reviewer=reviewer, executor=executor, retry_uncertain=retry_uncertain)
+    return show(config, business_id, row['id'])
+
+
 def answer(config, business_id, review_id, *, step, text='', disposition='answered', request_key,
            analyst=None, reviewer=None, executor=execute, retry_uncertain=False):
     _key(request_key)
@@ -195,6 +238,7 @@ def show(config, business_id, review_id, *, _db=None):
                 'model_decision_status': run['status'], 'independent_hold': hold_record,
                 'issue': hold_record['reason'] if hold_record else run['issue'],
                 'publishable': valid_approval, 'verification': 'reviewed_by_agent' if valid_approval else 'not_approved',
+                'review_issues': context['review_issues'], 'delivery_manifest': context['delivery_manifest'],
                 'report': context['report'], 'checks': context['checks'], 'observations': context['observations'],
                 'owner_context': context['owner_context'], 'plan': context['plan'],
                 'planning_history': context['planning_history'],

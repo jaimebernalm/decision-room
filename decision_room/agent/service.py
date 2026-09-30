@@ -1,4 +1,5 @@
 """Scoped CLI/application entry points; provider and checkpoint IDs stay internal."""
+from ..observability.runtime import session_tracked
 from uuid import UUID, uuid4
 
 from langgraph.types import Command
@@ -23,6 +24,8 @@ def _create_session(config, business_id, analysis_id, *, owner_context, request_
     _key(request_key)
     from ..data_knowledge.service import ensure
     ensure(config, business_id, analysis_id)
+    from ..data_knowledge.discovery import discover
+    discover(config, business_id, analysis_id, model)
     source = snapshot(config, business_id, analysis_id, owner_context)
     identity = {'source': source, 'model': model.identity, 'graph': GRAPH_VERSION}
     if request_period is not None:
@@ -101,6 +104,7 @@ def show(config, business_id, session_id):
                 'cost': {'amount': None, 'note': 'Tokens recorded when supplied; no provider pricing assumed.'}}
 
 
+@session_tracked
 def _drive(config, db, session, model=None, retry_uncertain=False):
     session_id = session['id']
     if session['superseded_by']:

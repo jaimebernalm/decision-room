@@ -3,6 +3,7 @@ from copy import deepcopy
 
 from ..execution import get_execution
 from .context import encoded
+from .research_agenda import ResearchBudgetReached
 
 
 def observations(config, business_id, steps):
@@ -35,13 +36,20 @@ def prompt_context(snapshot, observations, findings, options, turns):
             item['result'] = {'verification': 'pending', 'metrics': {}, 'evidence': [],
                               'notes': ['Result omitted from model context: exceeds 64 KB. Generate a more focused output.']}
             item['result_omitted'] = True
+        if any(f['investigation_key'] == item['investigation_key'] for f in findings):
+            item.pop('code', None)
+            item['logs'] = {}
+            item['code_omitted_after_registration'] = True
         feedback.append(item)
     result = {'phase': 'python_research', 'owner_context': snapshot['source']['owner_context'],
               'answers': snapshot['answers'], 'plan': snapshot['proposal'],
               'table_catalog': snapshot['tables'], 'observations': feedback, 'findings': findings,
+              'coordination': snapshot.get('coordination'), 'delegations': snapshot.get('delegations', []),
+              'business_direction': snapshot.get('business_direction'),
               'budgets': {**options, 'model_turns_used': turns,
                           'attempts_used': {key: sum(o['investigation_key'] == key for o in observations)
                                             for key in latest}}}
-    if len(encoded(result).encode()) > 200000:
-        raise ValueError('Research context exceeds 200 KB; automatic compaction is not implemented yet.')
+    limit = options.get('max_context_bytes', 200000)
+    if len(encoded(result).encode()) > limit:
+        raise ResearchBudgetReached(f'Research context exceeds {limit // 1000} KB; automatic compaction is not implemented yet.')
     return result

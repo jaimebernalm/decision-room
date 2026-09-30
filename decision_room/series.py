@@ -70,3 +70,29 @@ def saved_series(observations, ref):
         raise ValueError('Unknown saved series.')
     validate_series({ref['series']: value}, item.get('inputs', {}))
     return value
+
+
+def evidence_value(observations, ref):
+    """Resolve a scalar or an exact saved series point without new computation."""
+    if 'series' in ref:
+        series = saved_series(observations, ref)
+        point = next((p for p in series['points'] if p['label'] == ref.get('label')), None)
+        if point is None:
+            raise ValueError('Unknown saved series label.')
+        return point['value']
+    item = next((o for o in observations if o['execution_id'] == ref['execution_id']), None)
+    if not item or not item['current'] or item['status'] != 'completed' or not item.get('result') or item.get('result_omitted'):
+        raise ValueError('Evidence is missing, failed, obsolete or omitted.')
+    payload = item['result']
+    key = ref['metric']
+    if key not in payload['metrics'] or not any(e['metric'] == key for e in payload['evidence']):
+        raise ValueError('Metric or its source evidence does not exist.')
+    return payload['metrics'][key]
+
+
+def evidence_label(ref):
+    return ref['label'] if 'series' in ref else ref['metric']
+
+
+def evidence_key(ref):
+    return (ref['execution_id'], ref.get('metric'), ref.get('series'), ref.get('label'))

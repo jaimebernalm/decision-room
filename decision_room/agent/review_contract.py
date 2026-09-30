@@ -7,7 +7,8 @@ from typing import Literal
 from pydantic import Field
 
 from .contracts import Strict
-from ..series import saved_series, numeric
+from .review_policy import ReviewAssessment, validate_assessment
+from ..series import saved_series, numeric, evidence_value
 
 
 class MetricRef(Strict):
@@ -15,11 +16,17 @@ class MetricRef(Strict):
     metric: str = Field(min_length=1, max_length=120)
 
 
+class SeriesPointRef(Strict):
+    execution_id: str = Field(max_length=36)
+    series: str = Field(min_length=1, max_length=100)
+    label: str = Field(min_length=1, max_length=100)
+
+
 class Claim(Strict):
     key: str = Field(pattern=r'^[a-z][a-z0-9_]{0,63}$')
     title: str = Field(min_length=1, max_length=160)
     statement: str = Field(min_length=1, max_length=1800)
-    evidence: list[MetricRef] = Field(min_length=1, max_length=12)
+    evidence: list[MetricRef | SeriesPointRef] = Field(min_length=1, max_length=12)
     interpretation: str = Field(min_length=1, max_length=1200)
     next_step: str = Field(max_length=1200)
     method: str = Field(min_length=1, max_length=1200)
@@ -34,7 +41,7 @@ class ReportScope(Strict):
 
 class ChartPoint(Strict):
     label: str = Field(min_length=1, max_length=100)
-    value: MetricRef
+    value: MetricRef | SeriesPointRef
 
 
 class SeriesRef(Strict):
@@ -44,7 +51,7 @@ class SeriesRef(Strict):
 
 class Highlight(Strict):
     label: str = Field(min_length=1, max_length=80)
-    value: MetricRef
+    value: MetricRef | SeriesPointRef
     unit: str = Field(min_length=1, max_length=80)
     decimals: int = Field(ge=0, le=4)
     claim_key: str = Field(pattern=r'^[a-z][a-z0-9_]{0,63}$')
@@ -52,9 +59,23 @@ class Highlight(Strict):
 
 class QuestionCoverage(Strict):
     investigation_key: str = Field(min_length=1, max_length=64)
-    status: Literal['answered', 'unavailable']
+    status: Literal['answered', 'unavailable', 'deferred']
     claim_keys: list[str] = Field(max_length=6)
     explanation: str = Field(min_length=1, max_length=800)
+
+
+class ChartCoordinate(Strict):
+    label: str = Field(min_length=1, max_length=100)
+    category: str = Field(min_length=1, max_length=100)
+    series: str = Field(min_length=1, max_length=100)
+
+
+class ChartEncoding(Strict):
+    category_title: str = Field(min_length=1, max_length=80)
+    series_title: str = Field(min_length=1, max_length=80)
+    measure: Literal['level', 'change']
+    series_order: list[str] = Field(min_length=1, max_length=6)
+    coordinates: list[ChartCoordinate] = Field(min_length=2, max_length=36)
 
 
 class Chart(Strict):
@@ -67,13 +88,14 @@ class Chart(Strict):
     caption: str = Field(min_length=1, max_length=1200)
     points: list[ChartPoint] = Field(max_length=36)
     series: SeriesRef | None = None
+    encoding: ChartEncoding | None = None
 
 
 class NumericCheck(Strict):
     key: str = Field(pattern=r'^[a-z][a-z0-9_]{0,63}$')
     operation: Literal['equal', 'sum', 'percent_change', 'ratio_percent', 'zero', 'nonnegative']
-    actual: MetricRef
-    operands: list[MetricRef] = Field(max_length=16)
+    actual: MetricRef | SeriesPointRef
+    operands: list[MetricRef | SeriesPointRef] = Field(max_length=16)
     tolerance: str = Field(pattern=r'^0(?:\.\d{1,8})?$')
 
 
@@ -84,10 +106,10 @@ class ReportDraft(Strict):
     charts: list[Chart] = Field(max_length=4)
     no_chart_reason: str = Field(max_length=600)
     claims: list[Claim] = Field(min_length=1, max_length=6)
-    limitations: list[str] = Field(min_length=1, max_length=12)
+    limitations: list[str] = Field(min_length=1, max_length=13)
     checks: list[NumericCheck] = Field(max_length=16)
     highlights: list[Highlight] = Field(default_factory=list, max_length=4)
-    question_coverage: list[QuestionCoverage] = Field(default_factory=list, max_length=8)
+    question_coverage: list[QuestionCoverage] = Field(default_factory=list, max_length=24)
 
 
 class ReviewAction(Strict):
@@ -97,24 +119,17 @@ class ReviewAction(Strict):
     code: str = Field(max_length=48000)
     table_ids: list[str] = Field(max_length=8)
     question: str = Field(max_length=1200)
+    assessment: ReviewAssessment | None = None
 
 
 def checks(report, observations):
     """Resolve actual saved metrics and recompute declared numerical relationships."""
     if not report:
         return [{'check': 'report_present', 'passed': False, 'detail': 'No draft submitted.'}]
-    available = {o['execution_id']: o for o in observations}
     result = []
 
     def value(ref):
-        item = available.get(ref['execution_id'])
-        if not item or not item['current'] or item['status'] != 'completed' or item.get('result_omitted'):
-            raise ValueError('Evidence is missing, failed, obsolete or omitted.')
-        payload = item['result']
-        key = ref['metric']
-        if key not in payload['metrics'] or not any(e['metric'] == key for e in payload['evidence']):
-            raise ValueError('Metric or its source evidence does not exist.')
-        return payload['metrics'][key]
+        return evidence_value(observations, ref)
 
     def number(ref):
         raw = value(ref)
@@ -154,6 +169,8 @@ def checks(report, observations):
             labels = [p['label'] for p in points]
             if len(set(labels)) != len(labels):
                 raise ValueError('Chart labels must be unique.')
+            from ..chart_layout import validate_encoding
+            validate_encoding(chart, points)
             if chart['claim_key'] not in {c['key'] for c in report['claims']}:
                 raise ValueError('Chart must belong to an existing finding.')
             if chart['kind'] == 'line':
@@ -250,13 +267,24 @@ def validate_coverage(report, context):
     if len(set(keys)) != len(keys) or not expected <= set(keys) or not set(keys) <= known:
         raise ValueError('question_coverage must address every ready investigation exactly once, using only known investigations.')
     claims = {c['key'] for c in report['claims']}
+    synthesis = context.get('research_synthesis') or {}
+    unresolved = {key for d in synthesis.get('disagreements', []) if d['resolution'] != 'resolved'
+                  for key in d['investigation_keys']}
     for entry in entries:
+        if entry['investigation_key'] in unresolved and entry['status'] != 'unavailable':
+            raise ValueError('Unresolved research disagreements must remain unavailable in this report.')
         if entry['investigation_key'] not in expected and entry['status'] != 'unavailable':
             raise ValueError('Blocked or not-possible investigations must remain unavailable.')
         if not set(entry['claim_keys']) <= claims or (entry['status'] == 'answered' and not entry['claim_keys']):
             raise ValueError('Answered investigations must link to existing report claims.')
-        if entry['status'] == 'unavailable' and entry['claim_keys']:
-            raise ValueError('Unavailable investigations need a limitation, not answer claims.')
+        if entry['status'] != 'answered' and entry['claim_keys']:
+            raise ValueError('Undelivered investigations need a limitation, not answer claims.')
+        if entry['status'] == 'deferred':
+            investigation = next(i for i in investigations if i['key'] == entry['investigation_key'])
+            if context.get('review_policy', 0) < 3 or not investigation.get('parent_key'):
+                raise ValueError('Only an agent-generated followup may be deferred under review policy 3.')
+            if not any(e['status'] == 'answered' for e in entries):
+                raise ValueError('A partial delivery must answer a useful part of the goal.')
 
 
 def validate(raw, role, context):
@@ -293,6 +321,15 @@ def validate(raw, role, context):
         permitted = {t['id'] for t in context['tables']}
         if not action.code.strip() or not action.table_ids or not set(action.table_ids) <= permitted or len(set(action.table_ids)) != len(action.table_ids):
             raise ValueError('execute requires code and unique authorized table IDs.')
+        # Reuse a successful calculation already made by this role. The reviewer
+        # may independently reproduce research once; owner corrections mark old results stale.
+        own_ids = {e.get('execution_id') for e in context['conversation'] if e['role'] == role}
+        for observed in context['observations']:
+            if (observed['current'] and observed['status'] == 'completed'
+                    and (role == 'analyst' or observed['execution_id'] in own_ids)
+                    and observed['code'].strip() == action.code.strip()
+                    and {t['id'] for t in observed['inputs'].values()} == set(action.table_ids)):
+                raise ValueError('This successful calculation already exists. Reuse its saved evidence; explain a concrete defect before changing code.')
         if context['budgets']['python_used'][role] >= context['budgets']['max_python_per_role']:
             raise ValueError('Python budget reached. Submit supported work, ask the owner or stop without approval.')
     elif action.code or action.table_ids:
@@ -315,4 +352,5 @@ def validate(raw, role, context):
         draft_step = context['report_step']
         if any(e['step'] > draft_step and e['action']['action'] == 'execute' for e in context['conversation']):
             raise ValueError('New checks were executed after this draft. Request an updated draft before approval.')
+    validate_assessment(action, role, context)
     return action.model_dump()

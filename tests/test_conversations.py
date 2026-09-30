@@ -108,6 +108,55 @@ class ConversationTests(unittest.TestCase):
         path.write_text('quantity,amount\n2,10\n3,20\n')
         return import_batch(self.config, self.b, [path], title='Synthetic sales')['analysis']['id']
 
+    def test_public_chat_process_and_real_finish_times_survive_reconciliation(self):
+        import time
+        from decision_room.observability import collector, store, projection
+        class Slow(ChatModel):
+            def generate_chat(self, *args, **kwargs):
+                time.sleep(.03)
+                return super().generate_chat(*args, **kwargs)
+        self.ws.model_factory = Slow
+        turn = self.send(self.chat(), 'Hola')
+        with connect(self.config) as db:
+            trace = store.linked(db, self.b, 'turn', turn['id'])
+            page = projection.page(db, self.b, trace, {})
+            kinds = {t['kind'] for t in page['task_updates']}
+            self.assertTrue({'chat_call', 'chat_review'} <= kinds)
+            for table in ('chat_calls', 'chat_answer_reviews'):
+                rows = db.execute(f'SELECT created_at,finished_at FROM {table} WHERE turn_id=%s', (turn['id'],)).fetchall()
+                self.assertTrue(rows)
+                self.assertTrue(all(r['finished_at'] > r['created_at'] for r in rows))
+            db.execute('UPDATE chat_calls SET finished_at=NULL WHERE turn_id=%s', (turn['id'],))
+            collector.reconcile(db, self.b, trace, reconstructed=True)
+            saved = db.execute("SELECT finished_at FROM activity_tasks WHERE trace_id=%s AND kind='chat_call'", (trace,)).fetchall()
+            self.assertTrue(all(r['finished_at'] is None for r in saved))
+            count = db.execute('SELECT last_sequence FROM activity_traces WHERE id=%s', (trace,)).fetchone()['last_sequence']
+            collector.reconcile(db, self.b, trace, reconstructed=True)
+            self.assertEqual(count, db.execute('SELECT last_sequence FROM activity_traces WHERE id=%s', (trace,)).fetchone()['last_sequence'])
+
+    def test_http_string_scoped_business_accepts_chat_and_rejects_other_business(self):
+        # Preview/worker manifests deserialize UUIDs as strings. Keep the same
+        # identity representation as requests and database rows.
+        self.ws = self.ws.scoped(str(self.b))
+        client, server = self.http()
+        client.post('/api/login', json={'token': server.token})
+        payload = dict(business_id=str(self.b), request_key=str(uuid4()))
+        created = client.post('/api/chats', json=payload)
+        self.assertEqual(created.status_code, 202, created.text)
+        self.assertEqual(client.post('/api/chats', json=payload).json(), created.json())
+        chat = created.json()['id']
+        sent = client.post(f'/api/chats/{chat}/messages', json=dict(
+            business_id=str(self.b), request_key=str(uuid4()), text='hola'))
+        self.assertEqual(sent.status_code, 202, sent.text)
+        Conversations(self.ws).run(sent.json()['id'])
+        detail = client.get(f'/api/chats/{chat}').json()
+        self.assertEqual(detail['turns'][-1]['status'], 'completed')
+        rejected = client.post('/api/chats', json=dict(
+            business_id=str(uuid4()), request_key=str(uuid4())))
+        self.assertEqual(rejected.status_code, 409)
+        self.assertEqual(self.ws.business_id(), self.b)
+        self.assertIsNone(self.ws.scoped(None).business_id())
+
     def test_messages_queue_in_order_and_keep_prior_dialogue(self):
         chat = self.chat()
         first = self.chats.send(chat, dict(business_id=str(self.b), request_key=str(uuid4()), text='hola'))
@@ -735,6 +784,25 @@ class ConversationTests(unittest.TestCase):
         self.assertEqual(reviewer.call_count, 1)
         with connect(self.config) as db:
             self.assertEqual(db.execute('SELECT status FROM chat_answer_reviews WHERE turn_id=%s', (turn['id'],)).fetchone()['status'], 'uncertain')
+
+    def test_report_metadata_answer_can_omit_full_report_attachment(self):
+        chat, original = self.complete()
+        report_id = original['response']['report_id']
+        def respond(model, context, correction=None):
+            if not context['retrievals']:
+                return dict(action='retrieve', retrieval=dict(tool='open_report', id=report_id, query='', limit=5),
+                            text='', analysis_id='', sources=[], include_report=False), {}
+            result = context['retrievals'][0]['response']
+            self.assertTrue(result['approved_at'])
+            self.assertTrue(result['review_started_at'])
+            self.assertIn('not the period', result['date_meaning'])
+            return dict(action='answer', retrieval=None, analysis_id='', text='El informe ya está aprobado.',
+                        sources=['tool/0'], include_report=False), {}
+        with patch.object(ChatModel, 'generate_chat', respond):
+            turn = self.send(chat, 'When was the report made?')
+        self.assertEqual(turn['status'], 'completed', turn)
+        self.assertTrue(turn['response']['sources'])
+        self.assertNotIn('evidence', turn['response'])
 
     def test_model_authored_report_explanation_exports_and_stales(self):
         chat, original = self.complete()

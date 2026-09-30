@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, store } from "./api";
+import { api, ApiError, store } from "./api";
 export function useResource<T>(path: string, interval = 0) {
   const [saved, setData] = useState<{ path: string; data: T } | null>(null),
     [error, setError] = useState(""),
+    [errorStatus, setErrorStatus] = useState<number | null>(null),
     [revision, setRevision] = useState(0);
   const refresh = useCallback(() => setRevision((x) => x + 1), []);
   useEffect(() => {
@@ -14,9 +15,14 @@ export function useResource<T>(path: string, interval = 0) {
         if (!controller.signal.aborted) {
           setData({ path, data: result });
           setError("");
+          setErrorStatus(null);
         }
       } catch (e) {
-        if (!controller.signal.aborted) setError((e as Error).message);
+        if (!controller.signal.aborted) {
+          setError((e as Error).message);
+          setErrorStatus(e instanceof ApiError ? e.status : null);
+          if (e instanceof ApiError && [401,403].includes(e.status)) setData(null);
+        }
       } finally {
         if (interval && !controller.signal.aborted)
           timer = setTimeout(read, interval);
@@ -28,7 +34,7 @@ export function useResource<T>(path: string, interval = 0) {
       clearTimeout(timer);
     };
   }, [path, interval, revision]);
-  return { data: saved?.path === path ? saved.data : null, error, refresh };
+  return { data: saved?.path === path ? saved.data : null, error, errorStatus, refresh };
 }
 export function useDraft<T>(key: string, fallback: T) {
   const [value, setValue] = useState<T>(() => store.get(key, fallback));

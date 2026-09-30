@@ -17,6 +17,7 @@ def main():
                         help='Model identifier; defaults to the local .env or the project local model.')
     parser.add_argument('--port', type=int, default=8787)
     parser.add_argument('--no-open', action='store_true')
+    parser.add_argument('--internal-monitor', action='store_true', help='Enable the separately authenticated investigation monitor.')
     args = parser.parse_args()
     os.chdir(ROOT)
     subprocess.run(['npm', 'ci', '--prefix', 'frontend'], check=True)
@@ -25,6 +26,8 @@ def main():
     os.environ['DECISION_ROOM_AGENT_MODEL'] = args.model
     os.environ.setdefault('DECISION_ROOM_AGENT_TIMEOUT', '300')
     command = [sys.executable, '-m', 'decision_room.web', '--port', str(args.port)]
+    if args.internal_monitor:
+        command.append('--internal-monitor')
     if not args.no_open:
         command.append('--open')
     os.execv(sys.executable, command)

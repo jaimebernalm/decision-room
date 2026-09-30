@@ -24,11 +24,17 @@ type Preview = {
 export function DataPreview({
   jobId,
   questions = [],
+  endpoint,
+  references,
+  activity = false,
 }: {
-  jobId: string;
+  jobId?: string;
+  endpoint?: string;
   questions?: Question[];
+  references?: Question['references'];
+  activity?: boolean;
 }) {
-  const refs = questions.flatMap((q) => q.references || []);
+  const refs = references || questions.flatMap((q) => q.references || []);
   const first = refs.find(
     (ref) => ref.kind === "column" || ref.kind === "table",
   );
@@ -40,7 +46,9 @@ export function DataPreview({
   if (columnOffset !== null) query.set("column_offset", String(columnOffset));
   else if (first?.column && table === first.id)
     query.set("column", first.column);
-  const resource = useResource<Preview>(`/api/jobs/${jobId}/data?${query}`);
+  const resource = useResource<Preview>(
+    `${endpoint || `/api/jobs/${jobId}/data`}?${query}`,
+  );
   const data = resource.data;
   const selected = data?.tables.find((item) => item.id === data.table_id);
   const highlighted = new Set(
@@ -49,10 +57,9 @@ export function DataPreview({
       .map((ref) => ref.column),
   );
   return (
-    <Disclosure title="Datos para responder" defaultOpen>
+    <Disclosure title={activity ? "Datos relacionados" : "Datos para responder"} defaultOpen>
       <p className="text-xs text-muted-foreground">
-        Consulta las filas del archivo mientras respondes. Las columnas
-        mencionadas en la pregunta aparecen destacadas.
+        {activity ? "Consulta las filas utilizadas en esta comprobación. Las columnas relacionadas aparecen destacadas." : "Consulta las filas del archivo mientras respondes. Las columnas mencionadas en la pregunta aparecen destacadas."}
       </p>
       <Notice error>{resource.error}</Notice>
       {resource.error && (
@@ -104,7 +111,7 @@ export function DataPreview({
                       scope="col"
                       aria-label={
                         highlighted.has(column)
-                          ? `${column} (mencionada en la pregunta)`
+                          ? `${column} (${activity ? 'relacionada con la comprobación' : 'mencionada en la pregunta'})`
                           : undefined
                       }
                       className={`whitespace-nowrap p-3 font-medium ${highlighted.has(column) ? "bg-primary/15 text-primary" : ""}`}
@@ -113,7 +120,7 @@ export function DataPreview({
                       {highlighted.has(column) && (
                         <span className="sr-only">
                           {" "}
-                          (mencionada en la pregunta)
+                          ({activity ? 'relacionada con la comprobación' : 'mencionada en la pregunta'})
                         </span>
                       )}
                     </th>

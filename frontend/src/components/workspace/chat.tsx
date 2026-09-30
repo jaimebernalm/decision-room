@@ -1,4 +1,6 @@
-import { useRef, useState } from "react";
+import { ProgressiveAnswer } from "./progressive-answer";
+import { AnalysisActivity } from "./analysis-activity";
+import { useRef, useState, type ReactNode } from "react";
 import { FileText, RotateCcw, ArrowUpRight } from "lucide-react";
 import {
   Conversation,
@@ -36,7 +38,6 @@ import {
   Status,
   ChoiceSelect,
   Disclosure,
-  Busy,
 } from "./shared";
 import { ReportView } from "./report";
 import { useAssistant } from "@/lib/assistant";
@@ -203,9 +204,13 @@ export function Answer({
 export function ChatPage({
   id,
   docked = false,
+  setup = false,
+  children,
 }: {
   id: string;
   docked?: boolean;
+  setup?: boolean;
+  children?: (data: ChatDetail) => ReactNode;
 }) {
   const assistant = useAssistant();
   const { workspace, refresh } = useWorkspace(),
@@ -225,9 +230,14 @@ export function ChatPage({
   const waiting = resource.data?.turns.find((t) => t.status === "waiting"),
     questions = waiting?.questions || [],
     selected = questions.find((q) => q.id === question) || questions[0];
-  const send = () =>
+  const send = (override?: string, disposition?: string) =>
     sendAction.run(async () => {
-      const snapshot = draftRef.current;
+      const previous = draftRef.current;
+      const snapshot = override
+        ? previous.text === override && previous.disposition === disposition
+          ? previous
+          : ({ text: override, disposition } as MessageDraft)
+        : previous;
       if (!snapshot.text.trim()) return;
       const references = assistant
         ? assistant.selected.map(referenceWire)
@@ -238,6 +248,7 @@ export function ChatPage({
       const key = (unchanged && snapshot.key) || crypto.randomUUID();
       const sent = {
         ...snapshot,
+        disposition: disposition || snapshot.disposition || "answered",
         context_references: references,
         key,
         question_id:
@@ -248,6 +259,7 @@ export function ChatPage({
         business_id: business,
         request_key: key,
         text: sent.text,
+        disposition: sent.disposition,
         ...(sent.context_references?.length
           ? { context_references: sent.context_references }
           : {}),
@@ -289,6 +301,20 @@ export function ChatPage({
       }
     });
   const data = resource.data;
+  const [initialTurns, setInitialTurns] = useState<Set<string> | null>(null);
+  if (data && !initialTurns) setInitialTurns(new Set(data.turns.map(t => t.id)));
+  // Answers to owner questions can create several turns for the same process.
+  // Keep its durable activity at the latest turn instead of repeating the panel.
+  const activityOwners = new Map<string,string>();
+  data?.turns.forEach((turn) => activityOwners.set(turn.activity_trace_id || turn.job_id || turn.id,turn.id));
+  const latest = data?.turns.at(-1);
+  const setupQuestion =
+    latest?.status === "completed"
+      ? latest.response?.onboarding?.question
+      : null;
+  const pending = data?.turns.some((t) =>
+    ["queued", "routing", "processing", "failed", "blocked"].includes(t.status),
+  );
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <h1 className="sr-only">Conversación con IA</h1>
@@ -341,30 +367,25 @@ export function ChatPage({
                           Respuesta con contexto anterior
                         </Badge>
                       )}
-                      {turn.response && (
-                        <Answer
-                          response={turn.response}
+                      <ProgressiveAnswer id={turn.id} response={turn.response} animate={!turn.historical && !initialTurns?.has(turn.id)}>
+                      {(visibleResponse, revealing) => <>
+                      {visibleResponse && (
+                        <div aria-hidden={revealing || undefined}><Answer
+                          response={visibleResponse}
                           ownerText={turn.payload.text}
-                        />
+                        /></div>
                       )}
                       <Notice error>{turn.historical ? "" : turn.issue}</Notice>
-                      {["queued", "routing", "processing"].includes(
-                        turn.status,
-                      ) && (
-                        <div
-                          role="status"
-                          className="flex items-center gap-2 text-sm text-muted-foreground"
-                        >
-                          <Busy />
-                          {queuePosition(data.turns, index)
-                            ? `En cola · posición ${queuePosition(data.turns, index)}`
-                            : turn.status === "queued"
-                              ? "Preparando tu pregunta…"
-                              : turn.status === "routing"
-                                ? "Preparando respuesta…"
-                                : "Analizando los datos…"}
-                        </div>
-                      )}
+                      {activityOwners.get(turn.activity_trace_id || turn.job_id || turn.id)===turn.id && <AnalysisActivity
+                        endpoint={turn.job_id ? `/api/jobs/${turn.job_id}/activity` : `/api/chats/${id}/turns/${turn.id}/activity`}
+                        traceId={turn.activity_trace_id}
+                        revealing={revealing}
+                        responseReady={Boolean(visibleResponse) && !turn.job_id && turn.status === "completed"}
+                        onQuestion={(questionId) => { setQuestion(questionId);requestAnimationFrame(() => { const input=document.querySelector<HTMLTextAreaElement>('textarea[placeholder="Escribe tu aclaración…"]');input?.scrollIntoView({block:'center'});input?.focus(); }); }}
+                        fallback={queuePosition(data.turns,index) ? `En cola · posición ${queuePosition(data.turns,index)}` : "Preparando respuesta…"}
+                      />}
+                      </>}
+                      </ProgressiveAnswer>
                       {turn.status === "waiting" && (
                         <Notice>
                           El análisis necesita una aclaración. Responde a la
@@ -372,7 +393,8 @@ export function ChatPage({
                         </Notice>
                       )}
                       <div className="mt-3 flex flex-wrap gap-2">
-                        {(["failed", "blocked"].includes(turn.status) ||
+                        {((["failed", "blocked"].includes(turn.status) &&
+                          turn.can_retry !== false) ||
                           (turn.status === "stale" &&
                             (!turn.response || turn.job_id))) &&
                           data.turns
@@ -391,6 +413,7 @@ export function ChatPage({
                             </Button>
                           )}
                         {turn.response?.report_id &&
+                          !turn.response.first_report &&
                           !turn.report_outdated &&
                           (turn.report_requested ? (
                             <Button asChild variant="outline" size="sm">
@@ -411,7 +434,7 @@ export function ChatPage({
                             </Button>
                           ))}
                         {turn.report_outdated && <Status status="outdated" />}
-                        {turn.job_id && (
+                        {turn.job_id && !setup && (
                           <Button asChild variant="ghost" size="sm">
                             <a href={`#analysis/${turn.job_id}`}>
                               Ver informe
@@ -424,6 +447,14 @@ export function ChatPage({
                   </Message>
                 </div>
               ))}
+              {setupQuestion?.references?.length ? (
+                <DataPreview
+                  key={latest!.id}
+                  endpoint="/api/onboarding/data"
+                  questions={[{ ...setupQuestion, id: latest!.id }]}
+                />
+              ) : null}
+              {children?.(data)}
               {data.context_changed_after && <ContextChange />}
               {data.memory_items
                 .filter((f) => f.status === "conflicted")
@@ -469,9 +500,7 @@ export function ChatPage({
       <div
         className={`shrink-0 px-4 pb-4 pt-2 ${docked ? "bg-sidebar" : "bg-background sm:px-8"}`}
       >
-        <div
-          className="relative z-10 mx-auto max-w-2xl"
-        >
+        <div className="relative z-10 mx-auto max-w-2xl">
           {selected && (
             <div className="mb-3 space-y-2">
               <ChoiceSelect
@@ -494,6 +523,46 @@ export function ChatPage({
               ))}
             </div>
           )}
+          {setupQuestion && (
+            <div className="mb-3 space-y-2">
+              <p className="text-xs text-muted-foreground">
+                {setupQuestion.reason}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={sendAction.busy}
+                  onClick={() => void send("No lo sé", "unknown")}
+                >
+                  No lo sé
+                </Button>
+                {setupQuestion.optional && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={sendAction.busy}
+                    onClick={() =>
+                      void send("Prefiero omitir esta pregunta", "declined")
+                    }
+                  >
+                    Omitir por ahora
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+          {selected && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="mb-2"
+              disabled={sendAction.busy}
+              onClick={() => void send("No lo sé", "unknown")}
+            >
+              No lo sé
+            </Button>
+          )}
           <Composer
             compact
             tools={docked ? <SelectionTool /> : undefined}
@@ -513,8 +582,16 @@ export function ChatPage({
                 context_references: draft.context_references,
               })
             }
-            onSend={send}
-            busy={sendAction.busy || !data}
+            onSend={() => send()}
+            busy={
+              sendAction.busy ||
+              !data ||
+              (setup &&
+                data.turns.some((t) =>
+                  ["queued", "routing", "processing"].includes(t.status),
+                ))
+            }
+            disabled={setup && Boolean(pending)}
             error={sendAction.error}
             placeholder={
               selected ? "Escribe tu aclaración…" : "Pregunta o añade contexto…"

@@ -6,6 +6,7 @@ import shutil
 import time
 import uuid
 
+from .observability import runtime as activity_runtime, store as activity_store
 from psycopg.types.json import Jsonb
 
 from .database import connect
@@ -14,7 +15,7 @@ from .execution_contract import validate_payload
 from .service import require_analysis
 from .storage import Storage, digest
 
-# One execution at a time in the local MVP, across controller processes.
+# Shared maintenance lock plus three bounded execution slots across controllers.
 LOCK = 87120932
 
 
@@ -87,24 +88,45 @@ def execute(config, business_id, analysis_id, *, code, tables, definitions=None,
         limits = {**LIMITS, 'timeout_seconds': timeout, 'outer_grace_seconds': 10}
         fingerprint = sha(canonical({'code': code, 'inputs': inputs, 'definitions': definitions,
                                      'limits': limits, 'environment': backend.manifest}))
-        # Lock before the check/insert pair to prevent races, including same-key callers.
-        if not db.execute('SELECT pg_try_advisory_lock(%s) AS acquired', (LOCK,)).fetchone()['acquired']:
+        # Recovery takes this lock exclusively; live executions share it.
+        if not db.execute('SELECT pg_try_advisory_lock_shared(%s) AS acquired', (LOCK,)).fetchone()['acquired']:
             raise ValueError('Local sandbox is busy. Retry with the same request key later.')
+        request_lock = int.from_bytes(hashlib.sha256(canonical([str(business_id), str(analysis_id), request_key])).digest()[:8], 'big', signed=True)
+        if not db.execute('SELECT pg_try_advisory_lock(%s) AS acquired', (request_lock,)).fetchone()['acquired']:
+            raise ValueError('This execution request is already running. Retry with the same request key later.')
         previous = db.execute('''SELECT id,request_sha256 FROM executions
             WHERE business_id=%s AND analysis_id=%s AND request_key=%s''',
                               (business_id, analysis_id, request_key)).fetchone()
         if previous:
             if previous['request_sha256'] != fingerprint:
                 raise ValueError('Request key already used for different code, inputs, definitions or runtime.')
+            activity=activity_runtime.CURRENT.get()
+            if activity:
+                activity_store.safe(db,business_id,activity[2],activity_store.link,'execution',previous['id'])
+                activity_runtime.reused(db,'execution',previous['id'])
+                activity_runtime.notify(db)
             return get_execution(config, business_id, previous['id'])
-        execution_id = uuid.uuid4()
-        prefix = f'{business_id}/analyses/{analysis_id}/executions/{execution_id}'
-        code_key = prefix + '/program.py'
-        db.execute('''INSERT INTO executions(id,business_id,analysis_id,request_key,request_sha256,
-            code_sha256,code_key,inputs,definitions,limits,environment,status)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'preparing')''',
-                   (execution_id, business_id, analysis_id, request_key, fingerprint, sha(code.encode()), code_key,
-                    Jsonb(inputs), Jsonb(definitions), Jsonb(limits), Jsonb(backend.manifest)))
+        # Serialize admission only, not computation. Abandoned controllers also
+        # consume capacity until explicit recovery stops their containers.
+        with db.transaction():
+            db.execute('SELECT pg_advisory_xact_lock(%s,%s)', (LOCK, 99))
+            active = db.execute("SELECT count(*) n FROM executions WHERE status IN ('preparing','running')").fetchone()['n']
+            if active >= 3:
+                raise ValueError('Local sandbox capacity reached (3); recover abandoned executions before retrying.')
+            if not any(db.execute('SELECT pg_try_advisory_lock(%s,%s) AS acquired', (LOCK, slot)).fetchone()['acquired'] for slot in range(3)):
+                raise ValueError('Local sandbox capacity reached (3). Retry with the same request key later.')
+            execution_id = uuid.uuid4()
+            prefix = f'{business_id}/analyses/{analysis_id}/executions/{execution_id}'
+            code_key = prefix + '/program.py'
+            db.execute('''INSERT INTO executions(id,business_id,analysis_id,request_key,request_sha256,
+                code_sha256,code_key,inputs,definitions,limits,environment,status)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'preparing')''',
+                       (execution_id, business_id, analysis_id, request_key, fingerprint, sha(code.encode()), code_key,
+                        Jsonb(inputs), Jsonb(definitions), Jsonb(limits), Jsonb(backend.manifest)))
+        activity = activity_runtime.CURRENT.get()
+        if activity:
+            activity_store.safe(db, business_id, activity[2], activity_store.link, 'execution', execution_id)
+            activity_runtime.notify(db)
         stage = INPUT_ROOT / str(execution_id)
         started = time.monotonic()
         status, logs, runtime, result, issue, artifacts = 'failed', {}, {}, None, None, []
@@ -179,6 +201,7 @@ def execute(config, business_id, analysis_id, *, code, tables, definitions=None,
                        (status, Jsonb(result), Jsonb(logs), Jsonb(runtime), issue, status, time.monotonic()-started, execution_id))
         if interrupted:
             raise KeyboardInterrupt()
+        activity_runtime.notify(db)
         return get_execution(config, business_id, execution_id)
 
 

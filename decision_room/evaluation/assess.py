@@ -50,17 +50,19 @@ def assess(state,report,oracle,assessment=None):
     add('independent_review',assessment.get('reviewer')=='development_review' and bool(assessment.get('notes','').strip()),'Human/development review is explicit; no inferred pass from model agreement.')
     for key in RUBRIC:add(key,assessment.get('rubric',{}).get(key) is True,'Independent semantic judgment.')
     draft=report.get('report') or {'claims':[],'charts':[]}
-    cited={(r['execution_id'],r['metric']) for c in draft['claims'] for r in c['evidence']}
-    cited.update((p['value']['execution_id'],p['value']['metric']) for c in draft.get('charts',[]) for p in c['points'])
-    cited.update((h['value']['execution_id'],h['value']['metric']) for h in draft.get('highlights',[]))
+    cited={(r['execution_id'],r['metric']) for c in draft['claims'] for r in c['evidence'] if 'metric' in r}
+    cited.update((p['value']['execution_id'],p['value']['metric']) for c in draft.get('charts',[]) for p in c['points'] if 'metric' in p['value'])
+    cited.update((h['value']['execution_id'],h['value']['metric']) for h in draft.get('highlights',[]) if 'metric' in h['value'])
     cited_series={(c['series']['execution_id'],c['series']['series']) for c in draft.get('charts',[]) if c.get('series')}
+    cited_points={(r['execution_id'],r['series'],r['label']) for c in draft['claims'] for r in c['evidence'] if 'series' in r}
+    cited_points.update((r['execution_id'],r['series'],r['label']) for r in [*[p['value'] for c in draft.get('charts',[]) for p in c['points']], *[h['value'] for h in draft.get('highlights',[])]] if 'series' in r)
     observations={o['execution_id']:o for o in report.get('observations',[])}
     def resolve(ref, require_cited):
         obs=observations[ref['execution_id']]
         if not obs.get('current') or obs['status']!='completed' or obs.get('result_omitted'):
             raise ValueError('Unavailable evidence.')
         if 'series' in ref:
-            if require_cited and (ref['execution_id'],ref['series']) not in cited_series:
+            if require_cited and (ref['execution_id'],ref['series']) not in cited_series and (ref['execution_id'],ref['series'],ref['label']) not in cited_points:
                 raise ValueError('Series not cited.')
             points=obs['result']['series'][ref['series']]['points']
             found=[p['value'] for p in points if p['label']==ref['label']]

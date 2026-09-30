@@ -56,6 +56,24 @@ class ModelActionTests(unittest.TestCase):
         self.assertEqual(schema()['action']['enum'], ['finish'])
         self.assertEqual(schema()['metric_keys']['maxItems'], 0)
 
+    def test_coordinator_delegates_but_can_repair_its_initial_execution(self):
+        client = ModelClient(ModelSettings('test'))
+        context = dict(plan={'investigations': [dict(key='root', status='ready'), dict(key='branch', status='ready')]},
+                       findings=[dict(investigation_key='root')], observations=[dict(investigation_key='root', status='completed')],
+                       budgets={'delegation': True})
+        def properties():
+            with patch.object(client, '_generate', return_value=({}, {})) as request:
+                client.generate_research(context)
+            return request.call_args.args[3]['properties']
+        self.assertIn('delegate', properties()['action']['enum'])
+        self.assertNotIn('execute', properties()['action']['enum'])
+        context['findings'] = []
+        context['observations'][0]['status'] = 'failed'
+        self.assertIn('execute', properties()['action']['enum'])
+        context['budgets'] = {'delegation': False, 'worker_assignment': {'investigation_key': 'branch'}}
+        self.assertNotIn('delegate', properties()['action']['enum'])
+        self.assertEqual(properties()['assignments']['maxItems'], 0)
+
     def test_role_boundaries_and_failed_checks_limit_offered_actions(self):
         client = ModelClient(ModelSettings('test'))
         with patch.object(client, '_generate', return_value=({}, {})) as request:
@@ -74,6 +92,57 @@ class ModelActionTests(unittest.TestCase):
         with patch.object(client, '_generate', return_value=({}, {})) as request:
             client.generate_reviewer(context)
         self.assertEqual(request.call_args.args[3]['properties']['action']['enum'],['revise','reject'])
+
+class PlanningReferenceSchemaTests(unittest.TestCase):
+    def test_unknown_tables_and_cross_table_columns_are_not_offered(self):
+        client = ModelClient(ModelSettings('test'))
+        context = dict(catalog=[{'id':'seen'},{'id':'unseen'}], profiles=[{'id':'seen','column_names':['quantity']}],
+                       uninspected_table_ids=['unseen'], answers=[])
+        with patch.object(client,'_generate',return_value=({},{})) as request:
+            client.generate(context)
+        schema=request.call_args.args[3]
+        choices={(kind,ident,column) for branch in schema['$defs']['Reference']['anyOf']
+                 for kind in branch['properties']['kind']['enum']
+                 for ident in branch['properties']['id']['enum']
+                 for column in branch['properties']['column']['enum']}
+        self.assertIn(('column','seen','quantity'),choices)
+        self.assertNotIn(('table','unseen',''),choices)
+        self.assertNotIn(('column','seen','price'),choices)
+        self.assertEqual(schema['$defs']['Investigation']['properties']['table_ids']['items']['enum'],['seen'])
+        context['profiles']=[]
+        with patch.object(client,'_generate',return_value=({},{})) as request:
+            client.generate(context)
+        schema=request.call_args.args[3]
+        self.assertEqual(schema['properties']['action']['enum'],['inspect'])
+        self.assertEqual(schema['properties']['proposal'],{'type':'null'})
+
+    def test_blocked_and_discarded_tasks_are_not_synthesis_candidates(self):
+        client=ModelClient(ModelSettings('test'))
+        context=dict(findings=[dict(investigation_key='blocked',status='blocked'),dict(investigation_key='supported',status='candidate')])
+        with patch.object(client,'_generate',return_value=({},{})) as request:
+            client.generate_research(context)
+        schema=request.call_args.args[3]
+        self.assertEqual(schema['$defs']['RankedFinding']['properties']['investigation_key']['enum'],['supported'])
+        context['findings']=context['findings'][:1]
+        with patch.object(client,'_generate',return_value=({},{})) as request:
+            client.generate_research(context)
+        schema=request.call_args.args[3]
+        for field in ('priorities','excluded','disagreements'):
+            self.assertEqual(schema['$defs']['Synthesis']['properties'][field]['maxItems'],0)
+
+    def test_success_is_registered_before_further_execution(self):
+        client=ModelClient(ModelSettings('test'))
+        context=dict(plan={'investigations':[dict(key='calculated',status='ready'),dict(key='next',status='ready')]},
+                     findings=[],observations=[dict(investigation_key='calculated',status='completed')])
+        with patch.object(client,'_generate',return_value=({},{})) as request:
+            client.generate_research(context)
+        properties=request.call_args.args[3]['properties']
+        self.assertEqual(properties['action']['enum'],['record_candidate','block'])
+        self.assertEqual(properties['investigation_key']['enum'],['calculated'])
+        context['observations'][0]['result_omitted']=True
+        with patch.object(client,'_generate',return_value=({},{})) as request:
+            client.generate_research(context)
+        self.assertIn('execute',request.call_args.args[3]['properties']['action']['enum'])
 
 
 if __name__ == '__main__':

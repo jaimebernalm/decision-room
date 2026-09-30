@@ -327,6 +327,21 @@ def retry(config, business_id, source_id=None):
                        ('extracted' if valid else 'pending', source['id']))
 
 
+def prepare(config, business_id, model):
+    """Drain existing sources before a web job freezes its analytical context.
+
+    Failed/uncertain calls keep their explicit-retry policy. A concurrent writer
+    is checked again under the business lock when the manifest is created.
+    """
+    from .context import ensure_prepared
+    with connect(config) as db:
+        sources = db.execute("SELECT id FROM memory_sources WHERE business_id=%s AND status IN ('pending','extracting','extracted') ORDER BY created_at,id", (business_id,)).fetchall()
+    for source in sources:
+        process(config, business_id, source['id'], model)
+    with connect(config) as db:
+        ensure_prepared(db, business_id)
+
+
 def work_once(config, model_factory, settings):
     # The web worker only extracts sources enrolled in its local owner workspace.
     # CLI/evaluation sources remain available for explicit service processing.

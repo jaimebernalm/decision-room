@@ -660,3 +660,17 @@ it("attaches a conversation without opening it, keeps it across navigation and s
     },
   ]);
 });
+it('shows one activity history for successive turns of the same analysis',async()=>{
+ const fetch=vi.fn(async(url:string)=>({ok:true,status:200,json:async()=>url.includes('/activity') ? {
+  trace_id:'same-process',headline:'Investigación compartida en curso',terminal:false,status:'running',history_complete:true,
+  task_updates:[],active_tasks:[],events:[],has_more:false,next_cursor:'same-process:0',previous_cursor:null,worker_health:'live',
+ } : {
+  conversation:{id:'chat',business_id:'a',title:'Prueba',created_at:''},memory:{},memory_items:[],
+  turns:[{id:'first',job_id:'job',activity_trace_id:'same-process',status:'completed',payload:{text:'Analiza los datos'}},
+         {id:'answer',job_id:'job',activity_trace_id:'same-process',status:'processing',payload:{text:'Son totales por fila'}}],
+ }}));vi.stubGlobal('fetch',fetch);
+ render(<Harness initialRoute='chat/chat'/>);
+ await screen.findByRole('button',{name:'Investigación compartida en curso'});
+ expect(screen.getAllByRole('button',{name:'Investigación compartida en curso'})).toHaveLength(1);
+ expect(fetch.mock.calls.filter(([url])=>url.includes('/activity'))).toHaveLength(1);
+});

@@ -13,12 +13,19 @@ CELL_CHARACTERS = 500
 
 def page(ws, job_id, query):
     job = ws.row(job_id)
+    return dataset_page(ws, job['analysis_id'], query)
+
+
+def dataset_page(ws, analysis_id, query):
+    from .dossier import available
     with connect(ws.config) as db:
+        if not available(db, ws.business_id(), identifier(str(analysis_id))):
+            raise WebError('Estos datos no están disponibles en tu negocio.', 404)
         tables = db.execute('''SELECT p.id,s.original_names,p.row_count,p.columns,
             p.parquet_key,p.parquet_sha256,p.lineage_column
             FROM prepared_tables p JOIN sources s ON s.id=p.source_id AND s.business_id=p.business_id
             WHERE p.business_id=%s AND p.analysis_id=%s AND s.status='ready'
-            ORDER BY s.original_names->>0,p.id''', (job['business_id'], job['analysis_id'])).fetchall()
+            ORDER BY s.original_names->>0,p.id''', (ws.business_id(), analysis_id)).fetchall()
     if not tables:
         raise WebError('Todavía no hay tablas preparadas para consultar.', 409)
     table_id = identifier(query['table'][0]) if query.get('table') else tables[0]['id']
@@ -36,7 +43,7 @@ def page(ws, job_id, query):
         raise WebError('La página de datos no es válida.') from None
     if not 0 <= offset < max(1, selected['row_count']) or not 0 <= column_offset < len(selected['columns']):
         raise WebError('La página de datos no es válida.')
-    path = Storage(ws.config.storage).path(job['business_id'], selected['parquet_key'])
+    path = Storage(ws.config.storage).path(ws.business_id(), selected['parquet_key'])
     if not path.is_file() or digest(path) != selected['parquet_sha256']:
         raise WebError('Los datos guardados no coinciden con la versión del informe.', 409)
     columns = [c['name'] for c in selected['columns'][column_offset:column_offset + PAGE_COLUMNS]]

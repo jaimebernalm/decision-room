@@ -3,8 +3,9 @@ from datetime import date
 from decimal import Decimal, ROUND_HALF_UP, localcontext
 from html import escape
 
+from .chart_layout import CHART_PALETTE, panels, series_colors
 from .agent.review_contract import ReportDraft, checks
-from .series import saved_series
+from .series import saved_series, evidence_value, evidence_label, evidence_key
 
 
 def e(value):
@@ -12,8 +13,7 @@ def e(value):
 
 
 def metric(data, ref):
-    observation = next(o for o in data['observations'] if o['execution_id'] == ref['execution_id'])
-    return observation['result']['metrics'][ref['metric']]
+    return evidence_value(data['observations'], ref)
 
 
 def formatted(value, decimals):
@@ -21,6 +21,44 @@ def formatted(value, decimals):
         ctx.prec = 120
         number = Decimal(str(value)).quantize(Decimal(1).scaleb(-decimals), rounding=ROUND_HALF_UP)
     return f'{number:,.{decimals}f}'.translate(str.maketrans({',': '.', '.': ','}))
+
+
+def grouped_svg(chart, layout, points, values, colors):
+    import textwrap
+    def color(label): return colors[label]
+    saved = {p['label']: v for p, v in zip(points, values)}
+    output = []
+    for index, panel in enumerate(layout):
+        order = panel['series_order']
+        categories = list(dict.fromkeys(p['category'] for p in panel['coordinates']))
+        cells = {(p['category'], p['series']): saved[p['label']] for p in panel['coordinates']}
+        low, high = min(min(cells.values()), Decimal(0)), max(max(cells.values()), Decimal(0))
+        if panel['measure'] == 'change':
+            low, high = -max(abs(low), abs(high)), max(abs(low), abs(high))
+        span = high - low or Decimal(1)
+        def x(value): return 205 + float((value-low)/span) * 390
+        top = 25 + 24 * ((len(order)+2)//3)
+        row_height = len(order)*24 + 28
+        height = top + len(categories)*row_height + 10
+        shapes = []
+        for i, name in enumerate(order):
+            left, y = 20 + (i % 3)*230, 18 + (i//3)*24
+            shapes.append(f'<rect x="{left}" y="{y-10}" width="10" height="10" fill="{color(name)}"/><text x="{left+17}" y="{y}" class="tick">{e(name)}</text>')
+        shapes.append(f'<line x1="{x(0):.2f}" x2="{x(0):.2f}" y1="{top}" y2="{height}" class="axis"/>')
+        for i, category in enumerate(categories):
+            y = top + i*row_height
+            for j, line in enumerate(textwrap.wrap(category, width=23)):
+                shapes.append(f'<text x="10" y="{y+18+j*18}" class="chart-label">{e(line)}</text>')
+            for j, name in enumerate(order):
+                value = cells.get((category, name))
+                if value is None:
+                    continue
+                number = formatted(value, chart['decimals'])
+                shapes.append(f'<rect x="{min(x(value),x(0)):.2f}" y="{y+j*24}" width="{abs(x(value)-x(0)):.2f}" height="18" rx="3" fill="{color(name)}"><title>{e(category)} · {e(name)}: {e(number)}</title></rect>')
+                shapes.append(f'<text x="700" y="{y+j*24+14}" text-anchor="end" class="chart-number">{e(number)}</text>')
+        title = panel['title'] or chart['title']
+        output.append(f'<h4>{e(title)}</h4><div class="plot"><svg viewBox="0 0 720 {height}" role="img" aria-label="{e(title)}">' + ''.join(shapes) + '</svg></div>')
+    return ''.join(output)
 
 
 def chart_html(data, chart):
@@ -71,6 +109,11 @@ def chart_html(data, chart):
             for i in ticks:
                 shapes.append(f'<text x="{x(days[i]):.2f}" y="260" text-anchor="middle" class="tick">{e(labels[i])}</text>')
         svg = f'<div class="plot"><svg viewBox="0 0 720 {height}" role="img" aria-labelledby="{title_id} {caption_id}">' + ''.join(shapes) + '</svg></div>'
+        layout = panels(chart, points)
+        if chart['kind'] == 'bar' and layout:
+            all_layouts = [p for c in data['report']['charts'] for p in panels(c, saved_series(data['observations'], c['series'])['points'] if c.get('series') else c['points'])]
+            colors = series_colors(s for panel in all_layouts for s in panel['series_order'])
+            svg = grouped_svg(chart, layout, points, values, colors)
         table = '<details><summary>Ver los valores del gráfico</summary>' + table + '</details>'
     return (f'<figure><h3 id="{title_id}">{e(chart["title"])}</h3><p class="unit">{e(chart["unit"])}</p>' + svg + ('<p class="scroll-hint">Desliza el gráfico para ver todos los valores.</p>' if svg else '') +
             f'<figcaption id="{caption_id}">{e(chart["caption"])}</figcaption>' + table +
@@ -86,11 +129,11 @@ def evidence_html(data, claim, charts):
                     for item in o['inputs'].values() for name in item['original_names']})
     rows, seen = [], set()
     for ref in refs:
-        key = (ref['execution_id'], ref['metric'])
+        key = evidence_key(ref)
         if key in seen:
             continue
         seen.add(key)
-        rows.append(f'<tr><th scope="row">{e(ref["metric"])}</th><td>{e(metric(data, ref))}</td></tr>')
+        rows.append(f'<tr><th scope="row">{e(evidence_label(ref))}</th><td>{e(metric(data, ref))}</td></tr>')
     series_details = []
     for chart in charts:
         if chart.get('series'):
@@ -102,7 +145,7 @@ def evidence_html(data, claim, charts):
             '<th scope="col">Valor guardado</th></tr></thead><tbody>' + ''.join(rows) + '</tbody></table>' + ''.join(series_details) + '</details>')
 
 
-CSS = '''
+CSS = ':root{--chart-primary:' + CHART_PALETTE[0] + '}\n' + '''
 *{box-sizing:border-box}body{margin:0;color:#203b3b;background:#f3f2ec;font:16px/1.65 system-ui,sans-serif}
 main{max-width:1080px;margin:40px auto;background:#fffefa;border:1px solid #d9dfd8;border-radius:18px;overflow:hidden}
 header{background:#163e3b;color:#fffefa;padding:42px 48px}.eyebrow{font-size:12px;letter-spacing:.18em;text-transform:uppercase;font-weight:700}
@@ -111,7 +154,7 @@ h1{font-size:clamp(28px,4vw,42px);line-height:1.15;max-width:850px;margin:22px 0
 .highlights{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin:26px 0 36px}.highlight{display:flex;flex-direction:column;padding:22px;border:1px solid #d9dfd8;border-radius:12px;background:#f7f8f3;text-decoration:none;color:inherit}.highlight span{font-size:13px;color:#52665f}.highlight strong{font-size:clamp(22px,3vw,30px);line-height:1.3;margin:12px 0;font-variant-numeric:tabular-nums;white-space:nowrap}.highlight small{font-size:12px;color:#52665f}.highlight:hover{border-color:#26766a}.highlight:focus-visible,a:focus-visible{outline:3px solid #26766a;outline-offset:4px}.visuals{margin:36px 0}.finding-link{font-size:13px;color:#26766a}.plot{overflow-x:auto}.scroll-hint{display:none;font-size:12px;color:#52665f}section[id]{scroll-margin-top:20px}
 .finding{padding:30px 0;border-top:1px solid #dbe1db}.number{color:#66837a;font-size:12px;letter-spacing:.15em;font-weight:700}.interpretation{padding:0 0 0 18px;border-left:3px solid #c3d5cb}.next{background:#eaf1eb;padding:18px 22px;border-radius:8px}.next strong{display:block}
 figure{margin:26px 0;padding:22px;background:#f7f8f3;border:1px solid #e0e5dc;border-radius:10px}svg{display:block;width:100%;height:auto;margin:8px 0}figcaption,.unit{font-size:14px;color:#52665f}.unit{margin:4px 0}
-.bar,.dot{fill:#26766a}.trend{stroke:#26766a;stroke-width:2.5}.axis{stroke:#8a9f97;stroke-width:1}.grid{stroke:#dce4dd;stroke-width:1}.chart-label,.chart-number{font:15px system-ui;fill:#203b3b}.chart-number{font-weight:650}.tick{font:12px system-ui;fill:#52665f}
+.bar,.dot{fill:var(--chart-primary)}.trend{stroke:var(--chart-primary);stroke-width:2.5}.axis{stroke:#8a9f97;stroke-width:1}.grid{stroke:#dce4dd;stroke-width:1}.chart-label,.chart-number{font:15px system-ui;fill:#203b3b}.chart-number{font-weight:650}.tick{font:12px system-ui;fill:#52665f}
 p,li,td,th{overflow-wrap:anywhere}p{white-space:pre-line}table{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px}th,td{padding:10px 12px;text-align:left;border-bottom:1px solid #dce4dd}td{text-align:right;font-variant-numeric:tabular-nums}thead th{background:#eaf0e9}tbody th{font-weight:500}
 details{margin:16px 0;padding:15px 18px;border:1px solid #d9e1d8;border-radius:8px;background:#fffefa}summary{cursor:pointer;font-size:14px;font-weight:650}summary:focus-visible{outline:3px solid #26766a;outline-offset:5px}
 footer{padding:24px 48px;border-top:1px solid #d9e1d8;color:#52665f;font-size:12px}.limits{padding-top:28px;border-top:1px solid #d9e1d8}.empty{color:#52665f;font-size:14px}
@@ -142,6 +185,8 @@ def render_client(data, exported_at, *, embedded=False):
     body = [f'<header><p class="eyebrow">Decision Room · Informe de negocio</p><h1>{e(title)}</h1>']
     if ready:
         scope = draft['scope']
+        if any(q['status'] != 'answered' for q in draft.get('question_coverage', [])):
+            body += ['<p class="meta">Entrega parcial · Consulta las preguntas pendientes en alcance y límites.</p>']
         body += [f'<p class="meta">{e(scope["business"])} · {e(scope["period"])}</p>']
     body += [f'<p class="meta">Generado: {e(exported_at)}</p></header><div class="content">']
     if ready:
@@ -154,16 +199,13 @@ def render_client(data, exported_at, *, embedded=False):
                 value = formatted(metric(data, highlight['value']), highlight['decimals'])
                 body += [f'<a class="highlight" href="#finding-{e(highlight["claim_key"])}"><span>{e(highlight["label"])}</span><strong>{e(value)}</strong><small>{e(highlight["unit"])}</small></a>']
             body += ['</section>']
-        if draft['charts']:
-            body += ['<section class="visuals"><h2>Los datos, en perspectiva</h2>']
-            body += [chart_html(data, c) for c in draft['charts']]
-            body += ['</section>']
         for i, claim in enumerate(draft['claims'], 1):
             charts = [c for c in draft['charts'] if c['claim_key'] == claim['key']]
             body += [f'<section class="finding" id="finding-{e(claim["key"])}"><p class="number">HALLAZGO {i:02d}</p><h2>{e(claim["title"])}</h2><p>{e(claim["statement"])}</p>']
             body += [f'<div class="interpretation"><h3>Qué significa para el negocio</h3><p>{e(claim["interpretation"])}</p></div>']
             if claim['next_step']:
                 body += [f'<p class="next"><strong>Siguiente comprobación</strong>{e(claim["next_step"])}</p>']
+            body += [chart_html(data, chart) for chart in charts]
             body += [evidence_html(data, claim, charts), '</section>']
         if not draft['charts']:
             body += [f'<p class="empty">{e(draft["no_chart_reason"])}</p>']

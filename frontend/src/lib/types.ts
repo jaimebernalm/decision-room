@@ -37,6 +37,7 @@ export type Analysis = {
   data_version?: Dataset;
 };
 export type Workspace = {
+  setup?: { conversation_id: string; stage: string } | null;
   business: Business | null;
   businesses: Business[];
   analyses: Analysis[];
@@ -70,6 +71,15 @@ export type Claim = {
     operations: string[];
   };
 };
+export type ChartPanel = {
+  title: string;
+  category_title: string;
+  series_title: string;
+  measure: "level" | "change";
+  series_order: string[];
+  colors?: Record<string, string>;
+  coordinates: { label: string; category: string; series: string }[];
+};
 export type ChartData = {
   key: string;
   kind: "line" | "bar" | "table";
@@ -78,8 +88,10 @@ export type ChartData = {
   caption: string;
   claim_key: string;
   points: { label: string; value: string; formatted: string }[];
+  panels?: ChartPanel[];
 };
 export type Report = {
+  partial?: boolean;
   report_id?: string;
   report_version?: string;
   title: string;
@@ -198,6 +210,8 @@ export type Dossier = {
 };
 export type Response = Partial<Report> & {
   kind: string;
+  onboarding?: SetupGuide;
+  first_report?: boolean;
   text?: string;
   paragraphs?: string[];
   sources?: { label: string; reference: string }[];
@@ -232,6 +246,8 @@ export type Turn = {
   report_outdated?: boolean;
   report_requested?: boolean;
   job_id?: string;
+  activity_trace_id?: string | null;
+  can_retry?: boolean;
   questions?: Question[];
   context_changed_before?: boolean;
 };
@@ -244,6 +260,7 @@ export type ChatDetail = {
   context_changed_after?: boolean;
 };
 export type Job = Analysis & {
+  can_retry?: boolean;
   analysis_id?: string;
   unresolved_questions?: Question[];
   business_id: string;
@@ -253,6 +270,7 @@ export type Job = Analysis & {
   phase: string;
   issue?: string;
   activity?: string;
+  activity_trace_id?: string | null;
   publishable: boolean;
   origin: string;
   byte_count: number;
@@ -311,4 +329,30 @@ export type HomeDashboard = {
   can_suggest: boolean;
   activity: Dashboard["activity"];
   limited: boolean;
+};
+
+export type SetupBrief = {
+  objective: string;
+  business_summary: string;
+  questions: string[];
+  limitations: string[];
+};
+export type SetupGuide = {
+  goal_suggestion?: string | null;
+  question?: (Omit<Question, "id"> & { optional: boolean }) | null;
+  brief?: SetupBrief | null;
+};
+export type SetupSession = {
+  business_id: string;
+  conversation_id: string;
+  revision: number;
+  stage: "goal" | "data" | "scope" | "report" | "complete";
+  goal: { text?: string; choices?: string[] };
+  analysis_id?: string;
+  brief?: SetupBrief;
+  job_id?: string;
+  activity_trace_id?: string | null;
+  publishable?: boolean;
+  job_status?: string;
+  context_stale?: boolean;
 };

@@ -2,6 +2,11 @@
 import json
 import os
 import time
+import math
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
+from contextvars import ContextVar
+from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from urllib.parse import urlsplit
@@ -16,6 +21,37 @@ from .research_contract import ResearchAction
 from .research_prompts import RESEARCH_SYSTEM
 from .review_contract import ReviewAction
 from .review_prompts import ANALYST_SYSTEM, REVIEWER_SYSTEM
+
+
+_TRANSPORT_RECORDER = ContextVar('model_transport_recorder', default=None)
+
+
+@contextmanager
+def record_transport(callback):
+    token = _TRANSPORT_RECORDER.set(callback)
+    try:
+        yield
+    finally:
+        _TRANSPORT_RECORDER.reset(token)
+
+
+def retry_delay(response, attempt):
+    """Honor bounded 429 Retry-After; never retry early when its wait is too long."""
+    raw = response.headers.get('Retry-After')
+    delay = 2 ** (attempt + (response.status_code == 429))
+    if raw:
+        try:
+            delay = float(raw)
+        except ValueError:
+            try:
+                delay = (parsedate_to_datetime(raw) - datetime.now(timezone.utc)).total_seconds()
+            except (ValueError, TypeError, OverflowError):
+                pass
+    if not math.isfinite(delay):
+        return None
+    if response.status_code == 429:
+        return max(1, delay) if delay <= 30 else None
+    return min(5, max(1, delay))
 
 
 class ModelRequestUncertain(ValueError):
@@ -117,13 +153,36 @@ class ModelClient:
         )
 
     def generate_chat(self, context, correction=None):
-        from ..chat_agent import Decision, SYSTEM
+        from ..chat_agent import Decision, SYSTEM, ONBOARDING_SYSTEM
         schema = Decision.model_json_schema()
-        return self._generate(context, correction, SYSTEM, schema)
+        # Optional Python fields preserve historical stored decisions; the provider's
+        # strict schema requires every property, using null for unused guide fields.
+        for node in [schema, *schema.get('$defs', {}).values()]:
+            if node.get('type') == 'object':
+                node['required'] = list(node.get('properties', {}))
+                for prop in node.get('properties', {}).values():
+                    prop.pop('default', None)
+        if context.get('onboarding'):
+            schema['properties']['action']['enum'] = ['retrieve', 'answer']
+        return self._generate(context, correction, SYSTEM + (ONBOARDING_SYSTEM if context.get("onboarding") else ""), schema)
 
     def review_chat_answer(self, context):
         from ..chat_agent import AnswerReview, REVIEW_SYSTEM
         return self._generate(context, None, REVIEW_SYSTEM, AnswerReview.model_json_schema())
+
+    def generate_data_discovery(self, context, correction=None):
+        from ..data_knowledge.discovery import Discovery, SYSTEM as DISCOVERY_SYSTEM
+        schema = Discovery.model_json_schema()
+        if 'tables' in context:
+            ids = [t['id'] for t in context['tables']]
+            if ids:
+                schema['$defs']['TableMeaning']['properties']['id']['enum'] = ids
+                for field in ('source', 'target'):
+                    schema['$defs']['RelationProposal']['properties'][field]['enum'] = ids
+            else:
+                for field in ('tables', 'relations'):
+                    schema['properties'][field]['maxItems'] = 0
+        return self._generate(context, correction, DISCOVERY_SYSTEM, schema)
 
     def generate_dashboard(self, context):
         from ..web.home import Proposal, SYSTEM as DASHBOARD_SYSTEM
@@ -151,11 +210,20 @@ class ModelClient:
 
     def generate(self, context, correction=None):
         schema = Action.model_json_schema()
+        schema['$defs']['Investigation']['required'] = list(schema['$defs']['Investigation']['properties'])
+        for prop in schema['$defs']['Investigation']['properties'].values():
+            prop.pop('default', None)
         if 'uninspected_table_ids' in context:
             self._table_choices(schema['properties']['table_ids'], context['uninspected_table_ids'])
         if 'catalog' in context:
             self._table_choices(schema['$defs']['Investigation']['properties']['table_ids'],
-                                [t['id'] for t in context['catalog']])
+                                [t['id'] for t in context.get('profiles', context['catalog'])])
+        if 'profiles' in context:
+            self._planning_references(schema, context)
+            if not context['profiles'] and context.get('uninspected_table_ids'):
+                schema['properties']['action']['enum'] = ['inspect']
+                schema['properties']['proposal'] = {'type': 'null'}
+                schema['properties']['table_ids']['minItems'] = 1
         if context.get('uninspected_table_ids') == []:
             # Small uploads are already profiled before the first model turn.
             # Do not offer an impossible inspect action to constrained decoding.
@@ -165,35 +233,125 @@ class ModelClient:
                 schema['properties']['proposal'] = {'$ref': '#/$defs/Proposal'}
         return self._generate(context, correction, SYSTEM, schema)
 
+    @staticmethod
+    def _planning_references(schema, context):
+        from copy import deepcopy
+        original = schema['$defs']['Reference']
+        choices = []
+        def branch(kind, ids, columns):
+            if not ids or not columns:
+                return
+            item = deepcopy(original)
+            item['properties']['kind']['enum'] = [kind]
+            item['properties']['id']['enum'] = ids
+            item['properties']['column']['enum'] = columns
+            choices.append(item)
+        branch('owner_context', ['owner_context'], [''])
+        branch('answer', [str(a['id']) for a in context.get('answers', [])], [''])
+        for table in context['profiles']:
+            branch('table', [table['id']], [''])
+            branch('column', [table['id']], table['column_names'])
+        # Memory references retain their separate retrieved-evidence validator.
+        if context.get('business_context'):
+            shared = deepcopy(original)
+            shared['properties']['kind']['enum'] = ['memory', 'data_model']
+            choices.append(shared)
+        schema['$defs']['Reference'] = {'anyOf': choices}
+
+    def generate_business_planner(self, context, correction=None):
+        from .business_planner import Direction, SYSTEM
+        schema = Direction.model_json_schema()
+        self._planning_references(schema, {'profiles': context['table_catalog']})
+        self._table_choices(schema['properties']['priority_keys'], [i['key'] for i in context['plan']['investigations']])
+        self._table_choices(schema['properties']['evidence_keys'], [f['investigation_key'] for f in context['findings'] if f['status']=='candidate'])
+        if context['stage'] != 'delivery':
+            schema['properties']['action']['enum'] = ['guide', 'ask_owner', 'replan']
+        if not any(r['disposition']=='answered' for r in context['owner_replies']):
+            schema['properties']['action']['enum'].remove('replan')
+        return self._generate(context, correction, SYSTEM, schema)
+
     def generate_research(self, context, correction=None):
         schema = ResearchAction.model_json_schema()
+        followup = schema['$defs']['Followup']
+        followup['required'] = list(followup['properties'])
+        for prop in followup['properties'].values():
+            prop.pop('default', None)
         if 'plan' in context:
-            finished = {f['investigation_key'] for f in context['findings']}
+            finished = {f['investigation_key'] for f in context['findings']} | set(context.get('budgets', {}).get('discarded_keys', []))
             unfinished = [i['key'] for i in context['plan']['investigations']
                           if i['status'] == 'ready' and i['key'] not in finished]
             latest = {o['investigation_key']: o for o in context['observations']}
-            allowed = ['execute', 'block'] if unfinished else []
+            allowed = ['execute', 'block', 'discard'] if unfinished else []
             if any(latest.get(key, {}).get('status') == 'completed' for key in unfinished):
                 allowed.append('record_candidate')
             if not (latest.keys() - finished):
                 allowed.append('finish')
+            if context.get('budgets', {}).get('delegation') and any(key not in latest for key in unfinished):
+                allowed.append('delegate')
+                # The principal may make one broad exploration when only one
+                # question is initially ready. Independent later work is handed
+                # to workers, rather than advertising two interchangeable roles.
+                if (latest or len(unfinished) > 1) and not (latest.keys() - finished):
+                    allowed.remove('execute')
+                    allowed.remove('block')
+            expandable = [f['investigation_key'] for f in context['findings'] if f.get('status') == 'candidate'] if context.get('budgets', {}).get('delegation') else []
+            if expandable:
+                allowed.append('expand')
+            if context.get('budgets', {}).get('delegation') and any(
+                i['key'] in unfinished and i.get('round', 1) <= context['budgets'].get('max_rounds', 3)
+                for i in context['plan']['investigations']):
+                if 'finish' in allowed:
+                    allowed.remove('finish')
+            unrecorded_success = [key for key in unfinished if latest.get(key, {}).get('status') == 'completed'
+                                  and not latest[key].get('result_omitted')]
+            if unrecorded_success:
+                # Preserve a usable result before another program can hide it.
+                # A candidate is still unverified; a concrete unusable result may be blocked.
+                allowed = ['record_candidate', 'block']
+                unfinished, expandable = unrecorded_success, []
+            if context.get('budgets', {}).get('business_planner') and not unrecorded_success:
+                allowed.append('consult_business')
             if allowed:
                 schema['properties']['action']['enum'] = allowed
-                schema['properties']['investigation_key']['enum'] = unfinished + ([''] if 'finish' in allowed else [])
+                schema['properties']['investigation_key']['enum'] = list(dict.fromkeys(unfinished + expandable)) + ([''] if any(a in allowed for a in ('finish','delegate','consult_business')) else [])
                 if allowed == ['finish']:
                     for key in ('code', 'investigation_key'):
                         schema['properties'][key]['enum'] = ['']
                     for key in ('table_ids', 'metric_keys'):
                         schema['properties'][key]['maxItems'] = 0
+            assignable = [key for key in unfinished if key not in latest]
+            if 'delegate' in allowed and assignable:
+                schema['$defs']['Assignment']['properties']['investigation_key']['enum'] = assignable
+            else:
+                schema['properties']['assignments']['maxItems'] = 0
             if 'table_catalog' in context:
                 authorized = {t['id'] for t in context['table_catalog']}
                 pending_tables = {table_id for item in context['plan']['investigations']
                                   if item['key'] in unfinished for table_id in item['table_ids']}
                 self._table_choices(schema['properties']['table_ids'], authorized & pending_tables)
-        return self._generate(context, correction, RESEARCH_SYSTEM, schema)
+        # Restrict evidence references to actual latest metrics. The validator
+        # still checks the chosen investigation; a typo must never become evidence.
+        latest_results = {o['investigation_key']: o for o in context.get('observations', [])}
+        metric_names = {key for o in latest_results.values() if o.get('status') == 'completed'
+                        for key in o.get('result', {}).get('metrics', {})}
+        self._table_choices(schema['properties']['metric_keys'], metric_names)
+        candidates = [f['investigation_key'] for f in context.get('findings', []) if f.get('status') == 'candidate']
+        if candidates:
+            schema['$defs']['RankedFinding']['properties']['investigation_key']['enum'] = candidates
+            schema['$defs']['Disagreement']['properties']['investigation_keys']['items']['enum'] = candidates
+        else:
+            for name in ('priorities', 'excluded', 'disagreements'):
+                schema['$defs']['Synthesis']['properties'][name]['maxItems'] = 0
+        schema['required'] = list(schema['properties'])
+        if 'table_catalog' in context:
+            self._table_choices(schema['$defs']['Followup']['properties']['table_ids'], [t['id'] for t in context['table_catalog']])
+        role = 'You are the subanalyst for budgets.worker_assignment; complete only that assignment.' if context.get('budgets', {}).get('worker_assignment') else (
+            'You are the PRINCIPAL COORDINATOR. Your available calculation tool is action=delegate: workers execute Python. When execute is absent from your action schema, delegate IS available; never claim Python is unavailable. After expand, delegate the ready tasks. Retain synthesis and prioritization. Explicitly discard a ready task only with a concrete reason of low value or insufficient evidence.' if context.get('budgets', {}).get('delegation') else 'You are the sole analyst.')
+        return self._generate(context, correction, role + '\n' + RESEARCH_SYSTEM, schema)
 
     def generate_analyst_review(self, context, correction=None):
         schema = ReviewAction.model_json_schema()
+        schema['required'] = list(schema['properties'])
         schema['properties']['action']['enum'] = self._review_actions(context, 'analyst', ['submit', 'execute', 'ask_owner', 'withdraw'])
         self._review_references(schema, context)
         return self._generate(context, correction, ANALYST_SYSTEM, schema)
@@ -205,6 +363,7 @@ class ModelClient:
                             for e in context.get('conversation', []))
         if context.get('report') and all(c['passed'] for c in context.get('checks', [])) and not new_execution:
             allowed.append('approve')
+        schema['required'] = list(schema['properties'])
         schema['properties']['action']['enum'] = self._review_actions(context, 'reviewer', allowed)
         self._review_references(schema, context)
         return self._generate(context, correction, REVIEWER_SYSTEM, schema)
@@ -215,38 +374,80 @@ class ModelClient:
             field['items']['enum'] = sorted(set(identifiers))
         else:
             field['maxItems'] = 0
+            if 'minItems' in field:
+                field['minItems'] = 0
 
     @classmethod
     def _review_references(cls, schema, context):
+        assessment = schema['$defs']['ReviewAssessment']
+        assessment['required'] = list(assessment['properties'])
+        assessment['properties']['usefulness'].pop('default', None)
         # Runtime defaults retain old reports; model output supplies all fields.
         for name in ('ReportDraft', 'Chart'):
             definition = schema['$defs'][name]
             definition['required'] = list(definition['properties'])
             for field in definition['properties'].values():
                 field.pop('default', None)
+        point_choices = []
+        for item in context.get('observations', []):
+            if item.get('current') and item['status'] == 'completed' and item.get('result') and not item.get('result_omitted'):
+                for key, series in item['result'].get('series', {}).items():
+                    if not series.get('points') or any('label' not in p for p in series['points']):
+                        continue
+                    branch = deepcopy(schema['$defs']['SeriesPointRef'])
+                    branch['properties']['execution_id']['enum'] = [item['execution_id']]
+                    branch['properties']['series']['enum'] = [key]
+                    branch['properties']['label']['enum'] = [p['label'] for p in series['points']]
+                    point_choices.append(branch)
+        if point_choices:
+            schema['$defs']['SeriesPointRef'] = {'anyOf': point_choices}
+        else:
+            schema['$defs']['Claim']['properties']['evidence']['items'] = {'$ref': '#/$defs/MetricRef'}
+            for name, field in (('Highlight','value'),('ChartPoint','value'),('NumericCheck','actual')):
+                schema['$defs'][name]['properties'][field] = {'$ref': '#/$defs/MetricRef'}
+            schema['$defs']['NumericCheck']['properties']['operands']['items'] = {'$ref': '#/$defs/MetricRef'}
         series_choices = []
-        series_by_unit = {}
+        series_by_chart = {}
         for item in context.get('observations', []):
             if item.get('current') and item['status'] == 'completed' and item.get('result') and not item.get('result_omitted'):
                 units = {}
+                display = {}
                 for key, value in item['result'].get('series', {}).items():
-                    units.setdefault(value['unit'], []).append(key)
+                    count = len(value.get('points', []))
+                    kinds = (['bar', 'table'] if 2 <= count <= 36 else [])
+                    if value.get('grain') == 'day' and 2 <= count <= 366:
+                        kinds.append('line')
+                    if kinds:
+                        units.setdefault(value['unit'], []).append(key)
+                        display[key] = kinds
                 for unit, keys in sorted(units.items()):
                     branch = deepcopy(schema['$defs']['SeriesRef'])
                     branch['properties']['execution_id']['enum'] = [item['execution_id']]
                     branch['properties']['series']['enum'] = sorted(keys)
                     series_choices.append(branch)
-                    series_by_unit.setdefault(unit, []).append(branch)
+                    for kind in ('bar', 'table', 'line'):
+                        eligible = [key for key in keys if kind in display[key]]
+                        if eligible:
+                            reference = deepcopy(branch)
+                            reference['properties']['series']['enum'] = sorted(eligible)
+                            series_by_chart.setdefault((unit, kind), []).append(reference)
         original_chart = schema['$defs']['Chart']
+        # Select evidence before its display unit. With unit first, constrained
+        # decoding can lock an edited chart into the old source's unit branch
+        # and force a wrong series even while the analyst intends to replace it.
+        properties = original_chart['properties']
+        original_chart['properties'] = {key: properties[key] for key in
+            ['series', 'points', *[key for key in properties if key not in ('series', 'points')]]}
         scalar_chart = deepcopy(original_chart)
         scalar_chart['properties']['series'] = {'type': 'null'}
         scalar_chart['properties']['points']['minItems'] = 2
         if series_choices:
             schema['$defs']['SeriesRef'] = {'anyOf': series_choices}
             charts = [scalar_chart]
-            for unit, references in sorted(series_by_unit.items()):
+            for (unit, kind), references in sorted(series_by_chart.items()):
                 branch = deepcopy(original_chart)
                 branch['properties']['unit']['enum'] = [unit]
+                branch['properties']['kind']['enum'] = [kind]
                 branch['properties']['series'] = {'anyOf': references}
                 branch['properties']['points']['maxItems'] = 0
                 charts.append(branch)
@@ -262,7 +463,9 @@ class ModelClient:
             coverage = schema['$defs']['ReportDraft']['properties']['question_coverage']
             coverage.update(minItems=len(ready), maxItems=len(investigations))
             branches = []
-            for keys, statuses in ((ready, ['answered', 'unavailable']), (blocked, ['unavailable'])):
+            deferred = sorted(i['key'] for i in investigations if i['status'] == 'ready' and i.get('parent_key')) if context.get('review_policy', 0) >= 3 else []
+            standard = [key for key in ready if key not in deferred]
+            for keys, statuses in ((standard, ['answered', 'unavailable']), (deferred, ['answered', 'unavailable', 'deferred']), (blocked, ['unavailable'])):
                 if not keys:
                     continue
                 branch = deepcopy(schema['$defs']['QuestionCoverage'])
@@ -272,6 +475,19 @@ class ModelClient:
                     branch['properties']['claim_keys']['maxItems'] = 0
                 branches.append(branch)
             schema['$defs']['QuestionCoverage'] = {'anyOf': branches}
+        delivered = (context.get('report') or {}).get('question_coverage', [])
+        if delivered:
+            branches = []
+            for entry in delivered:
+                branch = deepcopy(schema['$defs']['QuestionUtility'])
+                branch['properties']['investigation_key']['enum'] = [entry['investigation_key']]
+                branch['properties']['verdict']['enum'] = {
+                    'answered': ['pass', 'fail'], 'unavailable': ['unavailable', 'fail'],
+                    'deferred': ['deferred', 'fail'],
+                }[entry['status']]
+                cls._table_choices(branch['properties']['claim_keys'], entry['claim_keys'])
+                branches.append(branch)
+            schema['$defs']['QuestionUtility'] = {'anyOf': branches}
         # Offer only the arity that each supported numerical operation accepts.
         # A combined numerator must be a saved metric, not an extra ratio operand.
         original_check = schema['$defs']['NumericCheck']
@@ -306,6 +522,17 @@ class ModelClient:
             # Keep each execution paired with its own saved metrics. This prevents
             # invented references, not wrong labels or business interpretations.
             schema['$defs']['MetricRef'] = {'anyOf': choices}
+        elif point_choices:
+            # Saved series points are evidence too; no redundant scalar required.
+            # Some numeric-check definitions have already become anyOf branches.
+            def point_only(node):
+                if isinstance(node, dict):
+                    if node.get('$ref') == '#/$defs/MetricRef':
+                        node['$ref'] = '#/$defs/SeriesPointRef'
+                    for value in node.values(): point_only(value)
+                elif isinstance(node, list):
+                    for value in node: point_only(value)
+            point_only(schema)
         else:
             # A draft needs evidence. Keep execute/question/withdraw available,
             # without constructing an invalid empty union or inventing a sentinel ID.
@@ -345,6 +572,8 @@ class ModelClient:
             from ..memory.retrieval import schema_for, INSTRUCTIONS
             schema = schema_for(schema)
             system += INSTRUCTIONS
+        if self.settings.protocol == 'openai':
+            schema = self._wire_schema(schema)
         messages = [{'role': 'system', 'content': system},
                     {'role': 'user', 'content': encoded(context)}]
         if correction:
@@ -380,25 +609,34 @@ class ModelClient:
         elif self.settings.protocol == 'openai':
             raise ValueError('Set OPENAI_API_KEY in the private environment before using OpenAI.')
         try:
-            # Only an explicit 503 rejection is retried. An interrupted response
-            # remains uncertain and requires deliberate recovery.
+            # Only explicit rejections are retried, within one logical call.
+            # Read interruptions remain uncertain and need deliberate recovery.
+            deadline = time.monotonic() + self.settings.timeout_seconds
             with httpx.Client(timeout=self.settings.timeout_seconds, trust_env=False) as client:
                 attempts = []
                 for attempt in range(3):
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        error = ModelAPIError(attempts[-1]['status'])
+                        error.transport_attempts = attempts
+                        raise error
                     with client.stream('POST', self.settings.base_url.rstrip('/') + endpoint,
-                                       json=payload, headers=headers) as response:
+                                       json=payload, headers=headers, timeout=remaining) as response:
                         attempts.append({'status': response.status_code})
-                        if response.status_code == 503 and attempt < 2:
-                            try:
-                                delay = min(5, max(1, float(response.headers.get('Retry-After', 2 ** attempt))))
-                            except (ValueError, OverflowError):
-                                delay = 2 ** attempt
-                            attempts[-1].update(retry_delay_seconds=delay, usage_unknown=True)
-                        elif response.status_code != 200:
+                        delay = retry_delay(response, attempt) if response.status_code in (429, 503) and attempt < 2 else None
+                        if delay is not None and delay >= deadline - time.monotonic():
+                            delay = None
+                        if response.status_code != 200:
+                            attempts[-1]['usage_unknown'] = True
+                        if delay is not None:
+                            attempts[-1]['retry_delay_seconds'] = delay
+                        if recorder := _TRANSPORT_RECORDER.get():
+                            recorder(attempts)
+                        if response.status_code != 200 and delay is None:
                             error = ModelAPIError(response.status_code)
                             error.transport_attempts = attempts
                             raise error
-                        else:
+                        if response.status_code == 200:
                             body = bytearray()
                             for chunk in response.iter_bytes():
                                 body.extend(chunk)
@@ -432,3 +670,26 @@ class ModelClient:
                                         'Use agent-resume --retry-model to retry deliberately.') from None
         except (KeyError, IndexError, TypeError, json.JSONDecodeError):
             raise ValueError('Model API returned an invalid JSON completion.') from None
+
+    @staticmethod
+    def _wire_schema(schema):
+        """Preserve source labels when provider strict enums reject quote literals.
+
+        Exact source/column/label/unit validation still runs after generation.
+        Relax only the affected string enum, never change the underlying data or
+        silently remove a legitimate label from the selectable source evidence.
+        """
+        schema = deepcopy(schema)
+        def visit(node):
+            if isinstance(node, dict):
+                values = node.get('enum', [])
+                if values and all(isinstance(v, str) for v in values) and any('"' in v for v in values):
+                    node.pop('enum')
+                    node.setdefault('type', 'string')
+                for value in node.values():
+                    visit(value)
+            elif isinstance(node, list):
+                for value in node:
+                    visit(value)
+        visit(schema)
+        return schema

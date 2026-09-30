@@ -10,11 +10,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import { ArrowUpRight } from "lucide-react";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
+import { ChartContainer, ChartTooltip } from "@/components/ui/chart";
 import {
   Card,
   CardHeader,
@@ -38,13 +34,154 @@ import {
 } from "@/components/ai-elements/sources";
 import { Selectable } from "./context-selection";
 import { Disclosure } from "./shared";
-import { chartPoints } from "@/lib/charts";
+import {
+  CHART_PALETTE,
+  groupedPoints,
+  seriesColor,
+  chartPoints,
+} from "@/lib/charts";
+import { ReportSection, reportLead } from "./report-section";
+import { ReportChartTooltip } from "./report-chart-tooltip";
 import type {
   ChartData,
+  ChartPanel,
   Report as ReportData,
   ContextAttachment,
 } from "@/lib/types";
-const config = { value: { label: "Valor", color: "var(--chart-1)" } };
+const config = { value: { label: "Valor", color: CHART_PALETTE[0] } };
+function GroupedBars({
+  chart,
+  panel,
+}: {
+  chart: ChartData;
+  panel: ChartPanel;
+}) {
+  const rows = groupedPoints(chart, panel);
+  const series = panel.series_order.map((name, i) => ({
+    key: `s${i}`,
+    name,
+    color: CHART_PALETTE.includes(panel.colors?.[name] || "")
+      ? panel.colors![name]
+      : seriesColor(name),
+  }));
+  const extent = Math.max(
+    ...rows.flatMap((row) =>
+      series.map((s) => Math.abs(Number(row[s.key] ?? 0))),
+    ),
+    1,
+  );
+  return (
+    <section
+      className="min-w-0 space-y-3"
+      aria-label={panel.title || chart.title}
+    >
+      {panel.title && <h4 className="text-sm font-medium">{panel.title}</h4>}
+      <ul
+        className="flex flex-wrap gap-x-5 gap-y-2 text-xs"
+        aria-label={`Leyenda: ${panel.series_title}`}
+      >
+        {series.map((s) => (
+          <li key={s.key} className="flex items-center gap-2">
+            <span
+              aria-hidden
+              className="size-2.5 rounded-sm"
+              style={{ background: s.color }}
+            />
+            {s.name}
+          </li>
+        ))}
+      </ul>
+      <ChartContainer
+        config={Object.fromEntries(
+          series.map((s) => [s.key, { label: s.name, color: s.color }]),
+        )}
+        className="w-full"
+        style={{
+          containerType: "inline-size",
+          height: Math.max(240, rows.length * (series.length * 22 + 28) + 32),
+        }}
+        aria-label={panel.title || chart.title}
+      >
+        <BarChart
+          layout="vertical"
+          data={rows}
+          accessibilityLayer
+          margin={{ left: 0, right: 16 }}
+          barGap={3}
+          barCategoryGap={14}
+        >
+          <CartesianGrid horizontal={false} />
+          <XAxis
+            type="number"
+            tickLine={false}
+            axisLine={false}
+            ticks={
+              panel.measure === "change"
+                ? [-extent, -extent / 2, 0, extent / 2, extent]
+                : undefined
+            }
+            domain={
+              panel.measure === "change"
+                ? [-extent, extent]
+                : [(v: number) => Math.min(0, v), (v: number) => Math.max(0, v)]
+            }
+            tickFormatter={(v) =>
+              new Intl.NumberFormat("es", { notation: "compact" }).format(v)
+            }
+          />
+          <YAxis
+            dataKey="category"
+            type="category"
+            width={145}
+            interval={0}
+            tickLine={false}
+            axisLine={false}
+            tick={({ x, y, payload }) => (
+              <g transform={`translate(${x},${y})`}>
+                <foreignObject x={-140} y={-26} width={132} height={52}>
+                  <div className="flex h-full items-center justify-end text-right text-xs leading-tight text-muted-foreground break-words">
+                    {payload.value}
+                  </div>
+                </foreignObject>
+              </g>
+            )}
+          />
+          <ReferenceLine x={0} stroke="var(--muted-foreground)" />
+          <ChartTooltip
+            allowEscapeViewBox={{ x: false, y: false }}
+            position={{ x: 8 }}
+            content={({ active, payload }) =>
+              active && payload?.length ? (
+                <ReportChartTooltip
+                  title={String(payload[0].payload.category)}
+                  unit={chart.unit}
+                  items={payload
+                    .filter((item) => item.value != null)
+                    .map((item) => ({
+                      label: String(item.name),
+                      value: String(item.payload[`${item.dataKey}Exact`]),
+                      color: item.color,
+                    }))}
+                />
+              ) : null
+            }
+          />
+          {series.map((s) => (
+            <Bar
+              key={s.key}
+              dataKey={s.key}
+              name={s.name}
+              fill={s.color}
+              radius={3}
+              maxBarSize={20}
+              isAnimationActive={false}
+            />
+          ))}
+        </BarChart>
+      </ChartContainer>
+    </section>
+  );
+}
 export function EvidenceChart({
   chart,
   actions,
@@ -122,16 +259,22 @@ export function EvidenceChart({
       />
       <ReferenceLine {...(bars ? { x: 0 } : { y: 0 })} stroke="var(--border)" />
       <ChartTooltip
-        content={
-          <ChartTooltipContent
-            className="max-w-[calc(100vw-3rem)]"
-            labelFormatter={(_, payload) => payload[0]?.payload?.label}
-            formatter={(_, __, item) => (
-              <span className="font-mono tabular-nums">
-                {item.payload.formatted} {chart.unit}
-              </span>
-            )}
-          />
+        allowEscapeViewBox={{ x: false, y: false }}
+        position={{ x: 8 }}
+        content={({ active, payload }) =>
+          active && payload?.length ? (
+            <ReportChartTooltip
+              title={String(payload[0].payload.label)}
+              unit={chart.unit}
+              items={payload
+                .filter((item) => item.value != null)
+                .map((item) => ({
+                  label: "Valor",
+                  value: String(item.payload.formatted),
+                  color: item.color,
+                }))}
+            />
+          ) : null
         }
       />
     </>
@@ -148,11 +291,19 @@ export function EvidenceChart({
         </div>
       </CardHeader>
       <CardContent>
-        {chart.kind !== "table" && (
+        {chart.kind === "bar" && Boolean(chart.panels?.length) && (
+          <div className="space-y-8">
+            {chart.panels!.map((panel, i) => (
+              <GroupedBars key={i} chart={chart} panel={panel} />
+            ))}
+          </div>
+        )}
+        {chart.kind !== "table" && !chart.panels?.length && (
           <ChartContainer
             config={config}
             className="w-full"
             style={{
+              containerType: "inline-size",
               height: bars ? Math.max(256, chart.points.length * 36) : 256,
             }}
             aria-label={chart.title}
@@ -265,6 +416,7 @@ export function ReportView({
         <div className="mb-3 flex flex-wrap gap-2">
           <Badge variant="outline">{report.scope.period}</Badge>
           <Badge variant="secondary">Revisado</Badge>
+          {report.partial && <Badge variant="outline">Entrega parcial</Badge>}
         </div>
         <h2
           className={
@@ -284,21 +436,10 @@ export function ReportView({
             })}
           >
             <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground">
-              {report.summary}
+              {reportLead(report.summary)}
             </p>
           </Selectable>
         )}
-        <Selectable
-          item={item("section", "scope", {
-            key: "scope",
-            title: "Alcance",
-            statement: report.scope.coverage,
-          })}
-        >
-          <p className="mt-2 text-xs text-muted-foreground">
-            {report.scope.coverage}
-          </p>
-        </Selectable>
       </div>
       {report.highlights?.length > 0 && (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -324,37 +465,58 @@ export function ReportView({
           ))}
         </div>
       )}
-      {report.scope.question && (
-        <p className="text-sm">
-          <strong>Pregunta: </strong>
-          {report.scope.question}
-        </p>
-      )}
+      <ReportSection
+        title="Contexto y alcance"
+        preview="Sobre el negocio, los datos y el objetivo del análisis"
+      >
+        {report.summary && <p>{report.summary}</p>}
+        <Selectable
+          item={item("section", "scope", {
+            key: "scope",
+            title: "Alcance",
+            statement: report.scope.coverage,
+          })}
+        >
+          <p className="text-muted-foreground">{report.scope.coverage}</p>
+        </Selectable>
+        {report.scope.question && (
+          <p>
+            <strong>Pregunta: </strong>
+            {report.scope.question}
+          </p>
+        )}
+        {report.limitations.length > 0 && (
+          <Selectable
+            item={item("section", "limitations", {
+              key: "limitations",
+              title: "Limitaciones",
+              statement: report.limitations.join("\n"),
+            })}
+          >
+            <h3 className="font-medium">Limitaciones</h3>
+            <ul className="list-disc space-y-2 pl-5 text-muted-foreground">
+              {report.limitations.map((l, i) => (
+                <li key={i}>{l}</li>
+              ))}
+            </ul>
+          </Selectable>
+        )}
+      </ReportSection>
       {!report.charts?.length && report.no_chart_reason && (
         <p className="text-sm text-muted-foreground">
           {report.no_chart_reason}
         </p>
       )}
-      <div className="grid gap-5 xl:grid-cols-2">
-        {report.charts?.map((c) => (
-          <Selectable key={c.key} item={item("chart", c.key, c)}>
-            <EvidenceChart chart={c} />
-          </Selectable>
-        ))}
-      </div>
       <div className="space-y-4">
         {report.claims.map((claim, i) => (
-          <Selectable key={claim.key} item={item("insight", claim.key, claim)}>
-            <Card id={`finding-${claim.key}`} className="shadow-none">
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs text-muted-foreground">
-                    {String(i + 1).padStart(2, "0")}
-                  </span>
-                  <CardTitle>{claim.title}</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm leading-7">
+          <section key={claim.key} className="space-y-4">
+            <Selectable item={item("insight", claim.key, claim)}>
+              <ReportSection
+                id={`finding-${claim.key}`}
+                title={claim.title}
+                number={String(i + 1).padStart(2, "0")}
+                preview={reportLead(claim.statement)}
+              >
                 <p>{claim.statement}</p>
                 {claim.interpretation && (
                   <p className="text-muted-foreground">
@@ -393,28 +555,20 @@ export function ReportView({
                     </SourcesContent>
                   </Sources>
                 )}
-              </CardContent>
-            </Card>
-          </Selectable>
+              </ReportSection>
+            </Selectable>
+            <div className="grid gap-5">
+              {report.charts
+                ?.filter((c) => c.claim_key === claim.key)
+                .map((c) => (
+                  <Selectable key={c.key} item={item("chart", c.key, c)}>
+                    <EvidenceChart chart={c} />
+                  </Selectable>
+                ))}
+            </div>
+          </section>
         ))}
       </div>
-      {report.limitations?.length > 0 && (
-        <Selectable
-          item={item("section", "limitations", {
-            key: "limitations",
-            title: "Limitaciones",
-            statement: report.limitations.join("\n"),
-          })}
-        >
-          <Disclosure title="Alcance y límites del informe">
-            <ul className="list-disc space-y-2 pl-5 text-muted-foreground">
-              {report.limitations.map((l, i) => (
-                <li key={i}>{l}</li>
-              ))}
-            </ul>
-          </Disclosure>
-        </Selectable>
-      )}
     </div>
   );
 }

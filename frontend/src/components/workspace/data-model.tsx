@@ -37,6 +37,7 @@ type Table = {
   row_count: number;
   duplicate_rows: number;
   description: string;
+  semantic_status?: string;
   grain: string;
   columns: Column[];
   candidate_keys: string[][];
@@ -80,7 +81,7 @@ type Metric = {
 export type DataModel = {
   analysis_id: string;
   revision: number;
-  body: { tables: Table[]; relations: Relation[]; metrics: Metric[] };
+  body: { tables: Table[]; relations: Relation[]; metrics: Metric[]; discovery?: { limitations: string[] } };
 };
 type Response = {
   model: DataModel | null;
@@ -250,6 +251,13 @@ function ModelContent({
             cambios de contexto. Sus resultados anteriores se conservan.
           </Notice>
         )}
+        {!!model.body.discovery?.limitations.length && (
+          <Disclosure title="Límites de las relaciones propuestas">
+            <ul className="list-disc space-y-2 pl-5 text-sm">
+              {model.body.discovery.limitations.map((item, index) => <li key={index}>{item}</li>)}
+            </ul>
+          </Disclosure>
+        )}
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Buscar tabla">
             <Input
@@ -354,7 +362,7 @@ function ModelContent({
               ))}
             {!relations.length && (
               <p className="text-sm text-muted-foreground">
-                No se han inferido enlaces inequívocos por nombre de entidad.
+                Todavía no hay relaciones propuestas en este catálogo. Esto no significa que las tablas estén desconectadas.
                 Puedes añadir conexiones, incluidas claves compuestas.
               </p>
             )}
@@ -374,6 +382,7 @@ function ModelContent({
               <strong>Cada fila representa: </strong>
               {table.grain || "Todavía no está confirmado."}
             </p>
+            {table.semantic_status === "inferred" && <p className="text-xs text-muted-foreground">Interpretación del analista, pendiente de confirmación.</p>}
             <Disclosure title="Columnas, tipos y cobertura">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
@@ -475,7 +484,7 @@ function ModelContent({
               Origen:{" "}
               {relation.origin === "owner"
                 ? "declaración del usuario"
-                : "inferencia por nombre de entidad"}
+                : relation.origin === "agent" ? "propuesta del analista, comprobada sobre los datos" : "inferencia anterior"}
               . Comparación exacta, sin convertir valores. Confirma el
               significado y la granularidad antes de sumar: las medidas de la
               tabla padre pueden repetirse al unirlas con sus detalles.
@@ -727,7 +736,7 @@ export function ERDiagram({
                 fontSize="11"
               >
                 {t.grain
-                  ? "Granularidad declarada"
+                  ? t.semantic_status === "inferred" ? "Granularidad propuesta" : "Granularidad declarada"
                   : "Granularidad por confirmar"}
               </text>
             </g>

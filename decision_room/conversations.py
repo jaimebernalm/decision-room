@@ -3,6 +3,7 @@
 Legacy templates remain readable/replayable; new decisions use chat_agent.Decision.
 """
 
+from .observability.runtime import created, tracked, notify, call_context, transport
 from dataclasses import asdict
 from datetime import datetime
 import re
@@ -16,7 +17,7 @@ from psycopg.types.json import Jsonb
 from .database import connect
 from . import chat_agent, context_references as selections, conversation_context
 from .greetings import is_greeting, salutation
-from .agent.model import ModelSettings, ModelRequestUncertain
+from .agent.model import ModelSettings, ModelRequestUncertain, record_transport
 from .agent import review
 from .memory import context as ctx, service as memory, extraction, retrieval, semantic
 from .web.errors import WebError, identifier, bounded
@@ -24,6 +25,10 @@ from .web.dossier import available as dataset_available
 from .web.dashboard import projection
 
 PROMPT_VERSION = chat_agent.PROMPT_VERSION
+
+
+class AnswerValidationExhausted(ValueError):
+    """A completed series of reviews could not approve an answer."""
 
 
 class Action(BaseModel):
@@ -41,14 +46,16 @@ class Action(BaseModel):
     sources: list[str] = Field(default_factory=list, max_length=20)
     reply_kind: Literal['', 'date', 'time', 'capabilities', 'help', 'thanks', 'unavailable',
                         'greeting', 'greeting_repair', 'acknowledgement'] = ''
+    onboarding: chat_agent.SetupGuide | None = None
     answer_mode: Literal['summary', 'method', 'recency'] = 'summary'
+    include_report: bool = True  # Historical Actions retain their existing attachment behavior.
 
 
 def runtime_context():
     now = datetime.now().astimezone()
     return dict(server_time=now.isoformat(timespec='seconds'), timezone=str(now.tzinfo),
                 web_access=False, live_business_feed=False,
-                can_analyze_uploaded_datasets=True,
+                can_analyze_uploaded_datasets=True, can_predict_future=False,
                 available_sources=['saved business context', 'uploaded datasets', 'reviewed reports'])
 
 
@@ -272,6 +279,7 @@ def dependencies_current(config, db, saved, events):
 
 
 def brief(data, keys=None, mode='summary'):
+    from .series import evidence_label, evidence_value
     if not data['publishable']:
         raise WebError('La evidencia necesita una nueva revisión.', 409)
     report = data['report']
@@ -279,15 +287,13 @@ def brief(data, keys=None, mode='summary'):
     if not claims or (keys and set(keys) != {c['key'] for c in claims}):
         raise ValueError('Unknown reviewed claim reference.')
     metrics = []
-    observations = {o['execution_id']: o for o in data['observations'] if o['current'] and o['result']}
     for claim in claims:
         for ref in claim['evidence']:
-            observation = observations[ref['execution_id']]
             metrics.append(
                 dict(
                     execution_id=ref['execution_id'],
-                    metric=ref['metric'],
-                    value=observation['result']['metrics'][ref['metric']],
+                    metric=evidence_label(ref),
+                    value=evidence_value(data['observations'], ref),
                 )
             )
     display = projection(data) or {}
@@ -400,6 +406,10 @@ class Conversations:
     def delete(self, chat_id, data):
         self.guard(data)
         with connect(self.config) as db, db.transaction():
+            from .web import onboarding
+            setup = onboarding.current(db, self.business, lock=True)
+            if setup and str(setup['conversation_id']) == str(chat_id) and setup['stage'] != 'complete':
+                raise WebError('Esta conversación contiene el primer análisis en curso.', 409)
             self.conversation(db, chat_id, lock=True)
             db.execute('UPDATE chat_conversations SET deleted_at=now() WHERE id=%s', (chat_id,))
         return {'saved': True}
@@ -461,6 +471,7 @@ class Conversations:
             return dict(**reference, title='Información actualizada o no disponible', status='withdrawn',
                         report_title='Mi negocio', href='#my-business')
 
+    @created('turn')
     def send(self, chat_id, data):
         self.guard(data)
         key = identifier(data.get('request_key'))
@@ -474,6 +485,8 @@ class Conversations:
         if disposition not in ('answered', 'unknown', 'declined'):
             raise WebError('Respuesta no válida.')
         with connect(self.config) as db, db.transaction():
+            from .web import onboarding
+            onboarding.current(db, self.business, lock=True)
             chat = self.conversation(db, chat_id, lock=True)
             prior = db.execute(
                 'SELECT * FROM chat_turns WHERE conversation_id=%s AND request_key=%s', (chat_id, key)
@@ -513,7 +526,10 @@ class Conversations:
             waiting = db.execute(
                 "SELECT * FROM chat_turns WHERE conversation_id=%s AND status='waiting' ORDER BY ordinal LIMIT 1", (chat_id,)
             ).fetchone()
+            setup = onboarding.before_message(db, self.business, chat, previous)
             job, question, phase = None, '', None
+            if setup and setup['question']:
+                question = setup['question']['text']
             if waiting:
                 questions = self.ws.detail(waiting['job_id'])['questions']
                 chosen = next((q for q in questions if str(q['id']) == question_id), None)
@@ -548,6 +564,10 @@ class Conversations:
                 text=text, question_id=question_id, disposition=disposition, question=question, phase=phase,
                 memory_deferred=defer_memory,
             )
+            if setup:
+                payload['onboarding_revision'] = setup['revision']
+                if setup['question']:
+                    payload['onboarding_question'] = dict(**setup['question'], source_turn_id=setup['question_turn_id'])
             if refs:
                 payload['context_references'] = refs
             if reference:
@@ -597,6 +617,8 @@ class Conversations:
             attachment_cache = {}
             previous_snapshot = None
             for t in turns:
+                from .observability.store import linked
+                trace=linked(db,self.business,'turn',t['id'])
                 value = {
                     k: t[k]
                     for k in (
@@ -611,6 +633,7 @@ class Conversations:
                         'created_at',
                     )
                 }
+                value['activity_trace_id']=str(trace) if trace else None
                 attachments = []
                 for ref in selections.pointers(t['payload']):
                     cache_key = tuple(sorted(ref.items()))
@@ -650,6 +673,8 @@ class Conversations:
                         report_outdated=bool(t['response'] and t['response'].get('report_id')),
                         issue=None if t['response'] else 'El contexto o la evidencia han cambiado. Recalcula este mensaje.',
                     )
+                if t['status'] in ('blocked', 'failed') and t['job_id']:
+                    value['can_retry'] = self.ws.detail(t['job_id'])['can_retry']
                 if t['status'] == 'waiting' and t['job_id']:
                     detail = self.ws.detail(t['job_id'])
                     if detail.get('context_stale'):
@@ -803,6 +828,7 @@ class Conversations:
         unknown = set(action.sources) - available.keys()
         cited = {key: available[key] for key in dict.fromkeys(action.sources) if key in available}
         source_issues = ['Use only available source keys; unknown: ' + ', '.join(sorted(unknown))] if unknown else []
+        source_issues.extend(chat_agent.setup_issues(action.onboarding, context))
         for reference in selections.pointers(context['message'], reports_only=True):
             if not any(e['request']['tool'] == 'open_report'
                        and e['response'].get('id') == reference['report_id']
@@ -818,13 +844,20 @@ class Conversations:
                            and f'tool/{e.get('ordinal', i)}' in cited
                            for i, e in enumerate(context['retrievals'])):
                     source_issues.append('Open and cite the selected conversation before answering about it; its preview is not its full content.')
+        visible_text = action.text
+        if action.onboarding and action.onboarding.question and action.onboarding.question.text not in visible_text:
+            visible_text += '\n\n' + action.onboarding.question.text
         check_context = dict(message=context['message'], recent_dialogue=context['recent_dialogue'],
-                             draft=action.text, cited_sources=cited,
+                             draft=visible_text, cited_sources=cited,
                              runtime=context['chat_context'].get('runtime', {}),
                              memory_status=context['chat_context'].get('memory_status', {}),
                              saved_corrections=context['chat_context'].get('saved_corrections', []),
                              finding_reference=context['message'].get('finding_reference'),
                              context_references=context['message'].get('context_references', []))
+        if context.get('onboarding'):
+            check_context['onboarding'] = context['onboarding']
+            check_context['proposed_guide'] = action.onboarding.model_dump() if action.onboarding else None
+        check_context = chat_agent.separate_review_history(check_context)
         row = db.execute('SELECT * FROM chat_answer_reviews WHERE turn_id=%s AND attempt=%s AND ordinal=%s',
                          (turn['id'], turn['attempt'], ordinal)).fetchone()
         if row and row['status'] != 'completed':
@@ -837,20 +870,32 @@ class Conversations:
             if source_issues:
                 result, usage = dict(approved=False, issues=source_issues), {}
             else:
-                result, usage = model.review_chat_answer(check_context)
+                notify(db)
+                def review_attempts(attempts):
+                    transport(attempts)
+                    db.execute('UPDATE chat_answer_reviews SET usage=%s WHERE turn_id=%s AND attempt=%s AND ordinal=%s',
+                               (Jsonb({'transport_attempts':attempts,'rejected_attempt_usage_unknown':any(a['status']!=200 for a in attempts)}),turn['id'],turn['attempt'],ordinal))
+                with call_context(f'chat-review:{turn["id"]}:{turn["attempt"]}:{ordinal}'), record_transport(review_attempts):
+                    result, usage = model.review_chat_answer(check_context)
+                recorded=db.execute('SELECT usage FROM chat_answer_reviews WHERE turn_id=%s AND attempt=%s AND ordinal=%s',
+                                    (turn['id'],turn['attempt'],ordinal)).fetchone()['usage'] or {}
+                usage={**recorded,**usage}
             checked = chat_agent.AnswerReview.model_validate(result)
             if checked.approved and checked.issues:
                 raise ValueError('Approved review must not contain unresolved issues.')
-            db.execute("UPDATE chat_answer_reviews SET response=%s,usage=%s,status='completed' WHERE turn_id=%s AND attempt=%s AND ordinal=%s",
+            db.execute("UPDATE chat_answer_reviews SET response=%s,usage=%s,status='completed',finished_at=clock_timestamp() WHERE turn_id=%s AND attempt=%s AND ordinal=%s",
                        (Jsonb(result), Jsonb(usage), turn['id'], turn['attempt'], ordinal))
+            notify(db)
         if not result['approved']:
             return None
-        response = dict(kind='grounded_answer', text=action.text.strip(),
+        response = dict(kind='grounded_answer', text=visible_text.strip(),
                         sources=[dict(reference=key, label=item['label']) for key, item in cited.items()])
+        if action.onboarding:
+            response['onboarding'] = action.onboarding.model_dump(mode='json')
         # An optional evidence attachment retains report export and version checks.
         opened = [e['response'] for i, e in enumerate(context['retrievals'])
                   if f'tool/{e.get("ordinal", i)}' in cited and e['request']['tool'] == 'open_report' and 'error' not in e['response']]
-        if opened:
+        if opened and action.include_report:
             ref = context['message'].get('finding_reference')
             report = next((r for r in opened if ref and r['id'] == ref['report_id']), opened[-1])
             keys = [ref['claim_key']] if ref else None
@@ -927,6 +972,7 @@ class Conversations:
             db.execute("UPDATE chat_turns SET job_id=%s,status='processing' WHERE id=%s", (job, turn['id']))
             db.execute('UPDATE chat_conversations SET analysis_id=%s WHERE id=%s', (analysis_id, chat['id']))
 
+    @tracked('turn')
     def run(self, turn_id):
         with connect(self.config) as db:
             if not db.execute(
@@ -970,7 +1016,7 @@ class Conversations:
                                 request_key=str(turn['id']),
                                 question_id=a['question_id'],
                                 phase=a['phase'],
-                                text=a['text'],
+                                text=a['text'] if a['disposition'] == 'answered' else '',
                                 disposition=a['disposition'],
                             ),
                         )
@@ -982,7 +1028,15 @@ class Conversations:
                     db.execute('UPDATE chat_turns SET snapshot=%s WHERE id=%s', (Jsonb(saved), turn_id))
                     if job['publishable']:
                         row = self.ws.row(turn['job_id'])
-                        self._save(db, turn, 'completed', brief(self.ws.review_state(row)))
+                        delivery = brief(self.ws.review_state(row))
+                        setup = db.execute('SELECT 1 FROM onboarding_sessions WHERE business_id=%s AND job_id=%s',
+                                           (self.business, turn['job_id'])).fetchone()
+                        if setup:
+                            delivery = dict(kind='grounded_answer', first_report=True,
+                                            text='Tu primer informe está listo.\n\n' + '\n\n'.join(delivery.get('paragraphs', [])[:2]),
+                                            evidence=delivery, report_id=delivery['report_id'], report_version=delivery['report_version'])
+                            db.execute('UPDATE chat_turns SET report_requested=true WHERE id=%s', (turn['id'],))
+                        self._save(db, turn, 'completed', delivery)
                     elif job['status'] == 'waiting':
                         self._save(db, turn, 'waiting', dict(kind='questions', questions=job['questions']))
                     else:
@@ -1002,6 +1056,9 @@ class Conversations:
                     if source['status'] != 'applied':
                         raise ValueError('Memory extraction needs explicit retry.')
                 if not turn['snapshot']:
+                    if chat['analysis_id']:
+                        from .data_knowledge.discovery import discover
+                        discover(self.config, self.business, chat['analysis_id'], model, retry_uncertain=turn['attempt'] > 0)
                     with db.transaction():
                         memory.lock(db, self.business)
                         turn['snapshot'] = snapshot(
@@ -1031,6 +1088,11 @@ class Conversations:
                                             for saved in turn['snapshot']['saved_corrections'])):
                                     turn['snapshot']['saved_corrections'].append(dict(
                                         statement=candidate['content']['statement'], profile_updated=True))
+                        setup_record = db.execute('SELECT goal,confirmed,job_id FROM onboarding_sessions WHERE business_id=%s AND conversation_id=%s',
+                                                  (self.business, chat['id'])).fetchone()
+                        if setup_record:
+                            turn['snapshot']['first_report_request'] = dict(goal=setup_record['goal'], confirmed=setup_record['confirmed'],
+                                                                          job_id=str(setup_record['job_id']) if setup_record['job_id'] else None)
                         previous_selections = db.execute(
                             'SELECT payload FROM chat_turns WHERE conversation_id=%s AND ordinal<%s ORDER BY ordinal DESC LIMIT 12',
                             (chat['id'], turn['ordinal'])).fetchall()
@@ -1109,6 +1171,8 @@ class Conversations:
                             recent_dialogue=dialogue,
                             retrievals=[{k: e[k] for k in ('ordinal', 'request', 'response')} for e in events],
                         )
+                        from .web import onboarding
+                        context['onboarding'] = onboarding.chat_state(db, self.business, chat['id'])
                         context['available_sources'] = chat_agent.sources_for(context)
                         for index, ref in enumerate(turn['payload'].get('context_references', [])):
                             selected = self.selected_context(db, ref)
@@ -1123,11 +1187,21 @@ class Conversations:
                             "INSERT INTO chat_calls(turn_id,attempt,ordinal,prompt_version,context,status) VALUES (%s,%s,%s,%s,%s,'running')",
                             (turn_id, turn['attempt'], ordinal, PROMPT_VERSION, Jsonb(context)),
                         )
-                        output, usage = model.generate_chat(context)
+                        notify(db)
+                        def chat_attempts(attempts):
+                            transport(attempts)
+                            db.execute('UPDATE chat_calls SET usage=%s WHERE turn_id=%s AND attempt=%s AND ordinal=%s',
+                                       (Jsonb({'transport_attempts':attempts,'rejected_attempt_usage_unknown':any(a['status']!=200 for a in attempts)}),turn_id,turn['attempt'],ordinal))
+                        with call_context(f'chat:{turn_id}:{turn["attempt"]}:{ordinal}'), record_transport(chat_attempts):
+                            output, usage = model.generate_chat(context)
+                        recorded=db.execute('SELECT usage FROM chat_calls WHERE turn_id=%s AND attempt=%s AND ordinal=%s',
+                                            (turn_id,turn['attempt'],ordinal)).fetchone()['usage'] or {}
+                        usage={**recorded,**usage}
                         db.execute(
-                            "UPDATE chat_calls SET response=%s,usage=%s,status='completed' WHERE turn_id=%s AND attempt=%s AND ordinal=%s",
+                            "UPDATE chat_calls SET response=%s,usage=%s,status='completed',finished_at=clock_timestamp() WHERE turn_id=%s AND attempt=%s AND ordinal=%s",
                             (Jsonb(output), Jsonb(usage), turn_id, turn['attempt'], ordinal),
                         )
+                        notify(db)
                     else:
                         output = call['response']
                         context = call['context']
@@ -1203,13 +1277,15 @@ class Conversations:
                     if action.reply_kind and action.action != 'respond':
                         raise ValueError('Conversational reply cannot mix actions.')
                     if action.action == 'investigate':
+                        if context.get('onboarding'):
+                            raise ValueError('Confirm the onboarding scope before starting an investigation.')
                         self._job(db, chat, turn, action.analysis_id)
                         return
                     if action.action == 'answer':
                         response = self._answer(db, turn, ordinal, action, context, model)
                         if response is None:
                             if ordinal >= ctx.MAX_RETRIEVALS:
-                                raise ValueError('Answer validation budget exhausted.')
+                                raise AnswerValidationExhausted('Answer validation budget exhausted.')
                             continue
                     elif action.action == 'explain':
                         opened = next(
@@ -1289,14 +1365,17 @@ class Conversations:
                             text='He revisado la información disponible, pero todavía no encuentro lo necesario para responderte con seguridad. Si me das más contexto o añades datos, podré intentarlo de nuevo.',
                         )
                     with db.transaction():
+                        from .web import onboarding
+                        onboarding.current(db, self.business, lock=True)
                         memory.lock(db, self.business)
                         if not dependencies_current(self.config, db, turn['snapshot'], events):
                             raise ctx.StaleContext('Context changed before publication.')
+                        onboarding.publish(db, self.business, turn, response, context)
                         self._save(db, turn, 'completed', response)
                     return
             except Exception as error:
                 db.execute(
-                    "UPDATE chat_calls SET status=%s WHERE turn_id=%s AND attempt=%s AND status='running'",
+                    "UPDATE chat_calls SET status=%s,finished_at=clock_timestamp() WHERE turn_id=%s AND attempt=%s AND status='running'",
                     (
                         'uncertain' if isinstance(error, ModelRequestUncertain) else 'failed',
                         turn_id,
@@ -1304,7 +1383,7 @@ class Conversations:
                     ),
                 )
                 db.execute(
-                    "UPDATE chat_answer_reviews SET status=%s WHERE turn_id=%s AND attempt=%s AND status='running'",
+                    "UPDATE chat_answer_reviews SET status=%s,finished_at=clock_timestamp() WHERE turn_id=%s AND attempt=%s AND status='running'",
                     ('uncertain' if isinstance(error, ModelRequestUncertain) else 'failed', turn_id, turn['attempt']))
                 import logging
 
@@ -1313,7 +1392,10 @@ class Conversations:
                     db,
                     turn,
                     'failed',
-                    issue='El mensaje está guardado, pero el procesamiento se ha interrumpido. Reintenta para continuar; si hubo una petición incierta al modelo, el reintento puede repetirla.',
+                    issue=('No hemos conseguido aprobar una respuesta dentro del límite de revisión. '
+                           'Tu mensaje y tus archivos siguen guardados. Puedes reintentar la respuesta.'
+                           if isinstance(error, AnswerValidationExhausted) else
+                           'El mensaje está guardado, pero el procesamiento se ha interrumpido. Reintenta para continuar; si hubo una petición incierta al modelo, el reintento puede repetirla.'),
                 )
 
 

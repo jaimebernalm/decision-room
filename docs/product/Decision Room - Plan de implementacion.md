@@ -448,17 +448,76 @@ con compilación, lint y 65 pruebas frontend correctos.
 
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
-**Avance, 27 de septiembre de 2026:** completados **3.1** (medición inicial) y
+**Avance, 27 de septiembre de 2026:** completados **3.1** (medición inicial),
 **3.2** (catálogo versionado, relaciones y diagrama ER compartidos por ficha, chat
-e informes). Véanse [validación de 3.2](../validation/2026-09-27-data-knowledge.md)
+e informes) y **3.3** (investigación adaptativa por rondas, prioridades, presupuestos
+y resultados parciales con cobertura de entrega). Véanse [validación de 3.2](../validation/2026-09-27-data-knowledge.md)
 y [secuencia vigente](onboarding-e-informes-plan.md#8-secuencia-de-implementación-y-criterios-de-cierre).
-El siguiente paso es **3.3: investigación por rondas con prioridades y presupuesto**.
+La [validación de 3.3](../validation/2026-09-27-research-rounds.md) conserva también
+los fallos de modelo, revisión y proveedor encontrados; no declara resuelta la
+evaluación general de calidad prevista en 3.6. También queda completado **3.3.1: estabilización del revisor**: reparos materiales
+frente a sugerencias, registro de resolución, auditoría de entrega y reintentos
+acotados de 429. Se contrastan un informe completo (2/2), uno parcial (2/3),
+49 valores y recuperación sin duplicaciones. La prueba adversarial bloquea una
+cifra falsa y un adjunto inexistente en la misma revisión. Véanse
+[contrato](../technical/reviewer-stability.md) y [validación, fallos y límites](../validation/2026-09-27-reviewer-stability.md).
+Completado **3.4: onboarding conversacional y elección abierta del objetivo**, con
+confirmación de alcance y continuidad en el mismo chat ([contrato](../technical/conversational-onboarding-plan.md),
+[validación](../validation/2026-09-27-conversational-onboarding.md)).
+La prueba manual posterior corrige el progreso dentro del onboarding, la exposición
+de contexto interno y la recuperación explícita de revisiones agotadas, conservando
+borrador, reparos y cálculos; el primer informe de prueba se recupera y contrasta
+sin nuevas ejecuciones numéricas.
+Completado **3.4.1: conocimiento de datos y utilidad del informe**,
+según el [plan de mejora](../technical/agent-data-discovery-plan.md), motivado por la prueba manual de Bruma Café.
+Incluye propuestas de relaciones por el agente, comprobaciones completas, auditoría de utilidad
+y citas a series guardadas. Véase la [validación, intentos fallidos y límites](../validation/2026-09-27-agent-data-and-insights.md).
+Completado **3.5: analistas en paralelo**, con delegación dirigida, expansión desde
+la evidencia de las ramas, cuotas globales, recuperación y síntesis priorizada.
+El informe de Bruma profundiza ahora en productos dentro del canal que disminuye;
+los gráficos acompañan a sus hallazgos. Véanse el [contrato](../technical/parallel-analysts-plan.md)
+y la [validación, iteraciones y límites](../validation/2026-09-27-parallel-analysts.md).
+**3.6: implementación y evaluación terminadas, 28 de septiembre.** Se compararon
+16 intentos en modo secuencial y paralelo: ocho aprobados internamente, cuatro
+aceptados independientemente. Se conservan fallos, recursos y referencias históricas;
+se corrigen contratos, cobertura, preservación de evidencia y entrega parcial.
+El lote posterior acepta 1/4 y dos revisiones fallidas se recuperan con 2/2 aceptadas,
+sin repetir investigación. Pasan 209 pruebas backend y 78 frontend, más controles
+específicos posteriores. Véanse [protocolo](../technical/quality-evaluation-plan.md)
+y [resultados y límites](../validation/2026-09-27-quality-evaluation.md).
+La aceptación general de calidad sigue abierta: falta profundidad y cobertura
+consistentes; no está demostrada una mejora general de tiempo o coste del paralelismo.
+El antiguo paso 3.5 de evaluación conserva su nueva numeración 3.6.
+
+**3.7 implementado y evaluado, 28 de septiembre:** planificador de negocio especializado, encargo compartido,
+diálogo con el analista y preguntas al cliente durante la investigación. Presupuesto
+orientado a calidad y comparación controlada con el planificador desactivado.
+Véanse el [plan técnico y registro de continuidad](../technical/business-planner-plan.md)
+y los [resultados de 24 intentos y tres recuperaciones](../validation/2026-09-28-business-planner.md).
+La capacidad funciona; no queda demostrada una mejora consistente de calidad ni de
+latencia. Se mantienen abiertos los criterios de aceptación general del producto.
+
+**3.8.9, correcciones de auditoría validadas:** preparación de memoria antes del
+manifiesto, recuperación conservando versiones, proceso visible del chat, tiempos
+reales y monitor con intercambios legibles. Bruma recuperado y aprobado con
+contexto vigente. Ver [evidencia y límites](../validation/2026-09-28-live-investigation-fixes.md).
+
+**3.8 implementado y validado, 28 de septiembre:** actividad del cliente con
+historial persistente y datos relacionados; monitor interno con actores reales,
+intercambios, cálculos, revisión y recursos. Autorización interna independiente,
+eventos ordenados por commit, recuperación etiquetada y GET sin efectos.
+Bruma real: tres subanalistas, 22 llamadas y tres cálculos; 92 pruebas de interfaz
+y suites de PostgreSQL/sandbox pasan. Medida local hasta pantalla: 1,54 s.
+Véanse [uso y contratos](../technical/live-investigation.md), [plan completado](../technical/live-investigation-plan.md)
+y [validación con límites](../validation/2026-09-28-live-investigation.md).
+Su cierre no implica aceptación de calidad analítica.
+
 
 **Planificación ampliada, 27 de septiembre de 2026:** el
 [plan de onboarding e informes](onboarding-e-informes-plan.md) concreta la secuencia
-3.1–3.5: evaluación con una base sustancial, catálogo y relaciones,
-investigación por rondas, onboarding conversacional y revisión orientada al
-objetivo. Incorpora una pregunta abierta con opciones para descubrir oportunidades,
+3.1–3.6: evaluación con una base sustancial, catálogo y relaciones,
+investigación por rondas, onboarding conversacional, analistas en paralelo y
+selección, revisión y evaluación orientadas al objetivo. Incorpora una pregunta abierta con opciones para descubrir oportunidades,
 organizar un dashboard, seguir la evolución o resolver una pregunta. Las
 predicciones se reservan como capacidad futura. El estado de ejecución vigente
 se indica en el avance anterior y en el plan enlazado.
@@ -665,3 +724,14 @@ Ver [validación completa](../validation/2026-09-22-luna-validation.md) e
 **Listado de conversaciones, 25 de septiembre de 2026:** la biblioteca de chats muestra tarjetas separadas y más compactas, con título y fecha del último mensaje. Toda la tarjeta es un enlace y cambia de fondo al pasar el cursor o recibir foco; la acción de eliminar permanece independiente. Se elimina el texto redundante «Abrir conversación». Véanse [comprobaciones](../validation/2026-09-25-conversation-list-check.md).
 
 **Confirmación de eliminación y centrado, 25 de septiembre de 2026:** el listado de conversaciones se centra dentro del área de contenido. La eliminación usa un diálogo de la aplicación con título del chat, aviso de que ya no se podrá acceder a la conversación y acciones de cancelar o eliminar, en lugar de la confirmación del navegador. No se muestra una sección de chats eliminados ni se ofrece restauración al usuario. Véanse [comprobaciones](../validation/2026-09-25-delete-dialog-check.md).
+
+**Gráficos y continuidad del chat, 28 de septiembre de 2026 (3.8.10):** dimensiones
+explícitas para comparaciones agrupadas, leyendas coherentes, actividad pública
+compacta y presentación progresiva del texto ya revisado. Metadatos de aprobación
+accesibles al asistente. Ver [validación](../validation/2026-09-28-charts-and-chat-flow.md).
+
+**Lectura breve y descarga, 28 de septiembre de 2026 (3.8.12):** resumen compacto,
+contexto/hallazgos desplegables e icono de descarga con PDF completo, sin secciones
+ocultas en la exportación. Se conservan aprobación, referencias y paleta.
+Ver [plan](../technical/report-reading-plan.md) y
+[validación](../validation/2026-09-28-report-reading-and-pdf.md).

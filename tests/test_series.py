@@ -29,6 +29,34 @@ def report():
 
 
 class SeriesTests(unittest.TestCase):
+    def test_claim_cites_saved_series_point_across_report_chat_and_dashboard(self):
+        from decision_room.agent.review_contract import ReportDraft
+        from decision_room.web.dashboard import presentation
+        from decision_room.conversations import brief
+        from decision_room.series import evidence_value
+        data=report()
+        ref=dict(execution_id='series-only',series='daily',label='2026-01-03')
+        data['report']['claims'][0]['evidence']=[ref]
+        data['report']['highlights'][0]['value']=ref
+        ReportDraft.model_validate(data['report'])
+        data['checks']=checks(data['report'],data['observations'])
+        self.assertTrue(all(c['passed'] for c in data['checks']))
+        self.assertEqual(evidence_value(data['observations'],ref),'20.005')
+        self.assertIn('20.005',render_client(data,'today'))
+        self.assertIn({'label':'2026-01-03','value':'20.005'},presentation(data)['claims'][0]['evidence_details']['metrics'])
+        # Chat exposes the same verified value; no scalar recomputation.
+        data.update(id='report-id',approved_sha256='digest')
+        self.assertEqual(brief(data)['metrics'][0]['value'],'20.005')
+        for fault in ('label','execution','stale','source'):
+            broken=deepcopy(data)
+            if fault=='label': broken['report']['claims'][0]['evidence'][0]['label']='invented'
+            if fault=='execution': broken['report']['claims'][0]['evidence'][0]['execution_id']='foreign'
+            if fault=='stale': broken['observations'][1]['current']=False
+            if fault=='source': broken['observations'][1]['result']['series']['daily']['evidence']['tables']=['foreign']
+            with self.subTest(fault=fault):
+                self.assertFalse(all(c['passed'] for c in checks(broken['report'],broken['observations'])))
+
+
     def test_short_series_diagnostic_does_not_suggest_further_aggregation(self):
         for count in (0, 1):
             s = example(); s['daily']['points'] = s['daily']['points'][:count]
@@ -93,7 +121,8 @@ class SeriesTests(unittest.TestCase):
         self.assertIn('Cifras clave', html)
         self.assertIn('20,01', html)
         self.assertIn('Sum by date, no imputation.', html)
-        self.assertLess(html.index('Cifras clave'), html.index('Los datos, en perspectiva'))
+        self.assertLess(html.index('Cifras clave'), html.index('HALLAZGO 01'))
+        self.assertLess(html.index('HALLAZGO 01'), html.index('<circle '))
         obs = data['observations'][0]['result']
         obs['metrics']['highlight_only'] = '100'
         obs['evidence'].append({'metric':'highlight_only','tables':['sales'],'operation':'Independent summary'})

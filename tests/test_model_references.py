@@ -93,7 +93,7 @@ class ModelReferenceTests(unittest.TestCase):
 
     def test_series_pairs_and_new_fields_are_required_for_strict_output(self):
         obs = lambda key,current: {'execution_id':key, 'current':current,'status':'completed',
-                                   'result':{'series':{'monthly':{'unit':'units'}},'metrics':{'total':1},'evidence':[{'metric':'total'}]}}
+                                   'result':{'series':{'monthly':{'unit':'units', 'grain':'month', 'points':[{'label':'2024-01','value':1},{'label':'2024-02','value':2}]} },'metrics':{'total':1},'evidence':[{'metric':'total'}]}}
         context = {'observations':[obs('current',True),obs('old',False)]}
         schema = self.schema('generate_analyst_review', context)
         pairs = schema['$defs']['SeriesRef']['anyOf']
@@ -109,7 +109,7 @@ class ModelReferenceTests(unittest.TestCase):
     def test_chart_choices_pair_saved_units_with_their_exact_execution_and_series(self):
         def observation(key, unit, **overrides):
             return {'execution_id': key, 'current': True, 'status': 'completed',
-                    'result': {'series': {'same_key': {'unit': unit}},
+                    'result': {'series': {'same_key': {'unit': unit, 'grain':'category', 'points':[{'label':'a','value':1},{'label':'b','value':2}]}},
                                'metrics': {'total': 1}, 'evidence': [{'metric': 'total'}]}, **overrides}
         context = {'observations': [observation('money', 'moneda no especificada'),
                                    observation('count', 'unidades'),
@@ -125,6 +125,7 @@ class ModelReferenceTests(unittest.TestCase):
             pairs = set()
             for branch in branches:
                 props = branch['properties']
+                self.assertLess(list(props).index('series'), list(props).index('unit'))
                 if props['series'] == {'type': 'null'}: continue
                 self.assertEqual(props['points']['maxItems'], 0)
                 for ref in props['series']['anyOf']:
@@ -134,6 +135,25 @@ class ModelReferenceTests(unittest.TestCase):
                                  for unit in props['unit']['enum'])
             self.assertEqual(pairs, {('money', 'same_key', 'moneda no especificada'),
                                      ('count', 'same_key', 'unidades')})
+
+    def test_series_choices_only_offer_kinds_that_can_render_the_whole_series(self):
+        values = {
+            'too_many_groups': {'unit': 'units', 'grain': 'category', 'points': [{}] * 219},
+            'monthly': {'unit': 'units', 'grain': 'month', 'points': [{}] * 24},
+            'daily': {'unit': 'units', 'grain': 'day', 'points': [{}] * 100},
+            'top_five': {'unit': 'units', 'grain': 'category', 'points': [{}] * 5},
+        }
+        context = {'observations': [{'execution_id': 'saved', 'current': True, 'status': 'completed',
+                    'result': {'metrics': {'total': 1}, 'evidence': [{'metric': 'total'}], 'series': values}}]}
+        schema = self.schema('generate_analyst_review', context)
+        choices = set()
+        for chart in schema['$defs']['Chart']['anyOf']:
+            fields = chart['properties']
+            if fields['series'] == {'type': 'null'}:
+                continue
+            for ref in fields['series']['anyOf']:
+                choices.update((kind, key) for kind in fields['kind']['enum'] for key in ref['properties']['series']['enum'])
+        self.assertEqual(choices, {('line','daily'), ('bar','monthly'), ('table','monthly'), ('bar','top_five'), ('table','top_five')})
 
     def test_coverage_schema_allows_blocked_explanations_without_answers(self):
         context = {'plan': {'investigations': [{'key': 'units', 'status': 'ready'},

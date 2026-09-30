@@ -1,4 +1,5 @@
 """Private static HTML snapshots. Model prose is always escaped, never executable."""
+from .series import evidence_label
 import json
 from html import escape
 
@@ -23,7 +24,7 @@ def render(data, exported_at):
     if approved:
         body.append(f'<section class="summary"><h2>Resumen</h2><p>{e(draft["summary"])}</p></section>')
         for claim in draft['claims']:
-            links = ' · '.join(f'<a href="#evidence-{e(ref["execution_id"])}">{e(ref["metric"])}</a>' for ref in claim['evidence'])
+            links = ' · '.join(f'<a href="#evidence-{e(ref["execution_id"])}">{e(evidence_label(ref))}</a>' for ref in claim['evidence'])
             body.append(f'<section><h2>{e(claim["title"])}</h2><p>{e(claim["statement"])}</p><p class="source">Evidencia: {links}</p></section>')
         body.append('<section><h2>Alcance y limitaciones</h2><ul>' + ''.join(f'<li>{e(x)}</li>' for x in draft['limitations']) + '</ul></section>')
     else:

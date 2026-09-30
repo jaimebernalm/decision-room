@@ -1,3 +1,4 @@
+import { InternalMonitor } from "@/components/workspace/internal-monitor";
 import { useEffect, useState, lazy, Suspense } from "react";
 import { ThemeProvider } from "next-themes";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -111,6 +112,7 @@ function App() {
     [login, setLogin] = useState(false),
     [revision, setRevision] = useState(0),
     [deleting, setDeleting] = useState<Chat | null>(null);
+  const internal = route.startsWith("internal/");
   const deletion = useAction(),
     refresh = () => setRevision((v) => v + 1);
   useEffect(() => {
@@ -119,6 +121,7 @@ function App() {
     return () => removeEventListener("hashchange", change);
   }, []);
   useEffect(() => {
+    if (internal) return;
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
     async function read() {
@@ -163,9 +166,10 @@ function App() {
       controller.abort();
       clearTimeout(timer);
     };
-  }, [revision]);
+  }, [revision, internal]);
   let body;
-  if (route === "welcome" || (login && route === "home"))
+  if (internal) body = <InternalMonitor route={route} />;
+  else if (route === "welcome" || (login && route === "home"))
     body = <Welcome signedIn={Boolean(workspace)} />;
   else if (login)
     body = (
@@ -199,11 +203,16 @@ function App() {
         ? workspace.businesses.length
           ? "businesses"
           : "welcome"
-        : requestedRoute === "home" &&
-            workspace.business?.onboarding_status === "context_saved" &&
-            !workspace.analyses.length
-          ? `onboarding/${workspace.business.id}`
-          : requestedRoute;
+        : !requestedRoute.startsWith("onboarding") &&
+            !["businesses", "how", "welcome"].includes(requestedRoute) &&
+            workspace.setup &&
+            workspace.setup.stage !== "complete"
+          ? `onboarding/${workspace.business!.id}`
+          : requestedRoute === "home" &&
+              workspace.business?.onboarding_status === "context_saved" &&
+              !workspace.analyses.length
+            ? `onboarding/${workspace.business.id}`
+            : requestedRoute;
     const showAssistant =
       Boolean(workspace.business) &&
       !activeRoute.startsWith("chat/") &&
@@ -399,14 +408,14 @@ function Route({ route }: { route: string }) {
       return (
         <Presentation
           path={`/api/jobs/${id}/presentation`}
-          exportUrl={`/api/jobs/${id}/report`}
+          exportUrl={`/api/jobs/${id}/pdf`}
         />
       );
     case "chat-report":
       return (
         <Presentation
           path={`/api/chats/${id}/presentation/${turn}`}
-          exportUrl={`/api/chats/${id}/report/${turn}`}
+          exportUrl={`/api/chats/${id}/pdf/${turn}`}
         />
       );
     case "how":

@@ -7,6 +7,7 @@ from ..storage import Storage, digest
 from .context import encoded, fingerprint
 from .persistence import answers
 from .review_contract import checks
+from .review_policy import ledger, delivery_manifest
 
 
 def events(db, review_id):
@@ -42,7 +43,7 @@ def observation(config, business_id, execution_id, knowledge, current_knowledge,
 
 def material(config, db, session, run):
     history = events(db, run['id'])
-    sources = {i['execution_id']: run['snapshot']['initial_knowledge'] for i in run['snapshot']['executions']}
+    sources = {i['execution_id']: i.get('knowledge_sha256', run['snapshot']['initial_knowledge']) for i in run['snapshot']['executions']}
     sources.update({str(e['execution_id']): e['knowledge_sha256'] for e in history if e['execution_id']})
     verified_files = set()
     observations = [observation(config, session['business_id'], execution_id, key,
@@ -60,7 +61,16 @@ def material(config, db, session, run):
             event['owner_answer'] = by_step[event['step']]
     return {'owner_context': run['snapshot']['source']['owner_context'], 'owner_answers': owner_answers,
             'plan': run['snapshot']['proposal'], 'candidate_history': run['snapshot']['findings'],
-            'planning_history': run['snapshot']['planning_history'], 'tables': run['snapshot']['tables'],
+            'planning_history': run['snapshot']['planning_history'],
+            'review_policy': run['options'].get('review_policy'),
+            'previous_review': run['snapshot'].get('previous_review'),
+            'review_issues': ledger(conversation) or (run['snapshot'].get('previous_review') or {}).get('issues', []), 'delivery_manifest': delivery_manifest(report, observations),
+            'research_coverage': run['snapshot'].get('research_coverage'),
+            'research_synthesis': run['snapshot'].get('research_synthesis'),
+            'business_direction': run['snapshot'].get('business_direction'),
+            'delivery_capabilities': {'execution_artifact_downloads': False, 'chart_categories': 36, 'daily_line_points': 366,
+                                      'claim_evidence_refs': 12, 'claims': 6, 'charts': 4,
+                                      'surfaces': ['web_report', 'static_html']}, 'tables': run['snapshot']['tables'],
             'conversation': conversation, 'observations': observations,
             'report': report, 'report_step': report_step, 'checks': checks(report, observations),
             'budgets': {**run['options'], 'turns_used': len(history),
@@ -84,7 +94,7 @@ def model_context(materialized, role):
             action['code'] = ''
             event['code_reference'] = {'execution_id': event['execution_id'], 'field': 'observations.code'}
         if action.get('report') is not None and action['report'] == context['report']:
-            action['report'] = None
+            action['report'] = {'$ref': '#/report'}
             event['report_reference'] = 'report'
     for item in context['observations']:
         item['logs'] = {k: v[-3000:] if isinstance(v, str) else v for k, v in item['logs'].items()}
@@ -94,8 +104,9 @@ def model_context(materialized, role):
             item['result_omitted'] = True
     # Full conversation is retained. Exceeding the budget pauses safely, rather
     # than dropping an objection or silently presenting a truncated conversation.
-    if len(encoded(context).encode()) > 200000:
-        raise ValueError('Review context exceeds 200 KB; automatic compaction is not implemented.')
+    limit = context.get('budgets', {}).get('max_context_bytes', 200000)
+    if len(encoded(context).encode()) > limit:
+        raise ValueError(f'Review context exceeds {limit // 1000} KB; automatic compaction is not implemented.')
     return json.loads(encoded(context))
 
 
@@ -108,6 +119,8 @@ def approval_digest(materialized, knowledge):
     cited.update(h['value']['execution_id'] for h in materialized['report'].get('highlights', []))
     for check in materialized['report']['checks']:
         cited.update(ref['execution_id'] for ref in [check['actual'], *check['operands']])
-    return fingerprint({'report': materialized['report'], 'knowledge': knowledge,
+    policy = {'review_issues': materialized['review_issues'], 'delivery_manifest': materialized['delivery_manifest'],
+              'assessment': next((e['action'].get('assessment') for e in reversed(materialized['conversation']) if e['role'] == 'reviewer'), None)} if materialized.get('review_policy') else {}
+    return fingerprint({**policy, 'report': materialized['report'], 'knowledge': knowledge,
                         'evidence': [o for o in materialized['observations'] if o['execution_id'] in cited],
                         'checks': materialized['checks']})

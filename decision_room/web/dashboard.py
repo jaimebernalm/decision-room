@@ -1,4 +1,5 @@
 """Small, evidence-backed projection of an approved report for the home page."""
+from ..series import evidence_key, evidence_label
 
 import hashlib
 import json
@@ -6,6 +7,7 @@ import json
 from ..agent.review_contract import ReportDraft, checks
 from ..client_report import formatted, metric
 from ..series import saved_series
+from ..chart_layout import panels, series_colors
 
 
 def projection(data):
@@ -35,14 +37,20 @@ def projection(data):
                 'key': chart['key'], 'kind': chart['kind'], 'title': chart['title'],
                 'unit': chart['unit'], 'caption': chart['caption'],
                 'claim_key': chart['claim_key'],
+                'panels': panels(chart, points),
                 'points': [{'label': point['label'], 'value': str(point['value']),
                             'formatted': formatted(point['value'], chart['decimals'])}
                            for point in points],
             })
+        colors = series_colors(s for chart in charts for panel in chart['panels'] for s in panel['series_order'])
+        for chart in charts:
+            for panel in chart['panels']:
+                panel['colors'] = {s: colors[s] for s in panel['series_order']}
     except (ValueError, KeyError, ArithmeticError):
         return None
     return {
         'title': report['title'], 'summary': report['summary'],
+        'partial': any(q['status'] != 'answered' for q in report.get('question_coverage', [])),
         'scope': report['scope'], 'highlights': highlights,
         'claims': [{'key': claim['key'], 'title': claim['title'],
                     'statement': claim['statement']} for claim in report['claims'][:3]],
@@ -68,13 +76,13 @@ def presentation(data):
                         for item in o['inputs'].values() for name in item['original_names']})
         metrics, seen = [], set()
         for ref in refs:
-            key = (ref['execution_id'], ref['metric'])
+            key = evidence_key(ref)
             if key not in seen:
                 seen.add(key)
-                metrics.append({'label': ref['metric'], 'value': str(metric(data, ref))})
+                metrics.append({'label': evidence_label(ref), 'value': str(metric(data, ref))})
         operations = [saved_series(data['observations'], c['series'])['evidence']['operation']
                       for c in charts if c.get('series')]
         claims.append({**{key: claim[key] for key in ('key', 'title', 'statement', 'interpretation', 'method', 'next_step')},
                        'evidence_details': dict(files=files, metrics=metrics, operations=operations)})
     identity = dict(report_id=str(data['id']), report_version=data['approved_sha256']) if data.get('id') and data.get('approved_sha256') else {}
-    return {**result, **identity, 'claims': claims, 'no_chart_reason': report['no_chart_reason']}
+    return {**result, **identity, 'claims': claims, 'no_chart_reason': report['no_chart_reason'], 'question_coverage': report.get('question_coverage', [])}

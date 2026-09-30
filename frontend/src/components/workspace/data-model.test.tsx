@@ -44,7 +44,7 @@ const response = {
           cardinality: "many-to-many",
           semantic_status: "proposed",
           verification: "attention",
-          origin: "inferred",
+          origin: "agent",
           evidence: {
             source: { missing_rows: 0, duplicate_keys: 1 },
             target: { missing_rows: 0, duplicate_keys: 1 },
@@ -92,6 +92,7 @@ describe("versioned ER data model", () => {
     ).toBeInTheDocument();
     expect(screen.getAllByText(/Muchos a muchos/).length).toBeGreaterThan(0);
     expect(screen.getByText("Por confirmar")).toBeInTheDocument();
+    expect(screen.getByText(/propuesta del analista, comprobada sobre los datos/)).toBeInTheDocument();
   });
   it("stores a revision guarded correction and disables editing history", async () => {
     const user = userEvent.setup(),

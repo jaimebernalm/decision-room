@@ -1,8 +1,10 @@
 import "@testing-library/jest-dom/vitest";
+import { clearActivityCache } from "@/lib/activity";
 import { afterEach, beforeEach, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 afterEach(() => {
   cleanup();
+  clearActivityCache();
   vi.unstubAllGlobals();
 });
 beforeEach(() => {

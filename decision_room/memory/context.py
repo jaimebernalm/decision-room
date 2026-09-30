@@ -19,6 +19,15 @@ class StaleContext(ValueError):
     pass
 
 
+class PendingMemory(ValueError):
+    """A web analysis cannot freeze context while earlier sources are unresolved."""
+
+
+def ensure_prepared(db, business_id):
+    if db.execute("SELECT 1 FROM memory_sources WHERE business_id=%s AND status NOT IN ('applied','superseded') LIMIT 1", (business_id,)).fetchone():
+        raise PendingMemory('La información del negocio aún no está preparada. Revisa la memoria en Mi negocio y reintenta el informe cuando esté lista.')
+
+
 def period(value=None):
     if value is None:
         return {'from': None, 'until': None}
@@ -67,7 +76,10 @@ def own_origins(db, session_id):
     rows = db.execute('''SELECT 'planning_answer:' || a.id AS key FROM agent_answers a
         JOIN agent_questions q ON q.id=a.question_id WHERE q.session_id=%s
         UNION ALL SELECT 'review_answer:' || a.id FROM agent_review_answers a
-        JOIN agent_reviews r ON r.id=a.review_id WHERE r.session_id=%s''', (session_id, session_id)).fetchall()
+        JOIN agent_reviews r ON r.id=a.review_id WHERE r.session_id=%s
+        UNION ALL SELECT 'planning_answer:' || a.id FROM business_planner_answers a
+        JOIN agent_research r ON r.id=a.research_id WHERE r.session_id=%s''',
+        (session_id, session_id, session_id)).fetchall()
     return {r['key'] for r in rows}
 
 
@@ -123,6 +135,8 @@ def create(db, session, request_period=None):
     lock(db, session['business_id'])
     if db.execute('SELECT 1 FROM context_manifests WHERE session_id=%s', (session['id'],)).fetchone():
         return
+    if session['request_key'].startswith(('web:', 'web-replan:')):
+        ensure_prepared(db, session['business_id'])
     source_ids = [str(r['id']) for r in db.execute('SELECT id FROM sources WHERE business_id=%s AND analysis_id=%s',
                                                   (session['business_id'], session['analysis_id'])).fetchall()]
     selection = dict(version=VERSION, analysis_id=str(session['analysis_id']), source_ids=source_ids,
@@ -261,6 +275,15 @@ def invalidate(db, business_id):
         problem = reason(db, row['session_id'])
         if problem:
             db.execute('UPDATE context_manifests SET stale_reason=%s WHERE session_id=%s', (problem, row['session_id']))
+            # Invalidation can happen after a worker has finished. Persist the
+            # explanation here; readers must never manufacture activity events.
+            from ..observability import store, collector
+            trace = store.linked(db, business_id, 'session', row['session_id'])
+            if trace:
+                store.safe(db, business_id, trace, collector.emit, 'context', row['session_id'],
+                           'superseded', 'La información del negocio ha cambiado',
+                           source={'kind': 'context', 'id': str(row['session_id'])},
+                           payload={'reason': problem}, event_type='context.invalidated')
             db.execute("UPDATE agent_research SET status='stale',issue=%s,updated_at=now() WHERE session_id=%s", (problem, row['session_id']))
             db.execute("UPDATE agent_reviews SET status='stale',issue=%s,updated_at=now() WHERE session_id=%s", (problem, row['session_id']))
     # Old checkpoints have no dependency record: conservatively hold their output.
