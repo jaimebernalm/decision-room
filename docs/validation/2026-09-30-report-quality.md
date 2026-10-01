@@ -1,0 +1,63 @@
+# 3.9 — Calidad de la entrega
+
+## Alcance implementado
+
+El [plan](../technical/report-quality-plan.md) amplía la autonomía del principal
+para investigar señales dentro del objetivo y elegir representaciones soportadas.
+La dirección de negocio orienta prioridades; el revisor audita el encargo y las
+decisiones sobre el borrador vigente. La existencia de nuevos campos no demuestra
+por sí sola una mejora de utilidad.
+
+- Orientación con segmento, periodo, señal, evidencia, prioridad, comprobación,
+  utilidad para decidir, condiciones y límites. Cobertura del propietario separada
+  de ramas internas; se conservan desconocidos, respuestas parciales e históricos.
+- Seguimientos focales con origen, periodo y comparación, sin menú obligatorio de
+  desgloses. Instrucciones de conciliación y denominadores netos/brutos.
+- Líneas temporales simples/múltiples, barras y tablas; periodos y coordenadas
+  explícitos, huecos sin ceros inventados, cifras exactas y escala declarada.
+- Primera lectura con comprobaciones visibles, series activables, tooltip común,
+  selección por teclado/táctil y enlaces a hallazgos o desgloses aprobados.
+  Valores adicionales guardados forman parte de la huella de aprobación.
+- HTML, PDF, informe web, inicio y chat conservan orientación, evidencia y estado
+  parcial. Interactuar no ejecuta cálculos ni llama al modelo.
+
+## Comprobaciones técnicas
+
+Los incrementos incluyen pruebas de referencias obsoletas, orientación sin respaldo,
+entregable omitido, rechazo de reacciones por el revisor, porcentajes incorrectos,
+grano temporal falso, categorías arbitrarias, periodos/celdas ausentes, recuperación,
+reparación y replay sin duplicar ejecuciones. Los fixtures guionizados comprueban
+protocolo e integridad; no son resultados de autonomía o calidad semántica.
+
+La primera regresión completa detectó tres expectativas desactualizadas:
+dos contaban ramas como cobertura del propietario y una búsqueda textual heredaba
+búsqueda semántica del entorno. Se corrigieron los fixtures y el aislamiento de
+esa prueba. Una expectativa web también ocultaba la siguiente comprobación hasta
+desplegar el hallazgo. La reparación elimina notas de cobertura antiguas antes de
+añadir la vigente. La inspección del esquema del proveedor detectó y corrigió
+campos opcionales internos que el protocolo estricto exige declarar explícitamente.
+
+- Regresión completa: 520 pruebas Python y 117 web pasan; build y lint pasan, con avisos existentes de lint y tamaño
+  del bundle. 47 comprobaciones dirigidas y 29 de esquemas/revisión pasan después
+  de los ajustes; instrumento independiente conserva rúbrica histórica y añade
+  versión 2 para decisiones, representación e incertidumbre de cada fuente.
+  Después del ajuste final del esquema, 41 pruebas de proveedor/evaluador pasan.
+- QA visual local con fixture sintético identificado: escritorio claro, móvil
+  oscuro a 390 px, selección/tabla y navegación al hallazgo. Sin desbordamiento
+  horizontal; ejes ajustados en móvil. PDF de dos páginas sin pérdida de valores.
+  Son pruebas del renderer, no informes publicados. Artefactos privados en
+  `.local/ui-quality/`, excluidos de Git.
+
+## Comparación y aceptación
+
+Pendiente: matriz base/nueva congelada, tres casos (Bruma descubrir, WWI descubrir,
+WWI organizar), dos repeticiones por versión: doce intentos. Mismos archivos,
+contextos, objetivos, modelo, razonamiento y presupuestos. Oráculos CSV/Decimal
+separados de los agentes, rúbrica versión 2 idéntica para ambas versiones y revisión
+independiente del hash final. Conservar fallos en el denominador, desconocidos,
+recursos y límites; no sustituir silenciosamente intentos fallidos.
+
+La aceptación de utilidad sigue pendiente. La comprobación conjunta final requiere
+que el propietario reconozca la prioridad y el siguiente paso en una entrega real.
+No se atribuye ese juicio a pruebas automatizadas. Consulta web posterior 3.95
+fuera de este alcance.

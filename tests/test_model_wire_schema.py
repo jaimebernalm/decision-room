@@ -15,7 +15,7 @@ class WireSchemaTests(unittest.TestCase):
         with patch.object(client,'_generate',return_value=({},{})) as request:
             client.generate_analyst_review({})
         schema=request.call_args.args[3]
-        for name in ('ChartEncoding','ChartCoordinate'):
+        for name in ('ChartEncoding','ChartCoordinate','PointDetail','UsefulnessAudit','OwnerCoverage','OwnerUtility','DecisionOrientation'):
             definition=schema['$defs'][name]
             self.assertEqual(set(definition['required']),set(definition['properties']))
         self.assertIn('encoding',schema['$defs']['Chart']['required'])
@@ -66,6 +66,8 @@ class WireSchemaTests(unittest.TestCase):
             client.generate_business_planner(context)
         schema = request.call_args.args[3]
         self.assertEqual(schema['properties']['action']['enum'], ['guide','ask_owner'])
+        self.assertEqual(set(schema['required']), set(schema['properties']))
+        self.assertIn('orientation', schema['required'])
         self.assertEqual(schema['properties']['evidence_keys']['maxItems'],0)
         branches = schema['$defs']['Reference']['anyOf']
         self.assertEqual([b['properties']['kind']['enum'][0] for b in branches], ['owner_context','table','column'])

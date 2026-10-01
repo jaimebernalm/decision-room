@@ -304,6 +304,8 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(len(events[0]['response']['memories']),2)  # limit never drops a material definition/doubt.
 
     def test_text_discovery_rephrasing_evaluation_and_period_exclusion(self):
+        from dataclasses import replace
+        self.config = replace(self.config, semantic_search=False)
         self.fact()
         with connect(self.config) as db:
             db.execute("UPDATE analyses SET title='Ventas de productos en junio' WHERE id=%s",(self.analysis,))

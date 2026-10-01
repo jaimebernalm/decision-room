@@ -512,15 +512,17 @@ Véanse [uso y contratos](../technical/live-investigation.md), [plan completado]
 y [validación con límites](../validation/2026-09-28-live-investigation.md).
 Su cierre no implica aceptación de calidad analítica.
 
-**3.9 planificado, 30 de septiembre:** [calidad de la entrega y autonomía de
+**3.9 en evaluación, 30 de septiembre:** [calidad de la entrega y autonomía de
 investigación y presentación](../technical/report-quality-plan.md). El planificador
 prioriza preguntas de negocio y el analista decide métodos, desgloses y visuales;
 el código garantiza integridad y el revisor comprueba utilidad. Profundizar en el
 segmento y periodo de la señal, cuantificar sus componentes y entregar prioridades,
 comprobaciones y reacciones condicionales concretas. Ampliar representaciones
 temporales y de varias series, interacción y cobertura del encargo del propietario.
-Siete incrementos con evaluación comparativa en Bruma y WWI. Implementación y
-evaluación pendientes; crear el plan no demuestra mejora de calidad. La consulta
+Seis incrementos implementados y verificados: 520 pruebas Python y 117 web pasan;
+[validación y límites](../validation/2026-09-30-report-quality.md). Comparación en
+Bruma/WWI y aceptación conjunta pendientes; las capacidades no demuestran todavía
+una mejora de utilidad. La consulta
 web queda como propuesta posterior 3.95, con alcance específico todavía pendiente.
 
 

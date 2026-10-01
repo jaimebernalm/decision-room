@@ -35,7 +35,7 @@ mantiene en los archivos Markdown enlazados arriba.
 - [Aplicación web local, entrega 2](technical/web.md).
 - [Actividad en directo y monitor interno, 3.8](technical/live-investigation.md).
 - [Diseño y cierre de los ocho incrementos de 3.8](technical/live-investigation-plan.md).
-- [Plan 3.9: autonomía de investigación y presentación y calidad de la entrega](technical/report-quality-plan.md): siete incrementos pendientes, prioridades concretas y evaluación comparativa.
+- [Plan 3.9: autonomía de investigación y presentación y calidad de la entrega](technical/report-quality-plan.md): seis incrementos implementados/verificados; comparación y aceptación pendientes. [Validación](validation/2026-09-30-report-quality.md).
 - [Diseño y alcance de la experiencia web](technical/web-plan.md).
 - [Memoria del negocio y experiencia cotidiana, entrega 2.5](technical/business-memory-plan.md): identidad, memoria versionada y contexto compartido implementados; chats y nueva experiencia pendientes.
 - [Ejecución incremental de los siete pasos de 2.5](technical/business-memory-implementation.md): incrementos, dependencias, archivos afectados y comprobaciones para implementar poco a poco.

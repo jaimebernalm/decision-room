@@ -5,7 +5,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
-from decision_room.evaluation.quality import assess, compare, digest, ref_key, resources, RUBRIC, delivered_values, expected_value
+from decision_room.evaluation.quality import assess, compare, digest, ref_key, resources, RUBRIC, RUBRIC_39, delivered_values, expected_value
 from decision_room.evaluation.quality_cases import bruma_reference
 from decision_room.evaluation.quality_runner import summary, evaluation_reference
 from decision_room.evaluation.runner import write
@@ -29,6 +29,44 @@ class QualityTests(unittest.TestCase):
         state, review, oracle, _ = self.fixture()
         got = assess(state, review, oracle)
         self.assertFalse(got['accepted']); self.assertEqual(got['status'], 'needs_independent_review')
+
+    def test_delivery_rubric_rejects_unsupported_reaction_and_false_visual(self):
+        state, review, oracle, assessment = self.fixture()
+        assessment['rubric_version'] = 2
+        assessment['rubric'] = {k: dict(score=2, reason='Independent semantic review') for k in RUBRIC_39}
+        self.assertTrue(assess(state, review, oracle, assessment)['accepted'])
+        for criterion in ('decision_support', 'visual_integrity', 'source_uncertainty'):
+            with self.subTest(criterion=criterion):
+                invalid = copy.deepcopy(assessment)
+                invalid['rubric'][criterion] = dict(score=1, reason='Observed material limitation in delivered explanation')
+                self.assertFalse(assess(state, review, oracle, invalid)['accepted'])
+        assessment['rubric_version'] = 99
+        self.assertFalse(assess(state, review, oracle, assessment)['accepted'])
+
+    def test_orientation_and_tooltip_values_require_independent_bindings(self):
+        state, review, oracle, assessment = self.fixture()
+        ref = dict(execution_id='e', metric='change')
+        review['observations'][0]['result']['metrics']['change'] = 5
+        review['report']['claims'][0]['orientation'] = dict(evidence=[ref])
+        review['report']['charts'] = [dict(points=[], details=[dict(values=[dict(value=ref)])])]
+        assessment['report_sha256'] = digest(review['report'])
+        self.assertEqual(len(delivered_values(review)), 2)
+        self.assertFalse(assess(state, review, oracle, assessment)['accepted'])
+        oracle['metrics']['change'] = 5
+        assessment['bindings'][ref_key(ref)] = dict(reference='change', meaning='Same focal period and units')
+        self.assertTrue(assess(state, review, oracle, assessment)['accepted'])
+        review['observations'][0]['result']['metrics']['change'] = 6
+        self.assertFalse(assess(state, review, oracle, assessment)['accepted'])
+
+    def test_partial_uses_owner_delivery_instead_of_internal_branches(self):
+        state, review, oracle, assessment = self.fixture()
+        review['report']['owner_coverage'] = [dict(status='partial')]
+        assessment['report_sha256'] = digest(review['report'])
+        self.assertTrue(assess(state, review, oracle, assessment)['partial'])
+        review['report']['owner_coverage'] = [dict(status='complete')]
+        review['report']['question_coverage'] = [dict(status='unavailable')]
+        assessment['report_sha256'] = digest(review['report'])
+        self.assertFalse(assess(state, review, oracle, assessment)['partial'])
 
     def test_valid_and_wrong_number(self):
         state, review, oracle, a = self.fixture()

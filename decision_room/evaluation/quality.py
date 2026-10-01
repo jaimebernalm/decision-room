@@ -9,6 +9,7 @@ from .assess import token_accounting
 
 RUBRIC = ('meaning', 'coverage', 'depth', 'priority', 'next_checks',
           'comparability', 'clarity', 'nonduplication', 'narrative_numbers')
+RUBRIC_39 = (*RUBRIC, 'decision_support', 'visual_integrity', 'source_uncertainty')
 REQUIRED = {'organize': ('meaning', 'coverage', 'clarity', 'narrative_numbers'),
             'question': ('meaning', 'coverage', 'narrative_numbers'),
             'discover': ('meaning', 'depth', 'priority', 'next_checks', 'narrative_numbers')}
@@ -23,12 +24,15 @@ def ref_key(ref):
 
 
 def delivered_values(review):
-    """Expand all delivered chart points, highlights and claim citations, not artifacts."""
+    """Expand every delivered reference, including orientation and saved tooltip values."""
     report = review.get('report') or {}
     observations = {str(o['execution_id']): o for o in review.get('observations', [])}
     refs = [r for c in report.get('claims', []) for r in c['evidence']]
+    refs += [r for c in report.get('claims', [])
+             for r in (c.get('orientation') or {}).get('evidence', [])]
     refs += [h['value'] for h in report.get('highlights', [])]
     for chart in report.get('charts', []):
+        refs += [v['value'] for detail in chart.get('details', []) for v in detail['values']]
         if chart.get('series'):
             r = chart['series']
             o = observations[r['execution_id']]
@@ -154,11 +158,20 @@ def assess(state, review, oracle, assessment=None):
     checks['exact_delivery'] = assessment.get('report_sha256') == digest(review.get('report'))
     checks['independent_review'] = assessment.get('reviewer') == 'development_review' and bool(assessment.get('notes', '').strip())
     rubric = assessment.get('rubric', {})
-    checks['rubric_complete'] = set(rubric) == set(RUBRIC) and all(
+    version = assessment.get('rubric_version', 1)
+    criteria = RUBRIC_39 if version == 2 else RUBRIC
+    checks['rubric_complete'] = version in (1, 2) and set(rubric) == set(criteria) and all(
         type(v.get('score')) is int and 0 <= v['score'] <= 2 and bool(v.get('reason', '').strip()) for v in rubric.values())
     # 0 = material failure, 1 = useful but limited, 2 = meets the criterion fully.
     checks['no_material_failure'] = checks['rubric_complete'] and all(v['score'] >= 1 for v in rubric.values())
     checks['intent_quality'] = checks['rubric_complete'] and all(rubric[k]['score'] == 2 for k in REQUIRED[state['intent']])
+    if version == 2:
+        # Semantic review applies equally to historical and new contracts. Fields
+        # alone cannot establish an appropriate visual, reaction or source basis.
+        required = ('visual_integrity', 'source_uncertainty')
+        if state['intent'] == 'discover':
+            required += ('decision_support', 'clarity')
+        checks['delivery_quality'] = checks['rubric_complete'] and all(rubric[k]['score'] == 2 for k in required)
     bindings = assessment.get('bindings', {})
     checks['all_delivered_values_bound'] = bool(values) and set(bindings) == set(values)
     targets = set()
@@ -182,8 +195,11 @@ def assess(state, review, oracle, assessment=None):
         checks['value:' + key] = passed
     checks['required_results'] = bool(oracle.get('required')) and set(oracle['required']) <= targets
     accepted = all(checks.values())
+    coverage = (review.get('report') or {}).get('owner_coverage')
+    partial = (any(q['status'] != 'complete' for q in coverage) if coverage
+               else any(q['status'] != 'answered' for q in (review.get('report') or {}).get('question_coverage', [])))
     return dict(accepted=accepted, status='passed' if accepted else 'failed', checks=checks,
-                rubric=rubric, partial=any(q['status'] != 'answered' for q in (review.get('report') or {}).get('question_coverage', [])))
+                rubric=rubric, rubric_version=version, partial=partial)
 
 
 def resources(calls, complete=True, rates=None):

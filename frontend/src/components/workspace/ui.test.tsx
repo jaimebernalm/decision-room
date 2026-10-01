@@ -167,8 +167,11 @@ it("shows approved formatting and exact values, with escaped claim text", async 
   expect(screen.getByText("1.234,56")).toBeInTheDocument();
   expect(screen.getByText("<img src=x onerror=alert(1)>")).toBeInTheDocument();
   expect(document.querySelector("img")).toBeNull();
-  expect(screen.queryByText(/Revisar detalle/)).not.toBeInTheDocument();
+  expect(screen.getByText(/Revisar detalle/)).toBeInTheDocument();
+  expect(screen.queryByText("Suma")).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: /Resultado/ }));
+  await userEvent.click(screen.getByRole("button", { name: /Cómo se ha calculado/ }));
+  expect(screen.getByText("Suma")).toBeInTheDocument();
   expect(screen.getByText(/Revisar detalle/)).toBeInTheDocument();
 });
 

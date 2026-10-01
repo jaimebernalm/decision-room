@@ -261,6 +261,8 @@ class ModelClient:
     def generate_business_planner(self, context, correction=None):
         from .business_planner import Direction, SYSTEM
         schema = Direction.model_json_schema()
+        schema['required'] = list(schema['properties'])
+        schema['properties']['orientation'].pop('default', None)
         self._planning_references(schema, {'profiles': context['table_catalog']})
         self._table_choices(schema['properties']['priority_keys'], [i['key'] for i in context['plan']['investigations']])
         self._table_choices(schema['properties']['evidence_keys'], [f['investigation_key'] for f in context['findings'] if f['status']=='candidate'])
@@ -383,7 +385,7 @@ class ModelClient:
         assessment['required'] = list(assessment['properties'])
         assessment['properties']['usefulness'].pop('default', None)
         # Runtime defaults retain old reports; model output supplies all fields.
-        for name in ('ReportDraft', 'Chart', 'Claim', 'ChartEncoding'):
+        for name in ('ReportDraft', 'Chart', 'Claim', 'ChartEncoding', 'PointDetail', 'UsefulnessAudit'):
             definition = schema['$defs'][name]
             definition['required'] = list(definition['properties'])
             for field in definition['properties'].values():

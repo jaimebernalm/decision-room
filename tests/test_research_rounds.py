@@ -64,6 +64,9 @@ class PartialReview(DialogueModel):
             for item in raw['report']['question_coverage']:
                 if states[item['investigation_key']] != 'candidate':
                     item.update(status='unavailable', claim_keys=[], explanation='Pendiente por presupuesto de investigación.')
+            if any(i['status'] == 'unavailable' for i in raw['report']['question_coverage']):
+                for entry in raw['report']['owner_coverage']:
+                    entry.update(status='partial', explanation='Total disponible; desgloses pendientes en esta entrega.')
         return raw, usage
 
 
@@ -213,7 +216,7 @@ class RoundTests(unittest.TestCase):
         analyst.identity = self.model.identity
         reviewed = review.start(self.config, self.business, result['id'], request_key='partial-review', analyst=analyst, reviewer=reviewer)
         self.assertTrue(reviewed['publishable'])
-        self.assertTrue(any('1 de 3' in l and 'Sin completar' in l for l in reviewed['report']['limitations']))
+        self.assertTrue(any('0 de 1' in l and '1 parciales' in l for l in reviewed['report']['limitations']))
         self.assertEqual(sum(q['status'] == 'unavailable' for q in reviewed['report']['question_coverage']), 2)
         self.assertFalse(analyst.contexts[-1]['delivery_capabilities']['execution_artifact_downloads'])
         self.assertFalse(reviewer.contexts[-1]['delivery_capabilities']['execution_artifact_downloads'])
@@ -252,6 +255,8 @@ class RoundTests(unittest.TestCase):
                         if entry['investigation_key'] != 'sales':
                             entry.update(status='unavailable', claim_keys=[], explanation='Detalle no incluido en esta entrega.')
                     raw['report']['limitations'].append('Cobertura de investigación: nota anterior que no describe la entrega.')
+                    for entry in raw['report']['owner_coverage']:
+                        entry.update(status='partial', explanation='Total disponible; detalle no incluido en esta entrega.')
                 return raw, usage
         result = self.start(model=RoundModel())
         self.assertEqual(result['status'], 'completed')
@@ -259,8 +264,8 @@ class RoundTests(unittest.TestCase):
         reviewed = review.start(self.config, self.business, result['id'], request_key='partial-delivery', analyst=roles, reviewer=roles)
         self.assertTrue(reviewed['publishable'])
         notes = reviewed['report']['limitations']
-        self.assertEqual(sum(l.startswith('Cobertura del informe:') for l in notes), 1)
-        self.assertTrue(any('1 de 3' in l and 'Sin completar en esta entrega' in l for l in notes))
+        self.assertEqual(sum(l.startswith('Cobertura del encargo:') for l in notes), 1)
+        self.assertTrue(any('0 de 1' in l and '1 parciales' in l for l in notes))
         self.assertFalse(any('Cobertura de investigación:' in l or 'no queda trabajo' in l for l in notes))
 
 

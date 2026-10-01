@@ -68,7 +68,7 @@ def build(config, db, session, run, analyst, reviewer, saver, *, executor=execut
                     note = limitation(context['research_coverage'], report)
                     # Replace only reserved controller scope notes, preserving all
                     # substantive caveats. Computed candidates are not delivered answers.
-                    limits = [l for l in report['limitations'] if not l.startswith(('Cobertura del informe:', 'Cobertura de investigación:'))]
+                    limits = [l for l in report['limitations'] if not l.startswith(('Cobertura del informe:', 'Cobertura de investigación:', 'Cobertura del encargo:'))]
                     report['limitations'] = [*limits, note]
                     action = validate(action, state['role'], context)
                 break

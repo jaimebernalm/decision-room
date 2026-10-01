@@ -290,7 +290,7 @@ El estado de cada incremento se registra en la lista inferior:
 - [x] 3.9.3 — Entrega y revisión de utilidad.
 - [x] 3.9.4 — Evidencia y representaciones.
 - [x] 3.9.5 — Interacción y primera lectura.
-- [ ] 3.9.6 — Integración y recuperación.
+- [x] 3.9.6 — Integración y recuperación.
 - [ ] 3.9.7 — Evaluación comparativa y prueba conjunta.
 
 Secuencia recomendada: completar 3.9.1 antes de modificar esquemas de producción;
@@ -456,3 +456,18 @@ aportado por el propietario; no habilita Internet en el sandbox de Python.
   y etiquetas del eje en móvil. PDF revisado en dos páginas sin perder valores.
   Evidencias ignoradas en `.local/ui-quality/`; no se publica el fixture como
   un informe real ni se altera el informe histórico del propietario.
+
+### 3.9.6 — Integración y regresión verificadas
+
+- Regresión completa: 520 pruebas Python y 117 web pasan. Build y lint correctos
+  con avisos existentes. Tras inspección del protocolo, 29 pruebas de esquemas y
+  revisión, y 41 finales de esquemas/evaluador pasan; no se expone al proveedor
+  un objeto nuevo con campos omitidos por defecto.
+- Corregidas expectativas históricas de cobertura y visibilidad, aislamiento
+  textual/semántico y eliminación de notas de cobertura anteriores al reparar.
+- Evaluador versionado: la rúbrica histórica permanece disponible; versión 2
+  añade respaldo de decisiones, integridad visual e incertidumbre por fuente.
+  Todas las referencias de orientación y valores adicionales también exigen
+  verificación independiente. Cobertura parcial se deriva del encargo vigente.
+- [Validación técnica y límites](../validation/2026-09-30-report-quality.md).
+  Comparación con proveedor y prueba final del propietario pendientes.

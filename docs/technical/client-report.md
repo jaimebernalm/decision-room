@@ -33,7 +33,9 @@ ni conclusiones nuevas después de la aprobación.
 
 ## Gráficos y tablas
 
-Componentes disponibles: tarjetas de cifras, barras, líneas diarias y tablas.
+Componentes disponibles: tarjetas de cifras, barras, líneas y tablas; series
+simples o agrupadas mediante coordenadas explícitas. El analista elige la
+representación y el revisor evalúa su adecuación al objetivo.
 Las tarjetas (`highlights`) referencian una métrica y un hallazgo. Los gráficos
 aparecen antes de los hallazgos y enlazan con su explicación y evidencia.
 Cada gráfico puede referenciar una serie completa mediante
@@ -44,13 +46,17 @@ La aplicación resuelve y formatea la cifra desde la evidencia vigente. Cada gr�
 pertenece a un hallazgo y declara unidad, título y explicación de cobertura.
 
 Límites: cuatro gráficos. Las referencias escalares admiten hasta 36 puntos por
-gráfico y 72 en total; las series diarias admiten hasta 366 puntos y las barras o
+gráfico y 72 en total; las series temporales admiten hasta 366 puntos y las barras o
 tablas hasta 36 categorías/periodos. Las
-líneas requieren fechas ISO únicas y ordenadas; se respetan las distancias reales
-entre fechas y se interrumpe la línea cuando falta un día. Para intervalos mensuales
-u otros agregados, usar barras o tablas en esta versión. Las barras incluyen cero
+líneas requieren periodos únicos y ordenados con grano declarado: diario ISO,
+mensual `YYYY-MM`, trimestral `YYYY-Q1` o anual `YYYY`. Se respetan las distancias
+del calendario y se interrumpe la línea cuando falta un periodo o una celda de
+una serie. No se unen categorías arbitrarias como una evolución temporal.
+Las barras incluyen cero
 y admiten negativos. El redondeo de presentación usa Decimal, mitad hacia arriba.
-No se transforma una fecha ausente en una venta cero.
+No se transforma una fecha ausente en una venta cero. Las líneas pueden usar
+escala desde cero o desde el rango observado, con eje visible. HTML, PDF y web
+conservan las mismas referencias y tablas completas de valores por periodo/serie.
 
 Las referencias inexistentes, obsoletas, sin evidencia o no numéricas bloquean el
 gráfico. Las fuentes citadas solo por gráficos también entran en la huella de la
@@ -64,7 +70,7 @@ Que una serie todavía no se haya calculado no justifica omitir una visualizaci�
 
 `write_result(metrics, evidence=evidence, notes=notes, series=series)` conserva
 las métricas escalares y añade opcionalmente un diccionario de series. Cada una
-incluye `unit`, `grain` (`day`, `month` o `category`), `points` con `label`/`value`
+incluye `unit`, `grain` (`day`, `month`, `quarter`, `year` o `category`), `points` con `label`/`value`
 y `evidence` con `tables`/`operation`. Las operaciones deben explicar agregación,
 filtros y selección. Los valores son finitos; las etiquetas son únicas y las
 fechas están ordenadas. Máximo cuatro series por ejecución, 366 puntos por serie
@@ -80,6 +86,22 @@ responden o documenta que no se puede responder. El controlador exige todas las
 claves y referencias; el revisor comprueba la correspondencia semántica y el
 objetivo original. La existencia de ese campo no demuestra por sí sola utilidad.
 
+Desde 3.9, las nuevas revisiones usan política 4 y `contract_version: 2`.
+`owner_coverage` registra cada entregable del propietario, independientemente
+del número de ramas de investigación: completo, parcial, no disponible o aplazado.
+`orientation` añade alcance, señal con evidencia vigente, prioridad relativa,
+comprobación, utilidad para decidir y reacciones condicionales con límites.
+El revisor audita cada entregable y el respaldo de las decisiones; los campos
+estructurales no acreditan utilidad. La cobertura visible procede del encargo.
+
+La primera lectura muestra esa orientación; metodología y evidencia conservan
+su detalle desplegable. Las líneas múltiples permiten activar series, consultar
+el tooltip compartido, seleccionar un periodo con teclado/táctil y navegar a un
+hallazgo o desglose ya aprobado. `details` referencia valores adicionales guardados
+(incluidas variaciones calculadas); no se generan cálculos o llamadas al modelo
+al interactuar. Exportaciones conservan todos los valores aunque no haya hover.
+Orientación y detalles también forman parte de la huella de aprobación.
+
 El HTML usa SVG construido por la aplicación y tablas de valores accesibles por
 teclado. No admite SVG, HTML, URLs o JavaScript generados por el modelo. No necesita
 red, servidor ni dependencias nuevas. Los textos se escapan, hay CSP, etiquetas
@@ -87,8 +109,9 @@ accesibles, estilos móviles e impresión. No se añaden vídeos ni dashboard al
 
 ## Compatibilidad y archivos
 
-Esta ampliación usa prompts `review-v9` y `research-v6`, sin cambiar la estructura
-del grafo. Los campos nuevos conservan valores vacíos por defecto para leer los
+La implementación 3.9 usa prompts de revisión v38 e investigación v30 y
+dirección de negocio v4, sin reescribir grafos ni aprobaciones históricas.
+Los campos nuevos conservan valores vacíos por defecto para leer los
 informes anteriores. Las nuevas respuestas del modelo los incluyen explícitamente.
 No se convierte una aprobación antigua en aprobación del contenido nuevo.
 
