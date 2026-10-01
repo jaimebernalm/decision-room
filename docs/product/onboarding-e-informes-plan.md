@@ -6,6 +6,11 @@ Fecha: 27 de septiembre de 2026.
 
 **3.8 implementado y validado:** [actividad del cliente y monitor interno](../technical/live-investigation.md), con [pruebas funcionales y Bruma real](../validation/2026-09-28-live-investigation.md). La aceptación analítica sigue abierta.
 
+**3.9 planificado, 30 de septiembre:** [autonomía de investigación y presentación,
+prioridades y comprobaciones concretas](../technical/report-quality-plan.md).
+Implementación y evaluación pendientes; la investigación web queda como propuesta
+posterior 3.95.
+
 Este documento desarrolla la entrega 3 del [plan de implementación](<Decision Room - Plan de implementacion.md>).
 La [evaluación inicial con una base sustancial](../validation/2026-09-27-substantial-baseline.md)
 aceptó cuatro de seis recorridos y conserva los fallos y límites observados.
@@ -348,6 +353,7 @@ completados**; el paso **3.4 está completado** y **3.5 está completado**. La i
 | 3.6 | Selección y revisión adaptadas al objetivo; evaluación completa repetida, incluida la ejecución paralela de 3.5. | Comparación frente a 3.1 y entre ejecución secuencial y paralela sobre los mismos casos y presupuestos comparables. Medir exactitud, utilidad, cobertura, tiempo total, tokens y coste; entregas útiles para cada intención y ausencia de errores materiales en los casos de aceptación. |
 | 3.7 — Implementado y evaluado | Planificador de negocio, diálogo con el analista y preguntas durante la investigación; presupuesto amplio. | Capacidad comprobada; mejora general de calidad no demostrada. [Resultados de 24 intentos y tres recuperaciones](../validation/2026-09-28-business-planner.md). |
 | 3.8 — Completado | Línea de actividad del cliente con enfoque e historial; monitor interno de agentes, tareas, cálculos e intercambios. | Eventos reales y duraderos, acceso interno independiente, recuperación sin duplicación, 92 pruebas de interfaz y Bruma real con tres subanalistas. [Validación](../validation/2026-09-28-live-investigation.md). |
+| 3.9 — Planificado | Autonomía de investigación/presentación, profundización de señales y entrega de prioridades y comprobaciones concretas; visuales flexibles e interactivos. | Siete incrementos pendientes; comparación base/nuevo con Bruma y WWI, revisión independiente del encargo, exactitud, utilidad, cobertura y recuperación. [Plan y criterios](../technical/report-quality-plan.md). |
 
 En cada paso: cambios acotados, comprobaciones apropiadas, resultados documentados
 y commit local. No marcar un paso como completado por haber escrito este plan.
@@ -461,3 +467,22 @@ sesiones antiguas, publicación y obsolescencia. Incluye acceso interno independ
 pruebas automáticas y demostración real dirigida con Bruma, sin repetir la matriz
 de calidad de 3.7. La medición local hasta pantalla fue 1,54 s. El cierre de observabilidad
 no cierra la aceptación de calidad analítica.
+
+### 3.9 — Calidad de la entrega y autonomía
+
+**Plan creado el 30 de septiembre; implementación y evaluación pendientes.**
+El [plan técnico y registro de continuidad](../technical/report-quality-plan.md)
+define siete incrementos. El planificador decide qué merece investigarse; el
+analista tiene autonomía para métodos, seguimientos y representación; el revisor
+comprueba que la entrega ayude a decidir y el código valida su integridad.
+
+Una señal prioritaria debe localizarse en su segmento y periodo, cuantificar
+componentes y conducir a una comprobación específica con utilidad para la decisión.
+La presentación ofrece opciones reales de líneas temporales simples/múltiples,
+barras y tablas, con interacción web y exportación coherente. No restringir líneas
+a datos diarios ni imponer un tipo de gráfico como requisito de utilidad.
+
+La evaluación compara versiones congeladas con los mismos datos, objetivo,
+configuración y presupuesto en Bruma y WWI, incluyendo respuestas desconocidas,
+entregas parciales y fallos. La búsqueda de contexto externo se reserva a una
+propuesta posterior 3.95; no forma parte de esta entrega.
