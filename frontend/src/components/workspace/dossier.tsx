@@ -11,6 +11,8 @@ import {
   MoreHorizontal,
   Info,
   X,
+  Settings2,
+  FolderInput,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -35,6 +37,11 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
 import {
   Dialog,
@@ -60,6 +67,7 @@ import type {
   Fact,
   FactContent,
   Dataset,
+  DossierLayout,
 } from "@/lib/types";
 import {
   Heading,
@@ -74,6 +82,9 @@ import {
 import { Selectable } from "./context-selection";
 import { UploadForm } from "./business";
 import { DataModelPanel } from "./data-model";
+import { GroupEditor } from "./dossier-groups";
+import { defaultDossierLayout } from "@/lib/dossier-layout";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 const factKinds: Record<string, string> = {
   context: "Contexto",
   priority: "Prioridad",
@@ -92,12 +103,6 @@ const factStatus: Record<string, string> = {
   confirmed: "Confirmado",
   superseded: "Sustituido",
 };
-const factGroups = [
-  { key: "review", title: "Por revisar" },
-  { key: "business", title: "Sobre el negocio" },
-  { key: "operations", title: "Operativa" },
-  { key: "goals", title: "Objetivos y preferencias" },
-] as const;
 function needsReview(fact: Fact) {
   return (
     ["proposed", "inferred", "uncertain", "conflicted"].includes(fact.status) ||
@@ -118,8 +123,15 @@ function canConfirm(fact: Fact) {
     fact.content.kind !== "open_question"
   );
 }
-function factGroup(fact: Fact) {
+function factGroup(fact: Fact, layout: DossierLayout) {
   if (needsReview(fact)) return "review";
+  const ids = new Set(layout.groups.map((group) => group.id));
+  const assigned = layout.assignments[fact.fact_id];
+  if (assigned && ids.has(assigned)) return assigned;
+  const automatic = automaticGroup(fact);
+  return ids.has(automatic) ? automatic : "ungrouped";
+}
+function automaticGroup(fact: Fact) {
   const { kind, scope, topic = "" } = fact.content;
   if (
     kind === "priority" ||
@@ -144,6 +156,8 @@ export function Dossier({ files = false }: { files?: boolean }) {
   const [edit, setEdit] = useState<Fact | null | undefined>(undefined),
     [detail, setDetail] = useState<Fact | null>(null),
     [upload, setUpload] = useState(false);
+  const [customize, setCustomize] = useState(false),
+    [collapsedGroups, setCollapsedGroups] = useState<string[]>([]);
   const actionFocus = useRef<HTMLButtonElement | null>(null),
     addInformation = useRef<HTMLButtonElement | null>(null);
   const restoreDialogFocus = (event: Event) => {
@@ -183,6 +197,12 @@ export function Dossier({ files = false }: { files?: boolean }) {
     facts = data.facts.filter(
       (f) => !["withdrawn", "superseded"].includes(f.status),
     );
+  const layout = data.layout || defaultDossierLayout;
+  const factGroups = [
+    { key: "review", title: "Por revisar" },
+    ...layout.groups.map((group) => ({ key: group.id, title: group.name })),
+    { key: "ungrouped", title: "Sin grupo" },
+  ];
   return (
     <>
       <Heading title={b.name} />
@@ -209,7 +229,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
         </Notice>
       )}
       <Tabs defaultValue={files ? "data" : "info"} className="min-w-0 w-full">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="mb-6 flex flex-wrap items-center gap-2">
           <TabsList>
             <TabsTrigger value="info">Información</TabsTrigger>
             <TabsTrigger value="data">Datos</TabsTrigger>
@@ -221,7 +241,18 @@ export function Dossier({ files = false }: { files?: boolean }) {
           </Button>
         </div>
         <TabsContent value="info" className="max-w-4xl space-y-5">
-          <div className="flex justify-end">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(event) => {
+                actionFocus.current = event.currentTarget;
+                setCustomize(true);
+              }}
+            >
+              <Settings2 />
+              Personalizar grupos
+            </Button>
             <Button
               size="sm"
               ref={addInformation}
@@ -242,17 +273,31 @@ export function Dossier({ files = false }: { files?: boolean }) {
               </p>
             </section>
           )}
-          {facts.length ? (
+          {facts.length || (layout.revision > 0 && layout.groups.length > 0) ? (
             <Accordion
               type="multiple"
-              defaultValue={factGroups.map((group) => group.key)}
+              value={factGroups
+                .filter((group) => !collapsedGroups.includes(group.key))
+                .map((group) => group.key)}
+              onValueChange={(open) =>
+                setCollapsedGroups(
+                  factGroups
+                    .filter((group) => !open.includes(group.key))
+                    .map((group) => group.key),
+                )
+              }
               className="gap-4"
             >
               {factGroups.map((group) => {
                 const items = facts.filter(
-                  (fact) => factGroup(fact) === group.key,
+                  (fact) => factGroup(fact, layout) === group.key,
                 );
-                if (!items.length) return null;
+                if (
+                  !items.length &&
+                  (layout.revision === 0 ||
+                    ["review", "ungrouped"].includes(group.key))
+                )
+                  return null;
                 return (
                   <AccordionItem
                     key={group.key}
@@ -268,6 +313,11 @@ export function Dossier({ files = false }: { files?: boolean }) {
                       </span>
                     </AccordionTrigger>
                     <AccordionContent className="h-auto px-2 pt-1 pb-2 [&_p:not(:last-child)]:mb-0">
+                      {!items.length && (
+                        <p className="px-3 py-4 text-sm text-muted-foreground">
+                          Mueve información aquí desde el menú de una fila.
+                        </p>
+                      )}
                       <ul className="divide-y divide-border/70">
                         {items.map((f) => (
                           <li key={f.fact_id}>
@@ -430,6 +480,58 @@ export function Dossier({ files = false }: { files?: boolean }) {
                                         Confirmar
                                       </DropdownMenuItem>
                                     )}
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuSub>
+                                      <DropdownMenuSubTrigger>
+                                        <FolderInput />
+                                        Mover a grupo
+                                      </DropdownMenuSubTrigger>
+                                      <DropdownMenuSubContent className="max-w-64">
+                                        <DropdownMenuRadioGroup
+                                          value={
+                                            layout.assignments[f.fact_id] ||
+                                            "auto"
+                                          }
+                                          onValueChange={(group) => {
+                                            void action.run(async () => {
+                                              const assignments = {
+                                                ...layout.assignments,
+                                              };
+                                              if (group === "auto")
+                                                delete assignments[f.fact_id];
+                                              else
+                                                assignments[f.fact_id] = group;
+                                              await api(
+                                                "/api/business/dossier-layout",
+                                                {
+                                                  business_id: b.id,
+                                                  ...layout,
+                                                  assignments,
+                                                },
+                                              );
+                                              resource.refresh();
+                                            });
+                                          }}
+                                        >
+                                          <DropdownMenuRadioItem
+                                            value="auto"
+                                            disabled={action.busy}
+                                          >
+                                            Clasificación automática
+                                          </DropdownMenuRadioItem>
+                                          {layout.groups.map((group) => (
+                                            <DropdownMenuRadioItem
+                                              key={group.id}
+                                              value={group.id}
+                                              disabled={action.busy}
+                                              className="whitespace-normal break-words"
+                                            >
+                                              {group.name}
+                                            </DropdownMenuRadioItem>
+                                          ))}
+                                        </DropdownMenuRadioGroup>
+                                      </DropdownMenuSubContent>
+                                    </DropdownMenuSub>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem
                                       variant="destructive"
@@ -647,7 +749,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
         }}
       >
         <DialogContent
-          className="max-h-[90svh] overflow-y-auto sm:max-w-xl"
+          className="flex max-h-[90svh] flex-col overflow-hidden sm:max-w-xl"
           onCloseAutoFocus={restoreDialogFocus}
         >
           <DialogHeader>
@@ -660,7 +762,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
             </DialogTitle>
             <DialogDescription>
               {edit?.status === "conflicted"
-                ? "Elige una versión como punto de partida o escribe la correcta. Revisa su ámbito y fechas antes de guardar."
+                ? "Marca la versión correcta o escribe otra solución. Revisa el contenido y guarda tu elección."
                 : "Se guardará en la memoria de este negocio."}
             </DialogDescription>
           </DialogHeader>
@@ -670,6 +772,30 @@ export function Dossier({ files = false }: { files?: boolean }) {
               fact={edit}
               datasets={data.datasets}
               onDone={done}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={customize} onOpenChange={setCustomize}>
+        <DialogContent
+          className="flex max-h-[90svh] flex-col overflow-hidden sm:max-w-xl"
+          onCloseAutoFocus={restoreDialogFocus}
+        >
+          <DialogHeader>
+            <DialogTitle>Personalizar grupos</DialogTitle>
+            <DialogDescription>
+              Organiza la información de este negocio con tus propios nombres y
+              categorías.
+            </DialogDescription>
+          </DialogHeader>
+          {customize && (
+            <GroupEditor
+              business={b.id}
+              layout={layout}
+              onDone={() => {
+                resource.refresh();
+                setCustomize(false);
+              }}
             />
           )}
         </DialogContent>
@@ -764,9 +890,12 @@ function FactEditor({
     },
   );
   const [change, setChange] = useState("historical"),
+    [resolutionChoice, setResolutionChoice] = useState(""),
     pending = useRef({ signature: "", key: "" });
-  const update = (field: string, value: unknown) =>
+  const update = (field: string, value: unknown) => {
+    if (fact?.status === "conflicted") setResolutionChoice("custom");
     setContent({ ...content, [field]: value });
+  };
   const options = [
     { value: "business", label: "Todo el negocio" },
     ...datasets.flatMap((d) => [
@@ -777,13 +906,30 @@ function FactEditor({
       })),
     ]),
   ];
+  const contentKey = (value: FactContent) =>
+    JSON.stringify([
+      value.kind,
+      value.statement,
+      value.topic,
+      value.scope,
+      value.scope_id,
+      value.valid_from,
+      value.valid_until,
+      value.temporal_scope,
+      value.result_id,
+    ]);
   const conflictVersions =
     fact?.status === "conflicted"
       ? [
           {
             label: "Información actual",
             content: fact.content,
-            quote: fact.quote,
+            quote:
+              fact.alternatives?.find(
+                (a) =>
+                  a.content &&
+                  contentKey(a.content) === contentKey(fact.content),
+              )?.quote || fact.quote,
           },
           ...(fact.alternatives || []).flatMap((alternative, index) => {
             const statement =
@@ -801,13 +947,19 @@ function FactEditor({
                 ]
               : [];
           }),
-        ]
+        ].filter(
+          (version, index, versions) =>
+            versions.findIndex(
+              (v) => contentKey(v.content) === contentKey(version.content),
+            ) === index,
+        )
       : [];
   return (
     <form
-      className="space-y-4"
+      className="flex min-h-0 flex-col gap-4"
       onSubmit={(e) => {
         e.preventDefault();
+        if (fact?.status === "conflicted" && !resolutionChoice) return;
         void action.run(async () => {
           const value = {
             ...content,
@@ -845,132 +997,178 @@ function FactEditor({
         });
       }}
     >
-      {conflictVersions.length > 0 && (
-        <section aria-label="Versiones en conflicto" className="space-y-3">
-          {conflictVersions.map((version) => (
-            <div
-              key={version.label}
-              className="space-y-2 rounded-lg border bg-muted/30 p-3 text-sm"
+      <div className="min-h-0 space-y-4 overflow-y-auto px-1">
+        {conflictVersions.length > 0 && (
+          <section aria-label="Versiones en conflicto" className="space-y-3">
+            <RadioGroup
+              aria-label="Elige la versión correcta"
+              value={resolutionChoice}
+              onValueChange={(choice) => {
+                setResolutionChoice(choice);
+                const version = conflictVersions.find(
+                  (v) => v.label === choice,
+                );
+                if (version) setContent({ ...version.content });
+              }}
             >
-              <h3 className="font-semibold">{version.label}</h3>
-              <p className="whitespace-pre-wrap break-words leading-6">
-                {version.content.statement}
-              </p>
-              <p className="break-words text-xs text-muted-foreground">
-                {scopeLabel(version.content, datasets)}
-              </p>
-              {version.quote && (
-                <blockquote className="whitespace-pre-wrap break-words border-l-2 pl-2 text-xs text-muted-foreground">
-                  {version.quote}
-                </blockquote>
-              )}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={action.busy}
-                aria-label={`Usar ${version.label.toLowerCase()}`}
-                onClick={() => setContent({ ...version.content })}
+              {conflictVersions.map((version, index) => (
+                <label
+                  htmlFor={`conflict-version-${index}`}
+                  key={version.label}
+                  className={`block cursor-pointer space-y-2 rounded-lg border p-3 text-sm ${resolutionChoice === version.label ? "border-primary bg-primary/5" : "bg-muted/30 hover:bg-sidebar-accent"}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <RadioGroupItem
+                      id={`conflict-version-${index}`}
+                      value={version.label}
+                      aria-label={`Usar ${version.label.toLowerCase()}`}
+                      disabled={action.busy}
+                    />
+                    <h3 className="font-semibold">{version.label}</h3>
+                    {resolutionChoice === version.label && (
+                      <Badge variant="secondary" className="ml-auto">
+                        Seleccionada
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="whitespace-pre-wrap break-words leading-6">
+                    {version.content.statement}
+                  </p>
+                  <p className="break-words text-xs text-muted-foreground">
+                    {scopeLabel(version.content, datasets)}
+                  </p>
+                  {version.quote && (
+                    <blockquote className="whitespace-pre-wrap break-words border-l-2 pl-2 text-xs text-muted-foreground">
+                      {version.quote}
+                    </blockquote>
+                  )}
+                </label>
+              ))}
+              <label
+                htmlFor="conflict-custom"
+                className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 ${resolutionChoice === "custom" ? "border-primary bg-primary/5" : "hover:bg-sidebar-accent"}`}
               >
-                Usar esta versión
+                <RadioGroupItem
+                  id="conflict-custom"
+                  value="custom"
+                  disabled={action.busy}
+                />
+                Escribir otra solución
+              </label>
+            </RadioGroup>
+            {fact?.question && (
+              <p className="whitespace-pre-wrap break-words text-sm">
+                {fact.question}
+              </p>
+            )}
+            {fact?.conversation_id && (
+              <Button asChild variant="link" size="sm">
+                <a href={`#chat/${fact.conversation_id}`}>
+                  Ver conversación de origen
+                </a>
               </Button>
-            </div>
-          ))}
-          {fact?.question && (
-            <p className="whitespace-pre-wrap break-words text-sm">
-              {fact.question}
-            </p>
-          )}
-          {fact?.conversation_id && (
-            <Button asChild variant="link" size="sm">
-              <a href={`#chat/${fact.conversation_id}`}>
-                Ver conversación de origen
-              </a>
-            </Button>
-          )}
-        </section>
-      )}
-      <ChoiceSelect
-        label="Tipo de información"
-        value={content.kind}
-        onChange={(v) => update("kind", v)}
-        options={Object.entries(factKinds)
-          .filter(([k]) => k !== "result_reference" || fact?.content.kind === k)
-          .map(([value, label]) => ({ value, label }))}
-      />
-      <Field label="Información" id="fact-statement">
-        <Textarea
-          id="fact-statement"
-          required
-          maxLength={1600}
-          value={content.statement}
-          onChange={(e) => update("statement", e.target.value)}
-          className="min-h-28"
-        />
-      </Field>
-      <ChoiceSelect
-        label="Ámbito"
-        value={
-          content.scope === "business"
-            ? "business"
-            : `${content.scope}:${content.scope_id}`
-        }
-        onChange={(v) => {
-          const [scope, id] = v.split(":");
-          setContent({ ...content, scope, scope_id: id || null });
-        }}
-        options={options}
-      />
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Desde (opcional)" id="valid-from">
-          <Input
-            id="valid-from"
-            type="date"
-            value={content.valid_from || ""}
-            onChange={(e) => update("valid_from", e.target.value || null)}
-          />
-        </Field>
-        <Field label="Hasta (opcional)" id="valid-until">
-          <Input
-            id="valid-until"
-            type="date"
-            min={content.valid_from || ""}
-            value={content.valid_until || ""}
-            onChange={(e) => update("valid_until", e.target.value || null)}
-          />
-        </Field>
-      </div>
-      <label className="flex items-center gap-2 text-sm">
-        <Checkbox
-          checked={content.temporal_scope === "unresolved"}
-          disabled={Boolean(content.valid_from || content.valid_until)}
-          onCheckedChange={(v) =>
-            update("temporal_scope", v ? "unresolved" : "unspecified")
-          }
-        />
-        Fechas pendientes de aclarar
-      </label>
-      {fact?.status === "declared" && (
+            )}
+          </section>
+        )}
         <ChoiceSelect
-          label="Cómo aplicar el cambio"
-          value={change}
-          onChange={setChange}
-          options={[
-            {
-              value: "historical",
-              label: "Corregir también el contexto anterior",
-            },
-            { value: "future", label: "Aplicar desde ahora" },
-          ]}
+          label="Tipo de información"
+          value={content.kind}
+          onChange={(v) => update("kind", v)}
+          options={Object.entries(factKinds)
+            .filter(
+              ([k]) => k !== "result_reference" || fact?.content.kind === k,
+            )
+            .map(([value, label]) => ({ value, label }))}
         />
-      )}
-      <Notice error>{action.error}</Notice>
-      <Button type="submit" disabled={action.busy}>
-        {action.busy && <Busy />}
-        {fact?.status === "conflicted"
-          ? "Guardar solución"
-          : "Guardar información"}
-      </Button>
+        <Field label="Información" id="fact-statement">
+          <Textarea
+            id="fact-statement"
+            required
+            maxLength={1600}
+            value={content.statement}
+            onChange={(e) => update("statement", e.target.value)}
+            className="min-h-28"
+          />
+        </Field>
+        <ChoiceSelect
+          label="Ámbito"
+          value={
+            content.scope === "business"
+              ? "business"
+              : `${content.scope}:${content.scope_id}`
+          }
+          onChange={(v) => {
+            const [scope, id] = v.split(":");
+            if (fact?.status === "conflicted") setResolutionChoice("custom");
+            setContent({ ...content, scope, scope_id: id || null });
+          }}
+          options={options}
+        />
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Desde (opcional)" id="valid-from">
+            <Input
+              id="valid-from"
+              type="date"
+              value={content.valid_from || ""}
+              onChange={(e) => update("valid_from", e.target.value || null)}
+            />
+          </Field>
+          <Field label="Hasta (opcional)" id="valid-until">
+            <Input
+              id="valid-until"
+              type="date"
+              min={content.valid_from || ""}
+              value={content.valid_until || ""}
+              onChange={(e) => update("valid_until", e.target.value || null)}
+            />
+          </Field>
+        </div>
+        <label className="flex items-center gap-2 text-sm">
+          <Checkbox
+            checked={content.temporal_scope === "unresolved"}
+            disabled={Boolean(content.valid_from || content.valid_until)}
+            onCheckedChange={(v) =>
+              update("temporal_scope", v ? "unresolved" : "unspecified")
+            }
+          />
+          Fechas pendientes de aclarar
+        </label>
+        {fact?.status === "declared" && (
+          <ChoiceSelect
+            label="Cómo aplicar el cambio"
+            value={change}
+            onChange={setChange}
+            options={[
+              {
+                value: "historical",
+                label: "Corregir también el contexto anterior",
+              },
+              { value: "future", label: "Aplicar desde ahora" },
+            ]}
+          />
+        )}
+        <Notice error>{action.error}</Notice>
+      </div>
+      <div className="shrink-0 space-y-2 border-t pt-3">
+        {fact?.status === "conflicted" && (
+          <p role="status" className="text-sm text-muted-foreground">
+            {resolutionChoice
+              ? `Solución elegida: ${resolutionChoice === "custom" ? "texto personalizado" : resolutionChoice}.`
+              : "Elige una versión o escribe la solución para continuar."}
+          </p>
+        )}
+        <Button
+          type="submit"
+          disabled={
+            action.busy || (fact?.status === "conflicted" && !resolutionChoice)
+          }
+        >
+          {action.busy && <Busy />}
+          {fact?.status === "conflicted"
+            ? "Guardar solución"
+            : "Guardar información"}
+        </Button>
+      </div>
     </form>
   );
 }

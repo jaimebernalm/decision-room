@@ -217,6 +217,12 @@ Las propuestas incorporan confirmar/descartar directamente en la fila y los
 conflictos un recorrido explícito para comparar versiones y guardar la solución.
 Pasan 132 pruebas de frontend y la demo incluye texto largo para comprobar lectura
 en escritorio y móvil; se conserva el contrato de memoria e historial existente.
+La elección de conflictos se marca con opciones de radio y guardado siempre
+visible. Se añaden grupos propios persistentes por negocio, renombrado, orden,
+asignaciones y eliminación sin pérdida de recuerdos; Actualizar queda junto a
+las pestañas. Pasan 138 pruebas frontend y 40 de PostgreSQL/API/migraciones/memoria,
+además de compilación, lint y comprobaciones de escritorio/móvil. No se altera
+la aceptación analítica de otras entregas.
 
 ### 2.5.6. Inicio del negocio, informes y navegación cotidiana
 

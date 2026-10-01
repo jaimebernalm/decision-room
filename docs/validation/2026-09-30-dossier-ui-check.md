@@ -106,3 +106,40 @@ responden al cursor. Las transiciones respetan la reducción de movimiento.
 
 Estas comprobaciones mantienen el alcance de API ficticia descrito arriba;
 no validan almacenamiento PostgreSQL ni modifican negocios reales.
+
+## Elección de conflicto, grupos propios y Actualizar
+
+La elección anterior rellenaba el formulario sin señalar la versión elegida.
+Ahora las tarjetas son opciones de radio con borde destacado, círculo marcado y
+etiqueta Seleccionada. Se puede pulsar toda la tarjeta o utilizar las flechas del
+teclado. Guardar solución exige elección explícita o texto personalizado y se
+mantiene en el pie, separado del contenido desplazable. Se deduplican versiones
+repetidas en el contrato de memoria y se conserva la cita original disponible.
+
+La barra de pestañas y Actualizar quedan separados por 8 px en escritorio. Junto
+a Añadir información aparece Personalizar grupos. La configuración permite crear,
+renombrar, reordenar y eliminar; las asignaciones se guardan desde Mover a grupo.
+No se oculta información al retirar una categoría ni se mezclan grupos entre
+negocios. Por revisar permanece separado de la clasificación elegida.
+
+- Pasan 138 pruebas de frontend en 17 archivos. Las pruebas de ficha incluyen
+  elección marcada y deduplicada, guardado sin selección bloqueado, creación/
+  renombrado/orden de grupos, traslado con teclado, eliminación sin pérdida,
+  pendientes siempre visibles, validación de nombres, error concurrente,
+  cancelación con retorno del foco y grupos vacíos sin recuerdos activos.
+- Pasan 40 pruebas Python de configuración de la ficha, migraciones y memoria
+  sobre bases PostgreSQL aisladas. Se verifica la ruta HTTP autenticada, lectura
+  posterior, migración repetible, conservación de memoria, asignaciones ajenas,
+  grupos inválidos, escrituras concurrentes y reintento exacto. El esquema 27
+  añade la tabla de presentación sin cambiar los contratos analíticos.
+- TypeScript/Vite y lint de los archivos de frontend modificados correctos;
+  permanece el aviso conocido de paquetes grandes. Diff revisado y sin errores.
+- Navegador con datos ficticios: selección visible del 30 %, guardado desde móvil
+  y desaparición del conflicto; creación de Clientes, traslado con ratón de una
+  fila y conservación al recargar. En 390 × 844, el botón Guardar solución queda
+  dentro de la pantalla (borde inferior a 786 px) y ambos diálogos tienen ancho
+  desplazable igual al visible, 358 px. Controles de grupos comprobados en móvil.
+
+La persistencia y los límites de grupos sí se comprueban con PostgreSQL real en
+bases de pruebas desechables. El recorrido visual continúa en la demo aislada;
+no se modifica información real del cliente ni se llama a modelos.

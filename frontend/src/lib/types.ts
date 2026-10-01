@@ -207,6 +207,12 @@ export type Dossier = {
   facts: Fact[];
   history: Fact[];
   datasets: Dataset[];
+  layout?: DossierLayout;
+};
+export type DossierLayout = {
+  revision: number;
+  groups: { id: string; name: string }[];
+  assignments: Record<string, string>;
 };
 export type Response = Partial<Report> & {
   kind: string;

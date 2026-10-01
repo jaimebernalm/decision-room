@@ -143,6 +143,14 @@ function setup(
           status: 409,
           json: async () => ({ error: options.error }),
         };
+      if (_url === "/api/business/dossier-layout") {
+        current.layout = {
+          revision: body.revision + 1,
+          groups: body.groups,
+          assignments: body.assignments,
+        };
+        return { ok: true, json: async () => structuredClone(current.layout) };
+      }
       const existing = current.facts.find((f) => f.fact_id === body.fact_id);
       if (existing) {
         current.history.push(structuredClone(existing));
@@ -535,9 +543,7 @@ describe("compact business dossier", () => {
       within(versions).getByText(conflict.content.statement),
     ).toBeVisible();
     expect(within(versions).getByText(alternative.statement)).toBeVisible();
-    await user.click(
-      screen.getByRole("button", { name: "Usar alternativa 1" }),
-    );
+    await user.click(screen.getByRole("radio", { name: "Usar alternativa 1" }));
     expect(screen.getByRole("textbox", { name: "Información" })).toHaveValue(
       alternative.statement,
     );
@@ -582,9 +588,7 @@ describe("compact business dossier", () => {
       name: "Resolver conflicto",
     });
     await user.click(trigger);
-    await user.click(
-      screen.getByRole("button", { name: "Usar alternativa 1" }),
-    );
+    await user.click(screen.getByRole("radio", { name: "Usar alternativa 1" }));
     await user.keyboard("{Escape}");
     expect(writes).toHaveLength(0);
     expect(trigger).toHaveFocus();
@@ -598,9 +602,7 @@ describe("compact business dossier", () => {
     await user.click(
       screen.getByRole("button", { name: "Resolver conflicto" }),
     );
-    await user.click(
-      screen.getByRole("button", { name: "Usar alternativa 1" }),
-    );
+    await user.click(screen.getByRole("radio", { name: "Usar alternativa 1" }));
     await user.click(screen.getByRole("button", { name: "Guardar solución" }));
     expect(await screen.findByText("El recuerdo ha cambiado.")).toBeVisible();
     expect(screen.getByRole("textbox", { name: "Información" })).toHaveValue(
@@ -658,5 +660,167 @@ describe("compact business dossier", () => {
     expect(
       screen.queryByRole("button", { name: "Ver presentación original" }),
     ).not.toBeInTheDocument();
+  });
+  it("marks a conflict choice visibly, deduplicates the current version and requires a choice before saving", async () => {
+    const { user, writes } = setup(
+      dossier([
+        {
+          ...conflict,
+          alternatives: [
+            { content: conflict.content },
+            ...conflict.alternatives!,
+          ],
+        },
+      ]),
+    );
+    await ready();
+    await user.click(
+      screen.getByRole("button", { name: "Resolver conflicto" }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Guardar solución" }),
+    ).toBeDisabled();
+    const choices = screen.getAllByRole("radio");
+    expect(choices).toHaveLength(3);
+    const alternate = screen.getByRole("radio", { name: "Usar alternativa 2" });
+    await user.click(alternate.closest("label")!);
+    expect(alternate).toBeChecked();
+    expect(screen.getByText("Seleccionada")).toBeVisible();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Solución elegida: Alternativa 2",
+    );
+    expect(writes).toHaveLength(0);
+    await user.click(
+      screen.getByRole("radio", { name: "Usar información actual" }),
+    );
+    expect(alternate).not.toBeChecked();
+    expect(screen.getByRole("textbox", { name: "Información" })).toHaveValue(
+      conflict.content.statement,
+    );
+  });
+  it("creates, renames and reorders groups, then moves a fact without editing its memory", async () => {
+    const { user, writes } = setup();
+    await ready();
+    await user.click(
+      screen.getByRole("button", { name: "Personalizar grupos" }),
+    );
+    const first = screen.getByRole("textbox", { name: "Nombre del grupo 1" });
+    await user.clear(first);
+    await user.type(first, "Mi empresa");
+    await user.type(
+      screen.getByRole("textbox", { name: "Nombre del nuevo grupo" }),
+      "Clientes",
+    );
+    await user.click(screen.getByRole("button", { name: "Añadir grupo" }));
+    await user.click(screen.getByRole("button", { name: "Subir grupo 4" }));
+    await user.click(screen.getByRole("button", { name: "Guardar grupos" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(writes[0]).toMatchObject({
+      business_id: business.id,
+      revision: 0,
+      groups: [
+        { id: "business", name: "Mi empresa" },
+        { id: "operations", name: "Operativa" },
+        { id: expect.any(String), name: "Clientes" },
+        { id: "goals", name: "Objetivos y preferencias" },
+      ],
+    });
+    const custom = (writes[0].groups as { id: string; name: string }[])[2];
+    expect(screen.getByRole("button", { name: "Mi empresa 1" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Clientes 0" })).toBeVisible();
+    await menu(user, shop);
+    await user.click(screen.getByRole("menuitem", { name: "Mover a grupo" }));
+    const destination = await screen.findByRole("menuitemradio", {
+      name: "Clientes",
+    });
+    destination.focus();
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(writes).toHaveLength(2));
+    expect(writes[1]).toMatchObject({
+      revision: 1,
+      assignments: { [shop.fact_id]: custom.id },
+    });
+    expect(writes[1]).not.toHaveProperty("action");
+    await user.keyboard("{Escape}");
+    expect(
+      await screen.findByRole("button", { name: "Clientes 1" }),
+    ).toBeVisible();
+  });
+  it("keeps pending facts in review and preserves facts when their group is deleted", async () => {
+    const { user, writes } = setup({
+      ...dossier([shop, proposed]),
+      layout: {
+        revision: 2,
+        groups: [{ id: "custom", name: "Clientes" }],
+        assignments: { [shop.fact_id]: "custom", [proposed.fact_id]: "custom" },
+      },
+    });
+    await ready();
+    expect(screen.getByRole("button", { name: "Por revisar 1" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Clientes 1" })).toBeVisible();
+    await user.click(
+      screen.getByRole("button", { name: "Personalizar grupos" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Eliminar grupo 1" }));
+    await user.click(screen.getByRole("button", { name: "Guardar grupos" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(writes[0]).toMatchObject({
+      revision: 2,
+      groups: [],
+      assignments: {},
+    });
+    expect(screen.getByRole("button", { name: "Sin grupo 1" })).toBeVisible();
+    expect(screen.getByText(shop.content.statement)).toBeVisible();
+    expect(screen.getByText(proposed.content.statement)).toBeVisible();
+  });
+  it("validates names and preserves the group draft on a stale revision", async () => {
+    const { user } = setup(dossier(), { error: "Los grupos han cambiado." });
+    await ready();
+    await user.click(
+      screen.getByRole("button", { name: "Personalizar grupos" }),
+    );
+    const name = screen.getByRole("textbox", { name: "Nombre del grupo 1" });
+    await user.clear(name);
+    await user.type(name, "Operativa");
+    expect(
+      screen.getByRole("button", { name: "Guardar grupos" }),
+    ).toBeDisabled();
+    await user.clear(name);
+    await user.type(name, "Clientes");
+    await user.click(screen.getByRole("button", { name: "Guardar grupos" }));
+    expect(await screen.findByText("Los grupos han cambiado.")).toBeVisible();
+    expect(name).toHaveValue("Clientes");
+  });
+  it("cancels grouping without saving and restores its trigger focus", async () => {
+    const { user, writes } = setup();
+    await ready();
+    const trigger = screen.getByRole("button", { name: "Personalizar grupos" });
+    await user.click(trigger);
+    await user.type(
+      screen.getByRole("textbox", { name: "Nombre del nuevo grupo" }),
+      "Draft",
+    );
+    await user.keyboard("{Escape}");
+    expect(writes).toHaveLength(0);
+    expect(trigger).toHaveFocus();
+  });
+  it("shows saved custom groups even before the business has any active information", async () => {
+    setup({
+      ...dossier([]),
+      layout: {
+        revision: 1,
+        groups: [{ id: "clients", name: "Clientes" }],
+        assignments: {},
+      },
+    });
+    await ready();
+    expect(screen.getByRole("button", { name: "Clientes 0" })).toBeVisible();
+    expect(
+      screen.getByText("Mueve información aquí desde el menú de una fila."),
+    ).toBeVisible();
   });
 });

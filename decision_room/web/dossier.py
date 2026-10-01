@@ -13,6 +13,7 @@ from ..memory import service as memory, context
 from ..storage import Storage, digest
 from .errors import WebError, identifier, bounded
 from .business import profile
+from . import dossier_layout
 
 
 def guard(ws, data):
@@ -50,7 +51,7 @@ def listing(ws):
                 FROM dataset_bundle_files WHERE business_id=%s AND analysis_id=%s ORDER BY relative_path''',
                 (business, dataset['id'])).fetchall()
         return dict(business_id=business, business=profile(db, business), memory=memory.status(ws.config, business),
-                    facts=facts, history=history, datasets=datasets)
+                    facts=facts, history=history, datasets=datasets, layout=dossier_layout.load(db, business))
 
 
 def change(ws, data):

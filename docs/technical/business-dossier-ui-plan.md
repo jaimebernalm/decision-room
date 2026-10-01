@@ -63,3 +63,21 @@ Estado: refinamiento completado y validado el 30 de septiembre de 2026.
    de contexto. Revisar y guardar un commit local.
 
 Estado: acciones implementadas y comprobadas el 30 de septiembre de 2026.
+
+## Elección visible, grupos personalizados y barra de herramientas
+
+1. Sustituir los botones sin indicador de elección por opciones de versión
+   seleccionables. Mostrar la elección, permitir una solución escrita y mantener
+   Guardar solución visible mientras se revisan los datos. Comparar versiones
+   distintas aunque el contrato repita la información actual en alternativas.
+2. Guardar por negocio nombres, orden, grupos nuevos y asignaciones de recuerdos
+   en una configuración de presentación versionada. Por revisar sigue reservado;
+   eliminar un grupo conserva sus recuerdos mediante clasificación automática o
+   Sin grupo. Comprobar aislamiento, validación y escrituras concurrentes.
+3. Acercar Actualizar a las pestañas, ofrecer Personalizar grupos y mover datos
+   desde cada fila. Validar recorridos reales del navegador, móvil/teclado,
+   pruebas de frontend y API/persistencia, compilación y revisión pública del diff.
+   Crear un commit local al cerrar el incremento.
+
+Estado: implementado y comprobado el 30 de septiembre de 2026. Selección visible,
+guardado fijo, grupos persistentes y barra compacta; véase la validación adjunta.

@@ -811,3 +811,11 @@ INSERT INTO schema_versions(version) VALUES (25) ON CONFLICT DO NOTHING;
 ALTER TABLE chat_calls ADD COLUMN IF NOT EXISTS finished_at timestamptz;
 ALTER TABLE chat_answer_reviews ADD COLUMN IF NOT EXISTS finished_at timestamptz;
 INSERT INTO schema_versions(version) VALUES (26) ON CONFLICT DO NOTHING;
+
+-- Owner presentation groups do not alter memory contents or analytical revisions.
+CREATE TABLE IF NOT EXISTS web_dossier_layouts (
+    business_id uuid PRIMARY KEY REFERENCES businesses(id) ON DELETE CASCADE,
+    revision integer NOT NULL DEFAULT 0 CHECK (revision >= 0),
+    layout jsonb NOT NULL DEFAULT '{}'
+);
+INSERT INTO schema_versions(version) VALUES (27) ON CONFLICT DO NOTHING;

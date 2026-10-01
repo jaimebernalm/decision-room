@@ -32,6 +32,24 @@ estructurados; Guardar solución envía una corrección explícita. También se 
 escribir una solución sin alternativas. Se mantiene el menú para detalles y otras
 acciones; fechas ambiguas y preguntas abiertas no se confirman directamente.
 
+La elección de conflictos usa tarjetas con radio y estado Seleccionada. Guardar
+solución permanece visible mientras el formulario se desplaza y exige elegir o
+escribir una solución. Las alternativas que repiten la información actual se
+deduplican; para esa versión se muestra su cita original cuando está disponible.
+
+Personalizar grupos permite crear, renombrar, ordenar y eliminar categorías; el
+menú de cada fila permite moverla o recuperar su clasificación automática.
+`web_dossier_layouts` (esquema 27) guarda por negocio `groups`, `assignments` y
+`revision`, mediante `POST /api/business/dossier-layout`; la ficha los devuelve
+en `layout`. La configuración no cambia hechos, procedencia, revisiones de memoria
+ni resultados analíticos. Se comprueba negocio activo, pertenencia de los recuerdos,
+nombres únicos de hasta 60 caracteres, límite de 20 grupos y revisión concurrente.
+Un reintento exacto puede recuperar la respuesta guardada; otra escritura antigua
+se rechaza. Por revisar mantiene los pendientes visibles aunque tengan asignación.
+Eliminar grupos conserva los recuerdos mediante clasificación automática o Sin
+grupo; los grupos personalizados vacíos siguen visibles. Actualizar se sitúa junto
+a las pestañas.
+
 La ficha es consultable por el cliente. No se inyecta entera al agente: se conserva
 la selección inicial de contexto, el catálogo y las herramientas de recuperación.
 Una política de contexto permanente para futuros agentes especializados sigue fuera
