@@ -43,6 +43,7 @@ import { ReportView } from "./report";
 import { useAssistant } from "@/lib/assistant";
 import { ContextAttachments, SelectionTool } from "./context-selection";
 import { Composer } from "./composer";
+import { PresentationChangeReceipt } from "./presentation-receipt";
 export function Answer({
   response,
   ownerText = "",
@@ -137,6 +138,9 @@ export function Answer({
         >
           {response.text}
         </MessageResponse>
+      )}
+      {response.presentation_receipt && (
+        <PresentationChangeReceipt receipt={response.presentation_receipt} />
       )}
       {response.paragraphs?.map((p, i) => (
         <p key={i}>{p}</p>

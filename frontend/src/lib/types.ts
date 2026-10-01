@@ -239,7 +239,18 @@ export type Dossier = {
   history: Fact[];
   datasets: Dataset[];
 };
+export type PresentationReceipt = {
+  available?: boolean;
+  current_revision?: number | null;
+  report_id: string;
+  base_version: string;
+  revision: number;
+  previous_revision: number;
+  title: string;
+  href: string | null;
+};
 export type Response = Partial<Report> & {
+  presentation_receipt?: PresentationReceipt;
   kind: string;
   onboarding?: SetupGuide;
   first_report?: boolean;

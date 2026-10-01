@@ -34,7 +34,7 @@ class LabelTests(unittest.TestCase):
         self.assertEqual(result['charts'][0]['points'][0]['label'],'Producto numérico')
 
 class CatalogTests(unittest.TestCase):
-    def catalog(self, rows, *, rejected=False, duplicate_table=False, tamper=False):
+    def catalog(self, rows, *, rejected=False, duplicate_table=False, tamper=False, numeric_keys=False):
         import tempfile
         from pathlib import Path
         from unittest.mock import Mock
@@ -46,7 +46,7 @@ class CatalogTests(unittest.TestCase):
         business='fixture-business';analysis='fixture-analysis'
         root=Path(tmp.name);path=root/business/'catalog.parquet';path.parent.mkdir()
         with duckdb.connect() as engine:
-            engine.execute('CREATE TABLE catalog(k VARCHAR,name VARCHAR)')
+            engine.execute('CREATE TABLE catalog(k BIGINT,name VARCHAR)' if numeric_keys else 'CREATE TABLE catalog(k VARCHAR,name VARCHAR)')
             engine.executemany('INSERT INTO catalog VALUES (?,?)',rows)
             engine.execute('COPY catalog TO ? (FORMAT PARQUET)',[str(path)])
         table=dict(id='catalog',columns=[dict(name='k'),dict(name='name')],row_count=len(rows),parquet_key=f'{business}/catalog.parquet',parquet_sha256=digest(path))
@@ -73,6 +73,14 @@ class CatalogTests(unittest.TestCase):
     def test_duplicate_names_keep_distinct_codes(self):
         labels=self.catalog([('P01','Café'),('P02','Café')])
         self.assertEqual([r['name'] for r in labels],['Café (P01)','Café (P02)'])
+
+    def test_numeric_catalog_keys_include_zero_without_rewriting_quantities(self):
+        labels=self.catalog([(0,'Cero'),(1,'Uno')],numeric_keys=True)
+        self.assertEqual([r['code'] for r in labels],['0','1'])
+        report=LabelTests().report();report['summary']='0 unidades';report['charts'][0]['points'][0]['label']='0'
+        renamed=editing.relabel(report,labels)
+        self.assertEqual(renamed['summary'],'0 unidades')
+        self.assertEqual(renamed['charts'][0]['points'][0]['label'],'Cero')
 
 import test_web
 from uuid import uuid4
@@ -114,6 +122,8 @@ class RevisionTests(unittest.TestCase):
         self.assertEqual(displayed['highlights'][0]['value'], initial['highlights'][0]['value'])
         self.assertEqual(home.view(self.ws)['items'][0]['title'], 'Nombre del propietario')
         self.assertEqual(displayed['report_version'], initial['report_version'])
+        self.assertIn('Informe de mi café', self.ws.report(job))
+        self.assertIn('Nombre del propietario', self.ws.report(job))
         from decision_room.report_pdf import render_pdf
         self.assertTrue(render_pdf(displayed).startswith(b'%PDF'))
         self.assertEqual(editing.view(self.ws, initial['report_id'], 0)['title'], initial['title'])
@@ -163,3 +173,50 @@ class RevisionTests(unittest.TestCase):
         self.assertEqual(client.get(path+'?revision=0').status_code,409)
         self.ws.save_business({'request_key':str(uuid4()),'name':'Other','description':'Other business', 'expected_active_id':str(self.business['id'])})
         self.assertEqual(client.get(path).status_code,404)
+
+    def test_simultaneous_writers_cannot_overwrite_each_other(self):
+        from concurrent.futures import ThreadPoolExecutor
+        job,report,body=self.fixture()
+        def write(title):
+            try:
+                return editing.save(self.ws,report['report_id'],{**body,'request_key':str(uuid4()),'changes':[dict(kind='report',key='title',field='title',value=title)]})['revision']
+            except WebError as error:
+                return error.status
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            statuses=list(pool.map(write,['Primera sesión','Segunda sesión']))
+        self.assertCountEqual(statuses,[1,409])
+        self.assertEqual(editing.view(self.ws,report['report_id'])['presentation']['revision'],1)
+
+    def test_concurrent_report_readers_share_lock_but_writer_is_exclusive(self):
+        from decision_room.web.report_access import read_lock
+        from decision_room.agent.persistence import session_lock
+        job,report,_=self.fixture()
+        session=self.ws.row(job)['session_id']
+        with read_lock(self.config,self.business['id'],session), read_lock(self.config,self.business['id'],session):
+            self.assertEqual(self.ws.report(job,structured=True)['report_version'],report['report_version'])
+            with self.assertRaises(ValueError):
+                with session_lock(self.config,self.business['id'],session):
+                    pass
+        with session_lock(self.config,self.business['id'],session):
+            with self.assertRaises(WebError) as issue:
+                self.ws.report(job,structured=True)
+            self.assertEqual(issue.exception.status,409)
+
+    def test_html_export_escapes_owner_text_and_keeps_exact_values(self):
+        from decision_room.web.dashboard import presentation
+        from decision_room.web.presentation_html import render
+        from test_client_report import sample
+        report=presentation(sample())
+        report['title']='<script>alert(1)</script>'
+        report['claims'][0]['statement']='<img src=x onerror=alert(1)>'
+        html=render(report,'Now')
+        self.assertNotIn('<script>',html)
+        self.assertNotIn('<img',html)
+        self.assertIn('&lt;script&gt;',html)
+        self.assertIn('20,01',html)
+        self.assertIn('No conocemos costes',html)
+        report['charts'][0].update(kind='bar',panels=[],points=[dict(label='Café <grande>',value='20.005',formatted='20,01')])
+        html=render(report,'Now')
+        self.assertIn('<svg',html)
+        self.assertIn('Café &lt;grande&gt;',html)
+        self.assertIn('20,01',html)

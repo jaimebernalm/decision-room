@@ -47,4 +47,14 @@ comprobación local de las nueve etiquetas de Bruma y sus cifras originales.
 **2.5.18.2 completado:** 60 pruebas backend (edición, Inicio y frontera web),
 114 pruebas frontend, build y lint correctos. Edición real desde Inicio de Bruma
 comprobada en el informe. Se conserva el hash analítico; historial y restauración
-crean revisiones nuevas. El paso 2.5.18.3 sigue pendiente.
+crean revisiones nuevas.
+
+**2.5.18.3 completado:** edición estructurada desde el chat, recibo transaccional
+del servidor y deshacer; contexto y adjuntos utilizan la presentación vigente.
+Las preferencias de presentación no se convierten en hechos del negocio.
+Exportación HTML sincronizada y lectores concurrentes compatibles con el bloqueo
+exclusivo del análisis. Regresión backend: 122 pruebas; contratos/contexto/memoria:
+57; catálogo/Inicio y comprobaciones finales: 19. Estas suites comparten algunos
+casos. Frontend: 117 pruebas, build y lint correctos. Aceptación con GPT-6 Luna,
+navegador en escritorio/móvil y PDF real de Bruma. Véase la
+[validación completa](../validation/2026-09-30-presentation-editing.md).

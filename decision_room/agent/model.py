@@ -191,6 +191,8 @@ class ModelClient:
     def generate_memory(self, context, correction=None):
         from ..memory.contracts import Extraction, SYSTEM as MEMORY_SYSTEM
         schema = Extraction.model_json_schema()
+        schema['required'] = list(schema['properties'])
+        schema['properties']['presentation_only'].pop('default', None)
         candidate = schema['$defs']['Candidate']
         candidate['required'] = list(candidate['properties'])
         candidate['properties']['correction_of'].pop('default', None)

@@ -358,6 +358,9 @@ export function EvidenceChart({
                   <TableHead className="whitespace-normal">
                     Periodo / categoría
                   </TableHead>
+                  {chart.points.some(
+                    (p) => p.original_label && p.original_label !== p.label,
+                  ) && <TableHead>Código original</TableHead>}
                   <TableHead className="text-right whitespace-normal">
                     {chart.unit}
                   </TableHead>
@@ -367,6 +370,13 @@ export function EvidenceChart({
                 {chart.points.map((p, i) => (
                   <TableRow key={i}>
                     <TableCell>{p.label}</TableCell>
+                    {chart.points.some(
+                      (x) => x.original_label && x.original_label !== x.label,
+                    ) && (
+                      <TableCell className="font-mono text-xs">
+                        {p.original_label || p.label}
+                      </TableCell>
+                    )}
                     <TableCell className="text-right font-mono tabular-nums">
                       {p.formatted}
                     </TableCell>

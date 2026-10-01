@@ -342,7 +342,8 @@ print(read(replace(Config.load(),dsn=args['dsn']),args['business'])[0]['status']
                                               'allow_business': True}})
         schema = generate.call_args.args[-1]
         self.assertFalse(schema['additionalProperties'])
-        self.assertEqual(schema['required'], ['candidates'])
+        self.assertEqual(schema['required'], ['presentation_only', 'candidates'])
+        self.assertNotIn('default', schema['properties']['presentation_only'])
         self.assertIn('untrusted', generate.call_args.args[2])
         fields = schema['$defs']['Content']['properties']
         self.assertEqual(fields['scope']['enum'], ['business'])
@@ -446,3 +447,24 @@ print(read(replace(Config.load(),dsn=args['dsn']),args['business'])[0]['status']
         self.change(action='correct', fact_id=fact['fact_id'], expected_revision=1,
                     content=content('Abrimos los domingos desde septiembre de 2026.', valid_from='2026-09-01'))
         self.assertEqual(len(memory.read(self.config, self.b, applicable_on='2026-09-23')), 1)
+
+    def test_presentation_only_commands_do_not_change_business_memory(self):
+        source = self.capture('Quiero que P06 se muestre como Kit Bruma en el informe. Guarda el nombre.')
+        class PresentationModel(MemoryModel):
+            def generate_memory(self, context, correction=None):
+                return {'presentation_only': True, 'candidates': []}, {}
+        with connect(self.config) as db:
+            before = db.execute('SELECT revision FROM memory_heads WHERE business_id=%s',(self.b,)).fetchone()
+        extraction.process(self.config, self.b, source['id'], PresentationModel())
+        self.assertEqual(self.source(source)['status'],'applied')
+        self.assertEqual(memory.read(self.config,self.b),[])
+        with connect(self.config) as db:
+            after = db.execute('SELECT revision FROM memory_heads WHERE business_id=%s',(self.b,)).fetchone()
+        self.assertEqual((before or {}).get('revision',0),(after or {}).get('revision',0))
+        invalid = {'presentation_only':True, 'candidates':[candidate(quote='Guarda el nombre.',statement='P06 debe mostrarse como Kit Bruma.')]}
+        with connect(self.config) as db, self.assertRaises(memory.MemoryError):
+            extraction._validate(db,source,invalid)
+        # Mixed instructions retain independently stated facts.
+        mixed=self.capture('Cerramos los domingos. Cambia el título de mi informe.')
+        self.process(mixed,candidate())
+        self.assertEqual(memory.read(self.config,self.b)[0]['content']['statement'],'Cerramos los domingos.')

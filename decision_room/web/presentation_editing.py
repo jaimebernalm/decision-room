@@ -8,6 +8,15 @@ from ..database import connect
 from ..data_knowledge import service as knowledge
 from ..storage import Storage, digest
 
+from typing import Literal
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, StrictInt
+from psycopg.types.json import Jsonb
+from ..agent import review
+from ..memory import service as memory
+from ..client_report import formatted
+from .dashboard import presentation
+from .errors import WebError, identifier, bounded
+
 LABEL_COLUMNS = {'nombre', 'name', 'label', 'display_name', 'product_name', 'channel_name', 'nombre_producto', 'nombre_canal'}
 
 
@@ -40,7 +49,7 @@ def catalog_labels(config, business, analysis, db):
         quote = lambda column: '"' + column.replace('"', '""') + '"'
         with duckdb.connect() as engine:
             rows = engine.execute(f'SELECT {quote(key)}, {quote(name)} FROM read_parquet(?)', [str(path)]).fetchall()
-        codes = [r[0] for r in rows]
+        codes = [str(r[0]).strip() if r[0] is not None else '' for r in rows]
         if not rows or any(not c for c in codes) or len(set(codes)) != len(codes):
             continue
         names = [str(r[1]).strip() if r[1] is not None else '' for r in rows]
@@ -89,17 +98,6 @@ def relabel(result, labels):
             panel['colors'] = {dimension(k): v for k, v in panel.get('colors', {}).items()}
     return display
 
-
-from typing import Literal
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, StrictInt
-from psycopg.types.json import Jsonb
-from ..agent import review
-from ..memory import service as memory
-from ..client_report import formatted
-from .dashboard import presentation
-from .errors import WebError, identifier, bounded
-
-
 class Change(BaseModel):
     model_config = ConfigDict(extra='forbid')
     kind: Literal['report', 'metric', 'chart', 'insight', 'entity']
@@ -126,8 +124,12 @@ def head(db, business, reviewed):
 
 def history(db, business, reviewed):
     rows = db.execute('''SELECT revision,origin,description,created_at FROM report_presentation_revisions
-        WHERE business_id=%s AND report_id=%s AND base_version=%s ORDER BY revision DESC LIMIT 50''',
+        WHERE business_id=%s AND report_id=%s AND base_version=%s ORDER BY revision DESC LIMIT 49''',
         (business, reviewed['id'], reviewed['approved_sha256'])).fetchall()
+    if rows and not any(row['revision'] == 0 for row in rows):
+        rows += db.execute('''SELECT revision,origin,description,created_at FROM report_presentation_revisions
+            WHERE business_id=%s AND report_id=%s AND base_version=%s AND revision=0''',
+            (business, reviewed['id'], reviewed['approved_sha256'])).fetchall()
     rows = [{**row, 'created_at': row['created_at'].isoformat()} for row in rows]
     return rows or [dict(revision=0, origin='catalog', description='Nombres del catálogo', created_at=None)]
 
@@ -302,3 +304,46 @@ def save(ws, report_id, body, *, origin='editor', db=None):
     insert(new_revision, config, display, edit.request_key, request_hash, origin, description)
     display['presentation']['history'] = history(db, ws.business_id(), reviewed)
     return dict(saved=True, revision=new_revision, report=display, replayed=False)
+
+
+def chat_targets(ws, db, message, analysis_id=None):
+    """Bounded current presentation catalogue; identifiers never supplied by the model."""
+    from .. import context_references
+    selected = list(dict.fromkeys(r['report_id'] for r in context_references.pointers(message, reports_only=True)))
+    if selected:
+        ids = selected[:5]
+    else:
+        ids = [str(r['id']) for r in db.execute('''SELECT id FROM agent_reviews
+            WHERE business_id=%s AND status='approved' AND (%s::uuid IS NULL OR analysis_id=%s)
+            ORDER BY updated_at DESC,id LIMIT 2''', (ws.business_id(), analysis_id, analysis_id)).fetchall()]
+    result = []
+    for report_id in ids:
+        try:
+            report = view(ws, report_id, db=db)
+        except WebError:
+            continue
+        meta = report['presentation']
+        elements = [dict(kind='report', key='title', title=report['title'], editable=['title'])]
+        for kind, group in [('metric','highlights'), ('chart','charts'), ('insight','claims')]:
+            for element in report[group]:
+                elements.append(dict(kind=kind, key=element['key'], title=element.get('title',element.get('label')),
+                    editable=['title'] + (['unit','decimals'] if kind in ('metric','chart') else []),
+                    **({key:element[key] for key in ('unit','unit_choices','decimals')} if kind in ('metric','chart') else {})))
+        result.append(dict(report_id=report_id, base_version=meta['base_version'], revision=meta['revision'],
+                           title=report['title'], period=report['scope']['period'], elements=elements,
+                           labels=meta['labels'][:80], labels_partial=len(meta['labels'])>80,
+                           history=meta['history']))
+    return result
+
+
+def describe_changes(edit, target):
+    pieces = []
+    for change in edit.changes:
+        if change.kind == 'entity':
+            label = next(x for x in target['labels'] if x['id'] == change.key)
+            pieces.append(f"Nombre de {label['code']}: «{change.value}»")
+        else:
+            element = next(x for x in target['elements'] if x['kind'] == change.kind and x['key'] == change.key)
+            field = {'title':'Título', 'unit':'Unidad visible', 'decimals':'Decimales'}[change.field]
+            pieces.append(f"{field} de «{element['title']}»: «{change.value}»")
+    return pieces if edit.restore_revision is None else [f'Restaurar la versión {edit.restore_revision} de «{target["title"]}»']

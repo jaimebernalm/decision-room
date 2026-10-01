@@ -48,7 +48,10 @@ def _unanswered(source):
 
 
 def _validate(db, source, response):
-    candidates = Extraction.model_validate(response).candidates
+    extracted = Extraction.model_validate(response)
+    if extracted.presentation_only and extracted.candidates:
+        raise MemoryError('Una petición solo de presentación no puede crear hechos del negocio.')
+    candidates = extracted.candidates
     p, b = source['payload'], source['business_id']
     facts = {str(f['fact_id']): f for f in current(db, b)}
     corrected = set()

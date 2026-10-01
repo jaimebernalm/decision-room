@@ -12,10 +12,16 @@ class ModelActionTests(unittest.TestCase):
             client.generate_chat({})
         schema = request.call_args.args[3]
         self.assertEqual(set(schema['required']), set(schema['properties']))
-        self.assertEqual(schema['properties']['action']['enum'], ['retrieve', 'investigate', 'answer'])
+        self.assertEqual(schema['properties']['action']['enum'], ['retrieve', 'investigate', 'answer', 'edit_presentation'])
         self.assertIn('text', schema['properties'])
         self.assertIn('sources', schema['properties'])
         self.assertNotIn('reply_kind', schema['properties'])
+        self.assertIn('presentation_edit', schema['required'])
+        for name in ('PresentationEdit', 'Change'):
+            self.assertEqual(set(schema['$defs'][name]['required']), set(schema['$defs'][name]['properties']))
+        with patch.object(client, '_generate', return_value=({}, {})) as request:
+            client.generate_chat({'onboarding': {'stage': 'goal'}})
+        self.assertNotIn('edit_presentation', request.call_args.args[3]['properties']['action']['enum'])
 
     def test_inspection_is_available_only_when_profiles_remain(self):
         client = ModelClient(ModelSettings('test'))

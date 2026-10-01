@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { Pencil, History, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { api, date } from "@/lib/api";
+import { presentationNumber } from "@/lib/presentation";
 import { useAction } from "@/lib/hooks";
 import { useWorkspace } from "@/lib/workspace";
 import type { Presentation, Report } from "@/lib/types";
@@ -246,11 +247,7 @@ export function PresentationEditor({
                 <p className="font-medium break-words">{title}</p>
                 {previewNumber !== undefined && (
                   <p className="text-2xl font-semibold tabular-nums">
-                    {new Intl.NumberFormat("es-ES", {
-                      minimumFractionDigits: decimals,
-                      maximumFractionDigits: decimals,
-                      useGrouping: true,
-                    }).format(Number(previewNumber))}{" "}
+                    {presentationNumber(previewNumber, decimals)}{" "}
                     <span className="text-sm font-normal">{unit}</span>
                   </p>
                 )}
@@ -357,6 +354,23 @@ export function PresentationEditor({
                       <li key={c.key}>{c.title}</li>
                     ))}
                   </ul>
+                  <ul className="space-y-1 text-sm">
+                    {historical.claims.map((c) => (
+                      <li key={c.key}>{c.title}</li>
+                    ))}
+                  </ul>
+                  <details>
+                    <summary className="cursor-pointer text-sm">
+                      Nombres de esta versión
+                    </summary>
+                    <ul className="mt-2 space-y-1 text-sm">
+                      {historical.presentation?.labels.map((label) => (
+                        <li key={label.id}>
+                          {label.code}: {label.name}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
                   {historical.presentation?.revision !==
                     base.presentation?.revision && (
                     <Button

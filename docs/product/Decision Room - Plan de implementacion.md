@@ -448,7 +448,7 @@ con compilación, lint y 65 pruebas frontend correctos.
 
 ### 2.5.18. Nombres del catálogo y edición compartida de la presentación
 
-**Planificado, 30 de septiembre de 2026:** nombres automáticos del catálogo,
+**Completado, 30 de septiembre de 2026:** nombres automáticos del catálogo,
 edición contextual desde Inicio/informe y acciones equivalentes desde el chat.
 Revisiones de presentación persistentes, sincronización, historial y deshacer,
 conservando cálculos, fuentes y aprobación analítica original. No se permite
@@ -456,6 +456,9 @@ cambiar el significado de una unidad mediante una edición de texto.
 
 **Orden y comprobaciones:** seguir los pasos 2.5.18.1–2.5.18.3 del
 [plan de edición de presentación](../technical/presentation-editing-plan.md).
+Los tres pasos están implementados y comprobados con pruebas automatizadas,
+GPT-6 Luna y navegador en escritorio/móvil. Véase la
+[validación de edición compartida](../validation/2026-09-30-presentation-editing.md).
 
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
