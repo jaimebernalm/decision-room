@@ -427,7 +427,7 @@ class ModelClient:
                     kinds = (['bar', 'table'] if 2 <= count <= 36 else [])
                     if value.get('grain') in ('day', 'month', 'quarter', 'year') and 2 <= count <= 366:
                         kinds.append('line')
-                    elif value.get('grain') == 'category' and 2 <= count <= 36:
+                    elif value.get('grain') == 'category' and 2 <= count <= 366:
                         kinds.append('line')
                     if kinds:
                         units.setdefault(value['unit'], []).append(key)
@@ -511,6 +511,19 @@ class ModelClient:
                 cls._table_choices(branch['properties']['claim_keys'], entry['claim_keys'])
                 branches.append(branch)
             schema['$defs']['QuestionUtility'] = {'anyOf': branches}
+        delivered_owner = (context.get('report') or {}).get('owner_coverage', [])
+        if delivered_owner:
+            branches = []
+            for entry in delivered_owner:
+                branch = deepcopy(schema['$defs']['OwnerUtility'])
+                branch['properties']['deliverable_index']['enum'] = [entry['deliverable_index']]
+                branch['properties']['verdict']['enum'] = {
+                    'complete': ['pass', 'fail'], 'partial': ['partial', 'fail'],
+                    'unavailable': ['unavailable', 'fail'], 'deferred': ['deferred', 'fail'],
+                }[entry['status']]
+                cls._table_choices(branch['properties']['claim_keys'], entry['claim_keys'])
+                branches.append(branch)
+            schema['$defs']['OwnerUtility'] = {'anyOf': branches}
         # Offer only the arity that each supported numerical operation accepts.
         # A combined numerator must be a saved metric, not an extra ratio operand.
         original_check = schema['$defs']['NumericCheck']

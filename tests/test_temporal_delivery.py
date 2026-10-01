@@ -3,7 +3,7 @@ from copy import deepcopy
 from io import BytesIO
 import unittest
 from pypdf import PdfReader
-from decision_room.agent.review_contract import checks
+from decision_room.agent.review_contract import checks, Chart
 from decision_room.periods import period_index, validate_periods
 from decision_room.web.dashboard import presentation
 from decision_room.client_report import render_client
@@ -25,6 +25,30 @@ def multi():
 
 
 class TemporalDeliveryTests(unittest.TestCase):
+    def test_five_monthly_series_over_two_years_keep_all_120_values(self):
+        data = multi(); chart=data['report']['charts'][0]
+        months=[f'{year}-{month:02}' for year in (2014,2015) for month in range(1,13)]
+        names=list('ABCDE'); points=[]; coordinates=[]
+        for index, month in enumerate(months):
+            for channel, name in enumerate(names):
+                label=month+' | '+name
+                points.append(dict(label=label,value=str(channel*100+index)))
+                coordinates.append(dict(label=label,category=month,series=name))
+        data['observations'][0]['result']['series']['channels']['points']=points
+        chart['encoding'].update(series_order=names,coordinates=coordinates)
+        Chart.model_validate(chart)
+        self.assertTrue(all(c['passed'] for c in checks(data['report'],data['observations'])))
+        view=presentation(data)
+        self.assertEqual(len(view['charts'][0]['points']),120)
+        html=render_client(data,'today')
+        self.assertEqual(html.count('<circle '),120)
+        self.assertEqual(html.count('class="trend"'),115) # 23 observed intervals in each of five series.
+        text='\n'.join(p.extract_text() for p in PdfReader(BytesIO(render_pdf(view))).pages)
+        for value in ['2014-01','2015-12','423,00']:
+            self.assertIn(value,html);self.assertIn(value,text)
+        chart['kind']='bar'
+        self.assertFalse(all(c['passed'] for c in checks(data['report'],data['observations'])))
+
     def test_monthly_multi_series_preserve_missing_cells_and_exact_export_values(self):
         data = multi()
         self.assertTrue(all(c['passed'] for c in checks(data['report'],data['observations'])))

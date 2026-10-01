@@ -69,7 +69,7 @@ class ChartEncoding(Strict):
     series_title: str = Field(min_length=1, max_length=80)
     measure: Literal['level', 'change']
     series_order: list[str] = Field(min_length=1, max_length=6)
-    coordinates: list[ChartCoordinate] = Field(min_length=2, max_length=36)
+    coordinates: list[ChartCoordinate] = Field(min_length=2, max_length=366)
 
 
 class TooltipValue(Strict):
@@ -180,7 +180,7 @@ def checks(report, observations):
                 for point in points:
                     number(point['value'])
             if not 2 <= len(points) <= (366 if chart['kind'] == 'line' else 36):
-                raise ValueError('Use 2–366 daily points or 2–36 categories/periods; aggregate in Python.')
+                raise ValueError('Use 2–366 temporal line points or 2–36 bar/table points; aggregate in Python.')
             labels = [p['label'] for p in points]
             if len(set(labels)) != len(labels):
                 raise ValueError('Chart labels must be unique.')

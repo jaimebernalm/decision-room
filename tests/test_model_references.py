@@ -139,7 +139,8 @@ class ModelReferenceTests(unittest.TestCase):
 
     def test_series_choices_only_offer_kinds_that_can_render_the_whole_series(self):
         values = {
-            'too_many_groups': {'unit': 'units', 'grain': 'category', 'points': [{}] * 219},
+            'too_many_groups': {'unit': 'units', 'grain': 'category', 'points': [{}] * 367},
+            'grouped_calendar': {'unit': 'units', 'grain': 'category', 'points': [{}] * 120},
             'monthly': {'unit': 'units', 'grain': 'month', 'points': [{}] * 24},
             'daily': {'unit': 'units', 'grain': 'day', 'points': [{}] * 100},
             'top_five': {'unit': 'units', 'grain': 'category', 'points': [{}] * 5},
@@ -154,7 +155,19 @@ class ModelReferenceTests(unittest.TestCase):
                 continue
             for ref in fields['series']['anyOf']:
                 choices.update((kind, key) for kind in fields['kind']['enum'] for key in ref['properties']['series']['enum'])
-        self.assertEqual(choices, {('line','daily'), ('line','monthly'), ('bar','monthly'), ('table','monthly'), ('line','top_five'), ('bar','top_five'), ('table','top_five')})
+        self.assertEqual(choices, {('line','daily'), ('line','monthly'), ('line','grouped_calendar'), ('bar','monthly'), ('table','monthly'), ('line','top_five'), ('bar','top_five'), ('table','top_five')})
+
+    def test_owner_audit_choices_preserve_partial_status_without_forcing_approval(self):
+        entries=[dict(deliverable_index=i,status=status,claim_keys=['finding'] if i<2 else [])
+                 for i,status in enumerate(('complete','partial','unavailable','deferred'))]
+        schema=self.schema('generate_reviewer',{'report':{'owner_coverage':entries}})
+        branches=schema['$defs']['OwnerUtility']['anyOf']
+        expected=[['pass','fail'],['partial','fail'],['unavailable','fail'],['deferred','fail']]
+        for index, branch in enumerate(branches):
+            props=branch['properties']
+            self.assertEqual(props['deliverable_index']['enum'],[index])
+            self.assertEqual(props['verdict']['enum'],expected[index])
+            if index>=2:self.assertEqual(props['claim_keys']['maxItems'],0)
 
     def test_coverage_schema_allows_blocked_explanations_without_answers(self):
         context = {'plan': {'investigations': [{'key': 'units', 'status': 'ready'},

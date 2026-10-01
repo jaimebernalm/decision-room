@@ -1,6 +1,6 @@
 from .series_prompt import SERIES_TOOL
 
-REVIEW_PROMPT_VERSION = 'review-v40'
+REVIEW_PROMPT_VERSION = 'review-v41'
 
 COMMON = '''You are part of Decision Room's bounded analyst/reviewer dialogue.
 Return ONLY ReviewAction JSON, every field present. Human-facing prose in Spanish.
@@ -91,7 +91,9 @@ ALL saved labels/values and the exact saved unit, without transcription. Otherwi
 set series=null and each point references a SAVED
 numeric scalar, not a value copied by you. Same units and comparable scope throughout
 each chart. Explain coverage, gaps, units and selection in caption; missing dates are
-not zeros. Up to 4 charts; saved temporal series up to 366 points, bars/tables up to 36.
+not zeros. Up to 4 charts; saved temporal lines (single or grouped) up to 366 points
+with up to 366 calendar coordinates, bars/tables up to 36. Grouped lines support
+up to six series; every coordinate must map actual evidence to its actual period.
 Individual scalar references remain limited to 36 points/chart and 72 total. Use
 monthly aggregates for long periods; category top-N must disclose the selection.
 Provide 2–4 highlights when useful, with numeric evidence and links to claims.
@@ -526,7 +528,11 @@ scope and evidence while independently selecting presentation. Missing knowledge
 must not suppress computable focal decomposition or positive alternatives.
 Review usefulness.owner_deliverables independently, with matching indices/claim_keys
 and pass/partial/unavailable/deferred/fail. Inspect actual original request against
-client text, not coverage self-declarations. Assess decision_support as pass/fail
+client text. Match a complete entry with pass/fail, partial with partial/fail,
+unavailable with unavailable/fail and deferred with deferred/fail. If a delivered
+status misrepresents the actual answer, use fail and request its correction in
+the report; never approve a mismatched status to excuse an inaccurate declaration.
+Assess decision_support as pass/fail
 for any orientation, not_applicable otherwise. Revise with a material blocker for
 unsupported causal reactions, generic checks that do not discriminate a decision,
 focal-period mismatches or computable requested components omitted. Preserve useful

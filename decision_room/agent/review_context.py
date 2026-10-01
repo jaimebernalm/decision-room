@@ -71,6 +71,7 @@ def material(config, db, session, run):
             'business_direction': run['snapshot'].get('business_direction'),
             'owner_deliverables': owner_deliverables({'business_direction': run['snapshot'].get('business_direction'), 'owner_context': run['snapshot']['source']['owner_context']}),
             'delivery_capabilities': {'execution_artifact_downloads': False, 'chart_categories': 36, 'daily_line_points': 366,
+                                      'temporal_line_points': 366, 'grouped_temporal_coordinates': 366,
                                       'claim_evidence_refs': 12, 'claims': 6, 'charts': 4,
                                       'surfaces': ['web_report', 'static_html', 'pdf'],
                                       'representations': {'bar': ['single', 'grouped'], 'table': ['single', 'grouped'], 'line': ['day', 'month', 'quarter', 'year', 'single', 'grouped']},

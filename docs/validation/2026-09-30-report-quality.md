@@ -56,6 +56,15 @@ campos opcionales internos que el protocolo estricto exige declarar explícitame
   para calendarios agrupados se declara en `encoding`. Evita ofrecer al modelo
   un override incompatible que luego exigiría reparación. 24 pruebas de esquemas,
   referencias y entrega temporal pasan tras este ajuste.
+- La matriz detectó dos fallos de revisión por incoherencia entre la auditoría de
+  cobertura y el estado parcial/no disponible del borrador. El esquema de
+  `OwnerUtility` ofrece ahora índices, referencias y estados compatibles con el
+  informe vigente, conservando `fail` para el desacuerdo independiente. Un estado
+  inexacto debe corregirse en el borrador, no aprobarse por eludir la validación.
+- Las líneas agrupadas admiten hasta 366 coordenadas, igual que el límite temporal;
+  barras/tablas mantienen 36 puntos. Una prueba de cinco series y 24 meses conserva
+  los 120 valores en API, HTML y PDF y rechaza usarlos en una barra de 120 puntos.
+  56 pruebas de esquemas, revisión, series y exportaciones pasan; revisión v41.
 
 ## Comparación y aceptación
 
