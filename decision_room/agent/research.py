@@ -88,7 +88,7 @@ def start(config, business_id, session_id, *, request_key, max_investigations=No
         options = {'max_parallel': max_parallel, 'delegation': delegation, 'max_investigations': max_investigations, 'max_attempts_per_investigation': 6 if quality_first else 3,
                    'max_turns': max_turns, 'max_model_calls': max_model_calls, 'python_timeout': python_timeout,
                    'max_rounds': max_rounds, 'max_executions': max_executions, 'max_seconds': max_seconds, 'max_agenda': 24}
-        options.update(business_planner=business_planner, quality_first=quality_first, max_planner_checkpoints=24,
+        options.update(delivery_quality=1, business_planner=business_planner, quality_first=quality_first, max_planner_checkpoints=24,
                        max_context_bytes=512000 if quality_first else 200000)
         request_hash = fingerprint({'knowledge': key, 'options': options, 'keys': keys, 'version': RESEARCH_GRAPH_VERSION})
         row = db.execute('''INSERT INTO agent_research(id,business_id,session_id,analysis_id,plan_revision,

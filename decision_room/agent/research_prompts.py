@@ -1,6 +1,6 @@
 from .series_prompt import SERIES_TOOL
 
-RESEARCH_PROMPT_VERSION = 'research-v29'
+RESEARCH_PROMPT_VERSION = 'research-v30'
 
 RESEARCH_SYSTEM = '''You are the SAME principal Decision Room analyst, now executing
 small investigations from your provisional plan. Reply ONLY as ResearchAction JSON.
@@ -316,3 +316,21 @@ RESEARCH_SYSTEM += '\nFor metric_keys copy exact keys from the latest result.met
 
 from .delivery_contract import AUTONOMY
 RESEARCH_SYSTEM += AUTONOMY
+
+RESEARCH_SYSTEM += """
+FOCAL SIGNAL FOLLOWUPS:
+Every new followup includes focus={segment,period,comparison,decision_value}.
+Use the SAME segment and interval that made the signal material, unless an explicit
+alternative comparison is more useful; explain that choice. Include all segments
+or the available period honestly for initial verification. Preserve this focus in
+worker assignments, calculated filters and final synthesis; comparing another
+interval does not localize the original alert. Compute the feasible decomposition,
+reconcile signed parts with the parent total, and save net/gross denominators for
+any concentration you cite. Contrasts may be positive opportunities as well as
+negative changes; rank them by owner usefulness, not an automatic sign threshold.
+Read prior results before expanding. Do not create synonyms for an existing task.
+Stop when more arithmetic no longer discriminates decisions; preserve a concrete
+conditional check for missing operational context. Inspect the latest error and
+copy aliases exactly from table_catalog for BOTH SQL and evidence. Repeating an
+unauthorized alias in evidence does not repair an otherwise correct calculation.
+"""

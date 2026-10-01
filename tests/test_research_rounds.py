@@ -51,6 +51,7 @@ write_result({{'total':str(total)}}, evidence=[{{'metric':'total','tables':[{tab
     def child(parent, key, relevance):
         return {k: v for k, v in {**parent, 'key': key, 'question': 'Comprobar contribución ' + key,
             'stage': 'breakdown', 'basis_metric_keys': ['total'],
+            'focus': dict(segment=key, period='Extracto disponible', comparison='Contribución al total', decision_value='Localizar la contribución de este grupo.'),
             'priority': dict(relevance=relevance, magnitude=3, reliability=5, cost=1, reason='Prioridad estimada para el objetivo.')}.items()
             if k not in ('round', 'parent_key')}
 
@@ -86,6 +87,21 @@ class RoundTests(unittest.TestCase):
         self.assertEqual(len(again['model_calls']), 6)
         self.assertEqual(len(again['steps']), 6)
         self.assertFalse(again['publishable'])
+
+    def test_focus_survives_followup_and_missing_focus_is_rejected(self):
+        model = RoundModel()
+        self.start(model=model)
+        context = next(c for c in model.seen if any(o['status'] == 'completed' for o in c['observations']) and not c['findings'])
+        raw, _ = model.generate_research(context)
+        snapshot = {'proposal': context['plan'], 'answers': context['answers'], 'tables': context['table_catalog']}
+        accepted = validate_research_action(raw, snapshot, context['observations'], context['findings'], context['budgets'])
+        history = [{'action': accepted}]
+        child = next(i for i in agenda(snapshot, history)['proposal']['investigations'] if i['key'] == 'major')
+        self.assertEqual(child['focus']['segment'], 'major')
+        self.assertEqual(child['parent_key'], 'sales')
+        raw['followups'][0].pop('focus')
+        with self.assertRaisesRegex(ValueError, 'followup needs focus'):
+            validate_research_action(raw, snapshot, context['observations'], context['findings'], context['budgets'])
 
     def test_execution_and_investigation_budgets_keep_reviewable_candidate(self):
         for option in ('max_executions', 'max_investigations'):

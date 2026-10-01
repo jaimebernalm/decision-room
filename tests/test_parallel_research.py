@@ -175,6 +175,7 @@ class ParallelTests(unittest.TestCase):
                     parent = context['plan']['investigations'][0]
                     raw['followups'] = [{k: v for k, v in dict(parent, key='units__verify', question='Verificar alcance de unidades',
                         depends_on=['units'], stage='verify', basis_metric_keys=['total'],
+                        focus=dict(segment='Unidades', period='Extracto', comparison='Verificar alcance', decision_value='Confirmar cobertura del extracto.'),
                         priority=dict(relevance=5,magnitude=3,reliability=5,cost=1,reason='Comprobar alcance.')).items()
                         if k not in ('round', 'parent_key')}]
                 return raw, usage
@@ -197,6 +198,7 @@ class ParallelTests(unittest.TestCase):
                     task = next(i for i in context['plan']['investigations'] if i['key'] == 'units')
                     child = {k: v for k, v in dict(task, key='units__focus', question='Profundizar en el segmento observado',
                         depends_on=['units'], stage='breakdown', basis_metric_keys=['total'],
+                        focus=dict(segment='Unidades', period='Extracto', comparison='Desglose del grupo', decision_value='Localizar contribuciones al total.'),
                         priority=dict(relevance=5,magnitude=4,reliability=5,cost=1,reason='Contraste material.')).items()
                         if k not in ('round','parent_key')}
                     return dict(action='expand',investigation_key='units',table_ids=[],code='',metric_keys=['total'],

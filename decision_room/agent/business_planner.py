@@ -141,7 +141,7 @@ def validate(raw, context):
         raise ValueError('Use only actual agenda keys and saved candidate evidence keys.')
     from ..series import evidence_value
     observed = [{**o, 'current': True, 'inputs': {t['alias']: t for t in context['table_catalog']}}
-                for o in context['observations']]
+                for o in context.get('observations', [])]
     for item in action.orientation:
         for ref in item.evidence:
             evidence_value(observed, ref.model_dump())

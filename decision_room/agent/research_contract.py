@@ -7,7 +7,15 @@ from .contracts import Strict, Investigation, ResearchPriority
 from .research_agenda import ResearchBudgetReached
 
 
+class SignalFocus(Strict):
+    segment: str = Field(min_length=1, max_length=200)
+    period: str = Field(min_length=1, max_length=200)
+    comparison: str = Field(min_length=1, max_length=400)
+    decision_value: str = Field(min_length=1, max_length=800)
+
+
 class Followup(Investigation):
+    focus: SignalFocus | None = None
     priority: ResearchPriority
     stage: Literal['verify', 'breakdown']
     basis_metric_keys: list[str] = Field(min_length=1, max_length=8)
@@ -175,6 +183,13 @@ def validate_research_action(raw, snapshot, observations, findings, options):
         allowed = {t['id'] for t in snapshot['tables']}
         known, child_resolved = dependencies(snapshot, findings, recording=action.investigation_key)
         for child in action.followups:
+            if options.get('delivery_quality') and child.focus is None:
+                raise ValueError('A new followup needs focus: segment, focal period/comparison and decision_value; use all segments/available period when appropriate.')
+            if any(set(child.table_ids) == set(i['table_ids'])
+                   and child.proposed_operation.strip().casefold() == i['proposed_operation'].strip().casefold()
+                   and child.focus is not None and child.focus.model_dump() == i.get('focus')
+                   for i in work.values()):
+                raise ValueError('This focused operation is already on the agenda; reuse it or explain a different contrast.')
             assignment = options.get('worker_assignment')
             if assignment and not child.key.startswith(assignment['investigation_key'] + '__'):
                 raise ValueError('Worker followup keys must start with the assigned key plus __.')

@@ -286,7 +286,7 @@ El estado de cada incremento se registra en la lista inferior:
 | 3.9.7 | Comparación controlada y prueba conjunta final. | Lotes conservados base/nuevo con Bruma y WWI, aceptación independiente, recursos/fallos y respuestas desconocidas; usuario puede reconocer prioridad y próximo paso; resultados y límites documentados. |
 
 - [x] 3.9.1 — Contratos y criterios.
-- [ ] 3.9.2 — Investigación y síntesis.
+- [x] 3.9.2 — Investigación y síntesis.
 - [ ] 3.9.3 — Entrega y revisión de utilidad.
 - [ ] 3.9.4 — Evidencia y representaciones.
 - [ ] 3.9.5 — Interacción y primera lectura.
@@ -392,3 +392,17 @@ aportado por el propietario; no habilita Internet en el sandbox de Python.
   se repitió con la configuración independiente, sin tocar la base de otro checkout.
 - Los campos estructurales no acreditan utilidad semántica. Profundización,
   activación de revisión, representaciones e interacción siguen pendientes.
+
+### 3.9.2 — Seguimientos focales implementados
+
+- Los nuevos seguimientos conservan segmento, periodo, comparación y valor para
+  la decisión en `focus`, junto al origen/ejecución/métricas ya persistidos.
+  El principal mantiene libertad de contraste y métodos; las asignaciones y
+  agendas conservan ese alcance. Operaciones focales idénticas se reutilizan.
+- Instrucciones de descomposición, denominadores y conciliación orientan los
+  cálculos al intervalo de la señal y al contraste entre oportunidades.
+- 58 pruebas de rondas, delegación y planificador pasan con PostgreSQL/Docker:
+  origen, profundidad, desconocidos, contexto, reparación, pausa y replay sin
+  repetir ejecuciones. Se actualizaron fixtures de protocolo al campo focal;
+  no se han usado como evidencia de mejora semántica.
+- Validación semántica de prioridades y reacciones se activa en 3.9.3.
