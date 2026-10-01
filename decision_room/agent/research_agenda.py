@@ -59,6 +59,14 @@ def coverage(snapshot, history, recorded, options, reason=''):
 
 def limitation(summary, report):
     """Describe delivered answers, not merely computations that finished."""
+    owner = report.get('owner_coverage')
+    if owner:
+        complete = sum(e['status'] == 'complete' for e in owner)
+        partial = sum(e['status'] == 'partial' for e in owner)
+        limits = [e['explanation'] for e in owner if e['status'] != 'complete']
+        return (f'Cobertura del encargo: {complete} de {len(owner)} entregables completos'
+                + (f'; {partial} parciales' if partial else '') + '.'
+                + (' Pendiente: ' + '; '.join(limits) if limits else ''))[:1600]
     items = summary['investigations']
     answered = {i['investigation_key'] for i in report['question_coverage'] if i['status'] == 'answered'}
     pending = [i['question'] for i in items if i['key'] not in answered]

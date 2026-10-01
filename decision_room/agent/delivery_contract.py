@@ -90,3 +90,15 @@ missing sales definition does not automatically invalidate marketing or quantiti
 Never drop a required view on correction without a legible valid replacement or
 an actual source/definition limitation. Review semantic quality, not field presence.
 '''
+
+
+def validate_orientation(report, context):
+    if context.get('review_policy', 0) < 4:
+        return
+    brief = (context.get('business_direction') or {}).get('brief') or {}
+    oriented = [c['orientation'] for c in report['claims'] if c.get('orientation')]
+    if brief.get('intent') == 'discover' and not oriented:
+        raise ValueError('Discovery delivery needs an evidence-linked priority and decision orientation, including partial limits.')
+    for item in oriented:
+        if not item['next_check'].strip() and not item['reactions'] and not item['limitation'].strip():
+            raise ValueError('Explain a concrete next check, a supported conditional reaction or why a decision is not yet possible.')

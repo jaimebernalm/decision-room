@@ -37,7 +37,10 @@ def assessed(response, context):
     return {**response, 'assessment': dict(report_step=context['report_step'], issues=issues,
             delivery=dict(numbers='pass', meaning='pass', charts='pass' if context['report']['charts'] else 'not_applicable',
                           coverage='pass', files='pass'),
-            usefulness=dict(goal_alignment='pass', reason='Scripted factual total goal only.', questions=[
+            usefulness=dict(owner_deliverables=[dict(deliverable_index=e['deliverable_index'],
+                verdict={'complete':'pass','partial':'partial','unavailable':'unavailable','deferred':'deferred'}[e['status']],
+                claim_keys=e['claim_keys'], reason='Scripted protocol, not quality evidence.') for e in context['report'].get('owner_coverage', [])],
+                decision_support='pass' if any(c.get('orientation') for c in context['report']['claims']) else 'not_applicable', goal_alignment='pass', reason='Scripted factual total goal only.', questions=[
                 dict(investigation_key=q['investigation_key'], verdict='pass' if q['status']=='answered' else 'unavailable',
                      claim_keys=q['claim_keys'], reason='Scripted protocol fixture, not semantic evaluation.')
                 for q in context['report'].get('question_coverage', [])]))}
@@ -46,7 +49,11 @@ def assessed(response, context):
 def draft(context, text='Total registrado en este extracto.'):
     available = [o for o in context['observations'] if o['current'] and o['status'] == 'completed']
     ref = {'execution_id': available[-1]['execution_id'], 'metric': 'total'}
-    return {'title': 'Ventas seleccionadas', 'summary': text,
+    from decision_room.agent.delivery_contract import owner_deliverables
+    return {'contract_version': 2 if context.get('review_policy',0)>=4 else 1,
+            'owner_coverage': [dict(deliverable_index=i,status='complete',claim_keys=['sales'],explanation='Total factual de prueba.')
+                               for i,_ in enumerate(owner_deliverables(context))] if context.get('review_policy',0)>=4 else [],
+            'title': 'Ventas seleccionadas', 'summary': text,
             'question_coverage': [{'investigation_key': i['key'], 'status': 'answered', 'claim_keys': ['sales'],
                                    'explanation': 'La suma responde a esta investigación de prueba.'}
                                   for i in context.get('plan', {}).get('investigations', []) if i['status'] == 'ready'],

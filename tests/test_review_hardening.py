@@ -25,7 +25,7 @@ class HardeningTests(unittest.TestCase):
     def test_usefulness_failure_missing_questions_and_false_coverage_block_approval(self):
         self.run_review()
         ctx=self.roles.contexts[-1]
-        self.assertEqual(ctx['review_policy'],3)
+        self.assertEqual(ctx['review_policy'],4)
         good=assessed(action('approve'),ctx)
         for mutation in ('missing','goal','question','coverage'):
             bad=deepcopy(good)
@@ -39,6 +39,34 @@ class HardeningTests(unittest.TestCase):
         legacy={**ctx,'review_policy':1}
         good['assessment']['usefulness']=None
         validate(good,'reviewer',legacy)
+
+    def test_owner_coverage_and_conditional_reaction_audit_are_independent(self):
+        self.run_review()
+        ctx = deepcopy(self.roles.contexts[-1])
+        ref = ctx['report']['claims'][0]['evidence'][0]
+        ctx['report']['claims'][0]['orientation'] = dict(segment='Extracto', period='Periodo disponible',
+            signal='Actividad calculada', evidence=[ref], relative_priority='Responde a la pregunta factual.',
+            knowledge='calculated', next_check='Confirmar registros del extracto si se requiere el total del negocio.',
+            decision_value='Determinar si hace falta completar fuentes.',
+            reactions=[dict(condition='Se acredita una omisión.', reaction='Completar registros y recalcular.')],
+            limitation='No constan fuentes adicionales.')
+        good = assessed(action('approve'), ctx)
+        validate(good, 'reviewer', ctx)
+        # A reviewer identifies an invented causal reaction; structure alone cannot approve it.
+        bad = deepcopy(good)
+        bad['assessment']['usefulness']['decision_support'] = 'fail'
+        with self.assertRaisesRegex(ValueError, 'unsupported reactions'): validate(bad, 'reviewer', ctx)
+        bad = deepcopy(good); bad['assessment']['usefulness']['owner_deliverables'] = []
+        with self.assertRaisesRegex(ValueError, 'each owner deliverable'): validate(bad, 'reviewer', ctx)
+        # A computable owner component omitted is a semantic failure, even with valid internal branches.
+        bad = deepcopy(good); bad['assessment']['usefulness']['owner_deliverables'][0]['verdict'] = 'fail'
+        with self.assertRaisesRegex(ValueError, 'failed owner deliverables'): validate(bad, 'reviewer', ctx)
+        ctx['report']['owner_coverage'][0]['status'] = 'partial'
+        ctx['report']['owner_coverage'][0]['explanation'] = 'Faltan fuentes para el negocio completo.'
+        validate(assessed(action('approve'), ctx), 'reviewer', ctx)
+        # A limited answer cannot receive complete approval by changing only the audit label.
+        bad = assessed(action('approve'), ctx); bad['assessment']['usefulness']['owner_deliverables'][0]['verdict'] = 'pass'
+        with self.assertRaisesRegex(ValueError, 'partial/unavailable'): validate(bad, 'reviewer', ctx)
 
     def test_unresolved_parallel_disagreement_cannot_be_published_as_answered(self):
         self.run_review()

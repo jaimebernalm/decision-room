@@ -287,7 +287,7 @@ El estado de cada incremento se registra en la lista inferior:
 
 - [x] 3.9.1 — Contratos y criterios.
 - [x] 3.9.2 — Investigación y síntesis.
-- [ ] 3.9.3 — Entrega y revisión de utilidad.
+- [x] 3.9.3 — Entrega y revisión de utilidad.
 - [ ] 3.9.4 — Evidencia y representaciones.
 - [ ] 3.9.5 — Interacción y primera lectura.
 - [ ] 3.9.6 — Integración y recuperación.
@@ -406,3 +406,19 @@ aportado por el propietario; no habilita Internet en el sandbox de Python.
   repetir ejecuciones. Se actualizaron fixtures de protocolo al campo focal;
   no se han usado como evidencia de mejora semántica.
 - Validación semántica de prioridades y reacciones se activa en 3.9.3.
+
+### 3.9.3 — Entrega y revisión de decisiones implementadas
+
+- Nuevas revisiones usan política 4 y contrato 2. La redacción y revisión reciben
+  el encargo del propietario separado de ramas; la cobertura visible cuenta
+  entregables completos/parciales, no investigaciones internas.
+- Descubrimiento exige orientación respaldada; la revisión independiente audita
+  utilidad de cada entregable y apoyo de las reacciones. Un fallo bloquea aprobación
+  aunque la aritmética y la cobertura interna pasen. Desconocidos y entregas parciales
+  mantienen límites; organizar o responder un dato no exige inventar acciones.
+- La huella de aprobación incluye también ejecuciones citadas solo en orientación.
+- 60 pruebas de diálogo, endurecimiento y planificador pasan; 34 de contratos,
+  esquemas/referencias y seguimiento focal pasaron durante integración. Casos
+  de protocolo comprueban decisión respaldada, contexto faltante, parcial, reacción
+  rechazada por el revisor y componente omitido. La calidad del juicio del modelo
+  queda para evaluación independiente, no se deduce de fixtures guionizados.

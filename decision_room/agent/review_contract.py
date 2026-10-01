@@ -11,7 +11,7 @@ from .review_policy import ReviewAssessment, validate_assessment
 from ..series import saved_series, numeric, evidence_value
 
 
-from .delivery_contract import (MetricRef, SeriesPointRef, DecisionOrientation, OwnerCoverage, validate_owner_coverage)
+from .delivery_contract import (MetricRef, SeriesPointRef, DecisionOrientation, OwnerCoverage, validate_owner_coverage, validate_orientation)
 
 
 class Claim(Strict):
@@ -253,6 +253,7 @@ def checks(report, observations):
 def validate_coverage(report, context):
     """Require explicit coverage, without pretending to verify semantic truth."""
     validate_owner_coverage(report, context)
+    validate_orientation(report, context)
     investigations = context.get('plan', {}).get('investigations', [])
     expected = {i['key'] for i in investigations if i['status'] == 'ready'}
     if not investigations:

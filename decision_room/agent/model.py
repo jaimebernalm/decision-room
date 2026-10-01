@@ -388,6 +388,13 @@ class ModelClient:
             definition['required'] = list(definition['properties'])
             for field in definition['properties'].values():
                 field.pop('default', None)
+        if context.get('review_policy', 0) >= 4:
+            schema['$defs']['ReportDraft']['properties']['contract_version']['enum'] = [2]
+            owner = context.get('owner_deliverables') or []
+            if owner:
+                schema['$defs']['OwnerCoverage']['properties']['deliverable_index']['enum'] = list(range(len(owner)))
+                schema['$defs']['OwnerUtility']['properties']['deliverable_index']['enum'] = list(range(len(owner)))
+                schema['$defs']['ReportDraft']['properties']['owner_coverage'].update(minItems=len(owner), maxItems=len(owner))
         point_choices = []
         for item in context.get('observations', []):
             if item.get('current') and item['status'] == 'completed' and item.get('result') and not item.get('result_omitted'):

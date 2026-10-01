@@ -8,6 +8,7 @@ from .context import encoded, fingerprint
 from .persistence import answers
 from .review_contract import checks
 from .review_policy import ledger, delivery_manifest
+from .delivery_contract import owner_deliverables
 
 
 def events(db, review_id):
@@ -68,6 +69,7 @@ def material(config, db, session, run):
             'research_coverage': run['snapshot'].get('research_coverage'),
             'research_synthesis': run['snapshot'].get('research_synthesis'),
             'business_direction': run['snapshot'].get('business_direction'),
+            'owner_deliverables': owner_deliverables({'business_direction': run['snapshot'].get('business_direction'), 'owner_context': run['snapshot']['source']['owner_context']}),
             'delivery_capabilities': {'execution_artifact_downloads': False, 'chart_categories': 36, 'daily_line_points': 366,
                                       'claim_evidence_refs': 12, 'claims': 6, 'charts': 4,
                                       'surfaces': ['web_report', 'static_html', 'pdf'],
@@ -114,6 +116,8 @@ def model_context(materialized, role):
 
 def approval_digest(materialized, knowledge):
     cited = {ref['execution_id'] for claim in materialized['report']['claims'] for ref in claim['evidence']}
+    cited.update(ref['execution_id'] for claim in materialized['report']['claims']
+                 for ref in (claim.get('orientation') or {}).get('evidence', []))
     for chart in materialized['report'].get('charts', []):
         cited.update(point['value']['execution_id'] for point in chart['points'])
         if chart.get('series'):

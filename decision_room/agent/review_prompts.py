@@ -507,3 +507,27 @@ from .delivery_contract import AUTONOMY
 COMMON += AUTONOMY
 ANALYST_SYSTEM += AUTONOMY
 REVIEWER_SYSTEM += AUTONOMY
+
+DELIVERY_QUALITY_INSTRUCTIONS = """
+For review_policy>=4 submit contract_version=2 and owner_coverage keyed by the
+zero-based index in owner_deliverables. State complete/partial/unavailable/deferred,
+actual claim_keys and explanation for EACH component. Keep question_coverage for
+internal investigations separately. A chart or cross-tab alone does not establish
+useful product priorities; identify which segment/period/components merit attention.
+For discover include at least one claim.orientation, using the structured contract.
+For other intents use orientation when helpful, null otherwise. next_step can be a
+short readable form; keep all material decision guidance in orientation.
+The business handoff provides suggestions, not approved facts. Preserve its useful
+scope and evidence while independently selecting presentation. Missing knowledge
+must not suppress computable focal decomposition or positive alternatives.
+Review usefulness.owner_deliverables independently, with matching indices/claim_keys
+and pass/partial/unavailable/deferred/fail. Inspect actual original request against
+client text, not coverage self-declarations. Assess decision_support as pass/fail
+for any orientation, not_applicable otherwise. Revise with a material blocker for
+unsupported causal reactions, generic checks that do not discriminate a decision,
+focal-period mismatches or computable requested components omitted. Preserve useful
+partial answers with explicit limits. Correct uncertainty per source/measure, not
+by silently dropping a deliverable or carrying sales basis ambiguity to marketing.
+"""
+ANALYST_SYSTEM += DELIVERY_QUALITY_INSTRUCTIONS
+REVIEWER_SYSTEM += DELIVERY_QUALITY_INSTRUCTIONS

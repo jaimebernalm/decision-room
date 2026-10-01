@@ -31,7 +31,16 @@ class QuestionUtility(Strict):
     reason: str = Field(min_length=1, max_length=1000)
 
 
+class OwnerUtility(Strict):
+    deliverable_index: int = Field(ge=0, le=11)
+    verdict: Literal['pass', 'partial', 'unavailable', 'deferred', 'fail']
+    claim_keys: list[str] = Field(max_length=6)
+    reason: str = Field(min_length=1, max_length=1000)
+
+
 class UsefulnessAudit(Strict):
+    owner_deliverables: list[OwnerUtility] = Field(default_factory=list, max_length=12)
+    decision_support: Literal['pass', 'fail', 'not_applicable'] = 'not_applicable'
     goal_alignment: Literal['pass', 'fail']
     reason: str = Field(min_length=1, max_length=1200)
     questions: list[QuestionUtility] = Field(max_length=24)
@@ -73,6 +82,7 @@ def delivery_manifest(report, observations):
         charts.append({'key': chart['key'], 'kind': chart['kind'], 'points': count, 'unit': chart['unit']})
     return {'claim_keys': [c['key'] for c in report['claims']], 'charts': charts,
             'question_coverage': report.get('question_coverage', []),
+            'owner_coverage': report.get('owner_coverage', []),
             'downloadable_execution_files': [],
             'note': 'Only report prose, cited values, highlights and these charts reach the client. Sandbox artifacts are not attachments.'}
 
@@ -132,6 +142,24 @@ def validate_assessment(action, role, context):
                 raise ValueError('Deferred work requires an explicit matching deferred usefulness assessment.')
         if action.action == 'approve' and (utility.goal_alignment != 'pass' or any(q.verdict == 'fail' for q in utility.questions)):
             raise ValueError('Cannot approve failed usefulness or misleading question coverage.')
+
+    if context.get('review_policy', 0) >= 4:
+        utility = assessment.usefulness
+        delivered = {e['deliverable_index']: e for e in context['report']['owner_coverage']}
+        audited = {e.deliverable_index: e for e in utility.owner_deliverables}
+        if len(audited) != len(utility.owner_deliverables) or audited.keys() != delivered.keys():
+            raise ValueError('Independently audit each owner deliverable exactly once.')
+        verdicts = {'complete': ('pass', 'fail'), 'partial': ('partial', 'fail'),
+                    'unavailable': ('unavailable', 'fail'), 'deferred': ('deferred', 'fail')}
+        for key, item in audited.items():
+            entry = delivered[key]
+            if set(item.claim_keys) != set(entry['claim_keys']) or item.verdict not in verdicts[entry['status']]:
+                raise ValueError('Owner usefulness must match actual delivered claims and partial/unavailable status.')
+        oriented = any(c.get('orientation') for c in context['report']['claims'])
+        if oriented and utility.decision_support == 'not_applicable':
+            raise ValueError('Decision orientation requires an independent decision_support audit.')
+        if action.action == 'approve' and (utility.decision_support == 'fail' or any(e.verdict == 'fail' for e in audited.values())):
+            raise ValueError('Cannot approve unsupported reactions or failed owner deliverables.')
 
 
 def prioritize_claims(report, synthesis):
