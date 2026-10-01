@@ -50,6 +50,13 @@ los mensajes, nombres, informes y datos ya guardados conservan su texto original
   por el modelo en textos nuevos; onboarding y etiquetas de exportación bilingües.
   Los reintentos mantienen su idioma y las preferencias no alteran hechos ni textos
   históricos. Pasan 128 pruebas backend y 143 frontend, además de compilación.
-- 2.5.20.4 pendiente.
+- 2.5.20.4 completado: barra centrada en las páginas del negocio, composición
+  compartida con el chat plegado, contexto y borrador conservados, un solo envío.
+  Pasan 158 pruebas frontend, compilación y lint sin errores; comprobados escritorio,
+  móvil, ambos temas, cambio de idioma y continuidad del panel.
+
+La implementación queda terminada. La prueba con el proveedor real recibe HTTP 429
+y no permite comprobar una respuesta nueva real en inglés. Los textos históricos
+permanecen en su idioma original. Véanse [validación y límites](../validation/2026-09-30-language-and-composer.md).
 
 No se hace push sin una petición explícita.

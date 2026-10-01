@@ -481,11 +481,14 @@ Véanse [comprobaciones y límites](../validation/2026-09-30-navigation-and-chat
 
 ### 2.5.20. Idioma, menú local y barra para preguntar
 
-**Planificado:** + circular en la cabecera compacta de Chats; Apariencia e Idioma
-como opciones del menú local; interfaz completa en inglés/español y barra inferior
-centrada para preguntar desde las páginas del negocio. Seguir los cuatro pasos del
-[plan separado](../technical/language-and-composer-plan.md), con pruebas, revisión
-y commit local por paso.
+**Implementado:** + circular en la cabecera compacta de Chats; Apariencia e Idioma
+como opciones del menú local; interfaz en inglés/español y barra inferior centrada
+para preguntar desde las páginas del negocio, compartiendo borrador y conversación
+con el panel. Los cuatro pasos del [plan separado](../technical/language-and-composer-plan.md)
+se implementan con pruebas, revisión y commits locales. Pasan 158 pruebas frontend
+y 128 backend seleccionadas, compilación y lint sin errores; comprobación visual
+en escritorio/móvil y ambos temas. Se conserva el historial en su idioma original.
+La prueba real del proveedor recibe HTTP 429; véanse [validación y límites](../validation/2026-09-30-language-and-composer.md).
 
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 

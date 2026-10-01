@@ -174,7 +174,7 @@ it.each(["home", "my-business", "reports", "chats"])(
     const calls = server();
     const user = userEvent.setup();
     render(<Harness initialRoute={route} />);
-    expect(screen.queryByRole("textbox", { name: "Mensaje" })).toBeNull();
+    expect(screen.getByRole("textbox", { name: "Mensaje" })).toBeVisible();
     const launcher = screen.getByRole("button", { name: "Preguntar algo" });
     expect(launcher.closest("header")).not.toBeNull();
     await user.click(launcher);
@@ -190,7 +190,7 @@ it.each(["home", "my-business", "reports", "chats"])(
       within(panel).getByRole("button", { name: "Plegar conversación" }),
     );
     await waitFor(() => expect(screen.queryByRole("complementary")).toBeNull());
-    expect(screen.queryByRole("textbox", { name: "Mensaje" })).toBeNull();
+    expect(screen.getByRole("textbox", { name: "Mensaje" })).toHaveValue("Borrador del panel");
     await user.click(
       screen.getByRole("button", { name: "Continuar conversación" }),
     );
@@ -703,4 +703,49 @@ it("reduces a directly opened chat to home when there is no saved source", async
   await screen.findByRole("complementary", { name: "Conversación lateral" });
   expect(location.hash).toBe("#home");
   expect(calls.some(c => c.url === "/api/chats" || c.url.endsWith("/messages"))).toBe(false);
+});
+
+it.each(["home", "my-business", "reports", "chats", "files", "business", "businesses", "how", "new", "report/sales", "analysis/running", "chat-report/answer"])(
+  "offers exactly one bottom composer without stealing focus or creating a chat on %s",
+  async (route) => {
+    const calls = server();
+    render(<Harness initialRoute={route} />);
+    const textbox = await screen.findByRole("textbox", {name:"Mensaje"});
+    expect(textbox.closest(".workspace-composer")).not.toBeNull();
+    expect(textbox).not.toHaveFocus();
+    expect(screen.getAllByRole("textbox", {name:"Mensaje"})).toHaveLength(1);
+    expect(calls.some(c => c.url === "/api/chats" || c.url.endsWith("/messages"))).toBe(false);
+  }
+);
+it("sends from the bottom bar into the folded chat, preserving context without creating another conversation", async () => {
+  store.set("dr-dock-a", {chatId:"existing", open:false, origin:"home"});
+  store.set(messageKey("existing"), {text:"Pregunta en la misma conversación"});
+  const calls = server(); const user = userEvent.setup();
+  render(<Harness />);
+  expect(await screen.findByRole("textbox")).toHaveValue("Pregunta en la misma conversación");
+  const send = screen.getByRole("button", {name:"Enviar mensaje"});
+  await waitFor(() => expect(send).toBeEnabled());
+  await user.dblClick(send);
+  const panel = await screen.findByRole("complementary", {name:"Conversación lateral"});
+  expect(calls.filter(c => c.url.endsWith("/messages"))).toHaveLength(1);
+  expect(calls.find(c => c.url.endsWith("/messages"))?.url).toBe("/api/chats/existing/messages");
+  expect(calls.some(c => c.url === "/api/chats")).toBe(false);
+  expect(screen.getAllByRole("textbox", {name:"Mensaje"})).toHaveLength(1);
+  await user.type(within(panel).getByRole("textbox"), "Borrador compartido");
+  await user.click(within(panel).getByRole("button", {name:"Plegar conversación"}));
+  await waitFor(() => expect(screen.queryByRole("complementary")).toBeNull());
+  expect(await screen.findByRole("textbox")).toHaveValue("Borrador compartido");
+});
+it("keeps a failed bottom-bar message and its request identity for a retry", async () => {
+  store.set("dr-dock-a", {chatId:"existing",open:false,origin:"home"});
+  const calls = server(undefined, 1); const user=userEvent.setup(); render(<Harness />);
+  await user.type(await screen.findByRole("textbox"), "Mensaje para reintentar");
+  await user.click(screen.getByRole("button", {name:"Enviar mensaje"}));
+  await screen.findByText("Reintenta el mensaje");
+  expect(screen.queryByRole("complementary")).toBeNull();
+  expect(screen.getByRole("textbox")).toHaveValue("Mensaje para reintentar");
+  await user.click(screen.getByRole("button", {name:"Enviar mensaje"}));
+  await screen.findByRole("complementary");
+  const sends=calls.filter(c=>c.url.endsWith("/messages"));
+  expect(sends).toHaveLength(2); expect(sends[0].data.request_key).toBe(sends[1].data.request_key);
 });

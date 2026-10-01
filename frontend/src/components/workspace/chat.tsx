@@ -72,14 +72,12 @@ export function Answer({
       return (
         <p>
           {tr("¡Hola! ¿Qué te gustaría saber o investigar sobre")}{" "}
-          {workspace.business?.name || "tu negocio"}?
+          {workspace.business?.name || tr("tu negocio")}?
         </p>
       );
     const text =
       response.text ===
-      tr(
-        "El mensaje está guardado. Estos son los recuerdos aplicables y su estado.",
-      )
+      "El mensaje está guardado. Estos son los recuerdos aplicables y su estado."
         ? response.items?.length
           ? tr("Esto es lo que tenía guardado en ese momento:")
           : tr(
@@ -211,11 +209,13 @@ export function ChatPage({
   id,
   docked = false,
   setup = false,
+  composerOnly = false,
   children,
 }: {
   id: string;
   docked?: boolean;
   setup?: boolean;
+  composerOnly?: boolean;
   children?: (data: ChatDetail) => ReactNode;
 }) {
   useLanguage();
@@ -293,6 +293,7 @@ export function ChatPage({
         resource.refresh();
         refresh();
       }
+      return true;
     });
   const operation = (kind: string, turnId: string, extra = {}) =>
     action.run(async () => {
@@ -329,232 +330,246 @@ export function ChatPage({
     ["queued", "routing", "processing", "failed", "blocked"].includes(t.status),
   );
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <h1 className="sr-only">{tr("Conversación con IA")}</h1>
-      {!data ? (
-        <div className="flex-1 p-6">
-          <Notice error>{resource.error}</Notice>
-          {!resource.error && <Loading />}
-        </div>
-      ) : (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <Conversation>
-            <ConversationContent
-              className={`mx-auto w-full max-w-4xl px-4 py-8 ${docked ? "" : "sm:px-8"}`}
-            >
-              {data.dataset && (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {data.dataset.title} · v{data.dataset.version}
-                  {data.dataset.corrected
-                    ? tr(" · datos corregidos")
-                    : data.dataset.superseded_by
-                      ? tr(" · versión anterior")
-                      : ""}
-                </p>
-              )}
+    <div className={`flex min-h-0 flex-col ${composerOnly ? "" : "flex-1"}`}>
+      {!composerOnly && (
+        <h1 className="sr-only">{tr("Conversación con IA")}</h1>
+      )}
+      {composerOnly && <Notice error>{resource.error}</Notice>}
+      {!composerOnly &&
+        (!data ? (
+          <div className="flex-1 p-6">
+            <Notice error>{resource.error}</Notice>
+            {!resource.error && <Loading />}
+          </div>
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <Conversation>
+              <ConversationContent
+                className={`mx-auto w-full max-w-4xl px-4 py-8 ${docked ? "" : "sm:px-8"}`}
+              >
+                {data.dataset && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {data.dataset.title} · v{data.dataset.version}
+                    {data.dataset.corrected
+                      ? tr(" · datos corregidos")
+                      : data.dataset.superseded_by
+                        ? tr(" · versión anterior")
+                        : ""}
+                  </p>
+                )}
 
-              <Notice error>{resource.error || action.error}</Notice>
-              {!data.turns.length && (
-                <p className="py-16 text-center text-muted-foreground">
-                  {tr("Escribe tu primera pregunta para empezar.")}
-                </p>
-              )}
-              {data.turns.map((turn, index) => (
-                <div key={turn.id} className="space-y-5">
-                  {turn.context_changed_before && <ContextChange />}
-                  <Message from="user" className="ml-auto">
-                    <div className="ml-auto max-w-full">
-                      <ContextAttachments
-                        items={turn.attachments || []}
-                        chatId={id}
-                      />
-                    </div>
-                    <MessageContent className="whitespace-pre-wrap break-words">
-                      {turn.payload.text}
-                    </MessageContent>
-                  </Message>
-                  <Message from="assistant" className="w-full max-w-full">
-                    <MessageContent className="w-full overflow-visible">
-                      {turn.historical && (
-                        <Badge variant="outline" className="mb-3">
-                          {tr("Respuesta con contexto anterior")}
-                        </Badge>
-                      )}
-                      <ProgressiveAnswer
-                        id={turn.id}
-                        response={turn.response}
-                        animate={
-                          !turn.historical && !initialTurns?.has(turn.id)
-                        }
-                      >
-                        {(visibleResponse, revealing) => (
-                          <>
-                            {visibleResponse && (
-                              <div aria-hidden={revealing || undefined}>
-                                <Answer
-                                  response={visibleResponse}
-                                  ownerText={turn.payload.text}
-                                />
-                              </div>
-                            )}
-                            <Notice error>
-                              {turn.historical ? "" : turn.issue}
-                            </Notice>
-                            {activityOwners.get(
-                              turn.activity_trace_id || turn.job_id || turn.id,
-                            ) === turn.id && (
-                              <AnalysisActivity
-                                endpoint={
-                                  turn.job_id
-                                    ? `/api/jobs/${turn.job_id}/activity`
-                                    : `/api/chats/${id}/turns/${turn.id}/activity`
-                                }
-                                traceId={turn.activity_trace_id}
-                                revealing={revealing}
-                                responseReady={
-                                  Boolean(visibleResponse) &&
-                                  !turn.job_id &&
-                                  turn.status === "completed"
-                                }
-                                onQuestion={(questionId) => {
-                                  setQuestion(questionId);
-                                  requestAnimationFrame(() => {
-                                    const input =
-                                      document.querySelector<HTMLTextAreaElement>(
-                                        'textarea[placeholder="Escribe tu aclaración…"]',
-                                      );
-                                    input?.scrollIntoView({ block: "center" });
-                                    input?.focus();
-                                  });
-                                }}
-                                fallback={
-                                  queuePosition(data.turns, index)
-                                    ? tr("En cola · posición {0}", {
-                                        "0": queuePosition(data.turns, index),
-                                      })
-                                    : tr("Preparando respuesta…")
-                                }
-                              />
-                            )}
-                          </>
+                <Notice error>{resource.error || action.error}</Notice>
+                {!data.turns.length && (
+                  <p className="py-16 text-center text-muted-foreground">
+                    {tr("Escribe tu primera pregunta para empezar.")}
+                  </p>
+                )}
+                {data.turns.map((turn, index) => (
+                  <div key={turn.id} className="space-y-5">
+                    {turn.context_changed_before && <ContextChange />}
+                    <Message from="user" className="ml-auto">
+                      <div className="ml-auto max-w-full">
+                        <ContextAttachments
+                          items={turn.attachments || []}
+                          chatId={id}
+                        />
+                      </div>
+                      <MessageContent className="whitespace-pre-wrap break-words">
+                        {turn.payload.text}
+                      </MessageContent>
+                    </Message>
+                    <Message from="assistant" className="w-full max-w-full">
+                      <MessageContent className="w-full overflow-visible">
+                        {turn.historical && (
+                          <Badge variant="outline" className="mb-3">
+                            {tr("Respuesta con contexto anterior")}
+                          </Badge>
                         )}
-                      </ProgressiveAnswer>
-                      {turn.status === "waiting" && (
-                        <Notice>
-                          {tr(
-                            "El análisis necesita una aclaración. Responde a la pregunta que aparece debajo.",
+                        <ProgressiveAnswer
+                          id={turn.id}
+                          response={turn.response}
+                          animate={
+                            !turn.historical && !initialTurns?.has(turn.id)
+                          }
+                        >
+                          {(visibleResponse, revealing) => (
+                            <>
+                              {visibleResponse && (
+                                <div aria-hidden={revealing || undefined}>
+                                  <Answer
+                                    response={visibleResponse}
+                                    ownerText={turn.payload.text}
+                                  />
+                                </div>
+                              )}
+                              <Notice error>
+                                {turn.historical ? "" : turn.issue}
+                              </Notice>
+                              {activityOwners.get(
+                                turn.activity_trace_id ||
+                                  turn.job_id ||
+                                  turn.id,
+                              ) === turn.id && (
+                                <AnalysisActivity
+                                  endpoint={
+                                    turn.job_id
+                                      ? `/api/jobs/${turn.job_id}/activity`
+                                      : `/api/chats/${id}/turns/${turn.id}/activity`
+                                  }
+                                  traceId={turn.activity_trace_id}
+                                  revealing={revealing}
+                                  responseReady={
+                                    Boolean(visibleResponse) &&
+                                    !turn.job_id &&
+                                    turn.status === "completed"
+                                  }
+                                  onQuestion={(questionId) => {
+                                    setQuestion(questionId);
+                                    requestAnimationFrame(() => {
+                                      const input =
+                                        document.querySelector<HTMLTextAreaElement>(
+                                          'textarea[placeholder="Escribe tu aclaración…"]',
+                                        );
+                                      input?.scrollIntoView({
+                                        block: "center",
+                                      });
+                                      input?.focus();
+                                    });
+                                  }}
+                                  fallback={
+                                    queuePosition(data.turns, index)
+                                      ? tr("En cola · posición {0}", {
+                                          "0": queuePosition(data.turns, index),
+                                        })
+                                      : tr("Preparando respuesta…")
+                                  }
+                                />
+                              )}
+                            </>
                           )}
-                        </Notice>
-                      )}
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {((["failed", "blocked"].includes(turn.status) &&
-                          turn.can_retry !== false) ||
-                          (turn.status === "stale" &&
-                            (!turn.response || turn.job_id))) &&
-                          data.turns
-                            .slice(index + 1)
-                            .every((t) => t.status === "queued") && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={action.busy}
-                              onClick={() => operation("retry", turn.id)}
-                            >
-                              <RotateCcw />
-                              {turn.status === "stale"
-                                ? tr("Recalcular")
-                                : tr("Reintentar")}
-                            </Button>
-                          )}
-                        {turn.response?.report_id &&
-                          !turn.response.first_report &&
-                          !turn.report_outdated &&
-                          (turn.report_requested ? (
-                            <Button asChild variant="outline" size="sm">
-                              <a href={`#chat-report/${id}/${turn.id}`}>
+                        </ProgressiveAnswer>
+                        {turn.status === "waiting" && (
+                          <Notice>
+                            {tr(
+                              "El análisis necesita una aclaración. Responde a la pregunta que aparece debajo.",
+                            )}
+                          </Notice>
+                        )}
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {((["failed", "blocked"].includes(turn.status) &&
+                            turn.can_retry !== false) ||
+                            (turn.status === "stale" &&
+                              (!turn.response || turn.job_id))) &&
+                            data.turns
+                              .slice(index + 1)
+                              .every((t) => t.status === "queued") && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={action.busy}
+                                onClick={() => operation("retry", turn.id)}
+                              >
+                                <RotateCcw />
+                                {turn.status === "stale"
+                                  ? tr("Recalcular")
+                                  : tr("Reintentar")}
+                              </Button>
+                            )}
+                          {turn.response?.report_id &&
+                            !turn.response.first_report &&
+                            !turn.report_outdated &&
+                            (turn.report_requested ? (
+                              <Button asChild variant="outline" size="sm">
+                                <a href={`#chat-report/${id}/${turn.id}`}>
+                                  <FileText />
+                                  {tr("Abrir informe")}
+                                </a>
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={action.busy}
+                                onClick={() => operation("report", turn.id)}
+                              >
                                 <FileText />
-                                {tr("Abrir informe")}
+                                {tr("Crear informe")}
+                              </Button>
+                            ))}
+                          {turn.report_outdated && <Status status="outdated" />}
+                          {turn.job_id && !setup && (
+                            <Button asChild variant="ghost" size="sm">
+                              <a href={`#analysis/${turn.job_id}`}>
+                                {tr("Ver informe")}
+                                <ArrowUpRight />
                               </a>
                             </Button>
-                          ) : (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={action.busy}
-                              onClick={() => operation("report", turn.id)}
-                            >
-                              <FileText />
-                              {tr("Crear informe")}
-                            </Button>
-                          ))}
-                        {turn.report_outdated && <Status status="outdated" />}
-                        {turn.job_id && !setup && (
-                          <Button asChild variant="ghost" size="sm">
-                            <a href={`#analysis/${turn.job_id}`}>
-                              {tr("Ver informe")}
-                              <ArrowUpRight />
-                            </a>
-                          </Button>
-                        )}
-                      </div>
-                    </MessageContent>
-                  </Message>
-                </div>
-              ))}
-              {setupQuestion?.references?.length ? (
-                <DataPreview
-                  key={latest!.id}
-                  endpoint="/api/onboarding/data"
-                  questions={[{ ...setupQuestion, id: latest!.id }]}
-                />
-              ) : null}
-              {children?.(data)}
-              {data.context_changed_after && <ContextChange />}
-              {data.memory_items
-                .filter((f) => f.status === "conflicted")
-                .map((f) => (
-                  <Disclosure
-                    key={f.fact_id || f.id}
-                    title={tr(
-                      "Hay información del negocio que necesita confirmación",
-                    )}
-                    defaultOpen
-                  >
-                    <p>{f.content.statement}</p>
-                    {f.alternatives?.map((alt, i) => (
-                      <Button
-                        key={i}
-                        variant="outline"
-                        className="h-auto whitespace-normal text-left"
-                        disabled={action.busy}
-                        onClick={() =>
-                          operation("resolve", "", {
-                            fact_id: f.fact_id || f.id,
-                            revision: f.revision,
-                            alternative: i,
-                          })
-                        }
-                      >
-                        {tr("Usar:")}{" "}
-                        {alt.content?.statement || alt.statement || alt.quote}
-                      </Button>
-                    ))}
-                  </Disclosure>
+                          )}
+                        </div>
+                      </MessageContent>
+                    </Message>
+                  </div>
                 ))}
-              {selected && waiting?.job_id && (
-                <DataPreview
-                  key={`${waiting.job_id}:${selected.id}`}
-                  jobId={waiting.job_id}
-                  questions={[selected]}
-                />
-              )}
-            </ConversationContent>
-            <ConversationScrollButton aria-label={tr("Ir al último mensaje")} />
-          </Conversation>
-        </div>
-      )}
+                {setupQuestion?.references?.length ? (
+                  <DataPreview
+                    key={latest!.id}
+                    endpoint="/api/onboarding/data"
+                    questions={[{ ...setupQuestion, id: latest!.id }]}
+                  />
+                ) : null}
+                {children?.(data)}
+                {data.context_changed_after && <ContextChange />}
+                {data.memory_items
+                  .filter((f) => f.status === "conflicted")
+                  .map((f) => (
+                    <Disclosure
+                      key={f.fact_id || f.id}
+                      title={tr(
+                        "Hay información del negocio que necesita confirmación",
+                      )}
+                      defaultOpen
+                    >
+                      <p>{f.content.statement}</p>
+                      {f.alternatives?.map((alt, i) => (
+                        <Button
+                          key={i}
+                          variant="outline"
+                          className="h-auto whitespace-normal text-left"
+                          disabled={action.busy}
+                          onClick={() =>
+                            operation("resolve", "", {
+                              fact_id: f.fact_id || f.id,
+                              revision: f.revision,
+                              alternative: i,
+                            })
+                          }
+                        >
+                          {tr("Usar:")}{" "}
+                          {alt.content?.statement || alt.statement || alt.quote}
+                        </Button>
+                      ))}
+                    </Disclosure>
+                  ))}
+                {selected && waiting?.job_id && (
+                  <DataPreview
+                    key={`${waiting.job_id}:${selected.id}`}
+                    jobId={waiting.job_id}
+                    questions={[selected]}
+                  />
+                )}
+              </ConversationContent>
+              <ConversationScrollButton
+                aria-label={tr("Ir al último mensaje")}
+              />
+            </Conversation>
+          </div>
+        ))}
       <div
-        className={`shrink-0 px-4 pb-4 pt-2 ${docked ? "bg-sidebar" : "bg-background sm:px-8"}`}
+        className={
+          composerOnly
+            ? ""
+            : `shrink-0 px-4 pb-4 pt-2 ${docked ? "bg-sidebar" : "bg-background sm:px-8"}`
+        }
       >
         <div className="relative z-10 mx-auto max-w-2xl">
           {selected && (
@@ -621,7 +636,7 @@ export function ChatPage({
           )}
           <Composer
             compact
-            tools={docked ? <SelectionTool /> : undefined}
+            tools={docked || composerOnly ? <SelectionTool /> : undefined}
             attachments={
               assistant?.selected.length ? (
                 <ContextAttachments
@@ -638,7 +653,15 @@ export function ChatPage({
                 context_references: draft.context_references,
               })
             }
-            onSend={() => send()}
+            onSend={async () => {
+              const sent = await send();
+              if (sent && composerOnly && sendAction.isMounted() && assistant)
+                assistant.setDock({
+                  ...assistant.dock,
+                  chatId: id,
+                  open: true,
+                });
+            }}
             busy={
               sendAction.busy ||
               !data ||

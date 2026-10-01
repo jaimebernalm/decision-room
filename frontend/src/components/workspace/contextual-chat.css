@@ -171,6 +171,12 @@
   min-width: 0;
   min-height: 0;
 }
+.workspace-composer {
+  background: var(--background);
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  max-height: 45svh;
+  overflow-y: auto;
+}
 .assistant-panel-shell {
   max-width: 55vw;
   display: flex;

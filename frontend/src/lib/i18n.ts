@@ -58,7 +58,7 @@ export function translate(
   values: Record<string, unknown> = {},
 ): string {
   const key = input.trim().replace(/\s+/g, " ");
-  const translated = snapshot() === "en" ? translations[key] : undefined;
+  const translated = snapshot() === "en" && Object.hasOwn(translations, key) ? translations[key] : undefined;
   const body =
     translated === undefined
       ? input

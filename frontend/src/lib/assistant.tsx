@@ -42,6 +42,7 @@ export const contextualRoute = (route: string) =>
     "reports",
     "files",
     "business",
+    "businesses",
     "chats",
     "how",
     "new",
@@ -181,11 +182,19 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
         },
         reduceConversation: (id) => {
           setSelecting(false);
-          const savedOrigin = store.get<string>(`dr-assistant-origin-${business}`, "home");
+          const savedOrigin = store.get<string>(
+            `dr-assistant-origin-${business}`,
+            "home",
+          );
           const sameChat = dock.chatId === id;
           const candidate = sameChat && dock.origin ? dock.origin : savedOrigin;
           const origin = contextualRoute(candidate) ? candidate : "home";
-          setDock({ ...(sameChat ? dock : {}), chatId: id, open: true, origin });
+          setDock({
+            ...(sameChat ? dock : {}),
+            chatId: id,
+            open: true,
+            origin,
+          });
           location.hash = origin;
         },
         selecting,

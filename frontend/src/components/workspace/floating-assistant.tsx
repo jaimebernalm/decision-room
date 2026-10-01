@@ -46,7 +46,7 @@ export function AssistantToggle() {
 
 // Used both in the empty side panel and the standalone new conversation.
 // The page owns the component lifetime, so late sends cannot redirect another page.
-export function NewChatComposer() {
+export function NewChatComposer({ autoFocus = true }: { autoFocus?: boolean }) {
   useLanguage();
   const assistant = useAssistant();
   const { workspace, route, refresh } = useWorkspace();
@@ -59,10 +59,11 @@ export function NewChatComposer() {
   const container = useRef<HTMLDivElement>(null);
   const action = useAction();
   useEffect(() => {
+    if (!autoFocus) return;
     container.current
       ?.querySelector("textarea")
       ?.focus({ preventScroll: true });
-  }, []);
+  }, [autoFocus]);
   const send = () =>
     action.run(async () => {
       if (!text.trim()) return;

@@ -41,7 +41,7 @@ export function AssistantFrame({
 }) {
   useLanguage();
   const a = useAssistant()!;
-  const { route } = useWorkspace();
+  const { route, workspace } = useWorkspace();
   const { open, openMobile, isMobile, setOpen, setOpenMobile } = useSidebar();
   const navigationOpen = isMobile ? openMobile : open;
   const previous = useRef({ panel: false, navigationOpen });
@@ -109,6 +109,23 @@ export function AssistantFrame({
             </div>
           )}
         </div>
+        {workspace.business && contextualRoute(route) && !panel && (
+          <div className="workspace-composer shrink-0 px-4 pb-4 pt-2 sm:px-8">
+            <div className="mx-auto w-full max-w-2xl">
+              {a.dock.chatId ? (
+                <Suspense fallback={<Loading />}>
+                  <ChatPage
+                    key={a.dock.chatId}
+                    id={a.dock.chatId}
+                    composerOnly
+                  />
+                </Suspense>
+              ) : (
+                <NewChatComposer autoFocus={false} />
+              )}
+            </div>
+          </div>
+        )}
       </SidebarInset>
       <AnimatePresence initial={false}>
         {panel && (

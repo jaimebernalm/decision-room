@@ -144,7 +144,7 @@ function GroupedBars({
               <g transform={`translate(${x},${y})`}>
                 <foreignObject x={-140} y={-26} width={132} height={52}>
                   <div className="flex h-full items-center justify-end text-right text-xs leading-tight text-muted-foreground break-words">
-                    {displayNumber(payload.value)}
+                    {payload.value}
                   </div>
                 </foreignObject>
               </g>
@@ -591,7 +591,7 @@ export function ReportView({
                         <p>{claim.evidence_details.files.join(" · ")}</p>
                         {claim.evidence_details.metrics.map((m, j) => (
                           <p key={j} className="font-mono text-xs">
-                            {m.label}: {displayNumber(m.value)}
+                            {m.label}: {m.value}
                           </p>
                         ))}
                         {claim.evidence_details.operations.map((o, j) => (

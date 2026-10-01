@@ -185,7 +185,7 @@ export function AnalysisActivity({
         </CollapsibleTrigger>
         {data?.context_notice && (
           <div className="mt-2 max-w-2xl rounded-lg border p-3 text-sm">
-            <p>{data.context_notice}</p>
+            <p>{tr(data.context_notice)}</p>
             {data.recovery_href && (
               <Button asChild variant="outline" size="sm" className="mt-3">
                 <a href={data.recovery_href}>{tr("Actualizar el informe")}</a>

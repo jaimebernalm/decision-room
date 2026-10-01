@@ -63,6 +63,7 @@ const factKinds: Record<string, string> = {
 };
 const factStatus: Record<string, string> = {
   declared: "Confirmado por ti",
+  proposed: "Por confirmar",
   inferred: "Por confirmar",
   uncertain: "Por revisar",
   conflicted: "En conflicto",
