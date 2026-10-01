@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import App from "./App";
 import { Answer } from "./components/workspace/chat";
 import { WorkspaceState, type WorkspaceContext } from "./lib/workspace";
+import { store, homeDraftKey } from "./lib/api";
 const business = {
   id: "b",
   name: "Negocio de prueba",
@@ -294,4 +295,78 @@ it("renders prose safely and never turns model links or HTML into active externa
   expect(document.querySelector("img")).toBeNull();
   expect(document.querySelector('a[href^="https://"]')).toBeNull();
   expect(document.querySelector("script")).toBeNull();
+});
+
+it("switches business from the header without leaking chats or drafts between spaces", async () => {
+  location.hash = "chats";
+  const other = { ...business, id: "other", name: "Otro negocio" };
+  let active = business;
+  store.set(homeDraftKey(business.id), "Borrador del primer negocio");
+  store.set(homeDraftKey(other.id), "Borrador del segundo negocio");
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === "/api/business/select") {
+        active =
+          JSON.parse(String(init?.body)).business_id === other.id
+            ? other
+            : business;
+      }
+      return {
+        ok: true,
+        json: async () =>
+          url === "/api/workspace"
+            ? { ...ws, business: active, businesses: [business, other] }
+            : url === "/api/chats"
+              ? {
+                  ...listing,
+                  business_id: active.id,
+                  conversations:
+                    active.id === business.id ? listing.conversations : [],
+                }
+              : url === "/api/home"
+                ? {
+                    business_id: active.id,
+                    revision: 1,
+                    items: [],
+                    sources: [],
+                    selected: [],
+                    pinned: [],
+                    hidden: [],
+                    unavailable: 0,
+                    reasons: {},
+                    activity: [],
+                    can_suggest: false,
+                  }
+                : {},
+      };
+    }),
+  );
+  render(<App />);
+  const user = userEvent.setup();
+  await screen.findByRole("heading", { name: "Conversaciones" });
+  await user.click(screen.getByRole("button", { name: business.name }));
+  await user.click(screen.getByRole("menuitem", { name: other.name }));
+  await screen.findByRole("button", { name: other.name });
+  expect(screen.queryByRole("link", { name: "Chat de prueba" })).toBeNull();
+  await user.click(
+    screen.getByRole("button", { name: "Continuar conversación" }),
+  );
+  expect(await screen.findByRole("textbox", { name: "Mensaje" })).toHaveValue(
+    "Borrador del segundo negocio",
+  );
+  await user.click(screen.getByRole("button", { name: "Plegar conversación" }));
+  await waitFor(() => expect(screen.queryByRole("complementary")).toBeNull());
+  await user.click(
+    screen.getByRole("button", { name: "Abrir o cerrar navegación" }),
+  );
+  await user.click(screen.getByRole("button", { name: other.name }));
+  await user.click(screen.getByRole("menuitem", { name: business.name }));
+  await screen.findByRole("button", { name: business.name });
+  await user.click(
+    screen.getByRole("button", { name: "Continuar conversación" }),
+  );
+  expect(await screen.findByRole("textbox", { name: "Mensaje" })).toHaveValue(
+    "Borrador del primer negocio",
+  );
 });

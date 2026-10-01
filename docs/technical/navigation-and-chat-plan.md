@@ -70,4 +70,9 @@ publica en GitHub salvo petición explícita del usuario.
 - 2.5.19.5 completado: menú inferior del espacio local con Claro, Oscuro,
   Automático y ayuda; sin botón de tema superior. 130 pruebas y compilación,
   incluida persistencia de las tres opciones y navegación por teclado.
-- 2.5.19.6 pendiente.
+- 2.5.19.6 completado: cabecera única con selector directo de negocios reales,
+  gestión y creación, espera del servidor y errores recuperables. 133 pruebas,
+  compilación y lint sin errores; aceptación en escritorio, iconos, móvil y temas.
+
+Los seis pasos están completos. Véase la
+[validación y sus límites](../validation/2026-09-30-navigation-and-chat.md).

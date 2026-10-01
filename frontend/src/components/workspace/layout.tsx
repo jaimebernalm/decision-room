@@ -2,7 +2,6 @@ import { useState, type ReactNode, type CSSProperties } from "react";
 import {
   ArrowLeft,
   Building2,
-  ChevronDown,
   FileText,
   Home,
   MessageSquare,
@@ -26,14 +25,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Brand } from "@/components/brand";
 import { useWorkspace } from "@/lib/workspace";
 import { store, shortTitle, analysisHref } from "@/lib/api";
 import { AssistantProvider, useAssistant } from "@/lib/assistant";
@@ -41,6 +33,7 @@ import { ChatActions } from "./chat-actions";
 import { AssistantFrame } from "./assistant-frame";
 import { AssistantToggle } from "./floating-assistant";
 import { SpaceMenu } from "./space-menu";
+import { BusinessSwitcher } from "./business-switcher";
 const navigation = [
   ["home", "Inicio", Home],
   ["my-business", "Mi negocio", Building2],
@@ -99,49 +92,8 @@ function Navigation({
       : recentReports;
   return (
     <Sidebar variant="inset" collapsible="icon">
-      <SidebarHeader className="gap-4 p-3">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild>
-              <a
-                href="#home"
-                onClick={close}
-                className="gap-2.5"
-                aria-label="Decision Room, inicio"
-              >
-                <Brand />
-              </a>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton
-                  className="h-10"
-                  aria-label={workspace.business?.name || "Mi espacio"}
-                >
-                  <Building2 />
-                  <span className="truncate">
-                    {workspace.business?.name || "Mi espacio"}
-                  </span>
-                  <ChevronDown className="ml-auto" />
-                </SidebarMenuButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-60">
-                <DropdownMenuItem asChild>
-                  <a href="#businesses" onClick={close}>
-                    Cambiar de negocio
-                  </a>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <a href="#business-new" onClick={close}>
-                    Crear otro negocio
-                  </a>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </SidebarMenuItem>
-        </SidebarMenu>
+      <SidebarHeader className="p-3">
+        <BusinessSwitcher />
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
@@ -176,21 +128,23 @@ function Navigation({
             className="workspace-section-label workspace-chat-heading"
             aria-label="Chats"
           >
-            <span>
-              <a
-                href="#chats"
-                onClick={close}
-                aria-label="Chats"
-                className="hover:text-foreground"
-              >
+            <a
+              href="#chats"
+              onClick={close}
+              aria-label="Chats"
+              title="Chats"
+              className="workspace-library-link inline-flex items-center rounded-md hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-data-[collapsible=icon]:size-5 group-data-[collapsible=icon]:justify-center"
+            >
+              <MessageSquare className="hidden size-4 group-data-[collapsible=icon]:block" />
+              <span className="group-data-[collapsible=icon]:hidden">
                 Chats
-              </a>
-            </span>
+              </span>
+            </a>
             <Button
               asChild
               variant="ghost"
               size="icon"
-              className="ml-auto size-7"
+              className="ml-auto size-7 group-data-[collapsible=icon]:size-5"
             >
               <a
                 href="#ask"
@@ -261,16 +215,18 @@ function Navigation({
             className="workspace-section-label"
             aria-label="Informes"
           >
-            <span>
-              <a
-                href="#reports"
-                onClick={close}
-                aria-label="Informes"
-                className="hover:text-foreground"
-              >
+            <a
+              href="#reports"
+              onClick={close}
+              aria-label="Informes"
+              title="Informes"
+              className="workspace-library-link inline-flex items-center rounded-md hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-data-[collapsible=icon]:size-5 group-data-[collapsible=icon]:justify-center"
+            >
+              <FileText className="hidden size-4 group-data-[collapsible=icon]:block" />
+              <span className="group-data-[collapsible=icon]:hidden">
                 Informes
-              </a>
-            </span>
+              </span>
+            </a>
           </SidebarGroupLabel>
           <SidebarMenu>
             {reportRows.map((item) => (

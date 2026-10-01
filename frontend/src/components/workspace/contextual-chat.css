@@ -131,10 +131,7 @@
     .workspace-shell
       [data-slot="sidebar"][data-state="collapsed"]
       .workspace-section-label::after {
-      content: "";
-      width: 1.25rem;
-      height: 1px;
-      background: var(--sidebar-border);
+      display: none;
     }
     .workspace-shell
       [data-slot="sidebar"][data-state="collapsed"]
@@ -332,10 +329,15 @@
   padding-top: 3.5rem;
 }
 
-/* Keep the new-chat action available when navigation collapses to icons. */
-.workspace-shell [data-slot="sidebar"][data-state="collapsed"] .workspace-chat-heading::after {
-  display: none;
+/* Keep library access and the new-chat action together in icon navigation. */
+.workspace-shell
+  [data-slot="sidebar"][data-state="collapsed"]
+  .workspace-chat-heading {
+  gap: 0;
 }
-.workspace-shell [data-slot="sidebar"][data-state="collapsed"] .workspace-chat-heading > a {
-  margin-inline: auto;
+.workspace-shell
+  [data-slot="sidebar"][data-state="collapsed"]
+  .workspace-chat-heading
+  > a {
+  margin-inline: 0;
 }

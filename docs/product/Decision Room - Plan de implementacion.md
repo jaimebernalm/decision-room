@@ -469,13 +469,15 @@ correctos.
 
 ### 2.5.19. Navegación sin duplicados y controles coherentes del chat
 
-**Planificado:** Inicio y Mi negocio como accesos principales; grupos únicos
+**Completado:** Inicio y Mi negocio como accesos principales; grupos únicos
 Chats e Informes, nuevo chat mediante +, apertura/cierre superior del panel y
-controles inversos de ampliar/reducir. Menú inferior de apariencia y selector
-superior de negocios adaptados de `sidebar-07`, conservando el resto de la UI.
-Seguir los seis pasos del
-[plan separado de navegación y chat](../technical/navigation-and-chat-plan.md),
-con pruebas y commit local por función.
+controles inversos de ampliar/reducir con retorno a la página y posición de origen.
+Menú inferior de apariencia y selector superior de negocios adaptados de
+`sidebar-07`, conservando el resto de la UI. Los seis pasos del
+[plan separado](../technical/navigation-and-chat-plan.md) se han implementado,
+probado y guardado por función. Pasan 133 pruebas frontend, compilación y lint
+sin errores; revisión visual en escritorio, móvil, iconos y temas claro/oscuro.
+Véanse [comprobaciones y límites](../validation/2026-09-30-navigation-and-chat.md).
 
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
