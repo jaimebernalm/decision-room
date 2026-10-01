@@ -4,6 +4,7 @@ These extend the frozen quality oracle without changing its required answers.
 Gross/net/tax, unit-price distributions and credit notes retain distinct meanings.
 """
 from collections import defaultdict
+from datetime import date
 from decimal import Decimal
 
 from .substantial_data import TABLES, index, rows
@@ -51,6 +52,14 @@ def wwi_details(base):
             group['prices'].append(price)
             group['invoices'].add(line['InvoiceID'])
     result = {}
+    observed_dates = [date.fromisoformat(invoice['InvoiceDate'][:10]) for invoice in invoices.values()
+                      if invoice['InvoiceDate'][:4] in ('2014', '2015')]
+    if observed_dates:
+        result['detail:invoice_scope:first_date'] = min(observed_dates).isoformat()
+        result['detail:invoice_scope:last_date'] = max(observed_dates).isoformat()
+        result['detail:invoice_scope:month_count'] = len({d.strftime('%Y-%m') for d in observed_dates})
+    for year in ('2014', '2015'):
+        result[f'detail:invoice_scope:{year}:header_count'] = sum(d.year == int(year) for d in observed_dates)
     for identity, product in products.items():
         result['detail:stock_name:' + identity] = product['StockItemName']
         result['detail:stock_id:' + identity] = Decimal(identity)

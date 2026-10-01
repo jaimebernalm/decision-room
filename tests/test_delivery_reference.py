@@ -27,6 +27,10 @@ class DetailedReferenceTests(unittest.TestCase):
         prefix = 'detail:cross:2014:Retail:1:'
         self.assertEqual(values['detail:stock_name:1'], 'Sample')
         self.assertEqual(values['detail:stock_id:1'], 1)
+        self.assertEqual(values['detail:invoice_scope:first_date'], '2014-01-01')
+        self.assertEqual(values['detail:invoice_scope:last_date'], '2014-02-01')
+        self.assertEqual(values['detail:invoice_scope:month_count'], 2)
+        self.assertEqual(values['detail:invoice_scope:2014:header_count'], 2)
         self.assertNotIn('detail:customer_id:2015:1:gross_sales', values)
         self.assertEqual(values['detail:category_change:Retail:customer_count'], 1)
         self.assertEqual(values['detail:category_change:Retail:gross_sales:net_change'], -24)
