@@ -193,7 +193,17 @@ def assess(state, review, oracle, assessment=None):
         except (KeyError, InvalidOperation, TypeError, ValueError, ZeroDivisionError):
             pass
         checks['value:' + key] = passed
-    checks['required_results'] = bool(oracle.get('required')) and set(oracle['required']) <= targets
+    if version == 2 and state['intent'] == 'discover':
+        # Discovery permits evidence-backed selections. A fixed list of global
+        # totals must not reject a useful category/product comparison merely
+        # because its source anchors have a different shape. The independent
+        # reviewer judges requested scope and periods; all delivered values
+        # still require exact source bindings. Factual/dashboard anchors and
+        # the historical instrument retain their original checks.
+        checks['required_results'] = (checks['rubric_complete'] and bool(values)
+            and rubric['coverage']['score'] >= 1 and rubric['comparability']['score'] == 2)
+    else:
+        checks['required_results'] = bool(oracle.get('required')) and set(oracle['required']) <= targets
     accepted = all(checks.values())
     coverage = (review.get('report') or {}).get('owner_coverage')
     partial = (any(q['status'] != 'complete' for q in coverage) if coverage
@@ -253,6 +263,7 @@ def compare(rows, pair_modes=('serial', 'parallel')):
         a, b = (pair.get(mode, {}) for mode in pair_modes)
         comparable = bool(a.get('accepted') and b.get('accepted'))
         matched.append(dict(case=case, repetition=repetition, both_accepted=comparable,
-            **{'parallel_minus_serial_seconds' if pair_modes==('serial','parallel') else 'planner_minus_control_seconds':
+            **{('parallel_minus_serial_seconds' if pair_modes==('serial','parallel') else
+                'new_minus_base_seconds' if pair_modes==('base','new') else 'planner_minus_control_seconds'):
                b['seconds'] - a['seconds'] if comparable else None}))
     return dict(modes=modes, pairs=matched, recommendation='No automatic mode promotion; inspect paired utility, failures and resources. Small stochastic sample, not a causal speed benchmark.')

@@ -81,6 +81,24 @@ Prompts posteriores: revisión v40, investigación v32 y planificador v6. Este a
 también necesita la evaluación adicional; no modifica la comparación congelada.
 79 pruebas de contratos, revisión, planificador y rondas pasan tras el cambio.
 
+El instrumento conserva sus controles históricos para la rúbrica anterior y las
+respuestas/dashboard. En descubrir con rúbrica 2, cobertura y comparabilidad se
+juzgan contra el encargo original por revisión independiente, en vez de exigir
+una lista fija de totales globales: una comparación focal por categoría/producto
+puede ser una respuesta válida. Todas sus cifras siguen necesitando vinculaciones
+exhaustivas al oráculo. El cambio se aplica por igual a ambas versiones, con hash
+del evaluador; no cambia fuentes, oráculos ni el criterio sobre reacciones vagas.
+La matriz exige la misma versión de rúbrica en cada evaluación.
+El ejecutor `evaluation/report_quality_runner.py` congela revisiones Git, fuentes,
+modelo y oráculos, y separa bases y almacenamiento. Conserva los intentos iniciados
+y sus fallos; una reserva todavía sin actividad puede continuar con la misma clave.
+Permite un lote adicional identificado que reutiliza las seis bases históricas y
+ejecuta seis nuevas entregas, una vez terminado el lote original. No representa
+esa continuación como una alternancia nueva ni cuenta dos veces sus bases.
+Referencias independientes adicionales por SKU/categoría, precios y notas de crédito
+extienden el oráculo sin sobrescribirlo ni entrar en el contexto del producto.
+41 pruebas del instrumento, referencias y conservación de intentos pasan.
+
 Pendiente: matriz base/nueva congelada, tres casos (Bruma descubrir, WWI descubrir,
 WWI organizar), dos repeticiones por versión: doce intentos. Mismos archivos,
 contextos, objetivos, modelo, razonamiento y presupuestos. Oráculos CSV/Decimal

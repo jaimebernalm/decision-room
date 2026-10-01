@@ -200,7 +200,12 @@ def summary(directory):
         report = read(job / 'review.json', {})
         oracle = read(directory / (state['dataset'] + '-reference.json'))
         supplement = read(directory / (state['dataset'] + '-supplement.json'))
-        result = assess(state, report, evaluation_reference(oracle, supplement, manifest, state['dataset']), read(job / 'assessment.json'))
+        assessment = read(job / 'assessment.json')
+        result = assess(state, report, evaluation_reference(oracle, supplement, manifest, state['dataset']), assessment)
+        if manifest.get('rubric_version'):
+            result['checks']['rubric_comparable'] = (assessment or {}).get('rubric_version', 1) == manifest['rubric_version']
+            if not result['checks']['rubric_comparable']:
+                result.update(accepted=False, status='failed' if assessment else result['status'])
         result['supplemental_reference_sha256'] = digest(supplement) if supplement else None
         result['checks']['reference_unchanged'] = digest(oracle) == manifest.get('reference_sha256', {}).get(state['dataset'])
         result['checks']['fixtures_unchanged'] = state.get('fixtures_stable') is True
@@ -219,7 +224,7 @@ def summary(directory):
                   summary_producer_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
                   **compare(rows, tuple(manifest.get('comparison_modes', ('serial','parallel')))))
     write(directory / 'summary.json', result)
-    step = '3.7' if manifest.get('workflow') else '3.6'
+    step = '3.9' if manifest.get('rubric_version') == 2 else '3.7' if manifest.get('workflow') else '3.6'
     html = ['<!doctype html><html lang="es"><meta charset="utf-8"><title>Evaluación {step}</title><style>body{font:16px/1.5 system-ui;max-width:1250px;margin:40px auto;padding:20px;color:#123}table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:10px;border-bottom:1px solid #ddd}a{color:#246b8c}</style><h1>Evaluación de calidad · {step}</h1><p>Aprobación del producto y aceptación independiente se muestran por separado. Los fallos permanecen en la matriz; los tiempos no prueban una mejora causal.</p><table><tr><th>Caso</th><th>Modo</th><th>Producto</th><th>Evaluación</th><th>Segundos</th><th>Llamadas</th><th>Evidencia</th></tr>'.replace('{step}', step)]
     for row in rows:
         name = row['job']

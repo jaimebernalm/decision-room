@@ -58,6 +58,19 @@ class QualityTests(unittest.TestCase):
         review['observations'][0]['result']['metrics']['change'] = 6
         self.assertFalse(assess(state, review, oracle, assessment)['accepted'])
 
+    def test_discovery_selection_is_judged_against_goal_not_fixed_global_totals(self):
+        state, review, oracle, assessment = self.fixture()
+        assessment['rubric_version'] = 2
+        assessment['rubric'] = {k: dict(score=2, reason='Source-backed selection answers the original goal and periods') for k in RUBRIC_39}
+        oracle['required'] = ['different_global_total']
+        self.assertTrue(assess(state, review, oracle, assessment)['accepted'])
+        for criterion, score in [('coverage', 0), ('comparability', 1)]:
+            invalid = copy.deepcopy(assessment)
+            invalid['rubric'][criterion]['score'] = score
+            self.assertFalse(assess(state, review, oracle, invalid)['accepted'])
+        state['intent'] = 'organize'
+        self.assertFalse(assess(state, review, oracle, assessment)['checks']['required_results'])
+
     def test_partial_uses_owner_delivery_instead_of_internal_branches(self):
         state, review, oracle, assessment = self.fixture()
         review['report']['owner_coverage'] = [dict(status='partial')]
@@ -185,6 +198,27 @@ class QualityTests(unittest.TestCase):
         self.assertEqual(got['pairs'][0]['planner_minus_control_seconds'], 10)
         self.assertIsNone(got['pairs'][1]['planner_minus_control_seconds'])
         self.assertEqual(got['modes']['planner']['total'], 2)
+        renamed = [{**r, 'mode': {'control':'base', 'planner':'new'}[r['mode']]} for r in rows]
+        self.assertEqual(compare(renamed, ('base','new'))['pairs'][0]['new_minus_base_seconds'], 10)
+
+    def test_batch_cannot_accept_a_report_assessed_with_another_rubric(self):
+        state, review, oracle, assessment = self.fixture()
+        state.update(case='bruma-discover', dataset='bruma', repetition=1, mode='new', fixtures_stable=True)
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root/'job').mkdir()
+            write(root/'manifest.json',dict(jobs={'job':state}, rubric_version=2,
+                comparison_modes=['base','new'], reference_sha256={'bruma':digest(oracle)}))
+            write(root/'bruma-reference.json',oracle)
+            for filename, value in [('state',state), ('review',review), ('assessment',assessment)]:
+                write(root/'job'/(filename+'.json'),value)
+            row = summary(root)['runs'][0]
+            self.assertFalse(row['accepted'])
+            self.assertFalse(row['checks']['rubric_comparable'])
+            self.assertEqual(row['assessment_status'],'failed')
+            assessment.update(rubric_version=2,rubric={k:dict(score=2,reason='Same independent source and goal review') for k in RUBRIC_39})
+            write(root/'job/assessment.json',assessment)
+            self.assertTrue(summary(root)['runs'][0]['accepted'])
 
     def test_supplement_adds_dimensions_without_overriding_frozen_answers(self):
         oracle = dict(metrics={'total': 5}, required=['total'])
