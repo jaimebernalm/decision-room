@@ -8,6 +8,8 @@ import {
   Check,
   Archive,
   RefreshCw,
+  MoreHorizontal,
+  Info,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -20,6 +22,19 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from "@/components/ui/accordion";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -63,19 +78,62 @@ const factKinds: Record<string, string> = {
 const factStatus: Record<string, string> = {
   declared: "Confirmado por ti",
   inferred: "Por confirmar",
+  proposed: "Por confirmar",
   uncertain: "Por revisar",
   conflicted: "En conflicto",
   withdrawn: "Retirado",
   confirmed: "Confirmado",
   superseded: "Sustituido",
 };
+const factGroups = [
+  { key: "review", title: "Por revisar" },
+  { key: "business", title: "Sobre el negocio" },
+  { key: "operations", title: "Operativa" },
+  { key: "goals", title: "Objetivos y preferencias" },
+] as const;
+function needsReview(fact: Fact) {
+  return (
+    ["proposed", "inferred", "uncertain", "conflicted"].includes(fact.status) ||
+    fact.content.temporal_scope === "unresolved" ||
+    fact.content.kind === "open_question"
+  );
+}
+function factGroup(fact: Fact) {
+  if (needsReview(fact)) return "review";
+  const { kind, scope, topic = "" } = fact.content;
+  if (
+    kind === "priority" ||
+    /preferenc|objetiv|goal|prioridad|priority/.test(topic.toLowerCase())
+  ) return "goals";
+  if (
+    scope !== "business" ||
+    ["definition", "availability"].includes(kind) ||
+    /horario|schedule|opening|operativ|operation|proveedor|supplier|inventario|inventory/.test(
+      topic.toLowerCase(),
+    )
+  )
+    return "operations";
+  return "business";
+}
 export function Dossier({ files = false }: { files?: boolean }) {
   const { workspace, refresh } = useWorkspace(),
     b = workspace.business!,
     resource = useResource<DossierData>("/api/business/dossier"),
     action = useAction();
   const [edit, setEdit] = useState<Fact | null | undefined>(undefined),
+    [detail, setDetail] = useState<Fact | null>(null),
     [upload, setUpload] = useState(false);
+  const actionFocus = useRef<HTMLButtonElement | null>(null),
+    addInformation = useRef<HTMLButtonElement | null>(null);
+  const restoreDialogFocus = (event: Event) => {
+    const target = actionFocus.current?.isConnected
+      ? actionFocus.current
+      : addInformation.current;
+    if (target) {
+      event.preventDefault();
+      target.focus();
+    }
+  };
   const done = () => {
     resource.refresh();
     refresh();
@@ -106,39 +164,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
     );
   return (
     <>
-      <Heading
-        title={b.name}
-        description="La información y los datos que dan contexto a cada respuesta."
-      >
-        <Button asChild variant="outline">
-          <a href="#business">
-            <Pencil />
-            Editar presentación
-          </a>
-        </Button>
-      </Heading>
-      <Selectable
-        item={{
-          kind: "business",
-          source_id: b.id,
-          source_version: String(data.business.profile_revision),
-          element_key: "profile",
-          title: `Presentación de ${data.business.name}`,
-          href: "#my-business",
-          report_title: "Mi negocio",
-          content: {
-            key: "profile",
-            title: data.business.name,
-            statement: data.business.description,
-          },
-        }}
-      >
-        <Card className="mb-6 shadow-none">
-          <CardContent className="whitespace-pre-wrap text-sm leading-7 text-muted-foreground">
-            {data.business.description}
-          </CardContent>
-        </Card>
-      </Selectable>
+      <Heading title={b.name} />
       <Notice error>{resource.error || action.error}</Notice>
       {Boolean(
         data.memory.pending || data.memory.failed || data.memory.needs_review,
@@ -165,7 +191,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <TabsList>
             <TabsTrigger value="info">Información</TabsTrigger>
-            <TabsTrigger value="data">Datos y versiones</TabsTrigger>
+            <TabsTrigger value="data">Datos</TabsTrigger>
             <TabsTrigger value="history">Historial</TabsTrigger>
           </TabsList>
           <Button variant="ghost" size="sm" onClick={resource.refresh}>
@@ -173,99 +199,212 @@ export function Dossier({ files = false }: { files?: boolean }) {
             Actualizar
           </Button>
         </div>
-        <TabsContent value="info" className="space-y-5">
+        <TabsContent value="info" className="max-w-4xl space-y-5">
           <div className="flex justify-end">
-            <Button size="sm" onClick={() => setEdit(null)}>
+            <Button
+              size="sm"
+              ref={addInformation}
+              onClick={(event) => {
+                actionFocus.current = event.currentTarget;
+                setEdit(null);
+              }}
+            >
               <Plus />
               Añadir información
             </Button>
           </div>
+          {!facts.length && data.business.description && (
+            <section aria-label="Presentación del negocio">
+              <h2 className="mb-2 text-sm font-medium">Sobre el negocio</h2>
+              <p className="line-clamp-3 whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">
+                {data.business.description}
+              </p>
+            </section>
+          )}
           {facts.length ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              {facts.map((f) => (
-                <Selectable
-                  key={f.fact_id}
-                  item={{
-                    kind: "memory",
-                    source_id: f.fact_id,
-                    source_version: String(f.revision),
-                    element_key: "fact",
-                    title: f.content.statement.slice(0, 100),
-                    href: "#my-business",
-                    report_title: "Mi negocio",
-                    content: {
-                      key: "fact",
-                      title: factKinds[f.content.kind] || "Información",
-                      statement: f.content.statement,
-                    },
-                  }}
-                >
-                  <Card className="shadow-none">
-                    <CardHeader>
-                      <div className="flex flex-wrap gap-2">
-                        <Badge variant="outline">
-                          {factKinds[f.content.kind] || f.content.kind}
-                        </Badge>
-                        <Badge
-                          variant={
-                            f.status === "conflicted"
-                              ? "destructive"
-                              : "secondary"
-                          }
-                        >
-                          {factStatus[f.status] || f.status}
-                        </Badge>
-                      </div>
-                      <CardTitle className="text-base leading-7">
-                        {f.content.statement}
-                      </CardTitle>
-                      <CardDescription>
-                        {scopeLabel(f.content, data.datasets)}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <FactOrigin fact={f} />
-                      <div className="flex flex-wrap gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setEdit(f)}
-                        >
-                          <Pencil />
-                          Corregir
-                        </Button>
-                        {f.status !== "declared" && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            disabled={action.busy}
-                            onClick={() => mutation(f, "confirm")}
-                          >
-                            <Check />
-                            Confirmar
-                          </Button>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={action.busy}
-                          onClick={() => mutation(f, "withdraw")}
-                        >
-                          <Archive />
-                          Retirar
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Selectable>
-              ))}
-            </div>
+            <Accordion
+              type="multiple"
+              defaultValue={factGroups.map((group) => group.key)}
+            >
+              {factGroups.map((group) => {
+                const items = facts.filter(
+                  (fact) => factGroup(fact) === group.key,
+                );
+                if (!items.length) return null;
+                return (
+                  <AccordionItem key={group.key} value={group.key}>
+                    <AccordionTrigger className="gap-3 py-3 hover:no-underline">
+                      <span>
+                        {group.title}{" "}
+                        <span className="ml-2 text-xs font-normal text-muted-foreground">
+                          {items.length}
+                        </span>
+                      </span>
+                    </AccordionTrigger>
+                    <AccordionContent className="h-auto pb-3 [&_p:not(:last-child)]:mb-0">
+                      <ul className="divide-y divide-border/50">
+                        {items.map((f) => (
+                          <li key={f.fact_id}>
+                            <Selectable
+                              item={{
+                                kind: "memory",
+                                source_id: f.fact_id,
+                                source_version: String(f.revision),
+                                element_key: "fact",
+                                title: f.content.statement.slice(0, 100),
+                                href: "#my-business",
+                                report_title: "Mi negocio",
+                                content: {
+                                  key: "fact",
+                                  title:
+                                    factKinds[f.content.kind] || "Información",
+                                  statement: f.content.statement,
+                                },
+                              }}
+                            >
+                              <div className="flex items-start gap-3 rounded-lg py-2 pl-1 text-sm hover:bg-muted/30">
+                                <div className="min-w-0 flex-1 py-2">
+                                  <p className="whitespace-pre-wrap break-words leading-6">
+                                    {f.content.statement}
+                                  </p>
+                                  {needsReview(f) && (
+                                    <Badge
+                                      className="mt-1"
+                                      variant={
+                                        f.status === "conflicted"
+                                          ? "destructive"
+                                          : "secondary"
+                                      }
+                                    >
+                                      {f.status === "conflicted"
+                                        ? factStatus[f.status]
+                                        : f.content.temporal_scope ===
+                                            "unresolved"
+                                          ? "Fechas por aclarar"
+                                          : f.content.kind === "open_question"
+                                            ? "Pregunta abierta"
+                                            : factStatus[f.status] ||
+                                              "Por revisar"}
+                                    </Badge>
+                                  )}
+                                  {(f.content.scope !== "business" ||
+                                    f.content.valid_from ||
+                                    f.content.valid_until) && (
+                                    <p className="mt-1 break-words text-xs text-muted-foreground">
+                                      {scopeLabel(f.content, data.datasets)}
+                                    </p>
+                                  )}
+                                </div>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="size-10 shrink-0"
+                                      aria-label={`Acciones: ${f.content.statement}`}
+                                      onFocus={(event) => {
+                                        actionFocus.current =
+                                          event.currentTarget;
+                                      }}
+                                      onPointerDown={(event) => {
+                                        actionFocus.current = event.currentTarget;
+                                      }}
+                                    >
+                                      <MoreHorizontal />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent
+                                    align="end"
+                                    className="min-w-44"
+                                  >
+                                    <DropdownMenuItem
+                                      disabled={action.busy}
+                                      onSelect={() => setEdit(f)}
+                                    >
+                                      <Pencil />
+                                      Editar
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onSelect={() => setDetail(f)}
+                                    >
+                                      <Info />
+                                      Ver detalles
+                                    </DropdownMenuItem>
+                                    {![
+                                      "declared",
+                                      "confirmed",
+                                      "conflicted",
+                                    ].includes(f.status) &&
+                                      f.content.temporal_scope !==
+                                        "unresolved" &&
+                                      f.content.kind !== "open_question" && (
+                                        <DropdownMenuItem
+                                          disabled={action.busy}
+                                          onSelect={() => {
+                                            void mutation(f, "confirm");
+                                          }}
+                                        >
+                                          <Check />
+                                          Confirmar
+                                        </DropdownMenuItem>
+                                      )}
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      variant="destructive"
+                                      disabled={action.busy}
+                                      onSelect={() => {
+                                        void mutation(f, "withdraw");
+                                      }}
+                                    >
+                                      <Archive />
+                                      Retirar
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </Selectable>
+                          </li>
+                        ))}
+                      </ul>
+                    </AccordionContent>
+                  </AccordionItem>
+                );
+              })}
+            </Accordion>
           ) : (
             <Empty
               title="Un contexto que crece contigo"
               description="Añade prioridades, definiciones o detalles que el asistente debería recordar."
             />
           )}
+          <Disclosure title="Ver presentación original">
+            <Selectable
+              item={{
+                kind: "business",
+                source_id: b.id,
+                source_version: String(data.business.profile_revision),
+                element_key: "profile",
+                title: `Presentación de ${data.business.name}`,
+                href: "#my-business",
+                report_title: "Mi negocio",
+                content: {
+                  key: "profile",
+                  title: data.business.name,
+                  statement: data.business.description,
+                },
+              }}
+            >
+              <p className="whitespace-pre-wrap break-words leading-6 text-muted-foreground">
+                {data.business.description}
+              </p>
+            </Selectable>
+            <Button asChild variant="ghost" size="sm">
+              <a href="#business">
+                <Pencil />
+                Editar presentación
+              </a>
+            </Button>
+          </Disclosure>
         </TabsContent>
         <TabsContent value="data" className="space-y-5">
           <div className="flex justify-end">
@@ -376,12 +515,59 @@ export function Dossier({ files = false }: { files?: boolean }) {
         </TabsContent>
       </Tabs>
       <Dialog
+        open={detail !== null}
+        onOpenChange={(open) => {
+          if (!open) setDetail(null);
+        }}
+      >
+        <DialogContent
+          className="max-h-[90svh] overflow-y-auto sm:max-w-xl"
+          onCloseAutoFocus={restoreDialogFocus}
+        >
+          <DialogHeader>
+            <DialogTitle>Detalles de la información</DialogTitle>
+            <DialogDescription>
+              Origen, ámbito y vigencia de este dato.
+            </DialogDescription>
+          </DialogHeader>
+          {detail && (
+            <div className="min-w-0 space-y-4 break-words text-sm">
+              <p className="whitespace-pre-wrap leading-6">
+                {detail.content.statement}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="outline">
+                  {factKinds[detail.content.kind] || detail.content.kind}
+                </Badge>
+                <Badge
+                  variant={
+                    detail.status === "conflicted" ? "destructive" : "secondary"
+                  }
+                >
+                  {factStatus[detail.status] || detail.status}
+                </Badge>
+              </div>
+              <p className="text-muted-foreground">
+                {scopeLabel(detail.content, data.datasets)}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {date(detail.created_at)} · revisión {detail.revision}
+              </p>
+              <FactOrigin fact={detail} expanded />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+      <Dialog
         open={edit !== undefined}
         onOpenChange={(open) => {
           if (!open) setEdit(undefined);
         }}
       >
-        <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-xl">
+        <DialogContent
+          className="max-h-[90svh] overflow-y-auto sm:max-w-xl"
+          onCloseAutoFocus={restoreDialogFocus}
+        >
           <DialogHeader>
             <DialogTitle>
               {edit ? "Corregir información" : "Añadir información"}
@@ -426,9 +612,15 @@ function scopeLabel(content: FactContent, datasets: Dataset[]) {
             .find((f) => f.id === content.scope_id)?.name || "Archivo";
   return `${target}${content.valid_from || content.valid_until ? ` · ${content.valid_from || "…"} — ${content.valid_until || "…"}` : ""}${content.temporal_scope === "unresolved" ? " · fechas por aclarar" : ""}`;
 }
-function FactOrigin({ fact }: { fact: Fact }) {
-  return (
-    <Disclosure title="Origen y vigencia">
+function FactOrigin({
+  fact,
+  expanded = false,
+}: {
+  fact: Fact;
+  expanded?: boolean;
+}) {
+  const content = (
+    <div className="space-y-3 whitespace-pre-wrap break-words">
       <p>
         {fact.content.valid_from || "Sin fecha inicial"} —{" "}
         {fact.content.valid_until || "Sin fecha final"}
@@ -451,7 +643,12 @@ function FactOrigin({ fact }: { fact: Fact }) {
           Alternativa: {a.content?.statement || a.statement || a.quote}
         </p>
       ))}
-    </Disclosure>
+    </div>
+  );
+  return expanded ? (
+    content
+  ) : (
+    <Disclosure title="Origen y vigencia">{content}</Disclosure>
   );
 }
 function FactEditor({

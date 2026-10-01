@@ -2,8 +2,14 @@
 
 ## Resultado y recorrido
 
-La ficha tiene Información, Datos y archivos, y Cambios. Presenta declaraciones,
-propuestas, contradicciones y dudas, con texto original, ámbito, fechas y revisiones.
+La ficha tiene Información, Datos e Historial. Información agrupa declaraciones,
+propuestas, contradicciones y dudas en filas compactas de Sobre el negocio,
+Operativa, Objetivos y preferencias y Por revisar. La presentación original se
+despliega dentro de Información; origen, texto original, ámbito, fechas y revisiones
+se consultan desde el menú de cada fila. Los ámbitos específicos y periodos siguen
+visibles; los avisos distinguen información propuesta o en conflicto. Véanse el
+[plan de presentación](business-dossier-ui-plan.md) y su
+[validación](../validation/2026-09-30-dossier-ui-check.md).
 Los orígenes que son mensajes enlazan a su conversación. El perfil general sigue
 siendo editable; las definiciones y prioridades usan `memory.change`, igual que
 las correcciones explícitas del chat. No existe otra copia de memoria en Markdown.

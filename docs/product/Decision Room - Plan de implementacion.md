@@ -202,6 +202,14 @@ agradecimientos. Véase la [validación del diálogo](../validation/2026-09-24-d
 
 **Comprobar:** editar una definición tiene el mismo efecto desde la ficha que desde una aclaración; una corrección histórica retira los resultados afectados; el usuario encuentra el origen y alcance de lo guardado; un archivo nuevo no se agrega dos veces ni hace parecer actualizado un informe anterior. Sin datos suficientes se conserva el trabajo y se explica el siguiente paso.
 
+**Ajuste de presentación, 30 de septiembre de 2026:** implementada y comprobada
+una ficha organizada por grupos y filas compactas, con presentación original
+plegada y acciones/detalles a petición. Se conserva edición, historial y selección
+de contexto con versiones. Pasan 125 pruebas de frontend, compilación y lint sin
+errores; escritorio y móvil comprobados con datos ficticios. Véanse la
+[secuencia de ejecución](../technical/business-dossier-ui-plan.md) y la
+[validación con sus límites](../validation/2026-09-30-dossier-ui-check.md).
+
 ### 2.5.6. Inicio del negocio, informes y navegación cotidiana
 
 **Construir:** separar onboarding de visitas posteriores. Barra lateral con Inicio, Informes, Mi negocio, Nueva conversación y chats recientes. Inicio muestra un resumen, pocos hallazgos y gráficos respaldados, con periodo visible, detalle/evidencia y selección de revisión. Añadir prompt inferior y preguntas sugeridas pertinentes; enviar abre un chat y «Preguntar sobre esto» conserva la referencia al hallazgo. Biblioteca de informes con estados y vínculo a conversaciones; navegación adaptable a móvil y teclado.
