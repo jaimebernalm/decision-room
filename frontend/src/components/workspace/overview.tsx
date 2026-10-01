@@ -23,7 +23,7 @@ import { Heading, Notice, Empty, Loading } from "./shared";
 import { ReportDownload } from "./report-download";
 import { ReportView } from "./report";
 import { ChatActions } from "./chat-actions";
-import { FloatingAssistant } from "./floating-assistant";
+import { NewChatComposer } from "./floating-assistant";
 import { Selectable } from "./context-selection";
 import { useAssistant } from "@/lib/assistant";
 export function StartChat() {
@@ -33,7 +33,7 @@ export function StartChat() {
       <div className="flex-1" />
       <div className="shrink-0 px-4 pb-4 pt-2 sm:px-8">
         <div className="mx-auto max-w-2xl">
-          <FloatingAssistant inline />
+          <NewChatComposer />
         </div>
       </div>
     </div>

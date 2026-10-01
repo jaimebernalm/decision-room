@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { MessageCircle, X } from "lucide-react";
+import { PanelRightOpen, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useWorkspace } from "@/lib/workspace";
 import { useAction, useDraft } from "@/lib/hooks";
@@ -9,36 +9,34 @@ import { useAssistant, contextualRoute } from "@/lib/assistant";
 import { ContextAttachments, SelectionTool } from "./context-selection";
 import { Composer } from "./composer";
 
-export function FloatingAssistant({ inline = false }: { inline?: boolean }) {
-  return inline ? <NewChatComposer /> : <AssistantLauncher />;
-}
-
-function AssistantLauncher() {
+export function AssistantToggle() {
   const assistant = useAssistant();
   const { workspace, route } = useWorkspace();
-  const [draft] = useDraft(homeDraftKey(workspace.business!.id), "");
-  if (!assistant || !contextualRoute(route) || assistant.dock.open) return null;
+  const [draft] = useDraft(homeDraftKey(workspace.business?.id || "empty"), "");
+  if (!assistant || !workspace.business || !contextualRoute(route) || assistant.dock.open) return null;
   const continuing = Boolean(
     assistant.dock.chatId || draft.trim() || assistant.selected.length,
   );
   return (
-    <div className="absolute bottom-5 right-5 z-20">
+    <span>
       <Button
-        className="h-12 rounded-full px-5 shadow-lg"
+        variant="ghost"
+        size="icon"
+        aria-label={continuing ? "Continuar conversación" : "Preguntar algo"}
+        title={continuing ? "Continuar conversación" : "Preguntar algo"}
         onClick={() =>
           assistant.setDock({ ...assistant.dock, open: true, origin: route })
         }
       >
-        <MessageCircle className="size-4" />
-        {continuing ? "Continuar conversación" : "Preguntar algo"}
+        <PanelRightOpen className="size-4" />
       </Button>
-    </div>
+    </span>
   );
 }
 
 // Used both in the empty side panel and the standalone new conversation.
 // The page owns the component lifetime, so late sends cannot redirect another page.
-function NewChatComposer() {
+export function NewChatComposer() {
   const assistant = useAssistant();
   const { workspace, route, refresh } = useWorkspace();
   const business = workspace.business!;

@@ -7,7 +7,6 @@ import { WorkspaceState, type WorkspaceContext } from "@/lib/workspace";
 import { store, messageKey } from "@/lib/api";
 import type { ContextAttachment } from "@/lib/types";
 import { Selectable } from "./context-selection";
-import { FloatingAssistant } from "./floating-assistant";
 import { ChatPage } from "./chat";
 import { Chats, Reports, StartChat } from "./overview";
 import { Dossier } from "./dossier";
@@ -93,7 +92,6 @@ function Harness({
           ) : route === "chats" ? (
             <>
               <Chats />
-              <FloatingAssistant />
             </>
           ) : (
             <>
@@ -108,7 +106,6 @@ function Harness({
                   </Selectable>
                 )}
               </div>
-              <FloatingAssistant />
             </>
           )}
         </Layout>
@@ -178,7 +175,9 @@ it.each(["home", "my-business", "reports", "chats"])(
     const user = userEvent.setup();
     render(<Harness initialRoute={route} />);
     expect(screen.queryByRole("textbox", { name: "Mensaje" })).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Preguntar algo" }));
+    const launcher = screen.getByRole("button", { name: "Preguntar algo" });
+    expect(launcher.closest("header")).not.toBeNull();
+    await user.click(launcher);
     const panel = await screen.findByRole("complementary", {
       name: "Conversación lateral",
     });

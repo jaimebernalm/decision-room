@@ -61,4 +61,7 @@ publica en GitHub salvo petición explícita del usuario.
   Validación: 123 pruebas de frontend y compilación correctas.
 - 2.5.19.2 completado: + accesible junto a Chats, también compacto; apertura
   sin crear conversaciones y borrador conservado. 124 pruebas y compilación correctas.
-- 2.5.19.3–2.5.19.6 pendientes.
+- 2.5.19.3 completado: apertura y reapertura en la barra superior, cierre alineado,
+  sin acceso flotante ni espacio inferior reservado. 124 pruebas y compilación;
+  apertura/cierre verificados en navegador y continuidad de borradores en pruebas.
+- 2.5.19.4–2.5.19.6 pendientes.

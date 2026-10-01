@@ -13,7 +13,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
-import { FloatingAssistant } from "./floating-assistant";
+import { NewChatComposer } from "./floating-assistant";
 import { Button } from "@/components/ui/button";
 import { useAssistant, contextualRoute } from "@/lib/assistant";
 import { useWorkspace } from "@/lib/workspace";
@@ -144,7 +144,7 @@ export function AssistantFrame({
                   }
                 }}
               />
-              <header className="flex h-16 shrink-0 items-center gap-1 px-4">
+              <header className="flex h-14 shrink-0 items-center gap-1 px-4">
                 <span className="mr-auto text-sm font-medium">
                   Conversación
                 </span>
@@ -205,7 +205,7 @@ export function AssistantFrame({
                     Pregunta sobre tu negocio.
                   </div>
                   <div className="p-3">
-                    <FloatingAssistant inline />
+                    <NewChatComposer />
                   </div>
                 </div>
               )}

@@ -43,6 +43,7 @@ import { store, shortTitle, analysisHref } from "@/lib/api";
 import { AssistantProvider, useAssistant } from "@/lib/assistant";
 import { ChatActions } from "./chat-actions";
 import { AssistantFrame } from "./assistant-frame";
+import { AssistantToggle } from "./floating-assistant";
 const navigation = [
   ["home", "Inicio", Home],
   ["my-business", "Mi negocio", Building2],
@@ -416,6 +417,7 @@ function Topbar() {
         >
           {theme === "dark" ? <Sun /> : <Moon />}
         </Button>
+        <AssistantToggle />
       </div>
     </header>
   );

@@ -19,7 +19,6 @@ import { api, ApiError } from "@/lib/api";
 import type { Workspace, ChatListing, Chat } from "@/lib/types";
 import { WorkspaceState } from "@/lib/workspace";
 import { useAction } from "@/lib/hooks";
-import { FloatingAssistant } from "@/components/workspace/floating-assistant";
 import { Layout } from "@/components/workspace/layout";
 import { MainContent } from "@/components/workspace/main-content";
 import { EntryFrame, Welcome } from "@/components/entry/welcome";
@@ -213,10 +212,6 @@ function App() {
               !workspace.analyses.length
             ? `onboarding/${workspace.business.id}`
             : requestedRoute;
-    const showAssistant =
-      Boolean(workspace.business) &&
-      !activeRoute.startsWith("chat/") &&
-      !["business-new", "businesses", "ask"].includes(activeRoute);
     body = (
       <WorkspaceState.Provider
         value={{
@@ -299,18 +294,13 @@ function App() {
                   <StartChat />
                 ) : (
                   <div
-                    className={`mx-auto w-full max-w-7xl px-5 py-8 sm:px-8 lg:px-10 ${showAssistant ? "pb-24" : ""}`}
+                    className="mx-auto w-full max-w-7xl px-5 py-8 sm:px-8 lg:px-10"
                   >
                     <Route route={activeRoute} />
                   </div>
                 )}
               </Suspense>
             </MainContent>
-            {showAssistant && (
-              <FloatingAssistant
-                key={`assistant:${workspace.business!.id}:${activeRoute}`}
-              />
-            )}
           </Layout>
         )}
         <AlertDialog
