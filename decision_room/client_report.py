@@ -61,6 +61,38 @@ def grouped_svg(chart, layout, points, values, colors):
     return ''.join(output)
 
 
+def temporal_svg(chart, points, values, colors):
+    from .chart_layout import temporal_cells
+    grain, categories, indices, order, cells = temporal_cells(chart, points, values)
+    bounds = [*values] if chart.get('scale') == 'data' else [Decimal(0), *values]
+    low, high = min(bounds), max(bounds)
+    span = high - low or Decimal(1)
+    def x(index): return 110 + (index - indices[0]) / (indices[-1] - indices[0] or 1) * 570
+    def y(value): return 230 - float((value - low) / span) * 160
+    shapes = []
+    for i, name in enumerate(order):
+        shade = colors.get(name, CHART_PALETTE[0])
+        shapes.append(f'<text x="{110+(i%3)*180}" y="{16+(i//3)*20}" class="tick" fill="{shade}">{e(name)}</text>')
+        previous = None
+        for category, index in zip(categories, indices):
+            value = cells.get((category, name))
+            if value is None:
+                previous = None
+                continue
+            if previous and index - previous[0] == 1:
+                shapes.append(f'<line x1="{x(previous[0]):.2f}" y1="{y(previous[1]):.2f}" x2="{x(index):.2f}" y2="{y(value):.2f}" class="trend" style="stroke:{shade}"/>')
+            shapes.append(f'<circle cx="{x(index):.2f}" cy="{y(value):.2f}" r="4" style="fill:{shade}"><title>{e(category)} · {e(name)}: {e(formatted(value, chart['decimals']))}</title></circle>')
+            previous = index, value
+    for tick in range(5):
+        value = low + span * Decimal(tick) / 4
+        pos = y(value)
+        shapes += [f'<line x1="110" y1="{pos:.2f}" x2="680" y2="{pos:.2f}" class="grid"/>',
+                   f'<text x="100" y="{pos+5:.2f}" text-anchor="end" class="tick">{e(formatted(value, chart["decimals"]))}</text>']
+    for i in sorted({round(i*(len(indices)-1)/min(4,len(indices)-1)) for i in range(min(4,len(indices)-1)+1)}):
+        shapes.append(f'<text x="{x(indices[i]):.2f}" y="260" text-anchor="middle" class="tick">{e(categories[i])}</text>')
+    return '<div class="plot"><svg viewBox="0 0 720 300" role="img" aria-label="' + e(chart['title']) + '">' + ''.join(shapes) + '</svg></div>'
+
+
 def chart_html(data, chart):
     """Only fixed SVG primitives. Values resolve from approved evidence, never prose."""
     series = saved_series(data['observations'], chart['series']) if chart.get('series') else None
@@ -70,8 +102,12 @@ def chart_html(data, chart):
     numbers = [formatted(v, chart['decimals']) for v in values]
     title_id = 'chart-title-' + chart['key']
     caption_id = 'chart-caption-' + chart['key']
-    table = '<table><thead><tr><th scope="col">Referencia</th><th scope="col">' + e(chart['unit']) + '</th></tr></thead><tbody>'
-    table += ''.join(f'<tr><th scope="row">{e(label)}</th><td>{e(value)}</td></tr>' for label, value in zip(labels, numbers)) + '</tbody></table>'
+    from .chart_layout import comparison_tables
+    table = ''
+    for title, headings, rows in comparison_tables(chart, points, numbers):
+        table += (f'<h4>{e(title)}</h4>' if title else '') + '<table><thead><tr>'
+        table += ''.join(f'<th scope="col">{e(h)}</th>' for h in headings) + '</tr></thead><tbody>'
+        table += ''.join('<tr>' + f'<th scope="row">{e(row[0])}</th>' + ''.join(f'<td>{e(v)}</td>' for v in row[1:]) + '</tr>' for row in rows) + '</tbody></table>'
     svg = ''
     if chart['kind'] != 'table':
         low, high = min(min(values), Decimal(0)), max(max(values), Decimal(0))
@@ -89,31 +125,16 @@ def chart_html(data, chart):
                 shapes.append(f'<text x="700" y="{y+23}" text-anchor="end" class="chart-number">{e(number)}</text>')
         else:
             height = 300
-            days = [date.fromisoformat(label).toordinal() for label in labels]
-            def x(day):
-                return 110 + (day - days[0]) / (days[-1] - days[0]) * 570
-            def y(value):
-                return 230 - float((value - low) / span) * 190
             shapes = []
-            for tick in range(5):
-                value = low + span * Decimal(tick) / 4
-                pos = y(value)
-                shapes += [f'<line x1="110" y1="{pos:.2f}" x2="680" y2="{pos:.2f}" class="grid"/>',
-                           f'<text x="100" y="{pos+5:.2f}" text-anchor="end" class="tick">{e(formatted(value, chart["decimals"]))}</text>']
-            for i, (day, value) in enumerate(zip(days, values)):
-                # Do not interpolate absent dates; a gap remains a gap.
-                if i and day - days[i-1] == 1:
-                    shapes.append(f'<line x1="{x(days[i-1]):.2f}" y1="{y(values[i-1]):.2f}" x2="{x(day):.2f}" y2="{y(value):.2f}" class="trend"/>')
-                shapes.append(f'<circle cx="{x(day):.2f}" cy="{y(value):.2f}" r="4" class="dot"><title>{e(labels[i])}: {e(numbers[i])}</title></circle>')
-            ticks = sorted({round(i * (len(days)-1) / min(4, len(days)-1)) for i in range(min(4, len(days)-1)+1)})
-            for i in ticks:
-                shapes.append(f'<text x="{x(days[i]):.2f}" y="260" text-anchor="middle" class="tick">{e(labels[i])}</text>')
         svg = f'<div class="plot"><svg viewBox="0 0 720 {height}" role="img" aria-labelledby="{title_id} {caption_id}">' + ''.join(shapes) + '</svg></div>'
         layout = panels(chart, points)
         if chart['kind'] == 'bar' and layout:
             all_layouts = [p for c in data['report']['charts'] for p in panels(c, saved_series(data['observations'], c['series'])['points'] if c.get('series') else c['points'])]
             colors = series_colors(s for panel in all_layouts for s in panel['series_order'])
             svg = grouped_svg(chart, layout, points, values, colors)
+        if chart['kind'] == 'line':
+            all_labels = [s for c in data['report']['charts'] for p in panels(c, saved_series(data['observations'], c['series'])['points'] if c.get('series') else c['points']) for s in p['series_order']]
+            svg = temporal_svg({**chart, 'temporal_grain': series['grain'] if series and series['grain'] != 'category' else chart.get('temporal_grain')}, points, values, series_colors(all_labels))
         table = '<details><summary>Ver los valores del gráfico</summary>' + table + '</details>'
     return (f'<figure><h3 id="{title_id}">{e(chart["title"])}</h3><p class="unit">{e(chart["unit"])}</p>' + svg + ('<p class="scroll-hint">Desliza el gráfico para ver todos los valores.</p>' if svg else '') +
             f'<figcaption id="{caption_id}">{e(chart["caption"])}</figcaption>' + table +

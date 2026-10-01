@@ -85,3 +85,50 @@ it("keeps every fallback series within the product's fixed palette", () => {
   ])
     expect(CHART_SERIES_PALETTE).toContain(seriesColor(series));
 });
+
+it("connects consecutive months and preserves whole missing months as gaps", () => {
+  const points = chartPoints({
+    ...chart,
+    temporal_grain: "month",
+    points: [
+      { label: "2026-06", value: "10", formatted: "10" },
+      { label: "2026-07", value: "12", formatted: "12" },
+      { label: "2026-09", value: "14", formatted: "14" },
+    ],
+  });
+  expect(points.map((p) => p.value)).toEqual([10, 12, null, 14]);
+  expect(points.map((p) => p.label).filter(Boolean)).toEqual([
+    "2026-06",
+    "2026-07",
+    "2026-09",
+  ]);
+});
+it("multi-series temporal views break missing cells without changing saved values", () => {
+  const monthly = {
+    ...chart,
+    temporal_grain: "month" as const,
+    points: [
+      { label: "a", value: "10.005", formatted: "10,01" },
+      { label: "b", value: "20", formatted: "20,00" },
+    ],
+  };
+  const rows = groupedPoints(monthly, {
+    title: "",
+    category_title: "Mes",
+    series_title: "Canal",
+    measure: "level",
+    temporal_grain: "month",
+    series_order: ["A", "B"],
+    coordinates: [
+      { label: "a", category: "2026-06", series: "A" },
+      { label: "b", category: "2026-08", series: "B" },
+    ],
+  });
+  expect(rows.map((r) => [r.s0, r.s1])).toEqual([
+    [10.005, null],
+    [null, null],
+    [null, 20],
+  ]);
+  expect(rows[0].s0Exact).toBe("10,01");
+  expect(monthly.points.length).toBe(2);
+});

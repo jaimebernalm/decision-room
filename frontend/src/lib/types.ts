@@ -71,7 +71,9 @@ export type Claim = {
     operations: string[];
   };
 };
+export type TemporalGrain = "day" | "month" | "quarter" | "year";
 export type ChartPanel = {
+  temporal_grain?: TemporalGrain | null;
   title: string;
   category_title: string;
   series_title: string;
@@ -81,6 +83,8 @@ export type ChartPanel = {
   coordinates: { label: string; category: string; series: string }[];
 };
 export type ChartData = {
+  scale?: "zero" | "data";
+  temporal_grain?: TemporalGrain | null;
   key: string;
   kind: "line" | "bar" | "table";
   title: string;

@@ -126,30 +126,38 @@ def bar_drawings(chart):
 
 
 def line_drawing(chart):
+    from .chart_layout import temporal_cells
     points = chart['points']
-    dates = [datetime.fromisoformat(p['label'].replace('Z', '+00:00')).timestamp() for p in points]
     values = [Decimal(p['value']) for p in points]
-    low, high = min([Decimal(0)] + values), max([Decimal(0)] + values)
+    _, categories, indices, order, cells = temporal_cells(chart, points, values)
+    bounds = [*values] if chart.get('scale') == 'data' else [Decimal(0), *values]
+    low, high = min(bounds), max(bounds)
     span = high - low or Decimal(1)
-    start, end = min(dates), max(dates)
-    drawing = Drawing(WIDTH, 220)
-    def xy(i):
-        return (50 + (dates[i] - start) / (end - start or 1) * (WIDTH - 64),
-                32 + float((values[i] - low) / span) * 165)
+    drawing = Drawing(WIDTH, 250)
+    def x(index): return 50 + (index - indices[0]) / (indices[-1] - indices[0] or 1) * (WIDTH - 64)
+    def y(value): return 32 + float((value - low) / span) * 165
     for i in range(5):
         value = low + span * Decimal(i) / 4
-        y = 32 + i / 4 * 165
-        drawing.add(Line(50, y, WIDTH - 14, y, strokeColor=BORDER, strokeWidth=.5))
-        drawing.add(String(43, y - 3, formatted(value, 0), textAnchor='end', fontSize=8, fillColor=GRAY))
-    for i, point in enumerate(points):
-        x, y = xy(i)
-        if i and dates[i] - dates[i-1] <= 86400:
-            px, py = xy(i-1)
-            drawing.add(Line(px, py, x, y, strokeColor=BLUE, strokeWidth=1.8))
-        drawing.add(Circle(x, y, 2.5, fillColor=BLUE, strokeColor=None))
-    for i in sorted({0, len(points)-1}):
-        x, _ = xy(i)
-        drawing.add(String(x, 12, points[i]['label'][:10], textAnchor='middle', fontSize=8, fillColor=GRAY))
+        pos = y(value)
+        drawing.add(Line(50, pos, WIDTH - 14, pos, strokeColor=BORDER, strokeWidth=.5))
+        drawing.add(String(43, pos - 3, formatted(value, 0), textAnchor='end', fontSize=8, fillColor=GRAY))
+    palette = (chart.get('panels') or [{}])[0].get('colors', {})
+    for i, name in enumerate(order):
+        shade = palette.get(name, CHART_PALETTE[i % len(CHART_PALETTE)])
+        color = colors.HexColor(shade if shade in CHART_PALETTE else CHART_PALETTE[0])
+        drawing.add(String(50 + (i%3)*135, 235 - (i//3)*15, name[:28], fontSize=8, fillColor=color))
+        previous = None
+        for category, index in zip(categories, indices):
+            value = cells.get((category, name))
+            if value is None:
+                previous = None
+                continue
+            if previous and index - previous[0] == 1:
+                drawing.add(Line(x(previous[0]), y(previous[1]), x(index), y(value), strokeColor=color, strokeWidth=1.8))
+            drawing.add(Circle(x(index), y(value), 2.5, fillColor=color, strokeColor=None))
+            previous = index, value
+    for i in sorted({0, len(categories)-1}):
+        drawing.add(String(x(indices[i]), 12, categories[i], textAnchor='middle', fontSize=8, fillColor=GRAY))
     return drawing
 
 
@@ -190,9 +198,10 @@ def render_pdf(report):
                 story.append(KeepTogether(chart_heading + [line_drawing(chart)]))
             else:
                 story += chart_heading
-            story += [paragraph(chart['caption'], 'muted'),
-                      grid([['Periodo / categoría', chart['unit']]] +
-                           [[p['label'], p['formatted']] for p in chart['points']], [WIDTH * .65, WIDTH * .35], title='Valores exactos')]
+            story.append(paragraph(chart['caption'], 'muted'))
+            from .chart_layout import comparison_tables
+            for title, headings, rows in comparison_tables(chart, chart['points'], [p['formatted'] for p in chart['points']]):
+                story.append(grid([headings, *rows], [WIDTH/len(headings)]*len(headings), title=title or 'Valores exactos'))
         if claim.get('method'):
             story += [paragraph('Cómo se ha calculado', 'heading'), paragraph(claim['method'])]
         details = claim.get('evidence_details')

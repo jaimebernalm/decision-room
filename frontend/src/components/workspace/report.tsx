@@ -39,6 +39,7 @@ import {
   groupedPoints,
   seriesColor,
   chartPoints,
+  periodAxis,
 } from "@/lib/charts";
 import { ReportSection, reportLead } from "./report-section";
 import { ReportChartTooltip } from "./report-chart-tooltip";
@@ -123,7 +124,12 @@ function GroupedBars({
             domain={
               panel.measure === "change"
                 ? [-extent, extent]
-                : [(v: number) => Math.min(0, v), (v: number) => Math.max(0, v)]
+                : [
+                    (v: number) =>
+                      chart.scale === "data" ? v : Math.min(0, v),
+                    (v: number) =>
+                      chart.scale === "data" ? v : Math.max(0, v),
+                  ]
             }
             tickFormatter={(v) =>
               new Intl.NumberFormat("es", { notation: "compact" }).format(v)
@@ -182,6 +188,98 @@ function GroupedBars({
     </section>
   );
 }
+function GroupedLines({
+  chart,
+  panel,
+}: {
+  chart: ChartData;
+  panel: ChartPanel;
+}) {
+  const rows = groupedPoints(chart, panel);
+  const series = panel.series_order.map((name, i) => ({
+    key: `s${i}`,
+    name,
+    color: panel.colors?.[name] ?? seriesColor(name),
+  }));
+  return (
+    <section aria-label={panel.title || chart.title} className="space-y-3">
+      <ul
+        aria-label={`Leyenda: ${panel.series_title}`}
+        className="flex flex-wrap gap-4 text-xs"
+      >
+        {series.map((s) => (
+          <li key={s.key} style={{ color: s.color }}>
+            {s.name}
+          </li>
+        ))}
+      </ul>
+      <ChartContainer
+        config={Object.fromEntries(
+          series.map((s) => [s.key, { label: s.name, color: s.color }]),
+        )}
+        className="h-72 w-full"
+      >
+        <LineChart
+          data={rows}
+          accessibilityLayer
+          margin={{ left: 0, right: 16 }}
+        >
+          <CartesianGrid vertical={false} />
+          <XAxis
+            dataKey="axis"
+            type="number"
+            domain={["dataMin", "dataMax"]}
+            ticks={rows.filter((r) => r.category).map((r) => Number(r.axis))}
+            tickFormatter={(axis) =>
+              String(rows.find((r) => r.axis === axis)?.category ?? "")
+            }
+            minTickGap={32}
+          />
+          <YAxis
+            width={64}
+            domain={[
+              (v: number) => (chart.scale === "data" ? v : Math.min(0, v)),
+              (v: number) => (chart.scale === "data" ? v : Math.max(0, v)),
+            ]}
+            tickFormatter={(v) =>
+              new Intl.NumberFormat("es", { notation: "compact" }).format(v)
+            }
+          />
+          <ChartTooltip
+            content={({ active, payload }) =>
+              active && payload?.length ? (
+                <ReportChartTooltip
+                  title={String(payload[0].payload.category)}
+                  unit={chart.unit}
+                  items={payload
+                    .filter((p) => p.value != null)
+                    .map((p) => ({
+                      label:
+                        series.find((s) => s.key === p.dataKey)?.name ??
+                        "Valor",
+                      value: String(p.payload[`${p.dataKey}Exact`]),
+                      color: p.color,
+                    }))}
+                />
+              ) : null
+            }
+          />
+          {series.map((s) => (
+            <Line
+              key={s.key}
+              dataKey={s.key}
+              stroke={s.color}
+              type="linear"
+              connectNulls={false}
+              dot={{ r: 3 }}
+              isAnimationActive={false}
+            />
+          ))}
+        </LineChart>
+      </ChartContainer>
+    </section>
+  );
+}
 export function EvidenceChart({
   chart,
   actions,
@@ -192,13 +290,7 @@ export function EvidenceChart({
   footer?: ReactNode;
 }) {
   const bars = chart.kind === "bar";
-  const temporal =
-    chart.kind === "line" &&
-    chart.points.every(
-      (p) =>
-        /^\d{4}-\d{2}-\d{2}/.test(p.label) &&
-        Number.isFinite(Date.parse(p.label)),
-    );
+  const temporal = chart.kind === "line";
   const points = chartPoints(chart);
   const axes = (
     <>
@@ -206,14 +298,20 @@ export function EvidenceChart({
       <XAxis
         dataKey={bars ? "value" : "axis"}
         ticks={
-          temporal ? chart.points.map((p) => Date.parse(p.label)) : undefined
+          temporal
+            ? chart.points.map((p) =>
+                periodAxis(p.label, chart.temporal_grain ?? undefined),
+              )
+            : undefined
         }
         type={bars || temporal ? "number" : "category"}
         domain={
           bars
             ? [
-                (minimum: number) => Math.min(0, minimum),
-                (maximum: number) => Math.max(0, maximum),
+                (minimum: number) =>
+                  chart.scale === "data" ? minimum : Math.min(0, minimum),
+                (maximum: number) =>
+                  chart.scale === "data" ? maximum : Math.max(0, maximum),
               ]
             : temporal
               ? ["dataMin", "dataMax"]
@@ -223,11 +321,13 @@ export function EvidenceChart({
           bars
             ? new Intl.NumberFormat("es", { notation: "compact" }).format(v)
             : temporal
-              ? new Date(v).toLocaleDateString("es", {
-                  month: "short",
-                  day: "numeric",
-                  timeZone: "UTC",
-                })
+              ? String(
+                  chart.points.find(
+                    (p) =>
+                      periodAxis(p.label, chart.temporal_grain ?? undefined) ===
+                      v,
+                  )?.label ?? "",
+                )
               : String(v)
         }
         tickLine={false}
@@ -243,8 +343,10 @@ export function EvidenceChart({
           bars
             ? undefined
             : [
-                (minimum: number) => Math.min(0, minimum),
-                (maximum: number) => Math.max(0, maximum),
+                (minimum: number) =>
+                  chart.scale === "data" ? minimum : Math.min(0, minimum),
+                (maximum: number) =>
+                  chart.scale === "data" ? maximum : Math.max(0, maximum),
               ]
         }
         tickLine={false}
@@ -291,6 +393,11 @@ export function EvidenceChart({
         </div>
       </CardHeader>
       <CardContent>
+        {chart.kind === "line" &&
+          Boolean(chart.panels?.length) &&
+          chart.panels!.map((panel, i) => (
+            <GroupedLines key={i} chart={chart} panel={panel} />
+          ))}
         {chart.kind === "bar" && Boolean(chart.panels?.length) && (
           <div className="space-y-8">
             {chart.panels!.map((panel, i) => (

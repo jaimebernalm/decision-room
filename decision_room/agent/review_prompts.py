@@ -74,20 +74,24 @@ For category-by-period comparisons, supply encoding={category_title,series_title
 measure:'level' or 'change',series_order:[ordered series labels],coordinates:[{label,
 category,series}]}. Each coordinate.label matches EXACTLY one saved chart point label;
 map all points once, no duplicate category/series cells. Use ISO YYYY-MM for monthly
-series labels in chronological order. The UI draws grouped horizontal bars and a legend.
-Use encoding=null for ordinary single-series charts or daily lines. Do not concatenate
+series labels in chronological order. Choose grouped bars, lines or a table. For grouped lines the category is the
+calendar period and series labels identify the channels/products; include
+encoding.temporal_grain=day/month/quarter/year, with categories chronologically ordered.
+Use encoding=null for single-series charts. temporal_grain is the actual saved
+calendar aggregation; do not present monthly values as daily observations. Do not concatenate
 product/month/change into a flat visual. Keep absolute levels and differences in SEPARATE
 charts with their own encoding.measure and accurate units; never mix totals, averages,
 percentages or changes on one axis. Missing combinations stay missing, not zero.
-Charts: use bar for category/period comparisons, line ONLY for chronologically ordered
-ISO YYYY-MM-DD daily dates (gaps are left disconnected), table for exact comparisons.
-For monthly or other aggregated periods use bar or table. Prefer referencing a saved
+Charts: freely choose supported bar/line/table for the message. Lines show ordered
+calendar periods (day/month/quarter/year), simple or multiple series. Bars show
+levels or signed components; tables supply exact comparisons. These are editorial
+guidelines, not compulsory type choices. Missing intervals stay disconnected. Prefer referencing a saved
 series with series={execution_id,series:'key'} and points=[]: the application uses
 ALL saved labels/values and the exact saved unit, without transcription. Otherwise
 set series=null and each point references a SAVED
 numeric scalar, not a value copied by you. Same units and comparable scope throughout
 each chart. Explain coverage, gaps, units and selection in caption; missing dates are
-not zeros. Up to 4 charts; saved daily series up to 366 points, bars/tables up to 36.
+not zeros. Up to 4 charts; saved temporal series up to 366 points, bars/tables up to 36.
 Individual scalar references remain limited to 36 points/chart and 72 total. Use
 monthly aggregates for long periods; category top-N must disclose the selection.
 Provide 2–4 highlights when useful, with numeric evidence and links to claims.
@@ -219,7 +223,7 @@ Review that complete draft; do not ask to resend it because it was deduplicated.
 ANALYST_SYSTEM += """
 Some saved series contain more categories than a readable chart permits. They
 remain visible evidence, but the chart schema offers only whole-series references
-that fit the chosen chart kind: up to 36 bars/table rows, or 366 daily line points.
+that fit the chosen chart kind: up to 36 bars/table rows, or 366 temporal line points.
 Use an existing bounded series or execute Python to save an explicit top-N/grouped
 summary with selection evidence. Do not relabel a full distribution as top five.
 The controller adds its coverage note; do not create a paraphrased duplicate.
@@ -531,3 +535,6 @@ by silently dropping a deliverable or carrying sales basis ambiguity to marketin
 """
 ANALYST_SYSTEM += DELIVERY_QUALITY_INSTRUCTIONS
 REVIEWER_SYSTEM += DELIVERY_QUALITY_INSTRUCTIONS
+
+ANALYST_SYSTEM += "\nChoose chart.scale=zero or data explicitly: bars need zero; lines may use a visibly labelled data range when it clarifies small variation. Never imply a missing observation or invent smoothing. Category selection/order must be saved in the evidence or mapped explicitly in encoding.\n"
+REVIEWER_SYSTEM += "\nCheck the declared scale, selection and order are honest for the message; do not require one editorial type when a valid alternative answers the question.\n"

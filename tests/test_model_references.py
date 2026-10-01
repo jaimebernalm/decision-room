@@ -153,7 +153,7 @@ class ModelReferenceTests(unittest.TestCase):
                 continue
             for ref in fields['series']['anyOf']:
                 choices.update((kind, key) for kind in fields['kind']['enum'] for key in ref['properties']['series']['enum'])
-        self.assertEqual(choices, {('line','daily'), ('bar','monthly'), ('table','monthly'), ('bar','top_five'), ('table','top_five')})
+        self.assertEqual(choices, {('line','daily'), ('line','monthly'), ('bar','monthly'), ('table','monthly'), ('line','top_five'), ('bar','top_five'), ('table','top_five')})
 
     def test_coverage_schema_allows_blocked_explanations_without_answers(self):
         context = {'plan': {'investigations': [{'key': 'units', 'status': 'ready'},

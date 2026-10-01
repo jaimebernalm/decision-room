@@ -64,6 +64,7 @@ class ChartCoordinate(Strict):
 
 
 class ChartEncoding(Strict):
+    temporal_grain: Literal['day', 'month', 'quarter', 'year'] | None = None
     category_title: str = Field(min_length=1, max_length=80)
     series_title: str = Field(min_length=1, max_length=80)
     measure: Literal['level', 'change']
@@ -75,6 +76,7 @@ class Chart(Strict):
     key: str = Field(pattern=r'^[a-z][a-z0-9_]{0,63}$')
     claim_key: str = Field(pattern=r'^[a-z][a-z0-9_]{0,63}$')
     kind: Literal['bar', 'line', 'table']
+    scale: Literal['zero', 'data'] = 'zero'
     title: str = Field(min_length=1, max_length=160)
     unit: str = Field(min_length=1, max_length=80)
     decimals: int = Field(ge=0, le=4)
@@ -82,6 +84,7 @@ class Chart(Strict):
     points: list[ChartPoint] = Field(max_length=36)
     series: SeriesRef | None = None
     encoding: ChartEncoding | None = None
+    temporal_grain: Literal['day', 'month', 'quarter', 'year'] | None = None
 
 
 class NumericCheck(Strict):
@@ -150,8 +153,10 @@ def checks(report, observations):
                 series = saved_series(observations, chart['series'])
                 if chart['unit'] != series['unit']:
                     raise ValueError('Chart unit must match the saved series unit.')
-                if chart['kind'] == 'line' and series['grain'] != 'day':
-                    raise ValueError('Line charts require daily series; use bars for months.')
+                if chart.get('temporal_grain') and chart['temporal_grain'] != series['grain']:
+                    raise ValueError('Temporal grain must match the saved series, without disguising aggregated periods.')
+                if chart['kind'] == 'line' and series['grain'] == 'category' and not chart.get('encoding'):
+                    raise ValueError('Category series need explicit temporal coordinates for lines.')
                 points = series['points']
                 for point in points:
                     numeric(point['value'])
@@ -164,14 +169,16 @@ def checks(report, observations):
             labels = [p['label'] for p in points]
             if len(set(labels)) != len(labels):
                 raise ValueError('Chart labels must be unique.')
+            if chart['kind'] == 'bar' and chart.get('scale', 'zero') != 'zero':
+                raise ValueError('Bar lengths require a zero baseline.')
             from ..chart_layout import validate_encoding
             validate_encoding(chart, points)
             if chart['claim_key'] not in {c['key'] for c in report['claims']}:
                 raise ValueError('Chart must belong to an existing finding.')
-            if chart['kind'] == 'line':
-                dates = [date.fromisoformat(label) for label in labels]
-                if dates != sorted(dates) or any(d.isoformat() != label for d, label in zip(dates, labels)):
-                    raise ValueError('Line charts require ordered ISO dates.')
+            if chart['kind'] == 'line' and not chart.get('encoding'):
+                from ..periods import infer_grain, validate_periods
+                grain = series['grain'] if chart.get('series') else chart.get('temporal_grain') or infer_grain(labels)
+                validate_periods(labels, grain)
             result.append({'check': 'chart:' + chart['key'], 'passed': True, 'detail': 'Chart values resolve to finite, current saved metrics.'})
         except (ValueError, InvalidOperation, ArithmeticError) as error:
             result.append({'check': 'chart:' + chart['key'], 'passed': False, 'detail': str(error)})

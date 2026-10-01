@@ -288,7 +288,7 @@ El estado de cada incremento se registra en la lista inferior:
 - [x] 3.9.1 — Contratos y criterios.
 - [x] 3.9.2 — Investigación y síntesis.
 - [x] 3.9.3 — Entrega y revisión de utilidad.
-- [ ] 3.9.4 — Evidencia y representaciones.
+- [x] 3.9.4 — Evidencia y representaciones.
 - [ ] 3.9.5 — Interacción y primera lectura.
 - [ ] 3.9.6 — Integración y recuperación.
 - [ ] 3.9.7 — Evaluación comparativa y prueba conjunta.
@@ -422,3 +422,18 @@ aportado por el propietario; no habilita Internet en el sandbox de Python.
   de protocolo comprueban decisión respaldada, contexto faltante, parcial, reacción
   rechazada por el revisor y componente omitido. La calidad del juicio del modelo
   queda para evaluación independiente, no se deduce de fixtures guionizados.
+
+### 3.9.4 — Representaciones temporales y exportación implementadas
+
+- Líneas simples y múltiples diarias/mensuales/trimestrales/anuales; coordenadas
+  explícitas, periodos únicos/ordenados y huecos sin imputación. El agente puede
+  elegir barras, líneas o tablas válidas, selección/orden y escala de líneas;
+  barras conservan cero para que la longitud no engañe. Capacidades/esquemas
+  dinámicos y contratos describen representaciones realmente disponibles.
+- API, HTML y PDF resuelven la misma evidencia. Tablas de varias series muestran
+  filas/columnas y celdas ausentes; dibujos estáticos y web preservan los huecos.
+- 51 pruebas de periodos, alternativas, procedencia, esquemas y exportación
+  comprueban exactitud/selección y rechazo de periodos arbitrarios, duplicados o
+  grano falso. Seis pruebas de coordenadas web pasan y frontend compila.
+- Interacción y primera lectura quedan para 3.9.5; revisión visual conjunta de
+  formatos, móviles y temas se consolida antes de evaluar con proveedor.

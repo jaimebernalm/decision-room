@@ -8,6 +8,7 @@ from ..agent.review_contract import ReportDraft, checks
 from ..client_report import formatted, metric
 from ..series import saved_series
 from ..chart_layout import panels, series_colors
+from ..periods import infer_grain
 
 
 def projection(data):
@@ -33,10 +34,14 @@ def projection(data):
                           {'label': point['label'], 'value': metric(data, point['value'])}
                           for point in chart['points']
                       ])
+            grain = (chart.get('encoding') or {}).get('temporal_grain') or chart.get('temporal_grain')
+            if chart['kind'] == 'line' and not chart.get('encoding'):
+                grain = saved_series(data['observations'], chart['series'])['grain'] if chart.get('series') else grain or infer_grain([p['label'] for p in points])
             charts.append({
-                'key': chart['key'], 'kind': chart['kind'], 'title': chart['title'],
+                'key': chart['key'], 'kind': chart['kind'], 'title': chart['title'], 'scale': chart.get('scale', 'zero'),
                 'unit': chart['unit'], 'caption': chart['caption'],
                 'claim_key': chart['claim_key'],
+                'temporal_grain': grain,
                 'panels': panels(chart, points),
                 'points': [{'label': point['label'], 'value': str(point['value']),
                             'formatted': formatted(point['value'], chart['decimals'])}

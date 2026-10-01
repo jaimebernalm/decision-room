@@ -2,6 +2,7 @@
 from datetime import date
 from decimal import Decimal, InvalidOperation
 import re
+from .periods import GRAINS, period_index
 
 
 def numeric(value):
@@ -25,7 +26,7 @@ def validate_series(series, tables):
             raise ValueError('Invalid series key.')
         if not isinstance(item, dict) or set(item) != {'unit', 'grain', 'points', 'evidence'}:
             raise ValueError('Series require unit, grain, points and evidence.')
-        if not isinstance(item['unit'], str) or not 1 <= len(item['unit']) <= 80 or item['grain'] not in ('day', 'month', 'category'):
+        if not isinstance(item['unit'], str) or not 1 <= len(item['unit']) <= 80 or item['grain'] not in (*GRAINS, 'category'):
             raise ValueError('Invalid series unit or grain.')
         points = item['points']
         if not isinstance(points, list):
@@ -42,10 +43,8 @@ def validate_series(series, tables):
             label = point['label']
             if not isinstance(label, str) or not 1 <= len(label) <= 100:
                 raise ValueError('Invalid series label.')
-            if item['grain'] == 'day' and date.fromisoformat(label).isoformat() != label:
-                raise ValueError('Daily series require ISO dates.')
-            if item['grain'] == 'month' and (not re.fullmatch(r'\d{4}-\d{2}', label) or date.fromisoformat(label + '-01').strftime('%Y-%m') != label):
-                raise ValueError('Monthly series require YYYY-MM.')
+            if item['grain'] != 'category':
+                period_index(label, item['grain'])
             numeric(point['value'])
             labels.append(label)
         if len(set(labels)) != len(labels) or (item['grain'] != 'category' and labels != sorted(labels)):

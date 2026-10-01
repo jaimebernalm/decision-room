@@ -171,4 +171,5 @@ class SeriesTests(unittest.TestCase):
         self.assertNotIn('<script>', html); self.assertIn('&lt;script&gt;', html)
         s.update(grain='month', points=[{'label':'2026-01','value':'1'}, {'label':'2026-02','value':'2'}])
         data['report']['charts'][0]['kind'] = 'line'
-        self.assertNotIn('<svg', render_client(data, 'today'))
+        self.assertIn('<svg', render_client(data, 'today'))
+        self.assertIn('class="trend"', render_client(data, 'today'))

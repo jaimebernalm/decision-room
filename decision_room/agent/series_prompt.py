@@ -11,9 +11,9 @@ write_result(metrics, evidence=evidence, notes=notes, series={
 Replace example keys, aliases, unit and operation with actual definitions/results.
 Series dictionary keys must match ^[a-z][a-z0-9_]{0,63}$ (e.g. units_by_month).
 Never use a date containing hyphens as a dictionary key; dates belong in labels.
-Each series needs unit, grain ('day', 'month' or 'category'), points and evidence.
+Each series needs unit, grain ('day', 'month', 'quarter', 'year' or 'category'), points and evidence.
 Each point has label and finite numeric value (Decimal as string). Daily labels
-are YYYY-MM-DD, monthly YYYY-MM; dates ordered and unique. Category labels unique.
+are YYYY-MM-DD, monthly YYYY-MM, quarterly YYYY-Q1…Q4 and annual YYYY; periods ordered and unique. Category labels unique.
 No null/NaN values and no invented zero for missing dates. At most 4 series,
 2–366 points each, 800 points total. Aggregate longer intervals in Python;
 bars/tables can display at most 36 points. Never silently truncate to fit a limit.

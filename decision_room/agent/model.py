@@ -383,7 +383,7 @@ class ModelClient:
         assessment['required'] = list(assessment['properties'])
         assessment['properties']['usefulness'].pop('default', None)
         # Runtime defaults retain old reports; model output supplies all fields.
-        for name in ('ReportDraft', 'Chart', 'Claim'):
+        for name in ('ReportDraft', 'Chart', 'Claim', 'ChartEncoding'):
             definition = schema['$defs'][name]
             definition['required'] = list(definition['properties'])
             for field in definition['properties'].values():
@@ -423,7 +423,9 @@ class ModelClient:
                 for key, value in item['result'].get('series', {}).items():
                     count = len(value.get('points', []))
                     kinds = (['bar', 'table'] if 2 <= count <= 36 else [])
-                    if value.get('grain') == 'day' and 2 <= count <= 366:
+                    if value.get('grain') in ('day', 'month', 'quarter', 'year') and 2 <= count <= 366:
+                        kinds.append('line')
+                    elif value.get('grain') == 'category' and 2 <= count <= 36:
                         kinds.append('line')
                     if kinds:
                         units.setdefault(value['unit'], []).append(key)
@@ -434,11 +436,13 @@ class ModelClient:
                     branch['properties']['series']['enum'] = sorted(keys)
                     series_choices.append(branch)
                     for kind in ('bar', 'table', 'line'):
-                        eligible = [key for key in keys if kind in display[key]]
-                        if eligible:
-                            reference = deepcopy(branch)
-                            reference['properties']['series']['enum'] = sorted(eligible)
-                            series_by_chart.setdefault((unit, kind), []).append(reference)
+                        for grouped_line in (False, True) if kind == 'line' else (False,):
+                            eligible = [key for key in keys if kind in display[key]
+                                        and (kind != 'line' or (item['result']['series'][key]['grain'] == 'category') == grouped_line)]
+                            if eligible:
+                                reference = deepcopy(branch)
+                                reference['properties']['series']['enum'] = sorted(eligible)
+                                series_by_chart.setdefault((unit, kind, grouped_line), []).append(reference)
         original_chart = schema['$defs']['Chart']
         # Select evidence before its display unit. With unit first, constrained
         # decoding can lock an edited chart into the old source's unit branch
@@ -452,12 +456,17 @@ class ModelClient:
         if series_choices:
             schema['$defs']['SeriesRef'] = {'anyOf': series_choices}
             charts = [scalar_chart]
-            for (unit, kind), references in sorted(series_by_chart.items()):
+            for (unit, kind, grouped_line), references in sorted(series_by_chart.items()):
                 branch = deepcopy(original_chart)
                 branch['properties']['unit']['enum'] = [unit]
                 branch['properties']['kind']['enum'] = [kind]
                 branch['properties']['series'] = {'anyOf': references}
                 branch['properties']['points']['maxItems'] = 0
+                if grouped_line:
+                    enc = deepcopy(schema['$defs']['ChartEncoding'])
+                    enc['properties']['temporal_grain'] = {'type': 'string', 'enum': ['day', 'month', 'quarter', 'year']}
+                    enc['required'] = list(enc['properties'])
+                    branch['properties']['encoding'] = enc
                 charts.append(branch)
             # Keep the source unit paired with its evidence, rather than offering
             # invalid combinations and relying on a later correction turn.

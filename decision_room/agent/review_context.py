@@ -73,7 +73,7 @@ def material(config, db, session, run):
             'delivery_capabilities': {'execution_artifact_downloads': False, 'chart_categories': 36, 'daily_line_points': 366,
                                       'claim_evidence_refs': 12, 'claims': 6, 'charts': 4,
                                       'surfaces': ['web_report', 'static_html', 'pdf'],
-                                      'representations': {'bar': ['single', 'grouped'], 'table': ['single', 'grouped'], 'line': ['daily_single']},
+                                      'representations': {'bar': ['single', 'grouped'], 'table': ['single', 'grouped'], 'line': ['day', 'month', 'quarter', 'year', 'single', 'grouped']},
                                       'selection': 'agent', 'orientation_contract': 'delivery-quality-v1'}, 'tables': run['snapshot']['tables'],
             'conversation': conversation, 'observations': observations,
             'report': report, 'report_step': report_step, 'checks': checks(report, observations),
