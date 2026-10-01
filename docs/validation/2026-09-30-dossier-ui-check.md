@@ -57,3 +57,25 @@ por menú y el margen de párrafos del componente Accordion, que añadía espaci
 innecesario a las filas con avisos.
 
 Plan: [secuencia de ejecución](../technical/business-dossier-ui-plan.md).
+
+## Refinamiento de contraste y separación
+
+Los grupos tienen cajas con borde, esquinas redondeadas, sombra ligera y 16 px
+de separación. Sus cabeceras usan texto de 16 px y peso 600, fondo diferenciado
+y contador en una cápsula. Las filas conservan su densidad y separadores. Al
+pasar el cursor o enfocar sus acciones cambian al mismo color de interacción
+de la barra lateral (`sidebar-accent`), con sombra ligera; las cabeceras también
+responden al cursor. Las transiciones respetan la reducción de movimiento.
+
+- Pasan las 32 pruebas existentes de ficha y chat contextual en dos archivos.
+  No se añaden pruebas que dupliquen las clases de presentación.
+- TypeScript y compilación Vite correctos; persiste el aviso de tamaño de
+  paquetes ya descrito. `oxlint` sobre la ficha y `git diff --check` sin errores.
+- En la demo compilada, el cursor sobre una fila produce `oklch(0.93 0 0)`,
+  igual que el acento de la barra lateral. Tab lleva a las acciones de la primera
+  fila y activa su resaltado; los grupos se siguen plegando.
+- El borde izquierdo de las cajas y del título coincide (304 px en el
+  escritorio comprobado). En móvil de 390 × 844 las cajas abarcan de 20 a
+  370 px; el ancho del documento y su ancho desplazable son 390 px.
+- Revisión visual en temas claro y oscuro, con capturas locales ignoradas.
+  La demo abierta se actualiza con la compilación nueva y conserva datos ficticios.

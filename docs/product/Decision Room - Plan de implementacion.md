@@ -209,6 +209,10 @@ de contexto con versiones. Pasan 125 pruebas de frontend, compilación y lint si
 errores; escritorio y móvil comprobados con datos ficticios. Véanse la
 [secuencia de ejecución](../technical/business-dossier-ui-plan.md) y la
 [validación con sus límites](../validation/2026-09-30-dossier-ui-check.md).
+El refinamiento visual posterior separa los grupos en cajas, destaca las
+cabeceras y usa el acento de la barra lateral al pasar el cursor o enfocar las
+filas. Se comprueban 32 pruebas de ficha/chat contextual, compilación, lint,
+alineación, móvil y temas claro/oscuro en la misma validación.
 
 ### 2.5.6. Inicio del negocio, informes y navegación cotidiana
 

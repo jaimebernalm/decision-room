@@ -37,3 +37,15 @@ contexto. No amplía ni cierra capacidades analíticas del plan del producto.
 Estado, 30 de septiembre de 2026: implementación y comprobaciones completadas
 siguiendo los tres incrementos. Véanse las
 [pruebas y límites](../validation/2026-09-30-dossier-ui-check.md).
+
+## Refinamiento visual de los grupos
+
+1. Separar cada grupo en una caja con borde, esquinas redondeadas y espacio
+   entre grupos; destacar su cabecera y mantener compactas las filas interiores.
+2. Usar el color de interacción de la barra lateral para el cursor sobre filas
+   y cabeceras, y para el foco de teclado dentro de una fila. Conservar plegado,
+   menús, selección de contexto y alineación con el nombre del negocio.
+3. Comprobar la ficha y selección de contexto, compilación y lint; revisar
+   escritorio, móvil y modo oscuro. Guardar un commit local tras revisar el diff.
+
+Estado: refinamiento completado y validado el 30 de septiembre de 2026.

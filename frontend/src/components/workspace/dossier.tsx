@@ -225,6 +225,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
             <Accordion
               type="multiple"
               defaultValue={factGroups.map((group) => group.key)}
+              className="gap-4"
             >
               {factGroups.map((group) => {
                 const items = facts.filter(
@@ -232,17 +233,21 @@ export function Dossier({ files = false }: { files?: boolean }) {
                 );
                 if (!items.length) return null;
                 return (
-                  <AccordionItem key={group.key} value={group.key}>
-                    <AccordionTrigger className="gap-3 py-3 hover:no-underline">
-                      <span>
+                  <AccordionItem
+                    key={group.key}
+                    value={group.key}
+                    className="rounded-xl border border-border bg-card shadow-sm"
+                  >
+                    <AccordionTrigger className="items-center gap-3 rounded-xl bg-muted/50 px-4 py-3 text-base font-semibold text-foreground hover:bg-sidebar-accent hover:no-underline motion-reduce:transition-none data-open:rounded-b-none">
+                      <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
                         {group.title}{" "}
-                        <span className="ml-2 text-xs font-normal text-muted-foreground">
+                        <span className="inline-flex min-w-6 items-center justify-center rounded-full border border-border bg-background px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
                           {items.length}
                         </span>
                       </span>
                     </AccordionTrigger>
-                    <AccordionContent className="h-auto pb-3 [&_p:not(:last-child)]:mb-0">
-                      <ul className="divide-y divide-border/50">
+                    <AccordionContent className="h-auto px-2 pt-1 pb-2 [&_p:not(:last-child)]:mb-0">
+                      <ul className="divide-y divide-border/70">
                         {items.map((f) => (
                           <li key={f.fact_id}>
                             <Selectable
@@ -262,7 +267,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
                                 },
                               }}
                             >
-                              <div className="flex items-start gap-3 rounded-lg py-2 pl-1 text-sm hover:bg-muted/30">
+                              <div className="flex items-start gap-3 rounded-lg px-2 py-2 text-sm transition-[background-color,box-shadow] hover:bg-sidebar-accent hover:shadow-sm focus-within:bg-sidebar-accent focus-within:shadow-sm motion-reduce:transition-none sm:px-3">
                                 <div className="min-w-0 flex-1 py-2">
                                   <p className="whitespace-pre-wrap break-words leading-6">
                                     {f.content.statement}
