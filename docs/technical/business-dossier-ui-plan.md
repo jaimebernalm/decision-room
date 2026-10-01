@@ -112,3 +112,12 @@ Estado: implementado y comprobado el 30 de septiembre de 2026; véase la validac
    y escritorio. Revisar el diff público y crear un commit local.
 
 Estado: implementado y comprobado el 30 de septiembre de 2026; véase la validación.
+
+## Botón de grupo más discreto
+
+1. Reducir el círculo a 36 px y el símbolo a 20 px; usar una sombra suave solo
+   durante la interacción. Conservar 44 px en dispositivos con puntero táctil.
+2. Comprobar compilación, lint y tamaños/apertura en la demo; revisar el diff
+   público y guardar el ajuste en un commit local.
+
+Estado: implementado y comprobado el 30 de septiembre de 2026.

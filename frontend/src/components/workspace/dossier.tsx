@@ -334,7 +334,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
                       </span>
                       <Button
                         size="icon"
-                        className="size-12 rounded-full shadow-sm hover:shadow-md"
+                        className="size-9 rounded-full shadow-none hover:shadow-sm [@media(pointer:coarse)]:size-11"
                         aria-label={`Añadir información a ${group.title}`}
                         title={`Añadir información a ${group.title}`}
                         onClick={(event) => {
@@ -343,7 +343,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
                           setEdit(null);
                         }}
                       >
-                        <Plus className="size-6" />
+                        <Plus className="size-5" />
                       </Button>
                     </div>
                     <AccordionContent className="h-auto px-2 pt-1 pb-2 [&_p:not(:last-child)]:mb-0">

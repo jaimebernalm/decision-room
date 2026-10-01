@@ -235,6 +235,9 @@ atómicamente, con validación e idempotencia. Los grupos vacíos permiten empez
 Por revisar crea propuestas y Sin grupo conserva una asignación explícita.
 Las pestañas bajan 16 px y comparten el radio de las cajas. Pasan 142 pruebas
 frontend y 50 de PostgreSQL, compilación, lint y comprobaciones de móvil/escritorio.
+El botón individual se refina después a 36 px (44 con puntero táctil), símbolo
+de 20 px y sombra suave solo al interactuar. Compilación, lint y apertura del
+formulario comprobados en la demo.
 
 ### 2.5.6. Inicio del negocio, informes y navegación cotidiana
 

@@ -206,3 +206,13 @@ guardan en una sola petición y transacción.
 
 La demo conserva sus grupos e información de ejemplo; el almacenamiento del
 producto se valida en bases PostgreSQL de prueba y no se modifica un negocio real.
+
+## Botón individual más discreto
+
+El círculo de cada grupo pasa de 48 a 36 px y el símbolo de 24 a 20 px. No hay
+sombra en reposo y el hover usa una sombra suave; la regla para puntero táctil
+mantiene 44 px. TypeScript/Vite, lint focalizado y revisión del diff correctos.
+En el navegador se comprueban las dimensiones, ausencia de sombra en reposo,
+apertura del formulario con grupo fijo y cancelación. Se conserva el estado
+plegado de las cabeceras al actualizar la demo. Ajuste de estilos sin nuevas
+pruebas de comportamiento; se verifica la compilación de la regla táctil.
