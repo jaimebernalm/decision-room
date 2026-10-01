@@ -51,8 +51,9 @@ grupo; los grupos personalizados vacíos siguen visibles. Actualizar se sitúa j
 a las pestañas.
 
 Cada cabecera ofrece Añadir información a la derecha: botón circular de 36 px
-(44 px con puntero táctil), símbolo más de 20 px, etiqueta en escritorio y sombra
-suave al interactuar. Está separado del control de plegado y
+(44 px con puntero táctil), símbolo más de 20 px y sombra suave al interactuar.
+Solo se muestra el icono; Añadir información aparece como tooltip con cursor o
+foco de teclado. Su nombre accesible incluye el grupo. Está separado del control de plegado y
 también aparece en grupos vacíos. Personalizar grupos permanece arriba. Las
 pestañas se separan 16 px más del título y comparten el radio de las cajas; tienen
 más superficie y tipografía de 16 px. El menú de

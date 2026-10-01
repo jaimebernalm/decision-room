@@ -326,25 +326,28 @@ export function Dossier({ files = false }: { files?: boolean }) {
                           </span>
                         </AccordionTrigger>
                       </div>
-                      <span
-                        className="hidden text-sm font-medium sm:inline"
-                        aria-hidden="true"
-                      >
-                        Añadir información
-                      </span>
-                      <Button
-                        size="icon"
-                        className="size-9 rounded-full shadow-none hover:shadow-sm [@media(pointer:coarse)]:size-11"
-                        aria-label={`Añadir información a ${group.title}`}
-                        title={`Añadir información a ${group.title}`}
-                        onClick={(event) => {
-                          actionFocus.current = event.currentTarget;
-                          setNewGroup({ id: group.key, title: group.title });
-                          setEdit(null);
-                        }}
-                      >
-                        <Plus className="size-5" />
-                      </Button>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="icon"
+                              className="size-9 rounded-full shadow-none hover:shadow-sm [@media(pointer:coarse)]:size-11"
+                              aria-label={`Añadir información a ${group.title}`}
+                              onClick={(event) => {
+                                actionFocus.current = event.currentTarget;
+                                setNewGroup({
+                                  id: group.key,
+                                  title: group.title,
+                                });
+                                setEdit(null);
+                              }}
+                            >
+                              <Plus className="size-5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Añadir información</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </div>
                     <AccordionContent className="h-auto px-2 pt-1 pb-2 [&_p:not(:last-child)]:mb-0">
                       {layout.groups.find((g) => g.id === group.key)

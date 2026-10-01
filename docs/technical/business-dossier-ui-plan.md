@@ -121,3 +121,12 @@ Estado: implementado y comprobado el 30 de septiembre de 2026; véase la validac
    público y guardar el ajuste en un commit local.
 
 Estado: implementado y comprobado el 30 de septiembre de 2026.
+
+## Acción con solo icono
+
+1. Retirar la etiqueta permanente del botón y mostrar Añadir información en un
+   tooltip con cursor o foco, conservando su nombre accesible con el grupo.
+2. Verificar compilación, lint y tooltip/apertura en el navegador; revisar y
+   guardar el ajuste en un commit local.
+
+Estado: implementado y comprobado el 30 de septiembre de 2026.

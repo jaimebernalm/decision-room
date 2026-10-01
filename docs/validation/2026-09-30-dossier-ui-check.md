@@ -216,3 +216,11 @@ En el navegador se comprueban las dimensiones, ausencia de sombra en reposo,
 apertura del formulario con grupo fijo y cancelación. Se conserva el estado
 plegado de las cabeceras al actualizar la demo. Ajuste de estilos sin nuevas
 pruebas de comportamiento; se verifica la compilación de la regla táctil.
+
+## Icono con etiqueta a petición
+
+Se retira Añadir información de las cabeceras y se usa el tooltip común de la
+interfaz para mostrarlo con cursor o foco. El botón conserva su nombre accesible
+con el grupo. TypeScript/Vite, lint y diff correctos; en la demo se comprueba el
+tooltip al llegar con Tab, apertura con Enter y cancelación del formulario sin
+guardar. Las cabeceras mantienen su estado plegado después de actualizar la vista.

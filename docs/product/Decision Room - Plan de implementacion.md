@@ -238,6 +238,9 @@ frontend y 50 de PostgreSQL, compilación, lint y comprobaciones de móvil/escri
 El botón individual se refina después a 36 px (44 con puntero táctil), símbolo
 de 20 px y sombra suave solo al interactuar. Compilación, lint y apertura del
 formulario comprobados en la demo.
+La etiqueta permanente se sustituye por un tooltip Añadir información con cursor
+o foco, manteniendo solo el «+» y el nombre accesible del grupo. Compilación, lint,
+tooltip y apertura con teclado comprobados.
 
 ### 2.5.6. Inicio del negocio, informes y navegación cotidiana
 
