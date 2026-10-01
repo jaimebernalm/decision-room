@@ -50,6 +50,26 @@ Eliminar grupos conserva los recuerdos mediante clasificación automática o Sin
 grupo; los grupos personalizados vacíos siguen visibles. Actualizar se sitúa junto
 a las pestañas.
 
+Añadir información es un botón circular de 56 px con un símbolo más y etiqueta
+visible. Las pestañas tienen más superficie y tipografía de 16 px; el menú de
+fila aparece con cursor, foco de teclado o apertura y permanece disponible en
+dispositivos táctiles.
+
+Cada grupo admite una descripción de hasta 500 caracteres. La creación desde la
+interfaz requiere nombre y descripción; las configuraciones anteriores siguen
+legibles. El extractor de memoria recibe nombres, descripciones y revisión de los
+grupos como datos de clasificación, nunca como declaraciones ni instrucciones.
+El contrato `memory-v6` incorpora `group_id` separado del contenido del recuerdo:
+el esquema del proveedor limita la elección a los IDs del negocio o null, y el
+servidor verifica la pertenencia en el contexto guardado de la llamada.
+
+Solo los recuerdos nuevos reciben esa asignación en la transacción de extracción.
+Una contradicción o corrección conserva la ubicación existente; los pendientes
+siguen en Por revisar y, al confirmarlos, aparece su grupo. Si la configuración
+cambia durante la llamada, se conserva el recuerdo y se omite la asignación
+obsoleta. Un fallo SQL permite reaplicar la respuesta ya guardada sin otra llamada
+al proveedor. Los grupos siguen sin alterar el ámbito o la vigencia analítica.
+
 La ficha es consultable por el cliente. No se inyecta entera al agente: se conserva
 la selección inicial de contexto, el catálogo y las herramientas de recuperación.
 Una política de contexto permanente para futuros agentes especializados sigue fuera

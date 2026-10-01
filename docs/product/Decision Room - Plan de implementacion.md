@@ -223,6 +223,12 @@ asignaciones y eliminación sin pérdida de recuerdos; Actualizar queda junto a
 las pestañas. Pasan 138 pruebas frontend y 40 de PostgreSQL/API/migraciones/memoria,
 además de compilación, lint y comprobaciones de escritorio/móvil. No se altera
 la aceptación analítica de otras entregas.
+El siguiente refinamiento amplía las pestañas, convierte Añadir información en un
+botón circular y muestra los menús de fila con cursor/foco. Las descripciones de
+grupos se guardan y el extractor las usa para asignar recuerdos nuevos mediante
+IDs acotados al negocio, respetando movimientos manuales y cambios concurrentes.
+Pasan 139 pruebas frontend y 47 de PostgreSQL, compilación y lint; la validación
+visual continúa en una demo con datos ficticios.
 
 ### 2.5.6. Inicio del negocio, informes y navegación cotidiana
 

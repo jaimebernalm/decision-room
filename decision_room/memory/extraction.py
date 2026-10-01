@@ -26,6 +26,8 @@ def _explicit_correction_request(text):
 
 
 def _context(db, source):
+    from ..web.dossier_layout import load
+    layout = load(db, source['business_id'])
     facts = current(db, source['business_id'])
     # Do not silently omit conflicting/withdrawn facts to fit the context.
     if len(facts) > 200:
@@ -35,7 +37,35 @@ def _context(db, source):
                          (source['business_id'],)).fetchone()
     return {'source': source['payload'], 'memories': [dict(id=str(f['fact_id']), revision=f['revision'],
             status=f['status'], content=f['content']) for f in facts],
-            'profile': dict(profile) if profile else None}
+            'profile': dict(profile) if profile else None,
+            'groups': layout['groups'], 'groups_revision': layout['revision']}
+
+
+def _group_context(db, source):
+    """Use the durable provider snapshot, including after interruption/retry."""
+    call = db.execute('''SELECT context FROM memory_calls WHERE business_id=%s AND source_id=%s
+        AND status='completed' ORDER BY created_at DESC,id DESC LIMIT 1''',
+                      (source['business_id'], source['id'])).fetchone()
+    return call['context'] if call else {}
+
+
+def _file_new_memories(db, source, assignments):
+    if not assignments:
+        return
+    from ..web.dossier_layout import load
+    b = source['business_id']
+    # Same lock as owner layout writes. Classification never overwrites a newer layout.
+    db.execute('SELECT id FROM businesses WHERE id=%s FOR UPDATE', (b,))
+    layout = load(db, b)
+    snapshot = _group_context(db, source)
+    if layout['revision'] != snapshot.get('groups_revision') or layout['groups'] != snapshot.get('groups'):
+        return
+    merged = {**assignments, **layout['assignments']}
+    if len(merged) > 5000:
+        return
+    db.execute('''INSERT INTO web_dossier_layouts(business_id,revision,layout) VALUES (%s,%s,%s)
+        ON CONFLICT(business_id) DO UPDATE SET revision=excluded.revision,layout=excluded.layout''',
+               (b, layout['revision'] + 1, Jsonb({'groups': layout['groups'], 'assignments': merged})))
 
 
 def _unanswered(source):
@@ -51,11 +81,14 @@ def _validate(db, source, response):
     candidates = Extraction.model_validate(response).candidates
     p, b = source['payload'], source['business_id']
     facts = {str(f['fact_id']): f for f in current(db, b)}
+    allowed_groups = {g['id'] for g in _group_context(db, source).get('groups', [])}
     corrected = set()
     profile_replacements = set()
     profile = db.execute('''SELECT b.description FROM businesses b JOIN web_businesses w
         ON w.business_id=b.id WHERE b.id=%s''', (b,)).fetchone()
     for item in candidates:
+        if item.group_id is not None and item.group_id not in allowed_groups:
+            raise MemoryError('La extracción propone un grupo ajeno o inexistente.')
         c = validate_content(db, b, item.content.model_dump(mode='json'))
         if item.quote not in p['text'] or (not item.quote.strip() and p['disposition'] == 'answered'):
             raise MemoryError('La extracción no cita el texto original.')
@@ -182,6 +215,7 @@ def _apply(db, source):
     candidates = [] if _chat_without_facts(source) else _validate(db, source, source['response'])
     profile_changes = [(item.profile_replacement.old_text, item.profile_replacement.new_text)
                        for item in candidates if item.profile_replacement is not None]
+    assignments = {}
     for item in candidates:
         content = item.content.model_dump(mode='json')
         facts = current(db, b)
@@ -219,6 +253,9 @@ def _apply(db, source):
             fact_id = uuid4()
             db.execute('INSERT INTO memory_facts(id,business_id) VALUES (%s,%s)', (fact_id, b))
             append(db, b, fact_id, content, state, source['id'], item.quote)
+            if item.group_id:
+                assignments[str(fact_id)] = item.group_id
+    _file_new_memories(db, source, assignments)
     for old_text, new_text in profile_changes:
         _replace_profile_text(db, b, old_text, new_text)
     db.execute("UPDATE memory_sources SET status='applied',issue=NULL,updated_at=now() WHERE id=%s", (source['id'],))

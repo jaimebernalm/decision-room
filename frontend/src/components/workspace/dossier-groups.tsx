@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ArrowUp, ArrowDown, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useAction } from "@/lib/hooks";
 import { api } from "@/lib/api";
 import type { DossierLayout } from "@/lib/types";
@@ -20,6 +21,7 @@ export function GroupEditor({
 }) {
   const [draft, setDraft] = useState(() => structuredClone(layout));
   const [newName, setNewName] = useState("");
+  const [newDescription, setNewDescription] = useState("");
   const action = useAction();
   const names = draft.groups.map((g) =>
     g.name.trim().replace(/\s+/g, " ").toLocaleLowerCase(),
@@ -41,7 +43,7 @@ export function GroupEditor({
       className="flex min-h-0 flex-col gap-4"
       onSubmit={(event) => {
         event.preventDefault();
-        if (invalid || newName.trim()) return;
+        if (invalid || newName.trim() || newDescription.trim()) return;
         void action.run(async () => {
           await api("/api/business/dossier-layout", {
             business_id: business,
@@ -54,7 +56,8 @@ export function GroupEditor({
       <div className="min-h-0 space-y-4 overflow-y-auto px-1">
         <p className="text-sm text-muted-foreground">
           Por revisar reúne siempre las propuestas y conflictos pendientes.
-          Eliminar un grupo conserva su información.
+          Eliminar un grupo conserva su información. La descripción ayuda al
+          agente a clasificar nuevas memorias; puedes moverlas después.
         </p>
         <ul className="space-y-3">
           {draft.groups.map((group, index) => (
@@ -120,10 +123,28 @@ export function GroupEditor({
               >
                 <X />
               </Button>
+              <Textarea
+                aria-label={`Descripción del grupo ${index + 1}`}
+                placeholder="Qué información debe guardar el agente aquí"
+                maxLength={500}
+                value={group.description || ""}
+                disabled={action.busy}
+                className="min-h-20 w-full text-sm"
+                onChange={(event) =>
+                  setDraft({
+                    ...draft,
+                    groups: draft.groups.map((g) =>
+                      g.id === group.id
+                        ? { ...g, description: event.target.value }
+                        : g,
+                    ),
+                  })
+                }
+              />
             </li>
           ))}
         </ul>
-        <div className="flex gap-2">
+        <div className="space-y-2 rounded-lg border p-3">
           <Input
             aria-label="Nombre del nuevo grupo"
             placeholder="Nombre del nuevo grupo"
@@ -132,21 +153,41 @@ export function GroupEditor({
             disabled={action.busy || draft.groups.length >= 20}
             onChange={(event) => setNewName(event.target.value)}
           />
+          <Textarea
+            aria-label="Descripción del nuevo grupo"
+            placeholder="Describe qué información debe ir en este grupo"
+            maxLength={500}
+            value={newDescription}
+            disabled={action.busy || draft.groups.length >= 20}
+            onChange={(event) => setNewDescription(event.target.value)}
+            className="min-h-20"
+          />
+          <p className="text-xs text-muted-foreground">
+            Nombre y descripción son necesarios para añadir un grupo.
+          </p>
           <Button
             type="button"
             variant="outline"
             disabled={
-              action.busy || draft.groups.length >= 20 || !newName.trim()
+              action.busy ||
+              draft.groups.length >= 20 ||
+              !newName.trim() ||
+              !newDescription.trim()
             }
             onClick={() => {
               setDraft({
                 ...draft,
                 groups: [
                   ...draft.groups,
-                  { id: crypto.randomUUID(), name: newName.trim() },
+                  {
+                    id: crypto.randomUUID(),
+                    name: newName.trim(),
+                    description: newDescription.trim(),
+                  },
                 ],
               });
               setNewName("");
+              setNewDescription("");
             }}
           >
             <Plus />
@@ -176,14 +217,18 @@ export function GroupEditor({
         <Notice error>{action.error}</Notice>
       </div>
       <div className="shrink-0 border-t pt-3">
-        {newName.trim() && (
+        {(newName.trim() || newDescription.trim()) && (
           <p className="text-sm text-muted-foreground">
             Pulsa Añadir grupo para incorporarlo a la lista antes de guardar.
           </p>
         )}
         <Button
           type="submit"
-          disabled={action.busy || invalid || Boolean(newName.trim())}
+          disabled={
+            action.busy ||
+            invalid ||
+            Boolean(newName.trim() || newDescription.trim())
+          }
         >
           {action.busy && <Busy />}Guardar grupos
         </Button>

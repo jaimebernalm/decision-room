@@ -230,10 +230,25 @@ export function Dossier({ files = false }: { files?: boolean }) {
       )}
       <Tabs defaultValue={files ? "data" : "info"} className="min-w-0 w-full">
         <div className="mb-6 flex flex-wrap items-center gap-2">
-          <TabsList>
-            <TabsTrigger value="info">Información</TabsTrigger>
-            <TabsTrigger value="data">Datos</TabsTrigger>
-            <TabsTrigger value="history">Historial</TabsTrigger>
+          <TabsList className="group-data-horizontal/tabs:h-14 p-1 sm:group-data-horizontal/tabs:h-16">
+            <TabsTrigger
+              value="info"
+              className="px-3 text-base font-semibold sm:px-5"
+            >
+              Información
+            </TabsTrigger>
+            <TabsTrigger
+              value="data"
+              className="px-3 text-base font-semibold sm:px-5"
+            >
+              Datos
+            </TabsTrigger>
+            <TabsTrigger
+              value="history"
+              className="px-3 text-base font-semibold sm:px-5"
+            >
+              Historial
+            </TabsTrigger>
           </TabsList>
           <Button variant="ghost" size="sm" onClick={resource.refresh}>
             <RefreshCw />
@@ -253,17 +268,24 @@ export function Dossier({ files = false }: { files?: boolean }) {
               <Settings2 />
               Personalizar grupos
             </Button>
-            <Button
-              size="sm"
-              ref={addInformation}
-              onClick={(event) => {
-                actionFocus.current = event.currentTarget;
-                setEdit(null);
-              }}
-            >
-              <Plus />
-              Añadir información
-            </Button>
+            <span className="flex items-center gap-3">
+              <span className="text-sm font-medium" aria-hidden="true">
+                Añadir información
+              </span>
+              <Button
+                size="icon"
+                className="size-14 rounded-full shadow-md hover:shadow-lg [&_svg]:size-7"
+                aria-label="Añadir información"
+                title="Añadir información"
+                ref={addInformation}
+                onClick={(event) => {
+                  actionFocus.current = event.currentTarget;
+                  setEdit(null);
+                }}
+              >
+                <Plus className="size-7" />
+              </Button>
+            </span>
           </div>
           {!facts.length && data.business.description && (
             <section aria-label="Presentación del negocio">
@@ -313,6 +335,15 @@ export function Dossier({ files = false }: { files?: boolean }) {
                       </span>
                     </AccordionTrigger>
                     <AccordionContent className="h-auto px-2 pt-1 pb-2 [&_p:not(:last-child)]:mb-0">
+                      {layout.groups.find((g) => g.id === group.key)
+                        ?.description && (
+                        <p className="px-3 py-2 text-sm text-muted-foreground whitespace-pre-wrap break-words">
+                          {
+                            layout.groups.find((g) => g.id === group.key)
+                              ?.description
+                          }
+                        </p>
+                      )}
                       {!items.length && (
                         <p className="px-3 py-4 text-sm text-muted-foreground">
                           Mueve información aquí desde el menú de una fila.
@@ -438,7 +469,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
                                     <Button
                                       variant="ghost"
                                       size="icon"
-                                      className="size-10 shrink-0"
+                                      className="size-10 shrink-0 transition-opacity group-hover/fact:opacity-100 group-focus-within/fact:opacity-100 data-[state=open]:opacity-100 motion-reduce:transition-none [@media(hover:hover)_and_(pointer:fine)]:opacity-0"
                                       aria-label={`Acciones: ${f.content.statement}`}
                                       onFocus={(event) => {
                                         actionFocus.current =

@@ -36,7 +36,7 @@ class DossierLayoutTests(unittest.TestCase):
         response = client.post('/api/business/dossier-layout', json=body)
         self.assertEqual(response.status_code, 200, response.text)
         saved = response.json()
-        self.assertEqual(saved['groups'], [{'id': 'custom', 'name': 'Clientes'}])
+        self.assertEqual(saved['groups'], [{'id': 'custom', 'name': 'Clientes', 'description': ''}])
         self.assertEqual(saved['revision'], 1)
         migrate(self.config)
         migrate(self.config)
@@ -45,6 +45,19 @@ class DossierLayoutTests(unittest.TestCase):
         self.assertEqual(current['facts'][0]['revision'], initial['facts'][0]['revision'])
         self.assertEqual(current['facts'][0]['content'], initial['facts'][0]['content'])
         self.assertEqual(dossier_layout.save(self.ws, body), saved)
+
+    def test_descriptions_persist_and_legacy_layouts_remain_readable(self):
+        saved = dossier_layout.save(self.ws, self.body(groups=[{'id': 'custom', 'name': 'Clientes', 'description': '  Perfil y necesidades de las familias.  '}]))
+        self.assertEqual(saved['groups'][0]['description'], 'Perfil y necesidades de las familias.')
+        self.assertEqual(dossier.listing(self.ws)['layout'], saved)
+        with connect(self.config) as db:
+            from psycopg.types.json import Jsonb
+            db.execute('UPDATE web_dossier_layouts SET layout=%s WHERE business_id=%s',
+                       (Jsonb({'groups': [{'id': 'custom', 'name': 'Legacy'}], 'assignments': {}}), self.ws.business_id()))
+        self.assertEqual(dossier.listing(self.ws)['layout']['groups'][0]['description'], '')
+        for description in (True, None, 'x' * 501):
+            with self.subTest(description=description), self.assertRaises(WebError):
+                dossier_layout.save(self.ws, self.body(groups=[{'id': 'custom', 'name': 'Clientes', 'description': description}]))
 
     def test_invalid_groups_and_unknown_assignments_leave_saved_layout_unchanged(self):
         initial = dossier.listing(self.ws)['layout']

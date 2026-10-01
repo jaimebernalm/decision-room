@@ -211,7 +211,7 @@ export type Dossier = {
 };
 export type DossierLayout = {
   revision: number;
-  groups: { id: string; name: string }[];
+  groups: { id: string; name: string; description?: string }[];
   assignments: Record<string, string>;
 };
 export type Response = Partial<Report> & {

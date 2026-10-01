@@ -8,16 +8,20 @@ from ..database import connect
 from .errors import WebError
 
 DEFAULT_GROUPS = [
-    {'id': 'business', 'name': 'Sobre el negocio'},
-    {'id': 'operations', 'name': 'Operativa'},
-    {'id': 'goals', 'name': 'Objetivos y preferencias'},
+    {'id': 'business', 'name': 'Sobre el negocio', 'description': 'Actividad del negocio, productos, clientes y características generales.'},
+    {'id': 'operations', 'name': 'Operativa', 'description': 'Horarios, procesos, recursos disponibles y significado de los datos.'},
+    {'id': 'goals', 'name': 'Objetivos y preferencias', 'description': 'Prioridades, metas y preferencias para orientar las recomendaciones.'},
 ]
 
 
 def load(db, business):
     row = db.execute('SELECT revision,layout FROM web_dossier_layouts WHERE business_id=%s', (business,)).fetchone()
-    return {'revision': row['revision'], **row['layout']} if row else {
+    layout = {'revision': row['revision'], **row['layout']} if row else {
         'revision': 0, 'groups': [dict(g) for g in DEFAULT_GROUPS], 'assignments': {}}
+    # Existing saved layouts remain usable without rewriting owner configuration.
+    defaults = {g['id']: g['description'] for g in DEFAULT_GROUPS}
+    layout['groups'] = [{**g, 'description': g.get('description', defaults.get(g['id'], ''))} for g in layout['groups']]
+    return layout
 
 
 def validate(body):
@@ -28,16 +32,19 @@ def validate(body):
         raise WebError('Puedes crear hasta 20 grupos y organizar hasta 5000 recuerdos.')
     normalized, ids, names = [], set(), set()
     for group in groups:
-        if (not isinstance(group, dict) or set(group) != {'id', 'name'} or
+        if (not isinstance(group, dict) or not {'id', 'name'} <= set(group) or set(group) - {'id', 'name', 'description'} or
                 not isinstance(group['id'], str) or not re.fullmatch(r'[a-zA-Z0-9_-]{1,80}', group['id']) or
                 group['id'] in ('review', 'ungrouped', 'auto') or not isinstance(group['name'], str)):
             raise WebError('Revisa el identificador y el nombre de cada grupo.')
         name = ' '.join(group['name'].split())
+        description = group.get('description', next((g['description'] for g in DEFAULT_GROUPS if g['id'] == group['id']), ''))
+        if not isinstance(description, str) or len(description) > 500:
+            raise WebError('La descripción de cada grupo debe tener como máximo 500 caracteres.')
         if not 1 <= len(name) <= 60 or name.casefold() in names or group['id'] in ids or name.casefold() in ('por revisar', 'sin grupo'):
             raise WebError('Usa nombres distintos de entre 1 y 60 caracteres; Por revisar y Sin grupo están reservados.')
         ids.add(group['id'])
         names.add(name.casefold())
-        normalized.append({'id': group['id'], 'name': name})
+        normalized.append({'id': group['id'], 'name': name, 'description': description.strip()})
     for fact, group in assignments.items():
         try:
             valid_fact = isinstance(fact, str) and str(UUID(fact)) == fact

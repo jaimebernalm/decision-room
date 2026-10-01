@@ -81,3 +81,19 @@ Estado: acciones implementadas y comprobadas el 30 de septiembre de 2026.
 
 Estado: implementado y comprobado el 30 de septiembre de 2026. Selección visible,
 guardado fijo, grupos persistentes y barra compacta; véase la validación adjunta.
+
+## Jerarquía de controles y descripción para clasificar recuerdos
+
+1. Dar mayor tamaño a las pestañas y convertir Añadir información en un botón
+   circular con etiqueta visible. Mostrar el menú de fila con cursor, foco o
+   apertura; mantenerlo visible en dispositivos táctiles.
+2. Añadir descripciones editables y persistentes a los grupos, exigirlas al crear
+   uno nuevo y entregarlas como datos al extractor. Clasificar recuerdos nuevos
+   mediante un ID limitado a los grupos del negocio; conservar movimientos
+   manuales y descartar una clasificación si cambia la configuración durante
+   la extracción. No convertir descripciones en declaraciones del negocio.
+3. Validar contratos, clasificación y concurrencia con PostgreSQL, formularios y
+   navegación con pruebas frontend, y dimensiones/interacciones en escritorio y
+   móvil. Revisar el diff público y guardar un commit local del incremento.
+
+Estado: implementado y comprobado el 30 de septiembre de 2026; véase la validación.

@@ -143,3 +143,32 @@ negocios. Por revisar permanece separado de la clasificación elegida.
 La persistencia y los límites de grupos sí se comprueban con PostgreSQL real en
 bases de pruebas desechables. El recorrido visual continúa en la demo aislada;
 no se modifica información real del cliente ni se llama a modelos.
+
+## Controles destacados y descripciones que utiliza el extractor
+
+- Añadir información abre su formulario desde un botón circular de 56 × 56 px,
+  con símbolo más de 28 px y etiqueta visible. Las pestañas usan texto de 16 px
+  y superficies de 55 px en escritorio y 47 px en móvil. En 390 × 844 caben las
+  tres pestañas y el ancho total del documento permanece en 390 px.
+- El menú de fila tiene opacidad 0 en reposo y 1 cuando el cursor entra en ella.
+  Se comprueba apertura con Enter y retorno con Escape. Foco y menú abierto
+  mantienen la visibilidad; la regla de ocultación requiere cursor fino con
+  hover, por lo que no oculta los controles de dispositivos táctiles.
+- El editor permite descripciones de hasta 500 caracteres. Un grupo nuevo exige
+  nombre y descripción; el borrador de un grupo antiguo acepta la incorporación
+  de una descripción sin alterar sus asignaciones. En móvil el diálogo mide
+  358 px de ancho, sin desbordamiento, y Guardar grupos termina a 786 px.
+  La descripción del grupo Clientes de ejemplo se conserva después de recargar.
+- Pasan 139 pruebas frontend en 17 archivos, TypeScript/Vite y lint de los
+  archivos modificados. Permanece el aviso conocido de paquetes grandes.
+- Pasan 47 pruebas sobre PostgreSQL aislado: descripciones normalizadas y
+  persistentes, compatibilidad de grupos anteriores, límite y tipos válidos;
+  contexto de extracción con descripciones, enum de IDs del proveedor,
+  clasificación de recuerdos nuevos, rechazo de grupos ajenos, confirmación de
+  propuestas sin perder grupo, conservación de movimientos manuales, cambios de
+  configuración durante la llamada y recuperación de un fallo SQL sin repetir
+  el proveedor. Las descripciones no se convierten en hechos.
+
+La clasificación se valida con un modelo determinista de prueba y almacenamiento
+real aislado. No se evalúa la precisión semántica de un proveedor remoto en este
+incremento. La demo visual mantiene datos ficticios y sus grupos existentes.

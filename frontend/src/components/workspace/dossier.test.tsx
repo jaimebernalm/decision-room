@@ -711,6 +711,18 @@ describe("compact business dossier", () => {
       screen.getByRole("textbox", { name: "Nombre del nuevo grupo" }),
       "Clientes",
     );
+    expect(screen.getByRole("button", { name: "Añadir grupo" })).toBeDisabled();
+    await user.type(
+      screen.getByRole("textbox", { name: "Descripción del nuevo grupo" }),
+      "Perfil y necesidades de nuestros clientes.",
+    );
+    await user.clear(
+      screen.getByRole("textbox", { name: "Descripción del grupo 1" }),
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Descripción del grupo 1" }),
+      "Características generales de la empresa.",
+    );
     await user.click(screen.getByRole("button", { name: "Añadir grupo" }));
     await user.click(screen.getByRole("button", { name: "Subir grupo 4" }));
     await user.click(screen.getByRole("button", { name: "Guardar grupos" }));
@@ -721,9 +733,17 @@ describe("compact business dossier", () => {
       business_id: business.id,
       revision: 0,
       groups: [
-        { id: "business", name: "Mi empresa" },
+        {
+          id: "business",
+          name: "Mi empresa",
+          description: "Características generales de la empresa.",
+        },
         { id: "operations", name: "Operativa" },
-        { id: expect.any(String), name: "Clientes" },
+        {
+          id: expect.any(String),
+          name: "Clientes",
+          description: "Perfil y necesidades de nuestros clientes.",
+        },
         { id: "goals", name: "Objetivos y preferencias" },
       ],
     });
@@ -821,6 +841,43 @@ describe("compact business dossier", () => {
     expect(screen.getByRole("button", { name: "Clientes 0" })).toBeVisible();
     expect(
       screen.getByText("Mueve información aquí desde el menú de una fila."),
+    ).toBeVisible();
+  });
+  it("adds a description to an existing group without losing its manual assignments", async () => {
+    const { user, writes } = setup({
+      ...dossier([shop]),
+      layout: {
+        revision: 2,
+        groups: [{ id: "clients", name: "Clientes" }],
+        assignments: { [shop.fact_id]: "clients" },
+      },
+    });
+    await ready();
+    await user.click(
+      screen.getByRole("button", { name: "Personalizar grupos" }),
+    );
+    const description = screen.getByRole("textbox", {
+      name: "Descripción del grupo 1",
+    });
+    expect(description).toHaveValue("");
+    await user.type(description, "Información sobre familias y estudiantes.");
+    await user.click(screen.getByRole("button", { name: "Guardar grupos" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(writes[0]).toMatchObject({
+      revision: 2,
+      groups: [
+        {
+          id: "clients",
+          name: "Clientes",
+          description: "Información sobre familias y estudiantes.",
+        },
+      ],
+      assignments: { [shop.fact_id]: "clients" },
+    });
+    expect(
+      screen.getByText("Información sobre familias y estudiantes."),
     ).toBeVisible();
   });
 });
