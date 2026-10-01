@@ -1,14 +1,12 @@
 import { useState, type ReactNode, type CSSProperties } from "react";
 import {
   ArrowLeft,
-  BarChart3,
   Building2,
   ChevronDown,
   FileText,
   HelpCircle,
   Home,
   MessageSquare,
-  MessagesSquare,
   Plus,
   MoreHorizontal,
   PanelRightOpen,
@@ -48,8 +46,6 @@ import { AssistantFrame } from "./assistant-frame";
 const navigation = [
   ["home", "Inicio", Home],
   ["my-business", "Mi negocio", Building2],
-  ["reports", "Informes", BarChart3],
-  ["chats", "Conversaciones", MessagesSquare],
 ] as const;
 export function Layout({ children }: { children: ReactNode }) {
   const { workspace } = useWorkspace();
@@ -95,6 +91,14 @@ function Navigation({
     activeChat && !recent.includes(activeChat)
       ? [...recent, activeChat]
       : recent;
+  const recentReports = workspace.analyses.slice(0, 5);
+  const activeReport = workspace.analyses.find((item) =>
+    [`analysis/${item.id}`, `report/${item.id}`].includes(route),
+  );
+  const reportRows =
+    activeReport && !recentReports.includes(activeReport)
+      ? [...recentReports, activeReport]
+      : recentReports;
   return (
     <Sidebar variant="inset" collapsible="icon">
       <SidebarHeader className="gap-4 p-3">
@@ -168,14 +172,6 @@ function Navigation({
                   asChild
                   isActive={
                     route === key ||
-                    (key === "chats" &&
-                      (route === "ask" ||
-                        route.startsWith("chat/") ||
-                        route.startsWith("chat-report/"))) ||
-                    (key === "reports" &&
-                      (route === "new" ||
-                        route.startsWith("analysis/") ||
-                        route.startsWith("report/"))) ||
                     (key === "my-business" &&
                       ["files", "business"].includes(route))
                   }
@@ -195,12 +191,21 @@ function Navigation({
             ))}
           </SidebarMenu>
         </SidebarGroup>
-        <SidebarGroup>
+        <SidebarGroup role="region" aria-label="Chats">
           <SidebarGroupLabel
             className="workspace-section-label"
-            aria-label="Chats recientes"
+            aria-label="Chats"
           >
-            <span>Chats recientes</span>
+            <span>
+              <a
+                href="#chats"
+                onClick={close}
+                aria-label="Chats"
+                className="hover:text-foreground"
+              >
+                Chats
+              </a>
+            </span>
           </SidebarGroupLabel>
           <SidebarMenu>
             {chatRows.map((chat) => (
@@ -232,19 +237,51 @@ function Navigation({
                 </ChatActions>
               </SidebarMenuItem>
             ))}
+            {listing.conversations.length > 6 && (
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild tooltip="Ver todos los chats">
+                  <a
+                    href="#chats"
+                    onClick={close}
+                    aria-label="Ver todos los chats"
+                  >
+                    <MoreHorizontal />
+                    <span>Ver todos</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
           </SidebarMenu>
+          {!chatRows.length && (
+            <p className="px-2 py-1 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
+              Todavía no hay chats
+            </p>
+          )}
         </SidebarGroup>
-        <SidebarGroup>
+        <SidebarGroup role="region" aria-label="Informes">
           <SidebarGroupLabel
             className="workspace-section-label"
-            aria-label="Informes recientes"
+            aria-label="Informes"
           >
-            <span>Informes recientes</span>
+            <span>
+              <a
+                href="#reports"
+                onClick={close}
+                aria-label="Informes"
+                className="hover:text-foreground"
+              >
+                Informes
+              </a>
+            </span>
           </SidebarGroupLabel>
           <SidebarMenu>
-            {workspace.analyses.slice(0, 5).map((item) => (
+            {reportRows.map((item) => (
               <SidebarMenuItem key={item.id}>
-                <SidebarMenuButton asChild tooltip={item.title}>
+                <SidebarMenuButton
+                  asChild
+                  tooltip={item.title}
+                  isActive={item === activeReport}
+                >
                   <a
                     href={analysisHref(item)}
                     onClick={close}
@@ -263,7 +300,26 @@ function Navigation({
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}
+            {workspace.analyses.length > 5 && (
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild tooltip="Ver todos los informes">
+                  <a
+                    href="#reports"
+                    onClick={close}
+                    aria-label="Ver todos los informes"
+                  >
+                    <MoreHorizontal />
+                    <span>Ver todos</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
           </SidebarMenu>
+          {!reportRows.length && (
+            <p className="px-2 py-1 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
+              Todavía no hay informes
+            </p>
+          )}
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="p-3">

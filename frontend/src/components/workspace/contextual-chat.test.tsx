@@ -555,7 +555,7 @@ it("keeps the same dock, draft and attachments across all four sections", async 
   );
   expect(location.hash).toBe("#reports");
   await user.keyboard("{Escape}");
-  await user.click(screen.getByRole("link", { name: "Conversaciones" }));
+  await user.click(screen.getByRole("link", { name: "Chats" }));
   expect(location.hash).toBe("#chats");
   expect(screen.getByRole("complementary")).toBe(panel);
   expect(within(panel).getByRole("textbox")).toHaveValue(

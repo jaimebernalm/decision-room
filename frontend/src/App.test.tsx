@@ -62,7 +62,7 @@ it("starts a standalone new chat without visiting home and can resume its draft 
     screen.queryByRole("heading", { name: "Tu negocio, de un vistazo" }),
   ).toBeNull();
   await user.type(screen.getByRole("textbox", { name: "Mensaje" }), "Borrador");
-  await user.click(screen.getByRole("link", { name: "Conversaciones" }));
+  await user.click(screen.getByRole("link", { name: "Chats" }));
   await screen.findByRole("heading", { name: "Conversaciones" });
   await user.click(
     screen.getByRole("button", { name: "Continuar conversación" }),

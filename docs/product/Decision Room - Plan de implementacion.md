@@ -467,6 +467,16 @@ Las acciones Editar, Fijar/Desfijar y Ocultar se agrupan en tres puntos por tarj
 44 pruebas backend, 120 frontend, build, lint y aceptación real con GPT-6 Luna
 correctos.
 
+### 2.5.19. Navegación sin duplicados y controles coherentes del chat
+
+**Planificado:** Inicio y Mi negocio como accesos principales; grupos únicos
+Chats e Informes, nuevo chat mediante +, apertura/cierre superior del panel y
+controles inversos de ampliar/reducir. Menú inferior de apariencia y selector
+superior de negocios adaptados de `sidebar-07`, conservando el resto de la UI.
+Seguir los seis pasos del
+[plan separado de navegación y chat](../technical/navigation-and-chat-plan.md),
+con pruebas y commit local por función.
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Avance, 27 de septiembre de 2026:** completados **3.1** (medición inicial),
