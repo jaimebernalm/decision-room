@@ -64,4 +64,7 @@ publica en GitHub salvo petición explícita del usuario.
 - 2.5.19.3 completado: apertura y reapertura en la barra superior, cierre alineado,
   sin acceso flotante ni espacio inferior reservado. 124 pruebas y compilación;
   apertura/cierre verificados en navegador y continuidad de borradores en pruebas.
-- 2.5.19.4–2.5.19.6 pendientes.
+- 2.5.19.4 completado: flechas inversas y retorno a la página y posición de origen,
+  con borrador intacto y sin envíos; apertura directa usa última página o Inicio.
+  Validación: 126 pruebas y compilación correctas.
+- 2.5.19.5–2.5.19.6 pendientes.

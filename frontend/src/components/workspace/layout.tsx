@@ -9,7 +9,7 @@ import {
   MessageSquare,
   Plus,
   MoreHorizontal,
-  PanelRightOpen,
+  Minimize2,
   Sun,
   Moon,
 } from "lucide-react";
@@ -403,10 +403,12 @@ function Topbar() {
         {route.startsWith("chat/") && assistant && (
           <Button
             variant="ghost"
-            size="sm"
-            onClick={() => assistant.openConversation(route.split("/")[1])}
+            size="icon"
+            aria-label="Reducir conversación"
+            title="Reducir conversación"
+            onClick={() => assistant.reduceConversation(route.split("/")[1])}
           >
-            <PanelRightOpen /> Abrir en panel
+            <Minimize2 />
           </Button>
         )}
         <Button

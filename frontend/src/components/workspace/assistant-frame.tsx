@@ -170,6 +170,7 @@ export function AssistantFrame({
                       a.setDock({
                         ...a.dock,
                         origin: route,
+                        block: undefined,
                         scroll:
                           document.getElementById("main-content")?.scrollTop,
                       });

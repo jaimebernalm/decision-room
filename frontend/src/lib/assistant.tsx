@@ -60,6 +60,7 @@ type Assistant = {
   dock: Dock;
   setDock: (d: Dock) => void;
   openConversation: (id: string) => void;
+  reduceConversation: (id: string) => void;
   selecting: boolean;
   setSelecting: (v: boolean) => void;
   selected: ContextAttachment[];
@@ -175,6 +176,15 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
           const origin = contextualRoute(route) ? route : "home";
           setDock({ chatId: id, open: true, origin });
           if (route !== origin) location.hash = origin;
+        },
+        reduceConversation: (id) => {
+          setSelecting(false);
+          const savedOrigin = store.get<string>(`dr-assistant-origin-${business}`, "home");
+          const sameChat = dock.chatId === id;
+          const candidate = sameChat && dock.origin ? dock.origin : savedOrigin;
+          const origin = contextualRoute(candidate) ? candidate : "home";
+          setDock({ ...(sameChat ? dock : {}), chatId: id, open: true, origin });
+          location.hash = origin;
         },
         selecting,
         setSelecting,

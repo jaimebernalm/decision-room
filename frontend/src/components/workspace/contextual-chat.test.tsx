@@ -456,7 +456,7 @@ const existingChats = [
     created_at: "2026-09-27",
   },
 ];
-it("opens an existing conversation from its page on home without duplicate return actions or sending", async () => {
+it("reduces a directly opened conversation to its last source without duplicate actions or sending", async () => {
   location.hash = "chat/existing";
   store.set("dr-assistant-origin-a", "report/sales");
   store.set(messageKey("existing"), { text: "Borrador existente" });
@@ -469,14 +469,14 @@ it("opens an existing conversation from its page on home without duplicate retur
       name: /Volver al dashboard|Volver al informe/,
     }),
   ).not.toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "Abrir en panel" }));
+  await user.click(screen.getByRole("button", { name: "Reducir conversación" }));
   const panel = await screen.findByRole("complementary", {
     name: "Conversación lateral",
   });
   expect(await within(panel).findByRole("textbox")).toHaveValue(
     "Borrador existente",
   );
-  expect(location.hash).toBe("#home");
+  expect(location.hash).toBe("#report/sales");
   expect(store.get("dr-dock-a", {})).toMatchObject({
     chatId: "existing",
     open: true,
@@ -672,4 +672,35 @@ it('shows one activity history for successive turns of the same analysis',async(
  await screen.findByRole('button',{name:'Investigación compartida en curso'});
  expect(screen.getAllByRole('button',{name:'Investigación compartida en curso'})).toHaveLength(1);
  expect(fetch.mock.calls.filter(([url])=>url.includes('/activity'))).toHaveLength(1);
+});
+
+it("expands and reduces the same chat while restoring report position and keeping the draft", async () => {
+  location.hash = "report/sales";
+  store.set("dr-dock-a", { chatId: "existing", open: true, origin: "report/sales" });
+  store.set(messageKey("existing"), { text: "No enviar este borrador" });
+  const calls = server();
+  const user = userEvent.setup();
+  render(<Harness initialRoute="report/sales" />);
+  await screen.findByRole("textbox");
+  document.getElementById("main-content")!.scrollTop = 140;
+  await user.click(screen.getByRole("button", { name: "Abrir conversación completa" }));
+  await waitFor(() => expect(location.hash).toBe("#chat/existing"));
+  await screen.findByRole("button", { name: "Reducir conversación" });
+  expect(screen.getByRole("textbox")).toHaveValue("No enviar este borrador");
+  await user.click(screen.getByRole("button", { name: "Reducir conversación" }));
+  await screen.findByRole("complementary", { name: "Conversación lateral" });
+  expect(location.hash).toBe("#report/sales");
+  expect(document.getElementById("main-content")!.scrollTop).toBe(140);
+  expect(await screen.findByRole("textbox")).toHaveValue("No enviar este borrador");
+  expect(calls.some(c => c.url === "/api/chats" || c.url.endsWith("/messages"))).toBe(false);
+});
+it("reduces a directly opened chat to home when there is no saved source", async () => {
+  location.hash = "chat/existing";
+  const calls = server();
+  render(<Harness initialRoute="chat/existing" />);
+  await screen.findByRole("textbox");
+  await userEvent.click(screen.getByRole("button", { name: "Reducir conversación" }));
+  await screen.findByRole("complementary", { name: "Conversación lateral" });
+  expect(location.hash).toBe("#home");
+  expect(calls.some(c => c.url === "/api/chats" || c.url.endsWith("/messages"))).toBe(false);
 });
