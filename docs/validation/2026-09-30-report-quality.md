@@ -47,6 +47,11 @@ campos opcionales internos que el protocolo estricto exige declarar explícitame
   horizontal; ejes ajustados en móvil. PDF de dos páginas sin pérdida de valores.
   Son pruebas del renderer, no informes publicados. Artefactos privados en
   `.local/ui-quality/`, excluidos de Git.
+- En la primera entrega real de Bruma se comprobó también la línea mensual y
+  selección exacta de julio. Ajustado el margen de la línea simple para conservar
+  completo el marcador del máximo en el borde; las líneas múltiples ya lo tenían.
+  Pruebas web dirigidas y build pasan. Este ajuste visual posterior no modifica
+  las copias de producto congeladas para la comparación ni sus informes.
 
 ## Comparación y aceptación
 

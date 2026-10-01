@@ -608,7 +608,7 @@ export function EvidenceChart({
                 }}
                 accessibilityLayer
                 data={points}
-                margin={{ left: 0, right: 12 }}
+                margin={{ left: 0, right: 24, top: 12, bottom: 12 }}
               >
                 {axes}
                 <Line
