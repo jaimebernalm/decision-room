@@ -37,7 +37,8 @@ def wwi_details(base):
             raise ValueError('Nonfinite independent amount')
         dimensions = [f'year:{year}', f'category:{year}:{category}',
                       f'cross:{year}:{category}:{line["StockItemID"]}',
-                      f'product_id:{year}:{line["StockItemID"]}']
+                      f'product_id:{year}:{line["StockItemID"]}',
+                      f'customer_id:{year}:{invoice["CustomerID"]}']
         for key in dimensions:
             group = groups[key]; totals = group['sums']
             values = dict(quantity=quantity, gross_sales=gross, net_sales=gross-tax,
@@ -67,4 +68,24 @@ def wwi_details(base):
         if totals['gross_sales']:
             values['gross_margin_pct'] = totals['profit']/totals['gross_sales']*100
         result.update({f'detail:{key}:{name}': value for name, value in values.items()})
+    # Zero here is an absent contribution to observed totals, not a fabricated
+    # yearly level or evidence that the customer had no actual activity.
+    by_category = defaultdict(list)
+    observed = {k.rsplit(':', 1)[1] for k in groups if k.startswith('customer_id:')}
+    for identity in observed:
+        category = categories[customers[identity]['CustomerCategoryID']]['CustomerCategoryName']
+        by_category[category].append(identity)
+    def contribution(year, identity, measure):
+        return groups.get(f'customer_id:{year}:{identity}', {}).get('sums', {}).get(measure, Decimal(0))
+    for category, identities in by_category.items():
+        prefix = f'detail:category_change:{category}:'
+        result[prefix + 'customer_count'] = len(identities)
+        for measure in ('gross_sales', 'net_sales', 'profit', 'quantity'):
+            changes = [contribution('2015', identity, measure) - contribution('2014', identity, measure)
+                       for identity in identities]
+            magnitudes = sorted(map(abs, changes), reverse=True)
+            result[prefix + measure + ':net_change'] = sum(changes, Decimal(0))
+            result[prefix + measure + ':absolute_change_sum'] = sum(magnitudes, Decimal(0))
+            result[prefix + measure + ':top5_absolute_change_sum'] = sum(magnitudes[:5], Decimal(0))
+            result[prefix + measure + ':top12_absolute_change_sum'] = sum(magnitudes[:12], Decimal(0))
     return result

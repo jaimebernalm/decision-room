@@ -99,8 +99,10 @@ y sus fallos; una reserva todavía sin actividad puede continuar con la misma cl
 Permite un lote adicional identificado que reutiliza las seis bases históricas y
 ejecuta seis nuevas entregas, una vez terminado el lote original. No representa
 esa continuación como una alternancia nueva ni cuenta dos veces sus bases.
-Referencias independientes adicionales por SKU/categoría, precios y notas de crédito
+Referencias independientes adicionales por SKU/categoría/comprador, precios y notas de crédito
 extienden el oráculo sin sobrescribirlo ni entrar en el contexto del producto.
+La concentración usa cambios observados y denominadores firmados/absolutos
+separados; no crea niveles anuales para grupos ausentes.
 41 pruebas del instrumento, referencias y conservación de intentos pasan.
 
 Pendiente: matriz base/nueva congelada, tres casos (Bruma descubrir, WWI descubrir,
