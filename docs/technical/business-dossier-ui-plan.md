@@ -49,3 +49,17 @@ siguiendo los tres incrementos. Véanse las
    escritorio, móvil y modo oscuro. Guardar un commit local tras revisar el diff.
 
 Estado: refinamiento completado y validado el 30 de septiembre de 2026.
+
+## Acciones directas para propuestas y conflictos
+
+1. Ofrecer confirmar y descartar en la fila de una propuesta válida al pasar el
+   cursor o enfocar sus acciones. Dejarlas visibles en móvil y dispositivos sin
+   cursor. Descartar retira al historial mediante el contrato existente.
+2. Mostrar Resolver conflicto junto al aviso, con comparación de versiones y
+   posibilidad de elegir una como borrador o escribir una corrección. Guardar
+   requiere una acción explícita y conserva revisión, ámbito e idempotencia.
+3. Añadir un texto largo ficticio a la demo; comprobar lectura y acciones en
+   escritorio/móvil, errores, cancelación, persistencia del borrador y selección
+   de contexto. Revisar y guardar un commit local.
+
+Estado: acciones implementadas y comprobadas el 30 de septiembre de 2026.

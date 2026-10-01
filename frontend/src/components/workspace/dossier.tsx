@@ -10,6 +10,7 @@ import {
   RefreshCw,
   MoreHorizontal,
   Info,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
 import { useResource, useAction } from "@/lib/hooks";
 import { api, contextKey, store, date } from "@/lib/api";
 import { useWorkspace } from "@/lib/workspace";
@@ -98,13 +105,27 @@ function needsReview(fact: Fact) {
     fact.content.kind === "open_question"
   );
 }
+function canConfirm(fact: Fact) {
+  return (
+    ![
+      "declared",
+      "confirmed",
+      "conflicted",
+      "withdrawn",
+      "superseded",
+    ].includes(fact.status) &&
+    fact.content.temporal_scope !== "unresolved" &&
+    fact.content.kind !== "open_question"
+  );
+}
 function factGroup(fact: Fact) {
   if (needsReview(fact)) return "review";
   const { kind, scope, topic = "" } = fact.content;
   if (
     kind === "priority" ||
     /preferenc|objetiv|goal|prioridad|priority/.test(topic.toLowerCase())
-  ) return "goals";
+  )
+    return "goals";
   if (
     scope !== "business" ||
     ["definition", "availability"].includes(kind) ||
@@ -267,30 +288,92 @@ export function Dossier({ files = false }: { files?: boolean }) {
                                 },
                               }}
                             >
-                              <div className="flex items-start gap-3 rounded-lg px-2 py-2 text-sm transition-[background-color,box-shadow] hover:bg-sidebar-accent hover:shadow-sm focus-within:bg-sidebar-accent focus-within:shadow-sm motion-reduce:transition-none sm:px-3">
+                              <div className="group/fact flex items-start gap-3 rounded-lg px-2 py-2 text-sm transition-[background-color,box-shadow] hover:bg-sidebar-accent hover:shadow-sm focus-within:bg-sidebar-accent focus-within:shadow-sm motion-reduce:transition-none sm:px-3">
                                 <div className="min-w-0 flex-1 py-2">
                                   <p className="whitespace-pre-wrap break-words leading-6">
                                     {f.content.statement}
                                   </p>
                                   {needsReview(f) && (
-                                    <Badge
-                                      className="mt-1"
-                                      variant={
-                                        f.status === "conflicted"
-                                          ? "destructive"
-                                          : "secondary"
-                                      }
-                                    >
-                                      {f.status === "conflicted"
-                                        ? factStatus[f.status]
-                                        : f.content.temporal_scope ===
-                                            "unresolved"
-                                          ? "Fechas por aclarar"
-                                          : f.content.kind === "open_question"
-                                            ? "Pregunta abierta"
-                                            : factStatus[f.status] ||
-                                              "Por revisar"}
-                                    </Badge>
+                                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                                      <Badge
+                                        variant={
+                                          f.status === "conflicted"
+                                            ? "destructive"
+                                            : "secondary"
+                                        }
+                                      >
+                                        {f.status === "conflicted"
+                                          ? factStatus[f.status]
+                                          : f.content.temporal_scope ===
+                                              "unresolved"
+                                            ? "Fechas por aclarar"
+                                            : f.content.kind === "open_question"
+                                              ? "Pregunta abierta"
+                                              : factStatus[f.status] ||
+                                                "Por revisar"}
+                                      </Badge>
+                                      {canConfirm(f) && (
+                                        <TooltipProvider>
+                                          <span className="inline-flex gap-1 transition-opacity group-hover/fact:opacity-100 group-focus-within/fact:opacity-100 motion-reduce:transition-none sm:[@media(hover:hover)]:opacity-0">
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <Button
+                                                  variant="outline"
+                                                  size="icon"
+                                                  className="size-9"
+                                                  aria-label={`Confirmar: ${f.content.statement}`}
+                                                  disabled={action.busy}
+                                                  onClick={() =>
+                                                    void mutation(f, "confirm")
+                                                  }
+                                                >
+                                                  <Check />
+                                                </Button>
+                                              </TooltipTrigger>
+                                              <TooltipContent>
+                                                Confirmar información
+                                              </TooltipContent>
+                                            </Tooltip>
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <Button
+                                                  variant="destructive"
+                                                  size="icon"
+                                                  className="size-9"
+                                                  aria-label={`Descartar: ${f.content.statement}`}
+                                                  disabled={action.busy}
+                                                  onClick={() =>
+                                                    void mutation(f, "withdraw")
+                                                  }
+                                                >
+                                                  <X />
+                                                </Button>
+                                              </TooltipTrigger>
+                                              <TooltipContent>
+                                                Descartar y conservar en el
+                                                historial
+                                              </TooltipContent>
+                                            </Tooltip>
+                                          </span>
+                                        </TooltipProvider>
+                                      )}
+                                      {f.status === "conflicted" && (
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="min-h-9 whitespace-normal text-left"
+                                          disabled={action.busy}
+                                          onClick={(event) => {
+                                            actionFocus.current =
+                                              event.currentTarget;
+                                            setEdit(f);
+                                          }}
+                                        >
+                                          <Pencil />
+                                          Resolver conflicto
+                                        </Button>
+                                      )}
+                                    </div>
                                   )}
                                   {(f.content.scope !== "business" ||
                                     f.content.valid_from ||
@@ -312,7 +395,8 @@ export function Dossier({ files = false }: { files?: boolean }) {
                                           event.currentTarget;
                                       }}
                                       onPointerDown={(event) => {
-                                        actionFocus.current = event.currentTarget;
+                                        actionFocus.current =
+                                          event.currentTarget;
                                       }}
                                     >
                                       <MoreHorizontal />
@@ -335,24 +419,17 @@ export function Dossier({ files = false }: { files?: boolean }) {
                                       <Info />
                                       Ver detalles
                                     </DropdownMenuItem>
-                                    {![
-                                      "declared",
-                                      "confirmed",
-                                      "conflicted",
-                                    ].includes(f.status) &&
-                                      f.content.temporal_scope !==
-                                        "unresolved" &&
-                                      f.content.kind !== "open_question" && (
-                                        <DropdownMenuItem
-                                          disabled={action.busy}
-                                          onSelect={() => {
-                                            void mutation(f, "confirm");
-                                          }}
-                                        >
-                                          <Check />
-                                          Confirmar
-                                        </DropdownMenuItem>
-                                      )}
+                                    {canConfirm(f) && (
+                                      <DropdownMenuItem
+                                        disabled={action.busy}
+                                        onSelect={() => {
+                                          void mutation(f, "confirm");
+                                        }}
+                                      >
+                                        <Check />
+                                        Confirmar
+                                      </DropdownMenuItem>
+                                    )}
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem
                                       variant="destructive"
@@ -575,10 +652,16 @@ export function Dossier({ files = false }: { files?: boolean }) {
         >
           <DialogHeader>
             <DialogTitle>
-              {edit ? "Corregir información" : "Añadir información"}
+              {edit?.status === "conflicted"
+                ? "Resolver conflicto"
+                : edit
+                  ? "Corregir información"
+                  : "Añadir información"}
             </DialogTitle>
             <DialogDescription>
-              Se guardará en la memoria de este negocio.
+              {edit?.status === "conflicted"
+                ? "Elige una versión como punto de partida o escribe la correcta. Revisa su ámbito y fechas antes de guardar."
+                : "Se guardará en la memoria de este negocio."}
             </DialogDescription>
           </DialogHeader>
           {edit !== undefined && (
@@ -694,6 +777,32 @@ function FactEditor({
       })),
     ]),
   ];
+  const conflictVersions =
+    fact?.status === "conflicted"
+      ? [
+          {
+            label: "Información actual",
+            content: fact.content,
+            quote: fact.quote,
+          },
+          ...(fact.alternatives || []).flatMap((alternative, index) => {
+            const statement =
+              alternative.content?.statement || alternative.statement;
+            return statement
+              ? [
+                  {
+                    label: `Alternativa ${index + 1}`,
+                    content: alternative.content || {
+                      ...fact.content,
+                      statement,
+                    },
+                    quote: alternative.quote,
+                  },
+                ]
+              : [];
+          }),
+        ]
+      : [];
   return (
     <form
       className="space-y-4"
@@ -736,6 +845,51 @@ function FactEditor({
         });
       }}
     >
+      {conflictVersions.length > 0 && (
+        <section aria-label="Versiones en conflicto" className="space-y-3">
+          {conflictVersions.map((version) => (
+            <div
+              key={version.label}
+              className="space-y-2 rounded-lg border bg-muted/30 p-3 text-sm"
+            >
+              <h3 className="font-semibold">{version.label}</h3>
+              <p className="whitespace-pre-wrap break-words leading-6">
+                {version.content.statement}
+              </p>
+              <p className="break-words text-xs text-muted-foreground">
+                {scopeLabel(version.content, datasets)}
+              </p>
+              {version.quote && (
+                <blockquote className="whitespace-pre-wrap break-words border-l-2 pl-2 text-xs text-muted-foreground">
+                  {version.quote}
+                </blockquote>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={action.busy}
+                aria-label={`Usar ${version.label.toLowerCase()}`}
+                onClick={() => setContent({ ...version.content })}
+              >
+                Usar esta versión
+              </Button>
+            </div>
+          ))}
+          {fact?.question && (
+            <p className="whitespace-pre-wrap break-words text-sm">
+              {fact.question}
+            </p>
+          )}
+          {fact?.conversation_id && (
+            <Button asChild variant="link" size="sm">
+              <a href={`#chat/${fact.conversation_id}`}>
+                Ver conversación de origen
+              </a>
+            </Button>
+          )}
+        </section>
+      )}
       <ChoiceSelect
         label="Tipo de información"
         value={content.kind}
@@ -812,7 +966,10 @@ function FactEditor({
       )}
       <Notice error>{action.error}</Notice>
       <Button type="submit" disabled={action.busy}>
-        {action.busy && <Busy />}Guardar información
+        {action.busy && <Busy />}
+        {fact?.status === "conflicted"
+          ? "Guardar solución"
+          : "Guardar información"}
       </Button>
     </form>
   );

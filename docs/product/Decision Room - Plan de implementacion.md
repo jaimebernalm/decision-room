@@ -213,6 +213,10 @@ El refinamiento visual posterior separa los grupos en cajas, destaca las
 cabeceras y usa el acento de la barra lateral al pasar el cursor o enfocar las
 filas. Se comprueban 32 pruebas de ficha/chat contextual, compilación, lint,
 alineación, móvil y temas claro/oscuro en la misma validación.
+Las propuestas incorporan confirmar/descartar directamente en la fila y los
+conflictos un recorrido explícito para comparar versiones y guardar la solución.
+Pasan 132 pruebas de frontend y la demo incluye texto largo para comprobar lectura
+en escritorio y móvil; se conserva el contrato de memoria e historial existente.
 
 ### 2.5.6. Inicio del negocio, informes y navegación cotidiana
 

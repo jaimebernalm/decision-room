@@ -23,6 +23,15 @@ sondeo periódico. Restaurar una información retirada requiere una corrección 
 Los cambios futuros conservan el ámbito y necesitan una fecha posterior, según el
 contrato de memoria existente.
 
+Las propuestas confirmables ofrecen tic y X directamente al pasar el cursor o
+enfocar la fila; en móvil y dispositivos sin cursor permanecen visibles. La X
+retira la propuesta al historial. El botón Resolver conflicto permanece visible
+junto al aviso y abre las versiones, citas y la pregunta de aclaración disponible.
+Usar una versión rellena el borrador, incluido su ámbito y fechas cuando están
+estructurados; Guardar solución envía una corrección explícita. También se puede
+escribir una solución sin alternativas. Se mantiene el menú para detalles y otras
+acciones; fechas ambiguas y preguntas abiertas no se confirman directamente.
+
 La ficha es consultable por el cliente. No se inyecta entera al agente: se conserva
 la selección inicial de contexto, el catálogo y las herramientas de recuperación.
 Una política de contexto permanente para futuros agentes especializados sigue fuera

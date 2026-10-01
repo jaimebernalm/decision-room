@@ -40,7 +40,10 @@ function fact(
 }
 const shop = fact("shop", "Vendemos material escolar y regalos.");
 const hours = fact("horario", "Abrimos de lunes a sábado.");
-const preference = fact("report_preferences", "Preferimos explicaciones breves.");
+const preference = fact(
+  "report_preferences",
+  "Preferimos explicaciones breves.",
+);
 const goal = fact("goal", "Queremos reducir las roturas de stock.", {
   content: {
     ...shop.content,
@@ -147,7 +150,9 @@ function setup(
         existing.status = body.action === "withdraw" ? "withdrawn" : "declared";
         if (body.content) existing.content = body.content;
       } else if (body.action === "declare") {
-        current.facts.push(fact("added", body.content.statement, { content: body.content }));
+        current.facts.push(
+          fact("added", body.content.statement, { content: body.content }),
+        );
       }
       return { ok: true, json: async () => ({ saved: true }) };
     }
@@ -436,7 +441,177 @@ describe("compact business dossier", () => {
       content: { statement: "También vendemos cuadernos." },
     });
     expect(writes[0]).not.toHaveProperty("fact_id");
-    expect(await screen.findByText("También vendemos cuadernos.")).toBeVisible();
+    expect(
+      await screen.findByText("También vendemos cuadernos."),
+    ).toBeVisible();
+  });
+  it("confirms a proposal directly with its revision, without opening a menu", async () => {
+    const { user, writes } = setup();
+    await ready();
+    await user.click(
+      screen.getByRole("button", {
+        name: `Confirmar: ${proposed.content.statement}`,
+      }),
+    );
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]).toMatchObject({
+      action: "confirm",
+      business_id: business.id,
+      fact_id: proposed.fact_id,
+      expected_revision: 3,
+      request_key: expect.any(String),
+    });
+    await waitFor(() =>
+      expect(screen.queryByText("Por confirmar")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText(proposed.content.statement)).toBeVisible();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: `Confirmar: ${unresolved.content.statement}`,
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: `Confirmar: ${conflict.content.statement}`,
+      }),
+    ).not.toBeInTheDocument();
+  });
+  it("discards a proposal directly and preserves it in the history", async () => {
+    const { user, writes } = setup();
+    await ready();
+    await user.click(
+      screen.getByRole("button", {
+        name: `Descartar: ${proposed.content.statement}`,
+      }),
+    );
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]).toMatchObject({
+      action: "withdraw",
+      fact_id: proposed.fact_id,
+      expected_revision: 3,
+    });
+    await waitFor(() =>
+      expect(
+        screen.queryByText(proposed.content.statement),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText(shop.content.statement)).toBeVisible();
+    await user.click(screen.getByRole("tab", { name: "Historial" }));
+    expect(screen.getByText(proposed.content.statement)).toBeVisible();
+  });
+  it("keeps the proposal and direct actions when confirmation fails", async () => {
+    const { user } = setup(dossier(), { error: "El recuerdo ha cambiado." });
+    await ready();
+    await user.click(
+      screen.getByRole("button", {
+        name: `Confirmar: ${proposed.content.statement}`,
+      }),
+    );
+    expect(await screen.findByText("El recuerdo ha cambiado.")).toBeVisible();
+    expect(screen.getByText(proposed.content.statement)).toBeVisible();
+    expect(
+      screen.getByRole("button", {
+        name: `Confirmar: ${proposed.content.statement}`,
+      }),
+    ).toBeEnabled();
+  });
+  it("compares conflict versions, saves the selected scope and dates, and removes the conflict", async () => {
+    const alternative = {
+      ...dated.content,
+      statement: "El margen objetivo de septiembre es del 30 %.",
+    };
+    const { user, writes } = setup(
+      dossier([{ ...conflict, alternatives: [{ content: alternative }] }]),
+    );
+    await ready();
+    await user.click(
+      screen.getByRole("button", { name: "Resolver conflicto" }),
+    );
+    const versions = screen.getByRole("region", {
+      name: "Versiones en conflicto",
+    });
+    expect(
+      within(versions).getByText(conflict.content.statement),
+    ).toBeVisible();
+    expect(within(versions).getByText(alternative.statement)).toBeVisible();
+    await user.click(
+      screen.getByRole("button", { name: "Usar alternativa 1" }),
+    );
+    expect(screen.getByRole("textbox", { name: "Información" })).toHaveValue(
+      alternative.statement,
+    );
+    expect(writes).toHaveLength(0);
+    await user.click(screen.getByRole("button", { name: "Guardar solución" }));
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]).toMatchObject({
+      action: "correct",
+      fact_id: conflict.fact_id,
+      expected_revision: 3,
+      change_kind: "historical",
+      content: alternative,
+    });
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText(alternative.statement)).toBeVisible();
+    expect(screen.queryByText("En conflicto")).not.toBeInTheDocument();
+  });
+  it("resolves a conflict without alternatives by writing a correction", async () => {
+    const { user, writes } = setup(
+      dossier([{ ...conflict, alternatives: [] }]),
+    );
+    await ready();
+    await user.click(
+      screen.getByRole("button", { name: "Resolver conflicto" }),
+    );
+    const input = screen.getByRole("textbox", { name: "Información" });
+    await user.clear(input);
+    await user.type(input, "El margen objetivo es del 25 %.");
+    await user.click(screen.getByRole("button", { name: "Guardar solución" }));
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]).toMatchObject({
+      action: "correct",
+      content: { statement: "El margen objetivo es del 25 %." },
+    });
+  });
+  it("cancels conflict resolution without writing and restores focus to the direct button", async () => {
+    const { user, writes } = setup();
+    await ready();
+    const trigger = screen.getByRole("button", {
+      name: "Resolver conflicto",
+    });
+    await user.click(trigger);
+    await user.click(
+      screen.getByRole("button", { name: "Usar alternativa 1" }),
+    );
+    await user.keyboard("{Escape}");
+    expect(writes).toHaveLength(0);
+    expect(trigger).toHaveFocus();
+    expect(screen.getByText("En conflicto")).toBeVisible();
+  });
+  it("preserves a conflict solution and retry key if saving fails", async () => {
+    const { user, writes } = setup(dossier(), {
+      error: "El recuerdo ha cambiado.",
+    });
+    await ready();
+    await user.click(
+      screen.getByRole("button", { name: "Resolver conflicto" }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Usar alternativa 1" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Guardar solución" }));
+    expect(await screen.findByText("El recuerdo ha cambiado.")).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Información" })).toHaveValue(
+      "Margen objetivo del 30 %.",
+    );
+    await user.click(screen.getByRole("button", { name: "Guardar solución" }));
+    await waitFor(() => expect(writes).toHaveLength(2));
+    expect(writes[0].request_key).toBe(writes[1].request_key);
+    expect(
+      screen.getByRole("dialog", { name: "Resolver conflicto" }),
+    ).toBeVisible();
   });
   it("preserves versioned context selection for compact rows and the original profile", async () => {
     const { user } = setup();

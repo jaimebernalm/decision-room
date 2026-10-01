@@ -79,3 +79,30 @@ responden al cursor. Las transiciones respetan la reducción de movimiento.
   370 px; el ancho del documento y su ancho desplazable son 390 px.
 - Revisión visual en temas claro y oscuro, con capturas locales ignoradas.
   La demo abierta se actualiza con la compilación nueva y conserva datos ficticios.
+
+## Propuestas y conflictos con acciones directas
+
+- Las propuestas confirmables muestran tic y X al pasar el cursor o recibir foco
+  de teclado. En anchos inferiores a 640 px y dispositivos sin cursor siempre
+  se ven. Usan nombres accesibles, explicaciones al cursor/foco y deshabilitación
+  durante la petición. Descartar conserva la información en el historial.
+- Resolver conflicto permanece visible. El diálogo permite comparar las versiones
+  con ámbito, fechas y citas disponibles; elegir una solo actualiza el borrador.
+  Guardar solución envía `correct` con revisión exacta; conserva la clave de
+  reintento y el borrador si falla. Cancelar no escribe y devuelve el foco.
+- Pasan 132 pruebas de frontend en 17 archivos, incluidas siete nuevas pruebas
+  de confirmación directa, descarte al historial, error de confirmación, selección
+  de alternativa con ámbito/fechas, corrección sin alternativas, cancelación y
+  reintento tras conflicto de revisión. Tras el ajuste de presentación móvil
+  pasan nuevamente las 39 pruebas de ficha y chat contextual.
+- Compilación TypeScript/Vite correcta y lint de ambos archivos sin errores.
+  Persiste el aviso conocido de tamaño de paquetes. Diff revisado para el
+  repositorio público; demo, estado y capturas siguen ignorados.
+- Navegador con API ficticia: cursor revela ambos botones; confirmar mueve la
+  información al grupo activo, descartar la conserva en Historial, y resolver
+  el ejemplo 20 %/30 % actualiza la fila y elimina el aviso. Una propuesta de
+  más de 500 caracteres se muestra completa en escritorio y móvil de 390 × 844,
+  sin desbordamiento horizontal; los botones están visibles en móvil.
+
+Estas comprobaciones mantienen el alcance de API ficticia descrito arriba;
+no validan almacenamiento PostgreSQL ni modifican negocios reales.
