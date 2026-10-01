@@ -44,6 +44,15 @@ los mensajes, nombres, informes y datos ya guardados conservan su texto original
    Reemplazar el icono duplicado de la cabecera de Informes por una rayita accesible
    que siga abriendo la biblioteca. Probar ambos idiomas, navegación y geometría real.
 
+6. **2.5.20.6 — Barra flotante y foco discreto.** Tras revisar la barra inferior,
+   el usuario pide que el contenido siga desplazándose visible a sus lados, en lugar
+   de quedar tapado por una franja opaca. Superponer una isla centrada dentro del
+   marco del negocio, con superficie propia y laterales transparentes. Reservar al
+   final del scroll su altura real, incluidos contexto, errores y texto multilínea,
+   para acceder al último contenido. Quitar el halo exterior del campo de mensaje;
+   mantener el foco de los botones. Comprobar scroll, altura variable, chat completo,
+   panel, escritorio/móvil, ambos temas y las regresiones del envío y borrador.
+
 ## Glosario
 
 | Concepto | Español | Inglés |
@@ -79,6 +88,12 @@ existentes pueden mantener sus nombres para compatibilidad.
   errores de servidor; + sin círculo y alineado con los iconos; cabecera de Informes
   compacta con una rayita que abre la biblioteca. Pasan 160 pruebas frontend,
   compilación y lint sin errores; comprobadas ambas lenguas y navegación con teclado.
+
+- 2.5.20.6 completado: isla flotante con laterales transparentes, espacio final
+  medido según su altura y campo de mensaje sin halo de foco. Pasan 161 pruebas
+  frontend, compilación y lint sin errores; comprobados scroll, último contenido,
+  texto multilínea, panel/chat completo, móvil y temas claro/oscuro. Véase
+  [validación de la isla](../validation/2026-10-01-composer-island.md).
 
 Los cuatro pasos originales quedan terminados. La prueba con el proveedor real recibe HTTP 429
 y no permite comprobar una respuesta nueva real en inglés. Los textos históricos

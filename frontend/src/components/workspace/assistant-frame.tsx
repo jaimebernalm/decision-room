@@ -49,6 +49,28 @@ export function AssistantFrame({
     Number(store.get("dr-chat-panel-width", 420)),
   );
   const panel = a.dock.open && contextualRoute(route);
+  const floatingComposer = Boolean(
+    workspace.business && contextualRoute(route) && !panel,
+  );
+  const pageRef = useRef<HTMLElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const page = pageRef.current;
+    const composer = composerRef.current;
+    if (!page || !composer || !floatingComposer) return;
+    const measure = () =>
+      page.style.setProperty(
+        "--workspace-composer-height",
+        `${composer.getBoundingClientRect().height}px`,
+      );
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(composer);
+    return () => {
+      observer.disconnect();
+      page.style.removeProperty("--workspace-composer-height");
+    };
+  }, [floatingComposer]);
   useEffect(() => {
     const was = previous.current;
     previous.current = { panel, navigationOpen };
@@ -94,7 +116,10 @@ export function AssistantFrame({
       className={`assistant-frame ${panel ? "assistant-docked" : ""} ${a.selecting ? "assistant-selecting" : ""}`}
       style={{ "--chat-panel-width": `${width}px` } as CSSProperties}
     >
-      <SidebarInset className="assistant-page">
+      <SidebarInset
+        ref={pageRef}
+        className={`assistant-page ${floatingComposer ? "has-workspace-composer" : ""}`}
+      >
         {header}
         <div className="assistant-content">
           {children}
@@ -109,9 +134,12 @@ export function AssistantFrame({
             </div>
           )}
         </div>
-        {workspace.business && contextualRoute(route) && !panel && (
-          <div className="workspace-composer shrink-0 px-4 pb-4 pt-2 sm:px-8">
-            <div className="mx-auto w-full max-w-2xl">
+        {floatingComposer && (
+          <div
+            ref={composerRef}
+            className="workspace-composer px-4 pb-4 pt-2 sm:px-8"
+          >
+            <div className="workspace-composer-island mx-auto w-full max-w-2xl">
               {a.dock.chatId ? (
                 <Suspense fallback={<Loading />}>
                   <ChatPage
@@ -130,10 +158,7 @@ export function AssistantFrame({
       <AnimatePresence initial={false}>
         {panel && (
           <PanelPresence key="chat-panel" mobile={isMobile} width={width}>
-            <aside
-              className="assistant-panel"
-              aria-label={tr("Chat lateral")}
-            >
+            <aside className="assistant-panel" aria-label={tr("Chat lateral")}>
               <div
                 role="separator"
                 tabIndex={0}
@@ -220,9 +245,7 @@ export function AssistantFrame({
               ) : a.launching ? (
                 <div className="p-5">
                   <Loading />
-                  <p className="mt-3 text-sm">
-                    {tr("Preparando tu chat…")}
-                  </p>
+                  <p className="mt-3 text-sm">{tr("Preparando tu chat…")}</p>
                 </div>
               ) : (
                 <div className="flex min-h-0 flex-1 flex-col">

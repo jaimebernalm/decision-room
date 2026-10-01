@@ -482,12 +482,14 @@ Véanse [comprobaciones y límites](../validation/2026-09-30-navigation-and-chat
 ### 2.5.20. Idioma, menú local y barra para preguntar
 
 **Implementado:** + simple y alineado en la cabecera compacta de Chats; Apariencia e Idioma
-como opciones del menú local; interfaz en inglés/español y barra inferior centrada
+como opciones del menú local; interfaz en inglés/español y barra inferior flotante centrada
 para preguntar desde las páginas del negocio, compartiendo borrador y conversación
 con el panel. Los cuatro pasos del [plan separado](../technical/language-and-composer-plan.md)
 se implementan con pruebas, revisión y commits locales. El ajuste **2.5.20.5**
 unifica chat/chats en ambas lenguas y sustituye el icono duplicado de la cabecera
-de Informes por una rayita accesible. Pasan 160 pruebas frontend
+de Informes por una rayita accesible. **2.5.20.6** convierte la barra en una isla
+con laterales transparentes y espacio final según su altura, y elimina el halo del
+campo de mensaje ([validación](../validation/2026-10-01-composer-island.md)). Pasan 161 pruebas frontend
 y 128 backend seleccionadas, compilación y lint sin errores; comprobación visual
 en escritorio/móvil y ambos temas. Se conserva el historial en su idioma original.
 La prueba real del proveedor recibe HTTP 429; véanse [validación y límites](../validation/2026-09-30-language-and-composer.md).

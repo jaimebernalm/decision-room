@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { it, expect, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { WorkspaceState, type WorkspaceContext } from "@/lib/workspace";
@@ -717,6 +717,45 @@ it.each(["home", "my-business", "reports", "chats", "files", "business", "busine
     expect(calls.some(c => c.url === "/api/chats" || c.url.endsWith("/messages"))).toBe(false);
   }
 );
+it("reserves the floating composer's measured height and releases it when opening the panel", async () => {
+  const observations = new Map<Element, () => void>();
+  class MeasuredObserver {
+    targets = new Set<Element>();
+    readonly notify: ResizeObserverCallback;
+    constructor(notify: ResizeObserverCallback) { this.notify = notify; }
+    observe(target: Element) {
+      this.targets.add(target);
+      observations.set(target, () => this.notify([], this as unknown as ResizeObserver));
+    }
+    unobserve(target: Element) { this.targets.delete(target); observations.delete(target); }
+    disconnect() { this.targets.forEach(target => observations.delete(target)); this.targets.clear(); }
+  }
+  vi.stubGlobal("ResizeObserver", MeasuredObserver);
+  let height = 86;
+  const original = HTMLElement.prototype.getBoundingClientRect;
+  const measurement = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+    return this.classList.contains("workspace-composer") ? new DOMRect(0, 0, 700, height) : original.call(this);
+  });
+  try {
+    server();
+    render(<Harness />);
+    const textbox = await screen.findByRole("textbox", { name: "Mensaje" });
+    const composer = textbox.closest(".workspace-composer")!;
+    const page = composer.closest(".assistant-page") as HTMLElement;
+    expect(page.style.getPropertyValue("--workspace-composer-height")).toBe("86px");
+    // Attachments, multiline text and errors may grow the island without navigation.
+    height = 174;
+    act(() => observations.get(composer)!());
+    expect(page.style.getPropertyValue("--workspace-composer-height")).toBe("174px");
+    await userEvent.click(screen.getByRole("button", { name: "Preguntar algo" }));
+    await screen.findByRole("complementary", { name: "Chat lateral" });
+    expect(page.style.getPropertyValue("--workspace-composer-height")).toBe("");
+    expect(observations.has(composer)).toBe(false);
+    expect(screen.getAllByRole("textbox", { name: "Mensaje" })).toHaveLength(1);
+  } finally {
+    measurement.mockRestore();
+  }
+});
 it("sends from the bottom bar into the folded chat, preserving context without creating another conversation", async () => {
   store.set("dr-dock-a", {chatId:"existing", open:false, origin:"home"});
   store.set(messageKey("existing"), {text:"Pregunta en la misma conversación"});

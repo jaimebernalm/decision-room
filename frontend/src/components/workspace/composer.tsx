@@ -12,6 +12,7 @@ import {
 } from "@/components/ai-elements/prompt-input";
 import { Suggestion, Suggestions } from "@/components/ai-elements/suggestion";
 import { Notice } from "./shared";
+import "./composer.css";
 export function Composer({
   text,
   onChange,
@@ -39,7 +40,7 @@ export function Composer({
 }) {
   useLanguage();
   return (
-    <div className="w-full">
+    <div className="chat-composer w-full">
       {attachments && <div className="mb-2 px-2">{attachments}</div>}
       <PromptInput
         onSubmit={async () => {
