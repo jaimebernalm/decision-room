@@ -710,7 +710,8 @@ class Workspace:
                 raise WebError('Este informe no ha superado la revisión o ha quedado desactualizado.', 409)
             if structured:
                 from .dashboard import presentation
-                return presentation(data)
+                from .presentation_editing import decorate
+                return decorate(self, data, presentation(data), db=db)
             return render_client(data, data['updated_at'].strftime('%d/%m/%Y, %H:%M %Z'), embedded=True)
 
     def upload(self, job_id):

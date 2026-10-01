@@ -64,7 +64,8 @@ def collect(ws):
             with session_lock(ws.config, business, job['session_id']) as (db, _), db.transaction():
                 memory.lock(db, business)
                 reviewed = ws.review_state(job, _db=db)
-                report = projection(reviewed)
+                from .presentation_editing import decorate
+                report = decorate(ws, reviewed, projection(reviewed), db=db)
                 if not report:
                     continue
                 source = dict(job_id=str(job['id']), report_id=str(reviewed['id']),

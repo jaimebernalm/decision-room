@@ -446,6 +446,17 @@ en sus propias filas, y los iconos quedan en 18 px. La lista central mantiene
 su desplazamiento en ventanas bajas. Verificado visualmente en el navegador,
 con compilación, lint y 65 pruebas frontend correctos.
 
+### 2.5.18. Nombres del catálogo y edición compartida de la presentación
+
+**Planificado, 30 de septiembre de 2026:** nombres automáticos del catálogo,
+edición contextual desde Inicio/informe y acciones equivalentes desde el chat.
+Revisiones de presentación persistentes, sincronización, historial y deshacer,
+conservando cálculos, fuentes y aprobación analítica original. No se permite
+cambiar el significado de una unidad mediante una edición de texto.
+
+**Orden y comprobaciones:** seguir los pasos 2.5.18.1–2.5.18.3 del
+[plan de edición de presentación](../technical/presentation-editing-plan.md).
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Avance, 27 de septiembre de 2026:** completados **3.1** (medición inicial),
