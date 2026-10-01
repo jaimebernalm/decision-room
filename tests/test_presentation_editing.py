@@ -95,13 +95,13 @@ class RevisionTests(unittest.TestCase):
     setUp = test_web.WebTests.setUp
     create, answer, complete, http = test_web.WebTests.create, test_web.WebTests.answer, test_web.WebTests.complete, test_web.WebTests.http
 
-    def fixture(self):
+    def fixture(self, unit='EUR'):
         class HighlightModel(test_web.WebModel):
             def generate_analyst_review(self, context, correction=None):
                 response, usage = super().generate_analyst_review(context, correction)
                 if response.get('report'):
                     claim = response['report']['claims'][0]
-                    response['report']['highlights'] = [dict(label='Total', value=claim['evidence'][0], unit='EUR', decimals=0, claim_key=claim['key'])]
+                    response['report']['highlights'] = [dict(label='Total', value=claim['evidence'][0], unit=unit, decimals=0, claim_key=claim['key'])]
                 return response, usage
         self.ws.model_factory = HighlightModel
         job = self.complete()
@@ -151,6 +151,33 @@ class RevisionTests(unittest.TestCase):
         with self.assertRaises(WebError):
             editing.save(self.ws, initial['report_id'], {**body,'request_key':str(uuid4()),'changes':changes})
         self.assertEqual(editing.view(self.ws, initial['report_id'])['presentation']['revision'],1)
+
+    def test_owner_clarifies_unspecified_unit_and_can_restore_without_conversion(self):
+        from io import BytesIO
+        from pypdf import PdfReader
+        from decision_room.report_pdf import render_pdf
+        original_unit='unidades registradas (unidad no especificada)'
+        job,initial,body=self.fixture(original_unit)
+        metric=initial['highlights'][0]
+        self.assertTrue(metric['unit_customizable'])
+        for revision,label in enumerate(['unidades registradas (paquete)','unidades registradas (bolsa)']):
+            saved=editing.save(self.ws,initial['report_id'],{**body,'revision':revision,'request_key':str(uuid4()),
+                'changes':[dict(kind='metric',key=metric['key'],field='unit',value=label)]})
+            displayed=self.ws.report(job,structured=True)
+            value=displayed['highlights'][0]
+            self.assertEqual((value['raw_value'],value['value']),(metric['raw_value'],metric['value']))
+            self.assertEqual(value['unit'],label)
+            self.assertEqual(value['unit_origin'],'owner')
+            self.assertEqual(value['original_unit'],original_unit)
+            self.assertEqual(displayed['report_version'],initial['report_version'])
+            self.assertEqual(home.view(self.ws)['items'][0]['content']['unit'],label)
+            self.assertIn(label,self.ws.report(job))
+            text='\n'.join(p.extract_text() for p in PdfReader(BytesIO(render_pdf(displayed))).pages)
+            self.assertIn(label,text)
+            self.assertIn(original_unit,text)
+        restored=editing.save(self.ws,initial['report_id'],{**body,'revision':2,'request_key':str(uuid4()),'restore_revision':0})
+        self.assertEqual(restored['report']['highlights'][0]['unit'],original_unit)
+        self.assertEqual(restored['report']['highlights'][0]['unit_origin'],'analysis')
 
     def test_http_auth_other_business_deleted_and_withdrawn(self):
         job, initial, body = self.fixture()

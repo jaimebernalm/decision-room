@@ -20,6 +20,9 @@ const report: Report = {
       raw_value: "410",
       unit: "unidades",
       unit_choices: ["unidades", "uds."],
+      original_unit: "unidades",
+      unit_customizable: true,
+      unit_origin: "analysis",
       decimals: 0,
       claim_key: "c",
     },
@@ -172,4 +175,34 @@ it("keeps edits visible when a concurrent save is rejected", async () => {
   ).toBeVisible();
   expect(screen.getByLabelText("Título visible")).toHaveValue("Kit nuevo");
   expect(screen.getByRole("dialog")).toBeVisible();
+});
+it("accepts an owner unit clarification outside suggestions and sends only a visible label change", async () => {
+  const calls = setup(),
+    user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "Editar Kit" }));
+  const unit = await screen.findByRole("combobox", { name: "Unidad visible" });
+  await user.clear(unit);
+  expect(
+    screen.getByRole("button", { name: "Guardar cambios" }),
+  ).toBeDisabled();
+  await user.type(unit, "unidades registradas (paquete)");
+  expect(screen.getByLabelText("Vista previa")).toHaveTextContent(
+    "410 unidades registradas (paquete)",
+  );
+  await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+  await waitFor(() =>
+    expect(calls[0]).toMatchObject({
+      revision: 1,
+      base_version: "approved",
+      changes: [
+        {
+          kind: "metric",
+          key: "m",
+          field: "unit",
+          value: "unidades registradas (paquete)",
+        },
+      ],
+    }),
+  );
+  expect(calls[0]).not.toHaveProperty("raw_value");
 });

@@ -158,7 +158,11 @@ def apply(result, labels, config):
                     point['formatted'] = formatted(point['value'], fields['decimals'])
     for group in ('highlights', 'charts'):
         for element, original in zip(display[group], result[group]):
-            element['unit_choices'] = unit_choices(original.get('unit', ''))
+            unit = original.get('unit', '')
+            element['original_unit'] = unit
+            element['unit_choices'] = list(dict.fromkeys([*unit_choices(unit),element['unit']]))
+            element['unit_customizable'] = unit_customizable(unit)
+            element['unit_origin'] = 'owner' if element['unit'] not in unit_choices(unit) else 'analysis'
     return display, resolved
 
 
@@ -223,6 +227,13 @@ def unit_choices(unit):
     return [unit]
 
 
+def unit_customizable(unit):
+    """A missing count unit can be clarified by the owner without a conversion."""
+    normalized = unit.casefold().strip()
+    return normalized in ('unidades', 'unidad', 'uds.', 'uds', 'unidades registradas') or (
+        normalized.startswith('unidades') and 'unidad no especificada' in normalized)
+
+
 def amended(config, changes, baseline):
     config = deepcopy(config)
     groups = {'metric': baseline['highlights'], 'chart': baseline['charts'], 'insight': baseline['claims']}
@@ -242,7 +253,9 @@ def amended(config, changes, baseline):
         if field == 'title':
             value = bounded(value, 'el título', 250)
         elif field == 'unit':
-            if value not in unit_choices(element['unit']):
+            original_unit = element.get('original_unit', element['unit'])
+            value = bounded(value, 'la unidad visible', 180)
+            if value not in unit_choices(original_unit) and not unit_customizable(original_unit):
                 raise WebError('Esta unidad cambia el significado del cálculo. Solicita una corrección del análisis.')
         elif type(value) is not int or not 0 <= value <= 6:
             raise WebError('Elige entre 0 y 6 decimales.')
@@ -328,7 +341,7 @@ def chat_targets(ws, db, message, analysis_id=None):
             for element in report[group]:
                 elements.append(dict(kind=kind, key=element['key'], title=element.get('title',element.get('label')),
                     editable=['title'] + (['unit','decimals'] if kind in ('metric','chart') else []),
-                    **({key:element[key] for key in ('unit','unit_choices','decimals')} if kind in ('metric','chart') else {})))
+                    **({key:element[key] for key in ('unit','unit_choices','decimals','original_unit','unit_customizable','unit_origin')} if kind in ('metric','chart') else {})))
         result.append(dict(report_id=report_id, base_version=meta['base_version'], revision=meta['revision'],
                            title=report['title'], period=report['scope']['period'], elements=elements,
                            labels=meta['labels'][:80], labels_partial=len(meta['labels'])>80,

@@ -89,6 +89,9 @@ export type ChartData = {
   claim_key: string;
   decimals?: number;
   unit_choices?: string[];
+  original_unit?: string;
+  unit_customizable?: boolean;
+  unit_origin?: "analysis" | "owner";
   points: {
     label: string;
     value: string;
@@ -141,6 +144,9 @@ export type Report = {
     original_label?: string;
     decimals?: number;
     unit_choices?: string[];
+    original_unit?: string;
+    unit_customizable?: boolean;
+    unit_origin?: "analysis" | "owner";
   }[];
   charts: ChartData[];
   limitations: string[];

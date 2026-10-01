@@ -8,6 +8,8 @@ import {
   SlidersHorizontal,
   Sparkles,
   LoaderCircle,
+  MoreHorizontal,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -34,6 +36,12 @@ import { Selectable } from "./context-selection";
 import type { ContextAttachment } from "@/lib/types";
 import { EvidenceChart } from "./report";
 import { PresentationEditor } from "./presentation-editor";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 
 const selection = (item: HomeItem): ContextAttachment => ({
   report_id: item.source.report_id,
@@ -62,6 +70,12 @@ function Source({ item, reason }: { item: HomeItem; reason?: string }) {
           <ChevronDown className="size-3 transition-transform group-data-[state=open]:rotate-180" />
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-3 pt-3 text-sm leading-relaxed">
+          {item.kind !== "insight" && item.content.unit_origin === "owner" && (
+            <p>
+              Unidad visible indicada por ti. Unidad del análisis:{" "}
+              {item.content.original_unit}.
+            </p>
+          )}
           <p>{item.source.coverage}</p>
           <p>
             {item.source.filename}
@@ -132,51 +146,68 @@ export function Home() {
   const controls = (item: HomeItem) => {
     const pinned = data!.pinned.includes(item.id);
     return (
-      <div className="flex shrink-0 gap-0.5">
-        <PresentationEditor
-          presentation={item.source.presentation}
-          target={{
-            kind: item.kind,
-            key: item.content.key!,
-            title: item.title,
-          }}
-        />
-        <Button
-          size="icon"
-          variant="ghost"
-          className={`size-8 ${pinned ? "text-primary" : "text-muted-foreground"}`}
-          disabled={action.busy}
-          aria-label={`${pinned ? "Desfijar" : "Fijar"} ${item.title}`}
-          title={
-            pinned ? "Desfijar tarjeta" : "Conservar en futuras propuestas"
-          }
-          onClick={() =>
-            void save(data!, {
-              pinned: pinned
-                ? data!.pinned.filter((id) => id !== item.id)
-                : [...data!.pinned, item.id],
-            })
-          }
-        >
-          {pinned ? <PinOff /> : <Pin />}
-        </Button>
-        {!pinned && (
-          <Button
-            size="icon"
-            variant="ghost"
-            className="size-8 text-muted-foreground"
-            disabled={action.busy}
-            aria-label={`Ocultar ${item.title}`}
-            onClick={() =>
-              void save(data!, {
-                selected: data!.selected.filter((id) => id !== item.id),
-              })
-            }
-          >
-            <EyeOff />
-          </Button>
+      <PresentationEditor
+        presentation={item.source.presentation}
+        target={{
+          kind: item.kind,
+          key: item.content.key!,
+          title: item.title,
+        }}
+        renderTrigger={(openEditor, editorOpen) => (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="size-8 shrink-0 text-muted-foreground"
+                aria-label={`Opciones de ${item.title}`}
+                title="Opciones de la tarjeta"
+              >
+                <MoreHorizontal />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="min-w-48"
+              onCloseAutoFocus={(event) => {
+                if (editorOpen) event.preventDefault();
+              }}
+            >
+              <DropdownMenuItem
+                disabled={!item.source.presentation}
+                onSelect={openEditor}
+              >
+                <Pencil /> Editar presentación
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={action.busy}
+                onSelect={() =>
+                  void save(data!, {
+                    pinned: pinned
+                      ? data!.pinned.filter((id) => id !== item.id)
+                      : [...data!.pinned, item.id],
+                  })
+                }
+              >
+                {pinned ? <PinOff /> : <Pin />}{" "}
+                {pinned ? "Desfijar tarjeta" : "Fijar tarjeta"}
+              </DropdownMenuItem>
+              {!pinned && (
+                <DropdownMenuItem
+                  disabled={action.busy}
+                  onSelect={() =>
+                    void save(data!, {
+                      selected: data!.selected.filter((id) => id !== item.id),
+                    })
+                  }
+                >
+                  <EyeOff /> Ocultar tarjeta
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
-      </div>
+      />
     );
   };
   const selected =

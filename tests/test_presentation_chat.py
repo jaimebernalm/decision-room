@@ -17,8 +17,8 @@ class ChatEditingTests(unittest.TestCase):
     create, answer, complete = test_web.WebTests.create, test_web.WebTests.answer, test_web.WebTests.complete
     fixture = RevisionTests.fixture
 
-    def setup_chat(self, *, changes=None, race=False, deny=False, restore=None):
-        job, report, body = self.fixture()
+    def setup_chat(self, *, changes=None, race=False, deny=False, restore=None, unit='EUR'):
+        job, report, body = self.fixture(unit)
         owner = self
         class EditorModel(test_web.WebModel):
             def generate_chat(self, context, correction=None):
@@ -27,7 +27,7 @@ class ChatEditingTests(unittest.TestCase):
                 target = context['presentation_targets'][0]
                 return dict(action='edit_presentation',retrieval=None,analysis_id='',text='',sources=[],include_report=False,
                             presentation_edit=dict(report_id=target['report_id'],base_version=target['base_version'],revision=target['revision'],
-                            changes=changes or [],restore_revision=restore)), {}
+                            changes=changes(target) if callable(changes) else changes or [],restore_revision=restore)), {}
             def review_chat_answer(self, context):
                 if context.get('presentation_change'):
                     owner.assertIn('Cambios solicitados',context['draft'])
@@ -87,6 +87,22 @@ class ChatEditingTests(unittest.TestCase):
         turn,_=self.send(chats,chat)
         self.assertIn('No he cambiado',turn['response']['text'])
         self.assertEqual(editing.view(self.ws,report['report_id'])['presentation']['revision'],0)
+
+    def test_chat_can_clarify_missing_unit_outside_the_suggested_aliases(self):
+        label='unidades registradas (paquete)'
+        def changes(target):
+            metric=next(x for x in target['elements'] if x['kind']=='metric')
+            self.assertTrue(metric['unit_customizable'])
+            self.assertNotIn(label,metric['unit_choices'])
+            return [dict(kind='metric',key=metric['key'],field='unit',value=label)]
+        job,report,chats,chat=self.setup_chat(changes=changes,unit='unidades registradas (unidad no especificada)')
+        turn,_=self.send(chats,chat,'Pon unidades registradas (paquete) como etiqueta visible. No conviertas las cifras.')
+        self.assertEqual(turn['status'],'completed',turn.get('issue'))
+        self.assertIn('presentation_receipt',turn['response'])
+        displayed=self.ws.report(job,structured=True)
+        self.assertEqual(displayed['highlights'][0]['unit'],label)
+        self.assertEqual(displayed['highlights'][0]['unit_origin'],'owner')
+        self.assertEqual(displayed['highlights'][0]['raw_value'],report['highlights'][0]['raw_value'])
 
     def test_edit_rolls_back_if_receipt_cannot_be_published(self):
         job,report,chats,chat=self.setup_chat(changes=[dict(kind='report',key='title',field='title',value='Rollback')])

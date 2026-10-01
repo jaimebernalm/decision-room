@@ -103,3 +103,40 @@ misma unidad. Cambiar cantidades, fórmulas, significado de unidades, cobertura 
 explicaciones factuales requiere la corrección del análisis. No se eliminan las
 limitaciones de la evidencia aprobada. Los alias pertenecen al mismo informe y
 no se propagan silenciosamente a informes o conjuntos distintos.
+
+## Ampliación 2.5.18.4: unidades aclaradas y menú compacto
+
+La lista inicial de unidades era una lista de variantes definida por el servicio,
+no valores extraídos de las tablas. Su validación cerrada impedía que el propietario
+aclarara «unidad no especificada» como «paquete», incluso cuando lo solicitaba
+expresamente. Ahora los recuentos de unidad desconocida ofrecen un campo de texto
+con sugerencias. El chat conoce la misma capacidad y puede guardar la etiqueta
+solicitada sin repetir una confirmación ya expresada.
+
+Se conserva `original_unit` junto con `unit_origin=owner` y la revisión de
+presentación. La procedencia puede consultarse en la fuente o los valores exactos,
+y aparece en los exports. No se convierten cantidades; una unidad conocida
+incompatible, como EUR a kg, sigue rechazándose. Las etiquetas del propietario
+se conservan al editar de nuevo y al restaurar versiones.
+
+Las tarjetas de Inicio muestran un único botón de tres puntos con Editar,
+Fijar/Desfijar y Ocultar. Abrir el editor cierra el menú sin perder el diálogo.
+Las tarjetas fijadas conservan la protección frente a ocultación.
+
+Comprobaciones realizadas:
+
+- 44 pruebas backend: `test_presentation_editing test_presentation_chat test_home
+  test_report_pdf test_model_actions`. Incluyen aclaración fuera de sugerencias,
+  persistencia, sustitución de una etiqueta aclarada, restauración, exports,
+  conservación de cantidades y rechazo de unidades conocidas incompatibles.
+- 120 pruebas frontend; build y lint correctos, con los avisos existentes ya
+  indicados. Menú por teclado, fijación, apertura del editor y texto libre sin
+  enviar cantidades como campos editables.
+- GPT-6 Luna guardó «unidades registradas (paquete)» para el gráfico de productos
+  de Bruma. Se comprobó el recibo y la misma etiqueta en Inicio, informe, HTML y
+  PDF. Las demás ediciones, valores exactos, hallazgos y hash de aprobación
+  analítica coinciden con el estado inmediatamente anterior a esta prueba.
+- Navegador: escribir otra etiqueta habilita Guardar y actualiza la previsualización;
+  Cancelar conserva «paquete». En móvil a 390 × 844, menú y diálogo caben sin
+  desbordamiento horizontal. Se restableció el tamaño normal. Capturas privadas
+  guardadas; no se incorporan a Git.

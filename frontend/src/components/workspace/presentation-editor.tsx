@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 import { Pencil, History, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { api, date } from "@/lib/api";
@@ -32,9 +32,11 @@ type Change = {
 export function PresentationEditor({
   presentation,
   target,
+  renderTrigger,
 }: {
   presentation?: Presentation;
   target: EditTarget;
+  renderTrigger?: (openEditor: () => void, open: boolean) => ReactNode;
 }) {
   const { workspace } = useWorkspace();
   const action = useAction();
@@ -47,7 +49,8 @@ export function PresentationEditor({
   const [decimals, setDecimals] = useState(0);
   const [names, setNames] = useState<Record<string, string>>({});
   const [historical, setHistorical] = useState<Report | null>(null);
-  if (!presentation) return null;
+  const unitListId = useId();
+  if (!presentation) return renderTrigger?.(() => {}, false) ?? null;
   const endpoint = `/api/presentation/${presentation.report_id}`;
   const element =
     base &&
@@ -134,25 +137,30 @@ export function PresentationEditor({
     });
   const previewNumber =
     numeric && "raw_value" in numeric ? numeric.raw_value : undefined;
+  const openEditor = () => {
+    setOpen(true);
+    setBase(null);
+    setHistorical(null);
+    setTab("element");
+    action.setError("");
+    void load();
+  };
   return (
     <>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="size-8 shrink-0 text-muted-foreground"
-        aria-label={`Editar ${target.title}`}
-        title="Editar presentación"
-        onClick={() => {
-          setOpen(true);
-          setBase(null);
-          setHistorical(null);
-          setTab("element");
-          action.setError("");
-          void load();
-        }}
-      >
-        <Pencil className="size-4" />
-      </Button>
+      {renderTrigger ? (
+        renderTrigger(openEditor, open)
+      ) : (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8 shrink-0 text-muted-foreground"
+          aria-label={`Editar ${target.title}`}
+          title="Editar presentación"
+          onClick={openEditor}
+        >
+          <Pencil className="size-4" />
+        </Button>
+      )}
       <Dialog
         open={open}
         onOpenChange={(value) => {
@@ -211,17 +219,40 @@ export function PresentationEditor({
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="space-y-2">
                     <span className="block font-medium">Unidad visible</span>
-                    <select
-                      className="w-full rounded-md border bg-background p-2"
-                      value={unit}
-                      onChange={(e) => setUnit(e.target.value)}
-                    >
-                      {(numeric.unit_choices ?? [numeric.unit]).map((u) => (
-                        <option key={u} value={u}>
-                          {u}
-                        </option>
-                      ))}
-                    </select>
+                    {numeric.unit_customizable ? (
+                      <>
+                        <Input
+                          aria-label="Unidad visible"
+                          list={unitListId}
+                          value={unit}
+                          maxLength={180}
+                          onChange={(e) => setUnit(e.target.value)}
+                        />
+                        <datalist id={unitListId}>
+                          {numeric.unit_choices?.map((u) => (
+                            <option key={u} value={u} />
+                          ))}
+                        </datalist>
+                        <span className="block text-xs text-muted-foreground">
+                          Puedes aclarar la unidad con tus palabras. Las
+                          cantidades no se convierten.
+                          {numeric.original_unit &&
+                            ` Unidad del análisis: ${numeric.original_unit}.`}
+                        </span>
+                      </>
+                    ) : (
+                      <select
+                        className="w-full rounded-md border bg-background p-2"
+                        value={unit}
+                        onChange={(e) => setUnit(e.target.value)}
+                      >
+                        {(numeric.unit_choices ?? [numeric.unit]).map((u) => (
+                          <option key={u} value={u}>
+                            {u}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </label>
                   <label className="space-y-2">
                     <span className="block font-medium">Decimales</span>
@@ -253,7 +284,8 @@ export function PresentationEditor({
                 )}
                 {target.kind === "chart" && (
                   <p className="text-sm">
-                    El formato se aplicará a los valores del gráfico y su tabla.
+                    {unit} · El formato se aplicará a los valores del gráfico y
+                    su tabla.
                   </p>
                 )}
               </div>
@@ -403,6 +435,7 @@ export function PresentationEditor({
                   !base ||
                   !element ||
                   !title.trim() ||
+                  (numeric && !unit.trim()) ||
                   !cleanChanges.length
                 }
                 onClick={() => void save()}

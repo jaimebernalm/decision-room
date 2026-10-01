@@ -15,7 +15,10 @@ def render(report, exported_at):
         output.append('<p>Entrega parcial · Consulta las preguntas pendientes en alcance y límites.</p>')
     output.append('<section class="highlights" aria-label="Cifras clave">')
     for h in report['highlights']:
-        output.append(f'<a class="highlight" href="#finding-{e(h["claim_key"])}"><span>{e(h["label"])}</span><strong>{e(h["value"])}</strong><small>{e(h["unit"])}</small></a>')
+        output.append(f'<a class="highlight" href="#finding-{e(h["claim_key"])}"><span>{e(h["label"])}</span><strong>{e(h["value"])}</strong><small>{e(h["unit"])}</small>')
+        if h.get('unit_origin') == 'owner':
+            output.append(f'<small>Unidad visible indicada por el propietario. Unidad del análisis: {e(h["original_unit"])}.</small>')
+        output.append('</a>')
     output.append('</section>')
     for c in report['claims']:
         output.append(f'<section class="finding" id="finding-{e(c["key"])}"><h2>{e(c["title"])}</h2><p>{e(c["statement"])}</p>')
@@ -35,6 +38,8 @@ def render(report, exported_at):
             output.append('</details>')
         for chart in [x for x in report['charts'] if x['claim_key'] == c['key']]:
             output.append(f'<figure><h3>{e(chart["title"])}</h3><p class="unit">{e(chart["unit"])}</p>')
+            if chart.get('unit_origin') == 'owner':
+                output.append(f'<p class="unit">Unidad visible indicada por el propietario. Unidad del análisis: {e(chart["original_unit"])}.</p>')
             drawings = bar_drawings(chart) if chart['kind'] == 'bar' else [('',line_drawing(chart))] if chart['kind'] == 'line' else []
             for panel_title, drawing in drawings:
                 if panel_title:

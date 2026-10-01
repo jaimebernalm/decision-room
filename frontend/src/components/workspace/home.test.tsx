@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { Home } from "./home";
 import { WorkspaceState, type WorkspaceContext } from "@/lib/workspace";
 import type { HomeDashboard } from "@/lib/types";
+import type { Report } from "@/lib/types";
 const context = {
   workspace: {
     business: {
@@ -75,6 +76,104 @@ function mount() {
     </WorkspaceState.Provider>,
   );
 }
+it("opens card actions with the keyboard and preserves pinning behavior", async () => {
+  let current = data;
+  const writes: object[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_path: string, init?: RequestInit) => {
+      if (init?.body) {
+        const body = JSON.parse(String(init.body));
+        writes.push(body);
+        current = { ...current, pinned: body.pinned };
+      }
+      return { ok: true, json: async () => current };
+    }),
+  );
+  mount();
+  const user = userEvent.setup();
+  const options = await screen.findByRole("button", {
+    name: "Opciones de Ventas",
+  });
+  options.focus();
+  await user.keyboard("{Enter}");
+  expect(
+    await screen.findByRole("menuitem", { name: "Editar presentación" }),
+  ).toHaveAttribute("data-disabled");
+  expect(
+    screen.getByRole("menuitem", { name: "Ocultar tarjeta" }),
+  ).toBeVisible();
+  await user.click(screen.getByRole("menuitem", { name: "Fijar tarjeta" }));
+  await waitFor(() =>
+    expect(writes[0]).toMatchObject({
+      revision: 2,
+      pinned: ["m"],
+      selected: ["m"],
+    }),
+  );
+  await user.click(options);
+  expect(
+    await screen.findByRole("menuitem", { name: "Desfijar tarjeta" }),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("menuitem", { name: "Ocultar tarjeta" }),
+  ).toBeNull();
+});
+it("opens the shared editor from a card menu without losing the dialog on menu close", async () => {
+  const presentation = {
+    report_id: "r",
+    base_version: "v",
+    revision: 0,
+    labels: [],
+    history: [],
+  };
+  const item = data.items[0];
+  const displayed = {
+    ...data,
+    items: [
+      {
+        ...item,
+        content: { ...item.content, key: "m" },
+        source: { ...item.source, presentation },
+      },
+    ],
+  };
+  const report: Report = {
+    title: "Informe",
+    scope: { period: "Abril", coverage: "Ventas" },
+    highlights: [
+      {
+        key: "m",
+        label: "Ventas",
+        value: "80",
+        unit: "EUR",
+        claim_key: "sales",
+      },
+    ],
+    charts: [],
+    claims: [],
+    limitations: [],
+    presentation,
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (path: string) => ({
+      ok: true,
+      json: async () => (path === "/api/home" ? displayed : report),
+    })),
+  );
+  mount();
+  const user = userEvent.setup();
+  await user.click(
+    await screen.findByRole("button", { name: "Opciones de Ventas" }),
+  );
+  await user.click(
+    screen.getByRole("menuitem", { name: "Editar presentación" }),
+  );
+  expect(await screen.findByRole("dialog")).toBeVisible();
+  expect(await screen.findByLabelText("Título visible")).toHaveValue("Ventas");
+  expect(screen.queryByRole("menu")).toBeNull();
+});
 it("shows scoped indicators with source and period instead of the latest report", async () => {
   vi.stubGlobal(
     "fetch",

@@ -460,6 +460,13 @@ Los tres pasos están implementados y comprobados con pruebas automatizadas,
 GPT-6 Luna y navegador en escritorio/móvil. Véase la
 [validación de edición compartida](../validation/2026-09-30-presentation-editing.md).
 
+**2.5.18.4 completado:** el propietario puede aclarar la unidad visible de un
+recuento sin especificar, por ejemplo «unidades registradas (paquete)», mediante
+el editor o el chat. Se conserva la unidad original, sin convertir cifras.
+Las acciones Editar, Fijar/Desfijar y Ocultar se agrupan en tres puntos por tarjeta.
+44 pruebas backend, 120 frontend, build, lint y aceptación real con GPT-6 Luna
+correctos.
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Avance, 27 de septiembre de 2026:** completados **3.1** (medición inicial),

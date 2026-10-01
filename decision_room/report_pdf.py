@@ -169,6 +169,9 @@ def render_pdf(report):
                                     ('INNERGRID', (0,0), (-1,-1), .5, BORDER), ('TOPPADDING', (0,0), (-1,-1), 12),
                                     ('LEFTPADDING', (0,0), (-1,-1), 12), ('BOTTOMPADDING', (0,0), (-1,-1), 6)]))
         story += [Spacer(1, 8), metrics, Spacer(1, 8)]
+        for h in batch:
+            if h.get('unit_origin') == 'owner':
+                story.append(paragraph(f"{h['label']}: unidad visible indicada por el propietario. Unidad del análisis: {h['original_unit']}.", 'muted'))
     story += [paragraph('Contexto y alcance', 'heading'), paragraph(report['scope']['coverage'], 'muted')]
     if report['scope'].get('question'):
         story += [paragraph('Pregunta del análisis', 'heading'), paragraph(report['scope']['question'])]
@@ -180,6 +183,8 @@ def render_pdf(report):
         for chart in report.get('charts', []):
             if chart['claim_key'] != claim['key']: continue
             chart_heading = [paragraph(chart['title'], 'heading'), paragraph(chart['unit'], 'muted')]
+            if chart.get('unit_origin') == 'owner':
+                chart_heading.append(paragraph(f"Unidad visible indicada por el propietario. Unidad del análisis: {chart['original_unit']}.", 'muted'))
             if chart['kind'] == 'bar':
                 for panel_title, drawing in bar_drawings(chart):
                     # Keep the overall heading with its first diagram, too.

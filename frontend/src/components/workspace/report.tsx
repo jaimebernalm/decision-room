@@ -352,6 +352,12 @@ export function EvidenceChart({
             title="Ver valores exactos"
             defaultOpen={chart.kind === "table"}
           >
+            {chart.unit_origin === "owner" && (
+              <p className="mb-3 text-xs text-muted-foreground">
+                Unidad visible indicada por ti. Unidad del análisis:{" "}
+                {chart.original_unit}.
+              </p>
+            )}
             <Table>
               <TableHeader>
                 <TableRow>
