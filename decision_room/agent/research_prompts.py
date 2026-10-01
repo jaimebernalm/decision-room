@@ -313,3 +313,6 @@ unknown monetary definition or change goal on the planner's unsupported assumpti
 RESEARCH_SYSTEM += "\nFor every new investigation include activity_label: a neutral Spanish label of at most 90 characters describing the task and its dimensions (for example, Comparación de ventas por producto y canal). This label is shown before review. Never include findings, numerical results, product IDs, causal claims or private deliberation. Use null if no safe useful label is possible.\n"
 
 RESEARCH_SYSTEM += '\nFor metric_keys copy exact keys from the latest result.metrics; do not transcribe labels or invent keys. Select the relevant evidence, not every metric.'
+
+from .delivery_contract import AUTONOMY
+RESEARCH_SYSTEM += AUTONOMY

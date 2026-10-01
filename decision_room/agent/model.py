@@ -383,7 +383,7 @@ class ModelClient:
         assessment['required'] = list(assessment['properties'])
         assessment['properties']['usefulness'].pop('default', None)
         # Runtime defaults retain old reports; model output supplies all fields.
-        for name in ('ReportDraft', 'Chart'):
+        for name in ('ReportDraft', 'Chart', 'Claim'):
             definition = schema['$defs'][name]
             definition['required'] = list(definition['properties'])
             for field in definition['properties'].values():
@@ -403,6 +403,7 @@ class ModelClient:
             schema['$defs']['SeriesPointRef'] = {'anyOf': point_choices}
         else:
             schema['$defs']['Claim']['properties']['evidence']['items'] = {'$ref': '#/$defs/MetricRef'}
+            schema['$defs']['DecisionOrientation']['properties']['evidence']['items'] = {'$ref': '#/$defs/MetricRef'}
             for name, field in (('Highlight','value'),('ChartPoint','value'),('NumericCheck','actual')):
                 schema['$defs'][name]['properties'][field] = {'$ref': '#/$defs/MetricRef'}
             schema['$defs']['NumericCheck']['properties']['operands']['items'] = {'$ref': '#/$defs/MetricRef'}

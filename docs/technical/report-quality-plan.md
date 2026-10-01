@@ -1,6 +1,6 @@
 # 3.9 — Calidad de la entrega y autonomía de investigación y presentación
 
-**Estado:** plan creado; implementación y evaluación pendientes.  
+**Estado:** implementación en curso; evaluación pendiente.  
 **Fecha:** 30 de septiembre de 2026.  
 **Base inspeccionada:** `5af6cb7`, rama `feature/report-quality`.  
 **Continuidad:** este documento conserva decisiones, incrementos y resultados de 3.9.  
@@ -23,9 +23,9 @@ soportadas. No se convierte una preferencia editorial en una prohibición técni
 El objetivo y los entregables confirmados por el propietario siguen siendo la
 referencia: profundizar no autoriza sustituirlos por otro encargo.
 
-Este pedido autoriza crear el plan. Su escritura no inicia implementación ni una
-matriz de llamadas al proveedor, ni marca 3.9 como completado. El trabajo posterior
-debe seguir los incrementos y comprobar los resultados antes de cerrarlos.
+La petición posterior del propietario autoriza aplicar el plan completo. Los
+incrementos se cierran solo tras comprobarlos; la evaluación y la prueba conjunta
+no se dan por completadas al implementar capacidades.
 
 ## 2. Diagnóstico de entrada
 
@@ -273,7 +273,7 @@ rediseño general del monitor ni una optimización de coste a costa de utilidad.
 
 Cada incremento se comprueba, revisa y guarda en un commit local según `AGENTS.md`.
 Documentar cambios, validación y límites. No hacer push sin petición explícita.
-Todos los incrementos siguientes están pendientes:
+El estado de cada incremento se registra en la lista inferior:
 
 | Paso | Trabajo | Evidencia necesaria para cerrarlo |
 |---|---|---|
@@ -285,7 +285,7 @@ Todos los incrementos siguientes están pendientes:
 | 3.9.6 | Pruebas integradas/adversariales y recuperación antes de evaluar con proveedor. | Aislamiento, evidencia obsoleta, errores y reparación, no repetición, revisiones y regresiones de exportación/cobertura; controles automatizados apropiados y revisión visual. |
 | 3.9.7 | Comparación controlada y prueba conjunta final. | Lotes conservados base/nuevo con Bruma y WWI, aceptación independiente, recursos/fallos y respuestas desconocidas; usuario puede reconocer prioridad y próximo paso; resultados y límites documentados. |
 
-- [ ] 3.9.1 — Contratos y criterios.
+- [x] 3.9.1 — Contratos y criterios.
 - [ ] 3.9.2 — Investigación y síntesis.
 - [ ] 3.9.3 — Entrega y revisión de utilidad.
 - [ ] 3.9.4 — Evidencia y representaciones.
@@ -375,3 +375,20 @@ aportado por el propietario; no habilita Internet en el sandbox de Python.
 - Registrar aquí el incremento activo, commits reales, pruebas realizadas,
   fallos, decisiones y ubicación relativa de evidencias locales. Publicar solo
   resultados/atribución reproducibles aptos para el repositorio.
+
+### 3.9.1 — Contratos y criterios implementados
+
+- Contrato `delivery-quality-v1`: orientación vinculada a evidencia, alcance,
+  prioridad relativa, comprobación y reacciones condicionales; cobertura del
+  propietario separada de investigaciones, con estados completo/parcial/no
+  disponible/aplazado. Borradores históricos mantienen versión 1; versión 2
+  disponible para activar en 3.9.3, sin reescribir aprobaciones anteriores.
+- Planificador y roles de investigación/revisión comparten la política de
+  autonomía; capacidades reales publicadas en el contexto de entrega.
+- Validación: 5 pruebas nuevas de cobertura, referencias y compatibilidad;
+  4 de revisión numérica y 2 de contexto existentes pasan; 36 pruebas de
+  esquemas, referencias, acciones y endurecimiento pasan en PostgreSQL/Docker
+  aislados. Una ejecución inicial sin el lanzador no encontró el socket correcto;
+  se repitió con la configuración independiente, sin tocar la base de otro checkout.
+- Los campos estructurales no acreditan utilidad semántica. Profundización,
+  activación de revisión, representaciones e interacción siguen pendientes.

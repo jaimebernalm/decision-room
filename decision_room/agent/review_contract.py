@@ -11,15 +11,7 @@ from .review_policy import ReviewAssessment, validate_assessment
 from ..series import saved_series, numeric, evidence_value
 
 
-class MetricRef(Strict):
-    execution_id: str = Field(max_length=36)
-    metric: str = Field(min_length=1, max_length=120)
-
-
-class SeriesPointRef(Strict):
-    execution_id: str = Field(max_length=36)
-    series: str = Field(min_length=1, max_length=100)
-    label: str = Field(min_length=1, max_length=100)
+from .delivery_contract import (MetricRef, SeriesPointRef, DecisionOrientation, OwnerCoverage, validate_owner_coverage)
 
 
 class Claim(Strict):
@@ -30,6 +22,7 @@ class Claim(Strict):
     interpretation: str = Field(min_length=1, max_length=1200)
     next_step: str = Field(max_length=1200)
     method: str = Field(min_length=1, max_length=1200)
+    orientation: DecisionOrientation | None = None
 
 
 class ReportScope(Strict):
@@ -100,6 +93,8 @@ class NumericCheck(Strict):
 
 
 class ReportDraft(Strict):
+    contract_version: Literal[1, 2] = 1
+    owner_coverage: list[OwnerCoverage] = Field(default_factory=list, max_length=12)
     title: str = Field(min_length=1, max_length=160)
     summary: str = Field(min_length=1, max_length=2400)
     scope: ReportScope
@@ -142,7 +137,7 @@ def checks(report, observations):
 
     for claim in report['claims']:
         try:
-            for ref in claim['evidence']:
+            for ref in [*claim['evidence'], *(claim.get('orientation') or {}).get('evidence', [])]:
                 value(ref)
             result.append({'check': 'evidence:' + claim['key'], 'passed': True, 'detail': 'Saved, current metrics with source evidence.'})
         except ValueError as error:
@@ -257,6 +252,7 @@ def checks(report, observations):
 
 def validate_coverage(report, context):
     """Require explicit coverage, without pretending to verify semantic truth."""
+    validate_owner_coverage(report, context)
     investigations = context.get('plan', {}).get('investigations', [])
     expected = {i['key'] for i in investigations if i['status'] == 'ready'}
     if not investigations:

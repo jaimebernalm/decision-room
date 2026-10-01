@@ -10,7 +10,7 @@ from typing import Literal
 from .contracts import Strict, Question
 from .context import fingerprint
 
-VERSION = 'business-planner-v3'
+VERSION = 'business-planner-v4'
 
 
 class BusinessBrief(Strict):
@@ -27,7 +27,11 @@ class OwnerQuestion(Question):
     impact: Literal['context', 'definition', 'scope']
 
 
+from .delivery_contract import DecisionOrientation, AUTONOMY
+
+
 class Direction(Strict):
+    orientation: list[DecisionOrientation] = Field(default_factory=list, max_length=6)
     action: Literal['guide', 'ask_owner', 'ready', 'replan']
     brief: BusinessBrief
     rationale: str = Field(min_length=1, max_length=1800)
@@ -97,7 +101,7 @@ Do not treat your own brief or hypotheses as owner-confirmed facts.
 Use question=null unless ask_owner. ready is only allowed at stage=delivery.
 '''
 from .goal_quality import GOAL_QUALITY
-SYSTEM += GOAL_QUALITY
+SYSTEM += GOAL_QUALITY + AUTONOMY
 
 
 def events(db, research_id):
@@ -135,6 +139,12 @@ def validate(raw, context):
     candidates = {f['investigation_key'] for f in context['findings'] if f['status'] == 'candidate'}
     if not set(action.priority_keys) <= tasks or not set(action.evidence_keys) <= candidates:
         raise ValueError('Use only actual agenda keys and saved candidate evidence keys.')
+    from ..series import evidence_value
+    observed = [{**o, 'current': True, 'inputs': {t['alias']: t for t in context['table_catalog']}}
+                for o in context['observations']]
+    for item in action.orientation:
+        for ref in item.evidence:
+            evidence_value(observed, ref.model_dump())
     if action.action == 'ready' and context['stage'] != 'delivery':
         raise ValueError('Only the delivery checkpoint may declare material ready for drafting.')
     if (action.action == 'ask_owner') != (action.question is not None):

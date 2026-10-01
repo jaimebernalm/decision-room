@@ -1,6 +1,6 @@
 from .series_prompt import SERIES_TOOL
 
-REVIEW_PROMPT_VERSION = 'review-v37'
+REVIEW_PROMPT_VERSION = 'review-v38'
 
 COMMON = '''You are part of Decision Room's bounded analyst/reviewer dialogue.
 Return ONLY ReviewAction JSON, every field present. Human-facing prose in Spanish.
@@ -502,3 +502,8 @@ not to debate optional style. Keep ready-to-use findings and avoid generic advic
 """
 ANALYST_SYSTEM += BUSINESS_BRIEF_REVIEW
 REVIEWER_SYSTEM += BUSINESS_BRIEF_REVIEW
+
+from .delivery_contract import AUTONOMY
+COMMON += AUTONOMY
+ANALYST_SYSTEM += AUTONOMY
+REVIEWER_SYSTEM += AUTONOMY
