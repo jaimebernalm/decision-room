@@ -109,8 +109,8 @@ accesibles, estilos móviles e impresión. No se añaden vídeos ni dashboard al
 
 ## Compatibilidad y archivos
 
-La implementación 3.9 usa prompts de revisión v38 e investigación v30 y
-dirección de negocio v4, sin reescribir grafos ni aprobaciones históricas.
+La implementación 3.9 usa prompts de revisión v39 e investigación v31 y
+dirección de negocio v5, sin reescribir grafos ni aprobaciones históricas.
 Los campos nuevos conservan valores vacíos por defecto para leer los
 informes anteriores. Las nuevas respuestas del modelo los incluyen explícitamente.
 No se convierte una aprobación antigua en aprobación del contenido nuevo.

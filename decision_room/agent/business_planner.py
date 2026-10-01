@@ -10,7 +10,7 @@ from typing import Literal
 from .contracts import Strict, Question
 from .context import fingerprint
 
-VERSION = 'business-planner-v4'
+VERSION = 'business-planner-v5'
 
 
 class BusinessBrief(Strict):

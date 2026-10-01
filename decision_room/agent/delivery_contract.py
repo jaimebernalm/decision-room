@@ -82,6 +82,23 @@ Use reactions only for explicit conditions; an arithmetic contribution is not a
 cause. A directly supported action may have an evidence-based condition. If action
 cannot yet be chosen, explain that limit. Do not manufacture recommendations for
 factual questions or organizing views. Unknown/refused context stays unknown.
+For a discovery decision, make the check executable: name the observable fact,
+segment, period and record or comparison to inspect; distinguish plausible outcomes
+and say what specific next operation, adjustment, investigation or proportionate
+operational review each outcome warrants. A conditional reaction does not assert
+that the condition occurred or prove a cause. Use only conditions relevant to the
+saved signal, and do not promise gains. Merely 'interpret cautiously', 'reconsider
+priority', 'consider other explanations' or 'this would change interpretation'
+does not complete decision support. Say what would actually be reconsidered or
+checked next and why. For example, a confirmed capture difference may warrant
+repairing that comparison; a confirmed availability constraint may warrant a
+focused availability review. These are illustrations, not mandatory business
+actions. Choose appropriate alternatives; do not import these facts into a case.
+If a useful reaction cannot be selected, identify the precise missing fact and
+preserve a partial delivery instead of declaring this component complete. Do
+computable internal checks now; do not defer them to the owner or future work.
+The reviewer must assess the actual condition-to-reaction reasoning and the
+original goal, not approve because the orientation fields or reactions exist.
 Cover the owner's deliverables separately from internal investigation branches;
 partial is useful but never complete. Compute feasible answers now, rather than
 asking the owner to compute them. Preserve the source/measure of each uncertainty:

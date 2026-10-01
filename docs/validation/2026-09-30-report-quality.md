@@ -55,6 +55,22 @@ campos opcionales internos que el protocolo estricto exige declarar explícitame
 
 ## Comparación y aceptación
 
+Las primeras cinco entregas aprobadas de la matriz (cuatro Bruma y WWI descubrir
+base, repetición 1) tienen todos sus valores entregados cotejados con CSV/Decimal.
+La revisión independiente detecta que las siguientes comprobaciones y reacciones
+aún son imprecisas. Algunos desgloses mejoran; tener campos de orientación o dos
+condiciones redactadas no basta para aceptar utilidad.
+
+Se reforzaron las instrucciones compartidas para exigir un hecho observable y un
+contraste ejecutable, con una operación, ajuste, investigación o revisión concreta
+según el resultado. La cautela y «podría cambiar la interpretación» no completan
+este componente. No se fuerzan actuaciones comerciales ni causas: conservar una
+entrega parcial si falta el dato material, y calcular primero lo que permiten los
+archivos. Prompts de revisión v39, investigación v31 y planificador v5; 70 pruebas
+de contratos, revisión, planificador, rondas y esquemas pasan. La matriz congelada
+continúa con las versiones originales; el ajuste necesita comprobación adicional
+identificada por separado, sin sustituir resultados desfavorables.
+
 Pendiente: matriz base/nueva congelada, tres casos (Bruma descubrir, WWI descubrir,
 WWI organizar), dos repeticiones por versión: doce intentos. Mismos archivos,
 contextos, objetivos, modelo, razonamiento y presupuestos. Oráculos CSV/Decimal
