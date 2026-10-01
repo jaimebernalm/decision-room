@@ -519,10 +519,11 @@ el código garantiza integridad y el revisor comprueba utilidad. Profundizar en 
 segmento y periodo de la señal, cuantificar sus componentes y entregar prioridades,
 comprobaciones y reacciones condicionales concretas. Ampliar representaciones
 temporales y de varias series, interacción y cobertura del encargo del propietario.
-Seis incrementos implementados y verificados: 520 pruebas Python y 117 web pasan;
-[validación y límites](../validation/2026-09-30-report-quality.md). Comparación en
-Bruma/WWI y aceptación conjunta pendientes; las capacidades no demuestran todavía
-una mejora de utilidad. La consulta
+Seis incrementos implementados y verificados: regresión final de 531 pruebas Python
+y 117 web pasan; [resultados y límites](../validation/2026-09-30-report-quality.md).
+Comparación original en Bruma/WWI ejecutada sin mejora consistente demostrada;
+seis intentos adicionales bloqueados por saldo de API. Se conservan 18 intentos
+únicos y la aceptación conjunta sigue abierta. La consulta
 web queda como propuesta posterior 3.95, con alcance específico todavía pendiente.
 
 

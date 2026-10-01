@@ -1,6 +1,6 @@
 # 3.9 — Calidad de la entrega y autonomía de investigación y presentación
 
-**Estado:** implementación en curso; evaluación pendiente.  
+**Estado:** capacidades implementadas; comparación ejecutada y aceptación de calidad abierta. Validación real del ajuste final bloqueada por saldo de API.  
 **Fecha:** 30 de septiembre de 2026.  
 **Base inspeccionada:** `5af6cb7`, rama `feature/report-quality`.  
 **Continuidad:** este documento conserva decisiones, incrementos y resultados de 3.9.  
@@ -367,8 +367,8 @@ aportado por el propietario; no habilita Internet en el sandbox de Python.
 
 - 30 de septiembre de 2026: plan redactado tras la prueba conjunta y auditoría
   manual; base `5af6cb7`. Documentación integrada en los planes de producto.
-- Implementación pendiente; no se han cambiado contratos, agentes, gráficos,
-  base de datos o informes aprobados al crear este documento.
+- Al crear este documento, la implementación estaba pendiente y no se cambiaron
+  contratos, agentes, gráficos, base de datos o informes aprobados.
 - Al continuar, confirmar checkout/estado de Git y entorno aislado de esta rama.
   Guardar artefactos y credenciales localmente; no copiar rutas personales,
   uploads o snapshots privados a documentación pública.
@@ -470,4 +470,28 @@ aportado por el propietario; no habilita Internet en el sandbox de Python.
   Todas las referencias de orientación y valores adicionales también exigen
   verificación independiente. Cobertura parcial se deriva del encargo vigente.
 - [Validación técnica y límites](../validation/2026-09-30-report-quality.md).
-  Comparación con proveedor y prueba final del propietario pendientes.
+  Comparación con proveedor registrada en 3.9.7; validación real del ajuste final
+  y prueba del propietario pendientes.
+
+### 3.9.7 — Comparación ejecutada; aceptación abierta
+
+- Doce intentos originales congelados (`2e10028`/`ed92625`): base 5/6 publicables,
+  1/6 aceptados; nueva 4/6 publicables, 0/6 aceptados. Nueve informes con 488
+  referencias correctas. Dos fallos nuevos de revisión y uno de proveedor en base,
+  conservados. No se demuestra mejora consistente de utilidad.
+- Corregidos a partir de evidencia: reacciones vagas, ampliación del brief,
+  coordenadas agrupadas y esquema de estados/referencias de auditoría. Regresión
+  final de 531 pruebas Python pasa; 117 web y build/lint verificados. QA de cinco
+  series/24 meses conserva 120 valores en web/API/HTML/PDF.
+- Seis intentos adicionales con `4499f15`, reutilizando bases históricas, fallan
+  antes de producir informes por HTTP 429. Diagnóstico identificado confirma saldo
+  de API agotado. Son 18 intentos únicos; no se sustituyen fallos ni se cuenta dos
+  veces la base. Último ajuste sin validación real de utilidad.
+- La prueba final del propietario permanece pendiente; el entorno independiente
+  está disponible y el informe histórico sigue intacto. Consulta web 3.95 fuera
+  de alcance. [Resultados, recursos y continuidad](../validation/2026-09-30-report-quality.md).
+- Commits reales de incrementos: `f31bd44` (3.9.1), `93f58b0` (3.9.2), `81ed927`
+  (3.9.3), `17cb9d3` (3.9.4), `d420f7d` (3.9.5), `ed92625` (3.9.6). Correcciones
+  y herramienta de evaluación posteriores en `779478b`, `a762a9b`, `c7e3d84`,
+  `166e650`, `0ff7a93`, `c44ef2f`, `b38459c` y `4499f15`. El paso 3.9.7 no se
+  marca completo: faltan validación del ajuste con proveedor y aceptación conjunta.

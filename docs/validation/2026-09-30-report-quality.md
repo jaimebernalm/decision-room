@@ -65,6 +65,10 @@ campos opcionales internos que el protocolo estricto exige declarar explícitame
   barras/tablas mantienen 36 puntos. Una prueba de cinco series y 24 meses conserva
   los 120 valores en API, HTML y PDF y rechaza usarlos en una barra de 120 puntos.
   56 pruebas de esquemas, revisión, series y exportaciones pasan; revisión v41.
+- Regresión final después de esas correcciones: **531 pruebas Python pasan**.
+  QA web adicional con cinco series y 24 meses: selección de diciembre, ocultación
+  de una serie y los cinco valores exactos conservados. Artefacto sintético
+  identificado, separado del informe real de Bruma y sin llamadas al modelo.
 
 ## Comparación y aceptación
 
@@ -114,14 +118,102 @@ La concentración usa cambios observados y denominadores firmados/absolutos
 separados; no crea niveles anuales para grupos ausentes.
 41 pruebas del instrumento, referencias y conservación de intentos pasan.
 
-Pendiente: matriz base/nueva congelada, tres casos (Bruma descubrir, WWI descubrir,
-WWI organizar), dos repeticiones por versión: doce intentos. Mismos archivos,
-contextos, objetivos, modelo, razonamiento y presupuestos. Oráculos CSV/Decimal
-separados de los agentes, rúbrica versión 2 idéntica para ambas versiones y revisión
-independiente del hash final. Conservar fallos en el denominador, desconocidos,
-recursos y límites; no sustituir silenciosamente intentos fallidos.
+### Matriz original cerrada
 
-La aceptación de utilidad sigue pendiente. La comprobación conjunta final requiere
+Copias congeladas: base `2e10028` (mismo producto que `5af6cb7`) y nueva
+`ed92625`. Tres casos y dos repeticiones por versión, con orden alternado:
+doce intentos únicos. Mismos archivos, objetivos, contexto, modelo `gpt-6-luna`,
+razonamiento `low`, límite de salida 16.384 y presupuestos `quality_first`, con
+planificador activo y tres trabajadores máximos en ambas versiones. Los oráculos
+CSV/Decimal no entran en el contexto de los agentes. Rúbrica 2 idéntica en ambas
+versiones, vinculada al hash de cada borrador final y al del evaluador.
+
+La auditoría semántica es de desarrollo, no ciega ni una valoración del propietario;
+los cálculos de referencia son independientes de los programas de los analistas.
+No se exige una prioridad literal, un gráfico de líneas ni el inventario ampliado
+por el planificador. Aprobación del producto y aceptación de desarrollo son
+resultados distintos.
+
+| Caso | Rep. | Versión | Publicable | Aceptación | Referencias cotejadas | Segundos |
+|---|---:|---|---|---|---:|---:|
+| Bruma descubrir | 1 | Base | Sí | No | 47 | 278,604 |
+| Bruma descubrir | 1 | Nueva | Sí | No | 34 | 194,499 |
+| Bruma descubrir | 2 | Base | Sí | No | 47 | 200,475 |
+| Bruma descubrir | 2 | Nueva | Sí | No | 42 | 191,204 |
+| WWI descubrir | 1 | Base | Sí | No | 46 | 441,170 |
+| WWI descubrir | 1 | Nueva | Sí | No | 91 | 1.151,711 |
+| WWI descubrir | 2 | Base | Sí | No | 44 | 622,683 |
+| WWI descubrir | 2 | Nueva | Sí | No | 20 | 314,386 |
+| WWI organizar | 1 | Base | Sí | Sí | 117 | 209,494 |
+| WWI organizar | 1 | Nueva | No | No | 64 del borrador | 285,667 |
+| WWI organizar | 2 | Nueva | No | No | 111 del borrador | 270,284 |
+| WWI organizar | 2 | Base | No | No | Sin informe | 11,291 |
+
+Resultado: base 5/6 publicables y 1/6 aceptados; nueva 4/6 publicables y 0/6
+aceptados. Los nueve informes publicables conservan **488 referencias correctas**,
+incluidos identificadores/fechas cuando corresponden. También se cotejaron 175
+referencias de los dos borradores nuevos no publicados: aritmética correcta no
+equivale a cobertura, citas completas o aprobación. Los tres fallos permanecen
+en el denominador.
+
+- En Bruma, la primera nueva profundiza y prioriza mejor que su primera base;
+  la segunda base también profundiza. Ambas nuevas se centran en señales válidas
+  distintas de la prueba manual. Ninguna concreta suficientemente la reacción
+  posterior; no se acepta por tener campos o condiciones.
+- En WWI descubrir, la primera nueva desglosa productos del segmento y compara
+  cambios absolutos/relativos, pero amplía el encargo y conserva reacciones vagas.
+  La segunda remite a comprobar después clientes, cantidades o precios ya
+  disponibles, sin localizar la señal con esos cálculos. La segunda base sí
+  caracteriza compradores/concentración, pero tampoco cierra una reacción concreta.
+- En WWI organizar, la primera base cubre las tres medidas anual/mensual/categoría.
+  Las dos nuevas fallan tras cuatro reparaciones de auditoría por estados/referencias
+  incompatibles. El primer borrador además omite dos series mensuales completas;
+  el segundo tiene ocho importes de margen por categoría sin cita en su claim.
+  Son defectos de entrega, no cifras numéricamente erróneas. La segunda base termina
+  por HTTP 429 durante planificación, tras tres rechazos de transporte; no genera
+  informe y no permite juzgar calidad semántica.
+
+**La matriz original no demuestra una mejora consistente de utilidad ni conserva
+la fiabilidad de organización.** No se sustituye por un informe favorable ni se
+atribuyen sus resultados a las correcciones posteriores.
+
+### Continuación y bloqueo del proveedor
+
+Después de corregir instrucciones de reacción/alcance, coordenadas y esquema de
+auditoría, se congeló `4499f15` para seis intentos nuevos: dos de cada caso. El lote
+reutiliza todas las bases históricas y no es una nueva alternancia. Los doce
+originales siguen íntegros: **18 intentos únicos**, no 24.
+
+Los seis adicionales fallan en planificación con HTTP 429, antes de generar
+informes. Un único diagnóstico mínimo identificado fuera de la matriz confirma
+`insufficient_quota` / `credit_balance_exhausted`. Su respuesta tampoco aporta
+uso. No se habilitó otra cuenta/modelo ni se sustituyó un intento. El último ajuste
+queda verificado técnicamente y **sin validación semántica con proveedor**.
+
+### Recursos y continuidad
+
+Los 18 intentos contienen 325 llamadas lógicas registradas y 14 ejecuciones fallidas
+conservadas. Uso conocido: 12.441.853 tokens de entrada y 485.122 de salida; diez
+intentos tienen uso incompleto/desconocido, incluidos rechazos. Son cantidades
+conocidas, no el consumo total ni cero para los rechazos. El diagnóstico de una
+solicitud queda separado de esos recursos. Sin uso completo y tarifas declaradas
+no se estima coste. Los tiempos de la tabla son descriptivos; los fallos y esta
+muestra pequeña no permiten una conclusión causal de velocidad o generalización.
+
+Evidencias locales ignoradas: `.local/report-quality-evaluation/` y
+`.local/report-quality-followup/`, con manifiestos, estados, revisiones, evaluaciones,
+recursos y exportaciones por intento; `.local/provider-diagnostic.json` contiene
+solo el diagnóstico acotado. Fuentes, credenciales y rutas de máquina no se publican.
+Los manifests y oráculos congelados se conservan sin cambios de resultados.
+
+Para continuar: restablecer saldo de API, conservar el modelo/configuración
+comparables y crear otro lote identificado desde la matriz original con la revisión
+verificada. Registrar los nuevos intentos además de los 18 existentes. Revisar
+independientemente sus informes y después realizar la prueba conjunta con el dueño;
+no dar por aceptada la corrección mediante los fixtures de protocolo.
+
+La aceptación de utilidad sigue abierta y la validación real del ajuste está
+bloqueada por saldo de API. La comprobación conjunta final requiere
 que el propietario reconozca la prioridad y el siguiente paso en una entrega real.
 No se atribuye ese juicio a pruebas automatizadas. Consulta web posterior 3.95
 fuera de este alcance.
