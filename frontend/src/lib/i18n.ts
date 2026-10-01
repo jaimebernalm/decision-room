@@ -13,6 +13,7 @@ export function getLanguage(): Language {
 }
 let unavailableStorageLanguage: Language | undefined;
 const snapshot = () => unavailableStorageLanguage || getLanguage();
+export const selectedLanguage = snapshot;
 export const locale = () => (snapshot() === "en" ? "en-US" : "es-ES");
 function subscribe(update: () => void) {
   const stored = (event: StorageEvent) => {

@@ -78,8 +78,11 @@ class ModelSettings:
     reasoning: str = 'off'
     timeout_seconds: int = 180
     max_output_tokens: int = 8192
+    response_language: str | None = None
 
     def __post_init__(self):
+        if self.response_language not in (None, 'en', 'es'):
+            raise ValueError('Unsupported response language.')
         url = urlsplit(self.base_url)
         if not self.model or len(self.model) > 200:
             raise ValueError('Set DECISION_ROOM_AGENT_MODEL or --model to an installed model ID.')
@@ -574,6 +577,14 @@ class ModelClient:
             from ..memory.retrieval import schema_for, INSTRUCTIONS
             schema = schema_for(schema)
             system += INSTRUCTIONS
+        if self.settings.response_language:
+            language = 'English' if self.settings.response_language == 'en' else 'Spanish'
+            system += (f'\nApplication response language: {language}. Write all new human-facing text, '
+                       f'questions, report titles, summaries, explanations and labels in {language}, '
+                       'even when the owner writes in another language or earlier examples use Spanish. '
+                       'Keep schema keys, identifiers, evidence references, code, exact numeric values, '
+                       'quoted source content and business/product names unchanged. This is a presentation '
+                       'preference, not a fact about the business. Do not rewrite stored content.\n')
         if self.settings.protocol == 'openai':
             schema = self._wire_schema(schema)
         messages = [{'role': 'system', 'content': system},

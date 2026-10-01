@@ -53,3 +53,15 @@ it("localizes existing exact report values while preserving units and content", 
   setLanguage("es");
   expect(displayNumber("1.778,50")).toBe("1.778,50");
 });
+
+it("sends the current interface language without changing user payload", async () => {
+  const { api } = await import("./api");
+  const fetch = vi.fn(async (_path: string, _options?: RequestInit) => ({ok: true, json: async () => ({saved:true})}));
+  vi.stubGlobal("fetch", fetch);
+  setLanguage("en");
+  await api("/api/chats/test/messages", {text: "Hola Bruma Café"});
+  expect(fetch.mock.calls[0]?.[1]).toMatchObject({headers: {"X-Decision-Room-Language":"en"}, body: JSON.stringify({text:"Hola Bruma Café"})});
+  setLanguage("es");
+  await api("/api/workspace");
+  expect(fetch.mock.calls[1]?.[1]).toMatchObject({headers: {"X-Decision-Room-Language":"es"}});
+});

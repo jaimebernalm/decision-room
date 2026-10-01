@@ -216,7 +216,7 @@ class Handler(BaseHTTPRequestHandler):
                 raise WebError('Operación interna no encontrada.', 404)
             if not self.authenticated():
                 raise WebError('Introduce tu clave de acceso para abrir el espacio local.', 401)
-            ws = self.server.workspace
+            ws = self.server.workspace.localized(self.headers.get('X-Decision-Room-Language'))
             if not mutation and path == '/api/workspace':
                 self.send(200, ws.state())
                 return

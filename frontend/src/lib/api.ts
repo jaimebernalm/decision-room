@@ -1,4 +1,4 @@
-import { translate as tr, locale } from "@/lib/i18n";
+import { translate as tr, locale, selectedLanguage } from "@/lib/i18n";
 import type { QuestionContext, Chat, Turn, ContextReference } from "./types";
 export class ApiError extends Error {
   status: number;
@@ -44,6 +44,7 @@ export async function api<T>(
       method: body === undefined ? "GET" : "POST",
       headers: {
         "X-Decision-Room": "1",
+        "X-Decision-Room-Language": selectedLanguage(),
         ...(body !== undefined && !multipart
           ? { "Content-Type": "application/json" }
           : {}),

@@ -46,6 +46,10 @@ los mensajes, nombres, informes y datos ya guardados conservan su texto original
   exactos según idioma. Pasan 142 pruebas frontend, compilación y lint sin errores.
   Comprobados en navegador los menús separados y las vistas Inicio/Mi negocio en inglés.
   Los textos históricos del negocio conservan su idioma original.
-- 2.5.20.3–2.5.20.4 pendientes.
+- 2.5.20.3 completado: idioma por petición, guardado en turnos/análisis y utilizado
+  por el modelo en textos nuevos; onboarding y etiquetas de exportación bilingües.
+  Los reintentos mantienen su idioma y las preferencias no alteran hechos ni textos
+  históricos. Pasan 128 pruebas backend y 143 frontend, además de compilación.
+- 2.5.20.4 pendiente.
 
 No se hace push sin una petición explícita.

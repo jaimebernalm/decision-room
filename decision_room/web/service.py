@@ -74,6 +74,17 @@ class Workspace:
         scoped.wake, scoped.stop = self.wake, self.stop
         return scoped
 
+    def localized(self, language):
+        """Request-local model preference, snapshotted by durable turns and jobs."""
+        from dataclasses import replace
+        if language not in (None, 'en', 'es'):
+            raise WebError('Unsupported interface language.')
+        localized = Workspace(self.config, replace(self.settings, response_language=language) if self.settings else None,
+                              self.model_factory)
+        localized._scoped, localized._business_id = self._scoped, self._business_id
+        localized.wake, localized.stop = self.wake, self.stop
+        return localized
+
     def business_id(self):
         if self._scoped:
             return self._business_id
@@ -710,6 +721,7 @@ class Workspace:
             from .dashboard import presentation
             from .presentation_editing import decorate
             display = decorate(self, data, presentation(data), db=db)
+            display['response_language'] = j['model_settings'].get('response_language')
             if structured:
                 return display
             from .presentation_html import render

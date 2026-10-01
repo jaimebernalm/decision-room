@@ -809,6 +809,7 @@ class Conversations:
             from .web.dashboard import presentation
             from .web.presentation_editing import decorate
             display = decorate(self.ws, r, presentation(r), db=db)
+            display['response_language'] = t['model_settings'].get('response_language')
             if structured:
                 return display
             from .web.presentation_html import render
