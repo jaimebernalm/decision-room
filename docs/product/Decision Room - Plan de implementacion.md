@@ -229,6 +229,12 @@ grupos se guardan y el extractor las usa para asignar recuerdos nuevos mediante
 IDs acotados al negocio, respetando movimientos manuales y cambios concurrentes.
 Pasan 139 pruebas frontend y 47 de PostgreSQL, compilación y lint; la validación
 visual continúa en una demo con datos ficticios.
+Añadir información se traslada a cada cabecera, con formulario de grupo fijo y
+sin selector de tipo para nuevos recuerdos. El destino y el original se guardan
+atómicamente, con validación e idempotencia. Los grupos vacíos permiten empezar;
+Por revisar crea propuestas y Sin grupo conserva una asignación explícita.
+Las pestañas bajan 16 px y comparten el radio de las cajas. Pasan 142 pruebas
+frontend y 50 de PostgreSQL, compilación, lint y comprobaciones de móvil/escritorio.
 
 ### 2.5.6. Inicio del negocio, informes y navegación cotidiana
 

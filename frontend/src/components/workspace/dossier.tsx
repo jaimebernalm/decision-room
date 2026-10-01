@@ -127,6 +127,7 @@ function factGroup(fact: Fact, layout: DossierLayout) {
   if (needsReview(fact)) return "review";
   const ids = new Set(layout.groups.map((group) => group.id));
   const assigned = layout.assignments[fact.fact_id];
+  if (assigned === "ungrouped") return "ungrouped";
   if (assigned && ids.has(assigned)) return assigned;
   const automatic = automaticGroup(fact);
   return ids.has(automatic) ? automatic : "ungrouped";
@@ -158,12 +159,16 @@ export function Dossier({ files = false }: { files?: boolean }) {
     [upload, setUpload] = useState(false);
   const [customize, setCustomize] = useState(false),
     [collapsedGroups, setCollapsedGroups] = useState<string[]>([]);
+  const [newGroup, setNewGroup] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
   const actionFocus = useRef<HTMLButtonElement | null>(null),
-    addInformation = useRef<HTMLButtonElement | null>(null);
+    customizeGroups = useRef<HTMLButtonElement | null>(null);
   const restoreDialogFocus = (event: Event) => {
     const target = actionFocus.current?.isConnected
       ? actionFocus.current
-      : addInformation.current;
+      : customizeGroups.current;
     if (target) {
       event.preventDefault();
       target.focus();
@@ -229,23 +234,23 @@ export function Dossier({ files = false }: { files?: boolean }) {
         </Notice>
       )}
       <Tabs defaultValue={files ? "data" : "info"} className="min-w-0 w-full">
-        <div className="mb-6 flex flex-wrap items-center gap-2">
-          <TabsList className="group-data-horizontal/tabs:h-14 p-1 sm:group-data-horizontal/tabs:h-16">
+        <div className="mt-4 mb-6 flex flex-wrap items-center gap-2">
+          <TabsList className="rounded-xl group-data-horizontal/tabs:h-14 p-1 sm:group-data-horizontal/tabs:h-16">
             <TabsTrigger
               value="info"
-              className="px-3 text-base font-semibold sm:px-5"
+              className="rounded-xl px-3 text-base font-semibold sm:px-5"
             >
               Información
             </TabsTrigger>
             <TabsTrigger
               value="data"
-              className="px-3 text-base font-semibold sm:px-5"
+              className="rounded-xl px-3 text-base font-semibold sm:px-5"
             >
               Datos
             </TabsTrigger>
             <TabsTrigger
               value="history"
-              className="px-3 text-base font-semibold sm:px-5"
+              className="rounded-xl px-3 text-base font-semibold sm:px-5"
             >
               Historial
             </TabsTrigger>
@@ -260,6 +265,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
             <Button
               variant="outline"
               size="sm"
+              ref={customizeGroups}
               onClick={(event) => {
                 actionFocus.current = event.currentTarget;
                 setCustomize(true);
@@ -268,24 +274,6 @@ export function Dossier({ files = false }: { files?: boolean }) {
               <Settings2 />
               Personalizar grupos
             </Button>
-            <span className="flex items-center gap-3">
-              <span className="text-sm font-medium" aria-hidden="true">
-                Añadir información
-              </span>
-              <Button
-                size="icon"
-                className="size-14 rounded-full shadow-md hover:shadow-lg [&_svg]:size-7"
-                aria-label="Añadir información"
-                title="Añadir información"
-                ref={addInformation}
-                onClick={(event) => {
-                  actionFocus.current = event.currentTarget;
-                  setEdit(null);
-                }}
-              >
-                <Plus className="size-7" />
-              </Button>
-            </span>
           </div>
           {!facts.length && data.business.description && (
             <section aria-label="Presentación del negocio">
@@ -295,7 +283,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
               </p>
             </section>
           )}
-          {facts.length || (layout.revision > 0 && layout.groups.length > 0) ? (
+          {facts.length || layout.groups.length > 0 ? (
             <Accordion
               type="multiple"
               value={factGroups
@@ -316,8 +304,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
                 );
                 if (
                   !items.length &&
-                  (layout.revision === 0 ||
-                    ["review", "ungrouped"].includes(group.key))
+                  ["review", "ungrouped"].includes(group.key)
                 )
                   return null;
                 return (
@@ -326,14 +313,39 @@ export function Dossier({ files = false }: { files?: boolean }) {
                     value={group.key}
                     className="rounded-xl border border-border bg-card shadow-sm"
                   >
-                    <AccordionTrigger className="items-center gap-3 rounded-xl bg-muted/50 px-4 py-3 text-base font-semibold text-foreground hover:bg-sidebar-accent hover:no-underline motion-reduce:transition-none data-open:rounded-b-none">
-                      <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-                        {group.title}{" "}
-                        <span className="inline-flex min-w-6 items-center justify-center rounded-full border border-border bg-background px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
-                          {items.length}
-                        </span>
+                    <div className="flex items-center gap-2 rounded-xl bg-muted/50 pr-3">
+                      <div className="min-w-0 flex-1">
+                        <AccordionTrigger className="items-center gap-3 rounded-xl px-4 py-4 text-base font-semibold text-foreground hover:bg-sidebar-accent hover:no-underline motion-reduce:transition-none">
+                          <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+                            <span className="min-w-0 [overflow-wrap:anywhere]">
+                              {group.title}
+                            </span>{" "}
+                            <span className="inline-flex min-w-6 items-center justify-center rounded-full border border-border bg-background px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+                              {items.length}
+                            </span>
+                          </span>
+                        </AccordionTrigger>
+                      </div>
+                      <span
+                        className="hidden text-sm font-medium sm:inline"
+                        aria-hidden="true"
+                      >
+                        Añadir información
                       </span>
-                    </AccordionTrigger>
+                      <Button
+                        size="icon"
+                        className="size-12 rounded-full shadow-sm hover:shadow-md"
+                        aria-label={`Añadir información a ${group.title}`}
+                        title={`Añadir información a ${group.title}`}
+                        onClick={(event) => {
+                          actionFocus.current = event.currentTarget;
+                          setNewGroup({ id: group.key, title: group.title });
+                          setEdit(null);
+                        }}
+                      >
+                        <Plus className="size-6" />
+                      </Button>
+                    </div>
                     <AccordionContent className="h-auto px-2 pt-1 pb-2 [&_p:not(:last-child)]:mb-0">
                       {layout.groups.find((g) => g.id === group.key)
                         ?.description && (
@@ -346,7 +358,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
                       )}
                       {!items.length && (
                         <p className="px-3 py-4 text-sm text-muted-foreground">
-                          Mueve información aquí desde el menú de una fila.
+                          Añade información desde el botón + de este grupo.
                         </p>
                       )}
                       <ul className="divide-y divide-border/70">
@@ -550,6 +562,12 @@ export function Dossier({ files = false }: { files?: boolean }) {
                                           >
                                             Clasificación automática
                                           </DropdownMenuRadioItem>
+                                          <DropdownMenuRadioItem
+                                            value="ungrouped"
+                                            disabled={action.busy}
+                                          >
+                                            Sin grupo
+                                          </DropdownMenuRadioItem>
                                           {layout.groups.map((group) => (
                                             <DropdownMenuRadioItem
                                               key={group.id}
@@ -589,7 +607,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
           ) : (
             <Empty
               title="Un contexto que crece contigo"
-              description="Añade prioridades, definiciones o detalles que el asistente debería recordar."
+              description="Personaliza los grupos para empezar a añadir información que el asistente debería recordar."
             />
           )}
           <Disclosure title="Ver presentación original">
@@ -789,18 +807,25 @@ export function Dossier({ files = false }: { files?: boolean }) {
                 ? "Resolver conflicto"
                 : edit
                   ? "Corregir información"
-                  : "Añadir información"}
+                  : `Añadir información a ${newGroup?.title || "este grupo"}`}
             </DialogTitle>
             <DialogDescription>
               {edit?.status === "conflicted"
                 ? "Marca la versión correcta o escribe otra solución. Revisa el contenido y guarda tu elección."
-                : "Se guardará en la memoria de este negocio."}
+                : edit
+                  ? "Se guardará en la memoria de este negocio."
+                  : `Grupo: ${newGroup?.title}. ${newGroup?.id === "review" ? "Se añadirá como propuesta pendiente de confirmar." : "La información se guardará en este grupo."}`}
             </DialogDescription>
           </DialogHeader>
           {edit !== undefined && (
             <FactEditor
-              key={edit ? `${edit.fact_id}-${edit.revision}` : "new"}
+              key={
+                edit
+                  ? `${edit.fact_id}-${edit.revision}`
+                  : `new-${newGroup?.id}`
+              }
               fact={edit}
+              group={edit ? null : newGroup}
               datasets={data.datasets}
               onDone={done}
             />
@@ -898,10 +923,12 @@ function FactOrigin({
 }
 function FactEditor({
   fact,
+  group,
   datasets,
   onDone,
 }: {
   fact: Fact | null;
+  group: { id: string; title: string } | null;
   datasets: Dataset[];
   onDone: () => void;
 }) {
@@ -909,7 +936,7 @@ function FactEditor({
     action = useAction();
   const [content, setContent] = useState<FactContent>(
     fact?.content || {
-      kind: "context",
+      kind: group?.id === "goals" ? "priority" : "context",
       statement: "",
       topic: "owner_" + crypto.randomUUID().replaceAll("-", ""),
       scope: "business",
@@ -1008,8 +1035,15 @@ function FactEditor({
           };
           const body = {
             business_id: workspace.business!.id,
-            action: fact ? "correct" : "declare",
+            action: fact
+              ? "correct"
+              : group?.id === "review"
+                ? "propose"
+                : "declare",
             content: value,
+            ...(!fact && group && group.id !== "review"
+              ? { group_id: group.id }
+              : {}),
             ...(fact
               ? { fact_id: fact.fact_id, expected_revision: fact.revision }
               : {}),
@@ -1101,16 +1135,18 @@ function FactEditor({
             )}
           </section>
         )}
-        <ChoiceSelect
-          label="Tipo de información"
-          value={content.kind}
-          onChange={(v) => update("kind", v)}
-          options={Object.entries(factKinds)
-            .filter(
-              ([k]) => k !== "result_reference" || fact?.content.kind === k,
-            )
-            .map(([value, label]) => ({ value, label }))}
-        />
+        {fact && (
+          <ChoiceSelect
+            label="Tipo de información"
+            value={content.kind}
+            onChange={(v) => update("kind", v)}
+            options={Object.entries(factKinds)
+              .filter(
+                ([k]) => k !== "result_reference" || fact?.content.kind === k,
+              )
+              .map(([value, label]) => ({ value, label }))}
+          />
+        )}
         <Field label="Información" id="fact-statement">
           <Textarea
             id="fact-statement"

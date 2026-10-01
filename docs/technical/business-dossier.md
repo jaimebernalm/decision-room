@@ -50,8 +50,11 @@ Eliminar grupos conserva los recuerdos mediante clasificación automática o Sin
 grupo; los grupos personalizados vacíos siguen visibles. Actualizar se sitúa junto
 a las pestañas.
 
-Añadir información es un botón circular de 56 px con un símbolo más y etiqueta
-visible. Las pestañas tienen más superficie y tipografía de 16 px; el menú de
+Cada cabecera ofrece Añadir información a la derecha: botón circular de 48 px,
+con símbolo más y etiqueta en escritorio. Está separado del control de plegado y
+también aparece en grupos vacíos. Personalizar grupos permanece arriba. Las
+pestañas se separan 16 px más del título y comparten el radio de las cajas; tienen
+más superficie y tipografía de 16 px. El menú de
 fila aparece con cursor, foco de teclado o apertura y permanece disponible en
 dispositivos táctiles.
 
@@ -69,6 +72,16 @@ siguen en Por revisar y, al confirmarlos, aparece su grupo. Si la configuración
 cambia durante la llamada, se conserva el recuerdo y se omite la asignación
 obsoleta. Un fallo SQL permite reaplicar la respuesta ya guardada sin otra llamada
 al proveedor. Los grupos siguen sin alterar el ámbito o la vigencia analítica.
+
+Añadir desde una cabecera abre un formulario con grupo fijo y sin selector de tipo
+para información nueva. `POST /api/business/memory` acepta `group_id` en declarar
+o proponer; la revisión de memoria, original, comando idempotente y asignación
+se guardan en la misma transacción. Se valida que el grupo siga disponible en el
+negocio. Un grupo retirado o un fallo SQL no deja un recuerdo creado a medias;
+un reintento exacto devuelve la respuesta anterior incluso si después se retira
+el grupo, sin recrearlo. Por revisar crea propuestas y Sin grupo puede guardarse
+como asignación explícita. La edición de recuerdos existentes conserva el
+selector de tipo y sus controles anteriores.
 
 La ficha es consultable por el cliente. No se inyecta entera al agente: se conserva
 la selección inicial de contexto, el catálogo y las herramientas de recuperación.

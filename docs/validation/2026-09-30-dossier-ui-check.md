@@ -172,3 +172,37 @@ no se modifica información real del cliente ni se llama a modelos.
 La clasificación se valida con un modelo determinista de prueba y almacenamiento
 real aislado. No se evalúa la precisión semántica de un proveedor remoto en este
 incremento. La demo visual mantiene datos ficticios y sus grupos existentes.
+
+## Añadir dentro del grupo y navegación alineada
+
+Cada cabecera contiene un botón + de 48 × 48 px a la derecha, con etiqueta en
+escritorio y nombre accesible que identifica el grupo. Está separado del plegado;
+abre con teclado incluso estando cerrado el grupo y devuelve el foco al cancelar
+o guardar. Se elimina el botón global y permanece Personalizar grupos. Las
+pestañas bajan 16 px y su radio, selección activa y cajas coinciden en 14 px.
+
+El formulario muestra el grupo fijo y omite Tipo de información para nuevos
+recuerdos. Por revisar crea una propuesta; los grupos propios reciben una
+declaración con asignación persistente. Sin grupo queda como destino explícito,
+incluso si existiría una clasificación automática. La información y su grupo se
+guardan en una sola petición y transacción.
+
+- Pasan 142 pruebas frontend en 17 archivos: grupos vacíos, formulario de grupo
+  fijo, independencia del plegado, creación de propuestas, destino Sin grupo,
+  borrador conservado después de error y retorno del foco. Las pruebas anteriores
+  de edición, conflictos, grupos, contexto y navegación siguen pasando.
+- Pasan 50 pruebas PostgreSQL aisladas: ruta HTTP de creación con grupo,
+  lectura posterior, reintento exacto sin duplicación, conflicto de clave al
+  cambiar destino, propuestas y Sin grupo; grupos inválidos/retirados, ausencia
+  de hechos y originales parciales y rollback real al fallar SQL. Un reintento
+  posterior a eliminar el grupo recupera la respuesta sin restaurar la categoría.
+- TypeScript/Vite, lint focalizado y diff correctos; continúa el aviso conocido
+  de paquetes grandes.
+- Navegador con datos ficticios: ejemplo añadido a Clientes, conservación tras
+  recargar y cabecera plegada durante la creación. En 390 × 844 no hay
+  desbordamiento horizontal; el diálogo mide 358 px y Guardar información termina
+  a 656 px. Solo permanece el selector de ámbito. Cabeceras con títulos largos,
+  botones derechos y pestañas legibles comprobados en móvil y escritorio.
+
+La demo conserva sus grupos e información de ejemplo; el almacenamiento del
+producto se valida en bases PostgreSQL de prueba y no se modifica un negocio real.

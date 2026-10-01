@@ -97,3 +97,18 @@ guardado fijo, grupos persistentes y barra compacta; véase la validación adjun
    móvil. Revisar el diff público y guardar un commit local del incremento.
 
 Estado: implementado y comprobado el 30 de septiembre de 2026; véase la validación.
+
+## Añadir información dentro del grupo
+
+1. Trasladar el botón circular a la derecha de cada cabecera, separado del
+   control de plegado, y dejar Personalizar grupos en la barra superior. Mostrar
+   grupos vacíos para poder empezar desde ellos. Bajar las pestañas y compartir
+   el radio de las cajas con el contenedor y la selección activa.
+2. Abrir un formulario con grupo fijo y sin selector de tipo para recuerdos
+   nuevos. Guardar declaración y asignación juntas, con pertenencia validada e
+   idempotencia; Por revisar crea propuestas y Sin grupo conserva ese destino.
+3. Comprobar creación, errores y cancelación con teclado; persistencia atómica,
+   reintentos y grupos retirados con PostgreSQL; cabeceras y navegación en móvil
+   y escritorio. Revisar el diff público y crear un commit local.
+
+Estado: implementado y comprobado el 30 de septiembre de 2026; véase la validación.

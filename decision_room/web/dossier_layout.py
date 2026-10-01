@@ -50,7 +50,7 @@ def validate(body):
             valid_fact = isinstance(fact, str) and str(UUID(fact)) == fact
         except (TypeError, ValueError):
             valid_fact = False
-        if not valid_fact or not isinstance(group, str) or group not in ids:
+        if not valid_fact or not isinstance(group, str) or group not in ids | {'ungrouped'}:
             raise WebError('Revisa los recuerdos y sus grupos de destino.')
     return {'groups': normalized, 'assignments': assignments}
 

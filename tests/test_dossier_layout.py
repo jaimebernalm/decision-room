@@ -3,6 +3,7 @@ import copy
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
+from unittest.mock import patch
 
 from decision_room.database import connect, migrate
 from decision_room.memory import service as memory
@@ -25,6 +26,66 @@ class DossierLayoutTests(unittest.TestCase):
                              content={'kind': 'context', 'statement': 'School supplies.', 'topic': 'shop',
                                       'scope': 'business', 'scope_id': None, 'valid_from': None,
                                       'valid_until': None, 'temporal_scope': 'unspecified', 'result_id': None})
+
+    def declaration(self, group_id='custom', **changes):
+        return {'business_id': str(self.ws.business_id()), 'action': 'declare', 'request_key': str(uuid4()),
+                'group_id': group_id, 'content': {'kind': 'context', 'statement': 'Families shop every week.',
+                'topic': 'weekly_customers_' + uuid4().hex, 'scope': 'business', 'scope_id': None,
+                'valid_from': None, 'valid_until': None, 'temporal_scope': 'unspecified', 'result_id': None}, **changes}
+
+    def test_http_addition_persists_group_atomically_and_retries_exactly(self):
+        dossier_layout.save(self.ws, self.body(groups=[{'id': 'custom', 'name': 'Clientes', 'description': 'Perfil de clientes'}]))
+        client, server = self.http()
+        client.post('/api/login', json={'token': 'test-local-access'})
+        body = self.declaration()
+        first = client.post('/api/business/memory', json=body)
+        self.assertEqual(first.status_code, 200, first.text)
+        saved = first.json()
+        current = client.get('/api/business/dossier').json()
+        self.assertEqual(current['layout']['assignments'], {saved['fact_id']: 'custom'})
+        self.assertEqual(current['layout']['revision'], 2)
+        self.assertEqual(client.post('/api/business/memory', json=body).json(), saved)
+        self.assertEqual(dossier.listing(self.ws)['layout']['revision'], 2)
+        self.assertEqual(client.post('/api/business/memory', json={**body, 'group_id': 'ungrouped'}).status_code, 409)
+        proposal = client.post('/api/business/memory', json=self.declaration('custom', action='propose')).json()
+        self.assertEqual(proposal['status'], 'proposed')
+        ungrouped = client.post('/api/business/memory', json=self.declaration('ungrouped')).json()
+        layout = dossier.listing(self.ws)['layout']
+        self.assertEqual(layout['assignments'][ungrouped['fact_id']], 'ungrouped')
+        dossier_layout.save(self.ws, self.body(layout))
+
+    def test_unavailable_group_rolls_back_fact_and_source_and_retry_does_not_restore_removed_group(self):
+        initial = dossier.listing(self.ws)
+        for group in ('foreign-group', 'review', 42, False, []):
+            with self.subTest(group=group), self.assertRaises(WebError):
+                dossier.change(self.ws, self.declaration(group))
+        self.assertEqual(dossier.listing(self.ws)['facts'], initial['facts'])
+        with connect(self.config) as db:
+            self.assertEqual(db.execute("SELECT count(*) AS n FROM memory_sources WHERE business_id=%s AND origin_key LIKE 'manual:%%'", (self.ws.business_id(),)).fetchone()['n'], 0)
+        dossier_layout.save(self.ws, self.body(groups=[{'id': 'custom', 'name': 'Clientes'}]))
+        body = self.declaration()
+        saved = dossier.change(self.ws, body)
+        dossier_layout.save(self.ws, self.body(groups=[], assignments={}))
+        self.assertEqual(dossier.change(self.ws, body), saved)
+        self.assertEqual(dossier.listing(self.ws)['layout']['groups'], [])
+        with self.assertRaises(WebError):
+            dossier.change(self.ws, self.declaration())
+        self.assertEqual(len(dossier.listing(self.ws)['facts']), len(initial['facts']) + 1)
+
+    def test_sql_failure_in_assignment_rolls_back_entire_new_memory(self):
+        dossier_layout.save(self.ws, self.body(groups=[{'id': 'custom', 'name': 'Clientes'}]))
+        initial = dossier.listing(self.ws)
+        body = self.declaration()
+        def fail(db, *args):
+            db.execute('SELECT 1/0')
+        from psycopg.errors import DivisionByZero
+        with patch.object(memory, '_assign_group', side_effect=fail), self.assertRaises(DivisionByZero):
+            dossier.change(self.ws, body)
+        current = dossier.listing(self.ws)
+        self.assertEqual(current['facts'], initial['facts'])
+        self.assertEqual(current['layout'], initial['layout'])
+        saved = dossier.change(self.ws, body)
+        self.assertEqual(dossier.listing(self.ws)['layout']['assignments'], {saved['fact_id']: 'custom'})
 
     def test_http_save_reload_and_repeat_migration_preserve_layout_without_changing_memory(self):
         fact = self.fact()

@@ -57,7 +57,7 @@ def listing(ws):
 def change(ws, data):
     business = guard(ws, data)
     allowed = {'business_id', 'action', 'request_key', 'content', 'fact_id', 'expected_revision',
-               'original_text', 'reason', 'change_kind'}
+               'original_text', 'reason', 'change_kind', 'group_id'}
     if set(data) - allowed or not {'action', 'request_key'} <= set(data):
         raise WebError('Operación de memoria no válida.')
     try:
