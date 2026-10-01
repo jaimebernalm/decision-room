@@ -52,6 +52,10 @@ campos opcionales internos que el protocolo estricto exige declarar explícitame
   completo el marcador del máximo en el borde; las líneas múltiples ya lo tenían.
   Pruebas web dirigidas y build pasan. Este ajuste visual posterior no modifica
   las copias de producto congeladas para la comparación ni sus informes.
+- El esquema de gráficos referenciados hereda el grano de la evidencia guardada;
+  para calendarios agrupados se declara en `encoding`. Evita ofrecer al modelo
+  un override incompatible que luego exigiría reparación. 24 pruebas de esquemas,
+  referencias y entrega temporal pasan tras este ajuste.
 
 ## Comparación y aceptación
 

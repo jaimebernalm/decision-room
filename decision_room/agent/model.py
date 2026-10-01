@@ -464,6 +464,10 @@ class ModelClient:
                 branch['properties']['kind']['enum'] = [kind]
                 branch['properties']['series'] = {'anyOf': references}
                 branch['properties']['points']['maxItems'] = 0
+                # Saved evidence defines its calendar grain. Grouped calendars
+                # are declared in encoding, rather than overriding the source's
+                # categorical grain on the chart itself.
+                branch['properties']['temporal_grain'] = {'type': 'null'}
                 if grouped_line:
                     enc = deepcopy(schema['$defs']['ChartEncoding'])
                     enc['properties']['temporal_grain'] = {'type': 'string', 'enum': ['day', 'month', 'quarter', 'year']}

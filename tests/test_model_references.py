@@ -128,6 +128,7 @@ class ModelReferenceTests(unittest.TestCase):
                 self.assertLess(list(props).index('series'), list(props).index('unit'))
                 if props['series'] == {'type': 'null'}: continue
                 self.assertEqual(props['points']['maxItems'], 0)
+                self.assertEqual(props['temporal_grain'], {'type': 'null'})
                 for ref in props['series']['anyOf']:
                     pairs.update((execution, key, unit)
                                  for execution in ref['properties']['execution_id']['enum']
