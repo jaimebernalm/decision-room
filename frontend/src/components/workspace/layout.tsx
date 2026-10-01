@@ -133,7 +133,7 @@ function Navigation({
               onClick={close}
               aria-label="Chats"
               title="Chats"
-              className="workspace-library-link inline-flex items-center rounded-md hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-data-[collapsible=icon]:size-5 group-data-[collapsible=icon]:justify-center"
+              className="workspace-library-link inline-flex items-center rounded-md hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-data-[collapsible=icon]:hidden"
             >
               <MessageSquare className="hidden size-4 group-data-[collapsible=icon]:block" />
               <span className="group-data-[collapsible=icon]:hidden">
@@ -144,7 +144,7 @@ function Navigation({
               asChild
               variant="ghost"
               size="icon"
-              className="ml-auto size-7 group-data-[collapsible=icon]:size-5"
+              className="ml-auto size-7 group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-7 group-data-[collapsible=icon]:rounded-full group-data-[collapsible=icon]:border group-data-[collapsible=icon]:border-sidebar-border"
             >
               <a
                 href="#ask"

@@ -329,7 +329,7 @@
   padding-top: 3.5rem;
 }
 
-/* Keep library access and the new-chat action together in icon navigation. */
+/* In icon navigation, the chat heading becomes a single circular new-chat action. */
 .workspace-shell
   [data-slot="sidebar"][data-state="collapsed"]
   .workspace-chat-heading {
@@ -339,5 +339,5 @@
   [data-slot="sidebar"][data-state="collapsed"]
   .workspace-chat-heading
   > a {
-  margin-inline: 0;
+  margin-inline: auto;
 }

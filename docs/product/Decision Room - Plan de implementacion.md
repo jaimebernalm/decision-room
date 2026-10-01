@@ -479,6 +479,14 @@ probado y guardado por función. Pasan 133 pruebas frontend, compilación y lint
 sin errores; revisión visual en escritorio, móvil, iconos y temas claro/oscuro.
 Véanse [comprobaciones y límites](../validation/2026-09-30-navigation-and-chat.md).
 
+### 2.5.20. Idioma, menú local y barra para preguntar
+
+**Planificado:** + circular en la cabecera compacta de Chats; Apariencia e Idioma
+como opciones del menú local; interfaz completa en inglés/español y barra inferior
+centrada para preguntar desde las páginas del negocio. Seguir los cuatro pasos del
+[plan separado](../technical/language-and-composer-plan.md), con pruebas, revisión
+y commit local por paso.
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Avance, 27 de septiembre de 2026:** completados **3.1** (medición inicial),

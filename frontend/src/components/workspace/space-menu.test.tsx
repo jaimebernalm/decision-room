@@ -34,14 +34,18 @@ it.each([
     await user.click(
       screen.getByRole("button", { name: "Opciones del espacio local" }),
     );
-    await user.click(screen.getByRole("menuitemradio", { name: label }));
+    await user.hover(screen.getByRole("menuitem", { name: "Apariencia" }));
+    const option = await screen.findByRole("menuitemradio", { name: label });
+    option.focus();
+    await user.keyboard("{Enter}");
     await waitFor(() => expect(localStorage.getItem("theme")).toBe(value));
     rendered.unmount();
     mount();
     await user.click(
       screen.getByRole("button", { name: "Opciones del espacio local" }),
     );
-    expect(screen.getByRole("menuitemradio", { name: label })).toHaveAttribute(
+    await user.hover(screen.getByRole("menuitem", { name: "Apariencia" }));
+    expect(await screen.findByRole("menuitemradio", { name: label })).toHaveAttribute(
       "aria-checked",
       "true",
     );
@@ -59,7 +63,7 @@ it("opens by keyboard and returns focus to the real local-space control on Escap
   trigger.focus();
   await user.keyboard("{Enter}");
   expect(
-    await screen.findByRole("menuitemradio", { name: "Automático" }),
+    await screen.findByRole("menuitem", { name: "Apariencia" }),
   ).toBeVisible();
   await user.keyboard("{Escape}");
   await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());

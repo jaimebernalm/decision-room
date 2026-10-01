@@ -1,4 +1,11 @@
-import { ChevronsUpDown, HelpCircle, Monitor, Moon, Sun } from "lucide-react";
+import {
+  ChevronsUpDown,
+  HelpCircle,
+  Monitor,
+  Moon,
+  Sun,
+  Palette,
+} from "lucide-react";
 import { useTheme } from "next-themes";
 import {
   DropdownMenu,
@@ -9,6 +16,10 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuPortal,
 } from "@/components/ui/dropdown-menu";
 import {
   SidebarMenu,
@@ -49,24 +60,32 @@ export function SpaceMenu() {
             sideOffset={4}
             className="w-56"
           >
-            <DropdownMenuLabel>Apariencia</DropdownMenuLabel>
-            <DropdownMenuRadioGroup
-              value={theme || "light"}
-              onValueChange={setTheme}
-            >
-              <DropdownMenuRadioItem value="light">
-                <Sun />
-                Claro
-              </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="dark">
-                <Moon />
-                Oscuro
-              </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="system">
-                <Monitor />
-                Automático
-              </DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
+            <DropdownMenuLabel>Espacio local</DropdownMenuLabel>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Palette />
+                Apariencia
+              </DropdownMenuSubTrigger>
+              <DropdownMenuPortal><DropdownMenuSubContent>
+                <DropdownMenuRadioGroup
+                  value={theme || "light"}
+                  onValueChange={setTheme}
+                >
+                  <DropdownMenuRadioItem value="light">
+                    <Sun />
+                    Claro
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="dark">
+                    <Moon />
+                    Oscuro
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="system">
+                    <Monitor />
+                    Automático
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuSubContent></DropdownMenuPortal>
+            </DropdownMenuSub>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
               <a
