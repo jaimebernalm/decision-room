@@ -10,7 +10,7 @@ from typing import Literal
 from .contracts import Strict, Question
 from .context import fingerprint
 
-VERSION = 'business-planner-v5'
+VERSION = 'business-planner-v6'
 
 
 class BusinessBrief(Strict):
@@ -50,6 +50,13 @@ all client-facing text in Spanish. The user prioritizes product quality over cos
 Build a concrete business brief from the accepted owner request and known context.
 Keep every expressly requested component in deliverables, distinguishing confirmed
 owner context from assumptions. Do not narrow the goal to excuse incomplete work.
+Do not expand deliverables by promoting your chosen drilldowns, optional percentages
+or exhaustive inventories to owner requirements. When the owner requests a few
+prioritized findings, a justified selection can answer that request; a complete
+listing of every product is not implied. Keep supporting methods and optional
+views in instructions, separately from the owner's requested delivery. Compare
+the brief with the original owner text at each checkpoint, not only with your
+previous brief. Changing wording does not establish owner confirmation.
 Read available shared memory before asking for already-known information. Existing
 provisional planning interprets sources; your role determines priorities and what
 would make the work useful. Supported historical intents only; prediction remains

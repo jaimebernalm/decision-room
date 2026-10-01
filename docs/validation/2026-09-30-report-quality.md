@@ -71,6 +71,16 @@ de contratos, revisión, planificador, rondas y esquemas pasan. La matriz congel
 continúa con las versiones originales; el ajuste necesita comprobación adicional
 identificada por separado, sin sustituir resultados desfavorables.
 
+La primera repetición nueva de WWI descubrir también muestra una ampliación del
+encargo: el brief convierte la selección de pocos hallazgos en listados completos
+y porcentajes por categoría, y el revisor exige esas vistas como si el propietario
+las hubiera pedido. Se refuerza el contraste del brief y la revisión con el texto
+original: métodos y vistas opcionales no pasan a ser requisitos del cliente por
+ser calculables. En organización se mantienen todas las vistas solicitadas.
+Prompts posteriores: revisión v40, investigación v32 y planificador v6. Este ajuste
+también necesita la evaluación adicional; no modifica la comparación congelada.
+79 pruebas de contratos, revisión, planificador y rondas pasan tras el cambio.
+
 Pendiente: matriz base/nueva congelada, tres casos (Bruma descubrir, WWI descubrir,
 WWI organizar), dos repeticiones por versión: doce intentos. Mismos archivos,
 contextos, objetivos, modelo, razonamiento y presupuestos. Oráculos CSV/Decimal

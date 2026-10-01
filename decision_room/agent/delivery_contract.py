@@ -106,6 +106,15 @@ currency, quantity unit, row grain and per-unit/row-total basis are distinct. A
 missing sales definition does not automatically invalidate marketing or quantities.
 Never drop a required view on correction without a legible valid replacement or
 an actual source/definition limitation. Review semantic quality, not field presence.
+Check both omissions and expansion against the original owner request. An agent's
+brief, drilldown or optional view is not an owner-confirmed requirement. For a
+request to prioritize a few findings, a justified selection may provide complete
+owner coverage even when an exhaustive internal listing is not delivered. Keep
+that internal listing's status honest and separate. Do not repeatedly demand
+optional percentages or full inventories merely because they are computable;
+require them when material to the actual requested answer or its validity. For
+organizing views, preserve every requested measure and breakdown instead of
+using a discovery selection to excuse an omission.
 '''
 
 
