@@ -312,6 +312,7 @@ def brief(data, keys=None, mode='summary'):
         paragraphs=list(dict.fromkeys(paragraphs)),
         highlights=[h for h in display.get('highlights', []) if h['claim_key'] in selected],
         charts=[c for c in display.get('charts', []) if c['claim_key'] in selected],
+        partial=display.get('partial', False),
         kind='evidence',
         report_id=str(data['id']),
         report_version=data['approved_sha256'],

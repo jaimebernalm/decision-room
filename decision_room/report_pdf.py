@@ -183,7 +183,10 @@ def render_pdf(report):
     for i, claim in enumerate(report['claims']):
         story += [paragraph(f"{i+1:02d} · {claim['title']}", 'heading'), paragraph(claim['statement'])]
         if claim.get('interpretation'): story.append(paragraph(claim['interpretation'], 'muted'))
-        if claim.get('next_step'):
+        from .agent.delivery_contract import orientation_sections
+        for heading, text in orientation_sections(claim.get('orientation')):
+            story.append(Paragraph('<b>' + escape(heading) + '</b>: ' + escape(text), STYLES['body']))
+        if claim.get('next_step') and not claim.get('orientation'):
             story += [paragraph('Siguiente comprobación', 'heading'), paragraph(claim['next_step'])]
         for chart in report.get('charts', []):
             if chart['claim_key'] != claim['key']: continue
@@ -199,6 +202,8 @@ def render_pdf(report):
             else:
                 story += chart_heading
             story.append(paragraph(chart['caption'], 'muted'))
+            for detail in chart.get('details', []):
+                story.append(paragraph(detail['point_label'] + ': ' + '; '.join(v['label'] + ': ' + v['formatted'] + ' ' + v['unit'] for v in detail['values'])))
             from .chart_layout import comparison_tables
             for title, headings, rows in comparison_tables(chart, chart['points'], [p['formatted'] for p in chart['points']]):
                 story.append(grid([headings, *rows], [WIDTH/len(headings)]*len(headings), title=title or 'Valores exactos'))
@@ -213,7 +218,12 @@ def render_pdf(report):
                                   [[m['label'], m['value']] for m in details['metrics']], [WIDTH * .65, WIDTH * .35]))
             for operation in details['operations']: story.append(paragraph(operation, 'muted'))
     if report.get('no_chart_reason'): story.append(paragraph(report['no_chart_reason'], 'muted'))
-    if report.get('question_coverage'):
+    if report.get('owner_coverage'):
+        story.append(paragraph('Cobertura del encargo', 'heading'))
+        names = {'complete':'Completo','partial':'Parcial','unavailable':'Información no disponible','deferred':'Pendiente'}
+        for q in report['owner_coverage']:
+            story.append(paragraph(names[q['status']] + ': ' + q['explanation']))
+    elif report.get('question_coverage'):
         story.append(paragraph('Cobertura de las preguntas', 'heading'))
         names = {'answered': 'Respondida', 'unavailable': 'Información no disponible', 'deferred': 'Pendiente'}
         for q in report['question_coverage']:

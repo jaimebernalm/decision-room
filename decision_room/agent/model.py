@@ -411,7 +411,7 @@ class ModelClient:
         else:
             schema['$defs']['Claim']['properties']['evidence']['items'] = {'$ref': '#/$defs/MetricRef'}
             schema['$defs']['DecisionOrientation']['properties']['evidence']['items'] = {'$ref': '#/$defs/MetricRef'}
-            for name, field in (('Highlight','value'),('ChartPoint','value'),('NumericCheck','actual')):
+            for name, field in (('Highlight','value'),('ChartPoint','value'),('NumericCheck','actual'),('TooltipValue','value')):
                 schema['$defs'][name]['properties'][field] = {'$ref': '#/$defs/MetricRef'}
             schema['$defs']['NumericCheck']['properties']['operands']['items'] = {'$ref': '#/$defs/MetricRef'}
         series_choices = []

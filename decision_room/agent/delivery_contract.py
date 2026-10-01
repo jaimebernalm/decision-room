@@ -102,3 +102,18 @@ def validate_orientation(report, context):
     for item in oriented:
         if not item['next_check'].strip() and not item['reactions'] and not item['limitation'].strip():
             raise ValueError('Explain a concrete next check, a supported conditional reaction or why a decision is not yet possible.')
+
+
+def orientation_sections(value):
+    """Exact reviewed prose for static delivery; never generated advice."""
+    if not value:
+        return []
+    sections = [('Dónde y cuándo', value['segment'] + ' · ' + value['period']),
+                ('Señal', value['signal']), ('Por qué merece atención', value['relative_priority'])]
+    if value['next_check']:
+        sections.append(('Siguiente comprobación', value['next_check']))
+    sections.append(('Qué permite decidir', value['decision_value']))
+    sections += [('Si ' + r['condition'], r['reaction']) for r in value['reactions']]
+    if value['limitation']:
+        sections.append(('Límite de esta decisión', value['limitation']))
+    return sections

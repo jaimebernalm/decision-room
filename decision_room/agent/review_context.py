@@ -120,6 +120,7 @@ def approval_digest(materialized, knowledge):
                  for ref in (claim.get('orientation') or {}).get('evidence', []))
     for chart in materialized['report'].get('charts', []):
         cited.update(point['value']['execution_id'] for point in chart['points'])
+        cited.update(item['value']['execution_id'] for detail in chart.get('details', []) for item in detail['values'])
         if chart.get('series'):
             cited.add(chart['series']['execution_id'])
     cited.update(h['value']['execution_id'] for h in materialized['report'].get('highlights', []))

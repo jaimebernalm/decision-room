@@ -538,3 +538,15 @@ REVIEWER_SYSTEM += DELIVERY_QUALITY_INSTRUCTIONS
 
 ANALYST_SYSTEM += "\nChoose chart.scale=zero or data explicitly: bars need zero; lines may use a visibly labelled data range when it clarifies small variation. Never imply a missing observation or invent smoothing. Category selection/order must be saved in the evidence or mapped explicitly in encoding.\n"
 REVIEWER_SYSTEM += "\nCheck the declared scale, selection and order are honest for the message; do not require one editorial type when a valid alternative answers the question.\n"
+
+COMMON_POINT_DETAILS = """
+When useful, chart.details may link an exact point_label to an existing claim_key
+and distinct detail_chart_key (or null), and values=[{label,value,unit,decimals}].
+Use ONLY saved evidence for changes/percentages shown in tooltips; calculate and
+save them in Python first. Never make the browser derive a business result.
+An interactive point may reveal a focal finding/breakdown for that same period;
+review the scope of that link. Empty details is valid when no saved extra exists.
+Static export preserves these exact values and links as readable references.
+"""
+ANALYST_SYSTEM += COMMON_POINT_DETAILS
+REVIEWER_SYSTEM += COMMON_POINT_DETAILS

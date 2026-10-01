@@ -11,6 +11,11 @@ from ..chart_layout import panels, series_colors
 from ..periods import infer_grain
 
 
+def client_orientation(claim):
+    value = claim.get('orientation')
+    return {k: v for k, v in value.items() if k != 'evidence'} if value else None
+
+
 def projection(data):
     """Return only reviewed content; callers must also check current publication."""
     report = data.get('report')
@@ -43,6 +48,9 @@ def projection(data):
                 'claim_key': chart['claim_key'],
                 'temporal_grain': grain,
                 'panels': panels(chart, points),
+                'details': [{**{k: d.get(k) for k in ('point_label','claim_key','detail_chart_key')},
+                    'values': [{'label': v['label'], 'unit': v['unit'], 'formatted': formatted(metric(data,v['value']),v['decimals'])} for v in d['values']]}
+                    for d in chart.get('details', [])],
                 'points': [{'label': point['label'], 'value': str(point['value']),
                             'formatted': formatted(point['value'], chart['decimals'])}
                            for point in points],
@@ -55,10 +63,11 @@ def projection(data):
         return None
     return {
         'title': report['title'], 'summary': report['summary'],
-        'partial': any(q['status'] != 'answered' for q in report.get('question_coverage', [])),
+        'partial': (any(q['status'] != 'complete' for q in report['owner_coverage']) if report.get('owner_coverage')
+                    else any(q['status'] != 'answered' for q in report.get('question_coverage', []))),
         'scope': report['scope'], 'highlights': highlights,
         'claims': [{'key': claim['key'], 'title': claim['title'],
-                    'statement': claim['statement']} for claim in report['claims'][:3]],
+                    'statement': claim['statement'], 'orientation': client_orientation(claim)} for claim in report['claims'][:3]],
         'charts': charts, 'limitations': report['limitations'],
     }
 
@@ -73,8 +82,9 @@ def presentation(data):
     claims = []
     for claim in report['claims']:
         charts = [c for c in report['charts'] if c['claim_key'] == claim['key']]
-        refs = claim['evidence'] + [p['value'] for c in charts for p in c['points']]
+        refs = claim['evidence'] + (claim.get('orientation') or {}).get('evidence', []) + [p['value'] for c in charts for p in c['points']]
         refs += [h['value'] for h in report.get('highlights', []) if h['claim_key'] == claim['key']]
+        refs += [v['value'] for c in charts for d in c.get('details', []) for v in d['values']]
         selected = {ref['execution_id'] for ref in refs}
         selected.update(c['series']['execution_id'] for c in charts if c.get('series'))
         files = sorted({name for o in data['observations'] if o['execution_id'] in selected
@@ -88,6 +98,7 @@ def presentation(data):
         operations = [saved_series(data['observations'], c['series'])['evidence']['operation']
                       for c in charts if c.get('series')]
         claims.append({**{key: claim[key] for key in ('key', 'title', 'statement', 'interpretation', 'method', 'next_step')},
+                       'orientation': client_orientation(claim),
                        'evidence_details': dict(files=files, metrics=metrics, operations=operations)})
     identity = dict(report_id=str(data['id']), report_version=data['approved_sha256']) if data.get('id') and data.get('approved_sha256') else {}
-    return {**result, **identity, 'claims': claims, 'no_chart_reason': report['no_chart_reason'], 'question_coverage': report.get('question_coverage', [])}
+    return {**result, **identity, 'claims': claims, 'no_chart_reason': report['no_chart_reason'], 'question_coverage': report.get('question_coverage', []), 'owner_coverage': report.get('owner_coverage', [])}

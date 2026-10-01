@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Bar,
   BarChart,
@@ -188,14 +188,136 @@ function GroupedBars({
     </section>
   );
 }
+export function DecisionGuidance({
+  claim,
+}: {
+  claim: ReportData["claims"][number];
+}) {
+  const value = claim.orientation;
+  if (!value)
+    return claim.next_step ? (
+      <p className="rounded-lg bg-muted p-3">
+        <strong>Siguiente comprobación: </strong>
+        {claim.next_step}
+      </p>
+    ) : null;
+  return (
+    <div className="space-y-3 border-l-2 border-primary/40 pl-4">
+      <p className="text-xs text-muted-foreground">
+        {value.segment} · {value.period}
+      </p>
+      {value.signal !== claim.statement && <p>{value.signal}</p>}
+      <p>
+        <strong>Por qué merece atención: </strong>
+        {value.relative_priority}
+      </p>
+      {value.next_check && (
+        <p>
+          <strong>Siguiente comprobación: </strong>
+          {value.next_check}
+        </p>
+      )}
+      <p className="text-muted-foreground">{value.decision_value}</p>
+      {value.reactions.map((r, i) => (
+        <p key={i}>
+          <strong>Si {r.condition}: </strong>
+          {r.reaction}
+        </p>
+      ))}
+      {value.limitation && (
+        <p className="text-muted-foreground">{value.limitation}</p>
+      )}
+    </div>
+  );
+}
+function navigateToDetail(key: string, chart = false) {
+  const target = document.getElementById(
+    `${chart ? "chart" : "finding"}-${key}`,
+  );
+  if (!target) return;
+  target.scrollIntoView({ block: "start" });
+  const trigger = target.querySelector<HTMLButtonElement>(
+    'button[aria-expanded="false"]',
+  );
+  trigger?.click();
+  (trigger ?? target).focus();
+}
+function ExactValues({ chart }: { chart: ChartData }) {
+  if (!chart.panels?.length)
+    return (
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Periodo / categoría</TableHead>
+            <TableHead className="text-right">{chart.unit}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {chart.points.map((p) => (
+            <TableRow key={p.label}>
+              <TableCell>{p.label}</TableCell>
+              <TableCell className="text-right font-mono">
+                {p.formatted}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    );
+  return (
+    <>
+      {chart.panels.map((panel, i) => (
+        <Table key={i}>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{panel.category_title}</TableHead>
+              {panel.series_order.map((s) => (
+                <TableHead key={s} className="text-right">
+                  {s}
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {groupedPoints(chart, panel)
+              .filter((r) => r.category)
+              .map((row) => (
+                <TableRow key={String(row.category)}>
+                  <TableCell>{row.category}</TableCell>
+                  {panel.series_order.map((s, j) => (
+                    <TableCell key={s} className="text-right font-mono">
+                      {String(row[`s${j}Exact`])}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+          </TableBody>
+        </Table>
+      ))}
+    </>
+  );
+}
+function tooltipDetails(chart: ChartData, labels: string[]) {
+  return (chart.details ?? [])
+    .filter((d) => labels.includes(d.point_label))
+    .flatMap((d) =>
+      d.values.map((v) => ({
+        label: v.label,
+        value: `${v.formatted} ${v.unit}`,
+      })),
+    );
+}
 function GroupedLines({
   chart,
   panel,
+  onSelect,
 }: {
   chart: ChartData;
   panel: ChartPanel;
+  onSelect: (label: string) => void;
 }) {
   const rows = groupedPoints(chart, panel);
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
   const series = panel.series_order.map((name, i) => ({
     key: `s${i}`,
     name,
@@ -203,16 +325,34 @@ function GroupedLines({
   }));
   return (
     <section aria-label={panel.title || chart.title} className="space-y-3">
-      <ul
-        aria-label={`Leyenda: ${panel.series_title}`}
-        className="flex flex-wrap gap-4 text-xs"
+      <div
+        role="group"
+        aria-label={`Series: ${panel.series_title}`}
+        className="flex flex-wrap gap-2"
       >
         {series.map((s) => (
-          <li key={s.key} style={{ color: s.color }}>
+          <button
+            type="button"
+            key={s.key}
+            aria-pressed={!hidden.has(s.key)}
+            disabled={!hidden.has(s.key) && hidden.size === series.length - 1}
+            className="rounded border px-3 py-2 text-xs focus-visible:ring-2 focus-visible:ring-ring"
+            onClick={() =>
+              setHidden((previous) => {
+                const next = new Set(previous);
+                if (next.has(s.key)) next.delete(s.key);
+                else next.add(s.key);
+                return next;
+              })
+            }
+          >
+            <span aria-hidden style={{ color: s.color }}>
+              ●{" "}
+            </span>
             {s.name}
-          </li>
+          </button>
         ))}
-      </ul>
+      </div>
       <ChartContainer
         config={Object.fromEntries(
           series.map((s) => [s.key, { label: s.name, color: s.color }]),
@@ -220,13 +360,20 @@ function GroupedLines({
         className="h-72 w-full"
       >
         <LineChart
+          onClick={(state) => {
+            const row = rows[Number(state.activeTooltipIndex)];
+            if (row?.category) onSelect(String(row.category));
+          }}
           data={rows}
           accessibilityLayer
-          margin={{ left: 0, right: 16 }}
+          margin={{ left: 0, right: 24, top: 12, bottom: 12 }}
         >
           <CartesianGrid vertical={false} />
           <XAxis
             dataKey="axis"
+            padding={{ left: 12, right: 12 }}
+            interval="preserveStartEnd"
+            tick={{ fontSize: 11 }}
             type="number"
             domain={["dataMin", "dataMax"]}
             ticks={rows.filter((r) => r.category).map((r) => Number(r.axis))}
@@ -251,15 +398,23 @@ function GroupedLines({
                 <ReportChartTooltip
                   title={String(payload[0].payload.category)}
                   unit={chart.unit}
-                  items={payload
-                    .filter((p) => p.value != null)
-                    .map((p) => ({
-                      label:
-                        series.find((s) => s.key === p.dataKey)?.name ??
-                        "Valor",
-                      value: String(p.payload[`${p.dataKey}Exact`]),
-                      color: p.color,
-                    }))}
+                  items={[
+                    ...series
+                      .filter((s) => payload[0].payload[s.key] != null)
+                      .map((s) => ({
+                        label: s.name + (hidden.has(s.key) ? " (oculta)" : ""),
+                        value: String(payload[0].payload[`${s.key}Exact`]),
+                        color: s.color,
+                      })),
+                    ...tooltipDetails(
+                      chart,
+                      panel.coordinates
+                        .filter(
+                          (c) => c.category === payload[0].payload.category,
+                        )
+                        .map((c) => c.label),
+                    ),
+                  ]}
                 />
               ) : null
             }
@@ -268,6 +423,7 @@ function GroupedLines({
             <Line
               key={s.key}
               dataKey={s.key}
+              hide={hidden.has(s.key)}
               stroke={s.color}
               type="linear"
               connectNulls={false}
@@ -284,11 +440,30 @@ export function EvidenceChart({
   chart,
   actions,
   footer,
+  sourceHref,
 }: {
   chart: ChartData;
   actions?: ReactNode;
   footer?: ReactNode;
+  sourceHref?: string;
 }) {
+  const [selected, setSelected] = useState("");
+  const periods = chart.panels?.length
+    ? [
+        ...new Set(
+          chart.panels.flatMap((p) => p.coordinates.map((c) => c.category)),
+        ),
+      ]
+    : chart.points.map((p) => p.label);
+  const selectedLabels = chart.panels?.length
+    ? chart.panels.flatMap((p) =>
+        p.coordinates
+          .filter((c) => c.category === selected)
+          .map((c) => c.label),
+      )
+    : [selected];
+  const detail =
+    chart.details?.filter((d) => selectedLabels.includes(d.point_label)) ?? [];
   const bars = chart.kind === "bar";
   const temporal = chart.kind === "line";
   const points = chartPoints(chart);
@@ -296,6 +471,8 @@ export function EvidenceChart({
     <>
       <CartesianGrid vertical={bars} horizontal={!bars} />
       <XAxis
+        padding={!bars ? { left: 12, right: 12 } : undefined}
+        interval={!bars ? "preserveStartEnd" : undefined}
         dataKey={bars ? "value" : "axis"}
         ticks={
           temporal
@@ -368,13 +545,16 @@ export function EvidenceChart({
             <ReportChartTooltip
               title={String(payload[0].payload.label)}
               unit={chart.unit}
-              items={payload
-                .filter((item) => item.value != null)
-                .map((item) => ({
-                  label: "Valor",
-                  value: String(item.payload.formatted),
-                  color: item.color,
-                }))}
+              items={[
+                ...payload
+                  .filter((item) => item.value != null)
+                  .map((item) => ({
+                    label: "Valor",
+                    value: String(item.payload.formatted),
+                    color: item.color,
+                  })),
+                ...tooltipDetails(chart, [String(payload[0].payload.label)]),
+              ]}
             />
           ) : null
         }
@@ -382,7 +562,7 @@ export function EvidenceChart({
     </>
   );
   return (
-    <Card className="shadow-none">
+    <Card id={`chart-${chart.key}`} tabIndex={-1} className="shadow-none">
       <CardHeader>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 space-y-2">
@@ -396,7 +576,12 @@ export function EvidenceChart({
         {chart.kind === "line" &&
           Boolean(chart.panels?.length) &&
           chart.panels!.map((panel, i) => (
-            <GroupedLines key={i} chart={chart} panel={panel} />
+            <GroupedLines
+              key={i}
+              chart={chart}
+              panel={panel}
+              onSelect={setSelected}
+            />
           ))}
         {chart.kind === "bar" && Boolean(chart.panels?.length) && (
           <div className="space-y-8">
@@ -417,6 +602,10 @@ export function EvidenceChart({
           >
             {chart.kind === "line" ? (
               <LineChart
+                onClick={(state) => {
+                  const point = points[Number(state.activeTooltipIndex)];
+                  if (point?.label) setSelected(point.label);
+                }}
                 accessibilityLayer
                 data={points}
                 margin={{ left: 0, right: 12 }}
@@ -458,29 +647,85 @@ export function EvidenceChart({
             title="Ver valores exactos"
             defaultOpen={chart.kind === "table"}
           >
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="whitespace-normal">
-                    Periodo / categoría
-                  </TableHead>
-                  <TableHead className="text-right whitespace-normal">
-                    {chart.unit}
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {chart.points.map((p, i) => (
-                  <TableRow key={i}>
-                    <TableCell>{p.label}</TableCell>
-                    <TableCell className="text-right font-mono tabular-nums">
-                      {p.formatted}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <ExactValues chart={chart} />
           </Disclosure>
+        </div>
+        <div className="mt-4 space-y-3">
+          <label className="flex flex-wrap items-center gap-2 text-xs">
+            Ver periodo o categoría
+            <select
+              aria-label={`Periodo o categoría de ${chart.title}`}
+              value={selected}
+              onChange={(e) => setSelected(e.target.value)}
+              className="max-w-full rounded border bg-background px-3 py-2 text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="">Selecciona un punto</option>
+              {periods.map((p) => (
+                <option value={p} key={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </label>
+          {selected && (
+            <div
+              aria-live="polite"
+              className="space-y-2 rounded-lg bg-muted p-3 text-sm"
+            >
+              <strong>{selected}</strong>
+              {chart.points
+                .filter((p) => selectedLabels.includes(p.label))
+                .map((p) => (
+                  <p key={p.label}>
+                    {chart.panels
+                      ?.flatMap((panel) => panel.coordinates)
+                      .find((c) => c.label === p.label)?.series ?? p.label}
+                    : {p.formatted} {chart.unit}
+                  </p>
+                ))}
+              {detail
+                .flatMap((d) => d.values)
+                .map((v, i) => (
+                  <p key={i}>
+                    {v.label}: {v.formatted} {v.unit}
+                  </p>
+                ))}
+              {sourceHref ? (
+                <a href={sourceHref} className="text-primary underline">
+                  Ver hallazgo y detalle en el informe
+                </a>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="text-primary underline focus-visible:ring-2 focus-visible:ring-ring"
+                    onClick={() =>
+                      navigateToDetail(
+                        detail.find((d) => d.claim_key)?.claim_key ??
+                          chart.claim_key,
+                      )
+                    }
+                  >
+                    Ver hallazgo y siguiente comprobación
+                  </button>
+                  {detail
+                    .filter((d) => d.detail_chart_key)
+                    .map((d) => (
+                      <button
+                        type="button"
+                        key={d.point_label}
+                        className="ml-3 text-primary underline focus-visible:ring-2 focus-visible:ring-ring"
+                        onClick={() =>
+                          navigateToDetail(d.detail_chart_key!, true)
+                        }
+                      >
+                        Ver desglose de este punto
+                      </button>
+                    ))}
+                </>
+              )}
+            </div>
+          )}
         </div>
         {footer}
       </CardContent>
@@ -623,17 +868,12 @@ export function ReportView({
                 title={claim.title}
                 number={String(i + 1).padStart(2, "0")}
                 preview={reportLead(claim.statement)}
+                lead={<DecisionGuidance claim={claim} />}
               >
                 <p>{claim.statement}</p>
                 {claim.interpretation && (
                   <p className="text-muted-foreground">
                     {claim.interpretation}
-                  </p>
-                )}
-                {claim.next_step && (
-                  <p className="rounded-lg bg-muted p-4">
-                    <strong>Siguiente comprobación: </strong>
-                    {claim.next_step}
                   </p>
                 )}
                 {claim.method && (

@@ -289,7 +289,7 @@ El estado de cada incremento se registra en la lista inferior:
 - [x] 3.9.2 — Investigación y síntesis.
 - [x] 3.9.3 — Entrega y revisión de utilidad.
 - [x] 3.9.4 — Evidencia y representaciones.
-- [ ] 3.9.5 — Interacción y primera lectura.
+- [x] 3.9.5 — Interacción y primera lectura.
 - [ ] 3.9.6 — Integración y recuperación.
 - [ ] 3.9.7 — Evaluación comparativa y prueba conjunta.
 
@@ -437,3 +437,22 @@ aportado por el propietario; no habilita Internet en el sandbox de Python.
   grano falso. Seis pruebas de coordenadas web pasan y frontend compila.
 - Interacción y primera lectura quedan para 3.9.5; revisión visual conjunta de
   formatos, móviles y temas se consolida antes de evaluar con proveedor.
+
+### 3.9.5 — Interacción y primera lectura implementadas
+
+- Prioridad, comprobación, utilidad, condiciones y límites visibles sin desplegar
+  metodología. Inicio y chat reutilizan orientación y gráficos del informe.
+- Líneas múltiples con activación de series, tooltip compartido con valores
+  exactos, selector por teclado/táctil, tabla por periodo/serie y navegación al
+  hallazgo/desglose vinculado. Variaciones adicionales proceden solo de evidencia
+  guardada; `details` está validado y dentro de la huella de aprobación.
+- Exportaciones incluyen orientación y valores adicionales sin depender de hover
+  o estado de series ocultas. Estado parcial conservado también en chat.
+- 46 comprobaciones Python de contrato/series/exportación; 12 pruebas web de
+  interacción, primera lectura y coordenadas; build y lint correctos (avisos de
+  lint existentes, sin errores). Selección/remontaje no hacen fetch ni cálculos.
+- QA visual local con fixture sintético: escritorio claro, móvil oscuro a 390 px,
+  tabla/selección y navegación; sin desbordamiento horizontal. Ajustados márgenes
+  y etiquetas del eje en móvil. PDF revisado en dos páginas sin perder valores.
+  Evidencias ignoradas en `.local/ui-quality/`; no se publica el fixture como
+  un informe real ni se altera el informe histórico del propietario.

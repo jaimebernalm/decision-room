@@ -57,7 +57,19 @@ export type ChatListing = {
   conversations: Chat[];
   datasets: { items: DatasetChoice[]; more: boolean };
 };
+export type DecisionOrientation = {
+  segment: string;
+  period: string;
+  signal: string;
+  relative_priority: string;
+  knowledge: "calculated" | "owner_confirmed" | "hypothesis";
+  next_check: string;
+  decision_value: string;
+  reactions: { condition: string; reaction: string }[];
+  limitation: string;
+};
 export type Claim = {
+  orientation?: DecisionOrientation | null;
   key: string;
   title: string;
   statement: string;
@@ -83,6 +95,12 @@ export type ChartPanel = {
   coordinates: { label: string; category: string; series: string }[];
 };
 export type ChartData = {
+  details?: {
+    point_label: string;
+    claim_key?: string | null;
+    detail_chart_key?: string | null;
+    values: { label: string; unit: string; formatted: string }[];
+  }[];
   scale?: "zero" | "data";
   temporal_grain?: TemporalGrain | null;
   key: string;

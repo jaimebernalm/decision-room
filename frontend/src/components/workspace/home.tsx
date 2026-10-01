@@ -32,7 +32,7 @@ import type { HomeDashboard, HomeItem } from "@/lib/types";
 import { Heading, Notice, Empty, Loading, Disclosure, Status } from "./shared";
 import { Selectable } from "./context-selection";
 import type { ContextAttachment } from "@/lib/types";
-import { EvidenceChart } from "./report";
+import { EvidenceChart, DecisionGuidance } from "./report";
 
 const selection = (item: HomeItem): ContextAttachment => ({
   report_id: item.source.report_id,
@@ -279,6 +279,7 @@ export function Home() {
                       <Selectable key={item.id} item={selection(item)}>
                         <EvidenceChart
                           chart={item.content}
+                          sourceHref={item.source.href}
                           actions={controls(item)}
                           footer={
                             <Source
@@ -314,6 +315,9 @@ export function Home() {
                               <p className="text-sm leading-relaxed">
                                 {item.content.statement}
                               </p>
+                              <div className="mt-3">
+                                <DecisionGuidance claim={item.content} />
+                              </div>
                               <Source
                                 item={item}
                                 reason={data.reasons[item.id]}

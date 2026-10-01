@@ -136,14 +136,19 @@ def chart_html(data, chart):
             all_labels = [s for c in data['report']['charts'] for p in panels(c, saved_series(data['observations'], c['series'])['points'] if c.get('series') else c['points']) for s in p['series_order']]
             svg = temporal_svg({**chart, 'temporal_grain': series['grain'] if series and series['grain'] != 'category' else chart.get('temporal_grain')}, points, values, series_colors(all_labels))
         table = '<details><summary>Ver los valores del gráfico</summary>' + table + '</details>'
+    for detail in chart.get('details', []):
+        table += f'<p><strong>{e(detail["point_label"])}</strong>: ' + '; '.join(f'{e(v["label"])}: {e(formatted(metric(data,v["value"]),v["decimals"]))} {e(v["unit"])}' for v in detail['values']) + '</p>'
+        if detail.get('claim_key'):
+            table += f'<a href="#finding-{e(detail["claim_key"])}">Leer hallazgo vinculado</a>'
     return (f'<figure><h3 id="{title_id}">{e(chart["title"])}</h3><p class="unit">{e(chart["unit"])}</p>' + svg + ('<p class="scroll-hint">Desliza el gráfico para ver todos los valores.</p>' if svg else '') +
             f'<figcaption id="{caption_id}">{e(chart["caption"])}</figcaption>' + table +
             f'<a class="finding-link" href="#finding-{e(chart["claim_key"])}">Leer el hallazgo y su evidencia →</a></figure>')
 
 
 def evidence_html(data, claim, charts):
-    refs = claim['evidence'] + [p['value'] for c in charts for p in c['points']]
+    refs = claim['evidence'] + (claim.get('orientation') or {}).get('evidence', []) + [p['value'] for c in charts for p in c['points']]
     refs += [h['value'] for h in data['report'].get('highlights', []) if h['claim_key'] == claim['key']]
+    refs += [v['value'] for c in charts for d in c.get('details', []) for v in d['values']]
     selected = {ref['execution_id'] for ref in refs}
     selected.update(c['series']['execution_id'] for c in charts if c.get('series'))
     files = sorted({name for o in data['observations'] if o['execution_id'] in selected
@@ -206,7 +211,7 @@ def render_client(data, exported_at, *, embedded=False):
     body = [f'<header><p class="eyebrow">Decision Room · Informe de negocio</p><h1>{e(title)}</h1>']
     if ready:
         scope = draft['scope']
-        if any(q['status'] != 'answered' for q in draft.get('question_coverage', [])):
+        if (any(q['status'] != 'complete' for q in draft['owner_coverage']) if draft.get('owner_coverage') else any(q['status'] != 'answered' for q in draft.get('question_coverage', []))):
             body += ['<p class="meta">Entrega parcial · Consulta las preguntas pendientes en alcance y límites.</p>']
         body += [f'<p class="meta">{e(scope["business"])} · {e(scope["period"])}</p>']
     body += [f'<p class="meta">Generado: {e(exported_at)}</p></header><div class="content">']
@@ -224,7 +229,11 @@ def render_client(data, exported_at, *, embedded=False):
             charts = [c for c in draft['charts'] if c['claim_key'] == claim['key']]
             body += [f'<section class="finding" id="finding-{e(claim["key"])}"><p class="number">HALLAZGO {i:02d}</p><h2>{e(claim["title"])}</h2><p>{e(claim["statement"])}</p>']
             body += [f'<div class="interpretation"><h3>Qué significa para el negocio</h3><p>{e(claim["interpretation"])}</p></div>']
-            if claim['next_step']:
+            from .agent.delivery_contract import orientation_sections
+            guidance = orientation_sections(claim.get('orientation'))
+            if guidance:
+                body += ['<aside class="next">' + ''.join(f'<p><strong>{e(heading)}</strong>{e(text)}</p>' for heading, text in guidance) + '</aside>']
+            if claim['next_step'] and not claim.get('orientation'):
                 body += [f'<p class="next"><strong>Siguiente comprobación</strong>{e(claim["next_step"])}</p>']
             body += [chart_html(data, chart) for chart in charts]
             body += [evidence_html(data, claim, charts), '</section>']

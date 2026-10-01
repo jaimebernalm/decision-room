@@ -72,7 +72,22 @@ class ChartEncoding(Strict):
     coordinates: list[ChartCoordinate] = Field(min_length=2, max_length=36)
 
 
+class TooltipValue(Strict):
+    label: str = Field(min_length=1, max_length=80)
+    value: MetricRef | SeriesPointRef
+    unit: str = Field(min_length=1, max_length=80)
+    decimals: int = Field(ge=0, le=4)
+
+
+class PointDetail(Strict):
+    point_label: str = Field(min_length=1, max_length=100)
+    values: list[TooltipValue] = Field(max_length=4)
+    claim_key: str | None = Field(default=None, pattern=r'^[a-z][a-z0-9_]{0,63}$')
+    detail_chart_key: str | None = Field(default=None, pattern=r'^[a-z][a-z0-9_]{0,63}$')
+
+
 class Chart(Strict):
+    details: list[PointDetail] = Field(default_factory=list, max_length=36)
     key: str = Field(pattern=r'^[a-z][a-z0-9_]{0,63}$')
     claim_key: str = Field(pattern=r'^[a-z][a-z0-9_]{0,63}$')
     kind: Literal['bar', 'line', 'table']
@@ -179,6 +194,21 @@ def checks(report, observations):
                 from ..periods import infer_grain, validate_periods
                 grain = series['grain'] if chart.get('series') else chart.get('temporal_grain') or infer_grain(labels)
                 validate_periods(labels, grain)
+            detail_labels = [d['point_label'] for d in chart.get('details', [])]
+            if len(set(detail_labels)) != len(detail_labels) or not set(detail_labels) <= set(labels):
+                raise ValueError('Point details must use distinct labels from the actual chart evidence.')
+            claims = {c['key'] for c in report['claims']}
+            charts = {c['key']: c for c in report.get('charts', [])}
+            for detail in chart.get('details', []):
+                if detail.get('claim_key') and detail['claim_key'] not in claims:
+                    raise ValueError('Point detail references an unknown finding.')
+                target = charts.get(detail.get('detail_chart_key'))
+                if detail.get('detail_chart_key') and (target is None or target['key'] == chart['key'] or target['claim_key'] != (detail.get('claim_key') or chart['claim_key'])):
+                    raise ValueError('Detail chart must be a distinct saved view of the linked finding.')
+                for item in detail['values']:
+                    number(item['value'])
+                    if 'series' in item['value'] and item['unit'] != saved_series(observations,item['value'])['unit']:
+                        raise ValueError('Tooltip unit must match its saved series evidence.')
             result.append({'check': 'chart:' + chart['key'], 'passed': True, 'detail': 'Chart values resolve to finite, current saved metrics.'})
         except (ValueError, InvalidOperation, ArithmeticError) as error:
             result.append({'check': 'chart:' + chart['key'], 'passed': False, 'detail': str(error)})

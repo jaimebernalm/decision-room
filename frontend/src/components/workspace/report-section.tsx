@@ -18,17 +18,19 @@ export function ReportSection({
   number,
   id,
   children,
+  lead,
 }: {
   title: string;
   preview?: string;
   number?: string;
   id?: string;
   children: ReactNode;
+  lead?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <Card id={id} className="gap-0 py-0 shadow-none">
+      <Card tabIndex={-1} id={id} className="gap-0 py-0 shadow-none">
         <CollapsibleTrigger className="group flex w-full cursor-pointer items-start gap-3 rounded-xl p-5 text-left transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring motion-reduce:transition-none">
           {number && (
             <span
@@ -56,6 +58,7 @@ export function ReportSection({
             </span>
           </span>
         </CollapsibleTrigger>
+        {lead && <div className="px-5 pb-5 text-sm leading-7">{lead}</div>}
         <CollapsibleContent>
           <div className="space-y-3 border-t px-5 py-4 text-sm leading-7">
             {children}

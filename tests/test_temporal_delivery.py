@@ -42,6 +42,27 @@ class TemporalDeliveryTests(unittest.TestCase):
         # Only one coloured data connection, excluding the grey axis/grid lines.
         drawing = line_drawing(chart)
         self.assertEqual(sum(isinstance(s,Line) and s.strokeWidth==1.8 for s in drawing.contents),1)
+    def test_saved_point_details_and_decision_guidance_survive_static_delivery(self):
+        from decision_room.agent.review_context import approval_digest
+        data = multi(); ref=dict(execution_id='calculation-a',metric='last')
+        data['report']['claims'][0]['orientation']=dict(segment='A',period='Junio–septiembre',signal='Señal calculada',
+            evidence=[ref],relative_priority='Contraste relevante frente a B.',knowledge='calculated',
+            next_check='Comprobar disponibilidad en A durante septiembre.',decision_value='Distinguir disponibilidad y actividad.',
+            reactions=[dict(condition='Se acredita falta de disponibilidad.',reaction='Revisar reposición.')],limitation='Contexto desconocido.')
+        data['report']['charts'][0]['details']=[dict(point_label='j_a',values=[dict(label='Cambio guardado',value=ref,unit='unidades',decimals=2)],claim_key='sales',detail_chart_key=None)]
+        view=presentation(data)
+        self.assertNotIn('evidence',view['claims'][0]['orientation'])
+        self.assertEqual(view['charts'][0]['details'][0]['values'][0]['formatted'],'20,01')
+        html=render_client(data,'today')
+        text='\n'.join(p.extract_text() for p in PdfReader(BytesIO(render_pdf(view))).pages)
+        for expected in ['Revisar reposición.','Cambio guardado','20,01','Contexto desconocido.']:
+            self.assertIn(expected,html);self.assertIn(expected,text)
+        before=approval_digest(data,'knowledge')
+        data['report']['charts'][0]['details'][0]['values'][0]['unit']='Otra unidad'
+        self.assertNotEqual(before,approval_digest(data,'knowledge'))
+        data['report']['charts'][0]['details'][0]['point_label']='invented'
+        self.assertFalse(all(c['passed'] for c in checks(data['report'],data['observations'])))
+
     def test_editorial_alternatives_pass_without_changing_evidence(self):
         data = multi(); old = deepcopy(data['observations'])
         for kind in ('bar','line','table'):
