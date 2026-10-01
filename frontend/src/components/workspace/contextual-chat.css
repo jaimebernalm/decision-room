@@ -331,3 +331,11 @@
 .assistant-selecting .assistant-content {
   padding-top: 3.5rem;
 }
+
+/* Keep the new-chat action available when navigation collapses to icons. */
+.workspace-shell [data-slot="sidebar"][data-state="collapsed"] .workspace-chat-heading::after {
+  display: none;
+}
+.workspace-shell [data-slot="sidebar"][data-state="collapsed"] .workspace-chat-heading > a {
+  margin-inline: auto;
+}

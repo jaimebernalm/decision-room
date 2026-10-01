@@ -100,3 +100,12 @@ it("keeps an older active report visible and identifies empty groups without hid
     screen.getByRole("link", { name: "Chats" }),
   ).toHaveAttribute("href", "#chats");
 });
+
+it("places the single new-chat action beside Chats, with no prominent header button", () => {
+  const { container } = mount();
+  const action = within(screen.getByRole("region", { name: "Chats" })).getByRole("link", { name: "Nuevo chat" });
+  expect(action).toHaveAttribute("href", "#ask");
+  expect(action).toHaveAttribute("title", "Nuevo chat");
+  expect(screen.getAllByRole("link", { name: "Nuevo chat" })).toHaveLength(1);
+  expect(container.querySelector('[data-slot="sidebar-header"] a[href="#ask"]')).toBeNull();
+});

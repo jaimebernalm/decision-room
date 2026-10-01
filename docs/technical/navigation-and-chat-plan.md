@@ -59,4 +59,6 @@ publica en GitHub salvo petición explícita del usuario.
 
 - 2.5.19.1 completado: bibliotecas sin duplicación, límites y selección conservados.
   Validación: 123 pruebas de frontend y compilación correctas.
-- 2.5.19.2–2.5.19.6 pendientes.
+- 2.5.19.2 completado: + accesible junto a Chats, también compacto; apertura
+  sin crear conversaciones y borrador conservado. 124 pruebas y compilación correctas.
+- 2.5.19.3–2.5.19.6 pendientes.

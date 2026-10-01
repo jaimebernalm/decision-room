@@ -144,24 +144,6 @@ function Navigation({
             </DropdownMenu>
           </SidebarMenuItem>
         </SidebarMenu>
-        <Button
-          asChild
-          className="w-full group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:p-0"
-        >
-          <a
-            href="#ask"
-            aria-label="Nuevo chat"
-            onClick={() => {
-              assistant?.newConversation("page");
-              close();
-            }}
-          >
-            <Plus />
-            <span className="group-data-[collapsible=icon]:hidden">
-              Nuevo chat
-            </span>
-          </a>
-        </Button>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
@@ -193,7 +175,7 @@ function Navigation({
         </SidebarGroup>
         <SidebarGroup role="region" aria-label="Chats">
           <SidebarGroupLabel
-            className="workspace-section-label"
+            className="workspace-section-label workspace-chat-heading"
             aria-label="Chats"
           >
             <span>
@@ -206,6 +188,14 @@ function Navigation({
                 Chats
               </a>
             </span>
+            <Button asChild variant="ghost" size="icon" className="ml-auto size-7">
+              <a href="#ask" aria-label="Nuevo chat" title="Nuevo chat" onClick={() => {
+                assistant?.newConversation("page");
+                close();
+              }}>
+                <Plus className="size-4" />
+              </a>
+            </Button>
           </SidebarGroupLabel>
           <SidebarMenu>
             {chatRows.map((chat) => (
