@@ -84,7 +84,7 @@ it("renders the libraries, status labels and business form in English with origi
     </>,
     "chats",
   );
-  expect(screen.getByRole("heading", { name: "Conversations" })).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Chats" })).toBeVisible();
   expect(screen.getByText("Needs your answer")).toBeVisible();
   rendered.unmount();
   mount(<BusinessForm />, "business");
@@ -92,6 +92,26 @@ it("renders the libraries, status labels and business form in English with origi
   expect(screen.getByLabelText("Tell us what you do")).toHaveValue(
     "Descripción del propietario",
   );
+});
+it("keeps the chat library and search vocabulary consistent when switching languages", async () => {
+  setLanguage("es");
+  mount(<Chats />, "chats");
+  expect(screen.getByRole("heading", { name: "Chats" })).toBeVisible();
+  expect(screen.getByRole("textbox", { name: "Buscar chats" })).toHaveAttribute(
+    "placeholder",
+    "Buscar chats…",
+  );
+  expect(
+    screen.getByText("Tus chats se guardan dentro de cada negocio."),
+  ).toBeVisible();
+  setLanguage("en");
+  expect(
+    await screen.findByRole("textbox", { name: "Search chats" }),
+  ).toHaveAttribute("placeholder", "Search chats…");
+  expect(screen.getByRole("heading", { name: "Chats" })).toBeVisible();
+  expect(
+    screen.getByText("Your chats are saved within each business."),
+  ).toBeVisible();
 });
 it("renders public entry and help in English and returns to Spanish immediately", async () => {
   setLanguage("en");

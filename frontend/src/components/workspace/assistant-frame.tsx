@@ -132,7 +132,7 @@ export function AssistantFrame({
           <PanelPresence key="chat-panel" mobile={isMobile} width={width}>
             <aside
               className="assistant-panel"
-              aria-label={tr("Conversación lateral")}
+              aria-label={tr("Chat lateral")}
             >
               <div
                 role="separator"
@@ -168,13 +168,13 @@ export function AssistantFrame({
               />
               <header className="flex h-14 shrink-0 items-center gap-1 px-4">
                 <span className="mr-auto text-sm font-medium">
-                  {tr("Conversación")}
+                  {tr("Chat")}
                 </span>
-                <PanelAction label={tr("Nueva conversación")}>
+                <PanelAction label={tr("Nuevo chat")}>
                   <Button
                     variant="ghost"
                     size="icon"
-                    aria-label={tr("Nueva conversación")}
+                    aria-label={tr("Nuevo chat")}
                     disabled={!a.dock.chatId}
                     onClick={() => a.newConversation("panel")}
                   >
@@ -185,7 +185,7 @@ export function AssistantFrame({
                   <Button
                     variant="ghost"
                     size="icon"
-                    aria-label={tr("Abrir conversación completa")}
+                    aria-label={tr("Ampliar chat")}
                     disabled={!a.dock.chatId}
                     onClick={() => {
                       a.setSelecting(false);
@@ -206,7 +206,7 @@ export function AssistantFrame({
                   <Button
                     variant="ghost"
                     size="icon"
-                    aria-label={tr("Plegar conversación")}
+                    aria-label={tr("Cerrar chat lateral")}
                     onClick={() => a.setDock({ ...a.dock, open: false })}
                   >
                     <PanelRightClose />
@@ -221,7 +221,7 @@ export function AssistantFrame({
                 <div className="p-5">
                   <Loading />
                   <p className="mt-3 text-sm">
-                    {tr("Preparando tu conversación…")}
+                    {tr("Preparando tu chat…")}
                   </p>
                 </div>
               ) : (

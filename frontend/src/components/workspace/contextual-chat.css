@@ -335,15 +335,34 @@
   padding-top: 3.5rem;
 }
 
-/* In icon navigation, the chat heading becomes a single circular new-chat action. */
-.workspace-shell
-  [data-slot="sidebar"][data-state="collapsed"]
-  .workspace-chat-heading {
-  gap: 0;
-}
-.workspace-shell
-  [data-slot="sidebar"][data-state="collapsed"]
-  .workspace-chat-heading
-  > a {
-  margin-inline: auto;
+/* Compact headings share the icon rows' width and center. */
+@media (min-width: 768px) {
+  .workspace-shell
+    [data-slot="sidebar"][data-state="collapsed"]
+    .workspace-chat-heading,
+  .workspace-shell
+    [data-slot="sidebar"][data-state="collapsed"]
+    .workspace-report-heading {
+    width: 2.5rem;
+    gap: 0;
+  }
+  .workspace-shell
+    [data-slot="sidebar"][data-state="collapsed"]
+    .workspace-new-chat {
+    width: 2.5rem;
+    height: 2rem;
+    flex-shrink: 0;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    color: var(--sidebar-foreground);
+    border-radius: 0.625rem;
+  }
+  .workspace-shell
+    [data-slot="sidebar"][data-state="collapsed"]
+    .workspace-new-chat
+    > svg {
+    width: 1.125rem;
+    height: 1.125rem;
+  }
 }

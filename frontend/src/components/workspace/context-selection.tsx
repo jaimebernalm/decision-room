@@ -213,7 +213,7 @@ export function ContextAttachments({
                   <MessagesSquare className="size-3" />
                 )}
                 {r.kind === "conversation"
-                  ? tr("Conversación")
+                  ? tr("Chat")
                   : r.kind === "report"
                     ? tr("Informe")
                     : r.kind === "business" || r.kind === "memory"
@@ -304,7 +304,7 @@ export function ContextAttachments({
               }}
             >
               {chosen.kind === "conversation"
-                ? tr("Ver conversación original")
+                ? tr("Ver chat original")
                 : chosen.href === "#my-business"
                   ? tr("Ver en Mi negocio")
                   : tr("Ver en el informe")}

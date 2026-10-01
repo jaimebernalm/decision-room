@@ -9,6 +9,41 @@ import {
 import { presentationNumber, displayNumber } from "./presentation";
 import { date } from "./api";
 import english from "./locales/en.json";
+import spanish from "./locales/es.json";
+
+it("uses chat terminology consistently, including legacy server messages", () => {
+  for (const language of ["en", "es"] as const) {
+    setLanguage(language);
+    for (const key of Object.keys(english)) {
+      expect(translate(key), key).not.toMatch(
+        /\bconversaci[oó]n(?:es)?\b|\bconversations?\b/i,
+      );
+    }
+    expect(translate("Conversaciones")).toBe("Chats");
+    expect(translate("Nueva conversación")).toBe(
+      language === "en" ? "New chat" : "Nuevo chat",
+    );
+    expect(translate("Conversación no encontrada.")).toBe(
+      language === "en" ? "Chat not found." : "Chat no encontrado.",
+    );
+    expect(
+      translate("Opciones de {0}", { 0: "Mi conversación favorita" }),
+    ).toContain("Mi conversación favorita");
+    expect(translate("Mi conversación favorita")).toBe(
+      "Mi conversación favorita",
+    );
+    expect(translate("Opciones de {0}", { 0: "Conversaciones" })).toContain(
+      "Conversaciones",
+    );
+  }
+  for (const [key, value] of Object.entries(spanish)) {
+    expect(Object.hasOwn(english, key)).toBe(true);
+    expect(value.trim()).not.toBe("");
+    const slots = (text: string) =>
+      [...text.matchAll(/\{(\d+)\}/g)].map((match) => match[1]).sort();
+    expect(slots(value)).toEqual(slots(key));
+  }
+});
 
 it("defaults to English and persists supported language choices", () => {
   localStorage.removeItem(LANGUAGE_KEY);

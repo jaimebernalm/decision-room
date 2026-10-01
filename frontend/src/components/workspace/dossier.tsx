@@ -392,7 +392,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
             <Empty
               title={tr("Tus datos empiezan aquí")}
               description={tr(
-                "Guarda archivos CSV o Excel, juntos o como carpeta, para reutilizarlos en las conversaciones. Cada actualización conserva su versión.",
+                "Guarda archivos CSV o Excel, juntos o como carpeta, para reutilizarlos en los chats. Cada actualización conserva su versión.",
               )}
             />
           )}
@@ -495,7 +495,7 @@ function FactOrigin({ fact }: { fact: Fact }) {
       {fact.conversation_id && (
         <Button asChild variant="link" size="sm">
           <a href={`#chat/${fact.conversation_id}`}>
-            {tr("Ver conversación de origen")}
+            {tr("Ver chat de origen")}
           </a>
         </Button>
       )}

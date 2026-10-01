@@ -21,7 +21,7 @@ type Process = {
   created_at: string;
 };
 const roles: Record<string, string> = {
-  chat: "Conversacional",
+  chat: "Chat",
   planning: "Planificación",
   data_discovery: "Analista de relaciones",
   business_planner: "Planificador de negocio",

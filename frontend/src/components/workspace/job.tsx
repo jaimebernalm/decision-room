@@ -176,7 +176,7 @@ export function JobPage({
               job.conversation_id && (
                 <Button asChild variant="outline" size="sm">
                   <a href={`#chat/${job.conversation_id}`}>
-                    {tr("Abrir conversación")}
+                    {tr("Abrir chat")}
                   </a>
                 </Button>
               )

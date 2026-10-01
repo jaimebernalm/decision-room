@@ -39,7 +39,7 @@ export function BusinessPicker() {
       <Heading
         title={tr("Tus negocios")}
         description={tr(
-          "Cada negocio tiene sus propios datos, memoria y conversaciones.",
+          "Cada negocio tiene sus propios datos, memoria y chats.",
         )}
       >
         <Button asChild>
@@ -237,7 +237,7 @@ export function BusinessForm({
             >
               {action.busy ? <Busy /> : <ArrowRight />}
               {onboarding
-                ? tr("Empezar conversación")
+                ? tr("Nuevo chat")
                 : current
                   ? tr("Guardar presentación")
                   : tr("Crear negocio")}

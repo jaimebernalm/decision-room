@@ -5,7 +5,9 @@
 Se han implementado los cuatro pasos del plan separado. La interfaz admite inglés
 (por defecto) y español; el entorno de UX queda con inglés seleccionado. Apariencia
 y Language son opciones independientes del menú local. En navegación compacta, la
-cabecera de Chats muestra únicamente el + circular.
+cabecera de Chats muestra únicamente el + sin círculo, alineado con los demás
+iconos tras el ajuste 2.5.20.5. La cabecera de Informes compacta usa una rayita
+con nombre accesible que sigue abriendo su biblioteca.
 
 La barra inferior ocupa espacio propio, centrada y accesible, en Inicio, Mi negocio,
 bibliotecas, informes, análisis, formularios del negocio y ayuda. Conserva el contexto
@@ -31,6 +33,16 @@ abierto sustituye la barra inferior para evitar dos compositores activos.
    reintento con la misma identidad. Regresión de nombres que parecen números y
    decimales de evidencia sin formatear: no se confunden con valores ya formateados.
    Se amplía el catálogo para errores y estados del servidor observados en QA.
+
+5. **2.5.20.5:** 160 pruebas frontend, compilación y lint sin errores. Catálogo
+   sin mezcla de chat/conversación en ambas lenguas, claves heredadas de errores
+   compatibles y contenido interpolado intacto. Cambio de idioma en caliente para
+   la biblioteca, búsqueda, vacíos y controles de chat. Glosario en el plan técnico.
+   En navegador: + abre Nuevo chat; la rayita de Informes abre la biblioteca mediante
+   Enter; biblioteca Chats y búsqueda coherentes en inglés/español. El centro del
+   +, de los iconos de navegación y de los informes coincide en x = 36 px; antes
+   el + quedaba en x = 33 px. Se deja inglés seleccionado. No se hacen peticiones
+   nuevas al modelo ni cambios de datos para este ajuste.
 
 ## Comprobación visual
 

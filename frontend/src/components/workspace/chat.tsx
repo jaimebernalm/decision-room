@@ -195,7 +195,7 @@ export function Answer({
             ) && (
               <Button asChild variant="link" size="sm">
                 <a href={`#chat/${item.conversation_id}`}>
-                  {tr("Abrir conversación")}
+                  {tr("Abrir chat")}
                   <ArrowUpRight />
                 </a>
               </Button>
@@ -332,7 +332,7 @@ export function ChatPage({
   return (
     <div className={`flex min-h-0 flex-col ${composerOnly ? "" : "flex-1"}`}>
       {!composerOnly && (
-        <h1 className="sr-only">{tr("Conversación con IA")}</h1>
+        <h1 className="sr-only">{tr("Chat con IA")}</h1>
       )}
       {composerOnly && <Notice error>{resource.error}</Notice>}
       {!composerOnly &&

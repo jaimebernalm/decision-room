@@ -39,7 +39,7 @@ export function ChatActions({
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => removeChat(chat)}>
           <Trash2 />
-          {tr(" Eliminar conversación")}
+          {tr(" Eliminar chat")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

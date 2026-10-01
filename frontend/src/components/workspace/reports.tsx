@@ -122,7 +122,7 @@ function ReportsList({
             <AlertDialogDescription>
               «{deleting?.title}
               {tr(
-                "» se moverá a la papelera. Podrás restaurarlo; sus datos y las referencias de las conversaciones se conservan.",
+                "» se moverá a la papelera. Podrás restaurarlo; sus datos y las referencias de los chats se conservan.",
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>

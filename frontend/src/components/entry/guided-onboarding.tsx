@@ -113,7 +113,7 @@ export function GuidedOnboarding({ business }: { business: Business }) {
         {!state && !startError && (
           <p role="status" className="p-6">
             <Busy />
-            {tr(" Preparando tu conversación…")}
+            {tr(" Preparando tu chat…")}
           </p>
         )}
         {state && (
@@ -139,7 +139,7 @@ export function GuidedOnboarding({ business }: { business: Business }) {
         )}
         {started && (
           <p className="mx-auto mt-3 text-xs text-muted-foreground">
-            {tr("Tu conversación se guarda. Puedes volver para continuar.")}
+            {tr("Tu chat se guarda. Puedes volver para continuar.")}
           </p>
         )}
       </div>
@@ -543,18 +543,18 @@ function SetupCards({
           <p className="text-sm text-muted-foreground">
             {state.publishable
               ? tr(
-                  "Puedes abrirlo y seguir profundizando en esta misma conversación.",
+                  "Puedes abrirlo y seguir profundizando en este mismo chat.",
                 )
               : state.context_stale
                 ? tr(
-                    "Revisa y recalcula el informe con la información actual del negocio. Conservamos la conversación y los archivos.",
+                    "Revisa y recalcula el informe con la información actual del negocio. Conservamos el chat y los archivos.",
                   )
                 : ["failed", "blocked"].includes(state.job_status ?? "")
                   ? tr(
-                      "Tus archivos y respuestas están guardados. Puedes revisar el estado aquí y usar Reintentar en esta conversación.",
+                      "Tus archivos y respuestas están guardados. Puedes revisar el estado aquí y usar Reintentar en este chat.",
                     )
                   : tr(
-                      "Las aclaraciones y los resultados aparecerán en esta conversación.",
+                      "Las aclaraciones y los resultados aparecerán en este chat.",
                     )}
           </p>
           <FirstReport
@@ -629,7 +629,7 @@ function FirstReportProgress({ id }: { id: string }) {
         <>
           <p className="text-sm text-muted-foreground">
             {tr(
-              "Puedes seguir las comprobaciones y las aclaraciones en esta conversación.",
+              "Puedes seguir las comprobaciones y las aclaraciones en este chat.",
             )}
           </p>
           <p className="text-sm whitespace-pre-wrap">{job.context}</p>

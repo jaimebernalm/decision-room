@@ -38,6 +38,26 @@ los mensajes, nombres, informes y datos ya guardados conservan su texto original
    la escritura se realiza en él. Mantener borrador, contexto, negocio, envío único,
    errores y continuidad. Probar las rutas, móvil, tema y recorrido completo en inglés.
 
+5. **2.5.20.5 — Terminología y navegación compacta.** Usar chat/chats en ambas
+   interfaces, incluida ayuda, errores y accesibilidad; conservar claves compatibles
+   y textos del usuario. Quitar el círculo del + y alinearlo con los demás iconos.
+   Reemplazar el icono duplicado de la cabecera de Informes por una rayita accesible
+   que siga abriendo la biblioteca. Probar ambos idiomas, navegación y geometría real.
+
+## Glosario
+
+| Concepto | Español | Inglés |
+| --- | --- | --- |
+| Intercambio con el asistente | Chat / Chats | Chat / Chats |
+| Crear un chat | Nuevo chat | New chat |
+| Documento de resultados | Informe / Informes | Report / Reports |
+| Página principal | Inicio | Home |
+| Espacio del negocio | Mi negocio | My business |
+
+Análisis designa el proceso; informe, su documento. Los títulos y mensajes escritos
+por el usuario conservan sus palabras. Las claves de traducción y campos técnicos
+existentes pueden mantener sus nombres para compatibilidad.
+
 ## Estado
 
 - 2.5.20.1 completado: + circular compacto y Apariencia como submenú.
@@ -55,7 +75,12 @@ los mensajes, nombres, informes y datos ya guardados conservan su texto original
   Pasan 158 pruebas frontend, compilación y lint sin errores; comprobados escritorio,
   móvil, ambos temas, cambio de idioma y continuidad del panel.
 
-La implementación queda terminada. La prueba con el proveedor real recibe HTTP 429
+- 2.5.20.5 completado: glosario coherente en controles, ayuda, accesibilidad y
+  errores de servidor; + sin círculo y alineado con los iconos; cabecera de Informes
+  compacta con una rayita que abre la biblioteca. Pasan 160 pruebas frontend,
+  compilación y lint sin errores; comprobadas ambas lenguas y navegación con teclado.
+
+Los cuatro pasos originales quedan terminados. La prueba con el proveedor real recibe HTTP 429
 y no permite comprobar una respuesta nueva real en inglés. Los textos históricos
 permanecen en su idioma original. Véanse [validación y límites](../validation/2026-09-30-language-and-composer.md).
 

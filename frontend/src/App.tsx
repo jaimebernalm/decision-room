@@ -315,7 +315,7 @@ function App() {
         >
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>{tr("Eliminar conversación")}</AlertDialogTitle>
+              <AlertDialogTitle>{tr("Eliminar chat")}</AlertDialogTitle>
               <AlertDialogDescription>
                 {tr("Se ocultará «")}
                 {deleting?.title}

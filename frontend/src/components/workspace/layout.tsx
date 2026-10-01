@@ -146,7 +146,7 @@ function Navigation({
               asChild
               variant="ghost"
               size="icon"
-              className="ml-auto size-7 group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-7 group-data-[collapsible=icon]:rounded-full group-data-[collapsible=icon]:border group-data-[collapsible=icon]:border-sidebar-border"
+              className="workspace-new-chat ml-auto size-7"
             >
               <a
                 href="#ask"
@@ -214,7 +214,7 @@ function Navigation({
         </SidebarGroup>
         <SidebarGroup role="region" aria-label={tr("Informes")}>
           <SidebarGroupLabel
-            className="workspace-section-label"
+            className="workspace-section-label workspace-report-heading"
             aria-label={tr("Informes")}
           >
             <a
@@ -222,9 +222,12 @@ function Navigation({
               onClick={close}
               aria-label={tr("Informes")}
               title={tr("Informes")}
-              className="workspace-library-link inline-flex items-center rounded-md hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-data-[collapsible=icon]:size-5 group-data-[collapsible=icon]:justify-center"
+              className="workspace-library-link inline-flex items-center rounded-md hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-data-[collapsible=icon]:h-6 group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:justify-center"
             >
-              <FileText className="hidden size-4 group-data-[collapsible=icon]:block" />
+              <span
+                aria-hidden="true"
+                className="hidden h-px w-4 bg-sidebar-border group-data-[collapsible=icon]:block"
+              />
               <span className="group-data-[collapsible=icon]:hidden">
                 {tr("Informes")}
               </span>
@@ -338,10 +341,10 @@ function Topbar() {
   const back = route.startsWith("chat-report/")
     ? {
         href: `#chat/${route.split("/")[1]}`,
-        label: tr("Volver a la conversación"),
+        label: tr("Volver al chat"),
       }
     : route === "ask" || route.startsWith("chat/")
-      ? { href: "#chats", label: tr("Volver a conversaciones") }
+      ? { href: "#chats", label: tr("Volver a chats") }
       : route.startsWith("report/") || route.startsWith("analysis/")
         ? { href: "#reports", label: tr("Volver a informes") }
         : null;
@@ -360,8 +363,8 @@ function Topbar() {
           <Button
             variant="ghost"
             size="icon"
-            aria-label={tr("Reducir conversación")}
-            title={tr("Reducir conversación")}
+            aria-label={tr("Reducir chat")}
+            title={tr("Reducir chat")}
             onClick={() => assistant.reduceConversation(route.split("/")[1])}
           >
             <Minimize2 />

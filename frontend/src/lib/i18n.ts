@@ -1,9 +1,13 @@
 import { useEffect, useSyncExternalStore } from "react";
 import english from "./locales/en.json";
+import spanish from "./locales/es.json";
 
 export type Language = "en" | "es";
 export const LANGUAGE_KEY = "dr-language";
-const translations: Record<string, string> = english;
+const translations: Record<Language, Record<string, string>> = {
+  en: english,
+  es: spanish,
+};
 export function getLanguage(): Language {
   try {
     return localStorage.getItem(LANGUAGE_KEY) === "es" ? "es" : "en";
@@ -52,13 +56,15 @@ export function useLanguage() {
   }, [language]);
   return { language, setLanguage };
 }
-/** Source-language keys keep Spanish readable; substitutions are never translated. */
+/** Stable source keys support server messages; Spanish overrides standardize UI terms.
+ * Substitutions and unknown user content are never translated. */
 export function translate(
   input: string,
   values: Record<string, unknown> = {},
 ): string {
   const key = input.trim().replace(/\s+/g, " ");
-  const translated = snapshot() === "en" && Object.hasOwn(translations, key) ? translations[key] : undefined;
+  const catalogue = translations[snapshot()];
+  const translated = Object.hasOwn(catalogue, key) ? catalogue[key] : undefined;
   const body =
     translated === undefined
       ? input

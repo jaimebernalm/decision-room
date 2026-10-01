@@ -31,7 +31,7 @@ export function StartChat() {
   useLanguage();
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <h1 className="sr-only">{tr("Nueva conversación")}</h1>
+      <h1 className="sr-only">{tr("Nuevo chat")}</h1>
       <div className="flex-1" />
       <div className="shrink-0 px-4 pb-4 pt-2 sm:px-8">
         <div className="mx-auto max-w-2xl">
@@ -53,7 +53,7 @@ export function Chats() {
   return (
     <>
       <Heading
-        title={tr("Conversaciones")}
+        title={tr("Chats")}
         description={tr("Retoma una pregunta o empieza a explorar algo nuevo.")}
       >
         <Button asChild>
@@ -64,8 +64,8 @@ export function Chats() {
         </Button>
       </Heading>
       <Input
-        aria-label={tr("Buscar conversación")}
-        placeholder={tr("Buscar conversación…")}
+        aria-label={tr("Buscar chats")}
+        placeholder={tr("Buscar chats…")}
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         className="mb-6 max-w-sm"
@@ -105,7 +105,7 @@ export function Chats() {
         <Empty
           title={tr("Un espacio para pensar con tus datos")}
           description={tr(
-            "Tus conversaciones se guardan dentro de cada negocio.",
+            "Tus chats se guardan dentro de cada negocio.",
           )}
           href="#ask"
           onAction={() => assistant?.newConversation("page")}
@@ -187,7 +187,7 @@ export function How() {
       </Notice>
       <Button asChild className="mt-4">
         <a href="#ask">
-          {tr("Empezar una conversación")}
+          {tr("Nuevo chat")}
           <ArrowUpRight />
         </a>
       </Button>

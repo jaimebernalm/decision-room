@@ -31,9 +31,9 @@ export function AssistantToggle() {
         variant="ghost"
         size="icon"
         aria-label={
-          continuing ? tr("Continuar conversación") : tr("Preguntar algo")
+          continuing ? tr("Continuar chat") : tr("Preguntar algo")
         }
-        title={continuing ? tr("Continuar conversación") : tr("Preguntar algo")}
+        title={continuing ? tr("Continuar chat") : tr("Preguntar algo")}
         onClick={() =>
           assistant.setDock({ ...assistant.dock, open: true, origin: route })
         }
