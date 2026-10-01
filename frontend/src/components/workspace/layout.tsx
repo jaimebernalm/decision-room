@@ -4,17 +4,13 @@ import {
   Building2,
   ChevronDown,
   FileText,
-  HelpCircle,
   Home,
   MessageSquare,
   Plus,
   MoreHorizontal,
   Minimize2,
-  Sun,
-  Moon,
 } from "lucide-react";
 import { LayoutGroup } from "motion/react";
-import { useTheme } from "next-themes";
 import {
   Sidebar,
   SidebarProvider,
@@ -44,6 +40,7 @@ import { AssistantProvider, useAssistant } from "@/lib/assistant";
 import { ChatActions } from "./chat-actions";
 import { AssistantFrame } from "./assistant-frame";
 import { AssistantToggle } from "./floating-assistant";
+import { SpaceMenu } from "./space-menu";
 const navigation = [
   ["home", "Inicio", Home],
   ["my-business", "Mi negocio", Building2],
@@ -189,11 +186,21 @@ function Navigation({
                 Chats
               </a>
             </span>
-            <Button asChild variant="ghost" size="icon" className="ml-auto size-7">
-              <a href="#ask" aria-label="Nuevo chat" title="Nuevo chat" onClick={() => {
-                assistant?.newConversation("page");
-                close();
-              }}>
+            <Button
+              asChild
+              variant="ghost"
+              size="icon"
+              className="ml-auto size-7"
+            >
+              <a
+                href="#ask"
+                aria-label="Nuevo chat"
+                title="Nuevo chat"
+                onClick={() => {
+                  assistant?.newConversation("page");
+                  close();
+                }}
+              >
                 <Plus className="size-4" />
               </a>
             </Button>
@@ -314,19 +321,7 @@ function Navigation({
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="p-3">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Cómo funciona">
-              <a href="#how" onClick={close} aria-label="Cómo funciona">
-                <HelpCircle />
-                <span>Cómo funciona</span>
-              </a>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-        <div className="workspace-footer-note px-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-          Espacio local · Versión de pruebas
-        </div>
+        <SpaceMenu />
       </SidebarFooter>
       {!isMobile && state === "expanded" && (
         <div
@@ -378,7 +373,6 @@ function Navigation({
 function Topbar() {
   const { route } = useWorkspace();
   const assistant = useAssistant();
-  const { theme, setTheme } = useTheme();
   const back = route.startsWith("chat-report/")
     ? {
         href: `#chat/${route.split("/")[1]}`,
@@ -411,14 +405,6 @@ function Topbar() {
             <Minimize2 />
           </Button>
         )}
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label={theme === "dark" ? "Usar tema claro" : "Usar tema oscuro"}
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-        >
-          {theme === "dark" ? <Sun /> : <Moon />}
-        </Button>
         <AssistantToggle />
       </div>
     </header>

@@ -67,4 +67,7 @@ publica en GitHub salvo petición explícita del usuario.
 - 2.5.19.4 completado: flechas inversas y retorno a la página y posición de origen,
   con borrador intacto y sin envíos; apertura directa usa última página o Inicio.
   Validación: 126 pruebas y compilación correctas.
-- 2.5.19.5–2.5.19.6 pendientes.
+- 2.5.19.5 completado: menú inferior del espacio local con Claro, Oscuro,
+  Automático y ayuda; sin botón de tema superior. 130 pruebas y compilación,
+  incluida persistencia de las tres opciones y navegación por teclado.
+- 2.5.19.6 pendiente.
