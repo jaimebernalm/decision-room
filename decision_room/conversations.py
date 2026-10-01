@@ -783,7 +783,8 @@ class Conversations:
                 raise WebError('Genera primero el informe de este mensaje.', 409)
             if structured:
                 from .web.dashboard import presentation
-                return presentation(r)
+                from .web.presentation_editing import decorate
+                return decorate(self.ws, r, presentation(r), db=db)
             from .client_report import render_client
 
             return render_client(r, r['updated_at'].strftime('%d/%m/%Y, %H:%M %Z'), embedded=True)

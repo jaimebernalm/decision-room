@@ -352,6 +352,21 @@ class Handler(BaseHTTPRequestHandler):
             if mutation and path == '/api/memory/retry':
                 self.send(202, {'memory': ws.retry_memory(self.json_body())})
                 return
+            if path.startswith('/api/presentation/'):
+                from . import presentation_editing
+                report_id = path.rsplit('/', 1)[-1]
+                if mutation:
+                    self.send(200, presentation_editing.save(ws, report_id, self.json_body()))
+                else:
+                    value = parse_qs(urlsplit(self.path).query).get('revision', [None])[0]
+                    try:
+                        revision = int(value) if value is not None else None
+                        if revision is not None and revision < 0:
+                            raise ValueError()
+                    except ValueError:
+                        raise WebError('Esta versión no es válida.') from None
+                    self.send(200, presentation_editing.view(ws, report_id, revision))
+                return
             if path in ('/api/home', '/api/home/preferences', '/api/home/suggest'):
                 from . import home
                 if not mutation and path == '/api/home':

@@ -73,3 +73,93 @@ class CatalogTests(unittest.TestCase):
     def test_duplicate_names_keep_distinct_codes(self):
         labels=self.catalog([('P01','Café'),('P02','Café')])
         self.assertEqual([r['name'] for r in labels],['Café (P01)','Café (P02)'])
+
+import test_web
+from uuid import uuid4
+from decision_room.database import connect
+from decision_room.web.errors import WebError
+from decision_room.web import home
+
+
+class RevisionTests(unittest.TestCase):
+    setUpClass = classmethod(test_web.WebTests.setUpClass.__func__)
+    tearDownClass = classmethod(test_web.WebTests.tearDownClass.__func__)
+    setUp = test_web.WebTests.setUp
+    create, answer, complete, http = test_web.WebTests.create, test_web.WebTests.answer, test_web.WebTests.complete, test_web.WebTests.http
+
+    def fixture(self):
+        class HighlightModel(test_web.WebModel):
+            def generate_analyst_review(self, context, correction=None):
+                response, usage = super().generate_analyst_review(context, correction)
+                if response.get('report'):
+                    claim = response['report']['claims'][0]
+                    response['report']['highlights'] = [dict(label='Total', value=claim['evidence'][0], unit='EUR', decimals=0, claim_key=claim['key'])]
+                return response, usage
+        self.ws.model_factory = HighlightModel
+        job = self.complete()
+        report = self.ws.report(job, structured=True)
+        meta = report['presentation']
+        return job, report, dict(business_id=str(self.business['id']), base_version=meta['base_version'],
+                                revision=meta['revision'], request_key=str(uuid4()))
+
+    def test_save_home_report_pdf_history_restore_and_idempotency(self):
+        job, initial, body = self.fixture()
+        change = dict(kind='metric', key=initial['highlights'][0]['key'], field='title', value='Nombre del propietario')
+        body['changes'] = [change, dict(kind='report',key='title',field='title',value='Informe de mi café')]
+        result = editing.save(self.ws, initial['report_id'], body)
+        self.assertEqual(result['revision'], 1)
+        self.assertTrue(editing.save(self.ws, initial['report_id'], body)['replayed'])
+        displayed = self.ws.report(job, structured=True)
+        self.assertEqual(displayed['title'], 'Informe de mi café')
+        self.assertEqual(displayed['highlights'][0]['value'], initial['highlights'][0]['value'])
+        self.assertEqual(home.view(self.ws)['items'][0]['title'], 'Nombre del propietario')
+        self.assertEqual(displayed['report_version'], initial['report_version'])
+        from decision_room.report_pdf import render_pdf
+        self.assertTrue(render_pdf(displayed).startswith(b'%PDF'))
+        self.assertEqual(editing.view(self.ws, initial['report_id'], 0)['title'], initial['title'])
+        undo = {**body, 'request_key': str(uuid4()), 'revision': 1, 'changes': [], 'restore_revision': 0}
+        restored = editing.save(self.ws, initial['report_id'], undo)
+        self.assertEqual(restored['revision'], 2)
+        self.assertEqual(restored['report']['title'], initial['title'])
+        self.assertEqual([x['revision'] for x in restored['report']['presentation']['history']], [2,1,0])
+        with self.assertRaises(WebError):
+            editing.save(self.ws, initial['report_id'], {**body, 'changes':[dict(change,value='Different request')]})
+
+    def test_stale_invalid_numeric_or_unit_edits_do_not_write(self):
+        job, initial, body = self.fixture()
+        metric = initial['highlights'][0]
+        changes = [dict(kind='metric',key=metric['key'],field='decimals',value=2)]
+        saved = editing.save(self.ws, initial['report_id'], {**body,'changes':changes})
+        self.assertEqual(saved['report']['highlights'][0]['raw_value'], metric['raw_value'])
+        for invalid in [dict(kind='metric',key=metric['key'],field='unit',value='kg'),
+                        dict(kind='metric',key=metric['key'],field='value',value=99),
+                        dict(kind='metric',key=metric['key'],field='decimals',value=True),
+                        dict(kind='metric',key='alien',field='title',value='Alien'),
+                        dict(kind='metric',key=metric['key'],field='decimals',value=7)]:
+            with self.subTest(change=invalid), self.assertRaises(WebError):
+                editing.save(self.ws, initial['report_id'], {**body,'revision':1,'request_key':str(uuid4()),'changes':[invalid]})
+        with self.assertRaises(WebError):
+            editing.save(self.ws, initial['report_id'], {**body,'request_key':str(uuid4()),'changes':changes})
+        self.assertEqual(editing.view(self.ws, initial['report_id'])['presentation']['revision'],1)
+
+    def test_http_auth_other_business_deleted_and_withdrawn(self):
+        job, initial, body = self.fixture()
+        client, server = self.http()
+        path = f"/api/presentation/{initial['report_id']}"
+        body['changes'] = [dict(kind='report',key='title',field='title',value='Nuevo título')]
+        self.assertEqual(client.get(path).status_code,401)
+        client.post('/api/login',json={'token':server.token})
+        self.assertEqual(client.post(path,json=body).status_code,200)
+        self.assertEqual(client.get(path+'?revision=0').status_code,200)
+        self.assertEqual(client.get(path+'?revision=wrong').status_code,400)
+        with connect(self.config) as db:
+            db.execute('UPDATE web_jobs SET deleted_at=clock_timestamp() WHERE id=%s',(job,))
+        self.assertEqual(client.get(path).status_code,409)
+        with connect(self.config) as db:
+            db.execute('UPDATE web_jobs SET deleted_at=NULL WHERE id=%s',(job,))
+        from decision_room.agent import review
+        review.hold(self.config, self.business['id'], initial['report_id'], reason='Independent test withdrawal')
+        self.assertEqual(client.get(path).status_code,409)
+        self.assertEqual(client.get(path+'?revision=0').status_code,409)
+        self.ws.save_business({'request_key':str(uuid4()),'name':'Other','description':'Other business', 'expected_active_id':str(self.business['id'])})
+        self.assertEqual(client.get(path).status_code,404)

@@ -87,10 +87,37 @@ export type ChartData = {
   unit: string;
   caption: string;
   claim_key: string;
-  points: { label: string; value: string; formatted: string }[];
+  decimals?: number;
+  unit_choices?: string[];
+  points: {
+    label: string;
+    value: string;
+    formatted: string;
+    original_label?: string;
+  }[];
   panels?: ChartPanel[];
 };
+export type Presentation = {
+  report_id: string;
+  base_version: string;
+  revision: number;
+  current_revision?: number;
+  labels: {
+    id: string;
+    code: string;
+    name: string;
+    catalog_name: string;
+    key_column: string;
+  }[];
+  history: {
+    revision: number;
+    origin: string;
+    description: string;
+    created_at: string | null;
+  }[];
+};
 export type Report = {
+  presentation?: Presentation;
   partial?: boolean;
   report_id?: string;
   report_version?: string;
@@ -110,6 +137,10 @@ export type Report = {
     value: string;
     unit: string;
     claim_key: string;
+    raw_value?: string;
+    original_label?: string;
+    decimals?: number;
+    unit_choices?: string[];
   }[];
   charts: ChartData[];
   limitations: string[];
@@ -292,6 +323,7 @@ export type DatasetChoice = {
 };
 
 export type HomeSource = {
+  presentation?: Presentation;
   job_id: string;
   report_id: string;
   version: string;

@@ -70,6 +70,7 @@ def collect(ws):
                     continue
                 source = dict(job_id=str(job['id']), report_id=str(reviewed['id']),
                               version=reviewed['approved_sha256'], title=report['title'],
+                              presentation=report['presentation'],
                               period=report['scope']['period'], coverage=report['scope']['coverage'],
                               filename=job['filename'], created_at=job['created_at'],
                               data_version=item.get('data_version'), analysis_id=str(job['analysis_id']),

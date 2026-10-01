@@ -44,4 +44,7 @@ se conservan. Una unidad de significado distinto exige una corrección analític
 
 **2.5.18.1 completado:** 12 pruebas de catálogo/proyección/Inicio correctas,
 comprobación local de las nueve etiquetas de Bruma y sus cifras originales.
-Los pasos 2.5.18.2 y 2.5.18.3 siguen pendientes.
+**2.5.18.2 completado:** 60 pruebas backend (edición, Inicio y frontera web),
+114 pruebas frontend, build y lint correctos. Edición real desde Inicio de Bruma
+comprobada en el informe. Se conserva el hash analítico; historial y restauración
+crean revisiones nuevas. El paso 2.5.18.3 sigue pendiente.

@@ -40,6 +40,7 @@ import {
   seriesColor,
   chartPoints,
 } from "@/lib/charts";
+import { PresentationEditor } from "./presentation-editor";
 import { ReportSection, reportLead } from "./report-section";
 import { ReportChartTooltip } from "./report-chart-tooltip";
 import type {
@@ -387,6 +388,17 @@ export function ReportView({
   report: ReportData;
   compact?: boolean;
 }) {
+  const edit = (
+    kind: "report" | "metric" | "chart" | "insight",
+    key: string,
+    title: string,
+  ) =>
+    !compact && report.presentation ? (
+      <PresentationEditor
+        presentation={report.presentation}
+        target={{ kind, key, title }}
+      />
+    ) : null;
   const item = (
     kind: "chart" | "metric" | "insight" | "section",
     key: string,
@@ -417,6 +429,12 @@ export function ReportView({
           <Badge variant="outline">{report.scope.period}</Badge>
           <Badge variant="secondary">Revisado</Badge>
           {report.partial && <Badge variant="outline">Entrega parcial</Badge>}
+          {report.presentation && report.presentation.revision > 0 && (
+            <Badge variant="outline">
+              Presentación · v{report.presentation.revision}
+            </Badge>
+          )}
+          {edit("report", "title", "título del informe")}
         </div>
         <h2
           className={
@@ -450,7 +468,10 @@ export function ReportView({
             >
               <Card className="shadow-none">
                 <CardHeader className="pb-2">
-                  <CardDescription>{h.label}</CardDescription>
+                  <div className="flex items-start justify-between gap-2">
+                    <CardDescription>{h.label}</CardDescription>
+                    {h.key && edit("metric", h.key, h.label)}
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <p className="text-3xl font-semibold tracking-tight tabular-nums">
@@ -515,6 +536,7 @@ export function ReportView({
                 id={`finding-${claim.key}`}
                 title={claim.title}
                 number={String(i + 1).padStart(2, "0")}
+                actions={edit("insight", claim.key, claim.title)}
                 preview={reportLead(claim.statement)}
               >
                 <p>{claim.statement}</p>
@@ -562,7 +584,10 @@ export function ReportView({
                 ?.filter((c) => c.claim_key === claim.key)
                 .map((c) => (
                   <Selectable key={c.key} item={item("chart", c.key, c)}>
-                    <EvidenceChart chart={c} />
+                    <EvidenceChart
+                      chart={c}
+                      actions={edit("chart", c.key, c.title)}
+                    />
                   </Selectable>
                 ))}
             </div>

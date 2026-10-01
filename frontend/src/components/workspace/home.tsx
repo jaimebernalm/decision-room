@@ -33,6 +33,7 @@ import { Heading, Notice, Empty, Loading, Disclosure, Status } from "./shared";
 import { Selectable } from "./context-selection";
 import type { ContextAttachment } from "@/lib/types";
 import { EvidenceChart } from "./report";
+import { PresentationEditor } from "./presentation-editor";
 
 const selection = (item: HomeItem): ContextAttachment => ({
   report_id: item.source.report_id,
@@ -132,6 +133,14 @@ export function Home() {
     const pinned = data!.pinned.includes(item.id);
     return (
       <div className="flex shrink-0 gap-0.5">
+        <PresentationEditor
+          presentation={item.source.presentation}
+          target={{
+            kind: item.kind,
+            key: item.content.key!,
+            title: item.title,
+          }}
+        />
         <Button
           size="icon"
           variant="ghost"

@@ -811,3 +811,21 @@ INSERT INTO schema_versions(version) VALUES (25) ON CONFLICT DO NOTHING;
 ALTER TABLE chat_calls ADD COLUMN IF NOT EXISTS finished_at timestamptz;
 ALTER TABLE chat_answer_reviews ADD COLUMN IF NOT EXISTS finished_at timestamptz;
 INSERT INTO schema_versions(version) VALUES (26) ON CONFLICT DO NOTHING;
+
+-- 2.5.18: immutable presentation revisions, separate from analytical approval.
+CREATE TABLE IF NOT EXISTS report_presentation_revisions (
+    business_id uuid NOT NULL REFERENCES businesses(id),
+    report_id uuid NOT NULL REFERENCES agent_reviews(id),
+    base_version text NOT NULL,
+    revision integer NOT NULL CHECK(revision>=0),
+    config jsonb NOT NULL,
+    snapshot jsonb NOT NULL,
+    request_key text,
+    request_sha256 text,
+    origin text NOT NULL CHECK(origin IN ('catalog','editor','chat')),
+    description text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    PRIMARY KEY(business_id,report_id,base_version,revision),
+    UNIQUE(business_id,request_key)
+);
+INSERT INTO schema_versions(version) VALUES (27) ON CONFLICT DO NOTHING;
