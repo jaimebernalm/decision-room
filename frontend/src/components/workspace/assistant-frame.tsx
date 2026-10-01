@@ -1,3 +1,4 @@
+import { translate as tr, useLanguage } from "@/lib/i18n";
 import {
   useEffect,
   useState,
@@ -38,6 +39,7 @@ export function AssistantFrame({
   children: ReactNode;
   header?: ReactNode;
 }) {
+  useLanguage();
   const a = useAssistant()!;
   const { route } = useWorkspace();
   const { open, openMobile, isMobile, setOpen, setOpenMobile } = useSidebar();
@@ -98,7 +100,10 @@ export function AssistantFrame({
           {children}
           {a.selecting && (
             <div className="selection-banner" role="status">
-              <span>Selecciona elementos · {a.selected.length}/8</span>
+              <span>
+                {tr("Selecciona elementos · ")}
+                {a.selected.length}/8
+              </span>
               <SelectionTool />
               {a.error && <span>{a.error}</span>}
             </div>
@@ -110,12 +115,12 @@ export function AssistantFrame({
           <PanelPresence key="chat-panel" mobile={isMobile} width={width}>
             <aside
               className="assistant-panel"
-              aria-label="Conversación lateral"
+              aria-label={tr("Conversación lateral")}
             >
               <div
                 role="separator"
                 tabIndex={0}
-                aria-label="Anchura del chat"
+                aria-label={tr("Anchura del chat")}
                 aria-orientation="vertical"
                 aria-valuemin={340}
                 aria-valuemax={640}
@@ -146,24 +151,24 @@ export function AssistantFrame({
               />
               <header className="flex h-14 shrink-0 items-center gap-1 px-4">
                 <span className="mr-auto text-sm font-medium">
-                  Conversación
+                  {tr("Conversación")}
                 </span>
-                <PanelAction label="Nueva conversación">
+                <PanelAction label={tr("Nueva conversación")}>
                   <Button
                     variant="ghost"
                     size="icon"
-                    aria-label="Nueva conversación"
+                    aria-label={tr("Nueva conversación")}
                     disabled={!a.dock.chatId}
                     onClick={() => a.newConversation("panel")}
                   >
                     <Plus />
                   </Button>
                 </PanelAction>
-                <PanelAction label="Ampliar">
+                <PanelAction label={tr("Ampliar")}>
                   <Button
                     variant="ghost"
                     size="icon"
-                    aria-label="Abrir conversación completa"
+                    aria-label={tr("Abrir conversación completa")}
                     disabled={!a.dock.chatId}
                     onClick={() => {
                       a.setSelecting(false);
@@ -180,11 +185,11 @@ export function AssistantFrame({
                     <Maximize2 />
                   </Button>
                 </PanelAction>
-                <PanelAction label="Cerrar">
+                <PanelAction label={tr("Cerrar")}>
                   <Button
                     variant="ghost"
                     size="icon"
-                    aria-label="Plegar conversación"
+                    aria-label={tr("Plegar conversación")}
                     onClick={() => a.setDock({ ...a.dock, open: false })}
                   >
                     <PanelRightClose />
@@ -198,12 +203,14 @@ export function AssistantFrame({
               ) : a.launching ? (
                 <div className="p-5">
                   <Loading />
-                  <p className="mt-3 text-sm">Preparando tu conversación…</p>
+                  <p className="mt-3 text-sm">
+                    {tr("Preparando tu conversación…")}
+                  </p>
                 </div>
               ) : (
                 <div className="flex min-h-0 flex-1 flex-col">
                   <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
-                    Pregunta sobre tu negocio.
+                    {tr("Pregunta sobre tu negocio.")}
                   </div>
                   <div className="p-3">
                     <NewChatComposer />

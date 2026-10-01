@@ -1,3 +1,4 @@
+import { translate as tr, useLanguage } from "@/lib/i18n";
 import { useState, type ReactNode, type CSSProperties } from "react";
 import {
   ArrowLeft,
@@ -68,6 +69,7 @@ function Navigation({
   width: number;
   setWidth: (v: number) => void;
 }) {
+  useLanguage();
   const { workspace, listing, route } = useWorkspace(),
     { isMobile, setOpenMobile, state } = useSidebar();
   const assistant = useAssistant();
@@ -107,37 +109,37 @@ function Navigation({
                     (key === "my-business" &&
                       ["files", "business"].includes(route))
                   }
-                  tooltip={label}
+                  tooltip={tr(label)}
                 >
                   <a
                     href={`#${key}`}
                     onClick={close}
-                    aria-label={label}
+                    aria-label={tr(label)}
                     aria-current={route === key ? "page" : undefined}
                   >
                     <Icon />
-                    <span>{label}</span>
+                    <span>{tr(label)}</span>
                   </a>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}
           </SidebarMenu>
         </SidebarGroup>
-        <SidebarGroup role="region" aria-label="Chats">
+        <SidebarGroup role="region" aria-label={tr("Chats")}>
           <SidebarGroupLabel
             className="workspace-section-label workspace-chat-heading"
-            aria-label="Chats"
+            aria-label={tr("Chats")}
           >
             <a
               href="#chats"
               onClick={close}
-              aria-label="Chats"
-              title="Chats"
+              aria-label={tr("Chats")}
+              title={tr("Chats")}
               className="workspace-library-link inline-flex items-center rounded-md hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-data-[collapsible=icon]:hidden"
             >
               <MessageSquare className="hidden size-4 group-data-[collapsible=icon]:block" />
               <span className="group-data-[collapsible=icon]:hidden">
-                Chats
+                {tr("Chats")}
               </span>
             </a>
             <Button
@@ -148,8 +150,8 @@ function Navigation({
             >
               <a
                 href="#ask"
-                aria-label="Nuevo chat"
-                title="Nuevo chat"
+                aria-label={tr("Nuevo chat")}
+                title={tr("Nuevo chat")}
                 onClick={() => {
                   assistant?.newConversation("page");
                   close();
@@ -182,7 +184,7 @@ function Navigation({
                 <ChatActions chat={chat} onOpenPanel={close}>
                   <SidebarMenuAction
                     showOnHover
-                    aria-label={`Opciones de ${chat.title}`}
+                    aria-label={tr("Opciones de {0}", { "0": chat.title })}
                   >
                     <MoreHorizontal />
                   </SidebarMenuAction>
@@ -191,14 +193,14 @@ function Navigation({
             ))}
             {listing.conversations.length > 6 && (
               <SidebarMenuItem>
-                <SidebarMenuButton asChild tooltip="Ver todos los chats">
+                <SidebarMenuButton asChild tooltip={tr("Ver todos los chats")}>
                   <a
                     href="#chats"
                     onClick={close}
-                    aria-label="Ver todos los chats"
+                    aria-label={tr("Ver todos los chats")}
                   >
                     <MoreHorizontal />
-                    <span>Ver todos</span>
+                    <span>{tr("Ver todos")}</span>
                   </a>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -206,25 +208,25 @@ function Navigation({
           </SidebarMenu>
           {!chatRows.length && (
             <p className="px-2 py-1 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-              Todavía no hay chats
+              {tr("Todavía no hay chats")}
             </p>
           )}
         </SidebarGroup>
-        <SidebarGroup role="region" aria-label="Informes">
+        <SidebarGroup role="region" aria-label={tr("Informes")}>
           <SidebarGroupLabel
             className="workspace-section-label"
-            aria-label="Informes"
+            aria-label={tr("Informes")}
           >
             <a
               href="#reports"
               onClick={close}
-              aria-label="Informes"
-              title="Informes"
+              aria-label={tr("Informes")}
+              title={tr("Informes")}
               className="workspace-library-link inline-flex items-center rounded-md hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-data-[collapsible=icon]:size-5 group-data-[collapsible=icon]:justify-center"
             >
               <FileText className="hidden size-4 group-data-[collapsible=icon]:block" />
               <span className="group-data-[collapsible=icon]:hidden">
-                Informes
+                {tr("Informes")}
               </span>
             </a>
           </SidebarGroupLabel>
@@ -256,14 +258,17 @@ function Navigation({
             ))}
             {workspace.analyses.length > 5 && (
               <SidebarMenuItem>
-                <SidebarMenuButton asChild tooltip="Ver todos los informes">
+                <SidebarMenuButton
+                  asChild
+                  tooltip={tr("Ver todos los informes")}
+                >
                   <a
                     href="#reports"
                     onClick={close}
-                    aria-label="Ver todos los informes"
+                    aria-label={tr("Ver todos los informes")}
                   >
                     <MoreHorizontal />
-                    <span>Ver todos</span>
+                    <span>{tr("Ver todos")}</span>
                   </a>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -271,7 +276,7 @@ function Navigation({
           </SidebarMenu>
           {!reportRows.length && (
             <p className="px-2 py-1 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-              Todavía no hay informes
+              {tr("Todavía no hay informes")}
             </p>
           )}
         </SidebarGroup>
@@ -282,7 +287,7 @@ function Navigation({
       {!isMobile && state === "expanded" && (
         <div
           role="separator"
-          aria-label="Anchura de la barra lateral"
+          aria-label={tr("Anchura de la barra lateral")}
           aria-orientation="vertical"
           aria-valuemin={216}
           aria-valuemax={420}
@@ -327,21 +332,22 @@ function Navigation({
   );
 }
 function Topbar() {
+  useLanguage();
   const { route } = useWorkspace();
   const assistant = useAssistant();
   const back = route.startsWith("chat-report/")
     ? {
         href: `#chat/${route.split("/")[1]}`,
-        label: "Volver a la conversación",
+        label: tr("Volver a la conversación"),
       }
     : route === "ask" || route.startsWith("chat/")
-      ? { href: "#chats", label: "Volver a conversaciones" }
+      ? { href: "#chats", label: tr("Volver a conversaciones") }
       : route.startsWith("report/") || route.startsWith("analysis/")
-        ? { href: "#reports", label: "Volver a informes" }
+        ? { href: "#reports", label: tr("Volver a informes") }
         : null;
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 px-4 sm:px-6">
-      <SidebarTrigger aria-label="Abrir o cerrar navegación" />
+      <SidebarTrigger aria-label={tr("Abrir o cerrar navegación")} />
       {back && (
         <Button asChild variant="ghost" size="icon" className="rounded-full">
           <a href={back.href} aria-label={back.label} title={back.label}>
@@ -354,8 +360,8 @@ function Topbar() {
           <Button
             variant="ghost"
             size="icon"
-            aria-label="Reducir conversación"
-            title="Reducir conversación"
+            aria-label={tr("Reducir conversación")}
+            title={tr("Reducir conversación")}
             onClick={() => assistant.reduceConversation(route.split("/")[1])}
           >
             <Minimize2 />

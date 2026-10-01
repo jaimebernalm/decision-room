@@ -1,3 +1,4 @@
+import { translate as tr, useLanguage } from "@/lib/i18n";
 import { useEffect, useRef, useState } from "react";
 import { RotateCcw, ArrowUpRight } from "lucide-react";
 import { toast } from "sonner";
@@ -12,6 +13,7 @@ export function PresentationChangeReceipt({
 }: {
   receipt: PresentationReceipt;
 }) {
+  useLanguage();
   const { workspace } = useWorkspace(),
     action = useAction();
   const previous =
@@ -26,14 +28,15 @@ export function PresentationChangeReceipt({
   return (
     <div className="space-y-3 rounded-lg border p-4">
       <p className="text-xs text-muted-foreground">
-        Presentación guardada · Versión {receipt.revision}
+        {tr("Presentación guardada · Versión ")}
+        {receipt.revision}
       </p>
       <p className="text-sm font-medium">{receipt.title}</p>
       <div className="flex flex-wrap gap-2">
         {receipt.href && (
           <Button size="sm" variant="outline" asChild>
             <a href={receipt.href}>
-              Ver informe
+              {tr("Ver informe")}
               <ArrowUpRight />
             </a>
           </Button>
@@ -54,18 +57,18 @@ export function PresentationChangeReceipt({
               });
               setUndone(true);
               dispatchEvent(new Event("dr-presentation"));
-              toast.success("Cambio deshecho en Inicio, informe y PDF");
+              toast.success(tr("Cambio deshecho en Inicio, informe y PDF"));
             })
           }
         >
           <RotateCcw />
           {undone
-            ? "Deshecho"
+            ? tr("Deshecho")
             : unavailable
-              ? "Informe no disponible"
+              ? tr("Informe no disponible")
               : previous
-                ? "Versión anterior"
-                : "Deshacer este cambio"}
+                ? tr("Versión anterior")
+                : tr("Deshacer este cambio")}
         </Button>
       </div>
       <Notice error>{action.error}</Notice>

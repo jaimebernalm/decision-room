@@ -1,3 +1,4 @@
+import { translate as tr, useLanguage } from "@/lib/i18n";
 import type { ReactNode } from "react";
 import { PanelRightOpen, Trash2 } from "lucide-react";
 import {
@@ -19,6 +20,7 @@ export function ChatActions({
   children: ReactNode;
   onOpenPanel?: () => void;
 }) {
+  useLanguage();
   const assistant = useAssistant();
   const { removeChat } = useWorkspace();
   return (
@@ -32,10 +34,12 @@ export function ChatActions({
             onOpenPanel?.();
           }}
         >
-          <PanelRightOpen /> Abrir en panel
+          <PanelRightOpen />
+          {tr(" Abrir en panel")}
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => removeChat(chat)}>
-          <Trash2 /> Eliminar conversación
+          <Trash2 />
+          {tr(" Eliminar conversación")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

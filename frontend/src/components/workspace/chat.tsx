@@ -1,3 +1,4 @@
+import { translate as tr, useLanguage } from "@/lib/i18n";
 import { ProgressiveAnswer } from "./progressive-answer";
 import { AnalysisActivity } from "./analysis-activity";
 import { useRef, useState, type ReactNode } from "react";
@@ -32,13 +33,7 @@ import {
   contextKey,
 } from "@/lib/api";
 import type { ChatDetail, Response, Report } from "@/lib/types";
-import {
-  Notice,
-  Loading,
-  Status,
-  ChoiceSelect,
-  Disclosure,
-} from "./shared";
+import { Notice, Loading, Status, ChoiceSelect, Disclosure } from "./shared";
 import { ReportView } from "./report";
 import { useAssistant } from "@/lib/assistant";
 import { ContextAttachments, SelectionTool } from "./context-selection";
@@ -51,6 +46,7 @@ export function Answer({
   response: Response;
   ownerText?: string;
 }) {
+  useLanguage();
   const { listing, workspace } = useWorkspace();
   if (response.kind === "memory") {
     const greeting = ownerText
@@ -75,16 +71,20 @@ export function Answer({
     )
       return (
         <p>
-          ¡Hola! ¿Qué te gustaría saber o investigar sobre{" "}
+          {tr("¡Hola! ¿Qué te gustaría saber o investigar sobre")}{" "}
           {workspace.business?.name || "tu negocio"}?
         </p>
       );
     const text =
       response.text ===
-      "El mensaje está guardado. Estos son los recuerdos aplicables y su estado."
+      tr(
+        "El mensaje está guardado. Estos son los recuerdos aplicables y su estado.",
+      )
         ? response.items?.length
-          ? "Esto es lo que tenía guardado en ese momento:"
-          : "En ese momento todavía no encontraba información del negocio que pudiera utilizar."
+          ? tr("Esto es lo que tenía guardado en ese momento:")
+          : tr(
+              "En ese momento todavía no encontraba información del negocio que pudiera utilizar.",
+            )
         : response.text;
     return (
       <div className="space-y-3">
@@ -96,9 +96,9 @@ export function Answer({
                 {item.status !== "declared" && (
                   <span className="font-medium">
                     {item.status === "conflicted"
-                      ? "Hay versiones diferentes"
+                      ? tr("Hay versiones diferentes")
                       : item.status === "proposed"
-                        ? "Por confirmar"
+                        ? tr("Por confirmar")
                         : item.status}
                     :{" "}
                   </span>
@@ -148,7 +148,8 @@ export function Answer({
       {response.sources?.length ? (
         <Sources>
           <SourcesTrigger count={response.sources.length}>
-            Fuentes consultadas ({response.sources.length})
+            {tr("Fuentes consultadas (")}
+            {response.sources.length})
           </SourcesTrigger>
           <SourcesContent>
             <ul className="list-disc space-y-1 pl-5 text-xs text-muted-foreground">
@@ -163,7 +164,7 @@ export function Answer({
         </Sources>
       ) : null}
       {response.evidence && (
-        <Disclosure title="Ver evidencia revisada">
+        <Disclosure title={tr("Ver evidencia revisada")}>
           <Answer response={response.evidence} />
         </Disclosure>
       )}
@@ -186,7 +187,8 @@ export function Answer({
           )}
           {item.columns && (
             <p className="mt-2 text-xs text-muted-foreground">
-              Columnas: {item.columns.join(", ")}
+              {tr("Columnas: ")}
+              {item.columns.join(", ")}
             </p>
           )}
           {item.conversation_id &&
@@ -195,7 +197,7 @@ export function Answer({
             ) && (
               <Button asChild variant="link" size="sm">
                 <a href={`#chat/${item.conversation_id}`}>
-                  Abrir conversación
+                  {tr("Abrir conversación")}
                   <ArrowUpRight />
                 </a>
               </Button>
@@ -216,6 +218,7 @@ export function ChatPage({
   setup?: boolean;
   children?: (data: ChatDetail) => ReactNode;
 }) {
+  useLanguage();
   const assistant = useAssistant();
   const { workspace, refresh } = useWorkspace(),
     business = workspace.business!.id;
@@ -306,11 +309,17 @@ export function ChatPage({
     });
   const data = resource.data;
   const [initialTurns, setInitialTurns] = useState<Set<string> | null>(null);
-  if (data && !initialTurns) setInitialTurns(new Set(data.turns.map(t => t.id)));
+  if (data && !initialTurns)
+    setInitialTurns(new Set(data.turns.map((t) => t.id)));
   // Answers to owner questions can create several turns for the same process.
   // Keep its durable activity at the latest turn instead of repeating the panel.
-  const activityOwners = new Map<string,string>();
-  data?.turns.forEach((turn) => activityOwners.set(turn.activity_trace_id || turn.job_id || turn.id,turn.id));
+  const activityOwners = new Map<string, string>();
+  data?.turns.forEach((turn) =>
+    activityOwners.set(
+      turn.activity_trace_id || turn.job_id || turn.id,
+      turn.id,
+    ),
+  );
   const latest = data?.turns.at(-1);
   const setupQuestion =
     latest?.status === "completed"
@@ -321,7 +330,7 @@ export function ChatPage({
   );
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <h1 className="sr-only">Conversación con IA</h1>
+      <h1 className="sr-only">{tr("Conversación con IA")}</h1>
       {!data ? (
         <div className="flex-1 p-6">
           <Notice error>{resource.error}</Notice>
@@ -337,9 +346,9 @@ export function ChatPage({
                 <p className="mt-1 text-xs text-muted-foreground">
                   {data.dataset.title} · v{data.dataset.version}
                   {data.dataset.corrected
-                    ? " · datos corregidos"
+                    ? tr(" · datos corregidos")
                     : data.dataset.superseded_by
-                      ? " · versión anterior"
+                      ? tr(" · versión anterior")
                       : ""}
                 </p>
               )}
@@ -347,7 +356,7 @@ export function ChatPage({
               <Notice error>{resource.error || action.error}</Notice>
               {!data.turns.length && (
                 <p className="py-16 text-center text-muted-foreground">
-                  Escribe tu primera pregunta para empezar.
+                  {tr("Escribe tu primera pregunta para empezar.")}
                 </p>
               )}
               {data.turns.map((turn, index) => (
@@ -368,32 +377,73 @@ export function ChatPage({
                     <MessageContent className="w-full overflow-visible">
                       {turn.historical && (
                         <Badge variant="outline" className="mb-3">
-                          Respuesta con contexto anterior
+                          {tr("Respuesta con contexto anterior")}
                         </Badge>
                       )}
-                      <ProgressiveAnswer id={turn.id} response={turn.response} animate={!turn.historical && !initialTurns?.has(turn.id)}>
-                      {(visibleResponse, revealing) => <>
-                      {visibleResponse && (
-                        <div aria-hidden={revealing || undefined}><Answer
-                          response={visibleResponse}
-                          ownerText={turn.payload.text}
-                        /></div>
-                      )}
-                      <Notice error>{turn.historical ? "" : turn.issue}</Notice>
-                      {activityOwners.get(turn.activity_trace_id || turn.job_id || turn.id)===turn.id && <AnalysisActivity
-                        endpoint={turn.job_id ? `/api/jobs/${turn.job_id}/activity` : `/api/chats/${id}/turns/${turn.id}/activity`}
-                        traceId={turn.activity_trace_id}
-                        revealing={revealing}
-                        responseReady={Boolean(visibleResponse) && !turn.job_id && turn.status === "completed"}
-                        onQuestion={(questionId) => { setQuestion(questionId);requestAnimationFrame(() => { const input=document.querySelector<HTMLTextAreaElement>('textarea[placeholder="Escribe tu aclaración…"]');input?.scrollIntoView({block:'center'});input?.focus(); }); }}
-                        fallback={queuePosition(data.turns,index) ? `En cola · posición ${queuePosition(data.turns,index)}` : "Preparando respuesta…"}
-                      />}
-                      </>}
+                      <ProgressiveAnswer
+                        id={turn.id}
+                        response={turn.response}
+                        animate={
+                          !turn.historical && !initialTurns?.has(turn.id)
+                        }
+                      >
+                        {(visibleResponse, revealing) => (
+                          <>
+                            {visibleResponse && (
+                              <div aria-hidden={revealing || undefined}>
+                                <Answer
+                                  response={visibleResponse}
+                                  ownerText={turn.payload.text}
+                                />
+                              </div>
+                            )}
+                            <Notice error>
+                              {turn.historical ? "" : turn.issue}
+                            </Notice>
+                            {activityOwners.get(
+                              turn.activity_trace_id || turn.job_id || turn.id,
+                            ) === turn.id && (
+                              <AnalysisActivity
+                                endpoint={
+                                  turn.job_id
+                                    ? `/api/jobs/${turn.job_id}/activity`
+                                    : `/api/chats/${id}/turns/${turn.id}/activity`
+                                }
+                                traceId={turn.activity_trace_id}
+                                revealing={revealing}
+                                responseReady={
+                                  Boolean(visibleResponse) &&
+                                  !turn.job_id &&
+                                  turn.status === "completed"
+                                }
+                                onQuestion={(questionId) => {
+                                  setQuestion(questionId);
+                                  requestAnimationFrame(() => {
+                                    const input =
+                                      document.querySelector<HTMLTextAreaElement>(
+                                        'textarea[placeholder="Escribe tu aclaración…"]',
+                                      );
+                                    input?.scrollIntoView({ block: "center" });
+                                    input?.focus();
+                                  });
+                                }}
+                                fallback={
+                                  queuePosition(data.turns, index)
+                                    ? tr("En cola · posición {0}", {
+                                        "0": queuePosition(data.turns, index),
+                                      })
+                                    : tr("Preparando respuesta…")
+                                }
+                              />
+                            )}
+                          </>
+                        )}
                       </ProgressiveAnswer>
                       {turn.status === "waiting" && (
                         <Notice>
-                          El análisis necesita una aclaración. Responde a la
-                          pregunta que aparece debajo.
+                          {tr(
+                            "El análisis necesita una aclaración. Responde a la pregunta que aparece debajo.",
+                          )}
                         </Notice>
                       )}
                       <div className="mt-3 flex flex-wrap gap-2">
@@ -412,8 +462,8 @@ export function ChatPage({
                             >
                               <RotateCcw />
                               {turn.status === "stale"
-                                ? "Recalcular"
-                                : "Reintentar"}
+                                ? tr("Recalcular")
+                                : tr("Reintentar")}
                             </Button>
                           )}
                         {turn.response?.report_id &&
@@ -423,7 +473,7 @@ export function ChatPage({
                             <Button asChild variant="outline" size="sm">
                               <a href={`#chat-report/${id}/${turn.id}`}>
                                 <FileText />
-                                Abrir informe
+                                {tr("Abrir informe")}
                               </a>
                             </Button>
                           ) : (
@@ -434,14 +484,14 @@ export function ChatPage({
                               onClick={() => operation("report", turn.id)}
                             >
                               <FileText />
-                              Crear informe
+                              {tr("Crear informe")}
                             </Button>
                           ))}
                         {turn.report_outdated && <Status status="outdated" />}
                         {turn.job_id && !setup && (
                           <Button asChild variant="ghost" size="sm">
                             <a href={`#analysis/${turn.job_id}`}>
-                              Ver informe
+                              {tr("Ver informe")}
                               <ArrowUpRight />
                             </a>
                           </Button>
@@ -465,7 +515,9 @@ export function ChatPage({
                 .map((f) => (
                   <Disclosure
                     key={f.fact_id || f.id}
-                    title="Hay información del negocio que necesita confirmación"
+                    title={tr(
+                      "Hay información del negocio que necesita confirmación",
+                    )}
                     defaultOpen
                   >
                     <p>{f.content.statement}</p>
@@ -483,7 +535,7 @@ export function ChatPage({
                           })
                         }
                       >
-                        Usar:{" "}
+                        {tr("Usar:")}{" "}
                         {alt.content?.statement || alt.statement || alt.quote}
                       </Button>
                     ))}
@@ -497,7 +549,7 @@ export function ChatPage({
                 />
               )}
             </ConversationContent>
-            <ConversationScrollButton aria-label="Ir al último mensaje" />
+            <ConversationScrollButton aria-label={tr("Ir al último mensaje")} />
           </Conversation>
         </div>
       )}
@@ -508,7 +560,7 @@ export function ChatPage({
           {selected && (
             <div className="mb-3 space-y-2">
               <ChoiceSelect
-                label="Aclaración pendiente"
+                label={tr("Aclaración pendiente")}
                 value={selected.id}
                 onChange={setQuestion}
                 options={questions.map((q) => ({ value: q.id, label: q.text }))}
@@ -537,9 +589,9 @@ export function ChatPage({
                   size="sm"
                   variant="outline"
                   disabled={sendAction.busy}
-                  onClick={() => void send("No lo sé", "unknown")}
+                  onClick={() => void send(tr("No lo sé"), "unknown")}
                 >
-                  No lo sé
+                  {tr("No lo sé")}
                 </Button>
                 {setupQuestion.optional && (
                   <Button
@@ -547,10 +599,10 @@ export function ChatPage({
                     variant="ghost"
                     disabled={sendAction.busy}
                     onClick={() =>
-                      void send("Prefiero omitir esta pregunta", "declined")
+                      void send(tr("Prefiero omitir esta pregunta"), "declined")
                     }
                   >
-                    Omitir por ahora
+                    {tr("Omitir por ahora")}
                   </Button>
                 )}
               </div>
@@ -562,9 +614,9 @@ export function ChatPage({
               variant="outline"
               className="mb-2"
               disabled={sendAction.busy}
-              onClick={() => void send("No lo sé", "unknown")}
+              onClick={() => void send(tr("No lo sé"), "unknown")}
             >
-              No lo sé
+              {tr("No lo sé")}
             </Button>
           )}
           <Composer
@@ -598,7 +650,9 @@ export function ChatPage({
             disabled={setup && Boolean(pending)}
             error={sendAction.error}
             placeholder={
-              selected ? "Escribe tu aclaración…" : "Pregunta o añade contexto…"
+              selected
+                ? tr("Escribe tu aclaración…")
+                : tr("Pregunta o añade contexto…")
             }
           />
         </div>
@@ -607,10 +661,11 @@ export function ChatPage({
   );
 }
 function ContextChange() {
+  useLanguage();
   return (
     <div className="flex items-center gap-3 py-2 text-xs text-muted-foreground">
       <div className="h-px flex-1 bg-border" />
-      Contexto del negocio actualizado
+      {tr("Contexto del negocio actualizado")}
       <div className="h-px flex-1 bg-border" />
     </div>
   );

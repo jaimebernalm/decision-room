@@ -1,3 +1,4 @@
+import { translate as tr, useLanguage } from "@/lib/i18n";
 import { useState } from "react";
 import { Download, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ export function ReportDownload({
   url: string;
   disabled?: boolean;
 }) {
+  useLanguage();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   async function download() {
@@ -25,10 +27,12 @@ export function ReportDownload({
       const response = await fetch(url, { credentials: "same-origin" });
       if (!response.ok) {
         const body = await response.json();
-        throw new Error(body.error || "No se ha podido descargar el informe.");
+        throw new Error(
+          body.error || tr("No se ha podido descargar el informe."),
+        );
       }
       if (!response.headers.get("Content-Type")?.startsWith("application/pdf"))
-        throw new Error("La descarga no contiene un PDF válido.");
+        throw new Error(tr("La descarga no contiene un PDF válido."));
       const blob = await response.blob();
       const href = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -42,7 +46,7 @@ export function ReportDownload({
       setError(
         cause instanceof Error
           ? cause.message
-          : "No se ha podido descargar el informe.",
+          : tr("No se ha podido descargar el informe."),
       );
     } finally {
       setBusy(false);
@@ -56,7 +60,7 @@ export function ReportDownload({
             <Button
               variant="outline"
               size="icon"
-              aria-label="Descargar informe"
+              aria-label={tr("Descargar informe")}
               disabled={disabled || busy}
               onClick={download}
             >
@@ -71,12 +75,12 @@ export function ReportDownload({
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            {busy ? "Preparando descarga…" : "Descargar informe"}
+            {busy ? tr("Preparando descarga…") : tr("Descargar informe")}
           </TooltipContent>
         </Tooltip>
         {busy && (
           <span role="status" className="mt-2 text-xs text-muted-foreground">
-            Preparando descarga…
+            {tr("Preparando descarga…")}
           </span>
         )}
         <Notice error>{error}</Notice>

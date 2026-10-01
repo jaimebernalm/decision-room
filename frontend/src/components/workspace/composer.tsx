@@ -1,3 +1,4 @@
+import { translate as tr, useLanguage } from "@/lib/i18n";
 import type { ReactNode } from "react";
 import { Paperclip, ArrowUp, LoaderCircle, Sparkles } from "lucide-react";
 import { InputGroupAddon } from "@/components/ui/input-group";
@@ -18,7 +19,7 @@ export function Composer({
   busy,
   disabled = false,
   error,
-  placeholder = "Pregunta sobre tu negocio…",
+  placeholder = tr("Pregunta sobre tu negocio…"),
   suggestions = false,
   compact = false,
   attachments,
@@ -36,6 +37,7 @@ export function Composer({
   attachments?: ReactNode;
   tools?: ReactNode;
 }) {
+  useLanguage();
   return (
     <div className="w-full">
       {attachments && <div className="mb-2 px-2">{attachments}</div>}
@@ -53,7 +55,7 @@ export function Composer({
           </InputGroupAddon>
         )}
         <PromptInputTextarea
-          aria-label="Mensaje"
+          aria-label={tr("Mensaje")}
           value={text}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
@@ -71,7 +73,7 @@ export function Composer({
             className="py-0 pr-1 has-[>button]:mr-0"
           >
             <PromptInputSubmit
-              aria-label="Enviar mensaje"
+              aria-label={tr("Enviar mensaje")}
               className="size-9 rounded-full"
               disabled={!text.trim() || busy || disabled}
               status={busy ? "submitted" : "ready"}
@@ -88,17 +90,17 @@ export function Composer({
             <PromptInputTools>
               {tools}
               <PromptInputButton
-                aria-label="Gestionar datos y archivos"
+                aria-label={tr("Gestionar datos y archivos")}
                 onClick={() => {
                   location.hash = "files";
                 }}
               >
                 <Paperclip />
-                <span className="text-xs">Datos del negocio</span>
+                <span className="text-xs">{tr("Datos del negocio")}</span>
               </PromptInputButton>
             </PromptInputTools>
             <PromptInputSubmit
-              aria-label="Enviar mensaje"
+              aria-label={tr("Enviar mensaje")}
               disabled={!text.trim() || busy || disabled}
               status={busy ? "submitted" : "ready"}
             >
@@ -115,9 +117,9 @@ export function Composer({
       {suggestions && (
         <Suggestions className="mt-4">
           {[
-            "¿Qué sabes de mi negocio?",
-            "¿Qué datos tengo disponibles?",
-            "¿Qué debería revisar primero?",
+            tr("¿Qué sabes de mi negocio?"),
+            tr("¿Qué datos tengo disponibles?"),
+            tr("¿Qué debería revisar primero?"),
           ].map((s) => (
             <Suggestion key={s} suggestion={s} onClick={() => onChange(s)} />
           ))}
@@ -125,7 +127,7 @@ export function Composer({
       )}
       {!compact && (
         <p className="mt-3 text-center text-xs text-muted-foreground">
-          Enter para enviar · Mayús + Enter para una nueva línea
+          {tr("Enter para enviar · Mayús + Enter para una nueva línea")}
         </p>
       )}
     </div>

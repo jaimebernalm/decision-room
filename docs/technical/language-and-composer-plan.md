@@ -10,8 +10,9 @@ control superior del panel. Se implementan y prueban por pasos con commits local
 
 Español e inglés serán seleccionables y persistentes. Al terminar se seleccionará
 inglés en el entorno solicitado. No se modifican identificadores, cifras ni datos
-subidos para cambiar el idioma. La traducción de contenido histórico está pendiente
-de la aclaración solicitada al usuario; el trabajo de interfaz puede avanzar.
+subidos para cambiar el idioma. Se ha solicitado una aclaración sobre el contenido histórico. Mientras no llegue
+una indicación distinta, se aplica inglés a la interfaz y al contenido nuevo;
+los mensajes, nombres, informes y datos ya guardados conservan su texto original.
 
 ## Pasos
 
@@ -41,6 +42,10 @@ de la aclaración solicitada al usuario; el trabajo de interfaz puede avanzar.
 
 - 2.5.20.1 completado: + circular compacto y Apariencia como submenú.
   Pasan 133 pruebas frontend y compilación, incluida persistencia y teclado.
-- 2.5.20.2–2.5.20.4 pendientes.
+- 2.5.20.2 completado: interfaz bilingüe, preferencia persistente, fechas y números
+  exactos según idioma. Pasan 142 pruebas frontend, compilación y lint sin errores.
+  Comprobados en navegador los menús separados y las vistas Inicio/Mi negocio en inglés.
+  Los textos históricos del negocio conservan su idioma original.
+- 2.5.20.3–2.5.20.4 pendientes.
 
 No se hace push sin una petición explícita.

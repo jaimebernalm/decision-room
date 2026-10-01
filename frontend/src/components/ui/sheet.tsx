@@ -1,3 +1,4 @@
+import { translate as tr, useLanguage } from "@/lib/i18n";
 import * as React from "react"
 import { cn } from "cn"
 import { Dialog as SheetPrimitive } from "radix-ui"
@@ -53,6 +54,7 @@ function SheetContent({
   side?: "top" | "right" | "bottom" | "left"
   showCloseButton?: boolean
 }) {
+  useLanguage();
   return (
     <SheetPortal>
       <SheetOverlay />
@@ -75,7 +77,7 @@ function SheetContent({
             >
               <XIcon
               />
-              <span className="sr-only">Cerrar</span>
+              <span className="sr-only">{tr("Cerrar")}</span>
             </Button>
           </SheetPrimitive.Close>
         )}

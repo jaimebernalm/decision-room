@@ -1,3 +1,4 @@
+import { translate as tr, useLanguage } from "@/lib/i18n";
 import {
   createContext,
   useContext,
@@ -80,6 +81,7 @@ type Assistant = {
 const AssistantContext = createContext<Assistant | null>(null);
 export const useAssistant = () => useContext(AssistantContext);
 export function AssistantProvider({ children }: { children: ReactNode }) {
+  useLanguage();
   const { workspace, route } = useWorkspace();
   const business = workspace.business?.id || "empty";
   const mounted = useRef(true);
@@ -236,7 +238,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
                 )
               : refs;
           if (!exists && remaining.length >= 8) {
-            setError("Puedes añadir hasta ocho elementos por mensaje.");
+            setError(tr("Puedes añadir hasta ocho elementos por mensaje."));
             return;
           }
           save(

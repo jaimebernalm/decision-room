@@ -1,3 +1,5 @@
+import { displayNumber } from "@/lib/presentation";
+import { translate as tr, useLanguage, locale } from "@/lib/i18n";
 import type { ReactNode } from "react";
 import {
   Bar,
@@ -57,6 +59,7 @@ function GroupedBars({
   chart: ChartData;
   panel: ChartPanel;
 }) {
+  useLanguage();
   const rows = groupedPoints(chart, panel);
   const series = panel.series_order.map((name, i) => ({
     key: `s${i}`,
@@ -79,7 +82,7 @@ function GroupedBars({
       {panel.title && <h4 className="text-sm font-medium">{panel.title}</h4>}
       <ul
         className="flex flex-wrap gap-x-5 gap-y-2 text-xs"
-        aria-label={`Leyenda: ${panel.series_title}`}
+        aria-label={tr("Leyenda: {0}", { "0": panel.series_title })}
       >
         {series.map((s) => (
           <li key={s.key} className="flex items-center gap-2">
@@ -127,7 +130,7 @@ function GroupedBars({
                 : [(v: number) => Math.min(0, v), (v: number) => Math.max(0, v)]
             }
             tickFormatter={(v) =>
-              new Intl.NumberFormat("es", { notation: "compact" }).format(v)
+              new Intl.NumberFormat(locale(), { notation: "compact" }).format(v)
             }
           />
           <YAxis
@@ -141,7 +144,7 @@ function GroupedBars({
               <g transform={`translate(${x},${y})`}>
                 <foreignObject x={-140} y={-26} width={132} height={52}>
                   <div className="flex h-full items-center justify-end text-right text-xs leading-tight text-muted-foreground break-words">
-                    {payload.value}
+                    {displayNumber(payload.value)}
                   </div>
                 </foreignObject>
               </g>
@@ -192,6 +195,7 @@ export function EvidenceChart({
   actions?: ReactNode;
   footer?: ReactNode;
 }) {
+  useLanguage();
   const bars = chart.kind === "bar";
   const temporal =
     chart.kind === "line" &&
@@ -222,9 +226,9 @@ export function EvidenceChart({
         }
         tickFormatter={(v) =>
           bars
-            ? new Intl.NumberFormat("es", { notation: "compact" }).format(v)
+            ? new Intl.NumberFormat(locale(), { notation: "compact" }).format(v)
             : temporal
-              ? new Date(v).toLocaleDateString("es", {
+              ? new Date(v).toLocaleDateString(locale(), {
                   month: "short",
                   day: "numeric",
                   timeZone: "UTC",
@@ -255,7 +259,7 @@ export function EvidenceChart({
             ? String(v).length > 21
               ? String(v).slice(0, 20) + "…"
               : String(v)
-            : new Intl.NumberFormat("es", { notation: "compact" }).format(v)
+            : new Intl.NumberFormat(locale(), { notation: "compact" }).format(v)
         }
       />
       <ReferenceLine {...(bars ? { x: 0 } : { y: 0 })} stroke="var(--border)" />
@@ -270,8 +274,8 @@ export function EvidenceChart({
               items={payload
                 .filter((item) => item.value != null)
                 .map((item) => ({
-                  label: "Valor",
-                  value: String(item.payload.formatted),
+                  label: tr("Valor"),
+                  value: displayNumber(String(item.payload.formatted)),
                   color: item.color,
                 }))}
             />
@@ -301,7 +305,7 @@ export function EvidenceChart({
         )}
         {chart.kind !== "table" && !chart.panels?.length && (
           <ChartContainer
-            config={config}
+            config={{ value: { ...config.value, label: tr(config.value.label) } }}
             className="w-full"
             style={{
               containerType: "inline-size",
@@ -349,12 +353,12 @@ export function EvidenceChart({
         </p>
         <div className="mt-4">
           <Disclosure
-            title="Ver valores exactos"
+            title={tr("Ver valores exactos")}
             defaultOpen={chart.kind === "table"}
           >
             {chart.unit_origin === "owner" && (
               <p className="mb-3 text-xs text-muted-foreground">
-                Unidad visible indicada por ti. Unidad del análisis:{" "}
+                {tr("Unidad visible indicada por ti. Unidad del análisis:")}{" "}
                 {chart.original_unit}.
               </p>
             )}
@@ -362,11 +366,11 @@ export function EvidenceChart({
               <TableHeader>
                 <TableRow>
                   <TableHead className="whitespace-normal">
-                    Periodo / categoría
+                    {tr("Periodo / categoría")}
                   </TableHead>
                   {chart.points.some(
                     (p) => p.original_label && p.original_label !== p.label,
-                  ) && <TableHead>Código original</TableHead>}
+                  ) && <TableHead>{tr("Código original")}</TableHead>}
                   <TableHead className="text-right whitespace-normal">
                     {chart.unit}
                   </TableHead>
@@ -384,7 +388,7 @@ export function EvidenceChart({
                       </TableCell>
                     )}
                     <TableCell className="text-right font-mono tabular-nums">
-                      {p.formatted}
+                      {displayNumber(p.formatted)}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -404,6 +408,7 @@ export function ReportView({
   report: ReportData;
   compact?: boolean;
 }) {
+  useLanguage();
   const edit = (
     kind: "report" | "metric" | "chart" | "insight",
     key: string,
@@ -443,14 +448,17 @@ export function ReportView({
       <div>
         <div className="mb-3 flex flex-wrap gap-2">
           <Badge variant="outline">{report.scope.period}</Badge>
-          <Badge variant="secondary">Revisado</Badge>
-          {report.partial && <Badge variant="outline">Entrega parcial</Badge>}
+          <Badge variant="secondary">{tr("Revisado")}</Badge>
+          {report.partial && (
+            <Badge variant="outline">{tr("Entrega parcial")}</Badge>
+          )}
           {report.presentation && report.presentation.revision > 0 && (
             <Badge variant="outline">
-              Presentación · v{report.presentation.revision}
+              {tr("Presentación · v")}
+              {report.presentation.revision}
             </Badge>
           )}
-          {edit("report", "title", "título del informe")}
+          {edit("report", "title", tr("título del informe"))}
         </div>
         <h2
           className={
@@ -465,7 +473,7 @@ export function ReportView({
           <Selectable
             item={item("section", "summary", {
               key: "summary",
-              title: "Resumen",
+              title: tr("Resumen"),
               statement: report.summary,
             })}
           >
@@ -491,7 +499,7 @@ export function ReportView({
                 </CardHeader>
                 <CardContent>
                   <p className="text-3xl font-semibold tracking-tight tabular-nums">
-                    {h.value}
+                    {displayNumber(h.value)}
                     <span className="mt-2 block text-xs font-normal tracking-normal text-muted-foreground">
                       {h.unit}
                     </span>
@@ -503,14 +511,14 @@ export function ReportView({
         </div>
       )}
       <ReportSection
-        title="Contexto y alcance"
-        preview="Sobre el negocio, los datos y el objetivo del análisis"
+        title={tr("Contexto y alcance")}
+        preview={tr("Sobre el negocio, los datos y el objetivo del análisis")}
       >
         {report.summary && <p>{report.summary}</p>}
         <Selectable
           item={item("section", "scope", {
             key: "scope",
-            title: "Alcance",
+            title: tr("Alcance"),
             statement: report.scope.coverage,
           })}
         >
@@ -518,7 +526,7 @@ export function ReportView({
         </Selectable>
         {report.scope.question && (
           <p>
-            <strong>Pregunta: </strong>
+            <strong>{tr("Pregunta: ")}</strong>
             {report.scope.question}
           </p>
         )}
@@ -526,11 +534,11 @@ export function ReportView({
           <Selectable
             item={item("section", "limitations", {
               key: "limitations",
-              title: "Limitaciones",
+              title: tr("Limitaciones"),
               statement: report.limitations.join("\n"),
             })}
           >
-            <h3 className="font-medium">Limitaciones</h3>
+            <h3 className="font-medium">{tr("Limitaciones")}</h3>
             <ul className="list-disc space-y-2 pl-5 text-muted-foreground">
               {report.limitations.map((l, i) => (
                 <li key={i}>{l}</li>
@@ -563,19 +571,19 @@ export function ReportView({
                 )}
                 {claim.next_step && (
                   <p className="rounded-lg bg-muted p-4">
-                    <strong>Siguiente comprobación: </strong>
+                    <strong>{tr("Siguiente comprobación: ")}</strong>
                     {claim.next_step}
                   </p>
                 )}
                 {claim.method && (
-                  <Disclosure title="Cómo se ha calculado">
+                  <Disclosure title={tr("Cómo se ha calculado")}>
                     <p>{claim.method}</p>
                   </Disclosure>
                 )}
                 {claim.evidence_details && (
                   <Sources>
                     <SourcesTrigger count={claim.evidence_details.files.length}>
-                      <span>Fuentes y evidencia</span>
+                      <span>{tr("Fuentes y evidencia")}</span>
                       <ArrowUpRight className="size-4" />
                     </SourcesTrigger>
                     <SourcesContent>
@@ -583,7 +591,7 @@ export function ReportView({
                         <p>{claim.evidence_details.files.join(" · ")}</p>
                         {claim.evidence_details.metrics.map((m, j) => (
                           <p key={j} className="font-mono text-xs">
-                            {m.label}: {m.value}
+                            {m.label}: {displayNumber(m.value)}
                           </p>
                         ))}
                         {claim.evidence_details.operations.map((o, j) => (

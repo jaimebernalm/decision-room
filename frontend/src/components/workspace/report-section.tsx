@@ -1,3 +1,4 @@
+import { translate as tr, useLanguage } from "@/lib/i18n";
 import { useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -27,6 +28,7 @@ export function ReportSection({
   children: ReactNode;
   actions?: ReactNode;
 }) {
+  useLanguage();
   const [open, setOpen] = useState(false);
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
@@ -51,7 +53,7 @@ export function ReportSection({
                 </span>
               )}
               <span className="flex items-center gap-1 text-xs font-medium text-primary">
-                {open ? "Ocultar detalle" : "Ver detalle"}
+                {open ? tr("Ocultar detalle") : tr("Ver detalle")}
                 <ChevronDown
                   aria-hidden
                   className="size-3.5 transition-transform group-data-[state=open]:rotate-180 motion-reduce:transition-none"

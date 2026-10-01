@@ -1,3 +1,4 @@
+import { translate as tr, useLanguage } from "@/lib/i18n";
 import { useEffect, useRef } from "react";
 import { PanelRightOpen, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,10 +11,17 @@ import { ContextAttachments, SelectionTool } from "./context-selection";
 import { Composer } from "./composer";
 
 export function AssistantToggle() {
+  useLanguage();
   const assistant = useAssistant();
   const { workspace, route } = useWorkspace();
   const [draft] = useDraft(homeDraftKey(workspace.business?.id || "empty"), "");
-  if (!assistant || !workspace.business || !contextualRoute(route) || assistant.dock.open) return null;
+  if (
+    !assistant ||
+    !workspace.business ||
+    !contextualRoute(route) ||
+    assistant.dock.open
+  )
+    return null;
   const continuing = Boolean(
     assistant.dock.chatId || draft.trim() || assistant.selected.length,
   );
@@ -22,8 +30,10 @@ export function AssistantToggle() {
       <Button
         variant="ghost"
         size="icon"
-        aria-label={continuing ? "Continuar conversación" : "Preguntar algo"}
-        title={continuing ? "Continuar conversación" : "Preguntar algo"}
+        aria-label={
+          continuing ? tr("Continuar conversación") : tr("Preguntar algo")
+        }
+        title={continuing ? tr("Continuar conversación") : tr("Preguntar algo")}
         onClick={() =>
           assistant.setDock({ ...assistant.dock, open: true, origin: route })
         }
@@ -37,6 +47,7 @@ export function AssistantToggle() {
 // Used both in the empty side panel and the standalone new conversation.
 // The page owns the component lifetime, so late sends cannot redirect another page.
 export function NewChatComposer() {
+  useLanguage();
   const assistant = useAssistant();
   const { workspace, route, refresh } = useWorkspace();
   const business = workspace.business!;
@@ -71,19 +82,19 @@ export function NewChatComposer() {
     <div
       ref={container}
       role="region"
-      aria-label="Asistente del negocio"
+      aria-label={tr("Asistente del negocio")}
       className="w-full"
     >
       {(context.analysis_id || context.finding_reference) && (
         <div className="flex items-center gap-2 px-5 pt-2 text-xs text-muted-foreground">
           <span className="min-w-0 flex-1 truncate" title={context.label}>
-            {context.label || "Contexto seleccionado"}
+            {context.label || tr("Contexto seleccionado")}
           </span>
           <Button
             variant="ghost"
             size="icon"
             className="size-8 shrink-0 rounded-full"
-            aria-label="Quitar contexto"
+            aria-label={tr("Quitar contexto")}
             onClick={() => setContext({})}
           >
             <X className="size-3" />
@@ -106,7 +117,7 @@ export function NewChatComposer() {
         onSend={send}
         busy={action.busy}
         error={action.error || assistant?.error}
-        placeholder="Pregunta o añade contexto…"
+        placeholder={tr("Pregunta o añade contexto…")}
       />
     </div>
   );

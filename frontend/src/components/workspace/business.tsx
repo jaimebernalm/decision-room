@@ -1,3 +1,4 @@
+import { translate as tr, useLanguage } from "@/lib/i18n";
 import { useState } from "react";
 import {
   ArrowRight,
@@ -30,18 +31,21 @@ import {
 import type { Business, Dataset } from "@/lib/types";
 import { Heading, Field, Notice, ChoiceSelect, Busy } from "./shared";
 export function BusinessPicker() {
+  useLanguage();
   const { workspace, refresh } = useWorkspace(),
     action = useAction();
   return (
     <>
       <Heading
-        title="Tus negocios"
-        description="Cada negocio tiene sus propios datos, memoria y conversaciones."
+        title={tr("Tus negocios")}
+        description={tr(
+          "Cada negocio tiene sus propios datos, memoria y conversaciones.",
+        )}
       >
         <Button asChild>
           <a href="#business-new">
             <Plus />
-            Nuevo negocio
+            {tr("Nuevo negocio")}
           </a>
         </Button>
       </Heading>
@@ -70,11 +74,11 @@ export function BusinessPicker() {
                 {workspace.business?.id === b.id ? (
                   <>
                     <Check />
-                    Negocio activo
+                    {tr("Negocio activo")}
                   </>
                 ) : (
                   <>
-                    Abrir negocio
+                    {tr("Abrir negocio")}
                     <ArrowRight />
                   </>
                 )}
@@ -95,6 +99,7 @@ export function BusinessForm({
   onSaved?: (business: Business) => void;
   onboarding?: boolean;
 }) {
+  useLanguage();
   const { workspace, refresh } = useWorkspace(),
     current = create ? null : workspace.business,
     key =
@@ -116,15 +121,19 @@ export function BusinessForm({
       <Heading
         title={
           onboarding
-            ? "Cuéntanos sobre tu negocio"
+            ? tr("Cuéntanos sobre tu negocio")
             : current
-              ? "Presentación del negocio"
-              : "Empecemos por tu negocio"
+              ? tr("Presentación del negocio")
+              : tr("Empecemos por tu negocio")
         }
         description={
           onboarding
-            ? "Antes de mirar los números, queremos entender qué haces. Una explicación breve es suficiente para empezar."
-            : "Este contexto ayuda a interpretar tus datos y responder con más criterio."
+            ? tr(
+                "Antes de mirar los números, queremos entender qué haces. Una explicación breve es suficiente para empezar.",
+              )
+            : tr(
+                "Este contexto ayuda a interpretar tus datos y responder con más criterio.",
+              )
         }
       />
       <Card
@@ -156,18 +165,18 @@ export function BusinessForm({
                   if (onSaved) onSaved(saved);
                   else {
                     location.hash = "home";
-                    toast.success("Presentación guardada");
+                    toast.success(tr("Presentación guardada"));
                   }
                 }
                 refresh();
               });
             }}
           >
-            <Field label="Nombre del negocio" id="business-name">
+            <Field label={tr("Nombre del negocio")} id="business-name">
               <Input
                 id="business-name"
                 autoComplete="organization"
-                placeholder={onboarding ? "¿Cómo se llama?" : undefined}
+                placeholder={onboarding ? tr("¿Cómo se llama?") : undefined}
                 required
                 maxLength={100}
                 value={draft.name}
@@ -175,9 +184,11 @@ export function BusinessForm({
               />
             </Field>
             <Field
-              label="Cuéntanos qué haces"
+              label={tr("Cuéntanos qué haces")}
               id="business-description"
-              hint="Qué vendes, a quién, cómo funciona el negocio y qué te interesa mejorar."
+              hint={tr(
+                "Qué vendes, a quién, cómo funciona el negocio y qué te interesa mejorar.",
+              )}
             >
               <Textarea
                 id="business-description"
@@ -186,7 +197,9 @@ export function BusinessForm({
                 className="min-h-48"
                 placeholder={
                   onboarding
-                    ? "Por ejemplo: tengo una papelería. Vendemos material escolar y regalos, y registramos las ventas en la caja."
+                    ? tr(
+                        "Por ejemplo: tengo una papelería. Vendemos material escolar y regalos, y registramos las ventas en la caja.",
+                      )
                     : undefined
                 }
                 value={draft.description}
@@ -198,7 +211,7 @@ export function BusinessForm({
             <Notice error>{action.error}</Notice>
             {current && current.profile_revision !== draft.profile_revision && (
               <Notice>
-                El perfil ha cambiado.{" "}
+                {tr("El perfil ha cambiado.")}{" "}
                 <Button
                   type="button"
                   variant="link"
@@ -213,7 +226,7 @@ export function BusinessForm({
                     action.setError("");
                   }}
                 >
-                  Descartar borrador y cargar la versión actual
+                  {tr("Descartar borrador y cargar la versión actual")}
                 </Button>
               </Notice>
             )}
@@ -224,10 +237,10 @@ export function BusinessForm({
             >
               {action.busy ? <Busy /> : <ArrowRight />}
               {onboarding
-                ? "Empezar conversación"
+                ? tr("Empezar conversación")
                 : current
-                  ? "Guardar presentación"
-                  : "Crear negocio"}
+                  ? tr("Guardar presentación")
+                  : tr("Crear negocio")}
             </Button>
           </form>
         </CardContent>
@@ -242,6 +255,7 @@ export function UploadForm({
   datasets?: Dataset[];
   onDone?: () => void;
 }) {
+  useLanguage();
   const { workspace, refresh } = useWorkspace(),
     b = workspace.business!,
     dataOnly = datasets !== undefined;
@@ -270,7 +284,9 @@ export function UploadForm({
   const submit = () =>
     action.run(async () => {
       if (!files.length)
-        throw new Error("Selecciona una carpeta o varios archivos CSV/Excel.");
+        throw new Error(
+          tr("Selecciona una carpeta o varios archivos CSV/Excel."),
+        );
       const metadata = dataOnly
         ? {
             business_id: b.id,
@@ -310,13 +326,13 @@ export function UploadForm({
       refresh();
       if (action.isMounted()) {
         if (dataOnly) {
-          toast.success(result.message || "Datos guardados");
+          toast.success(result.message || tr("Datos guardados"));
           onDone?.();
         } else if (job) location.hash = `analysis/${job.id}`;
         else
           throw new Error(
             result.message ||
-              "Hay archivos que necesitan corrección antes del informe.",
+              tr("Hay archivos que necesitan corrección antes del informe."),
           );
       }
     });
@@ -329,39 +345,48 @@ export function UploadForm({
       }}
     >
       <Field
-        label={dataOnly ? "Nombre del conjunto de datos" : "Título del informe"}
+        label={
+          dataOnly
+            ? tr("Nombre del conjunto de datos")
+            : tr("Título del informe")
+        }
         id="upload-title"
       >
         <Input
           id="upload-title"
           required
           maxLength={160}
-          placeholder="Por ejemplo, ventas del último trimestre"
+          placeholder={tr("Por ejemplo, ventas del último trimestre")}
           value={draft.title}
           onChange={(e) => update("title", e.target.value)}
         />
       </Field>
       <ChoiceSelect
         label={
-          dataOnly ? "Cómo se relaciona con tus datos" : "Qué quieres analizar"
+          dataOnly
+            ? tr("Cómo se relaciona con tus datos")
+            : tr("Qué quieres analizar")
         }
         value={draft.mode}
         onChange={(v) => update("mode", v)}
         options={
           dataOnly
             ? [
-                { value: "separate", label: "Datos independientes" },
-                { value: "update", label: "Nueva versión de un conjunto" },
-                { value: "correction", label: "Corregir una versión anterior" },
+                { value: "separate", label: tr("Datos independientes") },
+                { value: "update", label: tr("Nueva versión de un conjunto") },
+                {
+                  value: "correction",
+                  label: tr("Corregir una versión anterior"),
+                },
               ]
             : [
-                { value: "general", label: "Exploración general" },
-                { value: "specific", label: "Una pregunta concreta" },
+                { value: "general", label: tr("Exploración general") },
+                { value: "specific", label: tr("Una pregunta concreta") },
               ]
         }
       />
       {!dataOnly && draft.mode === "specific" && (
-        <Field label="Tu pregunta" id="goal">
+        <Field label={tr("Tu pregunta")} id="goal">
           <Textarea
             id="goal"
             required
@@ -374,11 +399,11 @@ export function UploadForm({
       {dataOnly && draft.mode !== "separate" && (
         <>
           <ChoiceSelect
-            label="Conjunto anterior"
+            label={tr("Conjunto anterior")}
             value={draft.previous_id || "none"}
             onChange={(v) => update("previous_id", v === "none" ? "" : v)}
             options={[
-              { value: "none", label: "Selecciona una versión" },
+              { value: "none", label: tr("Selecciona una versión") },
               ...datasets
                 .filter((d) => !d.superseded_by || d.id === draft.previous_id)
                 .map((d) => ({
@@ -389,14 +414,16 @@ export function UploadForm({
           />
           <Notice>
             {draft.mode === "correction"
-              ? "La corrección invalidará las respuestas que dependan de los datos sustituidos."
-              : "La versión anterior seguirá disponible como histórico."}
+              ? tr(
+                  "La corrección invalidará las respuestas que dependan de los datos sustituidos.",
+                )
+              : tr("La versión anterior seguirá disponible como histórico.")}
           </Notice>
         </>
       )}
       {dataOnly && (
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Desde (opcional)" id="period-from">
+          <Field label={tr("Desde (opcional)")} id="period-from">
             <Input
               type="date"
               id="period-from"
@@ -404,7 +431,7 @@ export function UploadForm({
               onChange={(e) => update("period_from", e.target.value)}
             />
           </Field>
-          <Field label="Hasta (opcional)" id="period-until">
+          <Field label={tr("Hasta (opcional)")} id="period-until">
             <Input
               type="date"
               id="period-until"
@@ -425,9 +452,11 @@ export function UploadForm({
       >
         <FileSpreadsheet className="mb-3 size-6 text-muted-foreground" />
         <Field
-          label="Archivos CSV o Excel"
+          label={tr("Archivos CSV o Excel")}
           id="data-files"
-          hint="Selecciona varios archivos o una carpeta completa. Hasta 2 GB en total."
+          hint={tr(
+            "Selecciona varios archivos o una carpeta completa. Hasta 2 GB en total.",
+          )}
         >
           <Input
             id="data-files"
@@ -441,26 +470,34 @@ export function UploadForm({
           type="file"
           multiple
           accept=".csv,.xlsx"
-          aria-label="Seleccionar carpeta de datos"
+          aria-label={tr("Seleccionar carpeta de datos")}
           className="mt-3"
           ref={(node) => node?.setAttribute("webkitdirectory", "")}
           onChange={(e) => choose(e.target.files || [])}
         />
         {files.length > 0 && (
           <p className="mt-3 text-xs">
-            {files.length} archivos · {(total / 1_000_000).toFixed(1)} MB
-            {ignored > 0 ? ` · ${ignored} archivos de otro tipo omitidos` : ""}
+            {files.length}
+            {tr(" archivos · ")}
+            {(total / 1_000_000).toFixed(1)} MB
+            {ignored > 0
+              ? tr(" · {0} archivos de otro tipo omitidos", { "0": ignored })
+              : ""}
           </p>
         )}
         {action.busy && total > 0 && (
           <p className="mt-2 text-xs" role="status">
             {uploaded < total
-              ? `Subiendo ${Math.round((uploaded / total) * 100)} %`
-              : "Preparando las tablas…"}
+              ? tr("Subiendo {0} %", {
+                  "0": Math.round((uploaded / total) * 100),
+                })
+              : tr("Preparando las tablas…")}
           </p>
         )}
         {total > FOLDER_LIMIT && (
-          <Notice error>La entrega supera el límite total de 2 GB.</Notice>
+          <Notice error>
+            {tr("La entrega supera el límite total de 2 GB.")}
+          </Notice>
         )}
       </div>
       <Notice error>{action.error}</Notice>
@@ -475,12 +512,12 @@ export function UploadForm({
           type="submit"
         >
           {action.busy ? <Busy /> : <Upload />}
-          {dataOnly ? "Guardar datos" : "Crear informe"}
+          {dataOnly ? tr("Guardar datos") : tr("Crear informe")}
         </Button>
         <Button asChild type="button" variant="ghost">
           <a href="/api/sample" download>
             <Download />
-            CSV de ejemplo
+            {tr("CSV de ejemplo")}
           </a>
         </Button>
       </div>
@@ -488,11 +525,14 @@ export function UploadForm({
   );
 }
 export function NewReport() {
+  useLanguage();
   return (
     <div className="mx-auto max-w-2xl">
       <Heading
-        title="Crear informe"
-        description="Sube tus datos. Revisaremos su estructura y pediremos las aclaraciones que hagan falta."
+        title={tr("Crear informe")}
+        description={tr(
+          "Sube tus datos. Revisaremos su estructura y pediremos las aclaraciones que hagan falta.",
+        )}
       />
       <Card className="shadow-none">
         <CardContent>

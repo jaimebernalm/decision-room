@@ -1,3 +1,9 @@
+import { locale } from "./i18n";
+/** Localize server-formatted Spanish decimals without rounding or floating point. */
+export function displayNumber(formatted: string): string {
+  if (locale() !== "en-US" || !/^[+-]?(?:\d{1,3}(?:\.\d{3})+|\d+)(?:,\d+)?$/.test(formatted)) return formatted;
+  return formatted.replace(/[.,]/g, separator => separator === "." ? "," : ".");
+}
 /** Exact decimal preview with the server's half-up rounding; no float conversion. */
 export function presentationNumber(raw: string, decimals: number): string {
   const match = /^([+-]?)(\d+)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/.exec(raw);
@@ -16,7 +22,9 @@ export function presentationNumber(raw: string, decimals: number): string {
   const integer = decimals ? value.slice(0, -decimals) : value;
   return (
     (match[1] === "-" ? "-" : "") +
-    integer.replace(/\B(?=(\d{3})+(?!\d))/g, ".") +
-    (decimals ? "," + value.slice(-decimals) : "")
+    integer.replace(/\B(?=(\d{3})+(?!\d))/g, locale() === "en-US" ? "," : ".") +
+    (decimals
+      ? (locale() === "en-US" ? "." : ",") + value.slice(-decimals)
+      : "")
   );
 }

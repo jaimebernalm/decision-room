@@ -1,3 +1,4 @@
+import { translate as tr, useLanguage } from "@/lib/i18n";
 import { useId, useRef, useState, type ReactNode } from "react";
 import { Pencil, History, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
@@ -38,6 +39,7 @@ export function PresentationEditor({
   target: EditTarget;
   renderTrigger?: (openEditor: () => void, open: boolean) => ReactNode;
 }) {
+  useLanguage();
   const { workspace } = useWorkspace();
   const action = useAction();
   const request = useRef<{ body: string; key: string } | null>(null);
@@ -102,7 +104,8 @@ export function PresentationEditor({
             : target.kind === "chart"
               ? report.charts.find((x) => x.key === target.key)
               : report.claims.find((x) => x.key === target.key);
-      if (!selected) throw new Error("Este elemento ya no está disponible.");
+      if (!selected)
+        throw new Error(tr("Este elemento ya no está disponible."));
       setTitle("label" in selected ? selected.label : selected.title);
       setUnit("unit" in selected ? selected.unit : "");
       setDecimals("decimals" in selected ? (selected.decimals ?? 0) : 0);
@@ -130,8 +133,8 @@ export function PresentationEditor({
       dispatchEvent(new Event("dr-presentation"));
       toast.success(
         restore_revision === undefined
-          ? "Cambios guardados en Inicio, informe y PDF"
-          : "Versión restaurada en Inicio, informe y PDF",
+          ? tr("Cambios guardados en Inicio, informe y PDF")
+          : tr("Versión restaurada en Inicio, informe y PDF"),
       );
       setOpen(false);
     });
@@ -154,8 +157,8 @@ export function PresentationEditor({
           variant="ghost"
           size="icon"
           className="size-8 shrink-0 text-muted-foreground"
-          aria-label={`Editar ${target.title}`}
-          title="Editar presentación"
+          aria-label={tr("Editar {0}", { "0": target.title })}
+          title={tr("Editar presentación")}
           onClick={openEditor}
         >
           <Pencil className="size-4" />
@@ -169,21 +172,22 @@ export function PresentationEditor({
       >
         <DialogContent className="sm:max-w-xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Editar presentación</DialogTitle>
+            <DialogTitle>{tr("Editar presentación")}</DialogTitle>
             <DialogDescription>
-              Los cambios se verán en Inicio, en este informe y en su PDF. Las
-              cifras y las fuentes se conservan.
+              {tr(
+                "Los cambios se verán en Inicio, en este informe y en su PDF. Las cifras y las fuentes se conservan.",
+              )}
             </DialogDescription>
           </DialogHeader>
           <div
             className="flex flex-wrap gap-2"
             role="tablist"
-            aria-label="Opciones de edición"
+            aria-label={tr("Opciones de edición")}
           >
             {[
-              ["element", "Este elemento"],
-              ["names", "Nombres del catálogo"],
-              ["history", "Historial"],
+              ["element", tr("Este elemento")],
+              ["names", tr("Nombres del catálogo")],
+              ["history", tr("Historial")],
             ].map(([key, text]) => (
               <Button
                 key={key}
@@ -203,12 +207,12 @@ export function PresentationEditor({
           </div>
           <Notice error>{action.error}</Notice>
           {!base && !action.error && (
-            <p role="status">Cargando presentación…</p>
+            <p role="status">{tr("Cargando presentación…")}</p>
           )}
           {base && tab === "element" && (
             <div className="space-y-4">
               <label className="block space-y-2">
-                <span className="font-medium">Título visible</span>
+                <span className="font-medium">{tr("Título visible")}</span>
                 <Input
                   value={title}
                   maxLength={250}
@@ -218,11 +222,13 @@ export function PresentationEditor({
               {numeric && (
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="space-y-2">
-                    <span className="block font-medium">Unidad visible</span>
+                    <span className="block font-medium">
+                      {tr("Unidad visible")}
+                    </span>
                     {numeric.unit_customizable ? (
                       <>
                         <Input
-                          aria-label="Unidad visible"
+                          aria-label={tr("Unidad visible")}
                           list={unitListId}
                           value={unit}
                           maxLength={180}
@@ -234,10 +240,13 @@ export function PresentationEditor({
                           ))}
                         </datalist>
                         <span className="block text-xs text-muted-foreground">
-                          Puedes aclarar la unidad con tus palabras. Las
-                          cantidades no se convierten.
+                          {tr(
+                            "Puedes aclarar la unidad con tus palabras. Las cantidades no se convierten.",
+                          )}
                           {numeric.original_unit &&
-                            ` Unidad del análisis: ${numeric.original_unit}.`}
+                            tr(" Unidad del análisis: {0}.", {
+                              "0": numeric.original_unit,
+                            })}
                         </span>
                       </>
                     ) : (
@@ -255,7 +264,7 @@ export function PresentationEditor({
                     )}
                   </label>
                   <label className="space-y-2">
-                    <span className="block font-medium">Decimales</span>
+                    <span className="block font-medium">{tr("Decimales")}</span>
                     <select
                       className="w-full rounded-md border bg-background p-2"
                       value={decimals}
@@ -272,9 +281,11 @@ export function PresentationEditor({
               )}
               <div
                 className="rounded-lg border bg-muted/40 p-4 space-y-2"
-                aria-label="Vista previa"
+                aria-label={tr("Vista previa")}
               >
-                <p className="text-xs text-muted-foreground">Vista previa</p>
+                <p className="text-xs text-muted-foreground">
+                  {tr("Vista previa")}
+                </p>
                 <p className="font-medium break-words">{title}</p>
                 {previewNumber !== undefined && (
                   <p className="text-2xl font-semibold tabular-nums">
@@ -284,34 +295,39 @@ export function PresentationEditor({
                 )}
                 {target.kind === "chart" && (
                   <p className="text-sm">
-                    {unit} · El formato se aplicará a los valores del gráfico y
-                    su tabla.
+                    {unit}
+                    {tr(
+                      " · El formato se aplicará a los valores del gráfico y su tabla.",
+                    )}
                   </p>
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                Para cambiar cifras, cálculos o el significado de una unidad,
-                pide una corrección del análisis en el chat.
+                {tr(
+                  "Para cambiar cifras, cálculos o el significado de una unidad, pide una corrección del análisis en el chat.",
+                )}
               </p>
             </div>
           )}
           {base && tab === "names" && (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Cada nombre cambia en todas las apariciones de su código dentro
-                de este informe.
+                {tr(
+                  "Cada nombre cambia en todas las apariciones de su código dentro de este informe.",
+                )}
               </p>
               {!base.presentation?.labels.length && (
                 <p>
-                  No hay correspondencias de catálogo comprobadas para este
-                  informe.
+                  {tr(
+                    "No hay correspondencias de catálogo comprobadas para este informe.",
+                  )}
                 </p>
               )}
               {base.presentation?.labels.map((label) => (
                 <label key={label.id} className="block space-y-1">
                   <span className="font-medium">{label.code}</span>
                   <Input
-                    aria-label={`Nombre de ${label.code}`}
+                    aria-label={tr("Nombre de {0}", { "0": label.code })}
                     maxLength={180}
                     value={names[label.id] ?? label.name}
                     onChange={(e) =>
@@ -319,7 +335,8 @@ export function PresentationEditor({
                     }
                   />
                   <span className="block text-xs text-muted-foreground">
-                    Catálogo: {label.catalog_name}
+                    {tr("Catálogo: ")}
+                    {label.catalog_name}
                   </span>
                 </label>
               ))}
@@ -328,8 +345,9 @@ export function PresentationEditor({
           {base && tab === "history" && (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Restaurar crea una nueva versión. Los cambios anteriores y el
-                análisis original se conservan.
+                {tr(
+                  "Restaurar crea una nueva versión. Los cambios anteriores y el análisis original se conservan.",
+                )}
               </p>
               {base.presentation?.history.map((version) => (
                 <div
@@ -338,9 +356,10 @@ export function PresentationEditor({
                 >
                   <div>
                     <p className="font-medium">
-                      Versión {version.revision}
+                      {tr("Versión ")}
+                      {version.revision}
                       {version.revision === base.presentation?.revision
-                        ? " · Actual"
+                        ? tr(" · Actual")
                         : ""}
                     </p>
                     <p className="text-xs text-muted-foreground">
@@ -364,14 +383,15 @@ export function PresentationEditor({
                       )
                     }
                   >
-                    Ver
+                    {tr("Ver")}
                   </Button>
                 </div>
               ))}
               {historical && (
                 <div className="space-y-3 rounded-lg bg-muted p-4">
                   <p className="text-xs">
-                    Vista previa · Versión {historical.presentation?.revision}
+                    {tr("Vista previa · Versión ")}
+                    {historical.presentation?.revision}
                   </p>
                   <p className="font-medium">{historical.title}</p>
                   <ul className="space-y-1 text-sm">
@@ -393,7 +413,7 @@ export function PresentationEditor({
                   </ul>
                   <details>
                     <summary className="cursor-pointer text-sm">
-                      Nombres de esta versión
+                      {tr("Nombres de esta versión")}
                     </summary>
                     <ul className="mt-2 space-y-1 text-sm">
                       {historical.presentation?.labels.map((label) => (
@@ -413,7 +433,7 @@ export function PresentationEditor({
                       }
                     >
                       <RotateCcw />
-                      Restaurar esta versión
+                      {tr("Restaurar esta versión")}
                     </Button>
                   )}
                 </div>
@@ -426,7 +446,7 @@ export function PresentationEditor({
               disabled={action.busy}
               onClick={() => setOpen(false)}
             >
-              Cancelar
+              {tr("Cancelar")}
             </Button>
             {tab !== "history" && (
               <Button
@@ -440,7 +460,7 @@ export function PresentationEditor({
                 }
                 onClick={() => void save()}
               >
-                {action.busy ? "Guardando…" : "Guardar cambios"}
+                {action.busy ? tr("Guardando…") : tr("Guardar cambios")}
               </Button>
             )}
           </DialogFooter>

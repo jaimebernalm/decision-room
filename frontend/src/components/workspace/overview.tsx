@@ -1,3 +1,4 @@
+import { translate as tr, useLanguage } from "@/lib/i18n";
 import { AnalysisActivity } from "./analysis-activity";
 import { useState } from "react";
 import {
@@ -27,9 +28,10 @@ import { NewChatComposer } from "./floating-assistant";
 import { Selectable } from "./context-selection";
 import { useAssistant } from "@/lib/assistant";
 export function StartChat() {
+  useLanguage();
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <h1 className="sr-only">Nueva conversación</h1>
+      <h1 className="sr-only">{tr("Nueva conversación")}</h1>
       <div className="flex-1" />
       <div className="shrink-0 px-4 pb-4 pt-2 sm:px-8">
         <div className="mx-auto max-w-2xl">
@@ -41,6 +43,7 @@ export function StartChat() {
 }
 export { Reports } from "./reports";
 export function Chats() {
+  useLanguage();
   const { listing } = useWorkspace();
   const assistant = useAssistant();
   const [search, setSearch] = useState("");
@@ -50,19 +53,19 @@ export function Chats() {
   return (
     <>
       <Heading
-        title="Conversaciones"
-        description="Retoma una pregunta o empieza a explorar algo nuevo."
+        title={tr("Conversaciones")}
+        description={tr("Retoma una pregunta o empieza a explorar algo nuevo.")}
       >
         <Button asChild>
           <a href="#ask" onClick={() => assistant?.newConversation("page")}>
             <Plus />
-            Nuevo chat
+            {tr("Nuevo chat")}
           </a>
         </Button>
       </Heading>
       <Input
-        aria-label="Buscar conversación"
-        placeholder="Buscar conversación…"
+        aria-label={tr("Buscar conversación")}
+        placeholder={tr("Buscar conversación…")}
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         className="mb-6 max-w-sm"
@@ -88,7 +91,7 @@ export function Chats() {
                       size="icon"
                       variant="ghost"
                       className="relative z-10 rounded-full text-muted-foreground hover:bg-transparent hover:text-foreground"
-                      aria-label={`Opciones de ${c.title}`}
+                      aria-label={tr("Opciones de {0}", { "0": c.title })}
                     >
                       <MoreHorizontal />
                     </Button>
@@ -100,8 +103,10 @@ export function Chats() {
         </div>
       ) : (
         <Empty
-          title="Un espacio para pensar con tus datos"
-          description="Tus conversaciones se guardan dentro de cada negocio."
+          title={tr("Un espacio para pensar con tus datos")}
+          description={tr(
+            "Tus conversaciones se guardan dentro de cada negocio.",
+          )}
           href="#ask"
           onAction={() => assistant?.newConversation("page")}
         />
@@ -116,13 +121,14 @@ export function Presentation({
   path: string;
   exportUrl: string;
 }) {
+  useLanguage();
   const { data, error } = useResource<Report>(path, 5000);
   const activityPath = path.startsWith("/api/jobs/")
     ? `${path.split("/presentation")[0]}/activity`
     : path.replace(/\/presentation\/([^/]+)$/, "/turns/$1/activity");
   return (
     <>
-      <Heading title="Informe del negocio">
+      <Heading title={tr("Informe del negocio")}>
         <ReportDownload url={exportUrl} disabled={!data || Boolean(error)} />
       </Heading>
       <Notice error>{error}</Notice>
@@ -132,28 +138,37 @@ export function Presentation({
   );
 }
 export function How() {
+  useLanguage();
   return (
     <>
       <Heading
-        title="De tus datos a una decisión"
-        description="Un espacio privado para entender tu negocio, con resultados que puedes comprobar."
+        title={tr("De tus datos a una decisión")}
+        description={tr(
+          "Un espacio privado para entender tu negocio, con resultados que puedes comprobar.",
+        )}
       />
       <div className="grid gap-4 md:grid-cols-3">
         {[
           [
             "01",
-            "Presenta tu negocio",
-            "Cuenta qué haces, cuáles son tus prioridades y qué debería tener en cuenta el análisis.",
+            tr("Presenta tu negocio"),
+            tr(
+              "Cuenta qué haces, cuáles son tus prioridades y qué debería tener en cuenta el análisis.",
+            ),
           ],
           [
             "02",
-            "Añade tus datos",
-            "Sube un CSV UTF-8 de hasta 20 MB. Puedes mantener versiones y corregir archivos anteriores.",
+            tr("Añade tus datos"),
+            tr(
+              "Sube un CSV UTF-8 de hasta 20 MB. Puedes mantener versiones y corregir archivos anteriores.",
+            ),
           ],
           [
             "03",
-            "Pregunta y revisa",
-            "El asistente pide aclaraciones cuando las necesita. Los informes se publican después de comprobar su evidencia.",
+            tr("Pregunta y revisa"),
+            tr(
+              "El asistente pide aclaraciones cuando las necesita. Los informes se publican después de comprobar su evidencia.",
+            ),
           ],
         ].map(([n, t, d]) => (
           <Card key={n} className="shadow-none">
@@ -166,13 +181,13 @@ export function How() {
         ))}
       </div>
       <Notice>
-        Los datos permanecen en este espacio local. Las respuestas pueden
-        contener errores: revisa el alcance, las fuentes y las limitaciones
-        antes de tomar decisiones.
+        {tr(
+          "Los datos permanecen en este espacio local. Las respuestas pueden contener errores: revisa el alcance, las fuentes y las limitaciones antes de tomar decisiones.",
+        )}
       </Notice>
       <Button asChild className="mt-4">
         <a href="#ask">
-          Empezar una conversación
+          {tr("Empezar una conversación")}
           <ArrowUpRight />
         </a>
       </Button>

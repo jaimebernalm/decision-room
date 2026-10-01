@@ -1,3 +1,4 @@
+import { translate as tr, useLanguage } from "@/lib/i18n";
 import { InternalMonitor } from "@/components/workspace/internal-monitor";
 import { useEffect, useState, lazy, Suspense } from "react";
 import { ThemeProvider } from "next-themes";
@@ -98,6 +99,7 @@ function exchangeAccess() {
   return loginPromise || Promise.resolve();
 }
 function App() {
+  useLanguage();
   const [route, setRoute] = useState(() =>
       routeNow().startsWith("access=") ? "home" : routeNow(),
     ),
@@ -141,7 +143,7 @@ function App() {
         if (controller.signal.aborted) return;
         if (chats.business_id !== (ws.business?.id || null))
           throw new Error(
-            "El negocio activo ha cambiado. Actualizando el espacio…",
+            tr("El negocio activo ha cambiado. Actualizando el espacio…"),
           );
         setWorkspace(ws);
         setListing(chats);
@@ -185,7 +187,11 @@ function App() {
     body = (
       <div className="mx-auto max-w-3xl p-8">
         <Notice error>{error}</Notice>
-        {!error ? <Loading /> : <Button onClick={refresh}>Reintentar</Button>}
+        {!error ? (
+          <Loading />
+        ) : (
+          <Button onClick={refresh}>{tr("Reintentar")}</Button>
+        )}
       </div>
     );
   else {
@@ -231,7 +237,7 @@ function App() {
               document.getElementById("main-content")?.focus();
             }}
           >
-            Saltar al contenido
+            {tr("Saltar al contenido")}
           </a>
         )}
         {activeRoute === "welcome" ? (
@@ -293,9 +299,7 @@ function App() {
                 ) : activeRoute === "ask" ? (
                   <StartChat />
                 ) : (
-                  <div
-                    className="mx-auto w-full max-w-7xl px-5 py-8 sm:px-8 lg:px-10"
-                  >
+                  <div className="mx-auto w-full max-w-7xl px-5 py-8 sm:px-8 lg:px-10">
                     <Route route={activeRoute} />
                   </div>
                 )}
@@ -311,16 +315,19 @@ function App() {
         >
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Eliminar conversación</AlertDialogTitle>
+              <AlertDialogTitle>{tr("Eliminar conversación")}</AlertDialogTitle>
               <AlertDialogDescription>
-                Se ocultará «{deleting?.title}» y no podrás continuar este chat.
-                La información del negocio y sus datos se conservan.
+                {tr("Se ocultará «")}
+                {deleting?.title}
+                {tr(
+                  "» y no podrás continuar este chat. La información del negocio y sus datos se conservan.",
+                )}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <Notice error>{deletion.error}</Notice>
             <AlertDialogFooter>
               <AlertDialogCancel disabled={deletion.busy}>
-                Cancelar
+                {tr("Cancelar")}
               </AlertDialogCancel>
               <Button
                 variant="destructive"
@@ -337,7 +344,8 @@ function App() {
                   })
                 }
               >
-                {deletion.busy && <Busy />}Eliminar chat
+                {deletion.busy && <Busy />}
+                {tr("Eliminar chat")}
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -368,6 +376,7 @@ function App() {
   );
 }
 function Route({ route }: { route: string }) {
+  useLanguage();
   const [page, id, turn] = route.split("/");
   switch (page) {
     case "home":
@@ -413,22 +422,23 @@ function Route({ route }: { route: string }) {
     default:
       return (
         <>
-          <Heading title="Esta página no existe" />
+          <Heading title={tr("Esta página no existe")} />
           <Button asChild>
-            <a href="#home">Volver al inicio</a>
+            <a href="#home">{tr("Volver al inicio")}</a>
           </Button>
         </>
       );
   }
 }
 function Login({ onDone }: { onDone: () => void }) {
+  useLanguage();
   const [token, setToken] = useState(""),
     action = useAction();
   return (
     <EntryFrame
       action={
         <Button asChild variant="ghost">
-          <a href="#welcome">Volver</a>
+          <a href="#welcome">{tr("Volver")}</a>
         </Button>
       }
     >
@@ -436,8 +446,10 @@ function Login({ onDone }: { onDone: () => void }) {
         <Card className="w-full max-w-md shadow-none">
           <CardContent>
             <Heading
-              title="Entra a tu espacio"
-              description="Abre tu espacio local con la clave de acceso del servidor."
+              title={tr("Entra a tu espacio")}
+              description={tr(
+                "Abre tu espacio local con la clave de acceso del servidor.",
+              )}
             />
             <form
               className="space-y-4"
@@ -450,7 +462,7 @@ function Login({ onDone }: { onDone: () => void }) {
                 });
               }}
             >
-              <Field label="Clave de acceso" id="access-key">
+              <Field label={tr("Clave de acceso")} id="access-key">
                 <Input
                   id="access-key"
                   type="password"
@@ -462,7 +474,8 @@ function Login({ onDone }: { onDone: () => void }) {
               </Field>
               <Notice error>{action.error}</Notice>
               <Button className="w-full" disabled={action.busy} type="submit">
-                {action.busy && <Busy />}Abrir mi espacio
+                {action.busy && <Busy />}
+                {tr("Abrir mi espacio")}
               </Button>
             </form>
           </CardContent>

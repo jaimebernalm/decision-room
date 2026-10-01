@@ -1,3 +1,4 @@
+import { translate as tr, useLanguage } from "@/lib/i18n";
 import type { ReactNode } from "react";
 import { ArrowUpRight, LoaderCircle, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -61,11 +62,14 @@ export function Notice({
 }) {
   return children ? (
     <Alert variant={error ? "destructive" : "default"} className="my-3">
-      <AlertDescription className="block">{children}</AlertDescription>
+      <AlertDescription className="block">
+        {typeof children === "string" && error ? tr(children) : children}
+      </AlertDescription>
     </Alert>
   ) : null;
 }
 export function Status({ status }: { status: string }) {
+  useLanguage();
   return (
     <Badge
       variant={
@@ -73,7 +77,7 @@ export function Status({ status }: { status: string }) {
       }
       className="whitespace-normal"
     >
-      {statuses[status] || status}
+      {tr(statuses[status] || status)}
     </Badge>
   );
 }
@@ -156,7 +160,7 @@ export function Empty({
   description,
   href,
   onAction,
-  label = "Nuevo chat",
+  label = tr("Nuevo chat"),
   iconAction,
 }: {
   title: string;
@@ -166,6 +170,7 @@ export function Empty({
   label?: string;
   iconAction?: { label: string; onClick: () => void; disabled?: boolean };
 }) {
+  useLanguage();
   return (
     <Card className="border-dashed shadow-none">
       <CardContent className="flex min-h-60 flex-col items-center justify-center gap-3 py-12 text-center">
@@ -202,8 +207,9 @@ export function Empty({
   );
 }
 export function Loading() {
+  useLanguage();
   return (
-    <div role="status" aria-label="Cargando" className="space-y-5">
+    <div role="status" aria-label={tr("Cargando")} className="space-y-5">
       <Skeleton className="h-8 w-56" />
       <Skeleton className="h-4 w-80 max-w-full" />
       <div className="grid gap-4 sm:grid-cols-2">

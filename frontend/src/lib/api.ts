@@ -1,3 +1,4 @@
+import { translate as tr, locale } from "@/lib/i18n";
 import type { QuestionContext, Chat, Turn, ContextReference } from "./types";
 export class ApiError extends Error {
   status: number;
@@ -59,13 +60,16 @@ export async function api<T>(
   } catch (error) {
     if (signal?.aborted) throw error;
     throw new Error(
-      "No hay conexión con el servidor local. Tu progreso guardado se conserva.",
+      tr(
+        "No hay conexión con el servidor local. Tu progreso guardado se conserva.",
+      ),
     );
   }
   const data = await response.json();
   if (!response.ok)
     throw new ApiError(
-      data.error || "No hemos podido completar la petición.",
+      (data.error ? tr(data.error) : "") ||
+        tr("No hemos podido completar la petición."),
       response.status,
     );
   return data;
@@ -76,7 +80,7 @@ export const shortTitle = (text: string) =>
     : text.replace(/\s+/g, " ").trim();
 export const date = (value?: string) =>
   value
-    ? new Date(value).toLocaleDateString("es-ES", {
+    ? new Date(value).toLocaleDateString(locale(), {
         day: "numeric",
         month: "short",
         year: "numeric",
@@ -231,7 +235,7 @@ export async function uploadPayload(key: string, metadata: object, file: File) {
     !file.size ||
     file.size > 20 * 1024 ** 2
   )
-    throw new Error("Elige un CSV con datos, de hasta 20 MB.");
+    throw new Error(tr("Elige un CSV con datos, de hasta 20 MB."));
   const hash = Array.from(
     new Uint8Array(
       await crypto.subtle.digest("SHA-256", await file.arrayBuffer()),
@@ -256,7 +260,8 @@ export async function uploadPayload(key: string, metadata: object, file: File) {
 }
 export const FOLDER_LIMIT = 2_000_000_000;
 export type FolderFile = File & { webkitRelativePath?: string };
-export const folderPath = (file: FolderFile) => file.webkitRelativePath || file.name;
+export const folderPath = (file: FolderFile) =>
+  file.webkitRelativePath || file.name;
 export function selectedDataFiles(files: Iterable<FolderFile>) {
   const all = Array.from(files);
   return {
@@ -272,23 +277,36 @@ export async function uploadFolder(
   progress?: (uploaded: number, total: number) => void,
 ) {
   if (!files.length || files.some((file) => !file.size))
-    throw new Error("Selecciona archivos CSV o Excel con datos.");
+    throw new Error(tr("Selecciona archivos CSV o Excel con datos."));
   const total = files.reduce((sum, file) => sum + file.size, 0);
   if (total > FOLDER_LIMIT)
-    throw new Error("La carpeta supera el límite total de 2 GB.");
+    throw new Error(tr("La carpeta supera el límite total de 2 GB."));
   const byPath = new Map(files.map((file) => [folderPath(file), file]));
   if (byPath.size !== files.length)
-    throw new Error("Hay archivos con la misma ruta en la carpeta.");
-  const listing = files.map((file) => ({ path: folderPath(file), size: file.size }));
-  const signature = JSON.stringify([metadata, files.map((file) => [folderPath(file), file.size, file.lastModified]).sort()]);
+    throw new Error(tr("Hay archivos con la misma ruta en la carpeta."));
+  const listing = files.map((file) => ({
+    path: folderPath(file),
+    size: file.size,
+  }));
+  const signature = JSON.stringify([
+    metadata,
+    files
+      .map((file) => [folderPath(file), file.size, file.lastModified])
+      .sort(),
+  ]);
   const old = store.get<{ signature: string; id: string } | null>(key, null);
-  const pending = old?.signature === signature ? old : { signature, id: crypto.randomUUID() };
+  const pending =
+    old?.signature === signature ? old : { signature, id: crypto.randomUUID() };
   store.set(key, pending);
   const base = `/api/datasets/bundles/${pending.id}`;
-  const state = await api<{ files: { path: string; size: number; uploaded: number }[]; result?: { analysis_id: string; status: string; message?: string } }>(
-    "/api/datasets/bundles",
-    { ...metadata, request_key: pending.id, files: listing },
-  );
+  const state = await api<{
+    files: { path: string; size: number; uploaded: number }[];
+    result?: { analysis_id: string; status: string; message?: string };
+  }>("/api/datasets/bundles", {
+    ...metadata,
+    request_key: pending.id,
+    files: listing,
+  });
   if (state.result) {
     return { ...state.result, upload_id: pending.id };
   }
@@ -297,8 +315,10 @@ export async function uploadFolder(
   for (const [index, item] of state.files.entries()) {
     const file = byPath.get(item.path);
     if (!file || file.size !== item.size)
-      throw new Error("La carpeta seleccionada ha cambiado. Selecciónala de nuevo.");
-    for (let offset = item.uploaded; offset < file.size; ) {
+      throw new Error(
+        tr("La carpeta seleccionada ha cambiado. Selecciónala de nuevo."),
+      );
+    for (let offset = item.uploaded; offset < file.size;) {
       const end = Math.min(offset + 8 * 1024 * 1024, file.size);
       let response: globalThis.Response;
       try {
@@ -313,15 +333,27 @@ export async function uploadFolder(
           body: file.slice(offset, end),
         });
       } catch {
-        throw new Error("Se ha interrumpido la subida. Vuelve a intentarlo para reanudarla.");
+        throw new Error(
+          tr(
+            "Se ha interrumpido la subida. Vuelve a intentarlo para reanudarla.",
+          ),
+        );
       }
       const answer = await response.json();
-      if (!response.ok) throw new ApiError(answer.error || "No se pudo subir un fragmento.", response.status);
+      if (!response.ok)
+        throw new ApiError(
+          answer.error || tr("No se pudo subir un fragmento."),
+          response.status,
+        );
       uploaded += end - offset;
       offset = end;
       progress?.(uploaded, total);
     }
   }
-  const result = await api<{ analysis_id: string; status: string; message?: string }>(`${base}/finish`, {});
+  const result = await api<{
+    analysis_id: string;
+    status: string;
+    message?: string;
+  }>(`${base}/finish`, {});
   return { ...result, upload_id: pending.id };
 }

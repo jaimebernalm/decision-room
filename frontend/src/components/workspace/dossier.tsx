@@ -1,3 +1,4 @@
+import { translate as tr, useLanguage } from "@/lib/i18n";
 import { useRef, useState } from "react";
 import {
   Plus,
@@ -70,6 +71,7 @@ const factStatus: Record<string, string> = {
   superseded: "Sustituido",
 };
 export function Dossier({ files = false }: { files?: boolean }) {
+  useLanguage();
   const { workspace, refresh } = useWorkspace(),
     b = workspace.business!,
     resource = useResource<DossierData>("/api/business/dossier"),
@@ -108,12 +110,14 @@ export function Dossier({ files = false }: { files?: boolean }) {
     <>
       <Heading
         title={b.name}
-        description="La información y los datos que dan contexto a cada respuesta."
+        description={tr(
+          "La información y los datos que dan contexto a cada respuesta.",
+        )}
       >
         <Button asChild variant="outline">
           <a href="#business">
             <Pencil />
-            Editar presentación
+            {tr("Editar presentación")}
           </a>
         </Button>
       </Heading>
@@ -123,9 +127,9 @@ export function Dossier({ files = false }: { files?: boolean }) {
           source_id: b.id,
           source_version: String(data.business.profile_revision),
           element_key: "profile",
-          title: `Presentación de ${data.business.name}`,
+          title: tr("Presentación de {0}", { "0": data.business.name }),
           href: "#my-business",
-          report_title: "Mi negocio",
+          report_title: tr("Mi negocio"),
           content: {
             key: "profile",
             title: data.business.name,
@@ -144,7 +148,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
         data.memory.pending || data.memory.failed || data.memory.needs_review,
       ) && (
         <Notice>
-          Hay información pendiente de procesar o revisar.{" "}
+          {tr("Hay información pendiente de procesar o revisar.")}{" "}
           {Boolean(data.memory.failed) && (
             <Button
               variant="link"
@@ -156,7 +160,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
                 })
               }
             >
-              Reintentar procesamiento
+              {tr("Reintentar procesamiento")}
             </Button>
           )}
         </Notice>
@@ -164,20 +168,20 @@ export function Dossier({ files = false }: { files?: boolean }) {
       <Tabs defaultValue={files ? "data" : "info"} className="min-w-0 w-full">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <TabsList>
-            <TabsTrigger value="info">Información</TabsTrigger>
-            <TabsTrigger value="data">Datos y versiones</TabsTrigger>
-            <TabsTrigger value="history">Historial</TabsTrigger>
+            <TabsTrigger value="info">{tr("Información")}</TabsTrigger>
+            <TabsTrigger value="data">{tr("Datos y versiones")}</TabsTrigger>
+            <TabsTrigger value="history">{tr("Historial")}</TabsTrigger>
           </TabsList>
           <Button variant="ghost" size="sm" onClick={resource.refresh}>
             <RefreshCw />
-            Actualizar
+            {tr("Actualizar")}
           </Button>
         </div>
         <TabsContent value="info" className="space-y-5">
           <div className="flex justify-end">
             <Button size="sm" onClick={() => setEdit(null)}>
               <Plus />
-              Añadir información
+              {tr("Añadir información")}
             </Button>
           </div>
           {facts.length ? (
@@ -192,10 +196,10 @@ export function Dossier({ files = false }: { files?: boolean }) {
                     element_key: "fact",
                     title: f.content.statement.slice(0, 100),
                     href: "#my-business",
-                    report_title: "Mi negocio",
+                    report_title: tr("Mi negocio"),
                     content: {
                       key: "fact",
-                      title: factKinds[f.content.kind] || "Información",
+                      title: tr(factKinds[f.content.kind] || "Información"),
                       statement: f.content.statement,
                     },
                   }}
@@ -204,7 +208,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
                     <CardHeader>
                       <div className="flex flex-wrap gap-2">
                         <Badge variant="outline">
-                          {factKinds[f.content.kind] || f.content.kind}
+                          {tr(factKinds[f.content.kind] || f.content.kind)}
                         </Badge>
                         <Badge
                           variant={
@@ -213,7 +217,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
                               : "secondary"
                           }
                         >
-                          {factStatus[f.status] || f.status}
+                          {tr(factStatus[f.status] || f.status)}
                         </Badge>
                       </div>
                       <CardTitle className="text-base leading-7">
@@ -232,7 +236,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
                           onClick={() => setEdit(f)}
                         >
                           <Pencil />
-                          Corregir
+                          {tr("Corregir")}
                         </Button>
                         {f.status !== "declared" && (
                           <Button
@@ -242,7 +246,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
                             onClick={() => mutation(f, "confirm")}
                           >
                             <Check />
-                            Confirmar
+                            {tr("Confirmar")}
                           </Button>
                         )}
                         <Button
@@ -252,7 +256,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
                           onClick={() => mutation(f, "withdraw")}
                         >
                           <Archive />
-                          Retirar
+                          {tr("Retirar")}
                         </Button>
                       </div>
                     </CardContent>
@@ -262,8 +266,10 @@ export function Dossier({ files = false }: { files?: boolean }) {
             </div>
           ) : (
             <Empty
-              title="Un contexto que crece contigo"
-              description="Añade prioridades, definiciones o detalles que el asistente debería recordar."
+              title={tr("Un contexto que crece contigo")}
+              description={tr(
+                "Añade prioridades, definiciones o detalles que el asistente debería recordar.",
+              )}
             />
           )}
         </TabsContent>
@@ -271,7 +277,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
           <div className="flex justify-end">
             <Button size="sm" onClick={() => setUpload(true)}>
               <Upload />
-              Subir datos
+              {tr("Subir datos")}
             </Button>
           </div>
           {data.datasets.length ? (
@@ -283,67 +289,110 @@ export function Dossier({ files = false }: { files?: boolean }) {
                     <Badge variant={d.corrected ? "destructive" : "secondary"}>
                       v{d.version}
                       {d.corrected
-                        ? " · corregida"
+                        ? tr(" · corregida")
                         : d.superseded_by
-                          ? " · anterior"
+                          ? tr(" · anterior")
                           : ""}
-                      {d.status === "partial" ? " · algunos archivos fallaron" : ""}
-                      {d.status === "failed" ? " · sin tablas disponibles" : ""}
+                      {d.status === "partial"
+                        ? tr(" · algunos archivos fallaron")
+                        : ""}
+                      {d.status === "failed"
+                        ? tr(" · sin tablas disponibles")
+                        : ""}
                     </Badge>
                   </div>
                   <CardDescription>
-                    {d.period_from || "Inicio no indicado"} —{" "}
-                    {d.period_until || "Fin no indicado"}
+                    {d.period_from || tr("Inicio no indicado")} —{" "}
+                    {d.period_until || tr("Fin no indicado")}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {(d.status === "ready" || d.status === "partial") && <DataModelPanel business={b.id} analysis={d.id} />}
-                  {!!d.original_files?.length && <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground">Archivos originales de la entrega</p>
-                    {d.original_files.map((file) => <div key={file.path} className="flex items-center gap-2 text-sm">
-                      <span className="min-w-0 flex-1 break-all">{file.path} · {(file.size / 1_000_000).toFixed(1)} MB</span>
-                      <Button asChild size="icon" variant="ghost"><a href={`/api/datasets/original/${d.id}?path=${encodeURIComponent(file.path)}`} download aria-label={`Descargar ${file.path}`}><Download /></a></Button>
-                    </div>)}
-                  </div>}
-                  {!!d.original_files?.length && <p className="text-xs font-medium text-muted-foreground">Tablas disponibles para analizar</p>}
+                  {(d.status === "ready" || d.status === "partial") && (
+                    <DataModelPanel business={b.id} analysis={d.id} />
+                  )}
+                  {!!d.original_files?.length && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        {tr("Archivos originales de la entrega")}
+                      </p>
+                      {d.original_files.map((file) => (
+                        <div
+                          key={file.path}
+                          className="flex items-center gap-2 text-sm"
+                        >
+                          <span className="min-w-0 flex-1 break-all">
+                            {file.path} · {(file.size / 1_000_000).toFixed(1)}{" "}
+                            MB
+                          </span>
+                          <Button asChild size="icon" variant="ghost">
+                            <a
+                              href={`/api/datasets/original/${d.id}?path=${encodeURIComponent(file.path)}`}
+                              download
+                              aria-label={tr("Descargar {0}", {
+                                "0": file.path,
+                              })}
+                            >
+                              <Download />
+                            </a>
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {!!d.original_files?.length && (
+                    <p className="text-xs font-medium text-muted-foreground">
+                      {tr("Tablas disponibles para analizar")}
+                    </p>
+                  )}
                   {d.files?.map((f) => (
                     <div key={f.id} className="flex items-center gap-3 text-sm">
                       <span className="min-w-0 flex-1 break-all">
                         {f.name}
                         <span className="ml-2 text-xs text-muted-foreground">
-                          {f.status === "failed" ? "No se pudo preparar" : `${f.rows ?? "—"} filas`}
+                          {f.status === "failed"
+                            ? tr("No se pudo preparar")
+                            : tr("{0} filas", { "0": f.rows ?? "—" })}
                         </span>
                       </span>
-                      {f.status !== "failed" && <Button asChild size="icon" variant="ghost">
-                        <a href={`/api/datasets/file/${f.id}`} download aria-label={`Descargar ${f.name}`}>
-                          <Download />
-                        </a>
-                      </Button>}
+                      {f.status !== "failed" && (
+                        <Button asChild size="icon" variant="ghost">
+                          <a
+                            href={`/api/datasets/file/${f.id}`}
+                            download
+                            aria-label={tr("Descargar {0}", { "0": f.name })}
+                          >
+                            <Download />
+                          </a>
+                        </Button>
+                      )}
                     </div>
                   ))}
-                  {(d.status === "ready" || d.status === "partial") && !d.corrected && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        store.set(contextKey(b.id), {
-                          analysis_id: d.id,
-                          label: `${d.title} · v${d.version}`,
-                        });
-                        location.hash = "ask";
-                      }}
-                    >
-                      <MessageSquare />
-                      Preguntar con esta versión
-                    </Button>
-                  )}
+                  {(d.status === "ready" || d.status === "partial") &&
+                    !d.corrected && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          store.set(contextKey(b.id), {
+                            analysis_id: d.id,
+                            label: `${d.title} · v${d.version}`,
+                          });
+                          location.hash = "ask";
+                        }}
+                      >
+                        <MessageSquare />
+                        {tr("Preguntar con esta versión")}
+                      </Button>
+                    )}
                 </CardContent>
               </Card>
             ))
           ) : (
             <Empty
-              title="Tus datos empiezan aquí"
-              description="Guarda archivos CSV o Excel, juntos o como carpeta, para reutilizarlos en las conversaciones. Cada actualización conserva su versión."
+              title={tr("Tus datos empiezan aquí")}
+              description={tr(
+                "Guarda archivos CSV o Excel, juntos o como carpeta, para reutilizarlos en las conversaciones. Cada actualización conserva su versión.",
+              )}
             />
           )}
         </TabsContent>
@@ -357,10 +406,12 @@ export function Dossier({ files = false }: { files?: boolean }) {
                 <CardContent className="space-y-3">
                   <div className="flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
                     <span>
-                      {date(f.created_at)} · revisión {f.revision}
+                      {date(f.created_at)}
+                      {tr(" · revisión ")}
+                      {f.revision}
                     </span>
                     <Badge variant="outline">
-                      {factStatus[f.status] || f.status}
+                      {tr(factStatus[f.status] || f.status)}
                     </Badge>
                   </div>
                   <p className="text-sm">{f.content.statement}</p>
@@ -370,7 +421,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
             ))
           ) : (
             <p className="py-10 text-center text-sm text-muted-foreground">
-              El historial aparecerá cuando guardes información.
+              {tr("El historial aparecerá cuando guardes información.")}
             </p>
           )}
         </TabsContent>
@@ -384,10 +435,10 @@ export function Dossier({ files = false }: { files?: boolean }) {
         <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>
-              {edit ? "Corregir información" : "Añadir información"}
+              {edit ? tr("Corregir información") : tr("Añadir información")}
             </DialogTitle>
             <DialogDescription>
-              Se guardará en la memoria de este negocio.
+              {tr("Se guardará en la memoria de este negocio.")}
             </DialogDescription>
           </DialogHeader>
           {edit !== undefined && (
@@ -403,9 +454,9 @@ export function Dossier({ files = false }: { files?: boolean }) {
       <Dialog open={upload} onOpenChange={setUpload}>
         <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>Añadir datos al negocio</DialogTitle>
+            <DialogTitle>{tr("Añadir datos al negocio")}</DialogTitle>
             <DialogDescription>
-              Conserva el periodo y la relación entre versiones.
+              {tr("Conserva el periodo y la relación entre versiones.")}
             </DialogDescription>
           </DialogHeader>
           {upload && <UploadForm datasets={data.datasets} onDone={done} />}
@@ -417,21 +468,22 @@ export function Dossier({ files = false }: { files?: boolean }) {
 function scopeLabel(content: FactContent, datasets: Dataset[]) {
   const target =
     content.scope === "business"
-      ? "Todo el negocio"
+      ? tr("Todo el negocio")
       : content.scope === "analysis"
         ? datasets.find((d) => d.id === content.scope_id)?.title ||
-          "Conjunto de datos"
+          tr("Conjunto de datos")
         : datasets
             .flatMap((d) => d.files || [])
-            .find((f) => f.id === content.scope_id)?.name || "Archivo";
-  return `${target}${content.valid_from || content.valid_until ? ` · ${content.valid_from || "…"} — ${content.valid_until || "…"}` : ""}${content.temporal_scope === "unresolved" ? " · fechas por aclarar" : ""}`;
+            .find((f) => f.id === content.scope_id)?.name || tr("Archivo");
+  return `${target}${content.valid_from || content.valid_until ? ` · ${content.valid_from || "…"} — ${content.valid_until || "…"}` : ""}${content.temporal_scope === "unresolved" ? tr(" · fechas por aclarar") : ""}`;
 }
 function FactOrigin({ fact }: { fact: Fact }) {
+  useLanguage();
   return (
-    <Disclosure title="Origen y vigencia">
+    <Disclosure title={tr("Origen y vigencia")}>
       <p>
-        {fact.content.valid_from || "Sin fecha inicial"} —{" "}
-        {fact.content.valid_until || "Sin fecha final"}
+        {fact.content.valid_from || tr("Sin fecha inicial")} —{" "}
+        {fact.content.valid_until || tr("Sin fecha final")}
       </p>
       {(fact.original_text || fact.quote) && (
         <blockquote className="border-l-2 pl-3 text-muted-foreground">
@@ -442,13 +494,14 @@ function FactOrigin({ fact }: { fact: Fact }) {
       {fact.conversation_id && (
         <Button asChild variant="link" size="sm">
           <a href={`#chat/${fact.conversation_id}`}>
-            Ver conversación de origen
+            {tr("Ver conversación de origen")}
           </a>
         </Button>
       )}
       {fact.alternatives?.map((a, i) => (
         <p key={i}>
-          Alternativa: {a.content?.statement || a.statement || a.quote}
+          {tr("Alternativa: ")}
+          {a.content?.statement || a.statement || a.quote}
         </p>
       ))}
     </Disclosure>
@@ -463,6 +516,7 @@ function FactEditor({
   datasets: Dataset[];
   onDone: () => void;
 }) {
+  useLanguage();
   const { workspace } = useWorkspace(),
     action = useAction();
   const [content, setContent] = useState<FactContent>(
@@ -483,12 +537,15 @@ function FactEditor({
   const update = (field: string, value: unknown) =>
     setContent({ ...content, [field]: value });
   const options = [
-    { value: "business", label: "Todo el negocio" },
+    { value: "business", label: tr("Todo el negocio") },
     ...datasets.flatMap((d) => [
-      { value: `analysis:${d.id}`, label: `Datos: ${d.title} · v${d.version}` },
+      {
+        value: `analysis:${d.id}`,
+        label: tr("Datos: {0} · v{1}", { "0": d.title, "1": d.version }),
+      },
       ...(d.files || []).map((f) => ({
         value: `source:${f.id}`,
-        label: `Archivo: ${f.name}`,
+        label: tr("Archivo: {0}", { "0": f.name }),
       })),
     ]),
   ];
@@ -529,20 +586,20 @@ function FactEditor({
             ...body,
             request_key: pending.current.key,
           });
-          toast.success("Información guardada");
+          toast.success(tr("Información guardada"));
           onDone();
         });
       }}
     >
       <ChoiceSelect
-        label="Tipo de información"
+        label={tr("Tipo de información")}
         value={content.kind}
         onChange={(v) => update("kind", v)}
         options={Object.entries(factKinds)
           .filter(([k]) => k !== "result_reference" || fact?.content.kind === k)
-          .map(([value, label]) => ({ value, label }))}
+          .map(([value, label]) => ({ value, label: tr(label) }))}
       />
-      <Field label="Información" id="fact-statement">
+      <Field label={tr("Información")} id="fact-statement">
         <Textarea
           id="fact-statement"
           required
@@ -553,7 +610,7 @@ function FactEditor({
         />
       </Field>
       <ChoiceSelect
-        label="Ámbito"
+        label={tr("Ámbito")}
         value={
           content.scope === "business"
             ? "business"
@@ -566,7 +623,7 @@ function FactEditor({
         options={options}
       />
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Desde (opcional)" id="valid-from">
+        <Field label={tr("Desde (opcional)")} id="valid-from">
           <Input
             id="valid-from"
             type="date"
@@ -574,7 +631,7 @@ function FactEditor({
             onChange={(e) => update("valid_from", e.target.value || null)}
           />
         </Field>
-        <Field label="Hasta (opcional)" id="valid-until">
+        <Field label={tr("Hasta (opcional)")} id="valid-until">
           <Input
             id="valid-until"
             type="date"
@@ -592,25 +649,26 @@ function FactEditor({
             update("temporal_scope", v ? "unresolved" : "unspecified")
           }
         />
-        Fechas pendientes de aclarar
+        {tr("Fechas pendientes de aclarar")}
       </label>
       {fact?.status === "declared" && (
         <ChoiceSelect
-          label="Cómo aplicar el cambio"
+          label={tr("Cómo aplicar el cambio")}
           value={change}
           onChange={setChange}
           options={[
             {
               value: "historical",
-              label: "Corregir también el contexto anterior",
+              label: tr("Corregir también el contexto anterior"),
             },
-            { value: "future", label: "Aplicar desde ahora" },
+            { value: "future", label: tr("Aplicar desde ahora") },
           ]}
         />
       )}
       <Notice error>{action.error}</Notice>
       <Button type="submit" disabled={action.busy}>
-        {action.busy && <Busy />}Guardar información
+        {action.busy && <Busy />}
+        {tr("Guardar información")}
       </Button>
     </form>
   );
