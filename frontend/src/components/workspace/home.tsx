@@ -38,6 +38,7 @@ import { Selectable } from "./context-selection";
 import type { ContextAttachment } from "@/lib/types";
 import { EvidenceChart } from "./report";
 import { PresentationEditor } from "./presentation-editor";
+import { findingHref, relatedFinding } from "@/lib/report-navigation";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -66,7 +67,10 @@ function Source({ item, reason }: { item: HomeItem; reason?: string }) {
   useLanguage();
   return (
     <div className="mt-5 text-xs text-muted-foreground">
-      <p className="mb-2 leading-relaxed">{item.source.period}</p>
+      <p className="mb-2 leading-relaxed">
+        <span>{item.source.period}</span> ·{" "}
+        {tr("Revisión {0}", { "0": item.source.version })}
+      </p>
       <Collapsible>
         <CollapsibleTrigger className="group inline-flex items-center gap-1 rounded-sm py-1 text-xs hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           {tr("Periodo y fuente")}{" "}
@@ -335,11 +339,28 @@ export function Home() {
                         <EvidenceChart
                           chart={item.content}
                           actions={controls(item)}
+                          lead={(() => {
+                            const finding = relatedFinding(data.items, item);
+                            return finding ? (
+                              <p className="mb-4 text-sm leading-6">
+                                {finding.content.statement}
+                              </p>
+                            ) : null;
+                          })()}
                           footer={
-                            <Source
-                              item={item}
-                              reason={data.reasons[item.id]}
-                            />
+                            <>
+                              <a
+                                href={findingHref(item)}
+                                className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary underline underline-offset-4"
+                              >
+                                {tr("Ver hallazgo en el informe")}
+                                <ArrowUpRight className="size-4" />
+                              </a>
+                              <Source
+                                item={item}
+                                reason={data.reasons[item.id]}
+                              />
+                            </>
                           }
                         />
                       </Selectable>
@@ -366,9 +387,23 @@ export function Home() {
                               </div>
                             </CardHeader>
                             <CardContent>
-                              <p className="text-sm leading-relaxed">
-                                {item.content.statement}
-                              </p>
+                              {!selected.some(
+                                (chart) =>
+                                  chart.kind === "chart" &&
+                                  relatedFinding(data.items, chart)?.id ===
+                                    item.id,
+                              ) && (
+                                <p className="text-sm leading-relaxed">
+                                  {item.content.statement}
+                                </p>
+                              )}
+                              <a
+                                href={findingHref(item)}
+                                className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary underline underline-offset-4"
+                              >
+                                {tr("Ver hallazgo en el informe")}
+                                <ArrowUpRight className="size-4" />
+                              </a>
                               <Source
                                 item={item}
                                 reason={data.reasons[item.id]}

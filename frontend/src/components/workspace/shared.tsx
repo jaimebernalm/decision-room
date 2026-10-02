@@ -138,19 +138,30 @@ export function Disclosure({
   title,
   children,
   defaultOpen = false,
+  subtle = false,
 }: {
   title: string;
   children: ReactNode;
   defaultOpen?: boolean;
+  subtle?: boolean;
 }) {
   return (
-    <Collapsible defaultOpen={defaultOpen} className="rounded-lg border p-4">
-      <CollapsibleTrigger className="group flex w-full items-center justify-between gap-3 text-left text-sm font-medium">
+    <Collapsible
+      defaultOpen={defaultOpen}
+      className={subtle ? "" : "rounded-lg border p-4"}
+    >
+      <CollapsibleTrigger
+        className={`group flex items-center justify-between gap-3 rounded-sm text-left text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${subtle ? "py-1 text-muted-foreground hover:text-foreground" : "w-full"}`}
+      >
         {title}
         <ChevronDown className="size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div className="pt-4 space-y-3 text-sm">{children}</div>
+        <div
+          className={`space-y-3 text-sm ${subtle ? "mt-3 rounded-xl border p-4 leading-7" : "pt-4"}`}
+        >
+          {children}
+        </div>
       </CollapsibleContent>
     </Collapsible>
   );

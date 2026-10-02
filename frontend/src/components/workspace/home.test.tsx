@@ -258,3 +258,58 @@ it("previews agent choices without applying them until the owner accepts", async
     ).revision,
   ).toBe(3);
 });
+
+it("connects charts only to findings from the same report and review and links to that exact finding", async () => {
+  const source = data.items[0].source;
+  const chart = {
+    id: "chart",
+    kind: "chart" as const,
+    title: "Evolución",
+    source,
+    content: {
+      key: "chart",
+      title: "Evolución",
+      kind: "table" as const,
+      unit: "EUR",
+      caption: "Sin devoluciones",
+      claim_key: "sales",
+      points: [],
+    },
+  };
+  const insight = {
+    id: "insight",
+    kind: "insight" as const,
+    title: "Hallazgo",
+    source,
+    content: {
+      key: "sales",
+      title: "Hallazgo",
+      statement: "Conclusión de abril con sus condiciones completas.",
+    },
+  };
+  const old = {
+    ...insight,
+    id: "old",
+    content: { ...insight.content, statement: "Conclusión de otra revisión" },
+    source: { ...source, version: "old", period: "Marzo" },
+  };
+  const dashboard = {
+    ...data,
+    selected: ["chart", "old", "insight"],
+    items: [chart, old, insight],
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => ({ ok: true, json: async () => dashboard })),
+  );
+  mount();
+  expect(await screen.findByText(insight.content.statement)).toBeVisible();
+  expect(screen.getAllByText(insight.content.statement)).toHaveLength(1);
+  const links = screen.getAllByRole("link", {
+    name: "Ver hallazgo en el informe",
+  });
+  expect(links[0]).toHaveAttribute("href", "#report/j/finding/sales/r/v");
+  expect(links[1]).toHaveAttribute("href", "#report/j/finding/sales/r/old");
+  expect(screen.getAllByText("Abril de 2025")[0]).toBeVisible();
+  expect(screen.getByText("Marzo")).toBeVisible();
+});

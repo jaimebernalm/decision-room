@@ -1215,5 +1215,12 @@
   "· revisión {0}": "· revision {0}",
   "este grupo": "this group",
   "Marca la versión correcta o escribe otra solución. Revisa el contenido y guarda tu elección.": "Select the correct version or write another solution. Review the content and save your choice.",
-  "Organiza la información de este negocio con tus propios nombres y categorías.": "Organize this business’s information with your own names and categories."
+  "Organiza la información de este negocio con tus propios nombres y categorías.": "Organize this business’s information with your own names and categories.",
+  "Sobre este informe": "About this report",
+  "Archivos:": "Files:",
+  "Para interpretar este informe": "To interpret this report",
+  "Más indicadores del informe": "More report metrics",
+  "Ver hallazgo en el informe": "View finding in report",
+  "Revisión {0}": "Review {0}",
+  "El hallazgo enlazado pertenece a otra revisión o ya no está disponible. Se muestra el informe disponible; no se ha sustituido la referencia del chat.": "The linked finding belongs to another review or is no longer available. The available report is shown; the chat reference has not been replaced."
 }

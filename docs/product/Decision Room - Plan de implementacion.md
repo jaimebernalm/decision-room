@@ -832,3 +832,13 @@ contexto/hallazgos desplegables e icono de descarga con PDF completo, sin seccio
 ocultas en la exportación. Se conservan aprobación, referencias y paleta.
 Ver [plan](../technical/report-reading-plan.md) y
 [validación](../validation/2026-09-28-report-reading-and-pdf.md).
+
+**Lectura progresiva, 2 de octubre de 2026 (3.8.12.1):** cada hallazgo reúne su
+conclusión y gráficos en una tarjeta; el detalle se abre debajo, sin desplazar
+el gráfico. Contexto mediante «Sobre este informe», tres indicadores iniciales
+y advertencias completas visibles. Inicio relaciona gráfico y conclusión de la
+misma revisión y enlaza al hallazgo exacto, conservando selección y personalización.
+Se comprueban 202 pruebas frontend, 18 pruebas finales de los componentes tocados,
+3 pruebas de PDF, compilación, lint y recorrido en escritorio/móvil.
+Véanse [incremento del plan](../technical/report-reading-plan.md#38121-lectura-progresiva-del-informe-y-de-inicio)
+y [validación y límites](../validation/2026-10-02-report-reading-progressive.md).
