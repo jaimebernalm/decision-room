@@ -109,8 +109,10 @@ accesibles, estilos móviles e impresión. No se añaden vídeos ni dashboard al
 
 ## Compatibilidad y archivos
 
-La implementación 3.9 usa prompts de revisión v42 e investigación v32 y
-dirección de negocio v6, sin reescribir grafos ni aprobaciones históricas.
+La implementación 3.9 usa prompts de revisión v43 e investigación v33 y
+dirección de negocio v7, sin reescribir grafos ni aprobaciones históricas.
+Las comprobaciones propuestas se contrastan con las columnas disponibles: un
+recuento o desglose aún sin calcular no se trata como contexto operativo ausente.
 En gráficos que referencian una serie completa, `temporal_grain: null` hereda el
 grano guardado; el revisor contrasta esa evidencia y no exige un override del campo.
 Los campos nuevos conservan valores vacíos por defecto para leer los

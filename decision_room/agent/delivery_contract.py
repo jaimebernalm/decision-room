@@ -97,6 +97,22 @@ actions. Choose appropriate alternatives; do not import these facts into a case.
 If a useful reaction cannot be selected, identify the precise missing fact and
 preserve a partial delivery instead of declaring this component complete. Do
 computable internal checks now; do not defer them to the owner or future work.
+Before calling a fact missing or proposing a future check, inspect the ACTUAL
+table columns, owner definitions and saved observations. Distinguish an absent
+source from a calculation not yet performed. Invoice/buyer counts, units,
+observed prices, amount per invoice and segment composition can often be derived
+from supplied transaction identifiers and line fields; they are not external
+operational context merely because they help interpret a business signal.
+Choose only the focal calculations that distinguish the reactions you propose,
+not an exhaustive menu of analyses. The planner must guide the principal to do
+those calculations, and the analyst must execute/save them before delivery.
+Then use their actual results to narrow the next check to a genuinely absent
+fact. If budgets prevent a material check, mark that decision support partial
+or deferred, not complete or unavailable. The reviewer must inspect each proposed
+next check against the supplied columns: requesting the owner to count existing
+invoices/customers or compare existing prices/mix is unfinished analysis and must
+fail decision_support until calculated or honestly declared partial. Do not infer
+causes, demand, capacity or stock availability from those descriptive calculations.
 The reviewer must assess the actual condition-to-reaction reasoning and the
 original goal, not approve because the orientation fields or reactions exist.
 Cover the owner's deliverables separately from internal investigation branches;
