@@ -594,3 +594,31 @@ ni el resultado de los pilotos congelados. Aplicado en este orden:
 La presión de tokens es la hipótesis principal de los rechazos temporales, sin
 atribuir retrospectivamente cada 429 a una causa no guardada. Véanse
 [mediciones y límites](../validation/2026-10-02-provider-diagnostics.md).
+
+### Experimento Luna directo del 2 de octubre — dos rondas de tres
+
+Continuación autorizada por el propietario del experimento manual preparado:
+
+1. Conservar original, fuentes y trazas; ejecutar tres sesiones independientes
+   con el mismo contexto y petición libre de gráficos en HTML.
+2. Auditar cifras, decisiones y renderizado antes de ajustar instrucciones;
+   guardar también errores y entregas fallidas.
+3. Pedir profundidad focal, prioridad justificada y reacciones según contraste,
+   sin proporcionar resultados; ejecutar otras tres sesiones independientes.
+4. Comparar con la rúbrica semántica de 3.9 y la referencia histórica del producto,
+   conservar consumo y preparar una galería local con todos los informes/JSON.
+
+- [x] Seis sesiones completadas, cuatro CSV idénticos e inalterados en todas.
+- [x] Original y seis HTML auditados: 1.600 comprobaciones mapeadas de cifras,
+  fechas, identidades, estructura y ambigüedad; doce vistas y seis contextos de
+  interacción, con fallos conservados y sin reparar artefactos del modelo.
+- [x] Dos prompts y resultados completos conservados; galería y consumo revisados.
+
+La ronda 2 mejora profundidad y reacciones. Una entrega pasa descubrimiento como
+análisis parcial; ninguna de las seis pasa todos los criterios de entrega. El
+mejor análisis necesita legibilidad móvil; otros contienen magnitudes erróneas,
+prioridad falsa o gráficos/tablas que no se dibujan. La comparación usa un solo
+negocio y adaptación de desarrollo, con CLI autenticado en ChatGPT frente a API
+del producto. No demuestra mejora consistente ni elimina los 429. Resultados,
+prompts, recursos y límites en [evaluación Luna directo](../validation/2026-10-02-codex-luna-comparison.md).
+3.9.7 y la dosificación compartida de tokens siguen abiertos.

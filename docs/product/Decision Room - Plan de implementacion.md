@@ -538,8 +538,11 @@ añade motivo y cabeceras de límites a los intentos persistidos, distingue sald
 cuota de rechazos temporales y respeta esperas sin acortarlas. Pasan 555 pruebas
 Python. Una petición mínima confirma 200.000 TPM y 500 RPM; la presión histórica
 de tokens es una hipótesis, sin causa específica guardada para cada rechazo.
-La dosificación compartida de tokens y el experimento manual Luna directo siguen
-pendientes; no se altera la aceptación de 3.9.7.
+La dosificación compartida de tokens sigue pendiente. El experimento manual Luna
+directo se amplía, con autorización del propietario, a [dos rondas de tres informes](../validation/2026-10-02-codex-luna-comparison.md):
+mejora la profundidad con instrucciones explícitas, pero ninguna de las seis
+entregas pasa todos los criterios. Una pasa descubrimiento como análisis parcial;
+quedan defectos de presentación. No se altera la aceptación de 3.9.7.
 
 
 **Planificación ampliada, 27 de septiembre de 2026:** el
