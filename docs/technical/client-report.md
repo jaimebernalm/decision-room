@@ -109,8 +109,10 @@ accesibles, estilos móviles e impresión. No se añaden vídeos ni dashboard al
 
 ## Compatibilidad y archivos
 
-La implementación 3.9 usa prompts de revisión v41 e investigación v32 y
+La implementación 3.9 usa prompts de revisión v42 e investigación v32 y
 dirección de negocio v6, sin reescribir grafos ni aprobaciones históricas.
+En gráficos que referencian una serie completa, `temporal_grain: null` hereda el
+grano guardado; el revisor contrasta esa evidencia y no exige un override del campo.
 Los campos nuevos conservan valores vacíos por defecto para leer los
 informes anteriores. Las nuevas respuestas del modelo los incluyen explícitamente.
 No se convierte una aprobación antigua en aprobación del contenido nuevo.

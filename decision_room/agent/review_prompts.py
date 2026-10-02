@@ -1,6 +1,6 @@
 from .series_prompt import SERIES_TOOL
 
-REVIEW_PROMPT_VERSION = 'review-v41'
+REVIEW_PROMPT_VERSION = 'review-v42'
 
 COMMON = '''You are part of Decision Room's bounded analyst/reviewer dialogue.
 Return ONLY ReviewAction JSON, every field present. Human-facing prose in Spanish.
@@ -77,8 +77,13 @@ map all points once, no duplicate category/series cells. Use ISO YYYY-MM for mon
 series labels in chronological order. Choose grouped bars, lines or a table. For grouped lines the category is the
 calendar period and series labels identify the channels/products; include
 encoding.temporal_grain=day/month/quarter/year, with categories chronologically ordered.
-Use encoding=null for single-series charts. temporal_grain is the actual saved
-calendar aggregation; do not present monthly values as daily observations. Do not concatenate
+Use encoding=null for single-series charts. For a whole saved series reference,
+set chart.temporal_grain=null: the application inherits the actual grain from the
+saved series in observations. This null is intentional and is not missing temporal
+metadata. Do not request an override or reject the chart because this field is null;
+check the actual saved grain and labels instead. For grouped calendar lines declare
+the actual grain in encoding.temporal_grain. Do not present monthly values as daily
+observations. Do not concatenate
 product/month/change into a flat visual. Keep absolute levels and differences in SEPARATE
 charts with their own encoding.measure and accurate units; never mix totals, averages,
 percentages or changes on one axis. Missing combinations stay missing, not zero.
