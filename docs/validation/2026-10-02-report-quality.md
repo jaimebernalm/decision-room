@@ -74,7 +74,128 @@ la siguiente acción; la conciliación puede ser un primer filtro, sin convertir
 en toda la reacción comercial. Exigir juicio sobre el valor de la prioridad frente
 a una alternativa, sin imponer un signo, método o inventario. Mantener parcial la
 guía aún incompleta, en vez de aprobarla como completa por tener campos llenos.
-Prueba real del ajuste siguiente pendiente; WWI no se lanza aún.
+El ajuste compartido se guarda en `646b35c`; pasan **62 pruebas dirigidas**.
+
+### Segundo piloto — `646b35c`
+
+Bruma aprueba en **830,263 s y cinco rondas**. Las **114 referencias** coinciden
+con CSV/Decimal y un complemento independiente de fechas/medias semanales. Se
+acepta como **entrega útil parcial de desarrollo**, con comprobación operativa
+pendiente y claramente identificada; no como explicación causal completa.
+
+- Separa volumen acumulado de cambio julio-agosto: +332 de Marketplace frente
+  a −93 de Tienda física, con Kit de iniciación en Web propia como foco +118.
+  Las 18 contribuciones se calculan y concilian para sustentar el ranking; no se
+  afirma entregarlas como inventario.
+- Profundiza en 62 fechas y siete categorías semanales: el aumento no depende
+  de una fecha extrema, y las medias semanales observadas suben. Sábado pasa de
+  4,5 a 9 unidades por fecha observada. Es descripción, sin causa ni apertura
+  certificada; no se extrapola una estacionalidad recurrente.
+- Entrega cuatro líneas: seis productos por mes, tres canales por mes, total
+  mensual y serie diaria focal. Selecciones y notas corresponden al borrador.
+- La revisión retira la recomprobación interna ya realizada, exige calcular el
+  contraste semanal disponible y mantiene como parcial el cotejo externo. Nombra
+  un calendario independiente y la diferencia de exposición que cambiaría la
+  comparación; debe corresponder al canal pertinente, sin suponer que la web se
+  rige por horarios de tienda física. No pide otra respuesta desconocida al dueño.
+- Exportación y reanudación preservan aprobación y contenido. La galería muestra
+  tanto el primer piloto no aceptado como esta entrega parcial aceptada.
+
+Recursos: **49 llamadas**, doce ejecuciones (ocho completas, tres fallidas y una
+salida inválida), entrada conocida **2.344.710** y salida conocida **93.574 tokens**.
+Cuatro rechazos de transporte tienen consumo desconocido: uso incompleto y sin
+coste monetario estimado. Se conservan reparaciones y errores. Son **27 intentos
+únicos terminados** hasta aquí; no se duplican las bases históricas.
+
+Tras pasar Bruma se lanzan únicamente WWI descubrir y WWI organizar, una vez
+cada uno, en la misma copia congelada y con negocios distintos. Las demás reservas
+siguen sin ejecutar. Sus resultados se conservan también cuando la auditoría
+rechaza utilidad o el proveedor falla. Los seis puestos del manifiesto incluyen reservas: solo tres
+se ejecutaron en este lote; las bases copiadas no son nuevas ejecuciones.
+
+### WWI — descubrimiento, `646b35c`
+
+Termina aprobado en **1.152,614 s y siete rondas**, con exportación y reanudación
+idempotentes. Las **34 referencias** coinciden con CSV/Decimal. El complemento
+independiente deriva la unión de los cinco mayores cambios de compradores por
+ventas y margen, verifica sus siete identidades y calcula el resto, sin tomar los
+valores del modelo como referencia. Rankings, signos, categorías, 313 fechas
+observadas por año y precios ponderados registrados también se comprueban.
+
+Mejora la profundidad: descompone Novelty Shop entre compradores seleccionados y
+resto; calcula facturas, presencia en ambos años, mezcla de productos y precios
+registrados. El revisor exige hacer esas comparaciones factibles antes de pedir
+contexto externo; corrige cifras de orientación sin cita. Las cuatro barras son
+adecuadas para cambios entre categorías y selecciones de productos; no hay regla
+que fuerce líneas. La selección de cinco productos declara que no es inventario
+completo, aunque abarque toda su serie de referencia seleccionada.
+
+**No se acepta utilidad de descubrimiento.** La prioridad se justifica sobre todo
+por la mayor contribución y la amplitud del resto. No explica suficientemente por
+qué cotejar continuidad —con dos compradores presentes en un solo año y 450 en
+ambos— merece atención antes que los descensos focales de productos. La siguiente
+comprobación identifica un registro y rutas concretas, pero la conexión con qué
+debe atender primero el negocio sigue limitada. Prioridad y respaldo de decisión
+reciben 1; profundidad, cifras y comprobación reciben 2. La aprobación del revisor
+no sustituye esta auditoría independiente ni convierte el resultado en éxito.
+
+Recursos: **56 llamadas**, trece ejecuciones (ocho completas y cinco fallidas),
+entrada conocida **3.503.283**, salida conocida **103.546 tokens**, y 19 rechazos de
+transporte con uso desconocido. Se conservan fallos y reparaciones; uso incompleto.
+
+### WWI — organización: fallo y recuperación incremental
+
+El recorrido original falla durante investigación en **127,716 s**, sin informe,
+por HTTP 429 del proveedor. No se ha establecido una causa concreta del rechazo.
+Se conserva como intento fallido: **12 llamadas**, dos ejecuciones completas,
+entrada conocida **263.938** y salida conocida **11.936 tokens**. Una llamada
+carece de uso y hubo siete rechazos de transporte con consumo desconocido.
+
+La reanudación usa la investigación guardada y el mismo código/modelo, con un
+registro de recursos incrementales que excluye las llamadas y ejecuciones previas.
+El snapshot del fallo, su evaluación y sus recursos originales permanecen intactos;
+el estado vivo de la investigación sí avanza. No es otro recorrido completo ni
+reemplaza el fracaso del denominador.
+
+Termina aprobado y aceptado para organización en **387,103 s adicionales y seis
+rondas de revisión**. Las **114 referencias** y los **108 componentes numéricos**
+solicitados (6 anuales, 72 mensuales y 30 año-categoría) coinciden con las fuentes:
+neto sin impuestos, margen bruto y promedio neto consolidado por factura. Cuatro
+referencias adicionales de fechas y dos recuentos mensuales también pasan. Las
+ventas categóricas llegan mediante evidencia desplegable, el margen mediante
+barras y el promedio mediante texto/evidencia; no se exige un gráfico por medida.
+Tres líneas mensuales conservan grano real de mes y 24 puntos cada una. No se
+impone la intersección mensual por categoría, que el encargo no pide explícitamente
+y cuya ausencia se declara. Exportación y replay preservan contenido/aprobación.
+
+Recursos **solo incrementales**: **20 llamadas**, tres ejecuciones (dos completas
+y una salida inválida), **1.384.486 tokens de entrada y 43.282 de salida**, con uso
+completo para esta recuperación. No se mezclan con las 12 llamadas y dos cálculos
+originales ni con los 29 recorridos completos acumulados. No se estima coste
+monetario. El snapshot del fallo original sigue igual.
+
+### Lectura de los resultados
+
+Son **29 recorridos completos únicos acumulados**, incluyendo cuatro de esta
+continuación: primer Bruma, segundo Bruma, WWI descubrir y WWI organizar. Tres
+publican; solo el segundo Bruma se acepta como útil parcial. Las tres reservas
+restantes del último lote y las cinco del primero no son intentos. Tampoco lo son
+las recuperaciones incrementales ni las copias de bases históricas.
+
+Los recorridos completos acumulan **675 llamadas** y **36 ejecuciones fallidas o
+con salida inválida**. Uso conocido: **27.948.687 tokens de entrada y 1.153.324 de
+salida**; faltan consumos históricos y rechazos, de modo que no representan uso
+total ni coste monetario. Los recursos de recuperaciones se presentan aparte.
+
+La galería local conserva las seis referencias históricas y añade los cuatro
+informes aprobados de esta continuación, incluida la recuperación; muestra sus
+valoraciones independientes, sin ocultar los dos descubrimientos no aceptados.
+La revisión visual de Bruma verifica seis líneas de producto, selector de mes,
+valores exactos y ocultar/restaurar una serie sin alterar el borrador. El servidor
+y PostgreSQL de este worktree quedan activos en sus puertos independientes.
 
 La comprobación de desarrollo no es ciega ni sustituye la aceptación conjunta del
-propietario. 3.9.7 permanece abierto: un informe aislado no demuestra consistencia.
+propietario. Mejoran los controles y la profundidad, pero la prioridad sigue siendo
+un límite de calidad y los tiempos de 14–19 minutos en los dos pilotos nuevos son
+un límite operativo. **3.9.7 permanece abierto:** estos resultados no demuestran
+mejora consistente ni generalización.

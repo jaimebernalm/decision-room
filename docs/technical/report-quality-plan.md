@@ -1,7 +1,7 @@
 # 3.9 — Calidad de la entrega y autonomía de investigación y presentación
 
 **Estado:** capacidades implementadas; proveedor reanudado tras restablecer saldo. Hay entregas aceptadas en desarrollo, sin mejora consistente demostrada; aceptación de calidad y prueba conjunta abiertas.  
-**Fecha:** 30 de septiembre de 2026; actualizado el 1 de octubre.  
+**Fecha:** 30 de septiembre de 2026; actualizado el 2 de octubre.  
 **Base inspeccionada:** `5af6cb7`, rama `feature/report-quality`.  
 **Continuidad:** este documento conserva decisiones, incrementos y resultados de 3.9.  
 **Referencias:** [plan general](../product/Decision%20Room%20-%20Plan%20de%20implementacion.md), [onboarding e informes](../product/onboarding-e-informes-plan.md), [3.7](business-planner-plan.md), [resultados de 3.7](../validation/2026-09-28-business-planner.md), [evaluación de calidad](quality-evaluation-plan.md), [contrato actual del informe](client-report.md).
@@ -552,4 +552,13 @@ sustituyen.
 - [x] Referencia estable del encargo. — política de revisión 5; 48 pruebas dirigidas pasan.
 - [x] Bloqueos justificados. — procedencia verificable y mejoras opcionales no bloqueantes; prueba adversarial del encargo.
 - [x] Selección verificable de vistas. — grupos actuales, población vigente, manifiesto, aprobación y notas visibles; regresión de 547 pruebas pasa más una prueba nueva de persistencia.
-- [ ] Pruebas y recorrido real acotado.
+- [x] Pruebas y recorrido real acotado. — dos pilotos Bruma, WWI descubrir y organizar, más recuperación incremental; CSV/Decimal, exportación y replay comprobados. La utilidad de dos descubrimientos no se acepta y el fallo 429 original se conserva.
+
+Resultados en [validación del 2 de octubre](../validation/2026-10-02-report-quality.md).
+Commits locales `1fb9e64`, `f62496c` y `646b35c`: encargo original, procedencia de
+bloqueos, selección actual vinculada a aprobación y comprobaciones concretas más
+allá de conciliación. Pasan 547 pruebas de regresión Python, una nueva de
+persistencia, 62 dirigidas tras el ajuste final, 117 web, build y lint. Bruma produce
+una entrega útil parcial; WWI profundiza pero aún no justifica suficientemente su
+prioridad. La recuperación de organización mantiene las tres medidas solicitadas.
+Se conservan recursos y fallos, sin declarar mejora consistente ni cerrar 3.9.7.

@@ -512,7 +512,7 @@ Véanse [uso y contratos](../technical/live-investigation.md), [plan completado]
 y [validación con límites](../validation/2026-09-28-live-investigation.md).
 Su cierre no implica aceptación de calidad analítica.
 
-**3.9 en evaluación, actualizado el 1 de octubre:** [calidad de la entrega y autonomía de
+**3.9 en evaluación, actualizado el 2 de octubre:** [calidad de la entrega y autonomía de
 investigación y presentación](../technical/report-quality-plan.md). El planificador
 prioriza preguntas de negocio y el analista decide métodos, desgloses y visuales;
 el código garantiza integridad y el revisor comprueba utilidad. Profundizar en el
@@ -526,6 +526,12 @@ Comparación original en Bruma/WWI ejecutada sin mejora consistente demostrada.
 Tras restablecer saldo se conservan los fallos anteriores y se obtienen dos
 entregas aceptadas de seis intentos nuevos. La aceptación conjunta sigue abierta. La consulta
 web queda como propuesta posterior 3.95, con alcance específico todavía pendiente.
+El [ajuste del 2 de octubre](../validation/2026-10-02-report-quality.md) estabiliza
+el encargo original, distingue bloqueos de mejoras opcionales y verifica los grupos
+entregados. Pasan 547 pruebas Python más una de persistencia, 62 dirigidas del
+ajuste final y 117 web. Los pilotos mejoran profundidad y comprobaciones, pero dos
+descubrimientos no pasan utilidad; Bruma pasa como parcial y organización se
+recupera sin sustituir el fallo original. 3.9.7 sigue abierto.
 
 
 **Planificación ampliada, 27 de septiembre de 2026:** el
