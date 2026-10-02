@@ -2,9 +2,7 @@
 import json
 import os
 import time
-import math
-from datetime import datetime, timezone
-from email.utils import parsedate_to_datetime
+import random
 from contextvars import ContextVar
 from contextlib import contextmanager
 from copy import deepcopy
@@ -17,6 +15,7 @@ from .contracts import Action
 from .context import encoded
 from .prompts import SYSTEM
 from ..execution_contract import strict_json
+from .model_transport import diagnostics, retry_delay, MAX_RETRY_WAIT
 from .research_contract import ResearchAction
 from .research_prompts import RESEARCH_SYSTEM
 from .review_contract import ReviewAction
@@ -35,25 +34,6 @@ def record_transport(callback):
         _TRANSPORT_RECORDER.reset(token)
 
 
-def retry_delay(response, attempt):
-    """Honor bounded 429 Retry-After; never retry early when its wait is too long."""
-    raw = response.headers.get('Retry-After')
-    delay = 2 ** (attempt + (response.status_code == 429))
-    if raw:
-        try:
-            delay = float(raw)
-        except ValueError:
-            try:
-                delay = (parsedate_to_datetime(raw) - datetime.now(timezone.utc)).total_seconds()
-            except (ValueError, TypeError, OverflowError):
-                pass
-    if not math.isfinite(delay):
-        return None
-    if response.status_code == 429:
-        return max(1, delay) if delay <= 30 else None
-    return min(5, max(1, delay))
-
-
 class ModelRequestUncertain(ValueError):
     """The server may have processed a request whose response was not received."""
 
@@ -61,9 +41,12 @@ class ModelRequestUncertain(ValueError):
 class ModelAPIError(ValueError):
     """An HTTP rejection with no untrusted response body in the diagnostic."""
 
-    def __init__(self, status_code):
+    def __init__(self, status_code, details=None):
         self.status_code = status_code
-        super().__init__(f'Model API returned HTTP {status_code}; check its server logs.')
+        self.diagnostics = details or {}
+        category = self.diagnostics.get('error_category')
+        suffix = f' ({category})' if category else ''
+        super().__init__(f'Model API returned HTTP {status_code}{suffix}; check its saved diagnostics.')
 
 
 class ModelNotReady(ValueError):
@@ -672,13 +655,16 @@ class ModelClient:
                 for attempt in range(3):
                     remaining = deadline - time.monotonic()
                     if remaining <= 0:
-                        error = ModelAPIError(attempts[-1]['status'])
+                        error = ModelAPIError(attempts[-1]['status'], attempts[-1])
                         error.transport_attempts = attempts
                         raise error
                     with client.stream('POST', self.settings.base_url.rstrip('/') + endpoint,
                                        json=payload, headers=headers, timeout=remaining) as response:
-                        attempts.append({'status': response.status_code})
-                        delay = retry_delay(response, attempt) if response.status_code in (429, 503) and attempt < 2 else None
+                        details = diagnostics(response)
+                        attempts.append({'status': response.status_code, **details})
+                        delay = retry_delay(response, attempt, details) if response.status_code in (429, 503) and attempt < 2 else None
+                        if delay is not None and self.settings.protocol == 'openai':
+                            delay += random.uniform(0, min(1, MAX_RETRY_WAIT - delay))
                         if delay is not None and delay >= deadline - time.monotonic():
                             delay = None
                         if response.status_code != 200:
@@ -688,7 +674,7 @@ class ModelClient:
                         if recorder := _TRANSPORT_RECORDER.get():
                             recorder(attempts)
                         if response.status_code != 200 and delay is None:
-                            error = ModelAPIError(response.status_code)
+                            error = ModelAPIError(response.status_code, details)
                             error.transport_attempts = attempts
                             raise error
                         if response.status_code == 200:
@@ -702,8 +688,8 @@ class ModelClient:
             result = strict_json(body)
             if self.settings.protocol == 'lmstudio':
                 usage = result['stats']
-                if len(attempts) > 1:
-                    usage = {**usage, 'transport_attempts': attempts, 'rejected_attempt_usage_unknown': True}
+                if len(attempts) > 1 or any(set(a) - {'status'} for a in attempts):
+                    usage = {**usage, 'transport_attempts': attempts, 'rejected_attempt_usage_unknown': any(a['status'] != 200 for a in attempts)}
                 if usage['total_output_tokens'] >= self.settings.max_output_tokens:
                     return {'invalid_model_output': 'Output token budget exhausted. Return a shorter complete JSON action.'}, usage
                 messages = [item['content'] for item in result['output'] if item['type'] == 'message']
@@ -711,8 +697,8 @@ class ModelClient:
                     return {'invalid_model_output': 'Expected exactly one JSON model message.'}, usage
                 return self._action(messages[0]), usage
             usage = result.get('usage', {})
-            if len(attempts) > 1:
-                usage = {**usage, 'transport_attempts': attempts, 'rejected_attempt_usage_unknown': True}
+            if len(attempts) > 1 or any(set(a) - {'status'} for a in attempts):
+                usage = {**usage, 'transport_attempts': attempts, 'rejected_attempt_usage_unknown': any(a['status'] != 200 for a in attempts)}
             choice = result['choices'][0]
             if choice.get('finish_reason') != 'stop':
                 return {'invalid_model_output': 'Output did not finish normally. Return a shorter complete JSON action.'}, usage

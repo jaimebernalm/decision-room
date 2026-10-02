@@ -233,7 +233,10 @@ class HardeningTests(unittest.TestCase):
     def test_interruption_during_backoff_preserves_attempt_before_sleep(self):
         class InterruptedReviewer(DialogueModel):
             def generate_reviewer(inner, context, correction=None):
-                client=httpx.Client(transport=httpx.MockTransport(lambda request:httpx.Response(429)))
+                client=httpx.Client(transport=httpx.MockTransport(lambda request:httpx.Response(429,
+                    headers={'Retry-After':'2','x-ratelimit-limit-tokens':'200000',
+                             'x-ratelimit-remaining-tokens':'0','x-ratelimit-reset-tokens':'20s'},
+                    json={'error':{'code':'rate_limit_exceeded','type':'tokens','message':'private provider message'}})))
                 with patch('decision_room.agent.model.httpx.Client',return_value=client), patch('decision_room.agent.model.time.sleep',side_effect=SystemExit(17)):
                     return ModelClient(ModelSettings('test',protocol='chat_completions')).generate_reviewer(context,correction)
         roles=InterruptedReviewer('plain')
@@ -242,7 +245,11 @@ class HardeningTests(unittest.TestCase):
         with connect(self.config) as db:
             run=db.execute('SELECT id FROM agent_reviews WHERE business_id=%s',(self.business,)).fetchone()
             call=db.execute("SELECT * FROM agent_calls WHERE scope=%s AND status='running'",(str(run['id']),)).fetchone()
-        self.assertEqual(call['usage']['transport_attempts'],[{'status':429,'usage_unknown':True,'retry_delay_seconds':2}])
+        self.assertEqual(call['usage']['transport_attempts'],[{'status':429,'usage_unknown':True,
+            'retry_delay_seconds':20,'retry_after_seconds':2,'error_code':'rate_limit_exceeded',
+            'error_type':'tokens','error_category':'rate_limit',
+            'rate_limits':{'limit_tokens':200000,'remaining_tokens':0,'reset_tokens_seconds':20}}])
+        self.assertNotIn('private provider',str(call['usage']))
         with self.assertRaisesRegex(ValueError,'retry-model'):
             review.resume(self.config,self.business,run['id'],analyst=roles,reviewer=roles)
         result=review.resume(self.config,self.business,run['id'],analyst=DialogueModel('plain'),reviewer=DialogueModel('plain'),retry_uncertain=True)

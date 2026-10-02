@@ -533,6 +533,14 @@ ajuste final y 117 web. Los pilotos mejoran profundidad y comprobaciones, pero d
 descubrimientos no pasan utilidad; Bruma pasa como parcial y organización se
 recupera sin sustituir el fallo original. 3.9.7 sigue abierto.
 
+El [diagnóstico posterior de 429](../validation/2026-10-02-provider-diagnostics.md)
+añade motivo y cabeceras de límites a los intentos persistidos, distingue saldo o
+cuota de rechazos temporales y respeta esperas sin acortarlas. Pasan 555 pruebas
+Python. Una petición mínima confirma 200.000 TPM y 500 RPM; la presión histórica
+de tokens es una hipótesis, sin causa específica guardada para cada rechazo.
+La dosificación compartida de tokens y el experimento manual Luna directo siguen
+pendientes; no se altera la aceptación de 3.9.7.
+
 
 **Planificación ampliada, 27 de septiembre de 2026:** el
 [plan de onboarding e informes](onboarding-e-informes-plan.md) concreta la secuencia

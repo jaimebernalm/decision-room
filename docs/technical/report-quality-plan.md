@@ -562,3 +562,35 @@ persistencia, 62 dirigidas tras el ajuste final, 117 web, build y lint. Bruma pr
 una entrega útil parcial; WWI profundiza pero aún no justifica suficientemente su
 prioridad. La recuperación de organización mantiene las tres medidas solicitadas.
 Se conservan recursos y fallos, sin declarar mejora consistente ni cerrar 3.9.7.
+
+### Diagnóstico de proveedor del 2 de octubre — HTTP 429
+
+Incremento de fiabilidad dentro de 3.9.7; no cambia las instrucciones de negocio
+ni el resultado de los pilotos congelados. Aplicado en este orden:
+
+1. **Identificar el rechazo.** Guardar código y tipo conocidos, identificador de
+   solicitud y cabeceras numéricas de límites, disponibilidad y reposición. Leer
+   de forma acotada el error; excluir mensajes libres, claves y otras cabeceras.
+   Registrar el intento antes de esperar, también si luego se interrumpe.
+2. **Reintentar según el motivo.** No reintentar falta de crédito o cuota de
+   cuenta. Respetar `Retry-After` y el reset de un límite agotado; añadir una
+   pequeña variación aleatoria en OpenAI. Mantener tres intentos y el plazo total.
+   Si el servidor requiere más de 30 segundos, conservar el fallo para recuperación
+   explícita; nunca acortar su indicación, tampoco para un 503.
+3. **Contrastar y conservar evidencia.** Pruebas de transporte y persistencia,
+   regresión completa, auditoría aproximada de las ráfagas históricas y una petición
+   mínima para comprobar los límites actuales. Preparar por separado el experimento
+   manual Luna directo con las mismas fuentes; no ejecutarlo automáticamente.
+
+- [x] Diagnóstico acotado y persistente.
+- [x] Reintentos diferenciados y respetuosos con los tiempos del proveedor.
+- [x] Regresión: 555 pruebas Python pasan; petición mínima HTTP 200, 13 tokens.
+  Las cabeceras confirman 200.000 TPM y 500 RPM. Experimento manual preparado
+  para el propietario; no se lanza como parte de esta validación.
+- [ ] Prevención mediante dosificación compartida de tokens entre procesos y
+  reducción medida del contexto repetido. Requiere diseño y validación propios;
+  este incremento no garantiza eliminar los 429.
+
+La presión de tokens es la hipótesis principal de los rechazos temporales, sin
+atribuir retrospectivamente cada 429 a una causa no guardada. Véanse
+[mediciones y límites](../validation/2026-10-02-provider-diagnostics.md).

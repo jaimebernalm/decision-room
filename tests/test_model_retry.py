@@ -15,13 +15,13 @@ class ModelRetryTests(unittest.TestCase):
         seen=[]
         def handler(request):
             seen.append(request)
-            return (httpx.Response(503,headers={'Retry-After':'999'}) if len(seen)<3 else
+            return (httpx.Response(503,headers={'Retry-After':'3'}) if len(seen)<3 else
                     httpx.Response(200,json={'choices':[{'finish_reason':'stop','message':{'content':'{"action":"inspect"}'}}],'usage':{'total_tokens':10}}))
         (output,usage),sleep=self.run_model(handler)
         self.assertEqual(len(seen),3)
         self.assertEqual(output['action'],'inspect')
         self.assertEqual([a['status'] for a in usage['transport_attempts']],[503,503,200])
-        self.assertEqual([a.args[0] for a in sleep.call_args_list],[5,5])
+        self.assertEqual([a.args[0] for a in sleep.call_args_list],[3,3])
         self.assertTrue(usage['rejected_attempt_usage_unknown'])
         from decision_room.evaluation.assess import token_accounting
         accounted=token_accounting([{'usage':{**usage,'prompt_tokens':100,'completion_tokens':10}}])
@@ -58,7 +58,7 @@ class ModelRetryTests(unittest.TestCase):
         self.assertEqual([a['status'] for a in usage['transport_attempts']],[429,429,200])
 
     def test_429_long_wait_is_not_shortened_or_retried(self):
-        for delay in ('31', '999', 'inf', 'nan'):
+        for delay in ('31', '999', 'inf', 'nan', '1e999'):
             seen=[]
             def handler(request):
                 seen.append(request)
@@ -79,3 +79,104 @@ class ModelRetryTests(unittest.TestCase):
         with patch('decision_room.agent.model.time.monotonic', side_effect=[0, 0, 179]), self.assertRaises(ModelAPIError) as caught:
             self.run_model(lambda request:httpx.Response(429,headers={'Retry-After':'3'}))
         self.assertEqual(len(caught.exception.transport_attempts),1)
+
+    def test_quota_and_billing_rejections_are_not_retried(self):
+        codes = ('insufficient_quota', 'credit_balance_exhausted',
+                 'organization_spend_limit_exceeded', 'project_spend_limit_exceeded',
+                 'organization_usage_limit_exceeded', 'billing_hard_limit_reached')
+        for code in codes:
+            seen = []
+            def handler(request):
+                seen.append(request)
+                return httpx.Response(429, headers={'Retry-After': '2'}, json={
+                    'error': {'code': code, 'type': 'insufficient_quota',
+                              'message': 'do not retain customer or billing data'}})
+            with self.subTest(code=code), self.assertRaises(ModelAPIError) as caught:
+                self.run_model(handler)
+            self.assertEqual(len(seen), 1)
+            details = caught.exception.diagnostics
+            self.assertEqual(details['error_code'], code)
+            self.assertEqual(details['error_category'], 'account_limit')
+            self.assertNotIn('message', details)
+
+    def test_headers_and_error_code_explain_token_limit_and_minimum_wait(self):
+        seen = []
+        def handler(request):
+            seen.append(request)
+            if len(seen) == 1:
+                return httpx.Response(429, headers={
+                    'Retry-After': '2', 'x-request-id': 'req_' + 'a' * 32,
+                    'x-ratelimit-limit-tokens': '200000',
+                    'x-ratelimit-remaining-tokens': '0',
+                    'x-ratelimit-remaining-requests': '499',
+                    'x-ratelimit-reset-tokens': '20s',
+                }, json={'error': {'code': 'rate_limit_exceeded', 'type': 'tokens'}})
+            return httpx.Response(200, json={'choices': [{'finish_reason': 'stop', 'message': {'content': '{}'}}], 'usage': {}})
+        (_, usage), sleep = self.run_model(handler)
+        self.assertEqual(sleep.call_args.args[0], 20)
+        error = usage['transport_attempts'][0]
+        self.assertEqual(error['error_category'], 'rate_limit')
+        self.assertEqual(error['error_type'], 'tokens')
+        self.assertEqual(error['rate_limits']['remaining_requests'], 499)
+        self.assertEqual(error['rate_limits']['limit_tokens'], 200000)
+        self.assertEqual(error['request_id'], 'req_' + 'a' * 32)
+
+    def test_success_headers_are_preserved_without_unknown_usage(self):
+        from decision_room.evaluation.assess import token_accounting
+        (_, usage), sleep = self.run_model(lambda request: httpx.Response(200,
+            headers={'x-ratelimit-limit-tokens': '200000', 'x-ratelimit-remaining-tokens': '180000'},
+            json={'choices': [{'finish_reason': 'stop', 'message': {'content': '{}'}}],
+                  'usage': {'prompt_tokens': 10, 'completion_tokens': 1}}))
+        self.assertFalse(sleep.called)
+        self.assertFalse(usage['rejected_attempt_usage_unknown'])
+        self.assertEqual(usage['transport_attempts'][0]['rate_limits']['limit_tokens'], 200000)
+        self.assertTrue(token_accounting([{'usage': usage}])['token_usage_complete'])
+
+    def test_untrusted_body_and_headers_never_enter_diagnostics(self):
+        secret = 'sk-' + 'x' * 40
+        def handler(request):
+            return httpx.Response(400, headers={
+                'Authorization': 'Bearer ' + secret, 'Set-Cookie': secret,
+                'x-request-id': secret, 'x-ratelimit-limit-tokens': secret,
+                'x-ratelimit-reset-tokens': secret,
+            }, json={'error': {'message': secret, 'param': secret, 'code': secret, 'type': secret}})
+        with self.assertRaises(ModelAPIError) as caught:
+            self.run_model(handler)
+        self.assertNotIn(secret, str(caught.exception.diagnostics))
+        self.assertNotIn(secret, str(caught.exception))
+        self.assertEqual(caught.exception.diagnostics, {'error_code': 'unrecognized', 'error_type': 'unrecognized'})
+
+    def test_long_reset_and_503_wait_are_not_shortened(self):
+        responses = [
+            httpx.Response(503, headers={'Retry-After': '999'}),
+            httpx.Response(429, headers={'Retry-After': '2', 'x-ratelimit-remaining-tokens': '0', 'x-ratelimit-reset-tokens': '1m0.5s'}),
+        ]
+        for response in responses:
+            seen = []
+            def handler(request):
+                seen.append(request)
+                return response
+            with self.subTest(status=response.status_code), self.assertRaises(ModelAPIError):
+                self.run_model(handler)
+            self.assertEqual(len(seen), 1)
+
+    def test_non_json_oversized_and_interrupted_error_body_still_reject_safely(self):
+        from decision_room.agent.model_transport import diagnostics, MAX_ERROR_BYTES
+        for content in (b'<html>upstream unavailable</html>', b'x' * (MAX_ERROR_BYTES + 1)):
+            response = httpx.Response(429, headers={'x-ratelimit-limit-tokens': '200000'}, content=content)
+            self.assertEqual(diagnostics(response), {'rate_limits': {'limit_tokens': 200000}})
+        response = httpx.Response(429, headers={'Retry-After': '4'})
+        with patch.object(response, 'iter_bytes', side_effect=httpx.ReadTimeout('private body')):
+            self.assertEqual(diagnostics(response), {'retry_after_seconds': 4})
+
+    def test_openai_adds_jitter_without_retrying_before_server_hint(self):
+        seen = []
+        def handler(request):
+            seen.append(request)
+            return httpx.Response(429, headers={'Retry-After': '3'}) if len(seen) == 1 else httpx.Response(200,
+                json={'choices': [{'finish_reason': 'stop', 'message': {'content': '{}'}}], 'usage': {}})
+        client = httpx.Client(transport=httpx.MockTransport(handler))
+        with patch.dict('os.environ', {'OPENAI_API_KEY': 'test-only'}), patch('decision_room.agent.model.httpx.Client', return_value=client), \
+             patch('decision_room.agent.model.random.uniform', return_value=.5), patch('decision_room.agent.model.time.sleep') as sleep:
+            ModelClient(ModelSettings('test', protocol='openai', base_url='https://api.openai.com/v1')).generate({})
+        self.assertEqual(sleep.call_args.args[0], 3.5)
