@@ -61,6 +61,10 @@ def material(config, db, session, run):
         if event['step'] in by_step:
             event['owner_answer'] = by_step[event['step']]
     return {'owner_context': run['snapshot']['source']['owner_context'], 'owner_answers': owner_answers,
+            **({'accepted_owner_request': run['snapshot'].get('accepted_owner_request') or
+                 {'text': run['snapshot']['source']['owner_context']},
+                'owner_confirmed_answers': [a for a in owner_answers if a['disposition'] == 'answered']}
+               if run['options'].get('review_policy', 0) >= 5 else {}),
             'plan': run['snapshot']['proposal'], 'candidate_history': run['snapshot']['findings'],
             'planning_history': run['snapshot']['planning_history'],
             'review_policy': run['options'].get('review_policy'),
@@ -69,7 +73,10 @@ def material(config, db, session, run):
             'research_coverage': run['snapshot'].get('research_coverage'),
             'research_synthesis': run['snapshot'].get('research_synthesis'),
             'business_direction': run['snapshot'].get('business_direction'),
-            'owner_deliverables': owner_deliverables({'business_direction': run['snapshot'].get('business_direction'), 'owner_context': run['snapshot']['source']['owner_context']}),
+            'owner_deliverables': owner_deliverables({'review_policy': run['options'].get('review_policy'),
+                'accepted_owner_request': run['snapshot'].get('accepted_owner_request'),
+                'business_direction': run['snapshot'].get('business_direction'),
+                'owner_context': run['snapshot']['source']['owner_context']}),
             'delivery_capabilities': {'execution_artifact_downloads': False, 'chart_categories': 36, 'daily_line_points': 366,
                                       'temporal_line_points': 366, 'grouped_temporal_coordinates': 366,
                                       'whole_series_temporal_grain': 'inherited from saved observations; chart.temporal_grain=null is required, not missing metadata',
@@ -130,6 +137,9 @@ def approval_digest(materialized, knowledge):
         cited.update(ref['execution_id'] for ref in [check['actual'], *check['operands']])
     policy = {'review_issues': materialized['review_issues'], 'delivery_manifest': materialized['delivery_manifest'],
               'assessment': next((e['action'].get('assessment') for e in reversed(materialized['conversation']) if e['role'] == 'reviewer'), None)} if materialized.get('review_policy') else {}
+    if materialized.get('review_policy', 0) >= 5:
+        policy['accepted_owner_request'] = materialized['accepted_owner_request']
+        policy['owner_confirmed_answers'] = materialized['owner_confirmed_answers']
     return fingerprint({**policy, 'report': materialized['report'], 'knowledge': knowledge,
                         'evidence': [o for o in materialized['observations'] if o['execution_id'] in cited],
                         'checks': materialized['checks']})

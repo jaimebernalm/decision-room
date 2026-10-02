@@ -516,3 +516,40 @@ Actualización del 1 de octubre tras restablecer saldo:
   como recorrido completo. Sigue pendiente corregir la ampliación del encargo y
   la coherencia de cobertura, demostrar consistencia y completar prueba conjunta.
   [Evaluación, recursos y continuidad](../validation/2026-10-01-report-quality.md).
+
+### Reparación del 2 de octubre — encargo estable y entrega verificable
+
+Implementación dentro de 3.9.7, en este orden. La evaluación conjunta y la mejora
+consistente siguen siendo condiciones de cierre; las pruebas de protocolo no las
+sustituyen.
+
+1. **Referencia estable del encargo.** Las nuevas revisiones usarán la petición
+   original y las aclaraciones reales como autoridad. El brief del planificador
+   seguirá orientando prioridades y métodos, sin sustituir ese encargo. Mantener
+   los contratos y huellas de las revisiones históricas. Verificar que ampliar un
+   brief o una agenda no amplía las obligaciones del propietario.
+2. **Bloqueos justificados.** Cada bloqueo nuevo identificará si responde a una
+   obligación del propietario o a un defecto de evidencia/entrega, con referencias
+   verificables al texto y contenido correspondiente. Una mejora opcional será
+   sugerencia, sin impedir aprobar una respuesta útil. La pertinencia semántica
+   seguirá siendo responsabilidad del revisor.
+3. **Selección verificable de vistas.** Declarar las vistas, eje de agrupación,
+   cantidad de grupos mostrados y, cuando se afirme exhaustividad, la población
+   guardada. Derivar grupos de dimensiones explícitas o etiquetas reales; no
+   inferir combinaciones mediante expresiones sobre prosa. Rechazar una declaración
+   de 18 grupos que entrega 12, una referencia a una vista eliminada o una
+   población obsoleta. Selecciones focales honestas y representaciones alternativas
+   seguirán siendo válidas. Incluir estas declaraciones/evidencias en aprobación,
+   manifiesto y revisión de cada borrador.
+4. **Regresión y validación real acotada.** Pruebas de ampliación, omisiones,
+   selección, cambios de borrador, desconocidos y compatibilidad; regresión
+   apropiada. Congelar un nuevo recorrido completo de Bruma con las mismas
+   fuentes/modelo, preservando los fallos anteriores. Auditar cifras, selección,
+   alcance y utilidad. Si pasa, comprobar WWI; si falla, conservarlo y resolver el
+   defecto antes de ampliar comparaciones pagadas. Documentar resultados,
+   recursos y commits locales; no publicar datos ni hacer push.
+
+- [x] Referencia estable del encargo. — política de revisión 5; 48 pruebas dirigidas pasan.
+- [ ] Bloqueos justificados.
+- [ ] Selección verificable de vistas.
+- [ ] Pruebas y recorrido real acotado.

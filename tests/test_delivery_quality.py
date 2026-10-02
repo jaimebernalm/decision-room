@@ -2,7 +2,7 @@
 from copy import deepcopy
 import unittest
 from pydantic import ValidationError
-from decision_room.agent.delivery_contract import validate_owner_coverage, DecisionOrientation
+from decision_room.agent.delivery_contract import validate_owner_coverage, DecisionOrientation, owner_deliverables
 from decision_room.agent.review_contract import ReportDraft, checks
 
 
@@ -18,6 +18,19 @@ class DeliveryContractTests(unittest.TestCase):
         validate_owner_coverage(self.report, self.context)
         self.report['owner_coverage'].append(deepcopy(self.report['owner_coverage'][0]))
         with self.assertRaisesRegex(ValueError, 'exactly once'): validate_owner_coverage(self.report, self.context)
+    def test_original_request_remains_authoritative_after_planner_expansion(self):
+        context = dict(review_policy=5, owner_context='Priorizar señales y explicar evolución.',
+                       accepted_owner_request={'text': 'Priorizar señales y explicar evolución.'},
+                       business_direction={'brief': {'deliverables': ['Todos los productos', 'Todas las combinaciones']}})
+        expected = owner_deliverables(context)
+        self.assertEqual(expected, ['Priorizar señales y explicar evolución.'])
+        context['business_direction']['brief']['deliverables'].append('Todos los porcentajes')
+        self.assertEqual(owner_deliverables(context), expected)
+        report = deepcopy(self.report); report['owner_coverage'] = report['owner_coverage'][:1]
+        validate_owner_coverage(report, context)
+        # An expressly requested organization still contains all its components.
+        context['accepted_owner_request']['text'] = 'Ventas y margen por mes y por categoría.'
+        self.assertEqual(owner_deliverables(context), ['Ventas y margen por mes y por categoría.'])
     def test_unknown_claim_or_fabricated_delivery_rejected(self):
         for status, claims in [('complete', []), ('unavailable', ['trend']), ('partial', ['missing'])]:
             report = deepcopy(self.report); report['owner_coverage'][1].update(status=status, claim_keys=claims)

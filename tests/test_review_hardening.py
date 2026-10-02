@@ -25,7 +25,7 @@ class HardeningTests(unittest.TestCase):
     def test_usefulness_failure_missing_questions_and_false_coverage_block_approval(self):
         self.run_review()
         ctx=self.roles.contexts[-1]
-        self.assertEqual(ctx['review_policy'],4)
+        self.assertEqual(ctx['review_policy'],5)
         good=assessed(action('approve'),ctx)
         for mutation in ('missing','goal','question','coverage'):
             bad=deepcopy(good)

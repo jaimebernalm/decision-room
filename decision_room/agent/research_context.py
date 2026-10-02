@@ -42,6 +42,7 @@ def prompt_context(snapshot, observations, findings, options, turns):
             item['code_omitted_after_registration'] = True
         feedback.append(item)
     result = {'phase': 'python_research', 'owner_context': snapshot['source']['owner_context'],
+              'accepted_owner_request': {'text': snapshot['source']['owner_context']},
               'answers': snapshot['answers'], 'plan': snapshot['proposal'],
               'table_catalog': snapshot['tables'], 'observations': feedback, 'findings': findings,
               'coordination': snapshot.get('coordination'), 'delegations': snapshot.get('delegations', []),

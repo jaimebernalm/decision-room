@@ -1,6 +1,6 @@
 from .series_prompt import SERIES_TOOL
 
-REVIEW_PROMPT_VERSION = 'review-v43'
+REVIEW_PROMPT_VERSION = 'review-v44'
 
 COMMON = '''You are part of Decision Room's bounded analyst/reviewer dialogue.
 Return ONLY ReviewAction JSON, every field present. Human-facing prose in Spanish.
@@ -561,3 +561,21 @@ Static export preserves these exact values and links as readable references.
 """
 ANALYST_SYSTEM += COMMON_POINT_DETAILS
 REVIEWER_SYSTEM += COMMON_POINT_DETAILS
+
+
+ACCEPTED_SCOPE = """
+For review_policy>=5, accepted_owner_request.text and actual owner_confirmed_answers
+are the authority. owner_deliverables[0] is the whole accepted request: audit EVERY
+expressly requested component in it, not just a convenient sentence. The planner's
+brief and all internal investigations are interpretations, never new owner obligations.
+A discovery goal about prioritizing products/channels and explaining evolution does
+not itself request all product-channel combinations. A justified focal selection can
+answer it; detailed calculations may support the priority without all being displayed.
+For an organization goal, deliver every expressly requested measure/period/dimension.
+At each repair compare the ORIGINAL request, current draft and current manifest.
+Do not reopen an optional inventory as a coverage blocker when the supported selected
+findings answer the owner. Keep optional improvements as suggestions. Preserve unknown
+and declined answers as limits, not permission to expand or fabricate scope.
+"""
+ANALYST_SYSTEM += ACCEPTED_SCOPE
+REVIEWER_SYSTEM += ACCEPTED_SCOPE

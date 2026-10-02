@@ -71,7 +71,8 @@ def start(config, business_id, research_id, *, request_key, analyst=None, review
         from .business_planner import enrich
         snapshot = enrich(db,research_id,snapshot)
         options = {'max_review_rounds': max_review_rounds, 'max_turns': 20, 'max_calls_per_role': 16,
-                   'max_python_per_role': 3, 'max_questions': 3, 'python_timeout': 30, 'review_policy': 4}
+                   'max_python_per_role': 3, 'max_questions': 3, 'python_timeout': 30, 'review_policy': 5}
+        snapshot['accepted_owner_request'] = {'text': snapshot['source']['owner_context']}
         if quality:
             options.update(max_turns=48,max_calls_per_role=48,max_python_per_role=6,max_questions=6,
                            quality_first=True,max_context_bytes=512000,max_validation_attempts=4)

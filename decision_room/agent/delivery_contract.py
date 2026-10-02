@@ -47,6 +47,12 @@ class OwnerCoverage(Strict):
 
 
 def owner_deliverables(context):
+    if context.get('review_policy', 0) >= 5:
+        # One source-backed accepted request, including all of its components.
+        # Splitting an agent's interpretation must not create owner obligations.
+        request = context.get('accepted_owner_request') or {}
+        return [request.get('text') or context.get('owner_context') or
+                'Responder al encargo confirmado del propietario.']
     brief = (context.get('business_direction') or {}).get('brief') or {}
     return brief.get('deliverables') or [context.get('owner_context') or 'Responder al encargo confirmado del propietario.']
 

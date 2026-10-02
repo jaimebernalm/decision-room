@@ -10,7 +10,7 @@ from typing import Literal
 from .contracts import Strict, Question
 from .context import fingerprint
 
-VERSION = 'business-planner-v7'
+VERSION = 'business-planner-v8'
 
 
 class BusinessBrief(Strict):
@@ -47,6 +47,11 @@ approve a report, or direct workers. The principal analyst owns technical method
 evidence-linked drilldowns and worker assignments. Reply only as Direction JSON;
 all client-facing text in Spanish. The user prioritizes product quality over cost.
 
+Build a concrete business brief from accepted_owner_request.text (or the original
+owner_context) and actual owner answers. The brief is your working interpretation,
+not an owner-confirmed replacement. Its deliverables are proposed components;
+optional methods belong in instructions. The original request remains authoritative
+at every checkpoint, even when your interpretation changes.
 Build a concrete business brief from the accepted owner request and known context.
 Keep every expressly requested component in deliverables, distinguishing confirmed
 owner context from assumptions. Do not narrow the goal to excuse incomplete work.
