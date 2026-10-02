@@ -1,6 +1,7 @@
 import { translate as tr, useLanguage } from "@/lib/i18n";
-import { useState } from "react";
-import { ArrowUp, ArrowDown, Plus, X } from "lucide-react";
+import { useId, useState, type ReactNode } from "react";
+import { ArrowUp, ArrowDown, GripVertical, Plus, X } from "lucide-react";
+import { MotionConfig, Reorder, motion, useDragControls } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -24,6 +25,8 @@ export function GroupEditor({
   const [draft, setDraft] = useState(() => structuredClone(layout));
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
+  const [announcement, setAnnouncement] = useState("");
+  const dragHelp = useId();
   const action = useAction();
   const names = draft.groups.map((g) =>
     g.name.trim().replace(/\s+/g, " ").toLocaleLowerCase(),
@@ -33,12 +36,25 @@ export function GroupEditor({
       (n) => !n || n.length > 60 || ["por revisar", "sin grupo"].includes(n),
     ) || new Set(names).size !== names.length;
   const move = (index: number, offset: number) => {
+    if (
+      action.busy ||
+      index + offset < 0 ||
+      index + offset >= draft.groups.length
+    )
+      return;
     const groups = [...draft.groups];
     [groups[index], groups[index + offset]] = [
       groups[index + offset],
       groups[index],
     ];
     setDraft({ ...draft, groups });
+    setAnnouncement(
+      tr("{0}: posición {1} de {2}.", {
+        0: draft.groups[index].name,
+        1: index + offset + 1,
+        2: groups.length,
+      }),
+    );
   };
   return (
     <form
@@ -55,97 +71,139 @@ export function GroupEditor({
         });
       }}
     >
-      <div className="min-h-0 space-y-4 overflow-y-auto px-1">
+      <motion.div
+        layoutScroll
+        className="min-h-0 space-y-4 overflow-y-auto px-1"
+      >
         <p className="text-sm text-muted-foreground">
           {tr(
             "Por revisar reúne siempre las propuestas y conflictos pendientes. Eliminar un grupo conserva su información. La descripción ayuda al agente a clasificar nuevas memorias; puedes moverlas después.",
           )}
         </p>
-        <ul className="space-y-3">
-          {draft.groups.map((group, index) => (
-            <li
-              key={group.id}
-              className="flex flex-wrap items-center gap-1 rounded-lg border p-2"
-            >
-              <Input
-                aria-label={tr("Nombre del grupo {0}", { 0: index + 1 })}
-                maxLength={60}
-                required
-                value={group.name}
+        <p id={dragHelp} className="text-sm text-muted-foreground">
+          {tr(
+            "Arrastra el asa para ordenar los grupos. También puedes usar las flechas o las teclas ↑ y ↓ sobre el asa. Guarda para aplicar el orden.",
+          )}
+        </p>
+        <p role="status" aria-live="polite" className="sr-only">
+          {announcement}
+        </p>
+        <MotionConfig reducedMotion="user">
+          <Reorder.Group
+            axis="y"
+            values={draft.groups.map((g) => g.id)}
+            aria-label={tr("Orden de grupos")}
+            onReorder={(ids) => {
+              if (action.busy) return;
+              setDraft((current) => ({
+                ...current,
+                groups: ids.map((id) =>
+                  current.groups.find((g) => g.id === id)!,
+                ),
+              }));
+            }}
+            className="space-y-3"
+          >
+            {draft.groups.map((group, index) => (
+              <SortableGroup
+                key={group.id}
+                id={group.id}
+                name={group.name}
                 disabled={action.busy}
-                className="min-w-0 flex-1 basis-40"
-                onChange={(event) =>
-                  setDraft({
-                    ...draft,
-                    groups: draft.groups.map((g) =>
-                      g.id === group.id
-                        ? { ...g, name: event.target.value }
-                        : g,
-                    ),
-                  })
+                help={dragHelp}
+                onMove={(offset) => move(index, offset)}
+                onDrop={() =>
+                  setAnnouncement(
+                    tr("{0}: posición {1} de {2}.", {
+                      0: group.name,
+                      1: index + 1,
+                      2: draft.groups.length,
+                    }),
+                  )
                 }
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={tr("Subir grupo {0}", { 0: index + 1 })}
-                disabled={action.busy || index === 0}
-                onClick={() => move(index, -1)}
               >
-                <ArrowUp />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={tr("Bajar grupo {0}", { 0: index + 1 })}
-                disabled={action.busy || index === draft.groups.length - 1}
-                onClick={() => move(index, 1)}
-              >
-                <ArrowDown />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={tr("Eliminar grupo {0}", { 0: index + 1 })}
-                disabled={action.busy}
-                onClick={() =>
-                  setDraft({
-                    ...draft,
-                    groups: draft.groups.filter((g) => g.id !== group.id),
-                    assignments: Object.fromEntries(
-                      Object.entries(draft.assignments).filter(
-                        ([, id]) => id !== group.id,
+                <Input
+                  aria-label={tr("Nombre del grupo {0}", { 0: index + 1 })}
+                  maxLength={60}
+                  required
+                  value={group.name}
+                  disabled={action.busy}
+                  className="min-w-0 flex-1 basis-24 sm:basis-40"
+                  onChange={(event) =>
+                    setDraft({
+                      ...draft,
+                      groups: draft.groups.map((g) =>
+                        g.id === group.id
+                          ? { ...g, name: event.target.value }
+                          : g,
                       ),
-                    ),
-                  })
-                }
-              >
-                <X />
-              </Button>
-              <Textarea
-                aria-label={tr("Descripción del grupo {0}", { 0: index + 1 })}
-                placeholder={tr("Qué información debe guardar el agente aquí")}
-                maxLength={500}
-                value={group.description || ""}
-                disabled={action.busy}
-                className="min-h-20 w-full text-sm"
-                onChange={(event) =>
-                  setDraft({
-                    ...draft,
-                    groups: draft.groups.map((g) =>
-                      g.id === group.id
-                        ? { ...g, description: event.target.value }
-                        : g,
-                    ),
-                  })
-                }
-              />
-            </li>
-          ))}
-        </ul>
+                    })
+                  }
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={tr("Subir grupo {0}", { 0: index + 1 })}
+                  disabled={action.busy || index === 0}
+                  onClick={() => move(index, -1)}
+                >
+                  <ArrowUp />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={tr("Bajar grupo {0}", { 0: index + 1 })}
+                  disabled={action.busy || index === draft.groups.length - 1}
+                  onClick={() => move(index, 1)}
+                >
+                  <ArrowDown />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={tr("Eliminar grupo {0}", { 0: index + 1 })}
+                  disabled={action.busy}
+                  onClick={() =>
+                    setDraft({
+                      ...draft,
+                      groups: draft.groups.filter((g) => g.id !== group.id),
+                      assignments: Object.fromEntries(
+                        Object.entries(draft.assignments).filter(
+                          ([, id]) => id !== group.id,
+                        ),
+                      ),
+                    })
+                  }
+                >
+                  <X />
+                </Button>
+                <Textarea
+                  aria-label={tr("Descripción del grupo {0}", { 0: index + 1 })}
+                  placeholder={tr(
+                    "Qué información debe guardar el agente aquí",
+                  )}
+                  maxLength={500}
+                  value={group.description || ""}
+                  disabled={action.busy}
+                  className="min-h-20 w-full text-sm"
+                  onChange={(event) =>
+                    setDraft({
+                      ...draft,
+                      groups: draft.groups.map((g) =>
+                        g.id === group.id
+                          ? { ...g, description: event.target.value }
+                          : g,
+                      ),
+                    })
+                  }
+                />
+              </SortableGroup>
+            ))}
+          </Reorder.Group>
+        </MotionConfig>
         <div className="space-y-2 rounded-lg border p-3">
           <Input
             aria-label={tr("Nombre del nuevo grupo")}
@@ -218,7 +276,7 @@ export function GroupEditor({
           {tr("Restablecer grupos iniciales")}
         </Button>
         <Notice error>{action.error}</Notice>
-      </div>
+      </motion.div>
       <div className="shrink-0 border-t pt-3">
         {(newName.trim() || newDescription.trim()) && (
           <p className="text-sm text-muted-foreground">
@@ -240,5 +298,58 @@ export function GroupEditor({
         </Button>
       </div>
     </form>
+  );
+}
+
+function SortableGroup({
+  id,
+  name,
+  disabled,
+  help,
+  onMove,
+  onDrop,
+  children,
+}: {
+  id: string;
+  name: string;
+  disabled: boolean;
+  help: string;
+  onMove: (offset: number) => void;
+  onDrop: () => void;
+  children: ReactNode;
+}) {
+  const controls = useDragControls();
+  return (
+    <Reorder.Item
+      value={id}
+      dragListener={false}
+      dragControls={controls}
+      dragMomentum={false}
+      className="relative flex flex-wrap items-center gap-1 rounded-lg border bg-card p-2"
+      whileDrag={{ boxShadow: "0 12px 24px rgb(0 0 0 / 0.16)" }}
+      onDragEnd={onDrop}
+    >
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        disabled={disabled}
+        aria-label={tr("Arrastrar grupo {0}", { 0: name })}
+        aria-describedby={help}
+        className="touch-none cursor-grab text-muted-foreground active:cursor-grabbing [@media(pointer:coarse)]:size-11"
+        onPointerDown={(event) => {
+          if (!disabled && event.button === 0) controls.start(event);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+            event.preventDefault();
+            onMove(event.key === "ArrowUp" ? -1 : 1);
+          }
+        }}
+      >
+        <GripVertical />
+      </Button>
+      {children}
+    </Reorder.Item>
   );
 }

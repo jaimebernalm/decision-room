@@ -147,3 +147,18 @@ Estado: implementado y comprobado el 30 de septiembre de 2026.
 
 Estado: implementado y comprobado el 2 de octubre de 2026; véanse los resultados
 y límites en la [validación de lectura](../validation/2026-10-02-dossier-reading.md).
+
+## Decisiones en el detalle y orden con arrastre
+
+1. Añadir confirmar, descartar y corregir en el detalle, usando las revisiones
+   y contratos existentes. Resolver conflictos dentro de esa misma ventana,
+   conservando errores, borradores y retorno del foco.
+2. Permitir arrastrar grupos desde un asa, con desplazamiento y reordenación
+   visible. Conservar las flechas y el acceso con teclado, edición independiente
+   y guardado explícito del orden, descripciones y asignaciones.
+3. Comprobar decisiones, fallos, orden persistido y cancelación; probar el
+   arrastre real y la lectura en escritorio/móvil, ejecutar las comprobaciones
+   frontend y revisar el contenido público antes de crear un commit local.
+
+Estado: implementado y comprobado el 2 de octubre de 2026; véase la
+[validación de decisiones y orden](../validation/2026-10-02-dossier-actions-order.md).

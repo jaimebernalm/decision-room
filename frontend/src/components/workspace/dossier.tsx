@@ -1,5 +1,5 @@
 import { translate as tr, useLanguage } from "@/lib/i18n";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Plus,
   Upload,
@@ -158,6 +158,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
     action = useAction();
   const [edit, setEdit] = useState<Fact | null | undefined>(undefined),
     [detail, setDetail] = useState<Fact | null>(null),
+    [detailEditing, setDetailEditing] = useState(false),
     [upload, setUpload] = useState(false);
   const [customize, setCustomize] = useState(false),
     [collapsedGroups, setCollapsedGroups] = useState<string[]>([]);
@@ -167,6 +168,39 @@ export function Dossier({ files = false }: { files?: boolean }) {
   } | null>(null);
   const actionFocus = useRef<HTMLButtonElement | null>(null),
     customizeGroups = useRef<HTMLButtonElement | null>(null);
+  const factButtons = useRef(new Map<string, HTMLButtonElement>());
+  const pendingDetailFocus = useRef<{
+    id: string;
+    data: DossierData | null;
+  } | null>(null);
+  useEffect(() => {
+    const pending = pendingDetailFocus.current;
+    if (!pending || detail || !resource.data || resource.data === pending.data)
+      return;
+    const saved = resource.data.facts.find(
+      (f) =>
+        f.fact_id === pending.id &&
+        !["withdrawn", "superseded"].includes(f.status),
+    );
+    if (saved) {
+      const group = factGroup(
+        saved,
+        resource.data.layout || defaultDossierLayout,
+      );
+      if (collapsedGroups.includes(group)) {
+        setCollapsedGroups((groups) => groups.filter((id) => id !== group));
+        return;
+      }
+    }
+    const target =
+      (saved && factButtons.current.get(saved.fact_id)) ||
+      customizeGroups.current;
+    if (target) {
+      actionFocus.current = target;
+      target.focus();
+    }
+    pendingDetailFocus.current = null;
+  }, [detail, resource.data, collapsedGroups]);
   const restoreDialogFocus = (event: Event) => {
     const target = actionFocus.current?.isConnected
       ? actionFocus.current
@@ -177,10 +211,20 @@ export function Dossier({ files = false }: { files?: boolean }) {
     }
   };
   const done = () => {
+    if (detail)
+      pendingDetailFocus.current = { id: detail.fact_id, data: resource.data };
     resource.refresh();
     refresh();
     setEdit(undefined);
+    setDetail(null);
+    setDetailEditing(false);
     setUpload(false);
+  };
+  const openDetail = (fact: Fact) => {
+    pendingDetailFocus.current = null;
+    action.setError("");
+    setDetailEditing(false);
+    setDetail(fact);
   };
   const mutation = (fact: Fact, kind: string) =>
     action.run(async () => {
@@ -402,6 +446,15 @@ export function Dossier({ files = false }: { files?: boolean }) {
                                 <div className="min-w-0 flex-1 py-2">
                                   <button
                                     type="button"
+                                    ref={(node) => {
+                                      if (node)
+                                        factButtons.current.set(
+                                          f.fact_id,
+                                          node,
+                                        );
+                                      else
+                                        factButtons.current.delete(f.fact_id);
+                                    }}
                                     className="block w-full min-w-0 rounded-sm text-left leading-6 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                     aria-label={tr("Ver información: {0}", {
                                       0: f.content.statement,
@@ -409,7 +462,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
                                     aria-haspopup="dialog"
                                     onClick={(event) => {
                                       actionFocus.current = event.currentTarget;
-                                      setDetail(f);
+                                      openDetail(f);
                                     }}
                                   >
                                     <span className="block truncate">
@@ -549,7 +602,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
                                       {tr("Editar")}
                                     </DropdownMenuItem>
                                     <DropdownMenuItem
-                                      onSelect={() => setDetail(f)}
+                                      onSelect={() => openDetail(f)}
                                     >
                                       <Info />
                                       {tr("Ver detalles")}
@@ -839,7 +892,10 @@ export function Dossier({ files = false }: { files?: boolean }) {
       <Dialog
         open={detail !== null}
         onOpenChange={(open) => {
-          if (!open) setDetail(null);
+          if (!open) {
+            setDetail(null);
+            setDetailEditing(false);
+          }
         }}
       >
         <DialogContent
@@ -847,37 +903,106 @@ export function Dossier({ files = false }: { files?: boolean }) {
           onCloseAutoFocus={restoreDialogFocus}
         >
           <DialogHeader className="shrink-0 pr-8">
-            <DialogTitle>{tr("Detalles de la información")}</DialogTitle>
+            <DialogTitle>
+              {detailEditing
+                ? tr(
+                    detail?.status === "conflicted"
+                      ? "Resolver conflicto"
+                      : "Corregir información",
+                  )
+                : tr("Detalles de la información")}
+            </DialogTitle>
             <DialogDescription>
-              {tr("Origen, ámbito y vigencia de este dato.")}
+              {detailEditing
+                ? tr(
+                    detail?.status === "conflicted"
+                      ? "Marca la versión correcta o escribe otra solución. Revisa el contenido y guarda tu elección."
+                      : "Se guardará en la memoria de este negocio.",
+                  )
+                : tr("Origen, ámbito y vigencia de este dato.")}
             </DialogDescription>
           </DialogHeader>
-          {detail && (
-            <div className="min-h-0 min-w-0 space-y-4 overflow-y-auto break-words text-sm">
-              <p className="whitespace-pre-wrap text-base leading-7">
-                {detail.content.statement}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="outline">
-                  {tr(factKinds[detail.content.kind] || detail.content.kind)}
-                </Badge>
-                <Badge
-                  variant={
-                    detail.status === "conflicted" ? "destructive" : "secondary"
-                  }
-                >
-                  {tr(factStatus[detail.status] || detail.status)}
-                </Badge>
-              </div>
-              <p className="text-muted-foreground">
-                {scopeLabel(detail.content, data.datasets)}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {date(detail.created_at)}{" "}
-                {tr("· revisión {0}", { 0: detail.revision })}
-              </p>
-              <FactOrigin fact={detail} expanded />
-            </div>
+          {detail && detailEditing ? (
+            <FactEditor
+              key={`${detail.fact_id}-${detail.revision}`}
+              fact={detail}
+              autoFocus
+              group={null}
+              datasets={data.datasets}
+              onDone={done}
+            />
+          ) : (
+            detail && (
+              <>
+                <div className="min-h-0 min-w-0 space-y-4 overflow-y-auto break-words text-sm">
+                  <p className="whitespace-pre-wrap text-base leading-7">
+                    {detail.content.statement}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline">
+                      {tr(
+                        factKinds[detail.content.kind] || detail.content.kind,
+                      )}
+                    </Badge>
+                    <Badge
+                      variant={
+                        detail.status === "conflicted"
+                          ? "destructive"
+                          : "secondary"
+                      }
+                    >
+                      {tr(factStatus[detail.status] || detail.status)}
+                    </Badge>
+                  </div>
+                  <p className="text-muted-foreground">
+                    {scopeLabel(detail.content, data.datasets)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {date(detail.created_at)}{" "}
+                    {tr("· revisión {0}", { 0: detail.revision })}
+                  </p>
+                  <FactOrigin fact={detail} expanded />
+                </div>
+                <div className="shrink-0 space-y-3 border-t pt-3">
+                  <Notice error>{action.error}</Notice>
+                  <div className="flex flex-wrap gap-2">
+                    {canConfirm(detail) && (
+                      <Button
+                        disabled={action.busy}
+                        onClick={() => void mutation(detail, "confirm")}
+                      >
+                        {action.busy ? <Busy /> : <Check />}
+                        {tr("Confirmar")}
+                      </Button>
+                    )}
+                    <Button
+                      variant={
+                        detail.status === "conflicted" ? "default" : "outline"
+                      }
+                      disabled={action.busy}
+                      onClick={() => setDetailEditing(true)}
+                    >
+                      <Pencil />
+                      {tr(
+                        detail.status === "conflicted"
+                          ? "Resolver conflicto"
+                          : "Corregir información",
+                      )}
+                    </Button>
+                    {needsReview(detail) && (
+                      <Button
+                        variant="outline"
+                        disabled={action.busy}
+                        onClick={() => void mutation(detail, "withdraw")}
+                      >
+                        <X />
+                        {tr("Descartar")}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </>
+            )
           )}
         </DialogContent>
       </Dialog>
@@ -1027,11 +1152,13 @@ function FactOrigin({
 }
 function FactEditor({
   fact,
+  autoFocus = false,
   group,
   datasets,
   onDone,
 }: {
   fact: Fact | null;
+  autoFocus?: boolean;
   group: { id: string; title: string } | null;
   datasets: Dataset[];
   onDone: () => void;
@@ -1195,6 +1322,7 @@ function FactEditor({
                 >
                   <div className="flex items-center gap-3">
                     <RadioGroupItem
+                      autoFocus={autoFocus && index === 0}
                       id={`conflict-version-${index}`}
                       value={version.id}
                       aria-label={tr("Usar {0}", {
@@ -1263,6 +1391,7 @@ function FactEditor({
         <Field label={tr("Información")} id="fact-statement">
           <Textarea
             id="fact-statement"
+            autoFocus={autoFocus && fact?.status !== "conflicted"}
             required
             maxLength={1600}
             value={content.statement}

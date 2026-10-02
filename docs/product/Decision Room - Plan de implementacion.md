@@ -249,6 +249,12 @@ cursor/foco también en la zona del +, situado antes de la flecha. Pasan 205
 pruebas frontend, compilación y lint sin errores; se comprueban escritorio,
 móvil y desplazamiento del lector. Véase la
 [validación de lectura y sus límites](../validation/2026-10-02-dossier-reading.md).
+El siguiente incremento permite confirmar, descartar y corregir desde el detalle,
+con resolución del conflicto en esa misma ventana. Personalizar grupos permite
+arrastre con recolocación, flechas y teclado, conservando guardado explícito y
+asignaciones. Pasan 211 pruebas frontend, compilación y lint sin errores;
+se comprueban arrastre, persistencia y cancelación en escritorio y ancho móvil.
+Véase la [validación de decisiones y orden](../validation/2026-10-02-dossier-actions-order.md).
 
 ### 2.5.6. Inicio del negocio, informes y navegación cotidiana
 

@@ -224,6 +224,180 @@ async function menu(user: ReturnType<typeof userEvent.setup>, f: Fact) {
 }
 
 describe("compact business dossier", () => {
+  it.each(["Confirmar", "Descartar"])(
+    "decides a proposal from its reading dialog with %s",
+    async (decision) => {
+      const { user, writes } = setup(dossier([proposed]));
+      await ready();
+      if (decision === "Confirmar") {
+        await user.click(
+          screen.getByRole("button", { name: "Sobre el negocio 0" }),
+        );
+      }
+      const row = screen.getByRole("button", {
+        name: `Ver información: ${proposed.content.statement}`,
+      });
+      await user.click(row);
+      await user.click(
+        within(screen.getByRole("dialog")).getByRole("button", {
+          name: decision,
+        }),
+      );
+      await waitFor(() =>
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+      );
+      expect(writes).toHaveLength(1);
+      expect(writes[0]).toMatchObject({
+        action: decision === "Confirmar" ? "confirm" : "withdraw",
+        fact_id: proposed.fact_id,
+        expected_revision: proposed.revision,
+      });
+      if (decision === "Confirmar") {
+        await waitFor(() =>
+          expect(
+            screen.getByRole("button", {
+              name: `Ver información: ${proposed.content.statement}`,
+            }),
+          ).toHaveFocus(),
+        );
+        expect(screen.queryByText("Por confirmar")).not.toBeInTheDocument();
+      } else {
+        await waitFor(() =>
+          expect(
+            screen.getByRole("button", { name: "Personalizar grupos" }),
+          ).toHaveFocus(),
+        );
+        expect(
+          screen.queryByRole("button", {
+            name: `Ver información: ${proposed.content.statement}`,
+          }),
+        ).not.toBeInTheDocument();
+        await user.click(screen.getByRole("tab", { name: "Historial" }));
+        expect(screen.getByText(proposed.content.statement)).toBeVisible();
+      }
+    },
+  );
+  it("keeps a failed decision visible in the reading dialog without losing its text", async () => {
+    const { user, writes } = setup(dossier([proposed]), {
+      error: "La revisión ha cambiado.",
+    });
+    await ready();
+    await user.click(
+      screen.getByRole("button", {
+        name: `Ver información: ${proposed.content.statement}`,
+      }),
+    );
+    const dialog = screen.getByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Confirmar" }));
+    expect(
+      await within(dialog).findByText("La revisión ha cambiado."),
+    ).toBeVisible();
+    expect(within(dialog).getByText(proposed.content.statement)).toBeVisible();
+    expect(
+      within(dialog).getByRole("button", { name: "Confirmar" }),
+    ).toBeEnabled();
+    expect(writes).toHaveLength(1);
+  });
+  it("selects and saves a conflict solution inside the same reading dialog", async () => {
+    const { user, writes } = setup(dossier([conflict]));
+    await ready();
+    const row = screen.getByRole("button", {
+      name: `Ver información: ${conflict.content.statement}`,
+    });
+    await user.click(row);
+    const dialog = screen.getByRole("dialog");
+    expect(
+      within(dialog).queryByRole("button", { name: "Confirmar" }),
+    ).not.toBeInTheDocument();
+    await user.click(
+      within(dialog).getByRole("button", { name: "Resolver conflicto" }),
+    );
+    expect(screen.getAllByRole("dialog")).toEqual([dialog]);
+    const alternate = within(dialog).getByRole("radio", {
+      name: "Usar alternativa 1",
+    });
+    await user.click(alternate.closest("label")!);
+    expect(alternate).toBeChecked();
+    expect(writes).toHaveLength(0);
+    await user.click(
+      within(dialog).getByRole("button", { name: "Guardar solución" }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(writes[0]).toMatchObject({
+      action: "correct",
+      fact_id: conflict.fact_id,
+      expected_revision: conflict.revision,
+      content: { statement: "Margen objetivo del 30 %." },
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", {
+          name: "Ver información: Margen objetivo del 30 %.",
+        }),
+      ).toHaveFocus(),
+    );
+  });
+  it("corrects ambiguous information from the detail and cancels without saving", async () => {
+    const { user, writes } = setup(dossier([unresolved]));
+    await ready();
+    const row = screen.getByRole("button", {
+      name: `Ver información: ${unresolved.content.statement}`,
+    });
+    await user.click(row);
+    const dialog = screen.getByRole("dialog");
+    expect(
+      within(dialog).queryByRole("button", { name: "Confirmar" }),
+    ).not.toBeInTheDocument();
+    await user.click(
+      within(dialog).getByRole("button", { name: "Corregir información" }),
+    );
+    expect(screen.getAllByRole("dialog")).toEqual([dialog]);
+    expect(
+      within(dialog).getByRole("textbox", { name: "Información" }),
+    ).toHaveValue(unresolved.content.statement);
+    await user.keyboard("{Escape}");
+    expect(writes).toEqual([]);
+    expect(row).toHaveFocus();
+  });
+  it("reorders with the drag handle keyboard and preserves group IDs, descriptions and assignments", async () => {
+    const layout = {
+      ...structuredClone(defaultDossierLayout),
+      revision: 7,
+      assignments: { [shop.fact_id]: "business" },
+    };
+    const { user, writes } = setup({ ...dossier(), layout });
+    await ready();
+    await user.click(
+      screen.getByRole("button", { name: "Personalizar grupos" }),
+    );
+    const handle = screen.getByRole("button", {
+      name: "Arrastrar grupo Sobre el negocio",
+    });
+    handle.focus();
+    await user.keyboard("{ArrowUp}");
+    expect(
+      screen.getByRole("textbox", { name: "Nombre del grupo 1" }),
+    ).toHaveValue("Sobre el negocio");
+    await user.keyboard("{ArrowDown}");
+    expect(
+      screen.getByRole("textbox", { name: "Nombre del grupo 2" }),
+    ).toHaveValue("Sobre el negocio");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Sobre el negocio: posición 2 de 3.",
+    );
+    expect(writes).toEqual([]);
+    await user.click(screen.getByRole("button", { name: "Guardar grupos" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(writes[0]).toMatchObject({
+      revision: 7,
+      groups: [layout.groups[1], layout.groups[0], layout.groups[2]],
+      assignments: layout.assignments,
+    });
+  });
   it("opens the entire multiline information directly without writing and restores row focus", async () => {
     const statement = `${"Planificamos los pedidos de la campaña escolar. ".repeat(40)}\n\nLa última condición se conserva completa.`;
     const long = fact("long", statement);
