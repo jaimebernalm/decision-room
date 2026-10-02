@@ -6,6 +6,7 @@ import {
   ArrowUpRight,
   MoreHorizontal,
   MessageCircle,
+  Pin,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -86,6 +87,12 @@ export function Chats() {
                       {date(c.last_message_at || c.created_at)}
                     </p>
                   </a>
+                  {c.pinned_at && (
+                    <Pin
+                      aria-label={tr("Chat fijado")}
+                      className="size-3.5 shrink-0 text-muted-foreground"
+                    />
+                  )}
                   <ChatActions chat={c}>
                     <Button
                       size="icon"
@@ -104,9 +111,7 @@ export function Chats() {
       ) : (
         <Empty
           title={tr("Un espacio para pensar con tus datos")}
-          description={tr(
-            "Tus chats se guardan dentro de cada negocio.",
-          )}
+          description={tr("Tus chats se guardan dentro de cada negocio.")}
           href="#ask"
           onAction={() => assistant?.newConversation("page")}
         />

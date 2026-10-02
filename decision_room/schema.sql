@@ -837,3 +837,7 @@ CREATE TABLE IF NOT EXISTS web_dossier_layouts (
     layout jsonb NOT NULL DEFAULT '{}'
 );
 INSERT INTO schema_versions(version) VALUES (28) ON CONFLICT DO NOTHING;
+
+-- 2.5.21: owner-pinned chats stay ahead of recent conversations.
+ALTER TABLE chat_conversations ADD COLUMN IF NOT EXISTS pinned_at timestamptz;
+INSERT INTO schema_versions(version) VALUES (29) ON CONFLICT DO NOTHING;

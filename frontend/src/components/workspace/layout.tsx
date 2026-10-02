@@ -9,6 +9,8 @@ import {
   Plus,
   MoreHorizontal,
   Minimize2,
+  ChevronRight,
+  Pin,
 } from "lucide-react";
 import { LayoutGroup } from "motion/react";
 import {
@@ -135,12 +137,17 @@ function Navigation({
               onClick={close}
               aria-label={tr("Chats")}
               title={tr("Chats")}
-              className="workspace-library-link inline-flex items-center rounded-md hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-data-[collapsible=icon]:hidden"
+              aria-current={route === "chats" ? "page" : undefined}
+              className="workspace-library-link group/library flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-sidebar-accent-foreground group-data-[collapsible=icon]:hidden"
             >
               <MessageSquare className="hidden size-4 group-data-[collapsible=icon]:block" />
               <span className="group-data-[collapsible=icon]:hidden">
                 {tr("Chats")}
               </span>
+              <ChevronRight
+                aria-hidden="true"
+                className="ml-auto size-3.5 text-muted-foreground group-hover/library:text-foreground"
+              />
             </a>
             <Button
               asChild
@@ -179,6 +186,12 @@ function Navigation({
                   >
                     <MessageSquare />
                     <span>{shortTitle(chat.title)}</span>
+                    {chat.pinned_at && (
+                      <Pin
+                        aria-label={tr("Chat fijado")}
+                        className="ml-auto size-3 shrink-0 group-data-[collapsible=icon]:hidden"
+                      />
+                    )}
                   </a>
                 </SidebarMenuButton>
                 <ChatActions chat={chat} onOpenPanel={close}>
@@ -222,7 +235,8 @@ function Navigation({
               onClick={close}
               aria-label={tr("Informes")}
               title={tr("Informes")}
-              className="workspace-library-link inline-flex items-center rounded-md hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-data-[collapsible=icon]:h-6 group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:justify-center"
+              aria-current={route === "reports" ? "page" : undefined}
+              className="workspace-library-link group/library flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-sidebar-accent-foreground group-data-[collapsible=icon]:h-6 group-data-[collapsible=icon]:justify-center"
             >
               <span
                 aria-hidden="true"
@@ -231,6 +245,10 @@ function Navigation({
               <span className="group-data-[collapsible=icon]:hidden">
                 {tr("Informes")}
               </span>
+              <ChevronRight
+                aria-hidden="true"
+                className="ml-auto size-3.5 text-muted-foreground group-hover/library:text-foreground group-data-[collapsible=icon]:hidden"
+              />
             </a>
           </SidebarGroupLabel>
           <SidebarMenu>

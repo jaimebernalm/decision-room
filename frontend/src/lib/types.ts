@@ -50,6 +50,7 @@ export type Chat = {
   title: string;
   created_at: string;
   last_message_at?: string;
+  pinned_at?: string | null;
   context_reference?: ContextAttachment;
 };
 export type ChatListing = {

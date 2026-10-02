@@ -402,7 +402,8 @@ class Conversations:
                     LEFT JOIN LATERAL (SELECT created_at FROM chat_turns t
                         WHERE t.conversation_id=c.id ORDER BY created_at DESC,id DESC LIMIT 1) last_turn ON true
                     WHERE c.business_id=%s AND c.deleted_at IS NULL
-                    ORDER BY COALESCE(last_turn.created_at,c.created_at) DESC,c.created_at DESC,c.id DESC''',
+                    ORDER BY c.pinned_at DESC NULLS LAST,
+                        COALESCE(last_turn.created_at,c.created_at) DESC,c.created_at DESC,c.id DESC''',
                     (self.business,),
                 ).fetchall(),
                 datasets=ctx.datasets(db, self.business) if self.business else {'items': [], 'more': False},
@@ -411,6 +412,20 @@ class Conversations:
             for chat in result['conversations']:
                 chat['context_reference'] = conversation_context.listing_reference(db, self.business, chat['id'])
             return result
+
+    def pin(self, chat_id, data):
+        self.guard(data)
+        if type(data.get('pinned')) is not bool:
+            raise WebError('Indica si quieres fijar o desfijar el chat.', 400)
+        with connect(self.config) as db, db.transaction():
+            self.conversation(db, chat_id, lock=True)
+            row = db.execute(
+                '''UPDATE chat_conversations SET pinned_at=
+                    CASE WHEN %s THEN COALESCE(pinned_at,clock_timestamp()) ELSE NULL END
+                    WHERE id=%s AND business_id=%s RETURNING pinned_at''',
+                (data['pinned'], identifier(chat_id), self.business),
+            ).fetchone()
+        return {'saved': True, 'pinned_at': row['pinned_at']}
 
     def delete(self, chat_id, data):
         self.guard(data)

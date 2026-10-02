@@ -1241,5 +1241,9 @@
   "Ver hallazgo y detalle en el informe": "View finding and detail in the report",
   "Ver hallazgo y siguiente comprobación": "View finding and next check",
   "Ver desglose de este punto": "View breakdown for this point",
-  "En este informe": "In this report"
+  "En este informe": "In this report",
+  "Fijar chat": "Pin chat",
+  "Desfijar chat": "Unpin chat",
+  "Chat fijado": "Pinned chat",
+  "Indica si quieres fijar o desfijar el chat.": "Choose whether to pin or unpin the chat."
 }

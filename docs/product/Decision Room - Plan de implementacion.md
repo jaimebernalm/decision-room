@@ -564,6 +564,26 @@ propietario; la elección de conflicto mantiene su identidad al cambiar de idiom
 Véanse [comprobaciones de integración](../validation/2026-10-01-ui-integration.md).
 La rama de calidad de informes no forma parte de esta integración.
 
+### 2.5.21. Accesos de biblioteca, chats fijados e informes coherentes
+
+**Alcance solicitado, 2 de octubre de 2026:** hacer reconocibles los enlaces
+Chats e Informes en la barra lateral, permitir fijar/desfijar chats desde sus
+tres puntos y adaptar las filas de Informes a la estética de Chats.
+
+1. Enlaces de biblioteca con superficie amplia, flecha, hover, foco y página
+   activa, conservando la acción independiente de nuevo chat.
+2. Fijación persistente por negocio en PostgreSQL (migración 29). Los chats
+   fijados aparecen primero en navegación y biblioteca; desfijar recupera el
+   orden por último mensaje. Validar acceso, aislamiento, reintentos y recarga.
+3. Informes en filas redondeadas separadas, icono circular de borde fino y
+   cabeceras Estado/Creado conservadas. Mantener búsqueda, selección de contexto,
+   acceso según estado, papelera y restauración; revisar escritorio y móvil.
+
+**Completado:** 215 pruebas frontend y 21 pruebas backend dirigidas pasan;
+compilación y lint sin errores, revisión en localhost de fijación/recarga y
+desfijación, navegación y filas de informes en escritorio y móvil. Véanse
+[comprobaciones y límites](../validation/2026-10-02-ui-ux-refinements.md).
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Avance, 27 de septiembre de 2026:** completados **3.1** (medición inicial),

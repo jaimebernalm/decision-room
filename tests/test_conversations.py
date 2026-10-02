@@ -243,6 +243,47 @@ class ConversationTests(unittest.TestCase):
         self.chats.send(newer, dict(business_id=str(self.b), request_key=str(uuid4()), text='Después'))
         self.assertEqual(self.chats.listing()['conversations'][0]['id'], newer)
 
+    def test_pinned_chats_survive_reopening_and_unpin_restores_recency(self):
+        older, newer = self.chat(), self.chat()
+        payload = dict(business_id=str(self.b), pinned=True)
+        pinned = self.chats.pin(older, payload)['pinned_at']
+        self.assertIsNotNone(pinned)
+        self.assertEqual(self.chats.pin(older, payload)['pinned_at'], pinned)
+        reopened = Conversations(Workspace(self.config, SETTINGS, ChatModel).scoped(self.b))
+        self.assertEqual(reopened.listing()['conversations'][0]['id'], older)
+        self.chats.send(newer, dict(business_id=str(self.b), request_key=str(uuid4()), text='Después'))
+        self.assertEqual(reopened.listing()['conversations'][0]['id'], older)
+        self.chats.pin(newer, payload)
+        self.assertEqual([c['id'] for c in reopened.listing()['conversations'][:2]], [newer, older])
+        self.assertEqual(self.chats.pin(older, payload)['pinned_at'], pinned)
+        self.assertEqual(reopened.listing()['conversations'][0]['id'], newer)
+        self.assertIsNone(self.chats.pin(newer, {**payload, 'pinned': False})['pinned_at'])
+        self.assertEqual(reopened.listing()['conversations'][0]['id'], older)
+        self.chats.pin(older, {**payload, 'pinned': False})
+        self.assertEqual(reopened.listing()['conversations'][0]['id'], newer)
+        self.assertEqual(reopened.detail(older)['turns'], [])
+
+    def test_pin_http_validates_authentication_business_and_deleted_chats(self):
+        chat = self.chat()
+        client, server = self.http()
+        path = f'/api/chats/{chat}/pin'
+        payload = dict(business_id=str(self.b), pinned=True)
+        self.assertEqual(client.post(path, json=payload).status_code, 401)
+        client.post('/api/login', json={'token': server.token})
+        saved = client.post(path, json=payload)
+        self.assertEqual(saved.status_code, 200, saved.text)
+        self.assertIsNotNone(saved.json()['pinned_at'])
+        self.assertEqual(client.get('/api/chats').json()['conversations'][0]['id'], str(chat))
+        for value in (None, 1, 'true'):
+            self.assertEqual(client.post(path, json={**payload, 'pinned': value}).status_code, 400)
+        self.assertEqual(client.post(path, json={**payload, 'business_id': str(uuid4())}).status_code, 409)
+        other = self.ws.save_business(dict(request_key=str(uuid4()), expected_active_id=str(self.b), name='Other shop', description='Other context'))
+        foreign = Conversations(self.ws.scoped(other['id'])).create(dict(business_id=str(other['id']), request_key=str(uuid4())))['id']
+        self.ws.select_business(dict(business_id=str(self.b)))
+        self.assertEqual(client.post(f'/api/chats/{foreign}/pin', json=payload).status_code, 404)
+        self.chats.delete(chat, dict(business_id=str(self.b)))
+        self.assertEqual(client.post(path, json=payload).status_code, 404)
+
     def complete(self):
         chat = self.chat(self.batch())
         turn = self.send(chat, 'Calculate sales')
