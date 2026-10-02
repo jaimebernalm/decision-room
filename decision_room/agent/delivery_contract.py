@@ -140,6 +140,38 @@ using a discovery selection to excuse an omission.
 '''
 
 
+DECISION_READINESS = '''
+For a discovery goal asking for concrete next checks, assess whether the OWNER
+could actually perform the proposed check and distinguish its outcomes. Specify
+the focal segment/period, a named record or observable field, the comparison,
+and what each relevant result changes in the next action. "Consult pertinent
+operational records" or "investigate further" is an unfinished proposal, even
+inside a populated orientation. Choose a small useful check, not a catalogue of
+every hypothetical cause. Availability, transactions, visibility, composition or
+operating context are possible domains, never facts or mandatory investigations.
+Inspect actual columns/results first; compute material feasible contrasts before
+requesting missing evidence. If no commercial reaction can yet be justified, name
+the PARTICULAR missing evidence and how obtaining it would discriminate a decision.
+Unknown/refused context cannot authorize invented conditions or broad interviewing.
+
+Source/capture reconciliation can be a necessary first gate. For a business
+discovery request, it does not by itself explain what to check when it reconciles.
+Keep that gate, then provide a bounded conditional domain check, or explicitly
+mark the requested decision guidance partial with its specific unresolved need.
+Never declare complete business guidance merely because the numbers reconcile.
+Priorities may favor positive or negative signals. Magnitude and trajectory are
+relevant evidence, but explain why the focal check is more useful for the owner's
+decision than a material alternative. Do not just rename the numerical ranking
+as a business priority. This requires judgment, not exhaustive views or all causes.
+
+Before approving, review these semantic questions as well as traceability.
+An unmet request for concrete guidance is an owner_goal blocker with an exact
+source quote and current claim links; an unsupported asserted reaction is an
+integrity blocker. Correct the guidance without requiring optional inventories
+or a preferred chart. Factual/organization goals do not require business reactions.
+'''
+
+
 def validate_orientation(report, context):
     if context.get('review_policy', 0) < 4:
         return

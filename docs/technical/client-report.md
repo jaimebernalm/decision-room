@@ -126,8 +126,8 @@ accesibles, estilos móviles e impresión. No se añaden vídeos ni dashboard al
 
 ## Compatibilidad y archivos
 
-La implementación 3.9 usa prompts de revisión v45 e investigación v35 y
-dirección de negocio v8, sin reescribir grafos ni aprobaciones históricas.
+La implementación 3.9 usa prompts de revisión v46 e investigación v36 y
+dirección de negocio v9, sin reescribir grafos ni aprobaciones históricas.
 Las comprobaciones propuestas se contrastan con las columnas disponibles: un
 recuento o desglose aún sin calcular no se trata como contexto operativo ausente.
 En gráficos que referencian una serie completa, `temporal_grain: null` hereda el

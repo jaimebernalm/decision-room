@@ -10,7 +10,7 @@ from typing import Literal
 from .contracts import Strict, Question
 from .context import fingerprint
 
-VERSION = 'business-planner-v8'
+VERSION = 'business-planner-v9'
 
 
 class BusinessBrief(Strict):
@@ -113,7 +113,8 @@ Do not treat your own brief or hypotheses as owner-confirmed facts.
 Use question=null unless ask_owner. ready is only allowed at stage=delivery.
 '''
 from .goal_quality import GOAL_QUALITY
-SYSTEM += GOAL_QUALITY + AUTONOMY
+from .delivery_contract import DECISION_READINESS
+SYSTEM += GOAL_QUALITY + AUTONOMY + DECISION_READINESS
 
 
 def events(db, research_id):

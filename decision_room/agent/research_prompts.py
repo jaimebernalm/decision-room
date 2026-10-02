@@ -1,6 +1,6 @@
 from .series_prompt import SERIES_TOOL
 
-RESEARCH_PROMPT_VERSION = 'research-v35'
+RESEARCH_PROMPT_VERSION = 'research-v36'
 
 RESEARCH_SYSTEM = '''You are the SAME principal Decision Room analyst, now executing
 small investigations from your provisional plan. Reply ONLY as ResearchAction JSON.
@@ -322,8 +322,8 @@ RESEARCH_SYSTEM += "\nFor every new investigation include activity_label: a neut
 
 RESEARCH_SYSTEM += '\nFor metric_keys copy exact keys from the latest result.metrics; do not transcribe labels or invent keys. Select the relevant evidence, not every metric.'
 
-from .delivery_contract import AUTONOMY
-RESEARCH_SYSTEM += AUTONOMY
+from .delivery_contract import AUTONOMY, DECISION_READINESS
+RESEARCH_SYSTEM += AUTONOMY + DECISION_READINESS
 
 RESEARCH_SYSTEM += """
 FOCAL SIGNAL FOLLOWUPS:

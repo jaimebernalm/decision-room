@@ -1,6 +1,6 @@
 from .series_prompt import SERIES_TOOL
 
-REVIEW_PROMPT_VERSION = 'review-v45'
+REVIEW_PROMPT_VERSION = 'review-v46'
 
 COMMON = '''You are part of Decision Room's bounded analyst/reviewer dialogue.
 Return ONLY ReviewAction JSON, every field present. Human-facing prose in Spanish.
@@ -627,3 +627,7 @@ actual owner goal. Keep freedom to choose focused lines, tables or bars.
 """
 ANALYST_SYSTEM += DELIVERY_SELECTION
 REVIEWER_SYSTEM += DELIVERY_SELECTION
+
+from .delivery_contract import DECISION_READINESS
+ANALYST_SYSTEM += DECISION_READINESS
+REVIEWER_SYSTEM += DECISION_READINESS
