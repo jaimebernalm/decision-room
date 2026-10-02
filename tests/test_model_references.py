@@ -6,6 +6,20 @@ from decision_room.agent.model import ModelClient, ModelSettings
 
 
 class ModelReferenceTests(unittest.TestCase):
+    def test_new_review_classifies_issues_and_can_defer_optional_initial_work(self):
+        context = {'review_policy': 5, 'owner_deliverables': ['Original goal'],
+                   'plan': {'investigations': [dict(key='optional_view',status='ready')]}}
+        schema = self.schema('generate_reviewer', context)
+        issue = schema['$defs']['ReviewIssue']
+        self.assertEqual(set(issue['required']),set(issue['properties']))
+        self.assertEqual(issue['properties']['basis']['enum'],
+                         ['owner_goal','evidence_integrity','optional_improvement'])
+        coverage=schema['$defs']['QuestionCoverage']['anyOf']
+        self.assertIn('deferred',coverage[0]['properties']['status']['enum'])
+        selection=schema['$defs']['DeliverySelection']
+        self.assertEqual(set(selection['required']),set(selection['properties']))
+        self.assertIn('delivery_selections',schema['$defs']['ReportDraft']['required'])
+
     def schema(self, method, context):
         client = ModelClient(ModelSettings('test'))
         original = deepcopy(context)

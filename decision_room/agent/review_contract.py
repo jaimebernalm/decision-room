@@ -42,6 +42,16 @@ class SeriesRef(Strict):
     series: str = Field(min_length=1, max_length=100)
 
 
+class DeliverySelection(Strict):
+    key: str = Field(pattern=r'^[a-z][a-z0-9_]{0,63}$')
+    title: str = Field(min_length=1, max_length=160)
+    chart_keys: list[str] = Field(min_length=1, max_length=4)
+    axis: Literal['points', 'categories', 'series']
+    shown_group_count: int = Field(ge=1, le=1464)
+    population: SeriesRef | None
+    coverage: Literal['selected', 'all_reference']
+
+
 class Highlight(Strict):
     label: str = Field(min_length=1, max_length=80)
     value: MetricRef | SeriesPointRef
@@ -117,6 +127,7 @@ class ReportDraft(Strict):
     summary: str = Field(min_length=1, max_length=2400)
     scope: ReportScope
     charts: list[Chart] = Field(max_length=4)
+    delivery_selections: list[DeliverySelection] = Field(default_factory=list, max_length=8)
     no_chart_reason: str = Field(max_length=600)
     claims: list[Claim] = Field(min_length=1, max_length=6)
     limitations: list[str] = Field(min_length=1, max_length=13)
@@ -140,6 +151,13 @@ def checks(report, observations):
     if not report:
         return [{'check': 'report_present', 'passed': False, 'detail': 'No draft submitted.'}]
     result = []
+    if report.get('delivery_selections'):
+        from .delivery_selection import selection_manifest
+        try:
+            selection_manifest(report, observations)
+            result.append({'check': 'delivery_selection', 'passed': True, 'detail': 'Current view identities and saved population verified.'})
+        except ValueError as error:
+            result.append({'check': 'delivery_selection', 'passed': False, 'detail': str(error)})
 
     def value(ref):
         return evidence_value(observations, ref)
@@ -315,7 +333,7 @@ def validate_coverage(report, context):
             raise ValueError('Undelivered investigations need a limitation, not answer claims.')
         if entry['status'] == 'deferred':
             investigation = next(i for i in investigations if i['key'] == entry['investigation_key'])
-            if context.get('review_policy', 0) < 3 or not investigation.get('parent_key'):
+            if context.get('review_policy', 0) < 3 or (context.get('review_policy', 0) < 5 and not investigation.get('parent_key')):
                 raise ValueError('Only an agent-generated followup may be deferred under review policy 3.')
             if not any(e['status'] == 'answered' for e in entries):
                 raise ValueError('A partial delivery must answer a useful part of the goal.')
@@ -335,6 +353,8 @@ def validate(raw, role, context):
         if action.report is None:
             raise ValueError('submit requires the complete updated report, including unchanged claims and limitations.')
         validate_coverage(action.report.model_dump(), context)
+        from .delivery_selection import validate_selections
+        validate_selections(action.report.model_dump(), context['observations'], context.get('review_policy', 0))
         if not action.report.charts and not action.report.no_chart_reason.strip():
             raise ValueError('Explain why no chart is useful for this report.')
         chart_keys = [c.key for c in action.report.charts]
@@ -381,6 +401,8 @@ def validate(raw, role, context):
         if not context['report'] or not all(c['passed'] for c in context['checks']):
             raise ValueError('Cannot approve a missing report or one with failed mechanical checks.')
         validate_coverage(context['report'], context)
+        from .delivery_selection import validate_selections
+        validate_selections(context['report'], context['observations'], context.get('review_policy', 0))
         # A new reviewer execution must be incorporated by the analyst before
         # approval so that its evidence or a failed check cannot be silently lost.
         draft_step = context['report_step']

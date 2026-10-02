@@ -550,6 +550,6 @@ sustituyen.
    recursos y commits locales; no publicar datos ni hacer push.
 
 - [x] Referencia estable del encargo. — política de revisión 5; 48 pruebas dirigidas pasan.
-- [ ] Bloqueos justificados.
-- [ ] Selección verificable de vistas.
+- [x] Bloqueos justificados. — procedencia verificable y mejoras opcionales no bloqueantes; prueba adversarial del encargo.
+- [x] Selección verificable de vistas. — grupos actuales, población vigente, manifiesto, aprobación y notas visibles; regresión de 547 pruebas pasa más una prueba nueva de persistencia.
 - [ ] Pruebas y recorrido real acotado.

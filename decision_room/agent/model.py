@@ -397,11 +397,17 @@ class ModelClient:
         assessment['required'] = list(assessment['properties'])
         assessment['properties']['usefulness'].pop('default', None)
         # Runtime defaults retain old reports; model output supplies all fields.
-        for name in ('ReportDraft', 'Chart', 'Claim', 'ChartEncoding', 'PointDetail', 'UsefulnessAudit'):
+        for name in ('ReportDraft', 'Chart', 'Claim', 'ChartEncoding', 'PointDetail', 'UsefulnessAudit', 'DeliverySelection'):
             definition = schema['$defs'][name]
             definition['required'] = list(definition['properties'])
             for field in definition['properties'].values():
                 field.pop('default', None)
+        if context.get('review_policy', 0) >= 5:
+            definition = schema['$defs']['ReviewIssue']
+            definition['required'] = list(definition['properties'])
+            for field in definition['properties'].values():
+                field.pop('default', None)
+            definition['properties']['basis'] = {'type': 'string', 'enum': ['owner_goal', 'evidence_integrity', 'optional_improvement']}
         if context.get('review_policy', 0) >= 4:
             schema['$defs']['ReportDraft']['properties']['contract_version']['enum'] = [2]
             owner = context.get('owner_deliverables') or []
@@ -498,7 +504,8 @@ class ModelClient:
             coverage = schema['$defs']['ReportDraft']['properties']['question_coverage']
             coverage.update(minItems=len(ready), maxItems=len(investigations))
             branches = []
-            deferred = sorted(i['key'] for i in investigations if i['status'] == 'ready' and i.get('parent_key')) if context.get('review_policy', 0) >= 3 else []
+            deferred = sorted(i['key'] for i in investigations if i['status'] == 'ready' and
+                              (i.get('parent_key') or context.get('review_policy', 0) >= 5)) if context.get('review_policy', 0) >= 3 else []
             standard = [key for key in ready if key not in deferred]
             for keys, statuses in ((standard, ['answered', 'unavailable']), (deferred, ['answered', 'unavailable', 'deferred']), (blocked, ['unavailable'])):
                 if not keys:

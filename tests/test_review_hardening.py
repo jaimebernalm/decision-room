@@ -22,6 +22,29 @@ class HardeningTests(unittest.TestCase):
     setUp = review_tests.ReviewTests.setUp
     run_review = review_tests.ReviewTests.run_review
 
+    def test_saved_selection_notes_replace_stale_counts_and_survive_resume(self):
+        class SelectedDialogue(DialogueModel):
+            def generate_analyst_review(self, context, correction=None):
+                response, usage = super().generate_analyst_review(context, correction)
+                if response['action'] == 'submit':
+                    report=response['report']; ref=report['claims'][0]['evidence'][0]
+                    report['charts']=[dict(key='values',claim_key='sales',kind='table',title='Protocol values',
+                        unit='importe',decimals=2,caption='Scripted comparison for persistence verification.',
+                        points=[dict(label=label,value=ref) for label in ('A','B')])]
+                    report['delivery_selections']=[dict(key='selection',title='Valores de prueba',
+                        chart_keys=['values'],axis='points',shown_group_count=2,population=None,coverage='selected')]
+                    report['limitations'].append('Selección entregada: stale 18 elements.')
+                return response,usage
+        self.roles=SelectedDialogue('correct')
+        result=review.start(self.config,self.business,self.research['id'],request_key='selected',
+                            analyst=self.roles,reviewer=self.roles)
+        self.assertTrue(result['publishable'])
+        notes=[n for n in result['report']['limitations'] if n.startswith('Selección entregada:')]
+        self.assertEqual(notes,['Selección entregada: Valores de prueba: 2 elementos mostrados.'])
+        resumed=review.resume(self.config,self.business,result['id'],analyst=self.roles,reviewer=self.roles)
+        self.assertEqual(result['approved_sha256'],resumed['approved_sha256'])
+        self.assertEqual(result['report'],resumed['report'])
+
     def test_usefulness_failure_missing_questions_and_false_coverage_block_approval(self):
         self.run_review()
         ctx=self.roles.contexts[-1]
@@ -102,7 +125,8 @@ class HardeningTests(unittest.TestCase):
             validate(open_issue, 'reviewer', context)
         optional = deepcopy(approved)
         optional['assessment']['issues'].append(dict(key='wording',severity='suggestion',status='open',
-            target='summary',detail='Optional shorter wording.',resolution='',introduced_because='Editorial observation.'))
+            target='summary',detail='Optional shorter wording.',resolution='',introduced_because='Editorial observation.',
+            basis='optional_improvement',owner_quote='',owner_deliverable_index=None,claim_keys=[],chart_keys=[]))
         validate(optional, 'reviewer', context)
         optional['action'] = 'revise'
         with self.assertRaisesRegex(ValueError, 'optional suggestions'):

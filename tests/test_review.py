@@ -32,6 +32,9 @@ def assessed(response, context):
         issues = [dict(key='definition', severity='blocker', status='open', target='claims.sales.method',
                        detail=response['message'], resolution='', introduced_because='')]
     for issue in issues:
+        if context.get('review_policy', 0) >= 5 and issue.get('basis') is None:
+            issue.update(basis='evidence_integrity', owner_quote='', owner_deliverable_index=None,
+                         claim_keys=['sales'], chart_keys=[])
         if response['action'] == 'approve':
             issue.update(status='resolved', resolution='Checked the saved definition and calculation in this scripted fixture.')
     return {**response, 'assessment': dict(report_step=context['report_step'], issues=issues,

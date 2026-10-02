@@ -61,15 +61,23 @@ def build(config, db, session, run, analyst, reviewer, saver, *, executor=execut
                 return {'outcome': 'limited'}
             try:
                 action = validate(raw, state['role'], context)
-                if action['action'] == 'submit' and context.get('research_coverage'):
+                if action['action'] == 'submit':
                     report = action['report']
                     from .review_policy import prioritize_claims
                     prioritize_claims(report, context.get('research_synthesis'))
-                    note = limitation(context['research_coverage'], report)
                     # Replace only reserved controller scope notes, preserving all
                     # substantive caveats. Computed candidates are not delivered answers.
-                    limits = [l for l in report['limitations'] if not l.startswith(('Cobertura del informe:', 'Cobertura de investigación:', 'Cobertura del encargo:'))]
-                    report['limitations'] = [*limits, note]
+                    prefixes = ()
+                    controller_limits = []
+                    if context.get('research_coverage'):
+                        prefixes += ('Cobertura del informe:', 'Cobertura de investigación:', 'Cobertura del encargo:')
+                        controller_limits.append(limitation(context['research_coverage'], report))
+                    if context.get('review_policy', 0) >= 5:
+                        from .delivery_selection import selection_notes
+                        prefixes += ('Selección entregada:',)
+                        controller_limits.extend(selection_notes(report, context['observations']))
+                    limits = [l for l in report['limitations'] if not l.startswith(prefixes)]
+                    report['limitations'] = [*limits, *controller_limits]
                     action = validate(action, state['role'], context)
                 break
             except ValueError as error:

@@ -14,6 +14,11 @@ class ReviewIssue(Strict):
     detail: str = Field(min_length=1, max_length=800)
     resolution: str = Field(max_length=800)
     introduced_because: str = Field(max_length=800)
+    basis: Literal['owner_goal', 'evidence_integrity', 'optional_improvement'] | None = None
+    owner_quote: str = Field(default='', max_length=800)
+    owner_deliverable_index: int | None = Field(default=None, ge=0, le=11)
+    claim_keys: list[str] = Field(default_factory=list, max_length=6)
+    chart_keys: list[str] = Field(default_factory=list, max_length=4)
 
 
 class DeliveryAudit(Strict):
@@ -80,11 +85,19 @@ def delivery_manifest(report, observations):
             except (KeyError, ValueError, TypeError):
                 count = None
         charts.append({'key': chart['key'], 'kind': chart['kind'], 'points': count, 'unit': chart['unit']})
-    return {'claim_keys': [c['key'] for c in report['claims']], 'charts': charts,
+    manifest = {'claim_keys': [c['key'] for c in report['claims']], 'charts': charts,
             'question_coverage': report.get('question_coverage', []),
             'owner_coverage': report.get('owner_coverage', []),
             'downloadable_execution_files': [],
             'note': 'Only report prose, cited values, highlights and these charts reach the client. Sandbox artifacts are not attachments.'}
+    # Do not change the manifest/fingerprint of historical approved payloads.
+    if 'delivery_selections' in report:
+        from .delivery_selection import selection_manifest
+        try:
+            manifest['selections'] = selection_manifest(report, observations)
+        except ValueError as error:
+            manifest['selection_error'] = str(error)
+    return manifest
 
 
 def validate_assessment(action, role, context):
@@ -105,6 +118,24 @@ def validate_assessment(action, role, context):
     if not previous.keys() <= issues.keys():
         raise ValueError('Retain every prior issue key; explicitly resolve it with evidence instead of omitting it.')
     for key, issue in issues.items():
+        if context.get('review_policy', 0) >= 5:
+            if issue.basis is None:
+                raise ValueError('Each review issue needs an owner_goal, evidence_integrity or optional_improvement basis.')
+            if issue.basis == 'optional_improvement' and issue.severity == 'blocker':
+                raise ValueError('Optional improvements are suggestions, never approval blockers.')
+            if issue.status == 'open' and issue.severity == 'blocker':
+                if issue.basis == 'owner_goal':
+                    texts = [context['accepted_owner_request']['text'],
+                             *[a['text'] for a in context.get('owner_confirmed_answers', [])]]
+                    if (issue.owner_deliverable_index not in range(len(context['owner_deliverables'])) or
+                            not issue.owner_quote.strip() or not any(issue.owner_quote in text for text in texts)):
+                        raise ValueError('An owner-goal blocker needs an actual owner index and exact source quote, not planner wording.')
+                else:
+                    claims = {c['key'] for c in context['report']['claims']}
+                    charts = {c['key'] for c in context['report']['charts']}
+                    if (not (issue.claim_keys or issue.chart_keys) or
+                            not set(issue.claim_keys) <= claims or not set(issue.chart_keys) <= charts):
+                        raise ValueError('An integrity blocker must identify current delivered claims or charts.')
         if issue.status == 'resolved' and not issue.resolution.strip():
             raise ValueError('Resolved issues require an evidence-based resolution.')
         prior = previous.get(key)

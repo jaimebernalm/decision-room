@@ -86,13 +86,30 @@ responden o documenta que no se puede responder. El controlador exige todas las
 claves y referencias; el revisor comprueba la correspondencia semántica y el
 objetivo original. La existencia de ese campo no demuestra por sí sola utilidad.
 
-Desde 3.9, las nuevas revisiones usan política 4 y `contract_version: 2`.
+Desde el ajuste del 2 de octubre, las nuevas revisiones usan política 5 y
+`contract_version: 2`. Las revisiones anteriores conservan su política y huella.
 `owner_coverage` registra cada entregable del propietario, independientemente
 del número de ramas de investigación: completo, parcial, no disponible o aplazado.
 `orientation` añade alcance, señal con evidencia vigente, prioridad relativa,
 comprobación, utilidad para decidir y reacciones condicionales con límites.
 El revisor audita cada entregable y el respaldo de las decisiones; los campos
 estructurales no acreditan utilidad. La cobertura visible procede del encargo.
+
+La autoridad es `accepted_owner_request.text` con las respuestas reales del
+propietario; el brief y la agenda no añaden obligaciones. El único entregable de
+referencia contiene el encargo completo: el revisor comprueba todos sus componentes.
+Las investigaciones internas opcionales pueden aplazarse honestamente. Los bloqueos
+declaran `basis`: obligación del propietario con cita e índice, o integridad de
+evidencia con referencias a contenido vigente. Las mejoras opcionales son sugerencias.
+Estos controles verifican procedencia; la pertinencia sigue exigiendo juicio del revisor.
+
+`delivery_selections` identifica las vistas actuales, su eje explícito y el número
+de grupos mostrados. El controlador deriva la unión de etiquetas o coordenadas y
+rechaza cifras que no coinciden. Afirmar `all_reference` exige una población guardada
+vigente y mostrarla íntegra. Esa exhaustividad corresponde a la serie de referencia,
+con sus filtros, sin certificar toda la actividad del negocio. El manifiesto y las
+notas visibles incluyen las cantidades derivadas; aprobación vincula también esa
+población. El revisor contrasta la prosa y la cobertura con el manifiesto vigente.
 
 La primera lectura muestra esa orientación; metodología y evidencia conservan
 su detalle desplegable. Las líneas múltiples permiten activar series, consultar
@@ -109,8 +126,8 @@ accesibles, estilos móviles e impresión. No se añaden vídeos ni dashboard al
 
 ## Compatibilidad y archivos
 
-La implementación 3.9 usa prompts de revisión v43 e investigación v34 y
-dirección de negocio v7, sin reescribir grafos ni aprobaciones históricas.
+La implementación 3.9 usa prompts de revisión v45 e investigación v35 y
+dirección de negocio v8, sin reescribir grafos ni aprobaciones históricas.
 Las comprobaciones propuestas se contrastan con las columnas disponibles: un
 recuento o desglose aún sin calcular no se trata como contexto operativo ausente.
 En gráficos que referencian una serie completa, `temporal_grain: null` hereda el

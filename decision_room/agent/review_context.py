@@ -133,6 +133,8 @@ def approval_digest(materialized, knowledge):
         if chart.get('series'):
             cited.add(chart['series']['execution_id'])
     cited.update(h['value']['execution_id'] for h in materialized['report'].get('highlights', []))
+    cited.update(s['population']['execution_id'] for s in materialized['report'].get('delivery_selections', [])
+                 if s.get('population'))
     for check in materialized['report']['checks']:
         cited.update(ref['execution_id'] for ref in [check['actual'], *check['operands']])
     policy = {'review_issues': materialized['review_issues'], 'delivery_manifest': materialized['delivery_manifest'],
