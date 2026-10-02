@@ -217,3 +217,10 @@ bloqueada por saldo de API. La comprobación conjunta final requiere
 que el propietario reconozca la prioridad y el siguiente paso en una entrega real.
 No se atribuye ese juicio a pruebas automatizadas. Consulta web posterior 3.95
 fuera de este alcance.
+
+## Continuidad del 1 de octubre
+
+El proveedor vuelve a responder después de restablecer saldo. Los resultados de
+este documento se conservan como historial, incluidos los intentos fallidos.
+La [evaluación reanudada](2026-10-01-report-quality.md) registra correcciones,
+pruebas y nuevos intentos separados; no sustituye esta comparación.

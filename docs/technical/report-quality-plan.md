@@ -1,7 +1,7 @@
 # 3.9 — Calidad de la entrega y autonomía de investigación y presentación
 
-**Estado:** capacidades implementadas; comparación ejecutada y aceptación de calidad abierta. Validación real del ajuste final bloqueada por saldo de API.  
-**Fecha:** 30 de septiembre de 2026.  
+**Estado:** capacidades implementadas; proveedor reanudado tras restablecer saldo. Hay entregas aceptadas en desarrollo, sin mejora consistente demostrada; aceptación de calidad y prueba conjunta abiertas.  
+**Fecha:** 30 de septiembre de 2026; actualizado el 1 de octubre.  
 **Base inspeccionada:** `5af6cb7`, rama `feature/report-quality`.  
 **Continuidad:** este documento conserva decisiones, incrementos y resultados de 3.9.  
 **Referencias:** [plan general](../product/Decision%20Room%20-%20Plan%20de%20implementacion.md), [onboarding e informes](../product/onboarding-e-informes-plan.md), [3.7](business-planner-plan.md), [resultados de 3.7](../validation/2026-09-28-business-planner.md), [evaluación de calidad](quality-evaluation-plan.md), [contrato actual del informe](client-report.md).
@@ -475,6 +475,8 @@ aportado por el propietario; no habilita Internet en el sandbox de Python.
 
 ### 3.9.7 — Comparación ejecutada; aceptación abierta
 
+Historial al 30 de septiembre:
+
 - Doce intentos originales congelados (`2e10028`/`ed92625`): base 5/6 publicables,
   1/6 aceptados; nueva 4/6 publicables, 0/6 aceptados. Nueve informes con 488
   referencias correctas. Dos fallos nuevos de revisión y uno de proveedor en base,
@@ -495,3 +497,22 @@ aportado por el propietario; no habilita Internet en el sandbox de Python.
   y herramienta de evaluación posteriores en `779478b`, `a762a9b`, `c7e3d84`,
   `166e650`, `0ff7a93`, `c44ef2f`, `b38459c` y `4499f15`. El paso 3.9.7 no se
   marca completo: faltan validación del ajuste con proveedor y aceptación conjunta.
+
+
+Actualización del 1 de octubre tras restablecer saldo:
+
+- Seis recorridos nuevos con `4499f15`: 3/6 publicables y 2/6 aceptados en
+  desarrollo. 320 referencias de informes/borradores correctas. Dos bloqueos de
+  revisión por grano heredado, comprobaciones calculables omitidas y colisión de
+  seguimiento; un HTTP 429 posterior con causa específica no diagnosticada.
+- Correcciones locales `3f02371`, `1db869e` y `9421aa1`; regresión completa de
+  533 pruebas Python pasa. La recuperación aislada de una revisión de Bruma
+  aprueba sin sobrescribir el fallo original y conserva 33 referencias correctas.
+- Un recorrido posterior con `9421aa1` termina limitado tras ocho rondas: las 73
+  referencias son correctas, pero texto/cobertura declaran 18 combinaciones y la
+  entrega contiene 12. Las cinco reservas restantes no se lanzan ante la
+  ampliación innecesaria del encargo. No son intentos realizados.
+- Se conservan 25 intentos únicos, sin duplicar bases ni contar la recuperación
+  como recorrido completo. Sigue pendiente corregir la ampliación del encargo y
+  la coherencia de cobertura, demostrar consistencia y completar prueba conjunta.
+  [Evaluación, recursos y continuidad](../validation/2026-10-01-report-quality.md).

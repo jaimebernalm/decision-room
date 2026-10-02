@@ -512,18 +512,19 @@ Véanse [uso y contratos](../technical/live-investigation.md), [plan completado]
 y [validación con límites](../validation/2026-09-28-live-investigation.md).
 Su cierre no implica aceptación de calidad analítica.
 
-**3.9 en evaluación, 30 de septiembre:** [calidad de la entrega y autonomía de
+**3.9 en evaluación, actualizado el 1 de octubre:** [calidad de la entrega y autonomía de
 investigación y presentación](../technical/report-quality-plan.md). El planificador
 prioriza preguntas de negocio y el analista decide métodos, desgloses y visuales;
 el código garantiza integridad y el revisor comprueba utilidad. Profundizar en el
 segmento y periodo de la señal, cuantificar sus componentes y entregar prioridades,
 comprobaciones y reacciones condicionales concretas. Ampliar representaciones
 temporales y de varias series, interacción y cobertura del encargo del propietario.
-Seis incrementos implementados y verificados: regresión final de 531 pruebas Python
-y 117 web pasan; [resultados y límites](../validation/2026-09-30-report-quality.md).
-Comparación original en Bruma/WWI ejecutada sin mejora consistente demostrada;
-seis intentos adicionales bloqueados por saldo de API. Se conservan 18 intentos
-únicos y la aceptación conjunta sigue abierta. La consulta
+Seis incrementos implementados y verificados: regresión final de 533 pruebas Python
+y 117 web previamente verificadas; [resultados originales](../validation/2026-09-30-report-quality.md)
+y [reanudación tras recarga](../validation/2026-10-01-report-quality.md).
+Comparación original en Bruma/WWI ejecutada sin mejora consistente demostrada.
+Tras restablecer saldo se conservan los fallos anteriores y se obtienen dos
+entregas aceptadas de seis intentos nuevos. La aceptación conjunta sigue abierta. La consulta
 web queda como propuesta posterior 3.95, con alcance específico todavía pendiente.
 
 
