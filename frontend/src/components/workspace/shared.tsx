@@ -62,7 +62,7 @@ export function Notice({
 }) {
   return children ? (
     <Alert variant={error ? "destructive" : "default"} className="my-3">
-      <AlertDescription className="block">
+      <AlertDescription className="block break-words">
         {typeof children === "string" && error ? tr(children) : children}
       </AlertDescription>
     </Alert>

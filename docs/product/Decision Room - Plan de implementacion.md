@@ -266,6 +266,13 @@ Véase la [validación de decisiones y orden](../validation/2026-10-02-dossier-a
 
 **Cierre, 23 de septiembre:** se completan referencias verificables a hallazgos, envío unificado de preguntas, gráficos y cifras legibles en chat, selección visible de versiones, actividad y biblioteca con estados explícitos, cabecera compacta y compositor sin superposición. Se comprueban onboarding y visitas posteriores, escritorio/móvil, teclado, borradores y referencias con Luna real. Pasan 243 pruebas Python y 12 JavaScript. Véase [validación de 2.5.6](../validation/2026-09-23-daily-ux-check.md). La aceptación integrada sigue correspondiendo a 2.5.7.
 
+**Refinamiento de avisos, 2 de octubre de 2026:** los errores usan una cápsula
+de fondo rojo suave, texto rojo, esquinas redondeadas y ancho ajustado al mensaje.
+Se conservan contenido y rol de alerta; los mensajes se envuelven en móvil.
+Pasan 211 pruebas frontend, compilación y lint sin errores; se comprueban avisos
+de conexión y errores dentro de detalles. Véase la
+[validación visual](../validation/2026-10-02-error-notices.md).
+
 ### 2.5.7. Evaluación integrada y cierre
 
 **Ejecutar:** matriz de memoria y conversación con referencias independientes, pruebas de persistencia, aislamiento, concurrencia y recuperación, conversaciones con el modelo real y recorrido visual. Incluir regresión del flujo de la entrega 2 y medir repetición de preguntas, propagación de correcciones, exactitud, selección de contexto, latencia y consumo. Registrar resultados, versiones y límites; corregir fallos materiales antes del cierre.

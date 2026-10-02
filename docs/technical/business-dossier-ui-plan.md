@@ -162,3 +162,15 @@ y límites en la [validación de lectura](../validation/2026-10-02-dossier-readi
 
 Estado: implementado y comprobado el 2 de octubre de 2026; véase la
 [validación de decisiones y orden](../validation/2026-10-02-dossier-actions-order.md).
+
+## Avisos de error compactos
+
+1. Usar el mismo fondo rojo suave y texto rojo que los estados de conflicto,
+   con esquinas más redondeadas y ancho ajustado al contenido. Permitir que
+   mensajes largos se envuelvan sin desbordar la pantalla.
+2. Comprobar avisos de conexión y fallos dentro de los detalles en escritorio
+   y móvil, regresión frontend, compilación y lint. Revisar y guardar el
+   incremento en un commit local.
+
+Estado: implementado y comprobado el 2 de octubre de 2026; véase la
+[validación de avisos](../validation/2026-10-02-error-notices.md).
