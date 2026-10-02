@@ -37,6 +37,33 @@ class ModelReferenceTests(unittest.TestCase):
         for invalid in ['t1', 'foreign-table', 'finished-table', 'blocked-table']:
             self.assertNotIn(invalid, choices)
 
+    def test_new_followup_ids_cannot_overwrite_existing_tasks_or_worker_namespaces(self):
+        import re
+        for assignment in (None, {'investigation_key': 'assigned'}):
+            prefix = 'assigned__' if assignment else 'followup_'
+            existing = {prefix + '1', 'other_task'}
+            context = {'plan': {'investigations': [
+                {'key': key, 'status': 'ready', 'table_ids': []} for key in existing]},
+                'findings': [], 'observations': [],
+                'budgets': {'worker_assignment': assignment, 'max_agenda': 6}}
+            schema = self.schema('generate_research', context)
+            choices = schema['$defs']['Followup']['properties']['key']['enum']
+            self.assertTrue(choices)
+            self.assertTrue(existing.isdisjoint(choices))
+            self.assertTrue(all(re.fullmatch(r'[a-z][a-z0-9_]{0,63}', key) for key in choices))
+            if assignment:
+                self.assertTrue(all(key.startswith('assigned__') for key in choices))
+            self.assertGreater(schema['properties']['followups']['maxItems'], 0)
+
+    def test_followups_are_not_offered_when_agenda_or_worker_namespace_is_full(self):
+        for key, budgets in [('work', {'max_agenda': 1}),
+                             ('a' * 64, {'worker_assignment': {'investigation_key': 'a' * 64}})]:
+            context = {'plan': {'investigations': [
+                {'key': key, 'status': 'ready', 'table_ids': []}]},
+                'findings': [], 'observations': [], 'budgets': budgets}
+            schema = self.schema('generate_research', context)
+            self.assertEqual(schema['properties']['followups']['maxItems'], 0)
+
     def test_review_keeps_real_execution_metric_pairs_and_excludes_unavailable_evidence(self):
         def observation(execution, current, status, metrics, evidenced):
             return {'execution_id': execution, 'current': current, 'status': status,

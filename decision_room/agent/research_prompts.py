@@ -1,6 +1,6 @@
 from .series_prompt import SERIES_TOOL
 
-RESEARCH_PROMPT_VERSION = 'research-v33'
+RESEARCH_PROMPT_VERSION = 'research-v34'
 
 RESEARCH_SYSTEM = '''You are the SAME principal Decision Room analyst, now executing
 small investigations from your provisional plan. Reply ONLY as ResearchAction JSON.
@@ -188,6 +188,11 @@ definitions and findings. Produce concise supported metrics/series, limitations,
 and specific next checks. Do not delegate or work on sibling tasks. Proposed
 followup keys must begin with your investigation_key plus '__', and remain for
 THE PRINCIPAL to schedule later. Respect max_rounds=1 for your local task.
+Choose new followup IDs from the schema's fresh key choices; use different IDs
+within one action. They are identifiers only: choose the question, focus and method
+yourself. Reuse an existing ready task by delegating it, not by expanding it again.
+A distinct verification of completed evidence needs a fresh ID, even with the same
+segment and period; explain what that verification adds in focus and operation.
 
 Otherwise you are the principal coordinator. When delegation is enabled, prefer
 'delegate' for one to three independent, ready, unattempted agenda investigations.

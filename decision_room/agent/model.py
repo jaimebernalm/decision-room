@@ -279,6 +279,18 @@ class ModelClient:
         for prop in followup['properties'].values():
             prop.pop('default', None)
         if 'plan' in context:
+            known_keys = {i['key'] for i in context['plan']['investigations']}
+            assignment = context.get('budgets', {}).get('worker_assignment')
+            prefix = assignment['investigation_key'] + '__' if assignment else 'followup_'
+            capacity = context.get('budgets', {}).get('max_agenda', 24)
+            fresh_keys = [prefix + str(n) for n in range(1, capacity + 1)
+                          if len(prefix + str(n)) <= 64 and prefix + str(n) not in known_keys]
+            slots = min(3, max(0, capacity - len(known_keys)))
+            schema['properties']['followups']['maxItems'] = slots if fresh_keys else 0
+            if fresh_keys:
+                # Task IDs are scaffolding, not analytical choices. Never offer
+                # an existing ID for a new verification or decomposition.
+                followup['properties']['key']['enum'] = fresh_keys
             finished = {f['investigation_key'] for f in context['findings']} | set(context.get('budgets', {}).get('discarded_keys', []))
             unfinished = [i['key'] for i in context['plan']['investigations']
                           if i['status'] == 'ready' and i['key'] not in finished]

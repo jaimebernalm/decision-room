@@ -109,7 +109,7 @@ accesibles, estilos móviles e impresión. No se añaden vídeos ni dashboard al
 
 ## Compatibilidad y archivos
 
-La implementación 3.9 usa prompts de revisión v43 e investigación v33 y
+La implementación 3.9 usa prompts de revisión v43 e investigación v34 y
 dirección de negocio v7, sin reescribir grafos ni aprobaciones históricas.
 Las comprobaciones propuestas se contrastan con las columnas disponibles: un
 recuento o desglose aún sin calcular no se trata como contexto operativo ausente.
