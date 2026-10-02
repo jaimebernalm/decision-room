@@ -1,3 +1,4 @@
+import { translate as tr, useLanguage } from "@/lib/i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRight, Check, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,7 @@ const stages = [
 ];
 
 export function GuidedOnboarding({ business }: { business: Business }) {
+  useLanguage();
   const resource = useResource<SetupSession | null>(
     "/api/onboarding/session",
     2000,
@@ -72,30 +74,31 @@ export function GuidedOnboarding({ business }: { business: Business }) {
     <EntryFrame
       action={
         <Button asChild variant="ghost" size="sm">
-          <a href="#businesses">Mis negocios</a>
+          <a href="#businesses">{tr("Mis negocios")}</a>
         </Button>
       }
     >
       <div className="mx-auto flex w-full max-w-5xl flex-col px-3 pb-4 sm:px-6">
         <div className="mx-auto w-full max-w-3xl py-4">
           <p className="mb-3 text-sm text-muted-foreground">
-            {business.name} · Vamos a preparar tu primer análisis
+            {business.name}
+            {tr(" · Vamos a preparar tu primer análisis")}
           </p>
-          <nav aria-label="Pasos de inicio">
+          <nav aria-label={tr("Pasos de inicio")}>
             <ol className="grid grid-cols-5 gap-2">
               {stages.map((label, index) => (
                 <li
-                  key={label}
+                  key={tr(label)}
                   aria-current={index === stage ? "step" : undefined}
                   className={`border-t-2 pt-2 text-xs ${index <= stage ? "border-primary text-foreground" : "border-border text-muted-foreground"}`}
                 >
                   {index < stage && (
                     <Check
                       className="mr-1 inline size-3"
-                      aria-label="Completado"
+                      aria-label={tr("Completado")}
                     />
                   )}
-                  {label}
+                  {tr(label)}
                 </li>
               ))}
             </ol>
@@ -104,12 +107,13 @@ export function GuidedOnboarding({ business }: { business: Business }) {
         <Notice error>{startError || resource.error}</Notice>
         {startError && (
           <Button variant="outline" onClick={() => void boot()}>
-            Reintentar inicio
+            {tr("Reintentar inicio")}
           </Button>
         )}
         {!state && !startError && (
           <p role="status" className="p-6">
-            <Busy /> Preparando tu conversación…
+            <Busy />
+            {tr(" Preparando tu chat…")}
           </p>
         )}
         {state && (
@@ -135,7 +139,7 @@ export function GuidedOnboarding({ business }: { business: Business }) {
         )}
         {started && (
           <p className="mx-auto mt-3 text-xs text-muted-foreground">
-            Tu conversación se guarda. Puedes volver para continuar.
+            {tr("Tu chat se guarda. Puedes volver para continuar.")}
           </p>
         )}
       </div>
@@ -154,6 +158,7 @@ function SetupCards({
   chat: ChatDetail;
   onChange: () => void;
 }) {
+  useLanguage();
   const action = useAction();
   const [editGoal, setEditGoal] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
@@ -221,7 +226,7 @@ function SetupCards({
       `dr-setup-upload-${business.id}`,
       {
         business_id: business.id,
-        title: `Datos de ${business.name}`,
+        title: tr("Datos de {0}", { "0": business.name }),
         mode: "separate",
       },
       files,
@@ -229,13 +234,13 @@ function SetupCards({
     );
     if (!["ready", "partial"].includes(bundle.status))
       throw new Error(
-        bundle.message || "Revisa los archivos y vuelve a intentarlo.",
+        bundle.message || tr("Revisa los archivos y vuelve a intentarlo."),
       );
     if (bundle.status === "partial" && partial?.id !== bundle.analysis_id) {
       const dossier = await api<Dossier>("/api/business/dossier");
       const dataset = dossier.datasets.find((d) => d.id === bundle.analysis_id);
       if (!dataset || dossier.business_id !== business.id)
-        throw new Error("No podemos comprobar los archivos preparados.");
+        throw new Error(tr("No podemos comprobar los archivos preparados."));
       setPartial(dataset);
       return;
     }
@@ -247,11 +252,14 @@ function SetupCards({
   };
   const canEdit = !["report", "complete"].includes(state.stage);
   return (
-    <section className="space-y-4" aria-label="Preparar el primer análisis">
+    <section
+      className="space-y-4"
+      aria-label={tr("Preparar el primer análisis")}
+    >
       <Notice error>{action.error}</Notice>
       {action.error && (
         <Button variant="ghost" size="sm" onClick={onChange}>
-          Actualizar estado
+          {tr("Actualizar estado")}
         </Button>
       )}
       {(state.stage === "goal" || editGoal) && canEdit ? (
@@ -266,10 +274,10 @@ function SetupCards({
           }}
         >
           <h2 className="text-lg font-semibold">
-            ¿Qué te gustaría conseguir con este primer análisis?
+            {tr("¿Qué te gustaría conseguir con este primer análisis?")}
           </h2>
           <p className="text-sm text-muted-foreground">
-            Cuéntamelo con tus palabras o combina estas ideas.
+            {tr("Cuéntamelo con tus palabras o combina estas ideas.")}
           </p>
           <div className="flex flex-wrap gap-2">
             {goals.map(([key, label]) => (
@@ -289,15 +297,17 @@ function SetupCards({
                   })
                 }
               >
-                {label}
+                {tr(label)}
               </Button>
             ))}
           </div>
-          <Field label="Lo que me gustaría conseguir" id="setup-goal">
+          <Field label={tr("Lo que me gustaría conseguir")} id="setup-goal">
             <Textarea
               id="setup-goal"
               maxLength={2000}
-              placeholder="Por ejemplo: quiero entender por qué vendo más pero el margen está bajando."
+              placeholder={tr(
+                "Por ejemplo: quiero entender por qué vendo más pero el margen está bajando.",
+              )}
               value={draft.text}
               onChange={(e) => setDraft({ ...draft, text: e.target.value })}
             />
@@ -309,20 +319,22 @@ function SetupCards({
               className="h-auto whitespace-normal text-left"
               onClick={() => setDraft({ ...draft, text: suggestion })}
             >
-              Usar el objetivo que hemos comentado: {suggestion}
+              {tr("Usar el objetivo que hemos comentado: ")}
+              {suggestion}
             </Button>
           )}
           <Button
             disabled={busy || (!draft.text.trim() && !draft.choices.length)}
           >
-            Guardar objetivo <ArrowRight />
+            {tr("Guardar objetivo ")}
+            <ArrowRight />
           </Button>
         </form>
       ) : (
         state.goal &&
         canEdit && (
           <div className="rounded-xl bg-muted/50 p-4">
-            <p className="text-sm font-medium">Tu objetivo</p>
+            <p className="text-sm font-medium">{tr("Tu objetivo")}</p>
             <p className="mt-1 text-sm">
               {state.goal.text ||
                 state.goal.choices
@@ -335,7 +347,7 @@ function SetupCards({
               disabled={busy}
               onClick={() => setEditGoal(true)}
             >
-              Cambiar objetivo
+              {tr("Cambiar objetivo")}
             </Button>
           </div>
         )
@@ -346,17 +358,20 @@ function SetupCards({
           className="rounded-xl border p-5"
         >
           <summary className="cursor-pointer font-medium">
-            {state.analysis_id ? "Cambiar los archivos" : "Comparte tus datos"}
+            {state.analysis_id
+              ? tr("Cambiar los archivos")
+              : tr("Comparte tus datos")}
           </summary>
           <p className="my-3 text-sm text-muted-foreground">
-            CSV o Excel, uno o varios archivos. Exploraremos las tablas antes de
-            confirmar el informe.
+            {tr(
+              "CSV o Excel, uno o varios archivos. Exploraremos las tablas antes de confirmar el informe.",
+            )}
           </p>
           <input
             type="file"
             multiple
             accept=".csv,.xlsx,.xls"
-            aria-label="Archivos del negocio"
+            aria-label={tr("Archivos del negocio")}
             disabled={busy}
             className="block w-full text-sm"
             onChange={(e) => choose(e.target.files)}
@@ -365,7 +380,7 @@ function SetupCards({
             type="file"
             multiple
             className="hidden"
-            aria-label="Carpeta del negocio"
+            aria-label={tr("Carpeta del negocio")}
             ref={(node) => {
               folder.current = node;
               node?.setAttribute("webkitdirectory", "");
@@ -379,17 +394,22 @@ function SetupCards({
             disabled={busy}
             onClick={() => folder.current?.click()}
           >
-            Seleccionar carpeta
+            {tr("Seleccionar carpeta")}
           </Button>
           {!files.length && fileDraft.names.length > 0 && (
             <Notice>
-              Vuelve a seleccionar tus archivos para continuar la subida:{" "}
+              {tr(
+                "Vuelve a seleccionar tus archivos para continuar la subida:",
+              )}{" "}
               {fileDraft.names.join(", ")}.
             </Notice>
           )}
 
           {ignored > 0 && (
-            <Notice>{ignored} archivos no compatibles no se subirán.</Notice>
+            <Notice>
+              {ignored}
+              {tr(" archivos no compatibles no se subirán.")}
+            </Notice>
           )}
           {files.length > 0 && (
             <p className="my-3 text-xs">
@@ -399,8 +419,9 @@ function SetupCards({
           {partial && (
             <div className="my-3 text-sm">
               <p>
-                Algunos archivos no pudieron prepararse. Revisa cuáles
-                usaríamos:
+                {tr(
+                  "Algunos archivos no pudieron prepararse. Revisa cuáles usaríamos:",
+                )}
               </p>
               <ul className="list-disc pl-5">
                 {partial.files?.map((f) => (
@@ -412,7 +433,9 @@ function SetupCards({
             </div>
           )}
           {total > FOLDER_LIMIT && (
-            <Notice error>Los archivos superan el límite de 2 GiB.</Notice>
+            <Notice error>
+              {tr("Los archivos superan el límite de 2 GiB.")}
+            </Notice>
           )}
           <Button
             className="mt-3"
@@ -421,12 +444,13 @@ function SetupCards({
           >
             {action.busy ? <Busy /> : <Upload />}
             {partial
-              ? "Continuar con los archivos preparados"
-              : "Compartir archivos"}
+              ? tr("Continuar con los archivos preparados")
+              : tr("Compartir archivos")}
           </Button>
           {action.busy && uploaded > 0 && (
             <p role="status" className="mt-2 text-sm">
-              {(uploaded / 1024).toFixed(1)} KB enviados
+              {(uploaded / 1024).toFixed(1)}
+              {tr(" KB enviados")}
             </p>
           )}
         </details>
@@ -434,7 +458,7 @@ function SetupCards({
       {state.brief && state.stage === "scope" && !editGoal && (
         <div className="space-y-3 rounded-xl border border-primary/30 p-5">
           <h2 className="text-lg font-semibold">
-            Esto es lo que vamos a analizar
+            {tr("Esto es lo que vamos a analizar")}
           </h2>
           <p className="text-sm text-muted-foreground">
             {state.brief.business_summary}
@@ -448,7 +472,7 @@ function SetupCards({
           {!!state.brief.limitations.length && (
             <div className="text-sm">
               <p className="font-medium">
-                Qué quedará fuera o necesita cautela
+                {tr("Qué quedará fuera o necesita cautela")}
               </p>
               <ul className="mt-1 list-disc pl-5">
                 {state.brief.limitations.map((v) => (
@@ -459,10 +483,10 @@ function SetupCards({
           )}
           <details>
             <summary className="cursor-pointer text-sm">
-              Editar el alcance
+              {tr("Editar el alcance")}
             </summary>
             <label htmlFor="scope-edit" className="mt-3 block text-sm">
-              ¿Qué quieres cambiar?
+              {tr("¿Qué quieres cambiar?")}
             </label>
             <Textarea
               id="scope-edit"
@@ -481,24 +505,27 @@ function SetupCards({
                   await api(`/api/chats/${state.conversation_id}/messages`, {
                     business_id: business.id,
                     request_key: key,
-                    text: `Quiero cambiar el alcance: ${scopeEdit.text}`,
+                    text: tr("Quiero cambiar el alcance: {0}", {
+                      "0": scopeEdit.text,
+                    }),
                   });
                   setScopeEdit({ text: "", key: "" });
                   onChange();
                 })
               }
             >
-              Actualizar propuesta
+              {tr("Actualizar propuesta")}
             </Button>
           </details>
           <Button
             disabled={busy}
             onClick={() => void action.run(() => mutate({ action: "confirm" }))}
           >
-            Crear mi informe <ArrowRight />
+            {tr("Crear mi informe ")}
+            <ArrowRight />
           </Button>
           <p className="text-xs text-muted-foreground">
-            Puedes confirmar aunque hayas omitido contexto opcional.
+            {tr("Puedes confirmar aunque hayas omitido contexto opcional.")}
           </p>
         </div>
       )}
@@ -506,21 +533,29 @@ function SetupCards({
         <div className="space-y-3 rounded-xl border p-5">
           <p className="font-medium">
             {state.publishable
-              ? "Tu primer informe está listo"
+              ? tr("Tu primer informe está listo")
               : state.context_stale
-                ? "El contexto ha cambiado"
+                ? tr("El contexto ha cambiado")
                 : ["failed", "blocked"].includes(state.job_status ?? "")
-                  ? "Tu informe necesita atención"
-                  : "Estamos preparando tu informe"}
+                  ? tr("Tu informe necesita atención")
+                  : tr("Estamos preparando tu informe")}
           </p>
           <p className="text-sm text-muted-foreground">
             {state.publishable
-              ? "Puedes abrirlo y seguir profundizando en esta misma conversación."
+              ? tr(
+                  "Puedes abrirlo y seguir profundizando en este mismo chat.",
+                )
               : state.context_stale
-                ? "Revisa y recalcula el informe con la información actual del negocio. Conservamos la conversación y los archivos."
+                ? tr(
+                    "Revisa y recalcula el informe con la información actual del negocio. Conservamos el chat y los archivos.",
+                  )
                 : ["failed", "blocked"].includes(state.job_status ?? "")
-                  ? "Tus archivos y respuestas están guardados. Puedes revisar el estado aquí y usar Reintentar en esta conversación."
-                  : "Las aclaraciones y los resultados aparecerán en esta conversación."}
+                  ? tr(
+                      "Tus archivos y respuestas están guardados. Puedes revisar el estado aquí y usar Reintentar en este chat.",
+                    )
+                  : tr(
+                      "Las aclaraciones y los resultados aparecerán en este chat.",
+                    )}
           </p>
           <FirstReport
             key={`${state.job_id}:${Boolean(state.publishable)}`}
@@ -539,7 +574,8 @@ function SetupCards({
                 })
               }
             >
-              Continuar en mi espacio <ArrowRight />
+              {tr("Continuar en mi espacio ")}
+              <ArrowRight />
             </Button>
           )}
         </div>
@@ -549,6 +585,7 @@ function SetupCards({
 }
 
 function FirstReport({ id, ready }: { id: string; ready: boolean }) {
+  useLanguage();
   const [open, setOpen] = useState(false);
   return (
     <div>
@@ -557,14 +594,18 @@ function FirstReport({ id, ready }: { id: string; ready: boolean }) {
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
-        {open ? "Cerrar vista" : ready ? "Abrir informe" : "Ver progreso"}
+        {open
+          ? tr("Cerrar vista")
+          : ready
+            ? tr("Abrir informe")
+            : tr("Ver progreso")}
       </Button>
       {open && (
         <div
           className="mt-4 space-y-3"
           role="region"
           aria-label={
-            ready ? "Primer informe revisado" : "Progreso del informe"
+            ready ? tr("Primer informe revisado") : tr("Progreso del informe")
           }
         >
           {ready ? (
@@ -578,6 +619,7 @@ function FirstReport({ id, ready }: { id: string; ready: boolean }) {
   );
 }
 function FirstReportProgress({ id }: { id: string }) {
+  useLanguage();
   const { data: job, error } = useResource<Job>(`/api/jobs/${id}`, 3000);
   return (
     <>
@@ -585,9 +627,18 @@ function FirstReportProgress({ id }: { id: string }) {
       {!job && !error && <Busy />}
       {job && (
         <>
-          <p className="text-sm text-muted-foreground">Puedes seguir las comprobaciones y las aclaraciones en esta conversación.</p>
+          <p className="text-sm text-muted-foreground">
+            {tr(
+              "Puedes seguir las comprobaciones y las aclaraciones en este chat.",
+            )}
+          </p>
           <p className="text-sm whitespace-pre-wrap">{job.context}</p>
-          {job.goal && <p className="text-sm">Objetivo: {job.goal}</p>}
+          {job.goal && (
+            <p className="text-sm">
+              {tr("Objetivo: ")}
+              {job.goal}
+            </p>
+          )}
         </>
       )}
     </>

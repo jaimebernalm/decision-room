@@ -34,7 +34,7 @@ class AnswerValidationExhausted(ValueError):
 class Action(BaseModel):
     model_config = ConfigDict(extra='forbid')
     action: Literal[
-        'retrieve', 'investigate', 'explain', 'remember', 'clarify', 'missing', 'catalog', 'recall', 'respond', 'answer'
+        'retrieve', 'investigate', 'explain', 'remember', 'clarify', 'missing', 'catalog', 'recall', 'respond', 'answer', 'edit_presentation'
     ]
     retrieval: retrieval.Request | None
     analysis_id: str = Field(max_length=36)
@@ -46,6 +46,7 @@ class Action(BaseModel):
     sources: list[str] = Field(default_factory=list, max_length=20)
     reply_kind: Literal['', 'date', 'time', 'capabilities', 'help', 'thanks', 'unavailable',
                         'greeting', 'greeting_repair', 'acknowledgement'] = ''
+    presentation_edit: chat_agent.PresentationEdit | None = None
     onboarding: chat_agent.SetupGuide | None = None
     answer_mode: Literal['summary', 'method', 'recency'] = 'summary'
     include_report: bool = True  # Historical Actions retain their existing attachment behavior.
@@ -278,7 +279,7 @@ def dependencies_current(config, db, saved, events):
     return True
 
 
-def brief(data, keys=None, mode='summary'):
+def brief(data, keys=None, mode='summary', *, ws=None, db=None):
     from .series import evidence_label, evidence_value
     if not data['publishable']:
         raise WebError('La evidencia necesita una nueva revisión.', 409)
@@ -296,7 +297,13 @@ def brief(data, keys=None, mode='summary'):
                     value=evidence_value(data['observations'], ref),
                 )
             )
-    display = projection(data) or {}
+    if ws is not None:
+        from .web.dashboard import presentation
+        from .web.presentation_editing import decorate
+        display = decorate(ws, data, presentation(data), db=db)
+        claims = [c for c in display['claims'] if c['key'] in {x['key'] for x in claims}]
+    else:
+        display = projection(data) or {}
     selected = {c['key'] for c in claims}
     if mode == 'method':
         paragraphs = ['El cálculo se hizo así:', *[c['method'] for c in claims],
@@ -315,7 +322,8 @@ def brief(data, keys=None, mode='summary'):
         kind='evidence',
         report_id=str(data['id']),
         report_version=data['approved_sha256'],
-        title=report['title'],
+        title=display.get('title', report['title']),
+        presentation=display.get('presentation'),
         metrics=metrics,
         scope=report['scope'],
         claims=claims,
@@ -460,7 +468,10 @@ class Conversations:
 
     def selected_context(self, db, reference, *, strict=False):
         if 'report_id' in reference:
-            return selections.resolve(reference, reviewed(self.config, self.business, reference['report_id'], db))
+            r = reviewed(self.config, self.business, reference['report_id'], db)
+            from .web.dashboard import presentation
+            from .web.presentation_editing import decorate
+            return selections.resolve(reference, r, decorate(self.ws, r, presentation(r), db=db) if r['publishable'] else None)
         try:
             return selections.resolve_source(reference, db, self.business)
         except WebError:
@@ -615,6 +626,7 @@ class Conversations:
             ).fetchall()
             result = []
             attachment_cache = {}
+            presentation_cache = {}
             previous_snapshot = None
             for t in turns:
                 from .observability.store import linked
@@ -661,7 +673,7 @@ class Conversations:
                     r = reviewed(self.config, self.business, t['response']['report_id'])
                     valid = r['publishable'] and r['approved_sha256'] == t['response'].get('report_version')
                     if valid and t['response']['kind'] == 'evidence':
-                        value['response'] = brief(r, [c['key'] for c in t['response']['claims']], t['response'].get('answer_mode', 'summary'))
+                        value['response'] = brief(r, [c['key'] for c in t['response']['claims']], t['response'].get('answer_mode', 'summary'), ws=self.ws, db=db)
                 else:
                     valid = True
                 if not t['job_id'] and t['snapshot'] and (t['response'] or {}).get('kind') != 'answer':
@@ -673,6 +685,19 @@ class Conversations:
                         report_outdated=bool(t['response'] and t['response'].get('report_id')),
                         issue=None if t['response'] else 'El contexto o la evidencia han cambiado. Recalcula este mensaje.',
                     )
+                receipt = (value['response'] or {}).get('presentation_receipt')
+                if receipt:
+                    key = (receipt['report_id'],receipt['base_version'])
+                    if key not in presentation_cache:
+                        from .web.presentation_editing import approved, head
+                        try:
+                            current_report = approved(self.ws, receipt['report_id'], db)
+                            current_head = head(db, self.business, current_report)
+                            presentation_cache[key] = dict(available=current_report['approved_sha256']==receipt['base_version'],
+                                current_revision=current_head['revision'] if current_head else 0)
+                        except WebError:
+                            presentation_cache[key] = dict(available=False,current_revision=None)
+                    value['response'] = {**value['response'],'presentation_receipt':{**receipt,**presentation_cache[key]}}
                 if t['status'] in ('blocked', 'failed') and t['job_id']:
                     value['can_retry'] = self.ws.detail(t['job_id'])['can_retry']
                 if t['status'] == 'waiting' and t['job_id']:
@@ -781,12 +806,14 @@ class Conversations:
                 return {'saved': True}
             if not t['report_requested']:
                 raise WebError('Genera primero el informe de este mensaje.', 409)
+            from .web.dashboard import presentation
+            from .web.presentation_editing import decorate
+            display = decorate(self.ws, r, presentation(r), db=db)
+            display['response_language'] = t['model_settings'].get('response_language')
             if structured:
-                from .web.dashboard import presentation
-                return presentation(r)
-            from .client_report import render_client
-
-            return render_client(r, r['updated_at'].strftime('%d/%m/%Y, %H:%M %Z'), embedded=True)
+                return display
+            from .web.presentation_html import render
+            return render(display, r['updated_at'].strftime('%d/%m/%Y, %H:%M %Z'))
 
     def resolve(self, chat_id, data):
         """Owner explicitly chooses an extracted alternative; optimistic memory edit."""
@@ -829,7 +856,7 @@ class Conversations:
         cited = {key: available[key] for key in dict.fromkeys(action.sources) if key in available}
         source_issues = ['Use only available source keys; unknown: ' + ', '.join(sorted(unknown))] if unknown else []
         source_issues.extend(chat_agent.setup_issues(action.onboarding, context))
-        for reference in selections.pointers(context['message'], reports_only=True):
+        for reference in ([] if context.get('presentation_change') else selections.pointers(context['message'], reports_only=True)):
             if not any(e['request']['tool'] == 'open_report'
                        and e['response'].get('id') == reference['report_id']
                        and e['response'].get('version') == reference['report_version']
@@ -857,6 +884,9 @@ class Conversations:
         if context.get('onboarding'):
             check_context['onboarding'] = context['onboarding']
             check_context['proposed_guide'] = action.onboarding.model_dump() if action.onboarding else None
+        if context.get('presentation_change'):
+            check_context['presentation_change'] = context['presentation_change']
+            check_context['presentation_targets'] = context['presentation_targets']
         check_context = chat_agent.separate_review_history(check_context)
         row = db.execute('SELECT * FROM chat_answer_reviews WHERE turn_id=%s AND attempt=%s AND ordinal=%s',
                          (turn['id'], turn['attempt'], ordinal)).fetchone()
@@ -902,9 +932,55 @@ class Conversations:
             selected_refs = [r for r in context['message'].get('context_references', []) if r.get('report_id') == report['id']]
             if selected_refs:
                 keys = list(dict.fromkeys(k for r in selected_refs for k in selections.resolve(r, reviewed(self.config, self.business, r['report_id'], db))['claim_keys']))
-            evidence = brief(review.show(self.config, self.business, report['id']), keys)
+            evidence = brief(review.show(self.config, self.business, report['id'], _db=db), keys, ws=self.ws, db=db)
             response.update(evidence=evidence, report_id=evidence['report_id'], report_version=evidence['report_version'])
         return response
+
+    def _edit_presentation(self, db, turn, ordinal, action, context, model):
+        from .web import presentation_editing as editing
+        edit = action.presentation_edit
+        target = next((x for x in context.get('presentation_targets', []) if x['report_id'] == edit.report_id), None)
+        try:
+            if not target or context.get('onboarding') or (edit.base_version,edit.revision) != (target['base_version'],target['revision']):
+                raise WebError('Selecciona un informe actual antes de editar su presentación.', 409)
+            # Every identifier must have appeared in the server's bounded edit catalogue.
+            for change in edit.changes:
+                if change.kind == 'entity':
+                    if not any(x['id'] == change.key for x in target['labels']):
+                        raise WebError('El nombre no está en el catálogo disponible.')
+                elif not any(x['kind'] == change.kind and x['key'] == change.key for x in target['elements']):
+                    raise WebError('El elemento no está disponible para esta edición.')
+            current = editing.view(self.ws, edit.report_id, db=db)
+            editing.amended({}, edit.changes, current)
+            if edit.restore_revision is not None and not any(x['revision'] == edit.restore_revision for x in target['history']):
+                raise WebError('Esta versión no está en el historial disponible.')
+            description = editing.describe_changes(edit, target)
+            draft = Action.model_validate(dict(action='answer', retrieval=None, analysis_id='', report_id='', claim_keys=[],
+                        question='', message_ids=[], text='Cambios solicitados:\n'+'\n'.join(description),
+                        sources=['presentation/'+edit.report_id], include_report=False))
+            authorized = self._answer(db, turn, ordinal, draft, {**context,'presentation_change':edit.model_dump()}, model)
+            if authorized is None:
+                return None
+            with db.transaction():
+                memory.lock(db, self.business)
+                if not dependencies_current(self.config, db, turn['snapshot'], self.events(db, turn)):
+                    raise ctx.StaleContext('Context changed before presentation edit.')
+                receipt = editing.save(self.ws, edit.report_id,
+                            dict(business_id=str(self.business), request_key='chat:'+str(turn['id']),
+                                 **edit.model_dump(exclude={'report_id'})), origin='chat', db=db)
+                job = db.execute('SELECT id FROM web_jobs WHERE business_id=%s AND review_id=%s AND deleted_at IS NULL',
+                                 (self.business,edit.report_id)).fetchone()
+                response = dict(kind='presentation_edit', text='He guardado estos cambios:\n'+'\n'.join(description)+
+                            '\n\nYa se ven en Inicio, en este informe y en su PDF. Las cifras y las fuentes se conservan.',
+                            presentation_receipt=dict(report_id=edit.report_id, base_version=edit.base_version,
+                                revision=receipt['revision'], previous_revision=edit.revision,
+                                title=receipt['report']['title'], href='#report/'+str(job['id']) if job else None))
+                self._save(db, turn, 'completed', response)
+                return response
+        except WebError as error:
+            response = dict(kind='answer',text='No he cambiado la presentación. '+str(error))
+            self._save(db, turn, 'completed', response)
+            return response
 
     def _save(self, db, turn, status, response=None, issue=None):
         db.execute(
@@ -1028,7 +1104,7 @@ class Conversations:
                     db.execute('UPDATE chat_turns SET snapshot=%s WHERE id=%s', (Jsonb(saved), turn_id))
                     if job['publishable']:
                         row = self.ws.row(turn['job_id'])
-                        delivery = brief(self.ws.review_state(row))
+                        delivery = brief(self.ws.review_state(row), ws=self.ws, db=db)
                         setup = db.execute('SELECT 1 FROM onboarding_sessions WHERE business_id=%s AND job_id=%s',
                                            (self.business, turn['job_id'])).fetchone()
                         if setup:
@@ -1173,6 +1249,8 @@ class Conversations:
                         )
                         from .web import onboarding
                         context['onboarding'] = onboarding.chat_state(db, self.business, chat['id'])
+                        from .web.presentation_editing import chat_targets
+                        context['presentation_targets'] = chat_targets(self.ws, db, turn['payload'], chat['analysis_id']) if not context['onboarding'] else []
                         context['available_sources'] = chat_agent.sources_for(context)
                         for index, ref in enumerate(turn['payload'].get('context_references', [])):
                             selected = self.selected_context(db, ref)
@@ -1244,6 +1322,10 @@ class Conversations:
                                             and 'error' not in e['response']
                                         ],
                                     )
+                                if action.retrieval.tool == 'open_report' and 'error' not in response:
+                                    from .web.presentation_editing import view
+                                    current = view(self.ws, response['id'], db=db)
+                                    response['display'] = {k:current[k] for k in ('title','highlights','charts','claims','presentation')}
                             except ctx.StaleContext:
                                 raise
                             except (ValueError, OSError):
@@ -1281,6 +1363,13 @@ class Conversations:
                             raise ValueError('Confirm the onboarding scope before starting an investigation.')
                         self._job(db, chat, turn, action.analysis_id)
                         return
+                    if action.action == 'edit_presentation':
+                        response = self._edit_presentation(db, turn, ordinal, action, context, model)
+                        if response is None:
+                            if ordinal >= ctx.MAX_RETRIEVALS:
+                                raise AnswerValidationExhausted('Presentation authorization review exhausted.')
+                            continue
+                        return  # The edit and its truthful receipt were committed atomically.
                     if action.action == 'answer':
                         response = self._answer(db, turn, ordinal, action, context, model)
                         if response is None:
@@ -1310,7 +1399,7 @@ class Conversations:
                             if action.report_id != reference['report_id']:
                                 raise ValueError('Explanation must use the selected finding report.')
                             keys = [reference['claim_key']]
-                        response = brief(review.show(self.config, self.business, action.report_id), keys, action.answer_mode)
+                        response = brief(review.show(self.config, self.business, action.report_id, _db=db), keys, action.answer_mode, ws=self.ws, db=db)
                     elif action.action == 'catalog':
                         items = {x['id']: x for x in turn['snapshot']['catalog']['items']}
                         for event in events:

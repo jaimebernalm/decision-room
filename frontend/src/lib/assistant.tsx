@@ -1,3 +1,4 @@
+import { translate as tr, useLanguage } from "@/lib/i18n";
 import {
   createContext,
   useContext,
@@ -41,6 +42,7 @@ export const contextualRoute = (route: string) =>
     "reports",
     "files",
     "business",
+    "businesses",
     "chats",
     "how",
     "new",
@@ -60,6 +62,7 @@ type Assistant = {
   dock: Dock;
   setDock: (d: Dock) => void;
   openConversation: (id: string) => void;
+  reduceConversation: (id: string) => void;
   selecting: boolean;
   setSelecting: (v: boolean) => void;
   selected: ContextAttachment[];
@@ -79,6 +82,7 @@ type Assistant = {
 const AssistantContext = createContext<Assistant | null>(null);
 export const useAssistant = () => useContext(AssistantContext);
 export function AssistantProvider({ children }: { children: ReactNode }) {
+  useLanguage();
   const { workspace, route } = useWorkspace();
   const business = workspace.business?.id || "empty";
   const mounted = useRef(true);
@@ -176,6 +180,23 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
           setDock({ chatId: id, open: true, origin });
           if (route !== origin) location.hash = origin;
         },
+        reduceConversation: (id) => {
+          setSelecting(false);
+          const savedOrigin = store.get<string>(
+            `dr-assistant-origin-${business}`,
+            "home",
+          );
+          const sameChat = dock.chatId === id;
+          const candidate = sameChat && dock.origin ? dock.origin : savedOrigin;
+          const origin = contextualRoute(candidate) ? candidate : "home";
+          setDock({
+            ...(sameChat ? dock : {}),
+            chatId: id,
+            open: true,
+            origin,
+          });
+          location.hash = origin;
+        },
         selecting,
         setSelecting,
         selected,
@@ -226,7 +247,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
                 )
               : refs;
           if (!exists && remaining.length >= 8) {
-            setError("Puedes añadir hasta ocho elementos por mensaje.");
+            setError(tr("Puedes añadir hasta ocho elementos por mensaje."));
             return;
           }
           save(

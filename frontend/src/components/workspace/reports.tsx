@@ -1,3 +1,4 @@
+import { translate as tr, useLanguage } from "@/lib/i18n";
 import { useState } from "react";
 import {
   Plus,
@@ -57,6 +58,7 @@ function ReportsList({
   trash: boolean;
   onToggle: () => void;
 }) {
+  useLanguage();
   const { workspace, refresh } = useWorkspace();
   const [search, setSearch] = useState("");
   const [deleting, setDeleting] = useState<Analysis | null>(null);
@@ -65,11 +67,13 @@ function ReportsList({
   return (
     <>
       <Heading
-        title={trash ? "Informes eliminados" : "Informes"}
+        title={trash ? tr("Informes eliminados") : tr("Informes")}
         description={
           trash
-            ? "Puedes restaurarlos para que vuelvan a aparecer en el listado."
-            : "Resultados, contexto y evidencia en un mismo lugar."
+            ? tr(
+                "Puedes restaurarlos para que vuelvan a aparecer en el listado.",
+              )
+            : tr("Resultados, contexto y evidencia en un mismo lugar.")
         }
       >
         <div
@@ -78,21 +82,21 @@ function ReportsList({
         >
           <Button variant="outline" onClick={onToggle}>
             {trash ? <Undo2 /> : <Trash2 />}
-            {trash ? "Volver a informes" : "Papelera"}
+            {trash ? tr("Volver a informes") : tr("Papelera")}
           </Button>
           {!trash && (
             <Button asChild>
               <a href="#new">
                 <Plus />
-                Crear informe
+                {tr("Crear informe")}
               </a>
             </Button>
           )}
         </div>
       </Heading>
       <Input
-        aria-label="Buscar informes"
-        placeholder="Buscar por título o archivo…"
+        aria-label={tr("Buscar informes")}
+        placeholder={tr("Buscar por título o archivo…")}
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         className="mb-6 max-w-sm"
@@ -114,16 +118,18 @@ function ReportsList({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar informe</AlertDialogTitle>
+            <AlertDialogTitle>{tr("Eliminar informe")}</AlertDialogTitle>
             <AlertDialogDescription>
-              «{deleting?.title}» se moverá a la papelera. Podrás restaurarlo;
-              sus datos y las referencias de las conversaciones se conservan.
+              «{deleting?.title}
+              {tr(
+                "» se moverá a la papelera. Podrás restaurarlo; sus datos y las referencias de los chats se conservan.",
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <Notice error>{action.error}</Notice>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={action.busy}>
-              Cancelar
+              {tr("Cancelar")}
             </AlertDialogCancel>
             <Button
               variant="destructive"
@@ -138,7 +144,8 @@ function ReportsList({
                 })
               }
             >
-              {action.busy && <Busy />}Mover a la papelera
+              {action.busy && <Busy />}
+              {tr("Mover a la papelera")}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -184,6 +191,7 @@ type TableProps = {
   onRestore?: (item: Analysis) => void;
 };
 function ReportTable({ items, search, ...actions }: TableProps) {
+  useLanguage();
   const filtered = items.filter((a) =>
     `${a.title} ${a.filename}`
       .toLocaleLowerCase()
@@ -194,11 +202,13 @@ function ReportTable({ items, search, ...actions }: TableProps) {
       <Table className="[&_th]:px-4 [&_td]:px-4">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead>Informe</TableHead>
-            <TableHead>Estado</TableHead>
-            <TableHead className="hidden sm:table-cell">Creado</TableHead>
+            <TableHead>{tr("Informe")}</TableHead>
+            <TableHead>{tr("Estado")}</TableHead>
+            <TableHead className="hidden sm:table-cell">
+              {tr("Creado")}
+            </TableHead>
             <TableHead>
-              <span className="sr-only">Acciones</span>
+              <span className="sr-only">{tr("Acciones")}</span>
             </TableHead>
           </TableRow>
         </TableHeader>
@@ -212,10 +222,10 @@ function ReportTable({ items, search, ...actions }: TableProps) {
   ) : (
     <p className="py-10 text-center text-sm text-muted-foreground">
       {search
-        ? "No hay informes que coincidan con tu búsqueda."
+        ? tr("No hay informes que coincidan con tu búsqueda.")
         : actions.trash
-          ? "La papelera está vacía."
-          : "Todavía no hay informes. Crea uno para empezar."}
+          ? tr("La papelera está vacía.")
+          : tr("Todavía no hay informes. Crea uno para empezar.")}
     </p>
   );
 }
@@ -226,6 +236,7 @@ function ReportRow({
   onDelete,
   onRestore,
 }: Omit<TableProps, "items" | "search"> & { item: Analysis }) {
+  useLanguage();
   const reference = trash ? undefined : a.context_reference;
   const { assistant, active, selected } = useBlockSelection(reference);
   const selecting = Boolean(assistant?.selecting && !trash);
@@ -233,15 +244,15 @@ function ReportRow({
   const label =
     (
       {
-        completed: "Disponible",
-        historical: "Versión anterior",
-        outdated: "Contexto cambiado",
-        withdrawn: "Retirado",
-        queued: "En preparación",
-        waiting: "Necesita tu respuesta",
-        running: "En preparación",
-        failed: "Interrumpido",
-        blocked: "Necesita atención",
+        completed: tr("Disponible"),
+        historical: tr("Versión anterior"),
+        outdated: tr("Contexto cambiado"),
+        withdrawn: tr("Retirado"),
+        queued: tr("En preparación"),
+        waiting: tr("Necesita tu respuesta"),
+        running: tr("En preparación"),
+        failed: tr("Interrumpido"),
+        blocked: tr("Necesita atención"),
       } as Record<string, string>
     )[status] || status;
   const color =
@@ -278,7 +289,7 @@ function ReportRow({
         </Badge>
         {selecting && !active && (
           <p className="mt-1 text-xs text-muted-foreground">
-            No se puede seleccionar
+            {tr("No se puede seleccionar")}
           </p>
         )}
       </TableCell>
@@ -296,7 +307,10 @@ function ReportRow({
             size="icon"
             className="hidden sm:inline-flex"
           >
-            <a href={analysisHref(a)} aria-label={`Abrir ${a.title}`}>
+            <a
+              href={analysisHref(a)}
+              aria-label={tr("Abrir {0}", { "0": a.title })}
+            >
               <ArrowUpRight />
             </a>
           </Button>
@@ -305,8 +319,8 @@ function ReportRow({
               variant="ghost"
               size="icon"
               disabled={busy}
-              aria-label={`Restaurar ${a.title}`}
-              title="Restaurar informe"
+              aria-label={tr("Restaurar {0}", { "0": a.title })}
+              title={tr("Restaurar informe")}
               onClick={() => onRestore?.(a)}
             >
               <Undo2 />
@@ -316,8 +330,8 @@ function ReportRow({
               variant="ghost"
               size="icon"
               disabled={["queued", "running", "waiting"].includes(a.status)}
-              aria-label={`Eliminar ${a.title}`}
-              title="Eliminar informe"
+              aria-label={tr("Eliminar {0}", { "0": a.title })}
+              title={tr("Eliminar informe")}
               onClick={() => onDelete?.(a)}
             >
               <Trash2 />
@@ -328,7 +342,7 @@ function ReportRow({
           <button
             type="button"
             className="context-hit report-selection-hit"
-            aria-label={`${selected ? "Quitar" : "Seleccionar"}: ${reference.title}`}
+            aria-label={`${selected ? tr("Quitar") : tr("Seleccionar")}: ${reference.title}`}
             aria-pressed={Boolean(selected)}
             onClick={() => assistant!.toggle(reference)}
           >

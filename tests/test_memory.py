@@ -12,6 +12,7 @@ from uuid import uuid4
 
 from psycopg import sql
 from psycopg.conninfo import make_conninfo
+from psycopg.types.json import Jsonb
 
 from decision_room.config import Config
 from decision_room.database import connect, migrate
@@ -29,10 +30,10 @@ def content(statement='Cerramos los domingos.', **changes):
 
 
 def candidate(statement='Cerramos los domingos.', *, evidence='explicit', quote=None, conflicts=None,
-              correction_of=None, profile_replacement=None, **changes):
+              correction_of=None, profile_replacement=None, group_id=None, **changes):
     return {'content': content(statement, **changes), 'evidence': evidence,
             'quote': statement if quote is None else quote, 'conflicts_with': conflicts or [],
-            'correction_of': correction_of, 'profile_replacement': profile_replacement}
+            'correction_of': correction_of, 'profile_replacement': profile_replacement, 'group_id': group_id}
 
 
 class MemoryModel:
@@ -42,9 +43,11 @@ class MemoryModel:
         self.candidates = candidates or []
         self.error = error
         self.calls = 0
+        self.contexts = []
 
     def generate_memory(self, context, correction=None):
         self.calls += 1
+        self.contexts.append(context)
         if self.error:
             raise self.error
         return {'candidates': self.candidates}, {'input_tokens': 10, 'output_tokens': 20}
@@ -339,16 +342,107 @@ print(read(replace(Config.load(),dsn=args['dsn']),args['business'])[0]['status']
         model = ModelClient(ModelSettings(model='test-only'))
         with patch.object(model, '_generate', return_value=({'candidates': []}, {})) as generate:
             model.generate_memory({'source': {'default_scope': 'business', 'scope_id': None,
-                                              'allow_business': True}})
+                                              'allow_business': True}, 'groups': [{'id': 'hours', 'name': 'Horarios', 'description': 'Horario semanal'}]})
         schema = generate.call_args.args[-1]
         self.assertFalse(schema['additionalProperties'])
-        self.assertEqual(schema['required'], ['candidates'])
+        self.assertEqual(schema['required'], ['presentation_only', 'candidates'])
+        self.assertNotIn('default', schema['properties']['presentation_only'])
         self.assertIn('untrusted', generate.call_args.args[2])
         fields = schema['$defs']['Content']['properties']
         self.assertEqual(fields['scope']['enum'], ['business'])
         self.assertEqual(fields['scope_id'], {'type': 'null'})
         self.assertNotIn('definition', fields['kind']['enum'])
         self.assertNotIn('result_reference', fields['kind']['enum'])
+        self.assertEqual(schema['$defs']['Candidate']['properties']['group_id']['enum'], ['hours', None])
+        self.assertIn('group_id', schema['$defs']['Candidate']['required'])
+
+    def groups(self, **changes):
+        from decision_room.web.dossier_layout import load
+        with connect(self.config) as db:
+            layout = load(db, self.b)
+            layout.update(changes)
+            db.execute('''INSERT INTO web_dossier_layouts(business_id,revision,layout) VALUES (%s,%s,%s)
+                ON CONFLICT(business_id) DO UPDATE SET revision=excluded.revision,layout=excluded.layout''',
+                       (self.b, layout['revision'] + 1, Jsonb({k: v for k, v in layout.items() if k != 'revision'})))
+        return layout
+
+    def test_extractor_receives_descriptions_and_files_new_memories_without_asserting_group_text(self):
+        from decision_room.web.dossier_layout import load
+        group = {'id': 'hours', 'name': 'Horario', 'description': 'Días y horas de apertura. Esta descripción no es un hecho.'}
+        self.groups(groups=[group])
+        source = self.capture()
+        model = self.process(source, candidate(group_id='hours'))
+        self.assertEqual(model.contexts[0]['groups'], [group])
+        facts = memory.read(self.config, self.b)
+        self.assertEqual(len(facts), 1)
+        self.assertEqual(facts[0]['content']['statement'], 'Cerramos los domingos.')
+        with connect(self.config) as db:
+            layout = load(db, self.b)
+            self.assertEqual(layout['assignments'], {str(facts[0]['fact_id']): 'hours'})
+            self.assertEqual(load(db, self.other)['assignments'], {})
+        self.assertEqual(layout['revision'], 2)
+        self.assertFalse(extraction.process(self.config, self.b, source['id'], model))
+
+    def test_unknown_group_is_rejected_without_saving_memory(self):
+        source = self.capture()
+        model = self.process(source, candidate(group_id='other-business-group'))
+        self.assertEqual(model.calls, 2)
+        self.assertEqual(self.source(source)['status'], 'failed')
+        self.assertEqual(memory.read(self.config, self.b), [])
+
+    def test_group_assignment_survives_proposal_confirmation(self):
+        from decision_room.web.dossier_layout import load
+        source = self.capture()
+        self.process(source, candidate(group_id='operations', evidence='hypothetical'))
+        fact = memory.read(self.config, self.b)[0]
+        self.assertEqual(fact['status'], 'proposed')
+        self.change(action='confirm', fact_id=str(fact['fact_id']), expected_revision=fact['revision'])
+        with connect(self.config) as db:
+            self.assertEqual(load(db, self.b)['assignments'], {str(fact['fact_id']): 'operations'})
+
+    def test_saved_classification_retries_after_sql_failure_without_another_provider_call(self):
+        from decision_room.web.dossier_layout import load
+        source = self.capture()
+        model = MemoryModel([candidate(group_id='operations')])
+        with patch.object(extraction, '_file_new_memories', side_effect=RuntimeError('database unavailable')):
+            extraction.process(self.config, self.b, source['id'], model)
+        self.assertEqual(self.source(source)['status'], 'failed')
+        self.assertEqual(memory.read(self.config, self.b), [])
+        extraction.retry(self.config, self.b, source['id'])
+        extraction.process(self.config, self.b, source['id'], model)
+        self.assertEqual(model.calls, 1)
+        fact = memory.read(self.config, self.b)[0]
+        with connect(self.config) as db:
+            self.assertEqual(load(db, self.b)['assignments'], {str(fact['fact_id']): 'operations'})
+
+    def test_layout_changed_during_extraction_keeps_memory_and_owner_configuration(self):
+        from decision_room.web.dossier_layout import load
+        self.groups(groups=[{'id': 'hours', 'name': 'Horario', 'description': 'Horario semanal'}])
+        source = self.capture()
+        model = MemoryModel([candidate(group_id='hours')])
+        generate = model.generate_memory
+        def changed(context, correction=None):
+            self.groups(groups=[{'id': 'clients', 'name': 'Clientes', 'description': 'Perfil de clientes'}])
+            return generate(context, correction)
+        with patch.object(model, 'generate_memory', side_effect=changed):
+            extraction.process(self.config, self.b, source['id'], model)
+        self.assertEqual(self.source(source)['status'], 'applied')
+        self.assertEqual(len(memory.read(self.config, self.b)), 1)
+        with connect(self.config) as db:
+            layout = load(db, self.b)
+        self.assertEqual(layout['groups'][0]['id'], 'clients')
+        self.assertEqual(layout['assignments'], {})
+        self.assertEqual(layout['revision'], 2)
+
+    def test_classification_does_not_override_existing_manual_placement_on_conflict(self):
+        from decision_room.web.dossier_layout import load
+        fact = self.change(action='declare', content=content())
+        self.groups(assignments={fact['fact_id']: 'business'})
+        source = self.capture('Abrimos los domingos.')
+        self.process(source, candidate('Abrimos los domingos.', conflicts=[fact['fact_id']], group_id='operations'))
+        self.assertEqual(memory.read(self.config, self.b)[0]['status'], 'conflicted')
+        with connect(self.config) as db:
+            self.assertEqual(load(db, self.b)['assignments'], {fact['fact_id']: 'business'})
 
     def test_invalid_business_scope_is_corrected_automatically(self):
         source = self.capture('Cerramos los domingos.', allow_business=True)
@@ -446,3 +540,28 @@ print(read(replace(Config.load(),dsn=args['dsn']),args['business'])[0]['status']
         self.change(action='correct', fact_id=fact['fact_id'], expected_revision=1,
                     content=content('Abrimos los domingos desde septiembre de 2026.', valid_from='2026-09-01'))
         self.assertEqual(len(memory.read(self.config, self.b, applicable_on='2026-09-23')), 1)
+
+    def test_presentation_only_commands_do_not_change_business_memory(self):
+        source = self.capture('Quiero que P06 se muestre como Kit Bruma en el informe. Guarda el nombre.')
+        class PresentationModel(MemoryModel):
+            def generate_memory(self, context, correction=None):
+                return {'presentation_only': True, 'candidates': []}, {}
+        with connect(self.config) as db:
+            before = db.execute('SELECT revision FROM memory_heads WHERE business_id=%s',(self.b,)).fetchone()
+        extraction.process(self.config, self.b, source['id'], PresentationModel())
+        self.assertEqual(self.source(source)['status'],'applied')
+        self.assertEqual(memory.read(self.config,self.b),[])
+        with connect(self.config) as db:
+            after = db.execute('SELECT revision FROM memory_heads WHERE business_id=%s',(self.b,)).fetchone()
+        self.assertEqual((before or {}).get('revision',0),(after or {}).get('revision',0))
+        invalid = {'presentation_only':True, 'candidates':[candidate(quote='Guarda el nombre.',statement='P06 debe mostrarse como Kit Bruma.')]}
+        with connect(self.config) as db, self.assertRaises(memory.MemoryError):
+            extraction._validate(db,source,invalid)
+        # Mixed instructions retain independently stated facts.
+        mixed=self.capture('Cerramos los domingos. Cambia el título de mi informe.')
+        self.process(mixed,candidate(group_id='operations'))
+        fact = memory.read(self.config,self.b)[0]
+        self.assertEqual(fact['content']['statement'],'Cerramos los domingos.')
+        from decision_room.web.dossier_layout import load
+        with connect(self.config) as db:
+            self.assertEqual(load(db,self.b)['assignments'], {str(fact['fact_id']): 'operations'})

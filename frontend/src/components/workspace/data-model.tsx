@@ -1,3 +1,4 @@
+import { translate as tr, useLanguage, locale } from "@/lib/i18n";
 import { useId, useState, type ReactNode } from "react";
 import { GitBranch, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -81,7 +82,12 @@ type Metric = {
 export type DataModel = {
   analysis_id: string;
   revision: number;
-  body: { tables: Table[]; relations: Relation[]; metrics: Metric[]; discovery?: { limitations: string[] } };
+  body: {
+    tables: Table[];
+    relations: Relation[];
+    metrics: Metric[];
+    discovery?: { limitations: string[] };
+  };
 };
 type Response = {
   model: DataModel | null;
@@ -112,6 +118,7 @@ export function DataModelPanel({
   business: string;
   analysis: string;
 }) {
+  useLanguage();
   const [open, setOpen] = useState(false);
   return (
     <section className="min-w-0 max-w-full space-y-4">
@@ -124,8 +131,8 @@ export function DataModelPanel({
       >
         <GitBranch />
         {open
-          ? "Ocultar relaciones"
-          : "Ver relaciones y cómo entendemos los datos"}
+          ? tr("Ocultar relaciones")
+          : tr("Ver relaciones y cómo entendemos los datos")}
       </Button>
       {open && (
         <ModelContent
@@ -144,6 +151,7 @@ function ModelContent({
   business: string;
   analysis: string;
 }) {
+  useLanguage();
   const [revision, setRevision] = useState("");
   const resource = useResource<Response>(
       `/api/business/data-model?analysis_id=${analysis}${revision ? `&revision=${revision}` : ""}`,
@@ -180,15 +188,18 @@ function ModelContent({
     return (
       <div className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          Prepara el mapa de estas tablas para consultar sus relaciones y
-          guardar lo que significan.
+          {tr(
+            "Prepara el mapa de estas tablas para consultar sus relaciones y guardar lo que significan.",
+          )}
         </p>
         <Notice error>{action.error}</Notice>
         <Button
           disabled={action.busy || !editable}
           onClick={() => void save("prepare", {})}
         >
-          {action.busy ? "Comprobando las tablas…" : "Preparar modelo de datos"}
+          {action.busy
+            ? tr("Comprobando las tablas…")
+            : tr("Preparar modelo de datos")}
         </Button>
       </div>
     );
@@ -218,21 +229,28 @@ function ModelContent({
     <Card className="min-w-0 max-w-full shadow-none">
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <CardTitle>Cómo se conectan tus datos</CardTitle>
-          <Badge variant="outline">Modelo · revisión {model.revision}</Badge>
+          <CardTitle>{tr("Cómo se conectan tus datos")}</CardTitle>
+          <Badge variant="outline">
+            {tr("Modelo · revisión ")}
+            {model.revision}
+          </Badge>
         </div>
         <p className="text-sm text-muted-foreground">
-          {tables.length} tablas · {relations.length} relaciones propuestas o
-          comprobadas. Las comprobaciones técnicas y el significado de negocio
-          se revisan por separado.
+          {tables.length}
+          {tr(" tablas · ")}
+          {relations.length}
+          {tr(
+            " relaciones propuestas o comprobadas. Las comprobaciones técnicas y el significado de negocio se revisan por separado.",
+          )}
         </p>
       </CardHeader>
       <CardContent className="space-y-5">
         <Notice error>{resource.error || action.error}</Notice>
         {needs_refresh && (
           <Notice>
-            Este modelo corresponde a una preparación anterior. Vuelve a
-            comprobar las tablas antes de reutilizar sus relaciones.{" "}
+            {tr(
+              "Este modelo corresponde a una preparación anterior. Vuelve a comprobar las tablas antes de reutilizar sus relaciones.",
+            )}{" "}
             {editable && (
               <Button
                 size="sm"
@@ -240,33 +258,37 @@ function ModelContent({
                 disabled={action.busy}
                 onClick={() => void save("prepare", {})}
               >
-                Volver a comprobar las tablas
+                {tr("Volver a comprobar las tablas")}
               </Button>
             )}
           </Notice>
         )}
         {!!affected_reports.length && (
           <Notice>
-            {affected_reports.length} informes necesitan una nueva revisión tras
-            cambios de contexto. Sus resultados anteriores se conservan.
+            {affected_reports.length}
+            {tr(
+              " informes necesitan una nueva revisión tras cambios de contexto. Sus resultados anteriores se conservan.",
+            )}
           </Notice>
         )}
         {!!model.body.discovery?.limitations.length && (
-          <Disclosure title="Límites de las relaciones propuestas">
+          <Disclosure title={tr("Límites de las relaciones propuestas")}>
             <ul className="list-disc space-y-2 pl-5 text-sm">
-              {model.body.discovery.limitations.map((item, index) => <li key={index}>{item}</li>)}
+              {model.body.discovery.limitations.map((item, index) => (
+                <li key={index}>{item}</li>
+              ))}
             </ul>
           </Disclosure>
         )}
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Buscar tabla">
+          <Field label={tr("Buscar tabla")}>
             <Input
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              placeholder="Nombre de la tabla"
+              placeholder={tr("Nombre de la tabla")}
             />
           </Field>
-          <Field label="Historial del modelo">
+          <Field label={tr("Historial del modelo")}>
             <select
               className={selectClass}
               value={revision}
@@ -275,11 +297,12 @@ function ModelContent({
                 setForm("");
               }}
             >
-              <option value="">Revisión vigente</option>
+              <option value="">{tr("Revisión vigente")}</option>
               {history.map((h) => (
                 <option key={h.revision} value={h.revision}>
-                  Revisión {h.revision} ·{" "}
-                  {new Date(h.created_at).toLocaleDateString()}
+                  {tr("Revisión ")}
+                  {h.revision} ·{" "}
+                  {new Date(h.created_at).toLocaleDateString(locale())}
                 </option>
               ))}
             </select>
@@ -295,8 +318,8 @@ function ModelContent({
             }}
           >
             {focus
-              ? "Ver todas las tablas"
-              : "Centrar en esta tabla y sus conexiones"}
+              ? tr("Ver todas las tablas")
+              : tr("Centrar en esta tabla y sus conexiones")}
           </Button>
         )}
         <ERDiagram
@@ -312,13 +335,14 @@ function ModelContent({
         />
         {matching.length > 12 && (
           <p className="text-sm text-muted-foreground">
-            Se muestran 12 de {matching.length} tablas. Busca o selecciona una
-            tabla para centrar el mapa.
+            {tr("Se muestran 12 de ")}
+            {matching.length}
+            {tr(" tablas. Busca o selecciona una tabla para centrar el mapa.")}
           </p>
         )}
         <div
           className="flex max-h-36 flex-wrap gap-2 overflow-auto"
-          aria-label="Todas las tablas"
+          aria-label={tr("Todas las tablas")}
         >
           {matching.map((t) => (
             <Button
@@ -332,7 +356,10 @@ function ModelContent({
             </Button>
           ))}
         </div>
-        <Disclosure title="Conexiones y comprobaciones" defaultOpen={!!edge}>
+        <Disclosure
+          title={tr("Conexiones y comprobaciones")}
+          defaultOpen={!!edge}
+        >
           <div className="space-y-2">
             {relations
               .filter(
@@ -352,18 +379,19 @@ function ModelContent({
                     {names[r.source]} → {names[r.target]}
                   </span>
                   <span className="mt-1 block text-xs text-muted-foreground">
-                    {cardinalities[r.cardinality]} · {labels[r.semantic_status]}{" "}
-                    ·{" "}
+                    {tr(cardinalities[r.cardinality])} ·{" "}
+                    {tr(labels[r.semantic_status])} ·{" "}
                     {r.verification === "checked"
-                      ? "Claves comprobadas"
-                      : "Revisar claves o cobertura"}
+                      ? tr("Claves comprobadas")
+                      : tr("Revisar claves o cobertura")}
                   </span>
                 </button>
               ))}
             {!relations.length && (
               <p className="text-sm text-muted-foreground">
-                Todavía no hay relaciones propuestas en este catálogo. Esto no significa que las tablas estén desconectadas.
-                Puedes añadir conexiones, incluidas claves compuestas.
+                {tr(
+                  "Todavía no hay relaciones propuestas en este catálogo. Esto no significa que las tablas estén desconectadas. Puedes añadir conexiones, incluidas claves compuestas.",
+                )}
               </p>
             )}
           </div>
@@ -372,27 +400,32 @@ function ModelContent({
           <div className="space-y-3 rounded-xl border p-4">
             <h3 className="font-semibold break-all">{table.name}</h3>
             <p className="text-sm">
-              {table.row_count.toLocaleString()} filas ·{" "}
-              {table.duplicate_rows.toLocaleString()} filas duplicadas
+              {table.row_count.toLocaleString(locale())}
+              {tr(" filas ·")} {table.duplicate_rows.toLocaleString(locale())}
+              {tr(" filas duplicadas")}
             </p>
             <p className="text-sm">
-              {table.description || "Descripción pendiente de aclarar."}
+              {table.description || tr("Descripción pendiente de aclarar.")}
             </p>
             <p className="text-sm">
-              <strong>Cada fila representa: </strong>
-              {table.grain || "Todavía no está confirmado."}
+              <strong>{tr("Cada fila representa: ")}</strong>
+              {table.grain || tr("Todavía no está confirmado.")}
             </p>
-            {table.semantic_status === "inferred" && <p className="text-xs text-muted-foreground">Interpretación del analista, pendiente de confirmación.</p>}
-            <Disclosure title="Columnas, tipos y cobertura">
+            {table.semantic_status === "inferred" && (
+              <p className="text-xs text-muted-foreground">
+                {tr("Interpretación del analista, pendiente de confirmación.")}
+              </p>
+            )}
+            <Disclosure title={tr("Columnas, tipos y cobertura")}>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
                     <tr>
-                      <th className="p-2">Columna</th>
-                      <th className="p-2">Tipo observado</th>
-                      <th className="p-2">Vacíos</th>
-                      <th className="p-2">Distintos</th>
-                      <th className="p-2">Definición / periodo</th>
+                      <th className="p-2">{tr("Columna")}</th>
+                      <th className="p-2">{tr("Tipo observado")}</th>
+                      <th className="p-2">{tr("Vacíos")}</th>
+                      <th className="p-2">{tr("Distintos")}</th>
+                      <th className="p-2">{tr("Definición / periodo")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -400,18 +433,28 @@ function ModelContent({
                       <tr key={c.name} className="border-t">
                         <td className="p-2">
                           {c.name}
-                          {c.key_candidate ? " · clave candidata" : ""}
+                          {c.key_candidate ? tr(" · clave candidata") : ""}
                         </td>
                         <td className="p-2">{c.logical_type}</td>
                         <td className="p-2">{c.missing}</td>
                         <td className="p-2">{c.distinct}</td>
                         <td className="p-2">
-                          {c.meaning || "Sin confirmar"}
+                          {c.meaning || tr("Sin confirmar")}
                           {c.unit && ` · ${c.unit}`}
                           {c.period &&
-                            ` · ${c.period.from} — ${c.period.until} (${c.date_parseable}/${table.row_count - c.missing} valores con fecha válida)`}
+                            tr(
+                              " · {0} — {1} ({2}/{3} valores con fecha válida)",
+                              {
+                                "0": c.period.from,
+                                "1": c.period.until,
+                                "2": c.date_parseable,
+                                "3": table.row_count - c.missing,
+                              },
+                            )}
                           {c.conversion &&
-                            ` · Conversión declarada: ${c.conversion}`}
+                            tr(" · Conversión declarada: {0}", {
+                              "0": c.conversion,
+                            })}
                         </td>
                       </tr>
                     ))}
@@ -419,15 +462,18 @@ function ModelContent({
                 </table>
               </div>
               <p className="mt-2 text-xs text-muted-foreground">
-                Comprobación sobre todas las filas. Los valores originales se
-                conservan como texto; los tipos observados no aplican
-                conversiones.
+                {tr(
+                  "Comprobación sobre todas las filas. Los valores originales se conservan como texto; los tipos observados no aplican conversiones.",
+                )}
               </p>
             </Disclosure>
             {table.declared_keys.map((k, i) => (
               <p key={i} className="text-sm">
-                Clave declarada ({k.columns.join(", ")}):{" "}
-                {k.valid ? "única y completa" : "contiene duplicados o vacíos"}
+                {tr("Clave declarada (")}
+                {k.columns.join(", ")}):{" "}
+                {k.valid
+                  ? tr("única y completa")
+                  : tr("contiene duplicados o vacíos")}
               </p>
             ))}
             {canEdit && (
@@ -436,7 +482,7 @@ function ModelContent({
                 size="sm"
                 onClick={() => setForm("table")}
               >
-                Corregir o aclarar esta tabla
+                {tr("Corregir o aclarar esta tabla")}
               </Button>
             )}
           </div>
@@ -452,42 +498,46 @@ function ModelContent({
             </p>
             <div className="flex flex-wrap gap-2">
               <Badge variant="secondary">
-                {cardinalities[relation.cardinality]}
+                {tr(cardinalities[relation.cardinality])}
               </Badge>
               <Badge variant="outline">
-                {labels[relation.semantic_status]}
+                {tr(labels[relation.semantic_status])}
               </Badge>
             </div>
             <p className="text-sm">
               {relation.description ||
-                "El significado de este enlace aún necesita confirmación."}
+                tr("El significado de este enlace aún necesita confirmación.")}
             </p>
             <dl className="grid grid-cols-2 gap-2 text-sm">
-              <dt>Claves duplicadas (origen / destino)</dt>
+              <dt>{tr("Claves duplicadas (origen / destino)")}</dt>
               <dd>
                 {relation.evidence.source.duplicate_keys} /{" "}
                 {relation.evidence.target.duplicate_keys}
               </dd>
-              <dt>Filas sin clave (origen / destino)</dt>
+              <dt>{tr("Filas sin clave (origen / destino)")}</dt>
               <dd>
                 {relation.evidence.source.missing_rows} /{" "}
                 {relation.evidence.target.missing_rows}
               </dd>
-              <dt>Filas sin correspondencia</dt>
+              <dt>{tr("Filas sin correspondencia")}</dt>
               <dd>{relation.evidence.unmatched_rows}</dd>
-              <dt>Filas tras unión izquierda</dt>
-              <dd>{relation.evidence.left_join_rows.toLocaleString()}</dd>
-              <dt>Filas adicionales por multiplicación</dt>
-              <dd>{relation.evidence.extra_rows.toLocaleString()}</dd>
+              <dt>{tr("Filas tras unión izquierda")}</dt>
+              <dd>
+                {relation.evidence.left_join_rows.toLocaleString(locale())}
+              </dd>
+              <dt>{tr("Filas adicionales por multiplicación")}</dt>
+              <dd>{relation.evidence.extra_rows.toLocaleString(locale())}</dd>
             </dl>
             <p className="text-sm text-muted-foreground">
-              Origen:{" "}
+              {tr("Origen:")}{" "}
               {relation.origin === "owner"
-                ? "declaración del usuario"
-                : relation.origin === "agent" ? "propuesta del analista, comprobada sobre los datos" : "inferencia anterior"}
-              . Comparación exacta, sin convertir valores. Confirma el
-              significado y la granularidad antes de sumar: las medidas de la
-              tabla padre pueden repetirse al unirlas con sus detalles.
+                ? tr("declaración del usuario")
+                : relation.origin === "agent"
+                  ? tr("propuesta del analista, comprobada sobre los datos")
+                  : "inferencia anterior"}
+              {tr(
+                ". Comparación exacta, sin convertir valores. Confirma el significado y la granularidad antes de sumar: las medidas de la tabla padre pueden repetirse al unirlas con sus detalles.",
+              )}
             </p>
             {canEdit && (
               <Button
@@ -495,21 +545,22 @@ function ModelContent({
                 variant="outline"
                 onClick={() => setForm("relation")}
               >
-                Corregir o confirmar relación
+                {tr("Corregir o confirmar relación")}
               </Button>
             )}
           </div>
         )}
         <section className="space-y-3">
-          <h3 className="font-medium">Cómo entendemos las métricas</h3>
+          <h3 className="font-medium">{tr("Cómo entendemos las métricas")}</h3>
           {metrics.map((m) => (
             <div key={m.key} className="rounded-lg border p-3 text-sm">
               <strong>{m.name || m.key}</strong>
               <p>{m.definition}</p>
               <p className="text-xs text-muted-foreground">
-                {m.unit || "Unidad no indicada"} ·{" "}
-                {m.period.from || "Inicio no acotado"} —{" "}
-                {m.period.until || "Fin no acotado"} · Declarado por ti
+                {m.unit || tr("Unidad no indicada")} ·{" "}
+                {m.period.from || tr("Inicio no acotado")} —{" "}
+                {m.period.until || tr("Fin no acotado")}
+                {tr(" · Declarado por ti")}
               </p>
               {canEdit && (
                 <Button
@@ -517,16 +568,16 @@ function ModelContent({
                   variant="ghost"
                   onClick={() => setForm(`metric:${m.key}`)}
                 >
-                  Corregir definición
+                  {tr("Corregir definición")}
                 </Button>
               )}
             </div>
           ))}
           {!metrics.length && (
             <p className="text-sm text-muted-foreground">
-              Todavía no has definido métricas aquí. Las definiciones guardadas
-              en la memoria del negocio también se consultan, respetando su
-              ámbito y periodo.
+              {tr(
+                "Todavía no has definido métricas aquí. Las definiciones guardadas en la memoria del negocio también se consultan, respetando su ámbito y periodo.",
+              )}
             </p>
           )}
         </section>
@@ -541,7 +592,7 @@ function ModelContent({
               }}
             >
               <Plus />
-              Añadir relación
+              {tr("Añadir relación")}
             </Button>
             <Button
               size="sm"
@@ -549,7 +600,7 @@ function ModelContent({
               onClick={() => setForm("metric:")}
             >
               <Plus />
-              Definir métrica
+              {tr("Definir métrica")}
             </Button>
           </div>
         )}
@@ -559,8 +610,9 @@ function ModelContent({
             key={`${form}/${selected}/${edge}`}
           >
             <p className="text-sm text-muted-foreground">
-              Se guardará una nueva revisión. Los informes que usaban este
-              modelo quedarán pendientes de revisar.
+              {tr(
+                "Se guardará una nueva revisión. Los informes que usaban este modelo quedarán pendientes de revisar.",
+              )}
             </p>
             {form === "table" && table && (
               <TableForm table={table} save={save} busy={action.busy} />
@@ -582,7 +634,7 @@ function ModelContent({
               />
             )}
             <Button variant="ghost" size="sm" onClick={() => setForm("")}>
-              Cancelar
+              {tr("Cancelar")}
             </Button>
           </div>
         )}
@@ -606,6 +658,7 @@ export function ERDiagram({
   chooseTable: (id: string) => void;
   chooseEdge: (id: string) => void;
 }) {
+  useLanguage();
   const marker = useId();
   const positions = new Map(
     tables.map((t, i) => [
@@ -623,7 +676,7 @@ export function ERDiagram({
     >
       <svg
         role="group"
-        aria-label="Diagrama ER de esta revisión del modelo"
+        aria-label={tr("Diagrama ER de esta revisión del modelo")}
         viewBox={`0 0 960 ${Math.max(210, Math.ceil(tables.length / 3) * 150 + 60)}`}
         className="min-w-[640px] w-full"
       >
@@ -649,7 +702,10 @@ export function ERDiagram({
               key={r.id}
               role="button"
               tabIndex={0}
-              aria-label={`Relación ${tables.find((t) => t.id === r.source)!.name} con ${tables.find((t) => t.id === r.target)!.name}`}
+              aria-label={tr("Relación {0} con {1}", {
+                "0": tables.find((t) => t.id === r.source)!.name,
+                "1": tables.find((t) => t.id === r.target)!.name,
+              })}
               onClick={() => chooseEdge(r.id)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
@@ -660,7 +716,8 @@ export function ERDiagram({
               className="cursor-pointer text-primary"
             >
               <title>
-                {cardinalities[r.cardinality]} · {labels[r.semantic_status]}
+                {tr(cardinalities[r.cardinality])} ·{" "}
+                {tr(labels[r.semantic_status])}
               </title>
               <path
                 d={`M ${a.x + 120} ${a.y} C ${a.x + 120} ${a.y - y - 25}, ${b.x + 120} ${b.y - y - 25}, ${b.x + 120} ${b.y}`}
@@ -689,7 +746,7 @@ export function ERDiagram({
               key={t.id}
               role="button"
               tabIndex={0}
-              aria-label={`Tabla ${t.name}`}
+              aria-label={tr("Tabla {0}", { "0": t.name })}
               onClick={() => chooseTable(t.id)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
@@ -726,8 +783,9 @@ export function ERDiagram({
                 className="fill-muted-foreground"
                 fontSize="12"
               >
-                {t.row_count.toLocaleString()} filas · {t.columns.length}{" "}
-                columnas
+                {t.row_count.toLocaleString(locale())}
+                {tr(" filas · ")}
+                {t.columns.length} {tr("columnas")}
               </text>
               <text
                 x={p.x + 14}
@@ -736,17 +794,19 @@ export function ERDiagram({
                 fontSize="11"
               >
                 {t.grain
-                  ? t.semantic_status === "inferred" ? "Granularidad propuesta" : "Granularidad declarada"
-                  : "Granularidad por confirmar"}
+                  ? t.semantic_status === "inferred"
+                    ? tr("Granularidad propuesta")
+                    : tr("Granularidad declarada")
+                  : tr("Granularidad por confirmar")}
               </text>
             </g>
           );
         })}
       </svg>
       <p className="p-3 text-xs text-muted-foreground">
-        Flecha: origen → destino. Línea discontinua: significado pendiente o
-        descartado. Selecciona una conexión para ver su cardinalidad y
-        comprobaciones.
+        {tr(
+          "Flecha: origen → destino. Línea discontinua: significado pendiente o descartado. Selecciona una conexión para ver su cardinalidad y comprobaciones.",
+        )}
       </p>
     </div>
   );
@@ -761,6 +821,7 @@ function TableForm({
   save: Save;
   busy: boolean;
 }) {
+  useLanguage();
   const [description, setDescription] = useState(table.description),
     [grain, setGrain] = useState(table.grain),
     [column, setColumn] = useState(table.columns[0]?.name || ""),
@@ -797,22 +858,22 @@ function TableForm({
         });
       }}
     >
-      <Field label="Qué contiene esta tabla">
+      <Field label={tr("Qué contiene esta tabla")}>
         <Textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           maxLength={2000}
         />
       </Field>
-      <Field label="Qué representa cada fila">
+      <Field label={tr("Qué representa cada fila")}>
         <Input
           value={grain}
           onChange={(e) => setGrain(e.target.value)}
           maxLength={2000}
-          placeholder="Por ejemplo: una línea de una factura"
+          placeholder={tr("Por ejemplo: una línea de una factura")}
         />
       </Field>
-      <Field label="Columna a aclarar">
+      <Field label={tr("Columna a aclarar")}>
         <select
           className={selectClass}
           value={column}
@@ -825,29 +886,31 @@ function TableForm({
       </Field>
       {c && (
         <>
-          <Field label="Significado de la columna">
+          <Field label={tr("Significado de la columna")}>
             <Input
               value={c.meaning}
               onChange={(e) => edit("meaning", e.target.value)}
             />
           </Field>
-          <Field label="Unidad">
+          <Field label={tr("Unidad")}>
             <Input
               value={c.unit}
               onChange={(e) => edit("unit", e.target.value)}
-              placeholder="EUR, unidades…"
+              placeholder={tr("EUR, unidades…")}
             />
           </Field>
-          <Field label="Conversión necesaria, si existe">
+          <Field label={tr("Conversión necesaria, si existe")}>
             <Input
               value={c.conversion}
               onChange={(e) => edit("conversion", e.target.value)}
-              placeholder="Describe la regla; no se ejecutará automáticamente"
+              placeholder={tr(
+                "Describe la regla; no se ejecutará automáticamente",
+              )}
             />
           </Field>
         </>
       )}
-      <Disclosure title="Claves compuestas o declaradas">
+      <Disclosure title={tr("Claves compuestas o declaradas")}>
         {keys.map((key, i) => (
           <div key={i} className="space-y-2 py-2">
             <ColumnsSelect
@@ -863,7 +926,7 @@ function TableForm({
               variant="ghost"
               onClick={() => setKeys(keys.filter((_, j) => j !== i))}
             >
-              Quitar clave
+              {tr("Quitar clave")}
             </Button>
           </div>
         ))}
@@ -873,11 +936,11 @@ function TableForm({
           variant="outline"
           onClick={() => setKeys([...keys, []])}
         >
-          Añadir clave
+          {tr("Añadir clave")}
         </Button>
       </Disclosure>
       <Button disabled={busy} type="submit">
-        Guardar aclaraciones
+        {tr("Guardar aclaraciones")}
       </Button>
     </form>
   );
@@ -891,6 +954,7 @@ function ColumnsSelect({
   value: string[];
   onChange: (v: string[]) => void;
 }) {
+  useLanguage();
   return (
     <div className="flex flex-wrap gap-3">
       {columns.map((c) => (
@@ -910,7 +974,8 @@ function ColumnsSelect({
         </label>
       ))}
       <span className="w-full text-xs text-muted-foreground">
-        Orden de la clave: {value.join(" + ") || "selecciona columnas"}
+        {tr("Orden de la clave: ")}
+        {value.join(" + ") || "selecciona columnas"}
       </span>
     </div>
   );
@@ -926,6 +991,7 @@ function RelationForm({
   save: Save;
   busy: boolean;
 }) {
+  useLanguage();
   const [source, setSource] = useState(relation?.source || tables[0]?.id || ""),
     [target, setTarget] = useState(
       relation?.target || tables[1]?.id || tables[0]?.id || "",
@@ -949,7 +1015,7 @@ function RelationForm({
         });
       }}
     >
-      <Field label="Tabla de origen">
+      <Field label={tr("Tabla de origen")}>
         <select
           className={selectClass}
           value={source}
@@ -970,7 +1036,7 @@ function RelationForm({
         value={sc}
         onChange={setSc}
       />
-      <Field label="Tabla de destino">
+      <Field label={tr("Tabla de destino")}>
         <select
           className={selectClass}
           value={target}
@@ -992,17 +1058,18 @@ function RelationForm({
         onChange={setTc}
       />
       <p className="text-xs text-muted-foreground">
-        Las columnas se emparejan en el orden seleccionado. Se comprobarán todas
-        las filas, también en claves compuestas.
+        {tr(
+          "Las columnas se emparejan en el orden seleccionado. Se comprobarán todas las filas, también en claves compuestas.",
+        )}
       </p>
-      <Field label="Qué significa esta relación">
+      <Field label={tr("Qué significa esta relación")}>
         <Textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           maxLength={2000}
         />
       </Field>
-      <Field label="Estado del significado">
+      <Field label={tr("Estado del significado")}>
         <select
           className={selectClass}
           value={status}
@@ -1016,7 +1083,7 @@ function RelationForm({
         </select>
       </Field>
       <Button disabled={busy || !sc.length || sc.length !== tc.length}>
-        Comprobar y guardar relación
+        {tr("Comprobar y guardar relación")}
       </Button>
     </form>
   );
@@ -1032,6 +1099,7 @@ function MetricForm({
   save: Save;
   busy: boolean;
 }) {
+  useLanguage();
   const [name, setName] = useState(metric?.name || ""),
     [definition, setDefinition] = useState(metric?.definition || ""),
     [unit, setUnit] = useState(metric?.unit || ""),
@@ -1054,7 +1122,7 @@ function MetricForm({
         });
       }}
     >
-      <Field label="Nombre de la métrica">
+      <Field label={tr("Nombre de la métrica")}>
         <Input
           required
           value={name}
@@ -1062,16 +1130,18 @@ function MetricForm({
           maxLength={180}
         />
       </Field>
-      <Field label="Cómo se define y calcula">
+      <Field label={tr("Cómo se define y calcula")}>
         <Textarea
           required
           value={definition}
           onChange={(e) => setDefinition(e.target.value)}
           maxLength={4000}
-          placeholder="Por ejemplo: ventas netas = importe de línea menos impuestos; incluye devoluciones con su signo."
+          placeholder={tr(
+            "Por ejemplo: ventas netas = importe de línea menos impuestos; incluye devoluciones con su signo.",
+          )}
         />
       </Field>
-      <Field label="Unidad">
+      <Field label={tr("Unidad")}>
         <Input
           value={unit}
           onChange={(e) => setUnit(e.target.value)}
@@ -1079,7 +1149,7 @@ function MetricForm({
         />
       </Field>
       <fieldset className="space-y-2">
-        <legend className="text-sm">Tablas a las que aplica</legend>
+        <legend className="text-sm">{tr("Tablas a las que aplica")}</legend>
         {tables.map((t) => (
           <label key={t.id} className="flex items-center gap-2 text-sm">
             <input
@@ -1098,14 +1168,14 @@ function MetricForm({
         ))}
       </fieldset>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Desde (opcional)">
+        <Field label={tr("Desde (opcional)")}>
           <Input
             type="date"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
           />
         </Field>
-        <Field label="Hasta (opcional)">
+        <Field label={tr("Hasta (opcional)")}>
           <Input
             type="date"
             value={until}
@@ -1113,7 +1183,7 @@ function MetricForm({
           />
         </Field>
       </div>
-      <Button disabled={busy || !ids.length}>Guardar definición</Button>
+      <Button disabled={busy || !ids.length}>{tr("Guardar definición")}</Button>
     </form>
   );
 }

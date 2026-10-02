@@ -175,7 +175,7 @@ it("recovers a lost business creation response after reload without creating a s
     business.description,
   );
   await user.click(
-    screen.getByRole("button", { name: "Empezar conversación" }),
+    screen.getByRole("button", { name: "Nuevo chat" }),
   );
   await screen.findByText(
     "No hay conexión con el servidor local. Tu progreso guardado se conserva.",
@@ -186,7 +186,7 @@ it("recovers a lost business creation response after reload without creating a s
     business.name,
   );
   await user.click(
-    screen.getByRole("button", { name: "Empezar conversación" }),
+    screen.getByRole("button", { name: "Nuevo chat" }),
   );
   await screen.findByRole("heading", { name: /Qué te gustaría conseguir/ });
   expect(writes).toHaveLength(2);

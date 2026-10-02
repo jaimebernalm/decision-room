@@ -117,7 +117,7 @@ def validate_content(db, business_id, data):
 
 
 def change(config, business_id, *, action, request_key, content=None, fact_id=None, expected_revision=None,
-           original_text='', reason='', change_kind='historical'):
+           original_text='', reason='', change_kind='historical', group_id=None):
     """Explicit owner operations, shared by future onboarding/chat/profile adapters."""
     if action not in ('propose', 'declare', 'confirm', 'correct', 'withdraw'):
         raise MemoryError('Operación de memoria no válida.', 400)
@@ -127,10 +127,14 @@ def change(config, business_id, *, action, request_key, content=None, fact_id=No
         raise MemoryError('Motivo fuera de límites.', 400)
     if change_kind not in ('historical', 'future') or (change_kind == 'future' and action != 'correct'):
         raise MemoryError('Un cambio futuro requiere corregir un recuerdo con fecha de inicio.', 400)
+    if group_id is not None and (action not in ('declare', 'propose') or not isinstance(group_id, str) or not 1 <= len(group_id) <= 80):
+        raise MemoryError('Selecciona un grupo válido para añadir información nueva.', 400)
     identity = dict(action=action, content=content, fact_id=fact_id, expected_revision=expected_revision,
                     original_text=original_text, reason=reason)
     if change_kind != 'historical':
         identity['change_kind'] = change_kind
+    if group_id is not None:
+        identity['group_id'] = group_id
     signature = digest(identity)
     with connect(config) as db, db.transaction():
         lock(db, business_id)
@@ -181,9 +185,26 @@ def change(config, business_id, *, action, request_key, content=None, fact_id=No
                          default_scope=value['scope'], scope_id=value['scope_id'])
         db.execute("UPDATE memory_sources SET status='applied' WHERE id=%s", (source['id'],))
         result = append(db, business_id, fact_id, value, status, source['id'], text, change_kind=change_kind)
+        if group_id is not None:
+            _assign_group(db, business_id, fact_id, group_id)
         db.execute('INSERT INTO memory_commands(business_id,request_key,signature,result) VALUES (%s,%s,%s,%s)',
                    (business_id, request_key, signature, Jsonb(result)))
         return result
+
+
+def _assign_group(db, business_id, fact_id, group_id):
+    """Owner declaration and its destination commit together or neither does."""
+    from ..web.dossier_layout import load
+    db.execute('SELECT id FROM businesses WHERE id=%s FOR UPDATE', (business_id,))
+    layout = load(db, business_id)
+    if group_id != 'ungrouped' and group_id not in {g['id'] for g in layout['groups']}:
+        raise MemoryError('Este grupo ya no está disponible. Actualiza la ficha antes de añadir información.')
+    assignments = {**layout['assignments'], str(fact_id): group_id}
+    if len(assignments) > 5000:
+        raise MemoryError('Puedes organizar hasta 5000 recuerdos.')
+    db.execute('''INSERT INTO web_dossier_layouts(business_id,revision,layout) VALUES (%s,%s,%s)
+        ON CONFLICT(business_id) DO UPDATE SET revision=excluded.revision,layout=excluded.layout''',
+               (business_id, layout['revision'] + 1, Jsonb({'groups': layout['groups'], 'assignments': assignments})))
 
 
 def read(config, business_id, *, history=False, fact_id=None, applicable_on=None, analysis_id=None, source_id=None):

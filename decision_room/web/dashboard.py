@@ -23,6 +23,7 @@ def projection(data):
             'key': hashlib.sha256(json.dumps([item['label'], item['unit'], item['claim_key']], sort_keys=True, default=str).encode()).hexdigest()[:16],
             'label': item['label'],
             'value': formatted(metric(data, item['value']), item['decimals']),
+            'raw_value': str(metric(data, item['value'])), 'decimals': item['decimals'],
             'unit': item['unit'],
             'claim_key': item['claim_key'],
         } for item in report.get('highlights', [])]
@@ -35,7 +36,7 @@ def projection(data):
                       ])
             charts.append({
                 'key': chart['key'], 'kind': chart['kind'], 'title': chart['title'],
-                'unit': chart['unit'], 'caption': chart['caption'],
+                'unit': chart['unit'], 'caption': chart['caption'], 'decimals': chart['decimals'],
                 'claim_key': chart['claim_key'],
                 'panels': panels(chart, points),
                 'points': [{'label': point['label'], 'value': str(point['value']),

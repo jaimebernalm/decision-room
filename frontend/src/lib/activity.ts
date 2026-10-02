@@ -1,3 +1,4 @@
+import { translate as tr } from "@/lib/i18n";
 import { useCallback, useSyncExternalStore } from "react";
 import { api, ApiError } from "./api";
 
@@ -129,13 +130,13 @@ export function compactChatActivity(tasks: ActivityTask[]): ActivityTask[] {
       result.push(task); continue;
     }
     if (task.kind === "chat_call" && task.phase === "retrieve") continue;
-    if (task.kind === "chat_call" && task.phase === "investigate") { result.push({ ...task, text: "Análisis encargado" }); continue; }
+    if (task.kind === "chat_call" && task.phase === "investigate") { result.push({ ...task, text: ("Análisis encargado") }); continue; }
     const key = `${task.parent_id}:${task.kind}`;
     const previous = groups.get(key);
     const newer = !previous || (task.started_at || "") >= (previous.started_at || "");
     const latest = newer ? task : previous;
-    groups.set(key, { ...latest, text: task.kind === "retrieval" ? "Fuentes y contexto consultados" : task.kind === "chat_call" ? "Respuesta preparada" : latest.text.includes("ajustes") ? "Revisión con ajustes pendientes" : "Respuesta revisada",
-      purpose: task.kind === "chat_review" && (task.text.includes("ajustes") || previous?.purpose) ? "Se detectaron ajustes durante la revisión." : latest.purpose });
+    groups.set(key, { ...latest, text: task.kind === "retrieval" ? tr("Fuentes y contexto consultados") : task.kind === "chat_call" ? tr("Respuesta preparada") : latest.text.includes("ajustes") ? tr("Revisión con ajustes pendientes") : tr("Respuesta revisada"),
+      purpose: task.kind === "chat_review" && (task.text.includes("ajustes") || previous?.purpose) ? tr("Se detectaron ajustes durante la revisión.") : latest.purpose });
   }
   // Do not show a completed draft/review alongside another round still running.
   for (const task of result) {

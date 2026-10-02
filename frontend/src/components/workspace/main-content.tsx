@@ -32,6 +32,7 @@ export function MainContent({
         className="size-full outline-none [&>div]:block! [&>div]:w-full"
       >
         {children}
+        <div className="workspace-composer-clearance" aria-hidden="true" />
       </ScrollArea.Viewport>
       <ScrollBar className="border-0 bg-transparent data-vertical:w-2" />
     </ScrollArea.Root>

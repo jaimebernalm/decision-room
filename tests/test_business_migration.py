@@ -82,12 +82,43 @@ class BusinessMigrationTests(unittest.TestCase):
         with connect(self.config) as db:
             self.assertEqual(db.execute('SELECT job_id FROM web_onboarding WHERE business_id=%s',
                                         (business,)).fetchone()['job_id'], job)
-            for table in ('web_home_layouts', 'dataset_bundle_files', 'data_model_revisions', 'activity_traces'):
+            for table in ('web_home_layouts', 'dataset_bundle_files', 'data_model_revisions', 'activity_traces', 'web_dossier_layouts', 'report_presentation_revisions'):
                 self.assertIsNotNone(db.execute('SELECT to_regclass(%s) AS name', (table,)).fetchone()['name'])
-            self.assertEqual(db.execute('SELECT max(version) AS version FROM schema_versions').fetchone()['version'], 26)
+            self.assertEqual(db.execute('SELECT max(version) AS version FROM schema_versions').fetchone()['version'], 28)
             for table in ('chat_calls', 'chat_answer_reviews'):
                 self.assertIsNotNone(db.execute('''SELECT column_name FROM information_schema.columns
                     WHERE table_schema='public' AND table_name=%s AND column_name='finished_at' ''', (table,)).fetchone())
+        self.assertEqual(Workspace(self.config).upload(job), ('sales.csv', content))
+
+    def test_ui_branch_migrations_combine_without_losing_saved_group_layouts(self):
+        # UI1 and UI2 originally both appended migration 27 to schema 26.
+        # Installing the combined schema must work from either deployed branch.
+        prefix, dossier_schema = self.schema.split('-- Owner presentation groups', 1)
+        ui1_start = prefix.index('-- 2.5.18: immutable presentation revisions')
+        ui2_schema = prefix[:ui1_start] + '-- Owner presentation groups' + dossier_schema.replace('VALUES (28)', 'VALUES (27)')
+        self.old_schema()
+        business, job, content = self.legacy_job()
+        saved = {'groups': [{'id': 'clients', 'name': 'Clients', 'description': 'Customer context'}], 'assignments': {}}
+        with connect(self.config) as db:
+            db.execute(ui2_schema)
+            db.execute('INSERT INTO web_dossier_layouts(business_id,revision,layout) VALUES (%s,3,%s)',
+                       (business, Jsonb(saved)))
+        migrate(self.config)
+        migrate(self.config)
+        with connect(self.config) as db:
+            row = db.execute('SELECT revision,layout FROM web_dossier_layouts WHERE business_id=%s', (business,)).fetchone()
+            self.assertEqual(row, {'revision': 3, 'layout': saved})
+            self.assertIsNotNone(db.execute("SELECT to_regclass('report_presentation_revisions') AS name").fetchone()['name'])
+            self.assertEqual(db.execute('SELECT max(version) AS version FROM schema_versions').fetchone()['version'], 28)
+            db.execute('DROP TABLE web_dossier_layouts')
+            db.execute('DELETE FROM schema_versions WHERE version=28')
+            db.execute(prefix)
+        migrate(self.config)
+        migrate(self.config)
+        with connect(self.config) as db:
+            for table in ('report_presentation_revisions', 'web_dossier_layouts'):
+                self.assertIsNotNone(db.execute('SELECT to_regclass(%s) AS name', (table,)).fetchone()['name'])
+            self.assertEqual(db.execute('SELECT count(*) AS n FROM schema_versions WHERE version=28').fetchone()['n'], 1)
         self.assertEqual(Workspace(self.config).upload(job), ('sales.csv', content))
 
     def test_single_legacy_business_is_selected_without_enrolling_cli_cases(self):

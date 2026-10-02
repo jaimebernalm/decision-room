@@ -5,7 +5,7 @@ import json
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..agent.persistence import session_lock
+from .report_access import read_lock
 from ..database import connect
 from ..memory import service as memory
 from . import business as business_store
@@ -61,14 +61,16 @@ def collect(ws):
         if not job['review_id'] or not job['session_id']:
             continue
         try:
-            with session_lock(ws.config, business, job['session_id']) as (db, _), db.transaction():
+            with read_lock(ws.config, business, job['session_id']) as (db, _), db.transaction():
                 memory.lock(db, business)
                 reviewed = ws.review_state(job, _db=db)
-                report = projection(reviewed)
+                from .presentation_editing import decorate
+                report = decorate(ws, reviewed, projection(reviewed), db=db)
                 if not report:
                     continue
                 source = dict(job_id=str(job['id']), report_id=str(reviewed['id']),
                               version=reviewed['approved_sha256'], title=report['title'],
+                              presentation=report['presentation'],
                               period=report['scope']['period'], coverage=report['scope']['coverage'],
                               filename=job['filename'], created_at=job['created_at'],
                               data_version=item.get('data_version'), analysis_id=str(job['analysis_id']),

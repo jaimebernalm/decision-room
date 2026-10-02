@@ -40,3 +40,28 @@ con estética blanca, tipografía sans serif, azules de la paleta y grises de ap
 Estado: completado y validado. Véase [evidencia de cierre](../validation/2026-09-28-report-reading-and-pdf.md).
 Este paso cambia presentación y exportación; no cierra la evaluación de calidad
 analítica ni regenera el informe de Bruma.
+
+## 3.8.12.1. Lectura progresiva del informe y de Inicio
+
+Incremento de presentación sobre la integración UI1/UI2; no modifica la revisión,
+los cálculos ni el contrato analítico de la rama de calidad del informe.
+
+1. Revisar el estado actual y, en lectura, los cambios de calidad. Agrupar título,
+   conclusión revisada y gráficos de un hallazgo en una tarjeta. Abrir evidencia
+   después del gráfico; conservar selección independiente de hallazgo y gráfico.
+2. Mover el contexto general a «Sobre este informe» en la cabecera. Mostrar tres
+   indicadores inicialmente y conservar el resto en un desplegable. Mantener
+   periodo, revisión, informe parcial y límites de interpretación visibles.
+3. Relacionar gráficos de Inicio con hallazgos del mismo informe y versión. Enlazar
+   al hallazgo exacto y comprobar identidad/versión al abrirlo. Conservar selección,
+   personalización, propuesta y fijados; reducir controles secundarios.
+4. Probar comportamiento, compilación y lint; revisar informe abierto/cerrado,
+   Inicio, móvil, teclado, selección y PDF. Documentar límites y guardar un commit
+   local enfocado después de revisar privacidad y archivos preparados.
+
+Los textos existentes pueden mezclar explicación y advertencias. No extraer la
+primera frase ni truncar automáticamente conclusiones, captions o límites. Un
+resumen breve nuevo requeriría contrato y revisión analítica en la rama de calidad;
+este incremento conserva el texto revisado completo donde pueda condicionar la
+lectura. Los periodos de Inicio pertenecen a cada tarjeta, sin un filtro global
+que simule recalcular evidencia revisada.

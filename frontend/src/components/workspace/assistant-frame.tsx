@@ -1,3 +1,4 @@
+import { translate as tr, useLanguage } from "@/lib/i18n";
 import {
   useEffect,
   useState,
@@ -13,7 +14,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
-import { FloatingAssistant } from "./floating-assistant";
+import { NewChatComposer } from "./floating-assistant";
 import { Button } from "@/components/ui/button";
 import { useAssistant, contextualRoute } from "@/lib/assistant";
 import { useWorkspace } from "@/lib/workspace";
@@ -38,8 +39,9 @@ export function AssistantFrame({
   children: ReactNode;
   header?: ReactNode;
 }) {
+  useLanguage();
   const a = useAssistant()!;
-  const { route } = useWorkspace();
+  const { route, workspace } = useWorkspace();
   const { open, openMobile, isMobile, setOpen, setOpenMobile } = useSidebar();
   const navigationOpen = isMobile ? openMobile : open;
   const previous = useRef({ panel: false, navigationOpen });
@@ -47,6 +49,28 @@ export function AssistantFrame({
     Number(store.get("dr-chat-panel-width", 420)),
   );
   const panel = a.dock.open && contextualRoute(route);
+  const floatingComposer = Boolean(
+    workspace.business && contextualRoute(route) && !panel,
+  );
+  const pageRef = useRef<HTMLElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const page = pageRef.current;
+    const composer = composerRef.current;
+    if (!page || !composer || !floatingComposer) return;
+    const measure = () =>
+      page.style.setProperty(
+        "--workspace-composer-height",
+        `${composer.getBoundingClientRect().height}px`,
+      );
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(composer);
+    return () => {
+      observer.disconnect();
+      page.style.removeProperty("--workspace-composer-height");
+    };
+  }, [floatingComposer]);
   useEffect(() => {
     const was = previous.current;
     previous.current = { panel, navigationOpen };
@@ -92,30 +116,53 @@ export function AssistantFrame({
       className={`assistant-frame ${panel ? "assistant-docked" : ""} ${a.selecting ? "assistant-selecting" : ""}`}
       style={{ "--chat-panel-width": `${width}px` } as CSSProperties}
     >
-      <SidebarInset className="assistant-page">
+      <SidebarInset
+        ref={pageRef}
+        className={`assistant-page ${floatingComposer ? "has-workspace-composer" : ""}`}
+      >
         {header}
         <div className="assistant-content">
           {children}
           {a.selecting && (
             <div className="selection-banner" role="status">
-              <span>Selecciona elementos · {a.selected.length}/8</span>
+              <span>
+                {tr("Selecciona elementos · ")}
+                {a.selected.length}/8
+              </span>
               <SelectionTool />
               {a.error && <span>{a.error}</span>}
             </div>
           )}
         </div>
+        {floatingComposer && (
+          <div
+            ref={composerRef}
+            className="workspace-composer px-4 pb-4 pt-2 sm:px-8"
+          >
+            <div className="workspace-composer-island mx-auto w-full max-w-2xl">
+              {a.dock.chatId ? (
+                <Suspense fallback={<Loading />}>
+                  <ChatPage
+                    key={a.dock.chatId}
+                    id={a.dock.chatId}
+                    composerOnly
+                  />
+                </Suspense>
+              ) : (
+                <NewChatComposer autoFocus={false} />
+              )}
+            </div>
+          </div>
+        )}
       </SidebarInset>
       <AnimatePresence initial={false}>
         {panel && (
           <PanelPresence key="chat-panel" mobile={isMobile} width={width}>
-            <aside
-              className="assistant-panel"
-              aria-label="Conversación lateral"
-            >
+            <aside className="assistant-panel" aria-label={tr("Chat lateral")}>
               <div
                 role="separator"
                 tabIndex={0}
-                aria-label="Anchura del chat"
+                aria-label={tr("Anchura del chat")}
                 aria-orientation="vertical"
                 aria-valuemin={340}
                 aria-valuemax={640}
@@ -144,32 +191,33 @@ export function AssistantFrame({
                   }
                 }}
               />
-              <header className="flex h-16 shrink-0 items-center gap-1 px-4">
+              <header className="flex h-14 shrink-0 items-center gap-1 px-4">
                 <span className="mr-auto text-sm font-medium">
-                  Conversación
+                  {tr("Chat")}
                 </span>
-                <PanelAction label="Nueva conversación">
+                <PanelAction label={tr("Nuevo chat")}>
                   <Button
                     variant="ghost"
                     size="icon"
-                    aria-label="Nueva conversación"
+                    aria-label={tr("Nuevo chat")}
                     disabled={!a.dock.chatId}
                     onClick={() => a.newConversation("panel")}
                   >
                     <Plus />
                   </Button>
                 </PanelAction>
-                <PanelAction label="Ampliar">
+                <PanelAction label={tr("Ampliar")}>
                   <Button
                     variant="ghost"
                     size="icon"
-                    aria-label="Abrir conversación completa"
+                    aria-label={tr("Ampliar chat")}
                     disabled={!a.dock.chatId}
                     onClick={() => {
                       a.setSelecting(false);
                       a.setDock({
                         ...a.dock,
                         origin: route,
+                        block: undefined,
                         scroll:
                           document.getElementById("main-content")?.scrollTop,
                       });
@@ -179,11 +227,11 @@ export function AssistantFrame({
                     <Maximize2 />
                   </Button>
                 </PanelAction>
-                <PanelAction label="Cerrar">
+                <PanelAction label={tr("Cerrar")}>
                   <Button
                     variant="ghost"
                     size="icon"
-                    aria-label="Plegar conversación"
+                    aria-label={tr("Cerrar chat lateral")}
                     onClick={() => a.setDock({ ...a.dock, open: false })}
                   >
                     <PanelRightClose />
@@ -197,15 +245,15 @@ export function AssistantFrame({
               ) : a.launching ? (
                 <div className="p-5">
                   <Loading />
-                  <p className="mt-3 text-sm">Preparando tu conversación…</p>
+                  <p className="mt-3 text-sm">{tr("Preparando tu chat…")}</p>
                 </div>
               ) : (
                 <div className="flex min-h-0 flex-1 flex-col">
                   <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
-                    Pregunta sobre tu negocio.
+                    {tr("Pregunta sobre tu negocio.")}
                   </div>
                   <div className="p-3">
-                    <FloatingAssistant inline />
+                    <NewChatComposer />
                   </div>
                 </div>
               )}
