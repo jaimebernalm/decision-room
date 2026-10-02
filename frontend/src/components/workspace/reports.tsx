@@ -7,9 +7,9 @@ import {
   Undo2,
   Check,
   MousePointer2,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -198,27 +198,37 @@ function ReportTable({ items, search, ...actions }: TableProps) {
       .includes(search.toLocaleLowerCase()),
   );
   return filtered.length ? (
-    <Card className="gap-0 overflow-hidden py-0 shadow-none">
-      <Table className="[&_th]:px-4 [&_td]:px-4">
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            <TableHead>{tr("Informe")}</TableHead>
-            <TableHead>{tr("Estado")}</TableHead>
-            <TableHead className="hidden sm:table-cell">
+    <Table className="report-library border-separate border-spacing-y-2 [&_th]:px-4 [&_td]:px-4">
+      <TableHeader>
+        <TableRow className="border-0 hover:bg-transparent">
+          <TableHead>{tr("Informe")}</TableHead>
+          <TableHead>
+            <Badge
+              variant="outline"
+              className="font-normal text-muted-foreground"
+            >
+              {tr("Estado")}
+            </Badge>
+          </TableHead>
+          <TableHead className="hidden sm:table-cell">
+            <Badge
+              variant="outline"
+              className="font-normal text-muted-foreground"
+            >
               {tr("Creado")}
-            </TableHead>
-            <TableHead>
-              <span className="sr-only">{tr("Acciones")}</span>
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {filtered.map((a) => (
-            <ReportRow key={a.id} item={a} {...actions} />
-          ))}
-        </TableBody>
-      </Table>
-    </Card>
+            </Badge>
+          </TableHead>
+          <TableHead>
+            <span className="sr-only">{tr("Acciones")}</span>
+          </TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {filtered.map((a) => (
+          <ReportRow key={a.id} item={a} {...actions} />
+        ))}
+      </TableBody>
+    </Table>
   ) : (
     <p className="py-10 text-center text-sm text-muted-foreground">
       {search
@@ -257,34 +267,45 @@ function ReportRow({
     )[status] || status;
   const color =
     status === "withdrawn"
-      ? "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200"
+      ? "border-red-600/30 text-red-700 dark:border-red-400/40 dark:text-red-300"
       : status === "completed"
-        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
+        ? "border-emerald-600/30 text-emerald-700 dark:border-emerald-400/40 dark:text-emerald-300"
         : "";
   return (
     <TableRow
       id={reference ? blockId(reference) : undefined}
-      className={`report-pick-row ${selecting && !active ? "report-unselectable" : "cursor-pointer"} ${selected ? "context-picked" : ""}`}
+      className={`report-pick-row border-0 bg-muted/70 transition-colors hover:bg-foreground/[0.08] focus-within:bg-foreground/[0.08] dark:hover:bg-muted dark:focus-within:bg-muted [&>td:first-child]:rounded-l-2xl [&>td:last-child]:rounded-r-2xl [&>td]:py-3 ${selecting && !active ? "report-unselectable" : "cursor-pointer"} ${selected ? "context-picked" : ""}`}
       onClick={(event) => {
         if (!selecting && !(event.target as HTMLElement).closest("a, button"))
           location.hash = analysisHref(a);
       }}
     >
       <TableCell className="whitespace-normal">
-        <div inert={selecting || undefined}>
-          <a
-            className="break-words font-medium hover:underline"
-            href={analysisHref(a)}
+        <div inert={selecting || undefined} className="flex items-center gap-3">
+          <span
+            aria-hidden="true"
+            className="flex size-8 shrink-0 items-center justify-center rounded-full border border-foreground/25 text-muted-foreground"
           >
-            {a.title}
-          </a>
-          <p className="mt-1 break-all text-xs text-muted-foreground">
-            {a.filename}
-          </p>
+            <FileText className="size-4" />
+          </span>
+          <div className="min-w-0">
+            <a
+              className="break-words text-sm font-medium hover:underline"
+              href={analysisHref(a)}
+            >
+              {a.title}
+            </a>
+            <p className="mt-1 break-all text-xs text-muted-foreground">
+              {a.filename}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground sm:hidden">
+              {tr("Creado")}: {date(a.created_at)}
+            </p>
+          </div>
         </div>
       </TableCell>
       <TableCell>
-        <Badge variant="secondary" className={color}>
+        <Badge variant="outline" className={`font-normal ${color}`}>
           {label}
         </Badge>
         {selecting && !active && (

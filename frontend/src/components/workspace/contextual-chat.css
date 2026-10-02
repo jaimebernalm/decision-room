@@ -329,13 +329,9 @@
   position: relative;
 }
 .report-selection-hit {
-  border-radius: 0;
+  border-radius: 1rem;
   inset: 1px;
   width: calc(100% - 2px);
-}
-.report-pick-row:last-child .report-selection-hit {
-  border-bottom-left-radius: calc(var(--radius-xl) - 1px);
-  border-bottom-right-radius: calc(var(--radius-xl) - 1px);
 }
 .report-selection-hit .context-check {
   top: 50%;

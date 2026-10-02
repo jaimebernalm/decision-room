@@ -277,14 +277,15 @@ class Handler(BaseHTTPRequestHandler):
                 if len(parts) == 3 and not mutation:
                     self.send(200, chats.detail(chat_id))
                     return
-                if mutation and action in ('messages','retry','report','resolve','delete'):
+                if mutation and action in ('messages','retry','report','resolve','delete','pin'):
                     data = self.json_body()
-                    result = (chats.delete(chat_id,data) if action == 'delete' else
+                    result = (chats.pin(chat_id,data) if action == 'pin' else
+                              chats.delete(chat_id,data) if action == 'delete' else
                               chats.send(chat_id,data) if action == 'messages' else
                               chats.resolve(chat_id,data) if action == 'resolve' else
                               chats.retry(chat_id,data.get('turn_id'),data) if action == 'retry' else
                               chats.report(chat_id,data.get('turn_id'),data))
-                    self.send(202,result)
+                    self.send(200 if action == 'pin' else 202,result)
                     return
                 if not mutation and len(parts) == 5 and parts[3] == 'presentation':
                     self.send(200, chats.report(chat_id, parts[4], structured=True))

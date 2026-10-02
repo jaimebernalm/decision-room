@@ -1228,5 +1228,9 @@
   "Más indicadores del informe": "More report metrics",
   "Ver hallazgo en el informe": "View finding in report",
   "Revisión {0}": "Review {0}",
-  "El hallazgo enlazado pertenece a otra revisión o ya no está disponible. Se muestra el informe disponible; no se ha sustituido la referencia del chat.": "The linked finding belongs to another review or is no longer available. The available report is shown; the chat reference has not been replaced."
+  "El hallazgo enlazado pertenece a otra revisión o ya no está disponible. Se muestra el informe disponible; no se ha sustituido la referencia del chat.": "The linked finding belongs to another review or is no longer available. The available report is shown; the chat reference has not been replaced.",
+  "Fijar chat": "Pin chat",
+  "Desfijar chat": "Unpin chat",
+  "Chat fijado": "Pinned chat",
+  "Indica si quieres fijar o desfijar el chat.": "Choose whether to pin or unpin the chat."
 }
