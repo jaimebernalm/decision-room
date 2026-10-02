@@ -1,3 +1,4 @@
+import { translate as tr, useLanguage } from "@/lib/i18n";
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
@@ -36,11 +37,18 @@ export function Onboarding({
   route: string;
   onSaved: (business: Business) => void;
 }) {
+  useLanguage();
   const { workspace } = useWorkspace();
   const [, businessId, page, jobId] = route.split("/");
   const review = page === "review";
   const visibleSteps = !businessId
-    ? ["Tu negocio", "Tu objetivo", "Tus datos", "El alcance", "Tu informe"]
+    ? [
+        tr("Tu negocio"),
+        tr("Tu objetivo"),
+        tr("Tus datos"),
+        tr("El alcance"),
+        tr("Tu informe"),
+      ]
     : steps;
   const [files, setFiles] = useState<File[]>([]);
   const [ignored, setIgnored] = useState(0);
@@ -71,18 +79,18 @@ export function Onboarding({
           <Button asChild variant="ghost" size="sm" className="rounded-full">
             <a href="#welcome">
               <ArrowLeft className="size-4" />
-              Bienvenida
+              {tr("Bienvenida")}
             </a>
           </Button>
         )
       }
     >
       <div className="mx-auto w-full max-w-2xl px-5 pb-12 pt-7 sm:px-8 sm:pt-12">
-        <nav aria-label="Pasos de inicio" className="mb-10 sm:mb-14">
+        <nav aria-label={tr("Pasos de inicio")} className="mb-10 sm:mb-14">
           <ol className="flex items-start">
             {visibleSteps.map((label, index) => (
               <li
-                key={label}
+                key={tr(label)}
                 aria-current={stage === index ? "step" : undefined}
                 className="relative flex flex-1 flex-col items-center gap-2 text-center text-xs"
               >
@@ -96,7 +104,7 @@ export function Onboarding({
                   className={`relative flex size-8 items-center justify-center rounded-full text-xs font-medium ${stage >= index ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
                 >
                   {stage > index ? (
-                    <Check className="size-4" aria-label="Completado" />
+                    <Check className="size-4" aria-label={tr("Completado")} />
                   ) : (
                     index + 1
                   )}
@@ -106,7 +114,7 @@ export function Onboarding({
                     stage === index ? "font-medium" : "text-muted-foreground"
                   }
                 >
-                  {label}
+                  {tr(label)}
                 </span>
               </li>
             ))}
@@ -116,11 +124,12 @@ export function Onboarding({
           {mismatch ? (
             <>
               <Notice>
-                El negocio activo ha cambiado. Vuelve a tu espacio para
-                continuar con el negocio correcto.
+                {tr(
+                  "El negocio activo ha cambiado. Vuelve a tu espacio para continuar con el negocio correcto.",
+                )}
               </Notice>
               <Button asChild>
-                <a href="#home">Ir a mi espacio</a>
+                <a href="#home">{tr("Ir a mi espacio")}</a>
               </Button>
             </>
           ) : !businessId || page === "business" ? (
@@ -133,8 +142,9 @@ export function Onboarding({
           ) : page === "report" && jobId ? (
             <>
               <p className="mb-5 text-sm text-muted-foreground">
-                Ya tenemos tu contexto y tus archivos. Aquí podrás seguir el
-                análisis y responder si necesitamos alguna aclaración.
+                {tr(
+                  "Ya tenemos tu contexto y tus archivos. Aquí podrás seguir el análisis y responder si necesitamos alguna aclaración.",
+                )}
               </p>
               <JobPage id={jobId} onboarding />
             </>
@@ -175,10 +185,11 @@ function FirstReport({
   ignored: number;
   setIgnored: (count: number) => void;
 }) {
+  useLanguage();
   const key = `dr-onboarding-upload-${business.id}`;
   const { refresh } = useWorkspace();
   const [draft, setDraft] = useDraft(key, {
-    title: `Primer informe de ${business.name}`.slice(0, 160),
+    title: tr("Primer informe de {0}", { "0": business.name }).slice(0, 160),
     goal: "",
     filename: "",
   });
@@ -194,7 +205,9 @@ function FirstReport({
         ? `${(total / 1024).toFixed(1)} KB`
         : `${(total / 1024 ** 2).toFixed(1)} MB`;
   const fileCount =
-    files.length === 1 ? "1 archivo" : `${files.length} archivos`;
+    files.length === 1
+      ? "1 archivo"
+      : tr("{0} archivos", { "0": files.length });
   const choose = (selection: FileList | File[]) => {
     action.setError("");
     const picked = selectedDataFiles(Array.from(selection));
@@ -210,7 +223,9 @@ function FirstReport({
   const submit = () =>
     action.run(async () => {
       if (!files.length)
-        throw new Error("Vuelve a seleccionar tus archivos para continuar.");
+        throw new Error(
+          tr("Vuelve a seleccionar tus archivos para continuar."),
+        );
       const bundle = await uploadFolder(
         `${key}-pending`,
         {
@@ -223,7 +238,8 @@ function FirstReport({
       );
       if (bundle.status !== "ready" && bundle.status !== "partial")
         throw new Error(
-          bundle.message || "Revisa los archivos que no se pudieron preparar.",
+          bundle.message ||
+            tr("Revisa los archivos que no se pudieron preparar."),
         );
       if (bundle.status === "partial" && partial?.id !== bundle.analysis_id) {
         const dossier = await api<Dossier>("/api/business/dossier");
@@ -232,7 +248,9 @@ function FirstReport({
         );
         if (dossier.business_id !== business.id || !dataset)
           throw new Error(
-            "No se ha podido comprobar qué archivos están disponibles. Vuelve a intentarlo.",
+            tr(
+              "No se ha podido comprobar qué archivos están disponibles. Vuelve a intentarlo.",
+            ),
           );
         setPartial(dataset);
         return;
@@ -264,20 +282,26 @@ function FirstReport({
         <p className="mb-3 text-xs font-medium text-primary">{business.name}</p>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
           {review
-            ? "Vamos a crear tu primer informe"
-            : "Ahora, comparte tus datos"}
+            ? tr("Vamos a crear tu primer informe")
+            : tr("Ahora, comparte tus datos")}
         </h1>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
           {review
-            ? "Revisaremos tus archivos, te preguntaremos lo necesario y prepararemos un informe con resultados que puedas comprobar."
-            : "Comparte los CSV o Excel que ya tienes, juntos o dentro de una carpeta. No necesitas preparar una plantilla especial."}
+            ? tr(
+                "Revisaremos tus archivos, te preguntaremos lo necesario y prepararemos un informe con resultados que puedas comprobar.",
+              )
+            : tr(
+                "Comparte los CSV o Excel que ya tienes, juntos o dentro de una carpeta. No necesitas preparar una plantilla especial.",
+              )}
         </p>
       </div>
       {review ? (
         <>
           <div className="space-y-5 rounded-2xl bg-muted/60 p-5 sm:p-6">
             <div>
-              <p className="text-xs text-muted-foreground">Tu negocio</p>
+              <p className="text-xs text-muted-foreground">
+                {tr("Tu negocio")}
+              </p>
               <p className="mt-1 font-medium">{business.name}</p>
               <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground">
                 {business.description}
@@ -288,14 +312,15 @@ function FirstReport({
               <div className="min-w-0">
                 <p className="break-all text-sm font-medium">{fileCount}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {size} en total
+                  {size}
+                  {tr(" en total")}
                 </p>
               </div>
             </div>
             {files.length > 0 && (
               <ul
                 className="space-y-1 text-xs text-muted-foreground"
-                aria-label="Archivos seleccionados"
+                aria-label={tr("Archivos seleccionados")}
               >
                 {files.slice(0, 5).map((file, index) => (
                   <li className="break-all" key={index}>
@@ -303,14 +328,18 @@ function FirstReport({
                   </li>
                 ))}
                 {files.length > 5 && (
-                  <li>Y {files.length - 5} archivos más.</li>
+                  <li>
+                    {tr("Y ")}
+                    {files.length - 5}
+                    {tr(" archivos más.")}
+                  </li>
                 )}
               </ul>
             )}
             {draft.goal && (
               <div className="border-t pt-4">
                 <p className="text-xs text-muted-foreground">
-                  Qué te gustaría entender
+                  {tr("Qué te gustaría entender")}
                 </p>
                 <p className="mt-1 whitespace-pre-wrap break-words text-sm">
                   {draft.goal}
@@ -318,7 +347,7 @@ function FirstReport({
               </div>
             )}
           </div>
-          <Field label="Nombre del informe" id="first-report-title">
+          <Field label={tr("Nombre del informe")} id="first-report-title">
             <Input
               id="first-report-title"
               required
@@ -332,8 +361,9 @@ function FirstReport({
           </Field>
           <p className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
             <FileText className="mt-0.5 size-4 shrink-0" />
-            Si falta información, guardaremos tu avance y te ayudaremos a
-            aclararla antes de mostrar resultados.
+            {tr(
+              "Si falta información, guardaremos tu avance y te ayudaremos a aclararla antes de mostrar resultados.",
+            )}
           </p>
         </>
       ) : (
@@ -350,10 +380,12 @@ function FirstReport({
               <Upload className="size-6" />
             </div>
             <p className="text-sm font-medium">
-              {files.length ? "Datos seleccionados" : "Arrastra archivos aquí"}
+              {files.length
+                ? tr("Datos seleccionados")
+                : tr("Arrastra archivos aquí")}
             </p>
             <p className="mt-2 text-xs text-muted-foreground">
-              CSV o Excel · Hasta 2 GB en total
+              {tr("CSV o Excel · Hasta 2 GB en total")}
             </p>
             <Input
               ref={input}
@@ -362,7 +394,7 @@ function FirstReport({
               multiple
               accept=".csv,.xlsx"
               className="hidden"
-              aria-label="Archivos CSV o Excel"
+              aria-label={tr("Archivos CSV o Excel")}
               onChange={(event) => choose(event.target.files || [])}
             />
             <Input
@@ -371,7 +403,7 @@ function FirstReport({
               multiple
               accept=".csv,.xlsx"
               className="hidden"
-              aria-label="Carpeta de datos"
+              aria-label={tr("Carpeta de datos")}
               ref={(node) => node?.setAttribute("webkitdirectory", "")}
               onChange={(event) => choose(event.target.files || [])}
             />
@@ -381,7 +413,7 @@ function FirstReport({
               className="mt-5 rounded-full bg-background"
               onClick={() => input.current?.click()}
             >
-              Seleccionar archivos
+              {tr("Seleccionar archivos")}
             </Button>
             <Button
               type="button"
@@ -391,7 +423,7 @@ function FirstReport({
                 document.getElementById("onboarding-folder")?.click()
               }
             >
-              Seleccionar carpeta
+              {tr("Seleccionar carpeta")}
             </Button>
             {files.length > 0 && (
               <div className="mt-5 flex items-center justify-center gap-2 text-sm">
@@ -403,7 +435,7 @@ function FirstReport({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  aria-label="Quitar archivo"
+                  aria-label={tr("Quitar archivo")}
                   onClick={() => {
                     choose([]);
                     if (input.current) input.current.value = "";
@@ -414,32 +446,39 @@ function FirstReport({
               </div>
             )}
             {total > FOLDER_LIMIT && (
-              <Notice error>La carpeta supera los 2 GB.</Notice>
+              <Notice error>{tr("La carpeta supera los 2 GB.")}</Notice>
             )}
             {action.busy && total > 0 && (
               <p role="status" className="mt-2 text-xs">
                 {uploaded < total
-                  ? `Subiendo ${Math.round((uploaded / total) * 100)} %`
-                  : "Preparando las tablas…"}
+                  ? tr("Subiendo {0} %", {
+                      "0": Math.round((uploaded / total) * 100),
+                    })
+                  : tr("Preparando las tablas…")}
               </p>
             )}
           </div>
           {draft.filename && !files.length && (
             <Notice>
-              Tu contexto está guardado. Vuelve a seleccionar tus archivos; el
-              navegador no conserva los que todavía no se han enviado.
+              {tr(
+                "Tu contexto está guardado. Vuelve a seleccionar tus archivos; el navegador no conserva los que todavía no se han enviado.",
+              )}
             </Notice>
           )}
           <Field
-            label="¿Qué te gustaría entender? (opcional)"
+            label={tr("¿Qué te gustaría entender? (opcional)")}
             id="first-report-goal"
-            hint="Si no tienes una pregunta concreta, empezaremos con una exploración general."
+            hint={tr(
+              "Si no tienes una pregunta concreta, empezaremos con una exploración general.",
+            )}
           >
             <Textarea
               id="first-report-goal"
               maxLength={2000}
               className="min-h-24"
-              placeholder="Por ejemplo: quiero entender cómo han cambiado mis ventas."
+              placeholder={tr(
+                "Por ejemplo: quiero entender cómo han cambiado mis ventas.",
+              )}
               value={draft.goal}
               onChange={(event) =>
                 setDraft({ ...draft, goal: event.target.value })
@@ -447,13 +486,13 @@ function FirstReport({
             />
           </Field>
           <p className="text-xs text-muted-foreground">
-            ¿Quieres conocer el formato?{" "}
+            {tr("¿Quieres conocer el formato?")}{" "}
             <a
               className="font-medium text-primary underline underline-offset-4"
               href="/api/sample"
               download
             >
-              Descargar un CSV de ejemplo
+              {tr("Descargar un CSV de ejemplo")}
             </a>
             .
           </p>
@@ -461,33 +500,37 @@ function FirstReport({
       )}
       {review && !files.length && (
         <Notice>
-          Vuelve a «Tus datos» para seleccionar los archivos y continuar. El
-          contexto y el nombre del informe siguen guardados.
+          {tr(
+            "Vuelve a «Tus datos» para seleccionar los archivos y continuar. El contexto y el nombre del informe siguen guardados.",
+          )}
         </Notice>
       )}
       {ignored > 0 && (
         <Notice>
-          {ignored} {ignored === 1 ? "archivo omitido" : "archivos omitidos"}:
-          solo se incluyen CSV y Excel (.xlsx).
+          {ignored} {ignored === 1 ? "archivo omitido" : "archivos omitidos"}
+          {tr(": solo se incluyen CSV y Excel (.xlsx).")}
         </Notice>
       )}
       {review && partial && (
         <Notice>
           <p className="font-medium">
-            Algunos archivos no se pudieron preparar
+            {tr("Algunos archivos no se pudieron preparar")}
           </p>
           <p className="mt-2">
-            El informe usará únicamente las tablas disponibles. Puedes continuar
-            o volver a tus datos para corregir la entrega.
+            {tr(
+              "El informe usará únicamente las tablas disponibles. Puedes continuar o volver a tus datos para corregir la entrega.",
+            )}
           </p>
           <ul
             className="mt-3 space-y-1"
-            aria-label="Resultado de la preparación"
+            aria-label={tr("Resultado de la preparación")}
           >
             {partial.files?.map((file) => (
               <li key={file.id} className="break-all">
                 {file.name} ·{" "}
-                {file.status === "ready" ? "Disponible" : "No se incluirá"}
+                {file.status === "ready"
+                  ? tr("Disponible")
+                  : tr("No se incluirá")}
               </li>
             ))}
           </ul>
@@ -496,8 +539,10 @@ function FirstReport({
       {review && action.busy && (
         <p role="status" className="text-sm text-muted-foreground">
           {uploaded < total
-            ? `Subiendo tus datos… ${Math.round((uploaded / total) * 100)} %`
-            : "Preparando tus datos y el primer informe…"}
+            ? tr("Subiendo tus datos… {0} %", {
+                "0": Math.round((uploaded / total) * 100),
+              })
+            : tr("Preparando tus datos y el primer informe…")}
         </p>
       )}
       <Notice error>{action.error}</Notice>
@@ -510,13 +555,13 @@ function FirstReport({
             onClick={() => onReview(false)}
           >
             <ArrowLeft />
-            Tus datos
+            {tr("Tus datos")}
           </Button>
         ) : (
           <Button asChild variant="ghost">
             <a href={`#onboarding/${business.id}/business`}>
               <ArrowLeft />
-              Tu negocio
+              {tr("Tu negocio")}
             </a>
           </Button>
         )}
@@ -528,9 +573,9 @@ function FirstReport({
           {action.busy ? <Busy /> : review ? <FileText /> : null}
           {review
             ? partial
-              ? "Continuar con las tablas disponibles"
-              : "Crear mi primer informe"
-            : "Continuar"}
+              ? tr("Continuar con las tablas disponibles")
+              : tr("Crear mi primer informe")
+            : tr("Continuar")}
           {!review && <ArrowRight />}
         </Button>
       </div>

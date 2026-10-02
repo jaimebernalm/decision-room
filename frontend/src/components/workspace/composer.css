@@ -1,0 +1,8 @@
+/* Keep the message field steady while typing; buttons retain their keyboard focus. */
+.chat-composer
+  [data-slot="input-group"]:has(
+    [data-slot="input-group-control"]:focus-visible
+  ) {
+  border-color: var(--input);
+  --tw-ring-shadow: 0 0 #0000;
+}

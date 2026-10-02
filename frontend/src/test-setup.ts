@@ -15,6 +15,7 @@ beforeEach(() => {
     removeItem: (k: string) => values.delete(k),
     clear: () => values.clear(),
   });
+  localStorage.setItem("dr-language", "es");
   vi.stubGlobal("ResizeObserver", ResizeObserverMock);
 });
 Object.defineProperty(window, "matchMedia", {

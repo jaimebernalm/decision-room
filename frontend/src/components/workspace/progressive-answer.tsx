@@ -1,3 +1,4 @@
+import { translate as tr, useLanguage } from "@/lib/i18n";
 import { useEffect, useState, type ReactNode } from "react";
 import type { Response } from "@/lib/types";
 
@@ -14,6 +15,7 @@ export function ProgressiveAnswer({
   animate: boolean;
   children: (response: Response | null, revealing: boolean) => ReactNode;
 }) {
+  useLanguage();
   const text = response?.text || "";
   const [eligible] = useState(animate || !response);
   const [shown, setShown] = useState(() =>
@@ -84,7 +86,7 @@ export function ProgressiveAnswer({
       {revealing && (
         <>
           <p className="sr-only" role="status">
-            Respuesta revisada disponible.
+            {tr("Respuesta revisada disponible.")}
           </p>
           <p className="sr-only">{text}</p>
           <button
@@ -92,7 +94,7 @@ export function ProgressiveAnswer({
             onClick={() => setSkipped(true)}
             className="mt-1 text-xs text-muted-foreground underline underline-offset-4"
           >
-            Mostrar respuesta completa
+            {tr("Mostrar respuesta completa")}
           </button>
         </>
       )}

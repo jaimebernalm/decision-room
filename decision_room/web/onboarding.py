@@ -10,6 +10,11 @@ from .business import profile
 from .dossier import available
 from .errors import WebError, bounded, identifier
 
+ENGLISH_GOALS = {
+    'discover': 'Discover opportunities and problems', 'organize': 'Organize my figures',
+    'evolution': 'Understand business trends', 'question': 'Answer a specific question',
+    'help': 'Help me decide where to start',
+}
 GOALS = {
     'discover': 'Descubrir oportunidades y problemas',
     'organize': 'Tener mis cifras organizadas',
@@ -73,7 +78,7 @@ def start(ws, data):
         p = profile(db, b)
         chat = uuid4()
         db.execute('''INSERT INTO chat_conversations(id,business_id,request_key,title)
-            VALUES (%s,%s,%s,%s)''', (chat, b, chat, 'Primer análisis de ' + p['name']))
+            VALUES (%s,%s,%s,%s)''', (chat, b, chat, ('First analysis of ' if ws.settings.response_language == 'en' else 'Primer análisis de ') + p['name']))
         db.execute('INSERT INTO onboarding_sessions(business_id,conversation_id) VALUES (%s,%s)', (b, chat))
         row = current(db, b)
         turn = _turn(ws, db, row, p['description'], event='business')
@@ -139,7 +144,7 @@ def change(ws, data):
                     stage=%s,revision=revision+1 WHERE business_id=%s''',
                     (Jsonb(goal), 'scope' if row['analysis_id'] else 'data', b))
                 row = current(db, b)
-                _turn(ws, db, row, '\n'.join([GOALS[c] for c in goal['choices']] + ([text] if text else [])), event='goal')
+                _turn(ws, db, row, '\n'.join([(ENGLISH_GOALS if ws.settings.response_language == 'en' else GOALS)[c] for c in goal['choices']] + ([text] if text else [])), event='goal')
             elif action == 'data':
                 if not row['goal']:
                     raise WebError('Elige primero qué quieres conseguir.', 409)
@@ -150,7 +155,7 @@ def change(ws, data):
                     proposal_turn_id=NULL,revision=revision+1 WHERE business_id=%s''', (analysis, b))
                 db.execute('UPDATE chat_conversations SET analysis_id=%s WHERE id=%s', (analysis, row['conversation_id']))
                 row = current(db, b)
-                _turn(ws, db, row, 'He compartido los archivos para preparar mi primer análisis.', event='data')
+                _turn(ws, db, row, ('I have shared the files for my first analysis.' if ws.settings.response_language == 'en' else 'He compartido los archivos para preparar mi primer análisis.'), event='data')
             elif action == 'confirm':
                 if not row['brief'] or not row['analysis_id'] or row['stage'] != 'scope':
                     raise WebError('Necesitamos preparar el alcance antes de confirmarlo.', 409)
@@ -180,10 +185,10 @@ def change(ws, data):
                 db.execute('''INSERT INTO web_jobs(id,request_key,request_sha256,business_id,analysis_id,
                     title,context,goal,filename,upload_key,byte_count,model_settings,status,phase,business_name,origin)
                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'','',0,%s,'queued','planning',%s,'chat')''',
-                    (job, key, memory.digest(confirmed), b, row['analysis_id'], 'Primer informe de ' + p['name'],
+                    (job, key, memory.digest(confirmed), b, row['analysis_id'], ('First report for ' if ws.settings.response_language == 'en' else 'Primer informe de ') + p['name'],
                      memory.encoded(dict(context=dict(onboarding_brief=confirmed), dependencies=[dict(kind='chat', id=str(proposal['id']), snapshot=proposal['snapshot'])])), goal_text,
                      Jsonb(asdict(ws.settings)), p['name']))
-                _turn(ws, db, row, 'Crear mi primer informe: ' + row['brief']['objective'], event='confirm', job=job)
+                _turn(ws, db, row, ('Create my first report: ' if ws.settings.response_language == 'en' else 'Crear mi primer informe: ') + row['brief']['objective'], event='confirm', job=job)
                 db.execute("UPDATE onboarding_sessions SET stage='report',job_id=%s,confirmed=%s,revision=revision+1 WHERE business_id=%s",
                            (job, Jsonb(confirmed), b))
                 db.execute("UPDATE web_businesses SET onboarding_status='analysis_started',updated_at=now() WHERE business_id=%s", (b,))

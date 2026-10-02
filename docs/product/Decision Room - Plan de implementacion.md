@@ -202,6 +202,60 @@ agradecimientos. Véase la [validación del diálogo](../validation/2026-09-24-d
 
 **Comprobar:** editar una definición tiene el mismo efecto desde la ficha que desde una aclaración; una corrección histórica retira los resultados afectados; el usuario encuentra el origen y alcance de lo guardado; un archivo nuevo no se agrega dos veces ni hace parecer actualizado un informe anterior. Sin datos suficientes se conserva el trabajo y se explica el siguiente paso.
 
+**Ajuste de presentación, 30 de septiembre de 2026:** implementada y comprobada
+una ficha organizada por grupos y filas compactas, con presentación original
+plegada y acciones/detalles a petición. Se conserva edición, historial y selección
+de contexto con versiones. Pasan 125 pruebas de frontend, compilación y lint sin
+errores; escritorio y móvil comprobados con datos ficticios. Véanse la
+[secuencia de ejecución](../technical/business-dossier-ui-plan.md) y la
+[validación con sus límites](../validation/2026-09-30-dossier-ui-check.md).
+El refinamiento visual posterior separa los grupos en cajas, destaca las
+cabeceras y usa el acento de la barra lateral al pasar el cursor o enfocar las
+filas. Se comprueban 32 pruebas de ficha/chat contextual, compilación, lint,
+alineación, móvil y temas claro/oscuro en la misma validación.
+Las propuestas incorporan confirmar/descartar directamente en la fila y los
+conflictos un recorrido explícito para comparar versiones y guardar la solución.
+Pasan 132 pruebas de frontend y la demo incluye texto largo para comprobar lectura
+en escritorio y móvil; se conserva el contrato de memoria e historial existente.
+La elección de conflictos se marca con opciones de radio y guardado siempre
+visible. Se añaden grupos propios persistentes por negocio, renombrado, orden,
+asignaciones y eliminación sin pérdida de recuerdos; Actualizar queda junto a
+las pestañas. Pasan 138 pruebas frontend y 40 de PostgreSQL/API/migraciones/memoria,
+además de compilación, lint y comprobaciones de escritorio/móvil. No se altera
+la aceptación analítica de otras entregas.
+El siguiente refinamiento amplía las pestañas, convierte Añadir información en un
+botón circular y muestra los menús de fila con cursor/foco. Las descripciones de
+grupos se guardan y el extractor las usa para asignar recuerdos nuevos mediante
+IDs acotados al negocio, respetando movimientos manuales y cambios concurrentes.
+Pasan 139 pruebas frontend y 47 de PostgreSQL, compilación y lint; la validación
+visual continúa en una demo con datos ficticios.
+Añadir información se traslada a cada cabecera, con formulario de grupo fijo y
+sin selector de tipo para nuevos recuerdos. El destino y el original se guardan
+atómicamente, con validación e idempotencia. Los grupos vacíos permiten empezar;
+Por revisar crea propuestas y Sin grupo conserva una asignación explícita.
+Las pestañas bajan 16 px y comparten el radio de las cajas. Pasan 142 pruebas
+frontend y 50 de PostgreSQL, compilación, lint y comprobaciones de móvil/escritorio.
+El botón individual se refina después a 36 px (44 con puntero táctil), símbolo
+de 20 px y sombra suave solo al interactuar. Compilación, lint y apertura del
+formulario comprobados en la demo.
+La etiqueta permanente se sustituye por un tooltip Añadir información con cursor
+o foco, manteniendo solo el «+» y el nombre accesible del grupo. Compilación, lint,
+tooltip y apertura con teclado comprobados.
+
+**Lectura compacta, 2 de octubre de 2026:** cada declaración muestra una línea
+con puntos suspensivos y abre el texto completo en los detalles al pulsarla o
+con teclado. Información y Datos comparten ancho; las cabeceras responden al
+cursor/foco también en la zona del +, situado antes de la flecha. Pasan 205
+pruebas frontend, compilación y lint sin errores; se comprueban escritorio,
+móvil y desplazamiento del lector. Véase la
+[validación de lectura y sus límites](../validation/2026-10-02-dossier-reading.md).
+El siguiente incremento permite confirmar, descartar y corregir desde el detalle,
+con resolución del conflicto en esa misma ventana. Personalizar grupos permite
+arrastre con recolocación, flechas y teclado, conservando guardado explícito y
+asignaciones. Pasan 211 pruebas frontend, compilación y lint sin errores;
+se comprueban arrastre, persistencia y cancelación en escritorio y ancho móvil.
+Véase la [validación de decisiones y orden](../validation/2026-10-02-dossier-actions-order.md).
+
 ### 2.5.6. Inicio del negocio, informes y navegación cotidiana
 
 **Construir:** separar onboarding de visitas posteriores. Barra lateral con Inicio, Informes, Mi negocio, Nueva conversación y chats recientes. Inicio muestra un resumen, pocos hallazgos y gráficos respaldados, con periodo visible, detalle/evidencia y selección de revisión. Añadir prompt inferior y preguntas sugeridas pertinentes; enviar abre un chat y «Preguntar sobre esto» conserva la referencia al hallazgo. Biblioteca de informes con estados y vínculo a conversaciones; navegación adaptable a móvil y teclado.
@@ -211,6 +265,13 @@ agradecimientos. Véase la [validación del diálogo](../validation/2026-09-24-d
 **Avance integrado, 23 de septiembre:** se incorpora el dashboard desarrollado en paralelo y se conecta con los chats y la memoria hasta 2.5.4: prompt con primer mensaje durable, conversaciones reales en la barra lateral, biblioteca y acceso al chat de origen, edición del perfil y reutilización de informes vigentes. El orden se adelanta por disponibilidad de la interfaz; **2.5.5 se completó después de esta integración**, incluyendo los estados de versiones de datos. Quedan pendientes la vinculación estructurada de preguntas a hallazgos y la validación conjunta del recorrido antes de cerrar 2.5.6. Véase [integración del dashboard](../technical/dashboard-ui.md).
 
 **Cierre, 23 de septiembre:** se completan referencias verificables a hallazgos, envío unificado de preguntas, gráficos y cifras legibles en chat, selección visible de versiones, actividad y biblioteca con estados explícitos, cabecera compacta y compositor sin superposición. Se comprueban onboarding y visitas posteriores, escritorio/móvil, teclado, borradores y referencias con Luna real. Pasan 243 pruebas Python y 12 JavaScript. Véase [validación de 2.5.6](../validation/2026-09-23-daily-ux-check.md). La aceptación integrada sigue correspondiendo a 2.5.7.
+
+**Refinamiento de avisos, 2 de octubre de 2026:** los errores usan una cápsula
+de fondo rojo suave, texto rojo, esquinas redondeadas y ancho ajustado al mensaje.
+Se conservan contenido y rol de alerta; los mensajes se envuelven en móvil.
+Pasan 211 pruebas frontend, compilación y lint sin errores; se comprueban avisos
+de conexión y errores dentro de detalles. Véase la
+[validación visual](../validation/2026-10-02-error-notices.md).
 
 ### 2.5.7. Evaluación integrada y cierre
 
@@ -445,6 +506,63 @@ títulos «Chats recientes» e «Informes recientes» se sustituyen por separado
 en sus propias filas, y los iconos quedan en 18 px. La lista central mantiene
 su desplazamiento en ventanas bajas. Verificado visualmente en el navegador,
 con compilación, lint y 65 pruebas frontend correctos.
+
+### 2.5.18. Nombres del catálogo y edición compartida de la presentación
+
+**Completado, 30 de septiembre de 2026:** nombres automáticos del catálogo,
+edición contextual desde Inicio/informe y acciones equivalentes desde el chat.
+Revisiones de presentación persistentes, sincronización, historial y deshacer,
+conservando cálculos, fuentes y aprobación analítica original. No se permite
+cambiar el significado de una unidad mediante una edición de texto.
+
+**Orden y comprobaciones:** seguir los pasos 2.5.18.1–2.5.18.3 del
+[plan de edición de presentación](../technical/presentation-editing-plan.md).
+Los tres pasos están implementados y comprobados con pruebas automatizadas,
+GPT-6 Luna y navegador en escritorio/móvil. Véase la
+[validación de edición compartida](../validation/2026-09-30-presentation-editing.md).
+
+**2.5.18.4 completado:** el propietario puede aclarar la unidad visible de un
+recuento sin especificar, por ejemplo «unidades registradas (paquete)», mediante
+el editor o el chat. Se conserva la unidad original, sin convertir cifras.
+Las acciones Editar, Fijar/Desfijar y Ocultar se agrupan en tres puntos por tarjeta.
+44 pruebas backend, 120 frontend, build, lint y aceptación real con GPT-6 Luna
+correctos.
+
+### 2.5.19. Navegación sin duplicados y controles coherentes del chat
+
+**Completado:** Inicio y Mi negocio como accesos principales; grupos únicos
+Chats e Informes, nuevo chat mediante +, apertura/cierre superior del panel y
+controles inversos de ampliar/reducir con retorno a la página y posición de origen.
+Menú inferior de apariencia y selector superior de negocios adaptados de
+`sidebar-07`, conservando el resto de la UI. Los seis pasos del
+[plan separado](../technical/navigation-and-chat-plan.md) se han implementado,
+probado y guardado por función. Pasan 133 pruebas frontend, compilación y lint
+sin errores; revisión visual en escritorio, móvil, iconos y temas claro/oscuro.
+Véanse [comprobaciones y límites](../validation/2026-09-30-navigation-and-chat.md).
+
+### 2.5.20. Idioma, menú local y barra para preguntar
+
+**Implementado:** + simple y alineado en la cabecera compacta de Chats; Apariencia e Idioma
+como opciones del menú local; interfaz en inglés/español y barra inferior flotante centrada
+para preguntar desde las páginas del negocio, compartiendo borrador y conversación
+con el panel. Los cuatro pasos del [plan separado](../technical/language-and-composer-plan.md)
+se implementan con pruebas, revisión y commits locales. El ajuste **2.5.20.5**
+unifica chat/chats en ambas lenguas y sustituye el icono duplicado de la cabecera
+de Informes por una rayita accesible. **2.5.20.6** convierte la barra en una isla
+con laterales transparentes y espacio final según su altura, y elimina el halo del
+campo de mensaje ([validación](../validation/2026-10-01-composer-island.md)). Pasan 161 pruebas frontend
+y 128 backend seleccionadas, compilación y lint sin errores; comprobación visual
+en escritorio/móvil y ambos temas. Se conserva el historial en su idioma original.
+La prueba real del proveedor recibe HTTP 429; véanse [validación y límites](../validation/2026-09-30-language-and-composer.md).
+
+**Integración de UI1 y UI2, 1 de octubre de 2026:** se unen navegación,
+idioma y compositor (2.5.18–2.5.20) con la ficha y sus grupos (2.5.5) en una rama
+local de integración. Se conservan ambas migraciones de datos (presentación 27,
+grupos 28) y las dos responsabilidades del extractor (`memory-v7`). La ficha y
+su editor de grupos usan el idioma seleccionado sin traducir el contenido del
+propietario; la elección de conflicto mantiene su identidad al cambiar de idioma.
+Véanse [comprobaciones de integración](../validation/2026-10-01-ui-integration.md).
+La rama de calidad de informes no forma parte de esta integración.
 
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
@@ -767,3 +885,22 @@ contexto/hallazgos desplegables e icono de descarga con PDF completo, sin seccio
 ocultas en la exportación. Se conservan aprobación, referencias y paleta.
 Ver [plan](../technical/report-reading-plan.md) y
 [validación](../validation/2026-09-28-report-reading-and-pdf.md).
+
+**Lectura progresiva, 2 de octubre de 2026 (3.8.12.1):** cada hallazgo reúne su
+conclusión y gráficos en una tarjeta; el detalle se abre debajo, sin desplazar
+el gráfico. Contexto mediante «Sobre este informe», tres indicadores iniciales
+y advertencias completas visibles. Inicio relaciona gráfico y conclusión de la
+misma revisión y enlaza al hallazgo exacto, conservando selección y personalización.
+Se comprueban 202 pruebas frontend, 18 pruebas finales de los componentes tocados,
+3 pruebas de PDF, compilación, lint y recorrido en escritorio/móvil.
+Véanse [incremento del plan](../technical/report-reading-plan.md#38121-lectura-progresiva-del-informe-y-de-inicio)
+y [validación y límites](../validation/2026-10-02-report-reading-progressive.md).
+
+
+**Integración de UI y calidad, 2 de octubre de 2026:** se fusiona primero
+`feature/ui-integration` (incluye producto UX) en `master` mediante el
+[PR #7](https://github.com/jaimebernalm/decision-room/pull/7), y se incorpora esa base
+a `feature/report-quality`. La resolución conserva lectura progresiva,
+orientación de decisiones, interacción y evidencia exacta de 3.9.
+Véanse [secuencia y comprobaciones](../validation/2026-10-02-ui-quality-integration.md).
+La aceptación analítica **3.9.7 sigue abierta**.

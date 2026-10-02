@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { Composer } from "./composer";
 import { ReportView } from "./report";
-import { FloatingAssistant } from "./floating-assistant";
+import { NewChatComposer } from "./floating-assistant";
 import { StartChat, Reports } from "./overview";
 import { WorkspaceState, type WorkspaceContext } from "@/lib/workspace";
 import { store } from "@/lib/api";
@@ -73,7 +73,7 @@ it("opens an empty standalone conversation with one focused composer", () => {
     </WorkspaceState.Provider>,
   );
   expect(
-    screen.getByRole("heading", { name: "Nueva conversación" }),
+    screen.getByRole("heading", { name: "Nuevo chat" }),
   ).toBeInTheDocument();
   expect(screen.getAllByRole("textbox", { name: "Mensaje" })).toHaveLength(1);
   expect(screen.getByRole("textbox", { name: "Mensaje" })).toHaveFocus();
@@ -130,7 +130,7 @@ it("unmounting the floating assistant prevents a late response redirecting anoth
   store.set("dr-home-prompt-a", "Pregunta");
   const rendered = render(
     <WorkspaceState.Provider value={workspace}>
-      <FloatingAssistant inline />
+      <NewChatComposer />
     </WorkspaceState.Provider>,
   );
   await userEvent.click(screen.getByRole("button", { name: "Enviar mensaje" }));
@@ -209,7 +209,7 @@ it("preserves explicit analysis context without showing a dataset selector", asy
   });
   render(
     <WorkspaceState.Provider value={context}>
-      <FloatingAssistant inline />
+      <NewChatComposer />
     </WorkspaceState.Provider>,
   );
   const user = userEvent.setup();

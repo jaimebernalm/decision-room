@@ -1,3 +1,4 @@
+import { translate as tr, useLanguage } from "@/lib/i18n";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useResource } from "@/lib/hooks";
@@ -31,9 +32,10 @@ export function DataPreview({
   jobId?: string;
   endpoint?: string;
   questions?: Question[];
-  references?: Question['references'];
+  references?: Question["references"];
   activity?: boolean;
 }) {
+  useLanguage();
   const refs = references || questions.flatMap((q) => q.references || []);
   const first = refs.find(
     (ref) => ref.kind === "column" || ref.kind === "table",
@@ -57,9 +59,18 @@ export function DataPreview({
       .map((ref) => ref.column),
   );
   return (
-    <Disclosure title={activity ? "Datos relacionados" : "Datos para responder"} defaultOpen>
+    <Disclosure
+      title={activity ? tr("Datos relacionados") : tr("Datos para responder")}
+      defaultOpen
+    >
       <p className="text-xs text-muted-foreground">
-        {activity ? "Consulta las filas utilizadas en esta comprobación. Las columnas relacionadas aparecen destacadas." : "Consulta las filas del archivo mientras respondes. Las columnas mencionadas en la pregunta aparecen destacadas."}
+        {activity
+          ? tr(
+              "Consulta las filas utilizadas en esta comprobación. Las columnas relacionadas aparecen destacadas.",
+            )
+          : tr(
+              "Consulta las filas del archivo mientras respondes. Las columnas mencionadas en la pregunta aparecen destacadas.",
+            )}
       </p>
       <Notice error>{resource.error}</Notice>
       {resource.error && (
@@ -69,14 +80,14 @@ export function DataPreview({
           size="sm"
           onClick={resource.refresh}
         >
-          Reintentar vista de datos
+          {tr("Reintentar vista de datos")}
         </Button>
       )}
       {!data && !resource.error && <Loading />}
       {data && selected && (
         <>
           <ChoiceSelect
-            label="Archivo o tabla"
+            label={tr("Archivo o tabla")}
             value={data.table_id}
             options={data.tables.map((item) => ({
               value: item.id,
@@ -89,21 +100,26 @@ export function DataPreview({
             }}
           />
           <p className="text-xs text-muted-foreground">
-            {selected.row_count} filas · {selected.column_count} columnas ·
-            Vista del archivo, sin cálculos
+            {selected.row_count}
+            {tr(" filas · ")}
+            {selected.column_count}
+            {tr(" columnas · Vista del archivo, sin cálculos")}
           </p>
           <div
             className="max-h-72 min-w-0 overflow-auto rounded-lg border"
             tabIndex={0}
             role="region"
-            aria-label="Filas del archivo"
+            aria-label={tr("Filas del archivo")}
           >
             <table className="w-full text-left text-xs">
-              <caption className="sr-only">Datos de {selected.name}</caption>
+              <caption className="sr-only">
+                {tr("Datos de ")}
+                {selected.name}
+              </caption>
               <thead className="sticky top-0 z-10 bg-muted">
                 <tr>
                   <th scope="col" className="p-3">
-                    Fila
+                    {tr("Fila")}
                   </th>
                   {data.columns.map((column) => (
                     <th
@@ -111,7 +127,7 @@ export function DataPreview({
                       scope="col"
                       aria-label={
                         highlighted.has(column)
-                          ? `${column} (${activity ? 'relacionada con la comprobación' : 'mencionada en la pregunta'})`
+                          ? `${column} (${activity ? tr("relacionada con la comprobación") : tr("mencionada en la pregunta")})`
                           : undefined
                       }
                       className={`whitespace-nowrap p-3 font-medium ${highlighted.has(column) ? "bg-primary/15 text-primary" : ""}`}
@@ -120,7 +136,11 @@ export function DataPreview({
                       {highlighted.has(column) && (
                         <span className="sr-only">
                           {" "}
-                          ({activity ? 'relacionada con la comprobación' : 'mencionada en la pregunta'})
+                          (
+                          {activity
+                            ? tr("relacionada con la comprobación")
+                            : tr("mencionada en la pregunta")}
+                          )
                         </span>
                       )}
                     </th>
@@ -142,10 +162,12 @@ export function DataPreview({
                         className={`max-w-64 break-words whitespace-pre-wrap p-3 ${highlighted.has(data.columns[i]) ? "bg-primary/5" : ""}`}
                       >
                         {value === null ? (
-                          <span className="text-muted-foreground">Vacío</span>
+                          <span className="text-muted-foreground">
+                            {tr("Vacío")}
+                          </span>
                         ) : value === "" ? (
                           <span className="text-muted-foreground">
-                            Texto vacío
+                            {tr("Texto vacío")}
                           </span>
                         ) : (
                           value
@@ -167,11 +189,14 @@ export function DataPreview({
                 setOffset(Math.max(0, data.offset - data.page_rows))
               }
             >
-              Filas anteriores
+              {tr("Filas anteriores")}
             </Button>
             <span className="text-xs">
-              Filas {data.rows.length ? data.offset + 1 : 0}–
-              {data.offset + data.rows.length} de {selected.row_count}
+              {tr("Filas ")}
+              {data.rows.length ? data.offset + 1 : 0}–
+              {data.offset + data.rows.length}
+              {tr(" de ")}
+              {selected.row_count}
             </span>
             <Button
               type="button"
@@ -180,7 +205,7 @@ export function DataPreview({
               disabled={data.offset + data.rows.length >= selected.row_count}
               onClick={() => setOffset(data.offset + data.page_rows)}
             >
-              Filas siguientes
+              {tr("Filas siguientes")}
             </Button>
           </div>
           {selected.column_count > data.page_columns && (
@@ -196,12 +221,13 @@ export function DataPreview({
                   )
                 }
               >
-                Columnas anteriores
+                {tr("Columnas anteriores")}
               </Button>
               <span className="text-xs">
-                Columnas {data.column_offset + 1}–
-                {data.column_offset + data.columns.length} de{" "}
-                {selected.column_count}
+                {tr("Columnas ")}
+                {data.column_offset + 1}–
+                {data.column_offset + data.columns.length}
+                {tr(" de")} {selected.column_count}
               </span>
               <Button
                 type="button"
@@ -215,13 +241,16 @@ export function DataPreview({
                   setColumnOffset(data.column_offset + data.page_columns)
                 }
               >
-                Columnas siguientes
+                {tr("Columnas siguientes")}
               </Button>
             </div>
           )}
           <p className="text-xs text-muted-foreground">
-            Se muestran hasta {data.page_rows} filas por página. Las celdas de
-            más de {data.cell_characters} caracteres se acortan con «…».
+            {tr("Se muestran hasta ")}
+            {data.page_rows}
+            {tr(" filas por página. Las celdas de más de ")}
+            {data.cell_characters}
+            {tr(" caracteres se acortan con «…».")}
           </p>
         </>
       )}

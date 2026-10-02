@@ -39,10 +39,10 @@ def pointers(payload, *, reports_only=False):
     return refs
 
 
-def resolve(reference, reviewed):
+def resolve(reference, reviewed, display=None):
     if not reviewed.get('publishable') or reviewed.get('approved_sha256') != reference['report_version']:
         raise WebError('Un elemento seleccionado ha cambiado o se ha retirado. Vuelve a seleccionarlo.', 409)
-    display = presentation(reviewed)
+    display = display or presentation(reviewed)
     kind, key = reference['kind'], reference['element_key']
     entries = {'chart': display['charts'], 'metric': display['highlights'], 'insight': display['claims']}
     if kind == 'report' and key == 'report':

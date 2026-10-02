@@ -216,7 +216,7 @@ class Handler(BaseHTTPRequestHandler):
                 raise WebError('Operación interna no encontrada.', 404)
             if not self.authenticated():
                 raise WebError('Introduce tu clave de acceso para abrir el espacio local.', 401)
-            ws = self.server.workspace
+            ws = self.server.workspace.localized(self.headers.get('X-Decision-Room-Language'))
             if not mutation and path == '/api/workspace':
                 self.send(200, ws.state())
                 return
@@ -314,6 +314,10 @@ class Handler(BaseHTTPRequestHandler):
             if path == '/api/business/memory' and mutation:
                 self.send(200, dossier.change(ws, self.json_body()))
                 return
+            if path == '/api/business/dossier-layout' and mutation:
+                from . import dossier_layout
+                self.send(200, dossier_layout.save(ws, self.json_body()))
+                return
             if path == '/api/datasets' and mutation:
                 self.send(200, dossier.upload(ws, *self.multipart()))
                 return
@@ -351,6 +355,21 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if mutation and path == '/api/memory/retry':
                 self.send(202, {'memory': ws.retry_memory(self.json_body())})
+                return
+            if path.startswith('/api/presentation/'):
+                from . import presentation_editing
+                report_id = path.rsplit('/', 1)[-1]
+                if mutation:
+                    self.send(200, presentation_editing.save(ws, report_id, self.json_body()))
+                else:
+                    value = parse_qs(urlsplit(self.path).query).get('revision', [None])[0]
+                    try:
+                        revision = int(value) if value is not None else None
+                        if revision is not None and revision < 0:
+                            raise ValueError()
+                    except ValueError:
+                        raise WebError('Esta versión no es válida.') from None
+                    self.send(200, presentation_editing.view(ws, report_id, revision))
                 return
             if path in ('/api/home', '/api/home/preferences', '/api/home/suggest'):
                 from . import home

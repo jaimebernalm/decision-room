@@ -1,3 +1,5 @@
+import { translate as tr } from "@/lib/i18n";
+import { displayNumber } from "./presentation";
 import palette from "../../../decision_room/chart_palette.json";
 import type { ChartData, TemporalGrain } from "./types";
 export const CHART_SERIES_PALETTE: readonly string[] = palette.series;
@@ -106,7 +108,7 @@ export function groupedPoints(
       );
       const point = coordinate ? saved.get(coordinate.label) : undefined;
       row[`s${index}`] = point ? Number(point.value) : null;
-      row[`s${index}Exact`] = point?.formatted ?? "Sin dato";
+      row[`s${index}Exact`] = point ? displayNumber(point.formatted) : tr("Sin dato");
     });
     return row;
   });

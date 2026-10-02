@@ -1,5 +1,6 @@
+import { translate as tr, useLanguage } from "@/lib/i18n";
 import { useEffect, useRef } from "react";
-import { MessageCircle, X } from "lucide-react";
+import { PanelRightOpen, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useWorkspace } from "@/lib/workspace";
 import { useAction, useDraft } from "@/lib/hooks";
@@ -9,36 +10,44 @@ import { useAssistant, contextualRoute } from "@/lib/assistant";
 import { ContextAttachments, SelectionTool } from "./context-selection";
 import { Composer } from "./composer";
 
-export function FloatingAssistant({ inline = false }: { inline?: boolean }) {
-  return inline ? <NewChatComposer /> : <AssistantLauncher />;
-}
-
-function AssistantLauncher() {
+export function AssistantToggle() {
+  useLanguage();
   const assistant = useAssistant();
   const { workspace, route } = useWorkspace();
-  const [draft] = useDraft(homeDraftKey(workspace.business!.id), "");
-  if (!assistant || !contextualRoute(route) || assistant.dock.open) return null;
+  const [draft] = useDraft(homeDraftKey(workspace.business?.id || "empty"), "");
+  if (
+    !assistant ||
+    !workspace.business ||
+    !contextualRoute(route) ||
+    assistant.dock.open
+  )
+    return null;
   const continuing = Boolean(
     assistant.dock.chatId || draft.trim() || assistant.selected.length,
   );
   return (
-    <div className="absolute bottom-5 right-5 z-20">
+    <span>
       <Button
-        className="h-12 rounded-full px-5 shadow-lg"
+        variant="ghost"
+        size="icon"
+        aria-label={
+          continuing ? tr("Continuar chat") : tr("Preguntar algo")
+        }
+        title={continuing ? tr("Continuar chat") : tr("Preguntar algo")}
         onClick={() =>
           assistant.setDock({ ...assistant.dock, open: true, origin: route })
         }
       >
-        <MessageCircle className="size-4" />
-        {continuing ? "Continuar conversación" : "Preguntar algo"}
+        <PanelRightOpen className="size-4" />
       </Button>
-    </div>
+    </span>
   );
 }
 
 // Used both in the empty side panel and the standalone new conversation.
 // The page owns the component lifetime, so late sends cannot redirect another page.
-function NewChatComposer() {
+export function NewChatComposer({ autoFocus = true }: { autoFocus?: boolean }) {
+  useLanguage();
   const assistant = useAssistant();
   const { workspace, route, refresh } = useWorkspace();
   const business = workspace.business!;
@@ -50,10 +59,11 @@ function NewChatComposer() {
   const container = useRef<HTMLDivElement>(null);
   const action = useAction();
   useEffect(() => {
+    if (!autoFocus) return;
     container.current
       ?.querySelector("textarea")
       ?.focus({ preventScroll: true });
-  }, []);
+  }, [autoFocus]);
   const send = () =>
     action.run(async () => {
       if (!text.trim()) return;
@@ -73,19 +83,19 @@ function NewChatComposer() {
     <div
       ref={container}
       role="region"
-      aria-label="Asistente del negocio"
+      aria-label={tr("Asistente del negocio")}
       className="w-full"
     >
       {(context.analysis_id || context.finding_reference) && (
         <div className="flex items-center gap-2 px-5 pt-2 text-xs text-muted-foreground">
           <span className="min-w-0 flex-1 truncate" title={context.label}>
-            {context.label || "Contexto seleccionado"}
+            {context.label || tr("Contexto seleccionado")}
           </span>
           <Button
             variant="ghost"
             size="icon"
             className="size-8 shrink-0 rounded-full"
-            aria-label="Quitar contexto"
+            aria-label={tr("Quitar contexto")}
             onClick={() => setContext({})}
           >
             <X className="size-3" />
@@ -108,7 +118,7 @@ function NewChatComposer() {
         onSend={send}
         busy={action.busy}
         error={action.error || assistant?.error}
-        placeholder="Pregunta o añade contexto…"
+        placeholder={tr("Pregunta o añade contexto…")}
       />
     </div>
   );

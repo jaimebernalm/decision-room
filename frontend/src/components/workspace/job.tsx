@@ -1,3 +1,4 @@
+import { translate as tr, useLanguage } from "@/lib/i18n";
 import { AnalysisActivity } from "./analysis-activity";
 import { useEffect, useRef } from "react";
 import { FileText, Download, RotateCcw } from "lucide-react";
@@ -25,6 +26,7 @@ export function JobPage({
   id: string;
   onboarding?: boolean;
 }) {
+  useLanguage();
   const resource = useResource<Job>(`/api/jobs/${id}`, 3000),
     action = useAction(),
     { refresh } = useWorkspace();
@@ -52,13 +54,13 @@ export function JobPage({
         title={
           onboarding
             ? job.status === "waiting"
-              ? "Una aclaración antes de continuar"
+              ? tr("Una aclaración antes de continuar")
               : job.publishable
-                ? "Tu primer informe está listo"
+                ? tr("Tu primer informe está listo")
                 : ["failed", "blocked"].includes(job.status) ||
                     job.context_stale
-                  ? "Tu informe necesita atención"
-                  : "Tu primer informe, en preparación"
+                  ? tr("Tu informe necesita atención")
+                  : tr("Tu primer informe, en preparación")
             : job.title
         }
         description={`${date(job.created_at)} · ${job.filename}`}
@@ -78,19 +80,23 @@ export function JobPage({
       {job.publishable && (
         <Card className="mb-6 shadow-none">
           <CardHeader>
-            <CardTitle>Tu informe está listo</CardTitle>
+            <CardTitle>{tr("Tu informe está listo")}</CardTitle>
           </CardHeader>
           <CardContent>
             <Button asChild>
               <a href={`#report/${id}`}>
                 <FileText />
-                Abrir informe revisado
+                {tr("Abrir informe revisado")}
               </a>
             </Button>
           </CardContent>
         </Card>
       )}
-      <AnalysisActivity endpoint={`/api/jobs/${id}/activity`} traceId={job.activity_trace_id} fallback={job.activity || "Preparando el análisis…"} />
+      <AnalysisActivity
+        endpoint={`/api/jobs/${id}/activity`}
+        traceId={job.activity_trace_id}
+        fallback={job.activity || tr("Preparando el análisis…")}
+      />
       {job.status === "waiting" && !job.context_stale && (
         <div className="mb-6 space-y-4">
           <DataPreview
@@ -125,8 +131,8 @@ export function JobPage({
         >
           <RotateCcw />
           {job.context_stale
-            ? "Recalcular con el contexto actual"
-            : "Reintentar informe"}
+            ? tr("Recalcular con el contexto actual")
+            : tr("Reintentar informe")}
         </Button>
       )}
       {canClarify && (
@@ -135,29 +141,34 @@ export function JobPage({
       {job.status === "blocked" && !canClarify && !job.can_retry && (
         <Button asChild className="mb-6" variant="outline">
           <a href={onboarding ? `#onboarding/${job.business_id}` : "#new"}>
-            {onboarding ? "Revisar mis datos" : "Crear otro informe"}
+            {onboarding ? tr("Revisar mis datos") : tr("Crear otro informe")}
           </a>
         </Button>
       )}
       <div className="grid gap-4">
-        <Disclosure title="Contexto y archivos" defaultOpen>
+        <Disclosure title={tr("Contexto y archivos")} defaultOpen>
           <p className="font-medium">{job.business}</p>
           <p className="whitespace-pre-wrap text-muted-foreground">
             {job.context}
           </p>
-          {job.goal && <p>Objetivo: {job.goal}</p>}
+          {job.goal && (
+            <p>
+              {tr("Objetivo: ")}
+              {job.goal}
+            </p>
+          )}
           <div className="flex flex-wrap gap-3">
             {job.origin !== "chat" ? (
               <Button asChild variant="outline" size="sm">
                 {job.byte_count > 0 ? (
                   <a href={`/api/jobs/${id}/file`} download>
                     <Download />
-                    Descargar CSV original
+                    {tr("Descargar CSV original")}
                   </a>
                 ) : (
                   <a href="#files">
                     <FileText />
-                    Ver archivos del negocio
+                    {tr("Ver archivos del negocio")}
                   </a>
                 )}
               </Button>
@@ -165,37 +176,40 @@ export function JobPage({
               job.conversation_id && (
                 <Button asChild variant="outline" size="sm">
                   <a href={`#chat/${job.conversation_id}`}>
-                    Abrir conversación
+                    {tr("Abrir chat")}
                   </a>
                 </Button>
               )
             )}
             <Button asChild variant="ghost" size="sm">
-              <a href="#my-business">Revisar memoria del negocio</a>
+              <a href="#my-business">{tr("Revisar memoria del negocio")}</a>
             </Button>
           </div>
           {job.files.map((f, i) => (
             <p key={i} className="text-xs text-muted-foreground">
-              {f.row_count ?? "—"} filas · {f.column_count ?? "—"} columnas
+              {f.row_count ?? "—"}
+              {tr(" filas · ")}
+              {f.column_count ?? "—"}
+              {tr(" columnas")}
             </p>
           ))}
         </Disclosure>
         {job.answers.length > 0 && (
-          <Disclosure title="Tus aclaraciones">
+          <Disclosure title={tr("Tus aclaraciones")}>
             {job.answers.map((a, i) => (
               <div key={i}>
                 <p className="font-medium">
                   {typeof a.question === "string" ? a.question : ""}
                 </p>
                 <p className="whitespace-pre-wrap">
-                  {a.disposition === "unknown" ? "No disponible" : a.text}
+                  {a.disposition === "unknown" ? tr("No disponible") : a.text}
                 </p>
               </div>
             ))}
           </Disclosure>
         )}
         {job.interpretations.length > 0 && (
-          <Disclosure title="Interpretaciones revisadas">
+          <Disclosure title={tr("Interpretaciones revisadas")}>
             {job.interpretations.map((a, i) => (
               <p key={i}>{a.text}</p>
             ))}
@@ -214,6 +228,7 @@ function QuestionForm({
   job: Job;
   onDone: () => void;
 }) {
+  useLanguage();
   const key = `dr-answer-${job.id}-${question.id}`;
   const [text, setText] = useDraft(key, "");
   const action = useAction(),
@@ -262,7 +277,7 @@ function QuestionForm({
               {o}
             </Button>
           ))}
-          <Field label="Tu respuesta" id={`answer-${question.id}`}>
+          <Field label={tr("Tu respuesta")} id={`answer-${question.id}`}>
             <Textarea
               id={`answer-${question.id}`}
               required
@@ -274,13 +289,15 @@ function QuestionForm({
           <Notice error>{action.error}</Notice>
           {text.trim() && (
             <p className="text-xs text-muted-foreground">
-              Pulsa «Guardar respuesta» para confirmar este texto. Para indicar
-              que no dispones del dato, borra primero la respuesta.
+              {tr(
+                "Pulsa «Guardar respuesta» para confirmar este texto. Para indicar que no dispones del dato, borra primero la respuesta.",
+              )}
             </p>
           )}
           <div className="flex flex-wrap gap-2">
             <Button disabled={action.busy || !text.trim()} type="submit">
-              {action.busy && <Busy />}Guardar respuesta
+              {action.busy && <Busy />}
+              {tr("Guardar respuesta")}
             </Button>
             <Button
               disabled={action.busy || Boolean(text.trim())}
@@ -288,7 +305,7 @@ function QuestionForm({
               variant="ghost"
               onClick={() => submit("unknown")}
             >
-              No dispongo de ese dato
+              {tr("No dispongo de ese dato")}
             </Button>
           </div>
         </form>
@@ -304,6 +321,7 @@ function ClarificationRecovery({
   job: Job;
   onboarding: boolean;
 }) {
+  useLanguage();
   const { workspace, refresh } = useWorkspace();
   const key = `dr-clarify-${job.id}`;
   const questions = job.unresolved_questions || [];
@@ -314,7 +332,7 @@ function ClarificationRecovery({
   const action = useAction();
   const goal = [
     job.goal,
-    "Aclaraciones confirmadas para este nuevo informe:",
+    tr("Aclaraciones confirmadas para este nuevo informe:"),
     ...questions.map((q) => `${q.text}\n${answers[q.id] || ""}`),
   ].join("\n\n");
   return (
@@ -322,10 +340,13 @@ function ClarificationRecovery({
       <DataPreview jobId={job.id} questions={questions} />
       <Card className="shadow-none">
         <CardHeader>
-          <CardTitle>Completa la aclaración con los datos a la vista</CardTitle>
+          <CardTitle>
+            {tr("Completa la aclaración con los datos a la vista")}
+          </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Revisa y confirma las respuestas. Crearemos un informe con los
-            mismos archivos; el intento anterior se conservará como registro.
+            {tr(
+              "Revisa y confirma las respuestas. Crearemos un informe con los mismos archivos; el intento anterior se conservará como registro.",
+            )}
           </p>
         </CardHeader>
         <CardContent>
@@ -336,7 +357,7 @@ function ClarificationRecovery({
               void action.run(async () => {
                 if (workspace.business?.id !== job.business_id)
                   throw new Error(
-                    "El negocio activo ha cambiado. Recarga la página.",
+                    tr("El negocio activo ha cambiado. Recarga la página."),
                   );
                 const payload = {
                   business_id: job.business_id,
@@ -385,8 +406,9 @@ function ClarificationRecovery({
             ))}
             {goal.length > 2000 && (
               <Notice error>
-                Acorta las aclaraciones: el objetivo y las respuestas admiten
-                hasta 2.000 caracteres en total.
+                {tr(
+                  "Acorta las aclaraciones: el objetivo y las respuestas admiten hasta 2.000 caracteres en total.",
+                )}
               </Notice>
             )}
             <Notice error>{action.error}</Notice>
@@ -398,7 +420,8 @@ function ClarificationRecovery({
                 questions.some((q) => !answers[q.id]?.trim())
               }
             >
-              {action.busy && <Busy />}Confirmar aclaración y crear informe
+              {action.busy && <Busy />}
+              {tr("Confirmar aclaración y crear informe")}
             </Button>
           </form>
         </CardContent>

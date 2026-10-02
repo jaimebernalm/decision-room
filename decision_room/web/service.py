@@ -18,7 +18,6 @@ from psycopg.types.json import Jsonb
 from .. import service as ingestion
 from ..agent import service as planning, research, review
 from ..agent.model import ModelAPIError, ModelClient, ModelNotReady, ModelSettings
-from ..client_report import render_client
 from ..database import connect
 from ..execution import recover_executions
 from ..storage import Storage, digest
@@ -74,6 +73,17 @@ class Workspace:
         scoped._scoped, scoped._business_id = True, business_id
         scoped.wake, scoped.stop = self.wake, self.stop
         return scoped
+
+    def localized(self, language):
+        """Request-local model preference, snapshotted by durable turns and jobs."""
+        from dataclasses import replace
+        if language not in (None, 'en', 'es'):
+            raise WebError('Unsupported interface language.')
+        localized = Workspace(self.config, replace(self.settings, response_language=language) if self.settings else None,
+                              self.model_factory)
+        localized._scoped, localized._business_id = self._scoped, self._business_id
+        localized.wake, localized.stop = self.wake, self.stop
+        return localized
 
     def business_id(self):
         if self._scoped:
@@ -702,16 +712,20 @@ class Workspace:
         if not j['review_id']:
             raise WebError('El informe todavía no está disponible.', 409)
         # Export uses the same parent lock; approval is rechecked on every request.
-        from ..agent.persistence import session_lock
-        with session_lock(self.config, j['business_id'], j['session_id']) as (db, _), db.transaction():
+        from .report_access import read_lock
+        with read_lock(self.config, j['business_id'], j['session_id']) as (db, _), db.transaction():
             memory.lock(db, j['business_id'])
             data = self.review_state(j, _db=db)
             if not data['publishable']:
                 raise WebError('Este informe no ha superado la revisión o ha quedado desactualizado.', 409)
+            from .dashboard import presentation
+            from .presentation_editing import decorate
+            display = decorate(self, data, presentation(data), db=db)
+            display['response_language'] = j['model_settings'].get('response_language')
             if structured:
-                from .dashboard import presentation
-                return presentation(data)
-            return render_client(data, data['updated_at'].strftime('%d/%m/%Y, %H:%M %Z'), embedded=True)
+                return display
+            from .presentation_html import render
+            return render(display, data['updated_at'].strftime('%d/%m/%Y, %H:%M %Z'))
 
     def upload(self, job_id):
         j = self.row(job_id)

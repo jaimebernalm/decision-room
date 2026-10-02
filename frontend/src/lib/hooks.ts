@@ -7,6 +7,10 @@ export function useResource<T>(path: string, interval = 0) {
     [revision, setRevision] = useState(0);
   const refresh = useCallback(() => setRevision((x) => x + 1), []);
   useEffect(() => {
+    addEventListener("dr-presentation", refresh);
+    return () => removeEventListener("dr-presentation", refresh);
+  }, [refresh]);
+  useEffect(() => {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
     const read = async () => {
@@ -21,7 +25,8 @@ export function useResource<T>(path: string, interval = 0) {
         if (!controller.signal.aborted) {
           setError((e as Error).message);
           setErrorStatus(e instanceof ApiError ? e.status : null);
-          if (e instanceof ApiError && [401,403].includes(e.status)) setData(null);
+          if (e instanceof ApiError && [401, 403].includes(e.status))
+            setData(null);
         }
       } finally {
         if (interval && !controller.signal.aborted)
@@ -34,7 +39,12 @@ export function useResource<T>(path: string, interval = 0) {
       clearTimeout(timer);
     };
   }, [path, interval, revision]);
-  return { data: saved?.path === path ? saved.data : null, error, errorStatus, refresh };
+  return {
+    data: saved?.path === path ? saved.data : null,
+    error,
+    errorStatus,
+    refresh,
+  };
 }
 export function useDraft<T>(key: string, fallback: T) {
   const [value, setValue] = useState<T>(() => store.get(key, fallback));

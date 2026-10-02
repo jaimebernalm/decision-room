@@ -678,8 +678,12 @@ class WebTests(unittest.TestCase):
         second = client.post('/api/jobs', files={
             'metadata': (None, json.dumps(metadata)), 'file': ('sales.csv', self.csv)})
         self.assertEqual(second.status_code, 202)
-        with patch.object(self.ws, 'detail', return_value={'publishable': True}):
+        # HTTP requests use a request-local Workspace for interface language.
+        # Stub the publication boundary on that class, not the server's instance.
+        with patch.object(Workspace, 'detail', return_value={'publishable': True}) as published:
             self.assertEqual(client.post('/api/onboarding/complete', json={}).status_code, 200)
+            published.assert_called_once()
+            self.assertEqual(str(published.call_args.args[0]), second.json()['id'])
         state = Workspace(self.config, SETTINGS, WebModel).state()
         self.assertTrue(state['onboarding']['completed'])
         self.assertEqual(str(state['onboarding']['job_id']), second.json()['id'])

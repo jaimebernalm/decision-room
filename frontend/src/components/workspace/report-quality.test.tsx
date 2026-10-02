@@ -95,6 +95,36 @@ it("makes priority/check/condition visible before opening methodological detail"
     screen.getByRole("button", { name: /Prioridad del canal/ }),
   ).toHaveAttribute("aria-expanded", "false");
 });
+it("keeps the full conclusion and decision guidance with its chart while detail stays collapsed", async () => {
+  const conclusion =
+    "El canal cambia en agosto. La segunda frase explica su importancia.";
+  render(
+    <ReportView
+      report={{
+        ...report,
+        claims: [{ ...report.claims[0], statement: conclusion }],
+      }}
+      compact
+    />,
+  );
+  expect(screen.getByText(conclusion)).toBeVisible();
+  expect(
+    screen.getAllByText("Revisar reposición.", { exact: false }),
+  ).toHaveLength(1);
+  expect(screen.getByRole("group", { name: "Series: Canal" })).toBeVisible();
+  expect(screen.queryByText("Método completo")).not.toBeInTheDocument();
+  await userEvent.click(
+    screen.getByRole("button", { name: /Prioridad del canal/ }),
+  );
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Cómo se ha calculado" }),
+  );
+  expect(await screen.findByText("Método completo")).toBeVisible();
+  await userEvent.click(screen.getByText("Ver valores exactos"));
+  expect(screen.getByText("9.007.199.254.740.993,01")).toBeVisible();
+  expect(screen.getByText("Sin dato")).toBeVisible();
+  expect(screen.getAllByText(conclusion)).toHaveLength(1);
+});
 it("selects exact saved values with keyboard and activates the linked finding without fetch", async () => {
   const fetch = vi.fn();
   vi.stubGlobal("fetch", fetch);

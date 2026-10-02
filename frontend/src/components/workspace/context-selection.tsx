@@ -1,3 +1,4 @@
+import { translate as tr, useLanguage } from "@/lib/i18n";
 import { useState, useEffect, type ReactNode } from "react";
 import { MousePointer2, Check, FileText, MessagesSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,7 @@ export function Selectable({
   item?: ContextAttachment;
   children: ReactNode;
 }) {
+  useLanguage();
   const { assistant, active, selected } = useBlockSelection(item);
   return (
     <div
@@ -58,7 +60,7 @@ export function Selectable({
         <button
           type="button"
           className="context-hit"
-          aria-label={`${selected ? "Quitar" : "Seleccionar"}: ${item.title}`}
+          aria-label={`${selected ? tr("Quitar") : tr("Seleccionar")}: ${item.title}`}
           aria-pressed={Boolean(selected)}
           onClick={() => assistant!.toggle(item)}
         >
@@ -75,6 +77,7 @@ export function Selectable({
   );
 }
 export function SelectionTool() {
+  useLanguage();
   const a = useAssistant();
   const { route } = useWorkspace();
   if (!a || !selectableRoute(route)) return null;
@@ -92,7 +95,7 @@ export function SelectionTool() {
       ) : (
         <MousePointer2 className="size-3.5" />
       )}
-      {a.selecting ? "Listo" : "Seleccionar"}
+      {a.selecting ? tr("Listo") : tr("Seleccionar")}
     </Button>
   );
 }
@@ -171,6 +174,7 @@ export function ContextAttachments({
   onRemove?: (r: ContextReference) => void;
   chatId?: string;
 }) {
+  useLanguage();
   const [opened, setOpened] = useState<string | null>(null);
   const assistant = useAssistant();
   const chosen = items.find((r) => referenceId(r) === opened);
@@ -180,7 +184,7 @@ export function ContextAttachments({
       <Attachments
         variant="grid"
         className="!ml-0 !w-full gap-2"
-        aria-label="Contexto adjunto"
+        aria-label={tr("Contexto adjunto")}
       >
         {items.map((r) => (
           <Attachment
@@ -190,7 +194,7 @@ export function ContextAttachments({
               id: referenceId(r),
               sourceId: referenceId(r),
               mediaType: "application/json",
-              title: r.title || "Elemento seleccionado",
+              title: r.title || tr("Elemento seleccionado"),
             }}
             onRemove={onRemove ? () => onRemove(r) : undefined}
             className="!h-auto !w-36 !rounded-xl bg-muted/40"
@@ -199,7 +203,9 @@ export function ContextAttachments({
               type="button"
               className="w-full rounded-xl p-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => setOpened(referenceId(r))}
-              aria-label={`Ver adjunto: ${r.title || "Elemento seleccionado"}`}
+              aria-label={tr("Ver adjunto: {0}", {
+                "0": r.title || "Elemento seleccionado",
+              })}
             >
               <div className="mb-1 flex items-center gap-1 text-[10px] text-muted-foreground">
                 {r.kind === "report" && <FileText className="size-3" />}
@@ -207,17 +213,17 @@ export function ContextAttachments({
                   <MessagesSquare className="size-3" />
                 )}
                 {r.kind === "conversation"
-                  ? "Conversación"
+                  ? tr("Chat")
                   : r.kind === "report"
-                    ? "Informe"
+                    ? tr("Informe")
                     : r.kind === "business" || r.kind === "memory"
-                      ? "Mi negocio"
-                      : "Fragmento de informe"}
+                      ? tr("Mi negocio")
+                      : tr("Fragmento de informe")}
               </div>
               <div className="mb-1 flex h-12 items-center overflow-hidden">
                 {r.status === "withdrawn" ? (
                   <span className="text-xs text-muted-foreground">
-                    Ya no disponible
+                    {tr("Ya no disponible")}
                   </span>
                 ) : r.content && "points" in r.content ? (
                   <MiniChart chart={r.content} />
@@ -237,12 +243,12 @@ export function ContextAttachments({
                 )}
               </div>
               <span className="block truncate text-xs font-medium">
-                {r.title || "Elemento seleccionado"}
+                {r.title || tr("Elemento seleccionado")}
               </span>
             </button>
             {onRemove && (
               <AttachmentRemove
-                label={`Quitar ${r.title || "elemento"}`}
+                label={tr("Quitar {0}", { "0": r.title || "elemento" })}
                 className="!opacity-100"
               />
             )}
@@ -258,17 +264,18 @@ export function ContextAttachments({
         <DialogContent className="max-h-[85svh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>
-              {chosen?.title || "Contexto seleccionado"}
+              {chosen?.title || tr("Contexto seleccionado")}
             </DialogTitle>
             <DialogDescription>
-              {chosen?.report_title || "Contexto seleccionado"}
+              {chosen?.report_title || tr("Contexto seleccionado")}
               {chosen?.period ? ` · ${chosen.period}` : ""}
             </DialogDescription>
           </DialogHeader>
           {chosen?.status === "withdrawn" ? (
             <p>
-              Este contenido ha cambiado o se ha retirado. Vuelve al origen para
-              seleccionar su versión actual.
+              {tr(
+                "Este contenido ha cambiado o se ha retirado. Vuelve al origen para seleccionar su versión actual.",
+              )}
             </p>
           ) : chosen?.content && "points" in chosen.content ? (
             <EvidenceChart chart={chosen.content} />
@@ -282,7 +289,9 @@ export function ContextAttachments({
             </p>
           ) : (
             <p>
-              Abre el origen para consultar este elemento antes de enviarlo.
+              {tr(
+                "Abre el origen para consultar este elemento antes de enviarlo.",
+              )}
             </p>
           )}
           {chosen?.href && chosen.status !== "withdrawn" && (
@@ -295,10 +304,10 @@ export function ContextAttachments({
               }}
             >
               {chosen.kind === "conversation"
-                ? "Ver conversación original"
+                ? tr("Ver chat original")
                 : chosen.href === "#my-business"
-                  ? "Ver en Mi negocio"
-                  : "Ver en el informe"}
+                  ? tr("Ver en Mi negocio")
+                  : tr("Ver en el informe")}
             </Button>
           )}
         </DialogContent>

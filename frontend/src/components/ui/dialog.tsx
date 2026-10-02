@@ -1,3 +1,4 @@
+import { translate as tr, useLanguage } from "@/lib/i18n";
 import * as React from "react"
 import { cn } from "cn"
 import { Dialog as DialogPrimitive } from "radix-ui"
@@ -53,6 +54,7 @@ function DialogContent({
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
+  useLanguage();
   return (
     <DialogPortal>
       <DialogOverlay />
@@ -74,7 +76,7 @@ function DialogContent({
             >
               <XIcon
               />
-              <span className="sr-only">Cerrar</span>
+              <span className="sr-only">{tr("Cerrar")}</span>
             </Button>
           </DialogPrimitive.Close>
         )}
@@ -101,6 +103,7 @@ function DialogFooter({
 }: React.ComponentProps<"div"> & {
   showCloseButton?: boolean
 }) {
+  useLanguage();
   return (
     <div
       data-slot="dialog-footer"
@@ -113,7 +116,7 @@ function DialogFooter({
       {children}
       {showCloseButton && (
         <DialogPrimitive.Close asChild>
-          <Button variant="outline">Cerrar</Button>
+          <Button variant="outline">{tr("Cerrar")}</Button>
         </DialogPrimitive.Close>
       )}
     </div>

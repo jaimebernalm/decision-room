@@ -1,22 +1,16 @@
+import { translate as tr, useLanguage } from "@/lib/i18n";
 import { useState, type ReactNode, type CSSProperties } from "react";
 import {
   ArrowLeft,
-  BarChart3,
   Building2,
-  ChevronDown,
   FileText,
-  HelpCircle,
   Home,
   MessageSquare,
-  MessagesSquare,
   Plus,
   MoreHorizontal,
-  PanelRightOpen,
-  Sun,
-  Moon,
+  Minimize2,
 } from "lucide-react";
 import { LayoutGroup } from "motion/react";
-import { useTheme } from "next-themes";
 import {
   Sidebar,
   SidebarProvider,
@@ -32,24 +26,18 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Brand } from "@/components/brand";
 import { useWorkspace } from "@/lib/workspace";
 import { store, shortTitle, analysisHref } from "@/lib/api";
 import { AssistantProvider, useAssistant } from "@/lib/assistant";
 import { ChatActions } from "./chat-actions";
 import { AssistantFrame } from "./assistant-frame";
+import { AssistantToggle } from "./floating-assistant";
+import { SpaceMenu } from "./space-menu";
+import { BusinessSwitcher } from "./business-switcher";
 const navigation = [
   ["home", "Inicio", Home],
   ["my-business", "Mi negocio", Building2],
-  ["reports", "Informes", BarChart3],
-  ["chats", "Conversaciones", MessagesSquare],
 ] as const;
 export function Layout({ children }: { children: ReactNode }) {
   const { workspace } = useWorkspace();
@@ -81,6 +69,7 @@ function Navigation({
   width: number;
   setWidth: (v: number) => void;
 }) {
+  useLanguage();
   const { workspace, listing, route } = useWorkspace(),
     { isMobile, setOpenMobile, state } = useSidebar();
   const assistant = useAssistant();
@@ -95,69 +84,18 @@ function Navigation({
     activeChat && !recent.includes(activeChat)
       ? [...recent, activeChat]
       : recent;
+  const recentReports = workspace.analyses.slice(0, 5);
+  const activeReport = workspace.analyses.find((item) =>
+    [`analysis/${item.id}`, `report/${item.id}`].includes(route),
+  );
+  const reportRows =
+    activeReport && !recentReports.includes(activeReport)
+      ? [...recentReports, activeReport]
+      : recentReports;
   return (
     <Sidebar variant="inset" collapsible="icon">
-      <SidebarHeader className="gap-4 p-3">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild>
-              <a
-                href="#home"
-                onClick={close}
-                className="gap-2.5"
-                aria-label="Decision Room, inicio"
-              >
-                <Brand />
-              </a>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton
-                  className="h-10"
-                  aria-label={workspace.business?.name || "Mi espacio"}
-                >
-                  <Building2 />
-                  <span className="truncate">
-                    {workspace.business?.name || "Mi espacio"}
-                  </span>
-                  <ChevronDown className="ml-auto" />
-                </SidebarMenuButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-60">
-                <DropdownMenuItem asChild>
-                  <a href="#businesses" onClick={close}>
-                    Cambiar de negocio
-                  </a>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <a href="#business-new" onClick={close}>
-                    Crear otro negocio
-                  </a>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </SidebarMenuItem>
-        </SidebarMenu>
-        <Button
-          asChild
-          className="w-full group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:p-0"
-        >
-          <a
-            href="#ask"
-            aria-label="Nuevo chat"
-            onClick={() => {
-              assistant?.newConversation("page");
-              close();
-            }}
-          >
-            <Plus />
-            <span className="group-data-[collapsible=icon]:hidden">
-              Nuevo chat
-            </span>
-          </a>
-        </Button>
+      <SidebarHeader className="p-3">
+        <BusinessSwitcher />
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
@@ -168,39 +106,60 @@ function Navigation({
                   asChild
                   isActive={
                     route === key ||
-                    (key === "chats" &&
-                      (route === "ask" ||
-                        route.startsWith("chat/") ||
-                        route.startsWith("chat-report/"))) ||
-                    (key === "reports" &&
-                      (route === "new" ||
-                        route.startsWith("analysis/") ||
-                        route.startsWith("report/"))) ||
                     (key === "my-business" &&
                       ["files", "business"].includes(route))
                   }
-                  tooltip={label}
+                  tooltip={tr(label)}
                 >
                   <a
                     href={`#${key}`}
                     onClick={close}
-                    aria-label={label}
+                    aria-label={tr(label)}
                     aria-current={route === key ? "page" : undefined}
                   >
                     <Icon />
-                    <span>{label}</span>
+                    <span>{tr(label)}</span>
                   </a>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}
           </SidebarMenu>
         </SidebarGroup>
-        <SidebarGroup>
+        <SidebarGroup role="region" aria-label={tr("Chats")}>
           <SidebarGroupLabel
-            className="workspace-section-label"
-            aria-label="Chats recientes"
+            className="workspace-section-label workspace-chat-heading"
+            aria-label={tr("Chats")}
           >
-            <span>Chats recientes</span>
+            <a
+              href="#chats"
+              onClick={close}
+              aria-label={tr("Chats")}
+              title={tr("Chats")}
+              className="workspace-library-link inline-flex items-center rounded-md hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-data-[collapsible=icon]:hidden"
+            >
+              <MessageSquare className="hidden size-4 group-data-[collapsible=icon]:block" />
+              <span className="group-data-[collapsible=icon]:hidden">
+                {tr("Chats")}
+              </span>
+            </a>
+            <Button
+              asChild
+              variant="ghost"
+              size="icon"
+              className="workspace-new-chat ml-auto size-7"
+            >
+              <a
+                href="#ask"
+                aria-label={tr("Nuevo chat")}
+                title={tr("Nuevo chat")}
+                onClick={() => {
+                  assistant?.newConversation("page");
+                  close();
+                }}
+              >
+                <Plus className="size-4" />
+              </a>
+            </Button>
           </SidebarGroupLabel>
           <SidebarMenu>
             {chatRows.map((chat) => (
@@ -225,26 +184,63 @@ function Navigation({
                 <ChatActions chat={chat} onOpenPanel={close}>
                   <SidebarMenuAction
                     showOnHover
-                    aria-label={`Opciones de ${chat.title}`}
+                    aria-label={tr("Opciones de {0}", { "0": chat.title })}
                   >
                     <MoreHorizontal />
                   </SidebarMenuAction>
                 </ChatActions>
               </SidebarMenuItem>
             ))}
+            {listing.conversations.length > 6 && (
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild tooltip={tr("Ver todos los chats")}>
+                  <a
+                    href="#chats"
+                    onClick={close}
+                    aria-label={tr("Ver todos los chats")}
+                  >
+                    <MoreHorizontal />
+                    <span>{tr("Ver todos")}</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
           </SidebarMenu>
+          {!chatRows.length && (
+            <p className="px-2 py-1 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
+              {tr("Todavía no hay chats")}
+            </p>
+          )}
         </SidebarGroup>
-        <SidebarGroup>
+        <SidebarGroup role="region" aria-label={tr("Informes")}>
           <SidebarGroupLabel
-            className="workspace-section-label"
-            aria-label="Informes recientes"
+            className="workspace-section-label workspace-report-heading"
+            aria-label={tr("Informes")}
           >
-            <span>Informes recientes</span>
+            <a
+              href="#reports"
+              onClick={close}
+              aria-label={tr("Informes")}
+              title={tr("Informes")}
+              className="workspace-library-link inline-flex items-center rounded-md hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-data-[collapsible=icon]:h-6 group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:justify-center"
+            >
+              <span
+                aria-hidden="true"
+                className="hidden h-px w-4 bg-sidebar-border group-data-[collapsible=icon]:block"
+              />
+              <span className="group-data-[collapsible=icon]:hidden">
+                {tr("Informes")}
+              </span>
+            </a>
           </SidebarGroupLabel>
           <SidebarMenu>
-            {workspace.analyses.slice(0, 5).map((item) => (
+            {reportRows.map((item) => (
               <SidebarMenuItem key={item.id}>
-                <SidebarMenuButton asChild tooltip={item.title}>
+                <SidebarMenuButton
+                  asChild
+                  tooltip={item.title}
+                  isActive={item === activeReport}
+                >
                   <a
                     href={analysisHref(item)}
                     onClick={close}
@@ -263,28 +259,38 @@ function Navigation({
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}
+            {workspace.analyses.length > 5 && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  tooltip={tr("Ver todos los informes")}
+                >
+                  <a
+                    href="#reports"
+                    onClick={close}
+                    aria-label={tr("Ver todos los informes")}
+                  >
+                    <MoreHorizontal />
+                    <span>{tr("Ver todos")}</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
           </SidebarMenu>
+          {!reportRows.length && (
+            <p className="px-2 py-1 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
+              {tr("Todavía no hay informes")}
+            </p>
+          )}
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="p-3">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Cómo funciona">
-              <a href="#how" onClick={close} aria-label="Cómo funciona">
-                <HelpCircle />
-                <span>Cómo funciona</span>
-              </a>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-        <div className="workspace-footer-note px-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-          Espacio local · Versión de pruebas
-        </div>
+        <SpaceMenu />
       </SidebarFooter>
       {!isMobile && state === "expanded" && (
         <div
           role="separator"
-          aria-label="Anchura de la barra lateral"
+          aria-label={tr("Anchura de la barra lateral")}
           aria-orientation="vertical"
           aria-valuemin={216}
           aria-valuemax={420}
@@ -329,22 +335,22 @@ function Navigation({
   );
 }
 function Topbar() {
+  useLanguage();
   const { route } = useWorkspace();
   const assistant = useAssistant();
-  const { theme, setTheme } = useTheme();
   const back = route.startsWith("chat-report/")
     ? {
         href: `#chat/${route.split("/")[1]}`,
-        label: "Volver a la conversación",
+        label: tr("Volver al chat"),
       }
     : route === "ask" || route.startsWith("chat/")
-      ? { href: "#chats", label: "Volver a conversaciones" }
+      ? { href: "#chats", label: tr("Volver a chats") }
       : route.startsWith("report/") || route.startsWith("analysis/")
-        ? { href: "#reports", label: "Volver a informes" }
+        ? { href: "#reports", label: tr("Volver a informes") }
         : null;
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 px-4 sm:px-6">
-      <SidebarTrigger aria-label="Abrir o cerrar navegación" />
+      <SidebarTrigger aria-label={tr("Abrir o cerrar navegación")} />
       {back && (
         <Button asChild variant="ghost" size="icon" className="rounded-full">
           <a href={back.href} aria-label={back.label} title={back.label}>
@@ -356,20 +362,15 @@ function Topbar() {
         {route.startsWith("chat/") && assistant && (
           <Button
             variant="ghost"
-            size="sm"
-            onClick={() => assistant.openConversation(route.split("/")[1])}
+            size="icon"
+            aria-label={tr("Reducir chat")}
+            title={tr("Reducir chat")}
+            onClick={() => assistant.reduceConversation(route.split("/")[1])}
           >
-            <PanelRightOpen /> Abrir en panel
+            <Minimize2 />
           </Button>
         )}
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label={theme === "dark" ? "Usar tema claro" : "Usar tema oscuro"}
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-        >
-          {theme === "dark" ? <Sun /> : <Moon />}
-        </Button>
+        <AssistantToggle />
       </div>
     </header>
   );

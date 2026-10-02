@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
 import { it, expect, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { WorkspaceState, type WorkspaceContext } from "@/lib/workspace";
 import { store, messageKey } from "@/lib/api";
 import type { ContextAttachment } from "@/lib/types";
 import { Selectable } from "./context-selection";
-import { FloatingAssistant } from "./floating-assistant";
 import { ChatPage } from "./chat";
 import { Chats, Reports, StartChat } from "./overview";
 import { Dossier } from "./dossier";
@@ -93,7 +92,6 @@ function Harness({
           ) : route === "chats" ? (
             <>
               <Chats />
-              <FloatingAssistant />
             </>
           ) : (
             <>
@@ -108,7 +106,6 @@ function Harness({
                   </Selectable>
                 )}
               </div>
-              <FloatingAssistant />
             </>
           )}
         </Layout>
@@ -177,10 +174,12 @@ it.each(["home", "my-business", "reports", "chats"])(
     const calls = server();
     const user = userEvent.setup();
     render(<Harness initialRoute={route} />);
-    expect(screen.queryByRole("textbox", { name: "Mensaje" })).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Preguntar algo" }));
+    expect(screen.getByRole("textbox", { name: "Mensaje" })).toBeVisible();
+    const launcher = screen.getByRole("button", { name: "Preguntar algo" });
+    expect(launcher.closest("header")).not.toBeNull();
+    await user.click(launcher);
     const panel = await screen.findByRole("complementary", {
-      name: "Conversación lateral",
+      name: "Chat lateral",
     });
     const composer = within(panel).getByRole("textbox", { name: "Mensaje" });
     expect(composer).toHaveFocus();
@@ -188,12 +187,12 @@ it.each(["home", "my-business", "reports", "chats"])(
     expect(calls.filter((call) => call.url === "/api/chats")).toHaveLength(0);
     await user.type(composer, "Borrador del panel");
     await user.click(
-      within(panel).getByRole("button", { name: "Plegar conversación" }),
+      within(panel).getByRole("button", { name: "Cerrar chat lateral" }),
     );
     await waitFor(() => expect(screen.queryByRole("complementary")).toBeNull());
-    expect(screen.queryByRole("textbox", { name: "Mensaje" })).toBeNull();
+    expect(screen.getByRole("textbox", { name: "Mensaje" })).toHaveValue("Borrador del panel");
     await user.click(
-      screen.getByRole("button", { name: "Continuar conversación" }),
+      screen.getByRole("button", { name: "Continuar chat" }),
     );
     expect(await screen.findByRole("textbox", { name: "Mensaje" })).toHaveValue(
       "Borrador del panel",
@@ -231,18 +230,18 @@ it("can fold and resume an existing side conversation from the library", async (
   const user = userEvent.setup();
   render(<Harness initialRoute="chats" conversations={existingChats} />);
   const panel = await screen.findByRole("complementary", {
-    name: "Conversación lateral",
+    name: "Chat lateral",
   });
   expect(await within(panel).findByRole("textbox")).toHaveValue(
     "Continuar aquí",
   );
   await user.click(
-    within(panel).getByRole("button", { name: "Plegar conversación" }),
+    within(panel).getByRole("button", { name: "Cerrar chat lateral" }),
   );
   await waitFor(() => expect(screen.queryByRole("complementary")).toBeNull());
   expect(screen.queryByRole("button", { name: "Preguntar algo" })).toBeNull();
   await user.click(
-    screen.getByRole("button", { name: "Continuar conversación" }),
+    screen.getByRole("button", { name: "Continuar chat" }),
   );
   expect(await screen.findByRole("textbox", { name: "Mensaje" })).toHaveValue(
     "Continuar aquí",
@@ -275,7 +274,7 @@ it("selects context, opens a dock, expands the same chat and recovers attachment
   );
   await user.click(screen.getByRole("button", { name: "Enviar mensaje" }));
   const panel = await screen.findByRole("complementary", {
-    name: "Conversación lateral",
+    name: "Chat lateral",
   });
   await within(panel).findByText("Ventas revisadas.");
   expect(location.hash).toBe("#home");
@@ -290,7 +289,7 @@ it("selects context, opens a dock, expands the same chat and recovers attachment
   ]);
   await user.type(within(panel).getByRole("textbox"), "Mi siguiente pregunta");
   await user.click(
-    screen.getByRole("button", { name: "Abrir conversación completa" }),
+    screen.getByRole("button", { name: "Ampliar chat" }),
   );
   await waitFor(() => expect(location.hash).toBe("#chat/chat"));
   await waitFor(() =>
@@ -327,9 +326,9 @@ it("does not reopen a panel folded before the first send finishes", async () => 
   await user.click(screen.getByRole("button", { name: "Preguntar algo" }));
   await user.type(screen.getByRole("textbox"), "Explica esto");
   await user.click(screen.getByRole("button", { name: "Enviar mensaje" }));
-  await user.click(screen.getByRole("button", { name: "Plegar conversación" }));
+  await user.click(screen.getByRole("button", { name: "Cerrar chat lateral" }));
   finish();
-  await screen.findByRole("button", { name: "Continuar conversación" });
+  await screen.findByRole("button", { name: "Continuar chat" });
   expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
   expect(
     store.get<{ chatId: string }>("dr-dock-a", { chatId: "" }).chatId,
@@ -401,9 +400,9 @@ it("opens navigation by folding the chat and can resume it", async () => {
     "expanded",
   );
   await user.click(
-    screen.getByRole("button", { name: "Continuar conversación" }),
+    screen.getByRole("button", { name: "Continuar chat" }),
   );
-  await screen.findByRole("complementary", { name: "Conversación lateral" });
+  await screen.findByRole("complementary", { name: "Chat lateral" });
   await waitFor(() =>
     expect(document.querySelector('[data-slot="sidebar"]')).toHaveAttribute(
       "data-state",
@@ -422,14 +421,14 @@ it("starts a new conversation inside the open panel and labels its actions", asy
   const user = userEvent.setup();
   render(<Harness />);
   await screen.findByRole("textbox");
-  await user.hover(screen.getByRole("button", { name: "Nueva conversación" }));
+  await user.hover(screen.getByRole("button", { name: "Nuevo chat" }));
   expect(await screen.findByRole("tooltip")).toHaveTextContent(
-    "Nueva conversación",
+    "Nuevo chat",
   );
   await user.keyboard("{Escape}");
-  await user.click(screen.getByRole("button", { name: "Nueva conversación" }));
+  await user.click(screen.getByRole("button", { name: "Nuevo chat" }));
   const panel = screen.getByRole("complementary", {
-    name: "Conversación lateral",
+    name: "Chat lateral",
   });
   expect(within(panel).getByRole("textbox")).toHaveValue("");
   expect(calls.filter((c) => c.url === "/api/chats")).toHaveLength(0);
@@ -457,7 +456,7 @@ const existingChats = [
     created_at: "2026-09-27",
   },
 ];
-it("opens an existing conversation from its page on home without duplicate return actions or sending", async () => {
+it("reduces a directly opened conversation to its last source without duplicate actions or sending", async () => {
   location.hash = "chat/existing";
   store.set("dr-assistant-origin-a", "report/sales");
   store.set(messageKey("existing"), { text: "Borrador existente" });
@@ -470,14 +469,14 @@ it("opens an existing conversation from its page on home without duplicate retur
       name: /Volver al dashboard|Volver al informe/,
     }),
   ).not.toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "Abrir en panel" }));
+  await user.click(screen.getByRole("button", { name: "Reducir chat" }));
   const panel = await screen.findByRole("complementary", {
-    name: "Conversación lateral",
+    name: "Chat lateral",
   });
   expect(await within(panel).findByRole("textbox")).toHaveValue(
     "Borrador existente",
   );
-  expect(location.hash).toBe("#home");
+  expect(location.hash).toBe("#report/sales");
   expect(store.get("dr-dock-a", {})).toMatchObject({
     chatId: "existing",
     open: true,
@@ -496,7 +495,7 @@ it("opens an existing chat in the panel without leaving the conversation list", 
   });
   await user.click(buttons[buttons.length - 1]);
   await user.click(screen.getByRole("menuitem", { name: "Abrir en panel" }));
-  await screen.findByRole("complementary", { name: "Conversación lateral" });
+  await screen.findByRole("complementary", { name: "Chat lateral" });
   expect(location.hash).toBe("#chats");
   expect(store.get("dr-dock-a", {})).toMatchObject({ chatId: "existing" });
 });
@@ -514,7 +513,7 @@ it("switches chats from navigation without leaving the report or losing the prev
     screen.getByRole("button", { name: "Opciones de Ya guardada" }),
   );
   await user.click(screen.getByRole("menuitem", { name: "Abrir en panel" }));
-  await screen.findByRole("complementary", { name: "Conversación lateral" });
+  await screen.findByRole("complementary", { name: "Chat lateral" });
   expect(location.hash).toBe("#report/sales");
   expect(await screen.findByRole("textbox")).toHaveValue("");
   expect(store.get(messageKey("old"), {})).toMatchObject({
@@ -530,13 +529,16 @@ it("keeps the same dock, draft and attachments across all four sections", async 
   const user = userEvent.setup();
   render(<Harness />);
   const panel = await screen.findByRole("complementary", {
-    name: "Conversación lateral",
+    name: "Chat lateral",
   });
   await user.type(
     await within(panel).findByRole("textbox"),
     "Explica la selección",
   );
   await user.click(screen.getByRole("link", { name: "Mi negocio" }));
+  await user.click(
+    await screen.findByRole("button", { name: "Ver presentación original" }),
+  );
   await user.click(screen.getByRole("button", { name: "Seleccionar" }));
   await user.click(
     await screen.findByRole("button", {
@@ -555,7 +557,7 @@ it("keeps the same dock, draft and attachments across all four sections", async 
   );
   expect(location.hash).toBe("#reports");
   await user.keyboard("{Escape}");
-  await user.click(screen.getByRole("link", { name: "Conversaciones" }));
+  await user.click(screen.getByRole("link", { name: "Chats" }));
   expect(location.hash).toBe("#chats");
   expect(screen.getByRole("complementary")).toBe(panel);
   expect(within(panel).getByRole("textbox")).toHaveValue(
@@ -631,7 +633,7 @@ it("attaches a conversation without opening it, keeps it across navigation and s
   );
   await user.click(screen.getByRole("button", { name: "Preguntar algo" }));
   const panel = screen.getByRole("complementary", {
-    name: "Conversación lateral",
+    name: "Chat lateral",
   });
   await user.click(within(panel).getByRole("button", { name: "Seleccionar" }));
   await user.click(
@@ -673,4 +675,119 @@ it('shows one activity history for successive turns of the same analysis',async(
  await screen.findByRole('button',{name:'Investigación compartida en curso'});
  expect(screen.getAllByRole('button',{name:'Investigación compartida en curso'})).toHaveLength(1);
  expect(fetch.mock.calls.filter(([url])=>url.includes('/activity'))).toHaveLength(1);
+});
+
+it("expands and reduces the same chat while restoring report position and keeping the draft", async () => {
+  location.hash = "report/sales";
+  store.set("dr-dock-a", { chatId: "existing", open: true, origin: "report/sales" });
+  store.set(messageKey("existing"), { text: "No enviar este borrador" });
+  const calls = server();
+  const user = userEvent.setup();
+  render(<Harness initialRoute="report/sales" />);
+  await screen.findByRole("textbox");
+  document.getElementById("main-content")!.scrollTop = 140;
+  await user.click(screen.getByRole("button", { name: "Ampliar chat" }));
+  await waitFor(() => expect(location.hash).toBe("#chat/existing"));
+  await screen.findByRole("button", { name: "Reducir chat" });
+  expect(screen.getByRole("textbox")).toHaveValue("No enviar este borrador");
+  await user.click(screen.getByRole("button", { name: "Reducir chat" }));
+  await screen.findByRole("complementary", { name: "Chat lateral" });
+  expect(location.hash).toBe("#report/sales");
+  expect(document.getElementById("main-content")!.scrollTop).toBe(140);
+  expect(await screen.findByRole("textbox")).toHaveValue("No enviar este borrador");
+  expect(calls.some(c => c.url === "/api/chats" || c.url.endsWith("/messages"))).toBe(false);
+});
+it("reduces a directly opened chat to home when there is no saved source", async () => {
+  location.hash = "chat/existing";
+  const calls = server();
+  render(<Harness initialRoute="chat/existing" />);
+  await screen.findByRole("textbox");
+  await userEvent.click(screen.getByRole("button", { name: "Reducir chat" }));
+  await screen.findByRole("complementary", { name: "Chat lateral" });
+  expect(location.hash).toBe("#home");
+  expect(calls.some(c => c.url === "/api/chats" || c.url.endsWith("/messages"))).toBe(false);
+});
+
+it.each(["home", "my-business", "reports", "chats", "files", "business", "businesses", "how", "new", "report/sales", "analysis/running", "chat-report/answer"])(
+  "offers exactly one bottom composer without stealing focus or creating a chat on %s",
+  async (route) => {
+    const calls = server();
+    render(<Harness initialRoute={route} />);
+    const textbox = await screen.findByRole("textbox", {name:"Mensaje"});
+    expect(textbox.closest(".workspace-composer")).not.toBeNull();
+    expect(textbox).not.toHaveFocus();
+    expect(screen.getAllByRole("textbox", {name:"Mensaje"})).toHaveLength(1);
+    expect(calls.some(c => c.url === "/api/chats" || c.url.endsWith("/messages"))).toBe(false);
+  }
+);
+it("reserves the floating composer's measured height and releases it when opening the panel", async () => {
+  const observations = new Map<Element, () => void>();
+  class MeasuredObserver {
+    targets = new Set<Element>();
+    readonly notify: ResizeObserverCallback;
+    constructor(notify: ResizeObserverCallback) { this.notify = notify; }
+    observe(target: Element) {
+      this.targets.add(target);
+      observations.set(target, () => this.notify([], this as unknown as ResizeObserver));
+    }
+    unobserve(target: Element) { this.targets.delete(target); observations.delete(target); }
+    disconnect() { this.targets.forEach(target => observations.delete(target)); this.targets.clear(); }
+  }
+  vi.stubGlobal("ResizeObserver", MeasuredObserver);
+  let height = 86;
+  const original = HTMLElement.prototype.getBoundingClientRect;
+  const measurement = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+    return this.classList.contains("workspace-composer") ? new DOMRect(0, 0, 700, height) : original.call(this);
+  });
+  try {
+    server();
+    render(<Harness />);
+    const textbox = await screen.findByRole("textbox", { name: "Mensaje" });
+    const composer = textbox.closest(".workspace-composer")!;
+    const page = composer.closest(".assistant-page") as HTMLElement;
+    expect(page.style.getPropertyValue("--workspace-composer-height")).toBe("86px");
+    // Attachments, multiline text and errors may grow the island without navigation.
+    height = 174;
+    act(() => observations.get(composer)!());
+    expect(page.style.getPropertyValue("--workspace-composer-height")).toBe("174px");
+    await userEvent.click(screen.getByRole("button", { name: "Preguntar algo" }));
+    await screen.findByRole("complementary", { name: "Chat lateral" });
+    expect(page.style.getPropertyValue("--workspace-composer-height")).toBe("");
+    expect(observations.has(composer)).toBe(false);
+    expect(screen.getAllByRole("textbox", { name: "Mensaje" })).toHaveLength(1);
+  } finally {
+    measurement.mockRestore();
+  }
+});
+it("sends from the bottom bar into the folded chat, preserving context without creating another conversation", async () => {
+  store.set("dr-dock-a", {chatId:"existing", open:false, origin:"home"});
+  store.set(messageKey("existing"), {text:"Pregunta en la misma conversación"});
+  const calls = server(); const user = userEvent.setup();
+  render(<Harness />);
+  expect(await screen.findByRole("textbox")).toHaveValue("Pregunta en la misma conversación");
+  const send = screen.getByRole("button", {name:"Enviar mensaje"});
+  await waitFor(() => expect(send).toBeEnabled());
+  await user.dblClick(send);
+  const panel = await screen.findByRole("complementary", {name:"Chat lateral"});
+  expect(calls.filter(c => c.url.endsWith("/messages"))).toHaveLength(1);
+  expect(calls.find(c => c.url.endsWith("/messages"))?.url).toBe("/api/chats/existing/messages");
+  expect(calls.some(c => c.url === "/api/chats")).toBe(false);
+  expect(screen.getAllByRole("textbox", {name:"Mensaje"})).toHaveLength(1);
+  await user.type(within(panel).getByRole("textbox"), "Borrador compartido");
+  await user.click(within(panel).getByRole("button", {name:"Cerrar chat lateral"}));
+  await waitFor(() => expect(screen.queryByRole("complementary")).toBeNull());
+  expect(await screen.findByRole("textbox")).toHaveValue("Borrador compartido");
+});
+it("keeps a failed bottom-bar message and its request identity for a retry", async () => {
+  store.set("dr-dock-a", {chatId:"existing",open:false,origin:"home"});
+  const calls = server(undefined, 1); const user=userEvent.setup(); render(<Harness />);
+  await user.type(await screen.findByRole("textbox"), "Mensaje para reintentar");
+  await user.click(screen.getByRole("button", {name:"Enviar mensaje"}));
+  await screen.findByText("Reintenta el mensaje");
+  expect(screen.queryByRole("complementary")).toBeNull();
+  expect(screen.getByRole("textbox")).toHaveValue("Mensaje para reintentar");
+  await user.click(screen.getByRole("button", {name:"Enviar mensaje"}));
+  await screen.findByRole("complementary");
+  const sends=calls.filter(c=>c.url.endsWith("/messages"));
+  expect(sends).toHaveLength(2); expect(sends[0].data.request_key).toBe(sends[1].data.request_key);
 });

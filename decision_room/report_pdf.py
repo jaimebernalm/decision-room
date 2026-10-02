@@ -17,6 +17,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 
 from .chart_layout import CHART_PALETTE
 from .client_report import formatted
+from .report_language import number
 
 WIDTH = A4[0] - 88
 BLUE = colors.HexColor(CHART_PALETTE[0])
@@ -109,7 +110,7 @@ def bar_drawings(chart):
                 value = low + span * Decimal(t) / 4
                 tx = x(value)
                 drawing.add(Line(tx, 22, tx, height - legend_height - 7, strokeColor=BORDER, strokeWidth=.3))
-                drawing.add(String(tx, 8, formatted(value, 0), fontSize=7, textAnchor='middle', fillColor=GRAY))
+                drawing.add(String(tx, 8, number(formatted(value, 0), chart.get('response_language')), fontSize=7, textAnchor='middle', fillColor=GRAY))
             for i, category in enumerate(batch):
                 y = height - legend_height - 17 - i * row_height
                 for n, label in enumerate(textwrap.wrap(category, 27)[:4]):
@@ -140,7 +141,7 @@ def line_drawing(chart):
         value = low + span * Decimal(i) / 4
         pos = y(value)
         drawing.add(Line(50, pos, WIDTH - 14, pos, strokeColor=BORDER, strokeWidth=.5))
-        drawing.add(String(43, pos - 3, formatted(value, 0), textAnchor='end', fontSize=8, fillColor=GRAY))
+        drawing.add(String(43, pos - 3, number(formatted(value, 0), chart.get('response_language')), textAnchor='end', fontSize=8, fillColor=GRAY))
     palette = (chart.get('panels') or [{}])[0].get('colors', {})
     for i, name in enumerate(order):
         shade = palette.get(name, CHART_PALETTE[i % len(CHART_PALETTE)])
@@ -163,10 +164,13 @@ def line_drawing(chart):
 
 def render_pdf(report):
     """Accept only a validated presentation obtained through the publication gate."""
+    from .report_language import export_view, label
+    report = export_view(report)
+    tr = lambda text: label(text, report.get('response_language'))
     stream = BytesIO()
     story = [paragraph('Decision Room', 'heading'), paragraph(report['scope'].get('business', ''), 'muted'),
              paragraph(report['scope']['period'], 'muted'),
-             paragraph('Revisado' + (' · Entrega parcial' if report.get('partial') else ''), 'muted'),
+             paragraph(tr('Revisado') + (tr(' · Entrega parcial') if report.get('partial') else ''), 'muted'),
              paragraph(report['title'], 'title')]
     if report.get('summary'): story.append(paragraph(report['summary']))
     for offset in range(0, len(report.get('highlights', [])), 3):
@@ -177,20 +181,25 @@ def render_pdf(report):
                                     ('INNERGRID', (0,0), (-1,-1), .5, BORDER), ('TOPPADDING', (0,0), (-1,-1), 12),
                                     ('LEFTPADDING', (0,0), (-1,-1), 12), ('BOTTOMPADDING', (0,0), (-1,-1), 6)]))
         story += [Spacer(1, 8), metrics, Spacer(1, 8)]
-    story += [paragraph('Contexto y alcance', 'heading'), paragraph(report['scope']['coverage'], 'muted')]
+        for h in batch:
+            if h.get('unit_origin') == 'owner':
+                story.append(paragraph(f"{h['label']}: {tr('unidad visible indicada por el propietario. Unidad del análisis:')} {h['original_unit']}.", 'muted'))
+    story += [paragraph(tr('Contexto y alcance'), 'heading'), paragraph(report['scope']['coverage'], 'muted')]
     if report['scope'].get('question'):
-        story += [paragraph('Pregunta del análisis', 'heading'), paragraph(report['scope']['question'])]
+        story += [paragraph(tr('Pregunta del análisis'), 'heading'), paragraph(report['scope']['question'])]
     for i, claim in enumerate(report['claims']):
         story += [paragraph(f"{i+1:02d} · {claim['title']}", 'heading'), paragraph(claim['statement'])]
         if claim.get('interpretation'): story.append(paragraph(claim['interpretation'], 'muted'))
         from .agent.delivery_contract import orientation_sections
         for heading, text in orientation_sections(claim.get('orientation')):
-            story.append(Paragraph('<b>' + escape(heading) + '</b>: ' + escape(text), STYLES['body']))
+            story.append(Paragraph('<b>' + escape(tr(heading)) + '</b>: ' + escape(text), STYLES['body']))
         if claim.get('next_step') and not claim.get('orientation'):
-            story += [paragraph('Siguiente comprobación', 'heading'), paragraph(claim['next_step'])]
+            story += [paragraph(tr('Siguiente comprobación'), 'heading'), paragraph(claim['next_step'])]
         for chart in report.get('charts', []):
             if chart['claim_key'] != claim['key']: continue
             chart_heading = [paragraph(chart['title'], 'heading'), paragraph(chart['unit'], 'muted')]
+            if chart.get('unit_origin') == 'owner':
+                chart_heading.append(paragraph(f"{tr('Unidad visible indicada por el propietario. Unidad del análisis:')} {chart['original_unit']}.", 'muted'))
             if chart['kind'] == 'bar':
                 for panel_title, drawing in bar_drawings(chart):
                     # Keep the overall heading with its first diagram, too.
@@ -206,37 +215,37 @@ def render_pdf(report):
                 story.append(paragraph(detail['point_label'] + ': ' + '; '.join(v['label'] + ': ' + v['formatted'] + ' ' + v['unit'] for v in detail['values'])))
             from .chart_layout import comparison_tables
             for title, headings, rows in comparison_tables(chart, chart['points'], [p['formatted'] for p in chart['points']]):
-                story.append(grid([headings, *rows], [WIDTH/len(headings)]*len(headings), title=title or 'Valores exactos'))
+                story.append(grid([headings, *rows], [WIDTH/len(headings)]*len(headings), title=title or tr('Valores exactos')))
         if claim.get('method'):
-            story += [paragraph('Cómo se ha calculado', 'heading'), paragraph(claim['method'])]
+            story += [paragraph(tr('Cómo se ha calculado'), 'heading'), paragraph(claim['method'])]
         details = claim.get('evidence_details')
         if details:
-            story += [paragraph('Fuentes y evidencia', 'heading')]
+            story += [paragraph(tr('Fuentes y evidencia'), 'heading')]
             for name in details['files']: story.append(paragraph(name, 'muted'))
             if details['metrics']:
-                story.append(grid([['Resultado guardado', 'Valor']] +
+                story.append(grid([[tr('Resultado guardado'), tr('Valor')]] +
                                   [[m['label'], m['value']] for m in details['metrics']], [WIDTH * .65, WIDTH * .35]))
             for operation in details['operations']: story.append(paragraph(operation, 'muted'))
     if report.get('no_chart_reason'): story.append(paragraph(report['no_chart_reason'], 'muted'))
     if report.get('owner_coverage'):
-        story.append(paragraph('Cobertura del encargo', 'heading'))
+        story.append(paragraph(tr('Cobertura del encargo'), 'heading'))
         names = {'complete':'Completo','partial':'Parcial','unavailable':'Información no disponible','deferred':'Pendiente'}
         for q in report['owner_coverage']:
-            story.append(paragraph(names[q['status']] + ': ' + q['explanation']))
+            story.append(paragraph(tr(names[q['status']]) + ': ' + q['explanation']))
     elif report.get('question_coverage'):
-        story.append(paragraph('Cobertura de las preguntas', 'heading'))
+        story.append(paragraph(tr('Cobertura de las preguntas'), 'heading'))
         names = {'answered': 'Respondida', 'unavailable': 'Información no disponible', 'deferred': 'Pendiente'}
         for q in report['question_coverage']:
-            story.append(paragraph(names[q['status']] + ': ' + q['explanation']))
+            story.append(paragraph(tr(names[q['status']]) + ': ' + q['explanation']))
     if report.get('limitations'):
-        story.append(paragraph('Limitaciones', 'heading'))
+        story.append(paragraph(tr('Limitaciones'), 'heading'))
         for item in report['limitations']: story.append(paragraph('• ' + item, 'muted'))
 
     def footer(canvas, doc):
         canvas.saveState()
         canvas.setStrokeColor(BORDER); canvas.line(44, 39, A4[0] - 44, 39)
         canvas.setFont('Helvetica', 8); canvas.setFillColor(GRAY)
-        canvas.drawString(44, 25, 'Decision Room · Informe revisado')
+        canvas.drawString(44, 25, tr('Decision Room · Informe revisado'))
         canvas.drawRightString(A4[0] - 44, 25, str(doc.page))
         canvas.restoreState()
 
