@@ -6,7 +6,9 @@ import {
   chartPoints,
   groupedPoints,
   seriesColor,
+  periodLabel,
 } from "./charts";
+import { setLanguage } from "./i18n";
 import type { ChartData } from "./types";
 const chart: ChartData = {
   key: "x",
@@ -20,6 +22,23 @@ const chart: ChartData = {
     { label: "2026-01-03", value: "20.005", formatted: "20,01" },
   ],
 };
+it("formats calendar periods in the selected language without changing invalid or business labels", () => {
+  try {
+    setLanguage("es");
+    expect(periodLabel("2026-07", "month")).toMatch(/jul.*2026/);
+    expect(periodLabel("2026-Q3", "quarter")).toBe("T3 2026");
+    expect(periodLabel("2026-07-01", "day")).toMatch(/1.*jul.*2026/);
+    setLanguage("en");
+    expect(periodLabel("2026-07", "month")).toBe("Jul 2026");
+    expect(periodLabel("2026-Q3", "quarter")).toBe("Q3 2026");
+    expect(periodLabel("2026-07-01", "day")).toBe("Jul 1, 2026");
+    expect(periodLabel("2026-02-30", "day")).toBe("2026-02-30");
+    expect(periodLabel("2026-13", "month")).toBe("2026-13");
+    expect(periodLabel("Canal A", "month")).toBe("Canal A");
+  } finally {
+    setLanguage("es");
+  }
+});
 it("leaves missing dates unconnected without inventing zero observations", () => {
   const points = chartPoints(chart);
   expect(points.map((p) => p.value)).toEqual([10.001, null, 20.005]);

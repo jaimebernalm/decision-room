@@ -37,5 +37,18 @@
   "Este encargo ya está en marcha. Continúa en la conversación.": "Este encargo ya está en marcha. Continúa en el chat.",
   "Este envío ya creó una conversación distinta.": "Este envío ya creó un chat distinto.",
   "Operación de conversación no encontrada.": "Operación de chat no encontrada.",
-  "Primero inicia la conversación.": "Primero inicia el chat."
+  "Primero inicia la conversación.": "Primero inicia el chat.",
+  "T{0} {1}": "T{0} {1}",
+  "Por qué merece atención:": "Por qué merece atención:",
+  "Según lo que encuentres": "Según lo que encuentres",
+  "Si {0}:": "Si {0}:",
+  "Series: {0}": "Series: {0}",
+  "(oculta)": "(oculta)",
+  "Ver periodo o categoría": "Ver periodo o categoría",
+  "Periodo o categoría de {0}": "Periodo o categoría de {0}",
+  "Selecciona un punto": "Selecciona un punto",
+  "Ver hallazgo y detalle en el informe": "Ver hallazgo y detalle en el informe",
+  "Ver hallazgo y siguiente comprobación": "Ver hallazgo y siguiente comprobación",
+  "Ver desglose de este punto": "Ver desglose de este punto",
+  "En este informe": "En este informe"
 }

@@ -1,6 +1,6 @@
 from .series_prompt import SERIES_TOOL
 
-REVIEW_PROMPT_VERSION = 'review-v46'
+REVIEW_PROMPT_VERSION = 'review-v47'
 
 COMMON = '''You are part of Decision Room's bounded analyst/reviewer dialogue.
 Return ONLY ReviewAction JSON, every field present. Human-facing prose in Spanish.
@@ -631,3 +631,33 @@ REVIEWER_SYSTEM += DELIVERY_SELECTION
 from .delivery_contract import DECISION_READINESS
 ANALYST_SYSTEM += DECISION_READINESS
 REVIEWER_SYSTEM += DECISION_READINESS
+
+DELIVERY_READING = """
+CLIENT READING AND SYNTHESIS:
+The integrated report shows summary first, then a finding index, coverage caveats,
+key metrics and finding cards. A card shows statement, structured orientation and
+charts together; interpretation, method and exact evidence are progressive detail.
+Draft for that reading order. Summary should answer the actual question in 2–3
+short sentences, with the main priority or result and a material qualification
+when needed. It is not an inventory of every finding or of the research process.
+Statement gives the evidence-backed conclusion in the relevant segment/period.
+Interpretation adds meaning, not a paraphrase of statement. Put the concrete next
+check, decision value and conditional reactions in orientation without retelling
+the whole conclusion in every field. Keep each reaction concise and distinguish
+the action for each condition; preserve operational uncertainty and alternatives.
+Use a few useful global limitations: merge truly equivalent caveats, but retain
+distinct coverage, definition, selection and missing-context limits. Never shorten
+by hiding partial delivery, dropping owner deliverables or removing a condition
+that changes a recommendation. Controller caveats and counts remain intact.
+report_reading, when present, points to exact repeated prose and measures first
+reading length. These are editorial diagnostics, not customer metrics or proof
+of quality. Check the cited locations, then decide whether repetition is useful
+or can be removed without losing meaning. Do not cite these counts in the report.
+Avoid method details in captions already explained in method; captions still
+identify measure, scope and any qualification necessary to read the visual safely.
+Review the final report for useful synthesis and full evidence/goal coverage.
+Optional brevity or a preferred layout is a suggestion, never a material blocker.
+Wrong meaning, unsupported action or a missing requested answer remains material.
+"""
+ANALYST_SYSTEM += DELIVERY_READING
+REVIEWER_SYSTEM += DELIVERY_READING

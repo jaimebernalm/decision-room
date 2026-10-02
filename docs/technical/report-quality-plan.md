@@ -622,3 +622,17 @@ negocio y adaptación de desarrollo, con CLI autenticado en ChatGPT frente a API
 del producto. No demuestra mejora consistente ni elimina los 429. Resultados,
 prompts, recursos y límites en [evaluación Luna directo](../validation/2026-10-02-codex-luna-comparison.md).
 3.9.7 y la dosificación compartida de tokens siguen abiertos.
+
+### 3.9.8 — Primera lectura y síntesis conjunta
+
+Ampliación solicitada por el propietario después de integrar la interfaz. Se
+implementan conjuntamente navegación, orientación legible y síntesis de los
+agentes. El diagnóstico editorial mide longitud y repeticiones exactas dentro
+del contexto del modelo; no es evidencia de negocio ni cambia huellas de
+aprobación. La extensión sigue los [seis pasos del plan de lectura](report-reading-plan.md#398-primera-lectura-y-síntesis-sobre-la-interfaz-integrada).
+
+Se verifican regresiones y tres redacciones con Luna sobre evidencia congelada.
+La reducción de texto es relevante en Bruma y mínima en WWI; la aprobación del
+revisor del experimento no sustituye la aceptación independiente. El fallo previo
+de utilidad/prioridad de WWI descubrimiento no se declara resuelto. **3.9.7 sigue
+abierto**. Véanse [comprobaciones, recursos y límites](../validation/2026-10-02-report-reading-and-synthesis.md).

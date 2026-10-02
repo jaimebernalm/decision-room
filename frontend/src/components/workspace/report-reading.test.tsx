@@ -95,6 +95,55 @@ beforeEach(() => {
   selection.toggle.mockClear();
 });
 afterEach(() => history.replaceState(null, "", "#home"));
+it("shows the complete reviewed summary once before navigation and preserves a long period", () => {
+  const period =
+    "Periodo observado, con una descripción larga de las fechas disponibles y sus condiciones de cobertura";
+  render(
+    <ReportView
+      report={{ ...report, scope: { ...report.scope, period } }}
+      compact
+    />,
+  );
+  const summary = screen.getByText(report.summary!);
+  expect(summary).toBeVisible();
+  expect(screen.getAllByText(report.summary!)).toHaveLength(1);
+  expect(
+    summary.compareDocumentPosition(screen.getByRole("navigation")) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  expect(screen.getByText(period)).toHaveClass(
+    "whitespace-normal",
+    "max-w-full",
+  );
+});
+it("navigates by keyboard within its own report without opening details, changing the route or fetching", async () => {
+  const fetch = vi.fn();
+  vi.stubGlobal("fetch", fetch);
+  const { container } = render(
+    <>
+      <ReportView report={report} compact />
+      <ReportView report={report} compact />
+    </>,
+  );
+  const navigation = screen.getAllByRole("navigation", {
+    name: "En este informe",
+  })[1];
+  const destination =
+    container.querySelectorAll<HTMLElement>("#finding-context")[1];
+  const button = within(navigation).getByRole("button", {
+    name: "Hallazgo sin gráfico",
+  });
+  button.focus();
+  await userEvent.keyboard("{Enter}");
+  expect(destination).toHaveFocus();
+  expect(
+    within(destination).getByRole("button", {
+      name: "Ver detalle: Hallazgo sin gráfico",
+    }),
+  ).toHaveAttribute("aria-expanded", "false");
+  expect(location.hash).toBe("#report/job");
+  expect(fetch).not.toHaveBeenCalled();
+});
 it("keeps multiple visuals in the finding card before keyboard-opened details", async () => {
   const { container } = render(<ReportView report={report} />);
   const finding = container.querySelector<HTMLElement>("#finding-sales")!;

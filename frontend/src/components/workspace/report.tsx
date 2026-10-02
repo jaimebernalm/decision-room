@@ -42,6 +42,7 @@ import {
   seriesColor,
   chartPoints,
   periodAxis,
+  periodLabel,
 } from "@/lib/charts";
 import { findingTarget } from "@/lib/report-navigation";
 import { PresentationEditor } from "./presentation-editor";
@@ -198,37 +199,58 @@ export function DecisionGuidance({
 }: {
   claim: ReportData["claims"][number];
 }) {
+  useLanguage();
   const value = claim.orientation;
   if (!value)
     return claim.next_step ? (
       <p className="rounded-lg bg-muted p-3">
-        <strong>Siguiente comprobación: </strong>
+        <strong>{tr("Siguiente comprobación:")} </strong>
         {claim.next_step}
       </p>
     ) : null;
   return (
-    <div className="space-y-3 border-l-2 border-primary/40 pl-4">
+    <div className="mt-4 space-y-3">
       <p className="text-xs text-muted-foreground">
         {value.segment} · {value.period}
       </p>
       {value.signal !== claim.statement && <p>{value.signal}</p>}
       <p>
-        <strong>Por qué merece atención: </strong>
+        <strong>{tr("Por qué merece atención:")} </strong>
         {value.relative_priority}
       </p>
-      {value.next_check && (
-        <p>
-          <strong>Siguiente comprobación: </strong>
-          {value.next_check}
-        </p>
-      )}
-      <p className="text-muted-foreground">{value.decision_value}</p>
-      {value.reactions.map((r, i) => (
-        <p key={i}>
-          <strong>Si {r.condition}: </strong>
-          {r.reaction}
-        </p>
-      ))}
+      <div className="grid gap-3 lg:grid-cols-2">
+        <div className="space-y-2 rounded-lg bg-muted/50 p-4">
+          {value.next_check && (
+            <>
+              <p className="text-xs font-semibold text-primary">
+                {tr("Siguiente comprobación:")}
+              </p>
+              <p>{value.next_check}</p>
+            </>
+          )}
+          <p className="text-muted-foreground">{value.decision_value}</p>
+        </div>
+        {value.reactions.length > 0 && (
+          <div className="space-y-2 rounded-lg border p-4">
+            <p className="text-xs font-semibold">
+              {tr("Según lo que encuentres")}
+            </p>
+            <ul className="divide-y">
+              {value.reactions.map((r, i) => (
+                <li key={i} className="space-y-1 py-2 first:pt-0 last:pb-0">
+                  <p className="font-medium">
+                    {/^(si|if)\b/i.test(r.condition.trimStart())
+                      ? r.condition +
+                        (r.condition.trimEnd().endsWith(":") ? "" : ":")
+                      : tr("Si {0}:", { "0": r.condition })}
+                  </p>
+                  <p className="text-muted-foreground">{r.reaction}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
       {value.limitation && (
         <p className="text-muted-foreground">{value.limitation}</p>
       )}
@@ -321,6 +343,7 @@ function GroupedLines({
   panel: ChartPanel;
   onSelect: (label: string) => void;
 }) {
+  useLanguage();
   const rows = groupedPoints(chart, panel);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const series = panel.series_order.map((name, i) => ({
@@ -332,7 +355,7 @@ function GroupedLines({
     <section aria-label={panel.title || chart.title} className="space-y-3">
       <div
         role="group"
-        aria-label={`Series: ${panel.series_title}`}
+        aria-label={tr("Series: {0}", { "0": panel.series_title })}
         className="flex flex-wrap gap-2"
       >
         {series.map((s) => (
@@ -363,6 +386,7 @@ function GroupedLines({
           series.map((s) => [s.key, { label: s.name, color: s.color }]),
         )}
         className="h-72 w-full"
+        style={{ containerType: "inline-size" }}
       >
         <LineChart
           onClick={(state) => {
@@ -383,7 +407,10 @@ function GroupedLines({
             domain={["dataMin", "dataMax"]}
             ticks={rows.filter((r) => r.category).map((r) => Number(r.axis))}
             tickFormatter={(axis) =>
-              String(rows.find((r) => r.axis === axis)?.category ?? "")
+              periodLabel(
+                String(rows.find((r) => r.axis === axis)?.category ?? ""),
+                panel.temporal_grain ?? undefined,
+              )
             }
             minTickGap={32}
           />
@@ -394,20 +421,26 @@ function GroupedLines({
               (v: number) => (chart.scale === "data" ? v : Math.max(0, v)),
             ]}
             tickFormatter={(v) =>
-              new Intl.NumberFormat("es", { notation: "compact" }).format(v)
+              new Intl.NumberFormat(locale(), { notation: "compact" }).format(v)
             }
           />
           <ChartTooltip
+            allowEscapeViewBox={{ x: false, y: false }}
+            position={{ x: 8 }}
             content={({ active, payload }) =>
               active && payload?.length ? (
                 <ReportChartTooltip
-                  title={String(payload[0].payload.category)}
+                  title={periodLabel(
+                    String(payload[0].payload.category),
+                    panel.temporal_grain ?? undefined,
+                  )}
                   unit={chart.unit}
                   items={[
                     ...series
                       .filter((s) => payload[0].payload[s.key] != null)
                       .map((s) => ({
-                        label: s.name + (hidden.has(s.key) ? " (oculta)" : ""),
+                        label:
+                          s.name + (hidden.has(s.key) ? tr(" (oculta)") : ""),
                         value: String(payload[0].payload[`${s.key}Exact`]),
                         color: s.color,
                       })),
@@ -476,6 +509,17 @@ export function EvidenceChart({
     chart.details?.filter((d) => selectedLabels.includes(d.point_label)) ?? [];
   const bars = chart.kind === "bar";
   const temporal = chart.kind === "line";
+  const displayPeriod = (label: string) =>
+    temporal
+      ? periodLabel(
+          label,
+          chart.panels?.find((p) =>
+            p.coordinates.some((c) => c.category === label),
+          )?.temporal_grain ??
+            chart.temporal_grain ??
+            undefined,
+        )
+      : label;
   const points = chartPoints(chart);
   const axes = (
     <>
@@ -508,12 +552,16 @@ export function EvidenceChart({
           bars
             ? new Intl.NumberFormat(locale(), { notation: "compact" }).format(v)
             : temporal
-              ? String(
-                  chart.points.find(
-                    (p) =>
-                      periodAxis(p.label, chart.temporal_grain ?? undefined) ===
-                      v,
-                  )?.label ?? "",
+              ? displayPeriod(
+                  String(
+                    chart.points.find(
+                      (p) =>
+                        periodAxis(
+                          p.label,
+                          chart.temporal_grain ?? undefined,
+                        ) === v,
+                    )?.label ?? "",
+                  ),
                 )
               : String(v)
         }
@@ -553,7 +601,7 @@ export function EvidenceChart({
         content={({ active, payload }) =>
           active && payload?.length ? (
             <ReportChartTooltip
-              title={String(payload[0].payload.label)}
+              title={displayPeriod(String(payload[0].payload.label))}
               unit={chart.unit}
               items={[
                 ...payload
@@ -670,17 +718,19 @@ export function EvidenceChart({
         {(!embedded || chart.kind === "table") && <ChartValues chart={chart} />}
         <div className="mt-4 space-y-3">
           <label className="flex flex-wrap items-center gap-2 text-xs">
-            Ver periodo o categoría
+            {tr("Ver periodo o categoría")}
             <select
-              aria-label={`Periodo o categoría de ${chart.title}`}
+              aria-label={tr("Periodo o categoría de {0}", {
+                "0": chart.title,
+              })}
               value={selected}
               onChange={(e) => setSelected(e.target.value)}
               className="max-w-full rounded border bg-background px-3 py-2 text-foreground focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <option value="">Selecciona un punto</option>
+              <option value="">{tr("Selecciona un punto")}</option>
               {periods.map((p) => (
                 <option value={p} key={p}>
-                  {p}
+                  {displayPeriod(p)}
                 </option>
               ))}
             </select>
@@ -690,7 +740,7 @@ export function EvidenceChart({
               aria-live="polite"
               className="space-y-2 rounded-lg bg-muted p-3 text-sm"
             >
-              <strong>{selected}</strong>
+              <strong>{displayPeriod(selected)}</strong>
               {chart.points
                 .filter((p) => selectedLabels.includes(p.label))
                 .map((p) => (
@@ -710,7 +760,7 @@ export function EvidenceChart({
                 ))}
               {sourceHref ? (
                 <a href={sourceHref} className="text-primary underline">
-                  Ver hallazgo y detalle en el informe
+                  {tr("Ver hallazgo y detalle en el informe")}
                 </a>
               ) : (
                 <>
@@ -724,7 +774,7 @@ export function EvidenceChart({
                       )
                     }
                   >
-                    Ver hallazgo y siguiente comprobación
+                    {tr("Ver hallazgo y siguiente comprobación")}
                   </button>
                   {detail
                     .filter((d) => d.detail_chart_key)
@@ -737,7 +787,7 @@ export function EvidenceChart({
                           navigateToDetail(d.detail_chart_key!, true)
                         }
                       >
-                        Ver desglose de este punto
+                        {tr("Ver desglose de este punto")}
                       </button>
                     ))}
                 </>
@@ -901,7 +951,12 @@ export function ReportView({
     <div ref={root} className="space-y-6">
       <div>
         <div className="mb-3 flex flex-wrap gap-2">
-          <Badge variant="outline">{report.scope.period}</Badge>
+          <Badge
+            variant="outline"
+            className="h-auto max-w-full whitespace-normal break-words"
+          >
+            {report.scope.period}
+          </Badge>
           <Badge variant="secondary">{tr("Revisado")}</Badge>
           {report.partial && (
             <Badge variant="outline">{tr("Entrega parcial")}</Badge>
@@ -923,19 +978,56 @@ export function ReportView({
         >
           {report.title}
         </h2>
+        {report.summary && (
+          <div className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground">
+            <Selectable
+              item={item("section", "summary", {
+                key: "summary",
+                title: tr("Resumen"),
+                statement: report.summary,
+              })}
+            >
+              <p>{report.summary}</p>
+            </Selectable>
+          </div>
+        )}
+        {report.claims.length > 1 && (
+          <nav aria-label={tr("En este informe")} className="mt-4">
+            <p className="mb-2 text-xs font-medium text-muted-foreground">
+              {tr("En este informe")}
+            </p>
+            <ol className="flex flex-wrap gap-2">
+              {report.claims.map((claim, i) => (
+                <li key={claim.key} className="max-w-full">
+                  <button
+                    type="button"
+                    className="flex max-w-full items-baseline gap-2 rounded-lg border px-3 py-2 text-left text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    onClick={() => {
+                      const finding = Array.from(
+                        root.current?.querySelectorAll<HTMLElement>("[id]") ??
+                          [],
+                      ).find(
+                        (element) => element.id === `finding-${claim.key}`,
+                      );
+                      finding?.scrollIntoView?.({ block: "start" });
+                      finding?.focus();
+                    }}
+                  >
+                    <span
+                      aria-hidden
+                      className="shrink-0 text-xs tabular-nums text-muted-foreground"
+                    >
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <span className="min-w-0 break-words">{claim.title}</span>
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </nav>
+        )}
         <div className="mt-3 max-w-3xl">
           <Disclosure title={tr("Sobre este informe")} subtle>
-            {report.summary && (
-              <Selectable
-                item={item("section", "summary", {
-                  key: "summary",
-                  title: tr("Resumen"),
-                  statement: report.summary,
-                })}
-              >
-                <p>{report.summary}</p>
-              </Selectable>
-            )}
             {report.scope.business && <p>{report.scope.business}</p>}
             {report.scope.question && (
               <p>

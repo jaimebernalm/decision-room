@@ -65,3 +65,34 @@ resumen breve nuevo requeriría contrato y revisión analítica en la rama de ca
 este incremento conserva el texto revisado completo donde pueda condicionar la
 lectura. Los periodos de Inicio pertenecen a cada tarjeta, sin un filtro global
 que simule recalcular evidencia revisada.
+
+
+## 3.9.8. Primera lectura y síntesis sobre la interfaz integrada
+
+Incremento autorizado al continuar la calidad del reporte y su presentación.
+El propietario pide presentación y síntesis de agentes juntas. No sustituye la
+aceptación analítica pendiente de 3.9.7.
+
+1. Mostrar el resumen revisado completo al inicio, una sola vez. Facilitar la
+   navegación local entre hallazgos con sus títulos, conservando versión,
+   selección contextual y detalle plegado. No sintetizar texto en el navegador.
+2. Presentar orientación en bloques legibles: próxima comprobación y utilidad,
+   condiciones y reacciones, con prioridad y límites completos. Conservar todas
+   las alternativas y la compatibilidad histórica.
+3. Formatear periodos temporales según el idioma sin cambiar coordenadas ni
+   claves. Ajustar tooltips al gráfico agrupado y conservar cifras exactas,
+   controles accesibles y periodos largos legibles también en móvil.
+4. Coordinar planificador, analista y revisor para una síntesis breve, con funciones
+   distintas para resumen, conclusión, interpretación y orientación. Añadir
+   feedback editorial de longitud y repeticiones exactas, sin modificar datos,
+   huellas de aprobación ni convertir preferencias en bloqueos.
+5. Comprobar contexto, contenido, teclado, navegación sin llamadas, idioma,
+   huecos y precisión; ejecutar regresiones, compilación y lint. Revisar Bruma y
+   WWI en escritorio/móvil y probar redacción sobre evidencia congelada, guardando
+   fallos y separando la prueba editorial de un recorrido completo de investigación.
+6. Documentar resultados y límites, revisar archivos públicos y guardar commit
+   local. Los informes históricos y sus evaluaciones permanecen congelados.
+
+Estado: implementado y comprobado. Véanse [resultados y límites](../validation/2026-10-02-report-reading-and-synthesis.md).
+No se amplía el esquema del informe ni se cambian los
+cálculos, presupuestos del producto o requisitos de aceptación numérica y negocio.

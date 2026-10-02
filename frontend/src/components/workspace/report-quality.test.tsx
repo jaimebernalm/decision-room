@@ -1,8 +1,9 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { it, expect, vi } from "vitest";
 import { ReportView, EvidenceChart } from "./report";
 import type { Report, ChartData } from "@/lib/types";
+import { setLanguage } from "@/lib/i18n";
 
 const chart: ChartData = {
   key: "trend",
@@ -78,6 +79,54 @@ const report: Report = {
     },
   ],
 };
+it("preserves an already conditional sentence without adding a second condition prefix", () => {
+  const condition = "Si un calendario documenta una diferencia de apertura";
+  const original = report.claims[0];
+  render(
+    <ReportView
+      report={{
+        ...report,
+        claims: [
+          {
+            ...original,
+            orientation: {
+              ...original.orientation!,
+              reactions: [{ condition, reaction: "Separar exposición." }],
+            },
+          },
+        ],
+      }}
+      compact
+    />,
+  );
+  expect(screen.getByText(condition + ":")).toBeVisible();
+  expect(screen.queryByText("Si " + condition + ":")).toBeNull();
+});
+
+it("localizes decision controls and period labels while preserving saved evidence and conditions", async () => {
+  const saved = JSON.stringify(report);
+  act(() => setLanguage("en"));
+  render(<ReportView report={report} compact />);
+  expect(screen.getByText("Next check:")).toBeVisible();
+  expect(screen.getByText("If se documenta falta de producto:")).toBeVisible();
+  const select = screen.getByRole("combobox", {
+    name: "Period or category for Canales por mes",
+  });
+  expect(within(select).getByRole("option", { name: "Jul 2026" })).toHaveValue(
+    "2026-07",
+  );
+  await userEvent.selectOptions(select, "2026-07");
+  expect(
+    screen.getByText("A: 9,007,199,254,740,993.01 unidades"),
+  ).toBeVisible();
+  expect(JSON.stringify(report)).toBe(saved);
+  act(() => setLanguage("es"));
+  expect(select).toHaveValue("2026-07");
+  expect(
+    screen.getByText("A: 9.007.199.254.740.993,01 unidades"),
+  ).toBeVisible();
+  expect(screen.getByText("Si se documenta falta de producto:")).toBeVisible();
+});
 
 it("makes priority/check/condition visible before opening methodological detail", () => {
   render(<ReportView report={report} compact />);

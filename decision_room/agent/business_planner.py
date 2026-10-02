@@ -10,7 +10,7 @@ from typing import Literal
 from .contracts import Strict, Question
 from .context import fingerprint
 
-VERSION = 'business-planner-v9'
+VERSION = 'business-planner-v10'
 
 
 class BusinessBrief(Strict):
@@ -52,7 +52,6 @@ owner_context) and actual owner answers. The brief is your working interpretatio
 not an owner-confirmed replacement. Its deliverables are proposed components;
 optional methods belong in instructions. The original request remains authoritative
 at every checkpoint, even when your interpretation changes.
-Build a concrete business brief from the accepted owner request and known context.
 Keep every expressly requested component in deliverables, distinguishing confirmed
 owner context from assumptions. Do not narrow the goal to excuse incomplete work.
 Do not expand deliverables by promoting your chosen drilldowns, optional percentages
@@ -115,6 +114,12 @@ Use question=null unless ask_owner. ready is only allowed at stage=delivery.
 from .goal_quality import GOAL_QUALITY
 from .delivery_contract import DECISION_READINESS
 SYSTEM += GOAL_QUALITY + AUTONOMY + DECISION_READINESS
+SYSTEM += '''\nAt the final handoff, choose the main supported answer and the useful
+reading order relative to the owner's actual goal. Tell the analyst what each
+finding adds rather than requesting separate findings that repeat a conclusion.
+Keep essential uncertainty and partial coverage explicit, but do not prescribe
+repeated disclaimers in every field. The analyst owns concise client wording and
+visual composition; the reviewer still independently assesses the delivery.\n'''
 
 
 def events(db, research_id):

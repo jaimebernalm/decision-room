@@ -18,7 +18,7 @@ export function ReportChartTooltip({
         <p className="font-medium leading-snug">{title}</p>
         <p className="leading-relaxed text-muted-foreground">{unit}</p>
       </div>
-      <dl className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-2">
+      <dl className="grid min-w-0 grid-cols-[minmax(0,1fr)_fit-content(45%)] gap-x-4 gap-y-2">
         {items.map((item, index) => (
           <div key={index} className="contents">
             <dt className="flex min-w-0 items-start gap-2 leading-relaxed">

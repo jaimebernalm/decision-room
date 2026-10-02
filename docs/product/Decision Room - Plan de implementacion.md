@@ -904,3 +904,14 @@ a `feature/report-quality`. La resolución conserva lectura progresiva,
 orientación de decisiones, interacción y evidencia exacta de 3.9.
 Véanse [secuencia y comprobaciones](../validation/2026-10-02-ui-quality-integration.md).
 La aceptación analítica **3.9.7 sigue abierta**.
+
+**Primera lectura y síntesis conjunta, 2 de octubre de 2026 (3.9.8):** resumen
+revisado completo al inicio, índice de hallazgos, orientación en bloques y fechas
+localizadas; tooltips y periodos largos legibles en móvil. Planificador, analista
+y revisor reciben instrucciones de síntesis y diagnóstico editorial sin alterar
+evidencia ni aprobación. Pasan 607 pruebas Python, 223 frontend, compilación y
+lint; tres redacciones sobre evidencia congelada pasan controles y revisión del
+experimento. Bruma reduce la primera lectura de 759 a 578 palabras; en WWI el
+cambio es mínimo. No demuestra mejora analítica consistente ni cierra 3.9.7.
+Véanse [incremento del plan](../technical/report-reading-plan.md#398-primera-lectura-y-síntesis-sobre-la-interfaz-integrada)
+y [validación](../validation/2026-10-02-report-reading-and-synthesis.md).

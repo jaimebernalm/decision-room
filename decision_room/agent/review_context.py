@@ -96,6 +96,9 @@ def material(config, db, session, run):
 def model_context(materialized, role):
     context = deepcopy(materialized)
     context['role'] = role
+    if context.get('report'):
+        from .report_reading import reading_feedback
+        context['report_reading'] = reading_feedback(context['report'])
     # Keep every turn and every distinct payload, but send identical code/report
     # only once. Explicit references point to full objects in this same request;
     # this is lossless deduplication, not a generated memory summary.

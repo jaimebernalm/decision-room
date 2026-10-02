@@ -1,4 +1,4 @@
-import { translate as tr } from "@/lib/i18n";
+import { translate as tr, locale } from "@/lib/i18n";
 import { displayNumber } from "./presentation";
 import palette from "../../../decision_room/chart_palette.json";
 import type { ChartData, TemporalGrain } from "./types";
@@ -32,6 +32,28 @@ export function periodAxis(label: string, grain = periodGrain(label)) {
     );
   if (grain === "year") return Date.parse(`${label}-01-01`);
   return Date.parse(label);
+}
+/** Display only: retain saved keys and use UTC to avoid shifting a date by timezone. */
+export function periodLabel(label: string, grain = periodGrain(label)): string {
+  if (grain === "quarter" && /^\d{4}-Q[1-4]$/.test(label))
+    return tr("T{0} {1}", { "0": label.slice(-1), "1": label.slice(0, 4) });
+  if (grain === "year") return label;
+  if (grain === "month" && !/^\d{4}-(0[1-9]|1[0-2])$/.test(label)) return label;
+  if (grain === "day" && !/^\d{4}-\d{2}-\d{2}$/.test(label)) return label;
+  const date = new Date(
+    grain === "month" ? `${label}-01T00:00:00Z` : `${label}T00:00:00Z`,
+  );
+  if (
+    !Number.isFinite(date.getTime()) ||
+    date.toISOString().slice(0, grain === "month" ? 7 : 10) !== label
+  )
+    return label;
+  return new Intl.DateTimeFormat(locale(), {
+    timeZone: "UTC",
+    year: "numeric",
+    month: "short",
+    ...(grain === "day" ? { day: "numeric" } : {}),
+  }).format(date);
 }
 /** Numeric coordinates are for drawing only; display keeps the server's decimal strings. */
 export function chartPoints(chart: ChartData) {
@@ -108,7 +130,9 @@ export function groupedPoints(
       );
       const point = coordinate ? saved.get(coordinate.label) : undefined;
       row[`s${index}`] = point ? Number(point.value) : null;
-      row[`s${index}Exact`] = point ? displayNumber(point.formatted) : tr("Sin dato");
+      row[`s${index}Exact`] = point
+        ? displayNumber(point.formatted)
+        : tr("Sin dato");
     });
     return row;
   });
