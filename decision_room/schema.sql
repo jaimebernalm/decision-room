@@ -829,3 +829,11 @@ CREATE TABLE IF NOT EXISTS report_presentation_revisions (
     UNIQUE(business_id,request_key)
 );
 INSERT INTO schema_versions(version) VALUES (27) ON CONFLICT DO NOTHING;
+
+-- Owner presentation groups do not alter memory contents or analytical revisions.
+CREATE TABLE IF NOT EXISTS web_dossier_layouts (
+    business_id uuid PRIMARY KEY REFERENCES businesses(id) ON DELETE CASCADE,
+    revision integer NOT NULL DEFAULT 0 CHECK (revision >= 0),
+    layout jsonb NOT NULL DEFAULT '{}'
+);
+INSERT INTO schema_versions(version) VALUES (28) ON CONFLICT DO NOTHING;

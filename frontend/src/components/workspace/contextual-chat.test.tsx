@@ -536,6 +536,9 @@ it("keeps the same dock, draft and attachments across all four sections", async 
     "Explica la selección",
   );
   await user.click(screen.getByRole("link", { name: "Mi negocio" }));
+  await user.click(
+    await screen.findByRole("button", { name: "Ver presentación original" }),
+  );
   await user.click(screen.getByRole("button", { name: "Seleccionar" }));
   await user.click(
     await screen.findByRole("button", {

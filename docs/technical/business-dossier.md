@@ -2,8 +2,14 @@
 
 ## Resultado y recorrido
 
-La ficha tiene Información, Datos y archivos, y Cambios. Presenta declaraciones,
-propuestas, contradicciones y dudas, con texto original, ámbito, fechas y revisiones.
+La ficha tiene Información, Datos e Historial. Información agrupa declaraciones,
+propuestas, contradicciones y dudas en filas compactas de Sobre el negocio,
+Operativa, Objetivos y preferencias y Por revisar. La presentación original se
+despliega dentro de Información; origen, texto original, ámbito, fechas y revisiones
+se consultan desde el menú de cada fila. Los ámbitos específicos y periodos siguen
+visibles; los avisos distinguen información propuesta o en conflicto. Véanse el
+[plan de presentación](business-dossier-ui-plan.md) y su
+[validación](../validation/2026-09-30-dossier-ui-check.md).
 Los orígenes que son mensajes enlazan a su conversación. El perfil general sigue
 siendo editable; las definiciones y prioridades usan `memory.change`, igual que
 las correcciones explícitas del chat. No existe otra copia de memoria en Markdown.
@@ -16,6 +22,69 @@ si falla el guardado y ofrece actualizar la ficha; no reemplaza formularios medi
 sondeo periódico. Restaurar una información retirada requiere una corrección explícita.
 Los cambios futuros conservan el ámbito y necesitan una fecha posterior, según el
 contrato de memoria existente.
+
+Las propuestas confirmables ofrecen tic y X directamente al pasar el cursor o
+enfocar la fila; en móvil y dispositivos sin cursor permanecen visibles. La X
+retira la propuesta al historial. El botón Resolver conflicto permanece visible
+junto al aviso y abre las versiones, citas y la pregunta de aclaración disponible.
+Usar una versión rellena el borrador, incluido su ámbito y fechas cuando están
+estructurados; Guardar solución envía una corrección explícita. También se puede
+escribir una solución sin alternativas. Se mantiene el menú para detalles y otras
+acciones; fechas ambiguas y preguntas abiertas no se confirman directamente.
+
+La elección de conflictos usa tarjetas con radio y estado Seleccionada. Guardar
+solución permanece visible mientras el formulario se desplaza y exige elegir o
+escribir una solución. Las alternativas que repiten la información actual se
+deduplican; para esa versión se muestra su cita original cuando está disponible.
+
+Personalizar grupos permite crear, renombrar, ordenar y eliminar categorías; el
+menú de cada fila permite moverla o recuperar su clasificación automática.
+`web_dossier_layouts` (esquema 27) guarda por negocio `groups`, `assignments` y
+`revision`, mediante `POST /api/business/dossier-layout`; la ficha los devuelve
+en `layout`. La configuración no cambia hechos, procedencia, revisiones de memoria
+ni resultados analíticos. Se comprueba negocio activo, pertenencia de los recuerdos,
+nombres únicos de hasta 60 caracteres, límite de 20 grupos y revisión concurrente.
+Un reintento exacto puede recuperar la respuesta guardada; otra escritura antigua
+se rechaza. Por revisar mantiene los pendientes visibles aunque tengan asignación.
+Eliminar grupos conserva los recuerdos mediante clasificación automática o Sin
+grupo; los grupos personalizados vacíos siguen visibles. Actualizar se sitúa junto
+a las pestañas.
+
+Cada cabecera ofrece Añadir información a la derecha: botón circular de 36 px
+(44 px con puntero táctil), símbolo más de 20 px y sombra suave al interactuar.
+Solo se muestra el icono; Añadir información aparece como tooltip con cursor o
+foco de teclado. Su nombre accesible incluye el grupo. Está separado del control de plegado y
+también aparece en grupos vacíos. Personalizar grupos permanece arriba. Las
+pestañas se separan 16 px más del título y comparten el radio de las cajas; tienen
+más superficie y tipografía de 16 px. El menú de
+fila aparece con cursor, foco de teclado o apertura y permanece disponible en
+dispositivos táctiles.
+
+Cada grupo admite una descripción de hasta 500 caracteres. La creación desde la
+interfaz requiere nombre y descripción; las configuraciones anteriores siguen
+legibles. El extractor de memoria recibe nombres, descripciones y revisión de los
+grupos como datos de clasificación, nunca como declaraciones ni instrucciones.
+El contrato `memory-v7` combina la exclusión de órdenes de presentación con
+la clasificación en grupos; incorpora `group_id` separado del contenido del recuerdo:
+el esquema del proveedor limita la elección a los IDs del negocio o null, y el
+servidor verifica la pertenencia en el contexto guardado de la llamada.
+
+Solo los recuerdos nuevos reciben esa asignación en la transacción de extracción.
+Una contradicción o corrección conserva la ubicación existente; los pendientes
+siguen en Por revisar y, al confirmarlos, aparece su grupo. Si la configuración
+cambia durante la llamada, se conserva el recuerdo y se omite la asignación
+obsoleta. Un fallo SQL permite reaplicar la respuesta ya guardada sin otra llamada
+al proveedor. Los grupos siguen sin alterar el ámbito o la vigencia analítica.
+
+Añadir desde una cabecera abre un formulario con grupo fijo y sin selector de tipo
+para información nueva. `POST /api/business/memory` acepta `group_id` en declarar
+o proponer; la revisión de memoria, original, comando idempotente y asignación
+se guardan en la misma transacción. Se valida que el grupo siga disponible en el
+negocio. Un grupo retirado o un fallo SQL no deja un recuerdo creado a medias;
+un reintento exacto devuelve la respuesta anterior incluso si después se retira
+el grupo, sin recrearlo. Por revisar crea propuestas y Sin grupo puede guardarse
+como asignación explícita. La edición de recuerdos existentes conserva el
+selector de tipo y sus controles anteriores.
 
 La ficha es consultable por el cliente. No se inyecta entera al agente: se conserva
 la selección inicial de contexto, el catálogo y las herramientas de recuperación.

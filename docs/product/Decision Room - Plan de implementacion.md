@@ -202,6 +202,46 @@ agradecimientos. Véase la [validación del diálogo](../validation/2026-09-24-d
 
 **Comprobar:** editar una definición tiene el mismo efecto desde la ficha que desde una aclaración; una corrección histórica retira los resultados afectados; el usuario encuentra el origen y alcance de lo guardado; un archivo nuevo no se agrega dos veces ni hace parecer actualizado un informe anterior. Sin datos suficientes se conserva el trabajo y se explica el siguiente paso.
 
+**Ajuste de presentación, 30 de septiembre de 2026:** implementada y comprobada
+una ficha organizada por grupos y filas compactas, con presentación original
+plegada y acciones/detalles a petición. Se conserva edición, historial y selección
+de contexto con versiones. Pasan 125 pruebas de frontend, compilación y lint sin
+errores; escritorio y móvil comprobados con datos ficticios. Véanse la
+[secuencia de ejecución](../technical/business-dossier-ui-plan.md) y la
+[validación con sus límites](../validation/2026-09-30-dossier-ui-check.md).
+El refinamiento visual posterior separa los grupos en cajas, destaca las
+cabeceras y usa el acento de la barra lateral al pasar el cursor o enfocar las
+filas. Se comprueban 32 pruebas de ficha/chat contextual, compilación, lint,
+alineación, móvil y temas claro/oscuro en la misma validación.
+Las propuestas incorporan confirmar/descartar directamente en la fila y los
+conflictos un recorrido explícito para comparar versiones y guardar la solución.
+Pasan 132 pruebas de frontend y la demo incluye texto largo para comprobar lectura
+en escritorio y móvil; se conserva el contrato de memoria e historial existente.
+La elección de conflictos se marca con opciones de radio y guardado siempre
+visible. Se añaden grupos propios persistentes por negocio, renombrado, orden,
+asignaciones y eliminación sin pérdida de recuerdos; Actualizar queda junto a
+las pestañas. Pasan 138 pruebas frontend y 40 de PostgreSQL/API/migraciones/memoria,
+además de compilación, lint y comprobaciones de escritorio/móvil. No se altera
+la aceptación analítica de otras entregas.
+El siguiente refinamiento amplía las pestañas, convierte Añadir información en un
+botón circular y muestra los menús de fila con cursor/foco. Las descripciones de
+grupos se guardan y el extractor las usa para asignar recuerdos nuevos mediante
+IDs acotados al negocio, respetando movimientos manuales y cambios concurrentes.
+Pasan 139 pruebas frontend y 47 de PostgreSQL, compilación y lint; la validación
+visual continúa en una demo con datos ficticios.
+Añadir información se traslada a cada cabecera, con formulario de grupo fijo y
+sin selector de tipo para nuevos recuerdos. El destino y el original se guardan
+atómicamente, con validación e idempotencia. Los grupos vacíos permiten empezar;
+Por revisar crea propuestas y Sin grupo conserva una asignación explícita.
+Las pestañas bajan 16 px y comparten el radio de las cajas. Pasan 142 pruebas
+frontend y 50 de PostgreSQL, compilación, lint y comprobaciones de móvil/escritorio.
+El botón individual se refina después a 36 px (44 con puntero táctil), símbolo
+de 20 px y sombra suave solo al interactuar. Compilación, lint y apertura del
+formulario comprobados en la demo.
+La etiqueta permanente se sustituye por un tooltip Añadir información con cursor
+o foco, manteniendo solo el «+» y el nombre accesible del grupo. Compilación, lint,
+tooltip y apertura con teclado comprobados.
+
 ### 2.5.6. Inicio del negocio, informes y navegación cotidiana
 
 **Construir:** separar onboarding de visitas posteriores. Barra lateral con Inicio, Informes, Mi negocio, Nueva conversación y chats recientes. Inicio muestra un resumen, pocos hallazgos y gráficos respaldados, con periodo visible, detalle/evidencia y selección de revisión. Añadir prompt inferior y preguntas sugeridas pertinentes; enviar abre un chat y «Preguntar sobre esto» conserva la referencia al hallazgo. Biblioteca de informes con estados y vínculo a conversaciones; navegación adaptable a móvil y teclado.
@@ -493,6 +533,15 @@ campo de mensaje ([validación](../validation/2026-10-01-composer-island.md)). P
 y 128 backend seleccionadas, compilación y lint sin errores; comprobación visual
 en escritorio/móvil y ambos temas. Se conserva el historial en su idioma original.
 La prueba real del proveedor recibe HTTP 429; véanse [validación y límites](../validation/2026-09-30-language-and-composer.md).
+
+**Integración de UI1 y UI2, 1 de octubre de 2026:** se unen navegación,
+idioma y compositor (2.5.18–2.5.20) con la ficha y sus grupos (2.5.5) en una rama
+local de integración. Se conservan ambas migraciones de datos (presentación 27,
+grupos 28) y las dos responsabilidades del extractor (`memory-v7`). La ficha y
+su editor de grupos usan el idioma seleccionado sin traducir el contenido del
+propietario; la elección de conflicto mantiene su identidad al cambiar de idioma.
+Véanse [comprobaciones de integración](../validation/2026-10-01-ui-integration.md).
+La rama de calidad de informes no forma parte de esta integración.
 
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 

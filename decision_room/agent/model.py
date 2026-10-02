@@ -200,6 +200,8 @@ class ModelClient:
         candidate['required'] = list(candidate['properties'])
         candidate['properties']['correction_of'].pop('default', None)
         candidate['properties']['profile_replacement'].pop('default', None)
+        candidate['properties']['group_id'] = {'type': ['string', 'null'],
+                                               'enum': [g['id'] for g in context.get('groups', [])] + [None]}
         source = context['source']
         content = schema['$defs']['Content']['properties']
         scope = source['default_scope']

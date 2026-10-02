@@ -314,6 +314,10 @@ class Handler(BaseHTTPRequestHandler):
             if path == '/api/business/memory' and mutation:
                 self.send(200, dossier.change(ws, self.json_body()))
                 return
+            if path == '/api/business/dossier-layout' and mutation:
+                from . import dossier_layout
+                self.send(200, dossier_layout.save(ws, self.json_body()))
+                return
             if path == '/api/datasets' and mutation:
                 self.send(200, dossier.upload(ws, *self.multipart()))
                 return
