@@ -7,6 +7,7 @@ import {
   MoreHorizontal,
   MessageCircle,
   Pin,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,6 +29,7 @@ import { ChatActions } from "./chat-actions";
 import { NewChatComposer } from "./floating-assistant";
 import { Selectable } from "./context-selection";
 import { useAssistant } from "@/lib/assistant";
+import { useChatSearch } from "@/lib/chat-search";
 export function StartChat() {
   useLanguage();
   return (
@@ -48,9 +50,7 @@ export function Chats() {
   const { listing } = useWorkspace();
   const assistant = useAssistant();
   const [search, setSearch] = useState("");
-  const chats = listing.conversations.filter((c) =>
-    c.title.toLowerCase().includes(search.toLowerCase()),
-  );
+  const { chats, pending, error, retry } = useChatSearch(search, listing);
   return (
     <>
       <Heading
@@ -64,14 +64,31 @@ export function Chats() {
           </a>
         </Button>
       </Heading>
-      <Input
-        aria-label={tr("Buscar chats")}
-        placeholder={tr("Buscar chats…")}
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="mb-6 max-w-sm"
-      />
-      {chats.length ? (
+      <div className="relative mb-6 max-w-sm">
+        <Search
+          aria-hidden="true"
+          className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+        />
+        <Input
+          aria-label={tr("Buscar chats")}
+          placeholder={tr("Buscar por título o mensaje…")}
+          type="search"
+          maxLength={300}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="chat-search-input pl-9 focus-visible:border-foreground/30 focus-visible:ring-0"
+        />
+      </div>
+      <Notice error>{error}</Notice>
+      {error ? (
+        <Button variant="outline" onClick={retry}>
+          {tr("Reintentar")}
+        </Button>
+      ) : pending ? (
+        <p role="status" className="py-6 text-sm text-muted-foreground">
+          {tr("Buscando chats…")}
+        </p>
+      ) : chats.length ? (
         <div className="grid gap-2">
           {chats.map((c) => (
             <Selectable key={c.id} item={c.context_reference}>
@@ -86,6 +103,14 @@ export function Chats() {
                     <p className="mt-1 text-xs text-muted-foreground">
                       {date(c.last_message_at || c.created_at)}
                     </p>
+                    {c.search_match && (
+                      <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
+                        {c.search_match.role === "user"
+                          ? tr("Tú")
+                          : tr("Asistente")}
+                        : {c.search_match.text}
+                      </p>
+                    )}
                   </a>
                   {c.pinned_at && (
                     <Pin
@@ -108,6 +133,13 @@ export function Chats() {
             </Selectable>
           ))}
         </div>
+      ) : search.trim() ? (
+        <p
+          role="status"
+          className="py-10 text-center text-sm text-muted-foreground"
+        >
+          {tr("No hay chats que coincidan con tu búsqueda.")}
+        </p>
       ) : (
         <Empty
           title={tr("Un espacio para pensar con tus datos")}

@@ -266,7 +266,8 @@ class Handler(BaseHTTPRequestHandler):
                 chats = Conversations(ws)
                 parts = path.strip('/').split('/')
                 if len(parts) == 2:
-                    self.send(202 if mutation else 200, chats.create(self.json_body()) if mutation else chats.listing())
+                    query = parse_qs(urlsplit(self.path).query).get('query', [''])[0]
+                    self.send(202 if mutation else 200, chats.create(self.json_body()) if mutation else chats.listing(query))
                     return
                 chat_id = parts[2]
                 if not mutation and len(parts) == 6 and parts[3] == 'turns' and parts[5] == 'activity':
