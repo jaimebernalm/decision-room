@@ -224,6 +224,43 @@ async function menu(user: ReturnType<typeof userEvent.setup>, f: Fact) {
 }
 
 describe("compact business dossier", () => {
+  it("opens the entire multiline information directly without writing and restores row focus", async () => {
+    const statement = `${"Planificamos los pedidos de la campaña escolar. ".repeat(40)}\n\nLa última condición se conserva completa.`;
+    const long = fact("long", statement);
+    const { user, writes } = setup(dossier([long]));
+    await ready();
+    const row = screen.getByRole("button", { name: /^Ver información:/ });
+    await user.click(row);
+    const dialog = screen.getByRole("dialog", {
+      name: "Detalles de la información",
+    });
+    expect(within(dialog).getByText(/La última condición/).textContent).toBe(
+      statement,
+    );
+    expect(within(dialog).getByText(/revisión 3/)).toBeVisible();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(row).toHaveFocus();
+    expect(writes).toEqual([]);
+  });
+  it.each(["{Enter}", " "])(
+    "opens a short information row with keyboard %s and closes without changing it",
+    async (key) => {
+      const { user, writes } = setup(dossier([shop]));
+      await ready();
+      const row = screen.getByRole("button", {
+        name: `Ver información: ${shop.content.statement}`,
+      });
+      row.focus();
+      await user.keyboard(key);
+      const dialog = screen.getByRole("dialog");
+      expect(within(dialog).getByText(shop.content.statement)).toBeVisible();
+      await user.click(within(dialog).getByRole("button", { name: "Cerrar" }));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(row).toHaveFocus();
+      expect(writes).toEqual([]);
+    },
+  );
   it("groups every active fact and only shows material status, dates and scope", async () => {
     setup();
     await ready();

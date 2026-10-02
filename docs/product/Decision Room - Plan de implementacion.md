@@ -242,6 +242,14 @@ La etiqueta permanente se sustituye por un tooltip Añadir información con curs
 o foco, manteniendo solo el «+» y el nombre accesible del grupo. Compilación, lint,
 tooltip y apertura con teclado comprobados.
 
+**Lectura compacta, 2 de octubre de 2026:** cada declaración muestra una línea
+con puntos suspensivos y abre el texto completo en los detalles al pulsarla o
+con teclado. Información y Datos comparten ancho; las cabeceras responden al
+cursor/foco también en la zona del +, situado antes de la flecha. Pasan 205
+pruebas frontend, compilación y lint sin errores; se comprueban escritorio,
+móvil y desplazamiento del lector. Véase la
+[validación de lectura y sus límites](../validation/2026-10-02-dossier-reading.md).
+
 ### 2.5.6. Inicio del negocio, informes y navegación cotidiana
 
 **Construir:** separar onboarding de visitas posteriores. Barra lateral con Inicio, Informes, Mi negocio, Nueva conversación y chats recientes. Inicio muestra un resumen, pocos hallazgos y gráficos respaldados, con periodo visible, detalle/evidencia y selección de revisión. Añadir prompt inferior y preguntas sugeridas pertinentes; enviar abre un chat y «Preguntar sobre esto» conserva la referencia al hallazgo. Biblioteca de informes con estados y vínculo a conversaciones; navegación adaptable a móvil y teclado.

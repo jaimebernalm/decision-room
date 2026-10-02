@@ -130,3 +130,20 @@ Estado: implementado y comprobado el 30 de septiembre de 2026.
    guardar el ajuste en un commit local.
 
 Estado: implementado y comprobado el 30 de septiembre de 2026.
+
+## Lectura compacta y cabeceras completas
+
+1. Igualar el ancho de Información y Datos. Aplicar el fondo de interacción a
+   toda la cabecera; colocar el botón + antes de la flecha, conservando acciones
+   independientes y el destino fijo del formulario.
+2. Mostrar cada declaración en una línea con puntos suspensivos, sin recortar
+   su contenido guardado. Abrir los detalles completos al pulsar el texto o
+   mediante teclado, con el resto de la página visible detrás, lectura con
+   desplazamiento y cierre que devuelve el foco a la fila. Mantener estados,
+   conflictos y fechas relevantes visibles.
+3. Comprobar texto largo, teclado, acciones, selección contextual y regresión
+   de la ficha; compilación, lint y lectura/ancho/cabeceras en escritorio y móvil.
+   Revisar el diff público y crear un commit local al completar el incremento.
+
+Estado: implementado y comprobado el 2 de octubre de 2026; véanse los resultados
+y límites en la [validación de lectura](../validation/2026-10-02-dossier-reading.md).

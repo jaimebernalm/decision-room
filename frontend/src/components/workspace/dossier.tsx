@@ -265,7 +265,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
             {tr("Actualizar")}
           </Button>
         </div>
-        <TabsContent value="info" className="max-w-4xl space-y-5">
+        <TabsContent value="info" className="min-w-0 space-y-5">
           <div className="flex flex-wrap items-center justify-end gap-2">
             <Button
               variant="outline"
@@ -320,10 +320,10 @@ export function Dossier({ files = false }: { files?: boolean }) {
                     value={group.key}
                     className="rounded-xl border border-border bg-card shadow-sm"
                   >
-                    <div className="flex items-center gap-2 rounded-xl bg-muted/50 pr-3">
-                      <div className="min-w-0 flex-1">
-                        <AccordionTrigger className="items-center gap-3 rounded-xl px-4 py-4 text-base font-semibold text-foreground hover:bg-sidebar-accent hover:no-underline motion-reduce:transition-none">
-                          <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+                    <div className="relative rounded-xl bg-muted/50 transition-colors hover:bg-sidebar-accent focus-within:bg-sidebar-accent motion-reduce:transition-none">
+                      <div className="min-w-0">
+                        <AccordionTrigger className="items-center gap-3 rounded-xl px-4 py-4 text-base font-semibold text-foreground hover:no-underline motion-reduce:transition-none">
+                          <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 pr-14">
                             <span className="min-w-0 [overflow-wrap:anywhere]">
                               {group.title}
                             </span>{" "}
@@ -338,7 +338,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
                           <TooltipTrigger asChild>
                             <Button
                               size="icon"
-                              className="size-9 rounded-full shadow-none hover:shadow-sm [@media(pointer:coarse)]:size-11"
+                              className="absolute top-1/2 right-10 size-9 -translate-y-1/2 rounded-full shadow-none hover:shadow-sm [@media(pointer:coarse)]:size-11"
                               aria-label={tr("Añadir información a {0}", {
                                 0: group.title,
                               })}
@@ -400,9 +400,22 @@ export function Dossier({ files = false }: { files?: boolean }) {
                             >
                               <div className="group/fact flex items-start gap-3 rounded-lg px-2 py-2 text-sm transition-[background-color,box-shadow] hover:bg-sidebar-accent hover:shadow-sm focus-within:bg-sidebar-accent focus-within:shadow-sm motion-reduce:transition-none sm:px-3">
                                 <div className="min-w-0 flex-1 py-2">
-                                  <p className="whitespace-pre-wrap break-words leading-6">
-                                    {f.content.statement}
-                                  </p>
+                                  <button
+                                    type="button"
+                                    className="block w-full min-w-0 rounded-sm text-left leading-6 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                    aria-label={tr("Ver información: {0}", {
+                                      0: f.content.statement,
+                                    })}
+                                    aria-haspopup="dialog"
+                                    onClick={(event) => {
+                                      actionFocus.current = event.currentTarget;
+                                      setDetail(f);
+                                    }}
+                                  >
+                                    <span className="block truncate">
+                                      {f.content.statement}
+                                    </span>
+                                  </button>
                                   {needsReview(f) && (
                                     <div className="mt-1 flex flex-wrap items-center gap-2">
                                       <Badge
@@ -830,18 +843,18 @@ export function Dossier({ files = false }: { files?: boolean }) {
         }}
       >
         <DialogContent
-          className="max-h-[90svh] overflow-y-auto sm:max-w-xl"
+          className="flex max-h-[90svh] flex-col overflow-hidden sm:max-w-2xl"
           onCloseAutoFocus={restoreDialogFocus}
         >
-          <DialogHeader>
+          <DialogHeader className="shrink-0 pr-8">
             <DialogTitle>{tr("Detalles de la información")}</DialogTitle>
             <DialogDescription>
               {tr("Origen, ámbito y vigencia de este dato.")}
             </DialogDescription>
           </DialogHeader>
           {detail && (
-            <div className="min-w-0 space-y-4 break-words text-sm">
-              <p className="whitespace-pre-wrap leading-6">
+            <div className="min-h-0 min-w-0 space-y-4 overflow-y-auto break-words text-sm">
+              <p className="whitespace-pre-wrap text-base leading-7">
                 {detail.content.statement}
               </p>
               <div className="flex flex-wrap gap-2">
