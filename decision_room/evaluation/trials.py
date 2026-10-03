@@ -178,7 +178,8 @@ from decision_room.database import migrate
 from decision_room.evaluation.quality_runner import configuration, preflight
 batch=Path(sys.argv[1]);manifest=json.loads((batch/"manifest.json").read_text());arm=manifest["arms"][sys.argv[2]]
 load_env(Path(manifest["env_file"]));os.environ["DECISION_ROOM_DATABASE_URL"]=manifest["dsn"];os.environ.update(arm["env"])
-config=configuration(arm);migrate(config);preflight(config,batch/("preflight-"+sys.argv[2]))
+probe=batch/("preflight-"+sys.argv[2]);probe.mkdir(exist_ok=True)
+config=configuration(arm);migrate(config);preflight(config,probe)
 print("Frozen source migrated; sandbox preflight passed:",sys.argv[2])
 '''
 
