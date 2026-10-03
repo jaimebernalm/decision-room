@@ -98,7 +98,8 @@ def copy_inputs(source, target):
 
 
 def prepare(batch, datasets, product_ref, repeats, systems, runtime_root, env_file,
-            arm_repeats=None, python=None, reference_ref=None, product_env=None, reference_python=None):
+            arm_repeats=None, python=None, reference_ref=None, product_env=None, reference_python=None,
+            reference_env=None):
     if (batch / 'manifest.json').exists():
         raise SystemExit('Batch already prepared; inspect it or choose another folder.')
     batch.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -134,7 +135,7 @@ def prepare(batch, datasets, product_ref, repeats, systems, runtime_root, env_fi
         manifest.update(dsn=make_conninfo(dsn, dbname='postgres'), env_file=str(Path(env_file).resolve()),
                         model=asdict(settings), arms={})
         refs = {'product': (product_ref, product_env or {}, manifest['python']),
-                'reference': (reference_ref, {}, str(reference_python or manifest['python']))}
+                'reference': (reference_ref, reference_env or {}, str(reference_python or manifest['python']))}
         for arm in [a for a in PRODUCT_ARMS if a in systems]:
             ref, env, python_path = refs[arm]
             if not ref:
@@ -464,6 +465,7 @@ def main():
     p.add_argument('--reference-ref', help='Frozen product revision for the reference arm')
     p.add_argument('--reference-python', type=Path)
     p.add_argument('--product-env', action='append', default=[], help='KEY=VALUE set only for the product arm')
+    p.add_argument('--reference-env', action='append', default=[], help='KEY=VALUE set only for the reference arm')
     p.add_argument('--systems', default='luna,product')
     p.add_argument('--runtime-root', type=Path, default=ROOT,
                    help='Checkout whose .local holds sandbox-runtime.json and the mounted sandbox-inputs')
@@ -490,7 +492,8 @@ def main():
         arms = {k: int(v) for k, v in (item.split('=', 1) for item in args.arm_repeats)}
         manifest = prepare(args.batch.resolve(), datasets, args.product_ref, args.repeats, systems,
                            args.runtime_root.resolve(), args.env_file, arms, args.python, args.reference_ref,
-                           dict(item.split('=', 1) for item in args.product_env), args.reference_python)
+                           dict(item.split('=', 1) for item in args.product_env), args.reference_python,
+                           dict(item.split('=', 1) for item in args.reference_env))
         print(json.dumps({'jobs': manifest['order'], 'revision': manifest.get('revision')}, indent=2))
     elif args.command == 'run':
         print(json.dumps({'dispatched': run(args.batch.resolve(), args.system, args.limit)}))
