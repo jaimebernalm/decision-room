@@ -57,7 +57,10 @@ def render(report, exported_at):
                 if panel_title:
                     output.append(f'<h4>{e(panel_title)}</h4>')
                 svg = renderSVG.drawToString(drawing)
-                output.append('<div class="plot">' + svg[svg.index('<svg'):] + '</div>')
+                svg = svg[svg.index('<svg'):]
+                if owner:
+                    svg = svg.replace('<svg ', f'<svg role="img" aria-label="{e(chart["title"])}" ', 1)
+                output.append('<div class="plot">' + svg + '</div>')
             if owner and chart['kind'] != 'table':
                 output.append(f'<details><summary>{tr("Valores del gráfico")}</summary>')
             original = not owner and any((p.get('original_label', p['label']) != p['label'] for p in chart['points']))

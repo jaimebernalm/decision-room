@@ -194,3 +194,33 @@ class OwnerPresentationPersistenceTests(unittest.TestCase):
         exported = export(self.config, self.business, result['id'])
         self.assertIn('Detalle técnico y valores originales', Path(exported['path']).read_text())
         self.assertTrue(Path(exported['audit_path']).is_file())
+
+
+class OwnerPresentationRecoveryTests(unittest.TestCase):
+    from test_research import ResearchTests as _Base
+    setUpClass = classmethod(_Base.setUpClass.__func__)
+    tearDownClass = classmethod(_Base.tearDownClass.__func__)
+    setUp = _Base.setUp
+    start = _Base.start
+
+    def test_presentation_switch_preserves_recovered_evidence_and_partial_coverage(self):
+        from decision_room.agent import review
+        from test_research_validation_recovery import InvalidAfterEvidence
+        model = InvalidAfterEvidence()
+        run = self.start(model=model, research_continuity=True, research_validation_recovery=True)
+        self.assertEqual(run['status'], 'partial')
+        snapshots = []
+        calls = model.calls
+        for enabled in (False, True):
+            with patch('decision_room.agent.review._drive') as drive:
+                review.start(self.config, self.business, run['id'], request_key=f'owner-{enabled}',
+                             owner_presentation=enabled, analyst=model, reviewer=model)
+            saved = drive.call_args.args[3]
+            self.assertEqual(bool(saved['options'].get('owner_presentation')), enabled)
+            snapshot = saved['snapshot']
+            self.assertFalse(snapshot['research_coverage']['complete'])
+            self.assertTrue(snapshot['research_coverage']['validation_recovery'])
+            self.assertEqual(len(snapshot['executions']), 2)
+            snapshots.append(snapshot)
+        self.assertEqual(snapshots[0], snapshots[1])
+        self.assertEqual(model.calls, calls)

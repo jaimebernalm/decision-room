@@ -1,6 +1,8 @@
 # P3 — Presentación comprensible para el dueño
 
-Base `b47c9da`; rama `codex/feature/report-quality-presentation`.
+Base actual `5d3087c`; rama `codex/feature/report-owner-presentation-v2`.
+Se integra la implementación P3 anterior (`cefd8e7`) sin cambiar el diagnóstico
+analítico ni consultar los datos de ensayo para desarrollar reglas.
 [Plan](../technical/report-presentation-plan.md). Sin llamadas reales al modelo.
 
 ## Activar el candidato
@@ -17,8 +19,8 @@ la variable no transforma informes ya aprobados. Crear una revisión nueva y usa
 una request key nueva para cambiar de brazo. Reiniciar el proceso web si se desea
 cambiar la configuración de las futuras revisiones.
 
-P3 no activa continuidad: `DECISION_ROOM_RESEARCH_CONTINUITY` sigue siendo una opción
-independiente. Para atribuir efectos, mantener iguales investigación, fuentes,
+P3 no activa continuidad ni recuperación de validación: `DECISION_ROOM_RESEARCH_CONTINUITY` sigue siendo una opción
+independiente, al igual que `DECISION_ROOM_RESEARCH_VALIDATION_RECOVERY`. Para atribuir efectos, mantener iguales investigación, fuentes,
 objetivo, modelo y presupuestos entre brazos. El lanzador puede revisar la misma
 investigación congelada con P3 apagada y encendida usando claves diferentes.
 
@@ -63,20 +65,24 @@ etiqueta comprobable, sin ampliar permisos ni inventar datos.
 
 ## Comprobaciones
 
-- 57 pruebas Python: formatos, datos inmutables, cobertura parcial honesta,
+- 86 pruebas Python sobre `5d3087c`: continuidad, recuperación y su independencia de P3, formatos, datos inmutables, cobertura parcial honesta,
   centralización de límites, prompts, feedback, HTML/PDF, catálogos completos,
   colisiones, edición manual, idiomas y persistencia/reanudación.
 - La matriz de esquemas estrictos incluye P3: 59 contextos / 110 peticiones
   simuladas cubren los diez productores. Todos los objetos mantienen
   `additionalProperties: false` y todas las propiedades obligatorias, también
   tras insertar recuperación de memoria.
-- 15 pruebas de frontend: lectura, idioma, cifras, teclado, apertura del detalle
+- 32 pruebas de frontend (seis archivos): lectura, idioma, cifras, teclado, apertura del detalle
   técnico y tablas con nombres y códigos originales bajo demanda.
 - Compilación Python, build TypeScript/Vite y `git diff --check` correctos.
   Vite mantiene su aviso de tamaño de fragmentos, sin error de compilación.
 - Inspección en navegador de la vista React con un fixture genérico: sin marcador
   parcial ni SQL a primera vista; fuentes accesibles y segundo desplegable con
-  valores originales y operación. Comprobada extracción del PDF y el orden de
+  valores originales y operación. En esta integración se revisa además el HTML
+  sintético a 1280 y 390 píxeles: leyendas completas sin solapamiento, sin
+  desbordamiento global ni errores de consola. El gráfico exportado conserva
+  su ancho mínimo y desplazamiento dentro de su contenedor en móvil.
+  Comprobada extracción del PDF, etiquetas completas y el orden de
   conclusiones/límites antes del anexo.
 
 Los tests integrados usan PostgreSQL, almacenamiento, temporales y VM Docker propios.
@@ -92,3 +98,17 @@ motivo de una comparación, las etiquetas en prosa y la eliminación de cautelas
 semánticamente repetidas requieren la nueva redacción y revisión. No se maquillan
 informes antiguos mediante sustituciones arbitrarias de texto. Pendiente medir P3
 con el lanzador y lectores a ciegas, conservando exactitud, incertidumbre y utilidad.
+
+## Adaptación a la base con recuperación
+
+Se conservan las correcciones de `af64f48` y la recuperación optativa de `5d3087c`.
+La revisión congela P3 de forma independiente; se prueba también la recepción de
+evidencia de una investigación parcial recuperada, sin alterar la marca de
+parcialidad ni el requisito de revisión. El formato de auditoría de investigación
+sigue conservando la respuesta `{decision: ...}`.
+
+En las exportaciones P3, las leyendas de líneas usan nombres completos, una entrada
+por fila y ajuste por ancho medido, con una muestra del color y trazo. Evita cortar
+por un prefijo común y confundir series distintas; el control conserva su render.
+HTML añade un nombre accesible al gráfico. Los fixtures tienen nombres genéricos
+largos, series sintéticas y magnitudes pequeñas; no reutilizan señales de negocios.

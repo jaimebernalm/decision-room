@@ -11,6 +11,7 @@ import textwrap
 
 from reportlab.graphics.shapes import Drawing, Rect, String, Line, Circle
 from reportlab.lib import colors
+from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, KeepTogether, PageBreak
@@ -136,7 +137,22 @@ def line_drawing(chart):
     bounds = [*values] if chart.get('scale') == 'data' else [Decimal(0), *values]
     low, high = min(bounds), max(bounds)
     span = high - low or Decimal(1)
-    drawing = Drawing(WIDTH, 250)
+    owner = chart.get('owner_presentation', False)
+    legend_lines = []
+    if owner:
+        # One complete label per row, wrapping by measured glyph width. Truncating
+        # a shared prefix can make different series indistinguishable.
+        for name in order:
+            lines, line = [], ''
+            for character in name:
+                if line and stringWidth(line + character, 'Helvetica', 9) > WIDTH - 92:
+                    lines.append(line); line = ''
+                line += character
+            lines.append(line)
+            legend_lines.append(lines)
+    height = max(250, 225 + sum(len(lines) * 12 + 5 for lines in legend_lines)) if owner else 250
+    drawing = Drawing(WIDTH, height)
+    legend_y = height - 15
     def x(index): return 50 + (index - indices[0]) / (indices[-1] - indices[0] or 1) * (WIDTH - 64)
     def y(value): return 32 + float((value - low) / span) * 165
     for i in range(5):
@@ -151,7 +167,14 @@ def line_drawing(chart):
         width = 2.8 if style.get('weight') == 'emphasis' else 1.5 if style else 1.8
         dash = {'dashed': [6, 4], 'dotted': [2, 3]}.get(style.get('style'), [])
         color = colors.HexColor(shade if shade in CHART_PALETTE else CHART_PALETTE[0])
-        drawing.add(String(50 + (i%3)*135, 235 - (i//3)*15, name[:28], fontSize=8, fillColor=color))
+        if owner:
+            drawing.add(Line(50, legend_y + 3, 69, legend_y + 3, strokeColor=color, strokeWidth=width, strokeDashArray=dash))
+            for line in legend_lines[i]:
+                drawing.add(String(76, legend_y, line, fontSize=9, fillColor=INK))
+                legend_y -= 12
+            legend_y -= 5
+        else:
+            drawing.add(String(50 + (i%3)*135, 235 - (i//3)*15, name[:28], fontSize=8, fillColor=color))
         previous = None
         for category, index in zip(categories, indices):
             value = cells.get((category, name))

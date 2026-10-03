@@ -1,6 +1,6 @@
 # P3 — Lectura para el dueño
 
-Base: `b47c9da`. Opción independiente, desactivada por defecto.
+Base actual: `5d3087c`; adaptación del trabajo P3 previamente preparado desde `b47c9da`. Opción independiente, desactivada por defecto.
 
 1. Guardar `owner_presentation` al iniciar la revisión; propagarla a ambos roles,
    registrar el prompt efectivo y conservarla al reanudar. No modificar investigación.
