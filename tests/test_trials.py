@@ -78,6 +78,17 @@ class LauncherTests(unittest.TestCase):
             self.assertEqual(trials.read(batch / 'jobs/demo-luna-1/state.json')['status'], 'abandoned')
             self.assertEqual(trials.read(batch / 'jobs/demo-luna-1r1/state.json')['replaces'], 'demo-luna-1')
 
+    def test_arm_repeats_reduce_intermediate_arms(self):
+        order = trials.plan_order(['bruma', 'albor'], ['luna', 'product'], 3,
+                                  {'bruma-product': 1, 'bruma-luna': 1, 'albor-luna': 1})
+        self.assertEqual(sorted(order), sorted(['bruma-luna-1', 'bruma-product-1', 'albor-luna-1',
+                                                'albor-product-1', 'albor-product-2', 'albor-product-3']))
+
+    def test_escaped_space_in_job_path_is_not_outside(self):
+        job = Path('/Users/me/decision room/jobs/a')
+        self.assertEqual(trials.outside(r'cd /Users/me/decision\ room/jobs/a && ls', job), set())
+        self.assertEqual(trials.outside('ls /Users/me/Desktop', job), {'/Users/me/Desktop'})
+
     def test_hints_require_every_group(self):
         self.assertTrue(trials.hinted('La Tienda cae en domingo', [['domingo'], ['tienda']]))
         self.assertFalse(trials.hinted('La tienda cae', [['domingo'], ['tienda']]))

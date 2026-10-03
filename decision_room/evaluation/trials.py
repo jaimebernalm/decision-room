@@ -1,7 +1,8 @@
 """Repeated report-quality trials: Luna in Codex CLI versus frozen Decision Room.
 
   python -m decision_room.evaluation.trials prepare BATCH --dataset bruma=DIR \
-      --dataset albor=DIR --product-ref REF [--repeats 3] [--systems luna,product]
+      --dataset albor=DIR --product-ref REF [--repeats 3] [--systems luna,product] \
+      [--arm-repeats albor-product=3 --arm-repeats bruma-luna=1 ...] [--python VENV_PYTHON]
   python -m decision_room.evaluation.trials run BATCH [--system luna|product] [--limit N]
   python -m decision_room.evaluation.trials score BATCH [--oracle NAME=PATH ...]
   python -m decision_room.evaluation.trials summary BATCH
@@ -53,11 +54,15 @@ def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def plan_order(datasets, systems, repeats):
-    """Interleave systems and datasets so drift in time affects all arms alike."""
+def plan_order(datasets, systems, repeats, arm_repeats=None):
+    """Interleave systems and datasets so drift in time affects all arms alike.
+
+    arm_repeats overrides the count for a DATASET-SYSTEM arm (0 removes it)."""
+    arm_repeats = arm_repeats or {}
+    count = lambda d, s: arm_repeats.get(f'{d}-{s}', repeats)
     order = []
-    for repetition in range(1, repeats + 1):
-        arms = [(d, s) for d in datasets for s in systems]
+    for repetition in range(1, max([repeats, *arm_repeats.values()], default=repeats) + 1):
+        arms = [(d, s) for d in datasets for s in systems if repetition <= count(d, s)]
         if repetition % 2 == 0:
             arms.reverse()
         order += [f'{d}-{s}-{repetition}' for d, s in arms]
@@ -91,13 +96,15 @@ def copy_inputs(source, target):
     return {p.name: sha(p) for p in sorted((target / 'datos').glob('*.csv'))}
 
 
-def prepare(batch, datasets, product_ref, repeats, systems, runtime_root, env_file):
+def prepare(batch, datasets, product_ref, repeats, systems, runtime_root, env_file,
+            arm_repeats=None, python=None):
     if (batch / 'manifest.json').exists():
         raise SystemExit('Batch already prepared; inspect it or choose another folder.')
     batch.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.umask(0o077)
     manifest = {'created_at': datetime.now(timezone.utc).isoformat(), 'systems': systems,
-                'repeats': repeats, 'datasets': {}, 'harness_sha256': sha(__file__),
+                'repeats': repeats, 'arm_repeats': arm_repeats or {}, 'datasets': {},
+                'python': str(python or sys.executable), 'harness_sha256': sha(__file__),
                 'worker_sha256': sha(Path(__file__).with_name('trial_worker.py'))}
     for name, source in datasets.items():
         source = Path(source).resolve()
@@ -136,7 +143,7 @@ def prepare(batch, datasets, product_ref, repeats, systems, runtime_root, env_fi
             raise SystemExit('Codex CLI not found on PATH.')
         manifest['codex'] = {'version': subprocess.check_output([binary, '--version'], text=True).strip(),
                              'args': CODEX_ARGS}
-    manifest['order'] = plan_order(list(datasets), systems, repeats)
+    manifest['order'] = plan_order(list(datasets), systems, repeats, arm_repeats)
     for name in manifest['order']:
         dataset, system, repetition = name.rsplit('-', 2)
         job = batch / 'jobs' / name
@@ -149,7 +156,7 @@ def prepare(batch, datasets, product_ref, repeats, systems, runtime_root, env_fi
     write(batch / 'manifest.json', manifest)
     if 'product' in systems:
         env = {**os.environ, 'PYTHONPATH': str(batch / 'source')}
-        subprocess.run([sys.executable, '-c', PREFLIGHT, str(batch)], cwd=batch / 'source', env=env, check=True)
+        subprocess.run([manifest['python'], '-c', PREFLIGHT, str(batch)], cwd=batch / 'source', env=env, check=True)
     return manifest
 
 
@@ -232,7 +239,11 @@ def outside(command, job):
     # Only filesystem roots, so HTML closing tags or divisions in code are ignored.
     roots = r'(?:Users|Volumes|private|home|etc|var|opt|Library|System|tmp|usr|bin)'
     for path in re.findall(r'(?<![\w.<])(/' + roots + r'/[^\s\'";|)<>]*)', command):
-        if not path.startswith(str(job)) and not path.startswith(SYSTEM_PREFIXES):
+        # A path cut at an escaped space ('decision\\ room') is the job folder only
+        # if the job path continues from that exact prefix.
+        inside = (any(path.startswith(v) for v in (str(job), str(job).replace(' ', '\\ ')))
+                  or (path.endswith('\\') and str(job).startswith(path.rstrip('\\') + ' ')))
+        if not inside and not path.startswith(SYSTEM_PREFIXES):
             found.add(path)
     found |= set(re.findall(r'[^\s;\'"|<>]*oracle[^\s;\'"|<>]*', command, flags=re.I))
     return found
@@ -248,7 +259,8 @@ def luna_outside(job):
 def run_product(batch, job):
     env = {**os.environ, 'PYTHONPATH': str(batch / 'source')}
     try:
-        subprocess.run([sys.executable, str(batch / 'worker.py'), str(job)], cwd=batch / 'source',
+        subprocess.run([read(batch / 'manifest.json').get('python', sys.executable), str(batch / 'worker.py'), str(job)],
+                       cwd=batch / 'source',
                        env=env, timeout=PRODUCT_TIMEOUT)
     except subprocess.TimeoutExpired:
         state = read(job / 'state.json')
@@ -259,7 +271,7 @@ def run_product(batch, job):
 def run(batch, system=None, limit=None):
     manifest = read(batch / 'manifest.json')
     if 'product' in manifest['systems']:
-        frozen = subprocess.run([sys.executable, '-c',
+        frozen = subprocess.run([manifest.get('python', sys.executable), '-c',
                                  'from decision_room.evaluation.quality_runner import source_version;print(source_version())'],
                                 cwd=batch / 'source', env={**os.environ, 'PYTHONPATH': str(batch / 'source')},
                                 capture_output=True, text=True, check=True).stdout.strip()
@@ -428,6 +440,8 @@ def main():
     p.add_argument('--dataset', action='append', required=True, help='NAME=DIR with datos/ and prompt.txt')
     p.add_argument('--product-ref', default='HEAD')
     p.add_argument('--repeats', type=int, default=3)
+    p.add_argument('--arm-repeats', action='append', default=[], help='DATASET-SYSTEM=N, e.g. bruma-product=1')
+    p.add_argument('--python', type=Path, help='Interpreter whose packages match the frozen revision')
     p.add_argument('--systems', default='luna,product')
     p.add_argument('--runtime-root', type=Path, default=ROOT,
                    help='Checkout whose .local holds sandbox-runtime.json and the mounted sandbox-inputs')
@@ -450,8 +464,9 @@ def main():
         systems = [s for s in args.systems.split(',') if s]
         if not systems or set(systems) - set(SYSTEMS):
             raise SystemExit('Systems must be luna and/or product.')
+        arms = {k: int(v) for k, v in (item.split('=', 1) for item in args.arm_repeats)}
         manifest = prepare(args.batch.resolve(), datasets, args.product_ref, args.repeats, systems,
-                           args.runtime_root.resolve(), args.env_file)
+                           args.runtime_root.resolve(), args.env_file, arms, args.python)
         print(json.dumps({'jobs': manifest['order'], 'revision': manifest.get('revision')}, indent=2))
     elif args.command == 'run':
         print(json.dumps({'dispatched': run(args.batch.resolve(), args.system, args.limit)}))
