@@ -94,6 +94,15 @@ export type ChartPanel = {
   measure: "level" | "change";
   series_order: string[];
   colors?: Record<string, string>;
+  styles?: Record<
+    string,
+    {
+      role: "observed" | "derived" | "reference";
+      style: "solid" | "dashed" | "dotted";
+      weight: "normal" | "emphasis";
+      description: string;
+    }
+  >;
   coordinates: { label: string; category: string; series: string }[];
 };
 export type ChartData = {

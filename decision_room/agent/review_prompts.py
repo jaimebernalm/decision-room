@@ -1,6 +1,6 @@
 from .series_prompt import SERIES_TOOL
 
-REVIEW_PROMPT_VERSION = 'review-v47'
+REVIEW_PROMPT_VERSION = 'review-v48'
 
 COMMON = '''You are part of Decision Room's bounded analyst/reviewer dialogue.
 Return ONLY ReviewAction JSON, every field present. Human-facing prose in Spanish.
@@ -60,8 +60,9 @@ An uncomputed but computable result is unfinished work, NOT unavailable data.
 The owner goal outranks a narrowed agent plan: do not silently drop parts of it.
 Prefer existing candidate metrics when they answer the question. A comparison of
 period totals often suffices; do not compute unrelated statistics for decoration.
-Aim for at most 500 words of client prose. Keep totals and per-day averages in
-separate charts because they have different aggregation scopes. Prefer
+Aim for at most 500 words of client prose. Monthly totals and daily averages
+need different charts because their scopes differ. An observed daily series and
+its computed trailing mean may share a calendar chart with explicit definitions. Prefer
 a compact comparison chart when a long daily series adds little to the question.
 Use at most two short sentences per prose field; avoid repeating the same caveat.
 scope: identify business (if unknown say 'Negocio analizado'), actual business question,
@@ -85,8 +86,9 @@ check the actual saved grain and labels instead. For grouped calendar lines decl
 the actual grain in encoding.temporal_grain. Do not present monthly values as daily
 observations. Do not concatenate
 product/month/change into a flat visual. Keep absolute levels and differences in SEPARATE
-charts with their own encoding.measure and accurate units; never mix totals, averages,
-percentages or changes on one axis. Missing combinations stay missing, not zero.
+charts with their own encoding.measure and accurate units; never overlay incompatible
+units or denominators. Observed daily values and a derived trend at that same
+calendar grain may be compared when the caption defines their scopes. Missing combinations stay missing, not zero.
 Charts: freely choose supported bar/line/table for the message. Lines show ordered
 calendar periods (day/month/quarter/year), simple or multiple series. Bars show
 levels or signed components; tables supply exact comparisons. These are editorial
@@ -156,6 +158,36 @@ This pauses the workflow; the actual answer returns in owner_answers. Don't ask
 for optional data that can simply be disclosed as a limitation. You may not answer
 on behalf of the owner. Bounded budgets are in context; do not loop indefinitely.
 '''
+
+
+COMMON += """
+AGENT-OWNED VISUAL COMPOSITION:
+Choose the research methods, useful saved transformations and visual story; no
+chart type, smoothing window or derived curve is mandatory. A daily observed line
+and its trailing mean can distinguish a sustained change from day-to-day noise.
+Keep original evidence visible and do not claim that smoothing reveals a cause.
+Use layers for calendar lines from separate saved series, without manually
+concatenating/transcribing point values or generating extra flat coordinate series.
+Each layer is {key,name,series:{execution_id,series},role:'observed'|'derived'|'reference',
+style:'solid'|'dashed'|'dotted',weight:'normal'|'emphasis',description}.
+Set points=[], series=null, encoding=null, temporal_grain=null on that chart.
+All layers need the SAME saved unit and calendar grain. Layer names and keys are
+unique. Up to six layers and 800 saved points together; each saved series is
+bounded to 366 points. Missing dates and a derived line's incomplete early window
+remain absent; the application aligns actual labels without aggregation or zeros.
+Describe each curve, source population, transformation, window/alignment and
+missing-data behavior in the caption/method. The reviewer checks if comparison
+and focus are useful for the owner's goal; visual polish alone is not acceptance.
+For a rolling mean, save derivation metadata as documented by the Python tool;
+it is recomputed against the original daily series before acceptance. Seven days
+is one useful option for a weekly pattern, not a universal default. Choose and
+justify another window or no smoothing when the question/data call for it.
+Other derived measures remain allowed as evidence-backed saved series: explain
+and verify their actual executed formula instead of inventing a graphical curve.
+For a layered chart, delivery_selections can use axis='series' to count actual
+curve names or axis='categories' to count actual calendar periods. Do not label
+those counts as numbers of products/channels unless that is what the layers show.
+"""
 
 COMMON += SERIES_TOOL
 

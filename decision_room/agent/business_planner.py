@@ -10,7 +10,7 @@ from typing import Literal
 from .contracts import Strict, Question
 from .context import fingerprint
 
-VERSION = 'business-planner-v10'
+VERSION = 'business-planner-v11'
 
 
 class BusinessBrief(Strict):
@@ -119,7 +119,11 @@ reading order relative to the owner's actual goal. Tell the analyst what each
 finding adds rather than requesting separate findings that repeat a conclusion.
 Keep essential uncertainty and partial coverage explicit, but do not prescribe
 repeated disclaimers in every field. The analyst owns concise client wording and
-visual composition; the reviewer still independently assesses the delivery.\n'''
+visual composition; the reviewer still independently assesses the delivery.
+Guide the business question and priority, not a compulsory chart or method.
+The analyst may choose saved observed/derived/reference calendar layers, optional
+rolling trends or another useful transformation. Request evidence and a clear
+comparison when useful, not smoothing by default or a prescribed window.\n'''
 
 
 def events(db, research_id):

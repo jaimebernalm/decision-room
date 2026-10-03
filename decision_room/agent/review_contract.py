@@ -42,6 +42,16 @@ class SeriesRef(Strict):
     series: str = Field(min_length=1, max_length=100)
 
 
+class ChartLayer(Strict):
+    key: str = Field(pattern=r'^[a-z][a-z0-9_]{0,63}$')
+    name: str = Field(min_length=1, max_length=80)
+    series: SeriesRef
+    role: Literal['observed', 'derived', 'reference']
+    style: Literal['solid', 'dashed', 'dotted']
+    weight: Literal['normal', 'emphasis']
+    description: str = Field(min_length=1, max_length=600)
+
+
 class DeliverySelection(Strict):
     key: str = Field(pattern=r'^[a-z][a-z0-9_]{0,63}$')
     title: str = Field(min_length=1, max_length=160)
@@ -97,6 +107,7 @@ class PointDetail(Strict):
 
 
 class Chart(Strict):
+    layers: list[ChartLayer] = Field(default_factory=list, max_length=6)
     details: list[PointDetail] = Field(default_factory=list, max_length=36)
     key: str = Field(pattern=r'^[a-z][a-z0-9_]{0,63}$')
     claim_key: str = Field(pattern=r'^[a-z][a-z0-9_]{0,63}$')
@@ -180,7 +191,13 @@ def checks(report, observations):
             result.append({'check': 'evidence:' + claim['key'], 'passed': False, 'detail': str(error)})
     for chart in report.get('charts', []):
         try:
-            if chart.get('series'):
+            layered = bool(chart.get('layers'))
+            if layered:
+                from ..chart_evidence import resolve_chart
+                chart, points = resolve_chart(chart, observations)
+                for point in points:
+                    numeric(point['value'])
+            elif chart.get('series'):
                 if chart['points']:
                     raise ValueError('Use a saved series OR individual points, never both.')
                 series = saved_series(observations, chart['series'])
@@ -197,7 +214,7 @@ def checks(report, observations):
                 points = chart['points']
                 for point in points:
                     number(point['value'])
-            if not 2 <= len(points) <= (366 if chart['kind'] == 'line' else 36):
+            if not 2 <= len(points) <= (800 if layered else 366 if chart['kind'] == 'line' else 36):
                 raise ValueError('Use 2–366 temporal line points or 2–36 bar/table points; aggregate in Python.')
             labels = [p['label'] for p in points]
             if len(set(labels)) != len(labels):

@@ -27,3 +27,18 @@ scalar metrics. Keep scalar summaries for findings, highlights and checks.
 Series keys are NOT scalar metric_keys when recording a research candidate;
 they remain available to the reviewer through saved execution observations.
 '''
+
+SERIES_TOOL += """
+For an optional trailing rolling mean of a daily series, save the original and
+mean in the SAME write_result series dictionary. The mean uses the SAME unit and
+tables, and a precise operation. Add derivation={kind:'rolling_mean',
+source_series:'original_key',window:7,decimals:2,alignment:'trailing',
+missing:'require_full_window'}. Window may be 2–90 CALENDAR days; choose it for
+the question, do not automatically add it. Compute every complete consecutive
+window with Decimal, round HALF_UP once to the declared 0–4 decimals. Do not use
+future dates, partial early windows or zero-fill missing dates. Only emit the
+derived series if it has at least two complete-window points. The controller
+checks every mean and its date against the original saved series; it does not
+calculate a curve on behalf of the analyst. Other useful derived series can be
+saved with their actual calculation described in evidence.operation.
+"""

@@ -636,3 +636,40 @@ La reducción de texto es relevante en Bruma y mínima en WWI; la aprobación de
 revisor del experimento no sustituye la aceptación independiente. El fallo previo
 de utilidad/prioridad de WWI descubrimiento no se declara resuelto. **3.9.7 sigue
 abierto**. Véanse [comprobaciones, recursos y límites](../validation/2026-10-02-report-reading-and-synthesis.md).
+
+### 3.9.9 — Expresividad de los agentes y nueva comparación con Luna
+
+El propietario solicita ampliar la libertad de investigación/presentación y
+crear un informe nuevo con fuentes y encargo idénticos a un experimento Luna.
+
+#### 3.9.9.1 — Composición visual con evidencia guardada
+
+1. Eliminar la prohibición general de comparar cantidades observadas y tendencias
+   derivadas. Mantener unidades, población, periodo y definiciones explícitos.
+2. Permitir capas declarativas de series guardadas con nombre, función y estilo
+   elegidos por el analista, alineando fechas sin transcribir ni imputar valores.
+3. Ofrecer una media móvil opcional con fuente, ventana, redondeo y ausencias
+   declarados. Verificar todas las ventanas completas contra la serie original;
+   no imponer suavizado ni siete días a todos los informes.
+4. Conservar valores, estilos y procedencia en web, HTML y PDF, selección y huella
+   de aprobación. Probar errores, fechas ausentes, precisión y regresiones;
+   revisar archivos públicos y guardar un commit local.
+
+Estado: completado. 621 pruebas de servidor y 237 de interfaz pasan; build y
+lint completados. Véase la [validación de composición](../validation/2026-10-02-agent-visual-composition.md).
+
+#### 3.9.9.2 — Informe nuevo y comparación
+
+5. Congelar el código comprobado, copiar exactamente prompt y CSV de Luna ronda
+   2, run 3, y verificar sus hashes. Investigar de nuevo con la arquitectura
+   completa, sin suministrar el informe de Luna ni resultados de referencia.
+6. Guardar respuestas, código, ejecuciones, revisiones, errores, latencia y uso.
+   Responder a preguntas adicionales solo con el contexto ya declarado o «no lo
+   sé». No añadir datos nuevos a esta primera comparación.
+7. Exportar e incorporar una entrega con aprobación real a la aplicación habitual
+   en un negocio de comparación separado, sin invalidar los informes existentes.
+   Comprobar cifras y utilidad contra fuentes independientes y Luna; conservar
+   fallos y distinguir un piloto de la aceptación repetida de 3.9.7. Documentar
+   y guardar el commit de evaluación; no hacer push.
+
+Estado: pendiente de la ejecución nueva.

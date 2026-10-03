@@ -310,3 +310,60 @@ it("omits an empty data disclosure for a finding without supporting detail", () 
   ).toBeVisible();
   expect(screen.queryByRole("button", { name: /Datos y fuentes:/ })).toBeNull();
 });
+it("preserves the agent's curve emphasis and dash style while changing visibility", async () => {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      callback: (
+        entries: { contentRect: { width: number; height: number } }[],
+      ) => void;
+      constructor(
+        callback: (
+          entries: { contentRect: { width: number; height: number } }[],
+        ) => void,
+      ) {
+        this.callback = callback;
+      }
+      observe() {
+        this.callback([{ contentRect: { width: 640, height: 288 } }]);
+      }
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+  const observed = {
+    ...chart,
+    points: [...chart.points, { label: "a_b", value: "35", formatted: "35" }],
+    panels: [
+      {
+        ...chart.panels![0],
+        coordinates: [
+          ...chart.panels![0].coordinates,
+          { label: "a_b", category: "2026-08", series: "B" },
+        ],
+        styles: {
+          B: {
+            role: "derived" as const,
+            style: "dashed" as const,
+            weight: "emphasis" as const,
+            description: "Media calculada y guardada.",
+          },
+        },
+      },
+    ],
+  };
+  const { container } = render(<EvidenceChart chart={observed} />);
+  const derived = container.querySelector(
+    'path.recharts-line-curve[stroke-dasharray="6 4"]',
+  );
+  expect(derived).toHaveAttribute("stroke-width", "2.8");
+  const b = screen.getByRole("button", { name: "B Visible" });
+  await userEvent.click(b);
+  expect(
+    container.querySelector('path.recharts-line-curve[stroke-dasharray="6 4"]'),
+  ).toBeNull();
+  await userEvent.click(b);
+  expect(
+    container.querySelector('path.recharts-line-curve[stroke-dasharray="6 4"]'),
+  ).not.toBeNull();
+});

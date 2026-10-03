@@ -9,6 +9,7 @@ from ..client_report import formatted, metric
 from ..series import saved_series
 from ..chart_layout import panels, series_colors
 from ..periods import infer_grain
+from ..chart_evidence import resolve_chart, series_refs
 
 
 def client_orientation(claim):
@@ -35,11 +36,7 @@ def projection(data):
         } for item in report.get('highlights', [])]
         charts = []
         for chart in report['charts']:
-            points = (saved_series(data['observations'], chart['series'])['points']
-                      if chart.get('series') else [
-                          {'label': point['label'], 'value': metric(data, point['value'])}
-                          for point in chart['points']
-                      ])
+            chart, points = resolve_chart(chart, data['observations'])
             grain = (chart.get('encoding') or {}).get('temporal_grain') or chart.get('temporal_grain')
             if chart['kind'] == 'line' and not chart.get('encoding'):
                 grain = saved_series(data['observations'], chart['series'])['grain'] if chart.get('series') else grain or infer_grain([p['label'] for p in points])
@@ -88,6 +85,7 @@ def presentation(data):
         refs += [v['value'] for c in charts for d in c.get('details', []) for v in d['values']]
         selected = {ref['execution_id'] for ref in refs}
         selected.update(c['series']['execution_id'] for c in charts if c.get('series'))
+        selected.update(ref['execution_id'] for c in charts for ref in series_refs(c))
         files = sorted({name for o in data['observations'] if o['execution_id'] in selected
                         for item in o['inputs'].values() for name in item['original_names']})
         metrics, seen = [], set()
@@ -96,8 +94,8 @@ def presentation(data):
             if key not in seen:
                 seen.add(key)
                 metrics.append({'label': evidence_label(ref), 'value': str(metric(data, ref))})
-        operations = [saved_series(data['observations'], c['series'])['evidence']['operation']
-                      for c in charts if c.get('series')]
+        operations = [saved_series(data['observations'], ref)['evidence']['operation']
+                      for c in charts for ref in series_refs(c)]
         claims.append({**{key: claim[key] for key in ('key', 'title', 'statement', 'interpretation', 'method', 'next_step')},
                        'orientation': client_orientation(claim),
                        'evidence_details': dict(files=files, metrics=metrics, operations=operations)})

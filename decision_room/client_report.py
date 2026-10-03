@@ -6,6 +6,7 @@ from html import escape
 from .chart_layout import CHART_PALETTE, panels, series_colors
 from .agent.review_contract import ReportDraft, checks
 from .series import saved_series, evidence_value, evidence_label, evidence_key
+from .chart_evidence import resolve_chart, series_refs
 
 
 def e(value):
@@ -72,6 +73,9 @@ def temporal_svg(chart, points, values, colors):
     shapes = []
     for i, name in enumerate(order):
         shade = colors.get(name, CHART_PALETTE[0])
+        style = (chart.get('encoding') or {}).get('styles', {}).get(name, {})
+        width = 2.8 if style.get('weight') == 'emphasis' else 1.5 if style else 2.5
+        dash = {'dashed': '6 4', 'dotted': '2 3'}.get(style.get('style'), '')
         shapes.append(f'<text x="{110+(i%3)*180}" y="{16+(i//3)*20}" class="tick" fill="{shade}">{e(name)}</text>')
         previous = None
         for category, index in zip(categories, indices):
@@ -80,7 +84,7 @@ def temporal_svg(chart, points, values, colors):
                 previous = None
                 continue
             if previous and index - previous[0] == 1:
-                shapes.append(f'<line x1="{x(previous[0]):.2f}" y1="{y(previous[1]):.2f}" x2="{x(index):.2f}" y2="{y(value):.2f}" class="trend" style="stroke:{shade}"/>')
+                shapes.append(f'<line x1="{x(previous[0]):.2f}" y1="{y(previous[1]):.2f}" x2="{x(index):.2f}" y2="{y(value):.2f}" class="trend" style="stroke:{shade};stroke-width:{width}" stroke-dasharray="{dash}"/>')
             shapes.append(f'<circle cx="{x(index):.2f}" cy="{y(value):.2f}" r="4" style="fill:{shade}"><title>{e(category)} · {e(name)}: {e(formatted(value, chart['decimals']))}</title></circle>')
             previous = index, value
     for tick in range(5):
@@ -95,9 +99,8 @@ def temporal_svg(chart, points, values, colors):
 
 def chart_html(data, chart):
     """Only fixed SVG primitives. Values resolve from approved evidence, never prose."""
-    series = saved_series(data['observations'], chart['series']) if chart.get('series') else None
-    points = series['points'] if series else chart['points']
-    values = [Decimal(str(p['value'] if series else metric(data, p['value']))) for p in points]
+    chart, points = resolve_chart(chart, data['observations'])
+    values = [Decimal(str(p['value'])) for p in points]
     labels = [p['label'] for p in points]
     numbers = [formatted(v, chart['decimals']) for v in values]
     title_id = 'chart-title-' + chart['key']
@@ -129,12 +132,12 @@ def chart_html(data, chart):
         svg = f'<div class="plot"><svg viewBox="0 0 720 {height}" role="img" aria-labelledby="{title_id} {caption_id}">' + ''.join(shapes) + '</svg></div>'
         layout = panels(chart, points)
         if chart['kind'] == 'bar' and layout:
-            all_layouts = [p for c in data['report']['charts'] for p in panels(c, saved_series(data['observations'], c['series'])['points'] if c.get('series') else c['points'])]
+            all_layouts = [p for c in data['report']['charts'] for p in panels(*resolve_chart(c, data['observations']))]
             colors = series_colors(s for panel in all_layouts for s in panel['series_order'])
             svg = grouped_svg(chart, layout, points, values, colors)
         if chart['kind'] == 'line':
-            all_labels = [s for c in data['report']['charts'] for p in panels(c, saved_series(data['observations'], c['series'])['points'] if c.get('series') else c['points']) for s in p['series_order']]
-            svg = temporal_svg({**chart, 'temporal_grain': series['grain'] if series and series['grain'] != 'category' else chart.get('temporal_grain')}, points, values, series_colors(all_labels))
+            all_labels = [s for c in data['report']['charts'] for p in panels(*resolve_chart(c, data['observations'])) for s in p['series_order']]
+            svg = temporal_svg(chart, points, values, series_colors(all_labels))
         table = '<details><summary>Ver los valores del gráfico</summary>' + table + '</details>'
     for detail in chart.get('details', []):
         table += f'<p><strong>{e(detail["point_label"])}</strong>: ' + '; '.join(f'{e(v["label"])}: {e(formatted(metric(data,v["value"]),v["decimals"]))} {e(v["unit"])}' for v in detail['values']) + '</p>'
@@ -151,6 +154,7 @@ def evidence_html(data, claim, charts):
     refs += [v['value'] for c in charts for d in c.get('details', []) for v in d['values']]
     selected = {ref['execution_id'] for ref in refs}
     selected.update(c['series']['execution_id'] for c in charts if c.get('series'))
+    selected.update(ref['execution_id'] for c in charts for ref in series_refs(c))
     files = sorted({name for o in data['observations'] if o['execution_id'] in selected
                     for item in o['inputs'].values() for name in item['original_names']})
     rows, seen = [], set()
@@ -162,8 +166,8 @@ def evidence_html(data, claim, charts):
         rows.append(f'<tr><th scope="row">{e(evidence_label(ref))}</th><td>{e(metric(data, ref))}</td></tr>')
     series_details = []
     for chart in charts:
-        if chart.get('series'):
-            series = saved_series(data['observations'], chart['series'])
+        for ref in series_refs(chart):
+            series = saved_series(data['observations'], ref)
             series_details.append(f'<p><strong>{e(chart["title"])}</strong>: {e(series["evidence"]["operation"])}</p>')
     return ('<details class="evidence"><summary>Ver cómo se ha calculado</summary>'
             f'<p>{e(claim["method"])}</p><p><strong>Archivos utilizados:</strong> {e(", ".join(files))}</p>'

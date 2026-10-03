@@ -78,6 +78,12 @@ def delivery_manifest(report, observations):
     for chart in report.get('charts', []):
         ref = chart.get('series')
         count = len(chart['points'])
+        if chart.get('layers'):
+            from ..chart_evidence import resolve_chart
+            try:
+                count = len(resolve_chart(chart, observations)[1])
+            except ValueError:
+                count = 0
         if ref:
             from ..series import saved_series
             try:

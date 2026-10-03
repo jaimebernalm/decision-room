@@ -145,6 +145,9 @@ def line_drawing(chart):
     palette = (chart.get('panels') or [{}])[0].get('colors', {})
     for i, name in enumerate(order):
         shade = palette.get(name, CHART_PALETTE[i % len(CHART_PALETTE)])
+        style = (chart.get('panels') or [{}])[0].get('styles', {}).get(name, {})
+        width = 2.8 if style.get('weight') == 'emphasis' else 1.5 if style else 1.8
+        dash = {'dashed': [6, 4], 'dotted': [2, 3]}.get(style.get('style'), [])
         color = colors.HexColor(shade if shade in CHART_PALETTE else CHART_PALETTE[0])
         drawing.add(String(50 + (i%3)*135, 235 - (i//3)*15, name[:28], fontSize=8, fillColor=color))
         previous = None
@@ -154,7 +157,7 @@ def line_drawing(chart):
                 previous = None
                 continue
             if previous and index - previous[0] == 1:
-                drawing.add(Line(x(previous[0]), y(previous[1]), x(index), y(value), strokeColor=color, strokeWidth=1.8))
+                drawing.add(Line(x(previous[0]), y(previous[1]), x(index), y(value), strokeColor=color, strokeWidth=width, strokeDashArray=dash))
             drawing.add(Circle(x(index), y(value), 2.5, fillColor=color, strokeColor=None))
             previous = index, value
     for i in sorted({0, len(categories)-1}):

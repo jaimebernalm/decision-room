@@ -83,6 +83,7 @@ def material(config, db, session, run):
                                       'claim_evidence_refs': 12, 'claims': 6, 'charts': 4,
                                       'surfaces': ['web_report', 'static_html', 'pdf'],
                                       'representations': {'bar': ['single', 'grouped'], 'table': ['single', 'grouped'], 'line': ['day', 'month', 'quarter', 'year', 'single', 'grouped']},
+                                      'layers': {'selection': 'agent', 'max_layers': 6, 'max_points': 800, 'same_saved_unit_and_calendar_grain': True, 'styles': ['solid', 'dashed', 'dotted'], 'weight': ['normal', 'emphasis'], 'rolling_mean': 'optional; verified complete trailing calendar windows from saved source'},
                                       'selection': 'agent', 'orientation_contract': 'delivery-quality-v1'}, 'tables': run['snapshot']['tables'],
             'conversation': conversation, 'observations': observations,
             'report': report, 'report_step': report_step, 'checks': checks(report, observations),
@@ -135,6 +136,7 @@ def approval_digest(materialized, knowledge):
         cited.update(item['value']['execution_id'] for detail in chart.get('details', []) for item in detail['values'])
         if chart.get('series'):
             cited.add(chart['series']['execution_id'])
+        cited.update(layer['series']['execution_id'] for layer in chart.get('layers', []))
     cited.update(h['value']['execution_id'] for h in materialized['report'].get('highlights', []))
     cited.update(s['population']['execution_id'] for s in materialized['report'].get('delivery_selections', [])
                  if s.get('population'))

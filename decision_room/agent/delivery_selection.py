@@ -1,5 +1,6 @@
 """Mechanical view selection, never inferred from client prose or business names."""
 from ..series import saved_series
+from ..chart_evidence import resolve_chart
 
 
 def selection_manifest(report, observations):
@@ -15,9 +16,7 @@ def selection_manifest(report, observations):
             raise ValueError('Delivery selection references a missing/duplicate current chart.')
         groups = set()
         for name in names:
-            chart = charts[name]
-            points = (saved_series(observations, chart['series'])['points']
-                      if chart.get('series') else chart['points'])
+            chart, points = resolve_chart(charts[name], observations)
             labels = {p['label'] for p in points}
             if selection['axis'] == 'points':
                 groups.update(labels)

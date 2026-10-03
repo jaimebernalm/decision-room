@@ -354,6 +354,7 @@ function GroupedLines({
     key: `s${i}`,
     name,
     color: panel.colors?.[name] ?? seriesColor(name),
+    style: panel.styles?.[name],
   }));
   return (
     <section aria-label={panel.title || chart.title} className="space-y-3">
@@ -500,7 +501,20 @@ function GroupedLines({
                   ? `color-mix(in srgb, ${s.color} 70%, var(--foreground))`
                   : s.color
               }
-              strokeWidth={highlighted === s.key ? 3 : 1.5}
+              strokeWidth={
+                highlighted === s.key
+                  ? 3
+                  : s.style?.weight === "emphasis"
+                    ? 2.8
+                    : 1.5
+              }
+              strokeDasharray={
+                s.style?.style === "dashed"
+                  ? "6 4"
+                  : s.style?.style === "dotted"
+                    ? "2 3"
+                    : undefined
+              }
               strokeOpacity={highlighted && highlighted !== s.key ? 0.35 : 1}
               onMouseEnter={() => setHovered(s.key)}
               onMouseLeave={() => setHovered(null)}

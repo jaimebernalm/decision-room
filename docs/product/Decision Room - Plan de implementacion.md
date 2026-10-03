@@ -979,3 +979,11 @@ a datos y fuentes. Método, evidencia y cifras exactas se abren juntos, sin la
 cadena de desplegables. Pasan 236 pruebas frontend, compilación y lint, y se
 comprueba Bruma en el puerto habitual. Véanse [pasos](../technical/report-reading-plan.md#3983-lectura-continua-y-leyenda-discreta)
 y [validación](../validation/2026-10-02-report-continuous-reading.md).
+
+**Expresividad de agentes y comparación nueva con Luna (3.9.9):** ampliación
+solicitada para que el analista elija capas observadas, derivadas o de referencia
+con estilos explícitos. La media móvil es una posibilidad verificada, no un
+formato obligatorio. Después se investiga de nuevo con el mismo encargo y los
+mismos CSV de Luna ronda 2, run 3, conservando errores y recursos. Se siguen
+[los pasos de implementación y evaluación](../technical/report-quality-plan.md#399-expresividad-de-los-agentes-y-nueva-comparación-con-luna).
+Estado: implementación y comprobaciones en curso; 3.9.7 sigue abierto.
