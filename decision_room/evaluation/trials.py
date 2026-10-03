@@ -307,8 +307,11 @@ def run(batch, system=None, limit=None):
     return dispatched
 
 
-def abandon(batch, name, reason):
-    """Keep an interrupted attempt as evidence and queue a fresh replacement in its slot."""
+def abandon(batch, name, reason, replace=True):
+    """Keep an interrupted or withdrawn attempt as evidence; optionally queue a replacement.
+
+    Without replacement it suits attempts that would fail deterministically, e.g.
+    a schema the provider rejects; the fix belongs in a new batch."""
     manifest = read(batch / 'manifest.json')
     job = batch / 'jobs' / name
     state = read(job / 'state.json')
@@ -316,6 +319,8 @@ def abandon(batch, name, reason):
         raise SystemExit(f'{name} finished as {state["status"]}; keep it.')
     state.update(status='abandoned', issue=reason, abandoned_at=datetime.now(timezone.utc).isoformat())
     write(job / 'state.json', state)
+    if not replace:
+        return None
     replacement = f"{name}r{sum(n.startswith(name + 'r') for n in manifest['order']) + 1}"
     target = batch / 'jobs' / replacement
     target.mkdir()
@@ -471,6 +476,7 @@ def main():
     a.add_argument('batch', type=Path)
     a.add_argument('job')
     a.add_argument('--reason', required=True)
+    a.add_argument('--no-replacement', action='store_true')
     s = commands.add_parser('score')
     s.add_argument('batch', type=Path)
     s.add_argument('--oracle', action='append', default=[], help='NAME=PATH, kept outside the batch')
@@ -489,7 +495,8 @@ def main():
     elif args.command == 'run':
         print(json.dumps({'dispatched': run(args.batch.resolve(), args.system, args.limit)}))
     elif args.command == 'abandon':
-        print(json.dumps({'replacement': abandon(args.batch.resolve(), args.job, args.reason)}))
+        print(json.dumps({'replacement': abandon(args.batch.resolve(), args.job, args.reason,
+                                                 replace=not args.no_replacement)}))
     elif args.command == 'score':
         oracles = dict(item.split('=', 1) for item in args.oracle)
         print(json.dumps(score(args.batch.resolve(), oracles), ensure_ascii=False, indent=2))
