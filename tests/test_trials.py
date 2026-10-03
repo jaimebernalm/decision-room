@@ -7,7 +7,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
-from decision_room.evaluation import trial_data, trials
+from decision_room.evaluation import trial_data, trial_kit, trials
 
 FAKE_CODEX = '''#!/bin/sh
 if [ "$1" = "--version" ]; then echo "codex-cli fake"; exit 0; fi
@@ -137,6 +137,18 @@ class LauncherTests(unittest.TestCase):
                 trials.prepare(batch, {'demo': str(source)}, 'HEAD', 2, ['luna'], tmp, tmp / '.env')
             with self.assertRaises(SystemExit):
                 trials.abandon(batch, 'demo-luna-1', 'completed attempts are kept')
+            (batch / 'jobs/demo-luna-1/informe.html').write_text('<p>Decision Room · Informe de negocio</p><p>Generado: 2026-10-03T01:58:46+00:00</p>')
+            with self.assertRaises(SystemExit):
+                trial_kit.build(batch, batch / 'kit')
+            summary = trial_kit.build(batch, tmp / 'kit')
+            self.assertEqual(summary['reports'], 2)
+            kit_text = ' '.join(p.read_text(errors='replace') for p in (tmp / 'kit').rglob('*') if p.is_file())
+            self.assertNotIn('Decision Room', ' '.join(p.read_text() for p in (tmp / 'kit/tecnica/informes').glob('*')))
+            self.assertNotIn('demo-luna', kit_text)
+            self.assertNotIn('hostelería', kit_text)
+            self.assertEqual(len(trials.read(batch / 'kit-key.json')['codes']), 2)
+            with self.assertRaises(SystemExit):
+                trial_kit.build(batch, tmp / 'kit2')
 
 
 if __name__ == '__main__':
