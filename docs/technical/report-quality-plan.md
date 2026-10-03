@@ -722,3 +722,10 @@ continuidad de investigación y cierre justificado; revisión de fidelidad y
 alternativas; síntesis y presentación verificadas; evaluación por variantes con
 tres repeticiones y un segundo negocio. No se marca esta implementación como
 iniciada ni se cierra 3.9.7 con un diagnóstico.
+
+Contraste posterior con el plan de ensayos de `claude/report-quality-trials`
+(`af40d99`): [revisión del diseño experimental](../validation/2026-10-03-report-quality-trials-review.md).
+Se propone separar continuidad de exploración provisional, reservar el tercer
+negocio hasta congelar candidatos y no imponer una prioridad única desde el
+oráculo. Revisión documental; no se ha creado el conjunto reservado ni ejecutado
+las nuevas variantes.
