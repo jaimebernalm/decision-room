@@ -35,7 +35,7 @@ def findings(db, run_id):
     result = []
     for row in rows:
         action = row.pop('action')
-        extra = {k: action[k] for k in ('evidence_refs', 'closure') if k in action}
+        extra = {k: action[k] for k in ('evidence_refs', 'closure', 'system_recovery') if k in action}
         result.append({**row, **extra, 'research_id': str(row['research_id']),
                        'execution_id': str(row['execution_id']) if row['execution_id'] else None})
     return result
@@ -53,10 +53,43 @@ def build(config, db, session, run, model, saver, *, retry_uncertain=False, exec
         if count >= options['max_model_calls']:
             raise ResearchBudgetReached('Presupuesto de llamadas alcanzado; se conservan los resultados parciales.')
 
+    def recover(state, phase):
+        from .research_recovery import recovery_actions, REASON
+        history = steps(db, run_id)
+        # A write-ahead recovery is atomic and replayable before its checkpoint.
+        if any(s['action'].get('system_recovery') for s in history):
+            return {'turn': history[-1]['step'], 'stop_reason': REASON, 'planner_ready': False}
+        current = agenda(snapshot, history)
+        recorded = findings(db, run_id)
+        results = observations(config, session['business_id'], history)
+        context = prompt_context(current, results, recorded, options, state['turn'])
+        recovery_options = {**options, 'discarded_keys': [s['action']['investigation_key'] for s in history if s['action']['action'] == 'discard']}
+        actions = recovery_actions(current, context['observations'], recorded, recovery_options)
+        turn = history[-1]['step'] if history else state['turn']
+        with db.transaction():
+            for action in actions:
+                turn += 1
+                action['system_recovery'] = dict(source='system', reason='validation_exhausted', phase=phase,
+                                                 interpretation='pending_independent_review')
+                refs = action.get('evidence_refs', [])
+                execution_id = (refs[0]['execution_id'] if refs else next(
+                    (o['execution_id'] for o in reversed(results) if o['investigation_key'] == action['investigation_key']), None)
+                    ) if action['action'] == 'record_candidate' else None
+                db.execute('''INSERT INTO agent_research_steps(research_id,step,business_id,action,execution_id)
+                    VALUES (%s,%s,%s,%s,%s)''', (run_id, turn, session['business_id'], Jsonb(action), execution_id))
+                db.execute('''INSERT INTO agent_research_findings(research_id,investigation_key,step,status,summary,metric_keys)
+                    VALUES (%s,%s,%s,%s,%s,%s)''', (run_id, action['investigation_key'], turn,
+                        'candidate' if execution_id else 'blocked', action['summary'], Jsonb(action['metric_keys'])))
+        notify(db)
+        return {'turn': turn, 'stop_reason': REASON, 'planner_ready': False}
+
     def decide(state):
         prior_steps = steps(db, run_id)
         saved = next((s for s in prior_steps if s['step'] == state['turn'] + 1), None)
         if saved:
+            if options.get('research_validation_recovery') and saved['action'].get('system_recovery'):
+                from .research_recovery import REASON
+                return {'turn': prior_steps[-1]['step'], 'stop_reason': REASON, 'planner_ready': False}
             return {'turn': saved['step'], 'action': saved['action']}
         from .parallel_research import decisions
         if decisions(db, run_id) >= options['max_turns']:
@@ -101,6 +134,8 @@ def build(config, db, session, run, model, saver, *, retry_uncertain=False, exec
             except ValueError as error:
                 correction = str(error)[:1500]
                 if attempt:
+                    if options.get('research_validation_recovery'):
+                        return recover(state, 'research')
                     raise ValueError('Research action failed validation twice: ' + correction) from None
         step = state['turn'] + 1
         # Write before the checkpoint or Python side effect. A replay must reuse
@@ -161,10 +196,15 @@ def build(config, db, session, run, model, saver, *, retry_uncertain=False, exec
 
     def business(state):
         from .business_planner import checkpoint
+        from .research_recovery import ValidationExhausted
         try:
             return checkpoint(config,db,session,run,model,state,guard,retry_uncertain)
         except ResearchBudgetReached as error:
             return {'stop_reason': str(error), 'planner_ready': False}
+        except ValidationExhausted:
+            if options.get('research_validation_recovery'):
+                return recover(state, 'business_planner')
+            raise
 
     def route(state):
         if state.get('stop_reason') or state['action'].get('action') == 'finish':

@@ -53,8 +53,11 @@ def coverage(snapshot, history, recorded, options, reason=''):
         extra = {'closure': closure, 'closure_status': 'recorded' if closure else 'not_recorded'} if options.get('research_continuity') else {}
         items.append({**item, **extra, 'research_status': status, 'priority_score': score(item),
                       'resolution': discarded.get(key) or next((f['summary'] for f in recorded if f['investigation_key'] == key), '')})
-    return {'investigations': items, 'stop_reason': reason,
-            'complete': all(i['research_status'] == 'candidate' for i in items),
+    from .research_recovery import REASON
+    recovered = options.get('research_validation_recovery') and (reason == REASON or any(s['action'].get('system_recovery') for s in history))
+    extra = {'validation_recovery': True, 'interpretation': 'pending_independent_review'} if recovered else {}
+    return {'investigations': items, 'stop_reason': reason, **extra,
+            'complete': not recovered and all(i['research_status'] == 'candidate' for i in items),
             'rounds_used': max((i['round'] for i in items if i['key'] in attempted), default=0),
             'executions_requested': sum(s['action']['action'] == 'execute' for s in history),
             'options': options}

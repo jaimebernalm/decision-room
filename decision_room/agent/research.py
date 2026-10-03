@@ -50,7 +50,10 @@ def mark_stale(db, session):
 def start(config, business_id, session_id, *, request_key, max_investigations=None,
           investigation_keys=None, python_timeout=30, max_rounds=None, max_executions=None,
           max_model_calls=None, max_turns=None, max_seconds=None, max_parallel=3, delegation=True,
-          business_planner=False, quality_first=False, research_continuity=None, model=None, executor=execute):
+          business_planner=False, quality_first=False, research_continuity=None, research_validation_recovery=None, model=None, executor=execute):
+    research_validation_recovery = config.research_validation_recovery if research_validation_recovery is None else research_validation_recovery
+    if type(research_validation_recovery) is not bool:
+        raise ValueError('Research validation recovery flag must be boolean.')
     research_continuity = config.research_continuity if research_continuity is None else research_continuity
     if type(research_continuity) is not bool:
         raise ValueError('Research continuity flag must be boolean.')
@@ -93,6 +96,8 @@ def start(config, business_id, session_id, *, request_key, max_investigations=No
                    'max_rounds': max_rounds, 'max_executions': max_executions, 'max_seconds': max_seconds, 'max_agenda': 24}
         options.update(delivery_quality=1, business_planner=business_planner, quality_first=quality_first, max_planner_checkpoints=24,
                        max_context_bytes=512000 if quality_first else 200000)
+        if research_validation_recovery:
+            options['research_validation_recovery'] = True
         if research_continuity:
             options['research_continuity'] = True
         request_hash = fingerprint({'knowledge': key, 'options': options, 'keys': keys, 'version': RESEARCH_GRAPH_VERSION})

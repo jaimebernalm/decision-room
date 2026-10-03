@@ -244,7 +244,9 @@ def checkpoint(config, db, session, run, model, state, guard, retry_uncertain):
                     direction = validate(raw, context); break
                 except ValueError as error:
                     correction = str(error)[:1800]
-                    if attempt: raise ValueError('Business planner output failed validation twice: ' + correction) from None
+                    if attempt:
+                        from .research_recovery import ValidationExhausted
+                        raise ValidationExhausted('Business planner output failed validation twice: ' + correction) from None
             db.execute('''INSERT INTO business_planner_events(id,research_id,business_id,ordinal,checkpoint_key,stage,direction)
                 VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (research_id,checkpoint_key) DO NOTHING''',
                 (uuid5(UUID(str(run['id'])), key),run['id'],session['business_id'],len(prior)+1,key,stage,Jsonb(direction)))

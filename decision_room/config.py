@@ -18,6 +18,7 @@ class Config:
     max_columns: int = 256
     max_rows: int = 10_000_000
     research_continuity: bool = False
+    research_validation_recovery: bool = False
     semantic_search: bool = False
     embedding_model: str = 'text-embedding-3-small'
     embedding_dimensions: int = 1536
@@ -34,6 +35,7 @@ class Config:
         return cls(os.environ.get('DECISION_ROOM_DATABASE_URL', default),
                    Path(os.environ.get('DECISION_ROOM_STORAGE', ROOT / '.local/storage')).resolve(),
                    research_continuity=os.environ.get('DECISION_ROOM_RESEARCH_CONTINUITY', 'false').lower() == 'true',
+                   research_validation_recovery=os.environ.get('DECISION_ROOM_RESEARCH_VALIDATION_RECOVERY', 'false').lower() == 'true',
                    semantic_search=os.environ.get('DECISION_ROOM_SEMANTIC_SEARCH', 'false').lower() == 'true',
                    embedding_model=os.environ.get('DECISION_ROOM_EMBEDDING_MODEL', 'text-embedding-3-small'),
                    embedding_dimensions=int(os.environ.get('DECISION_ROOM_EMBEDDING_DIMENSIONS', '1536')))
