@@ -1245,5 +1245,10 @@
   "Fijar chat": "Pin chat",
   "Desfijar chat": "Unpin chat",
   "Chat fijado": "Pinned chat",
-  "Indica si quieres fijar o desfijar el chat.": "Choose whether to pin or unpin the chat."
+  "Indica si quieres fijar o desfijar el chat.": "Choose whether to pin or unpin the chat.",
+  "Buscar por título o mensaje…": "Search titles or messages…",
+  "Buscando chats…": "Searching chats…",
+  "No hay chats que coincidan con tu búsqueda.": "No chats match your search.",
+  "Tú": "You",
+  "Revisa la búsqueda: admite hasta 300 caracteres.": "Keep your search within 300 characters."
 }

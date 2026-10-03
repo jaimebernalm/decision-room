@@ -584,6 +584,22 @@ compilación y lint sin errores, revisión en localhost de fijación/recarga y
 desfijación, navegación y filas de informes en escritorio y móvil. Véanse
 [comprobaciones y límites](../validation/2026-10-02-ui-ux-refinements.md).
 
+### 2.5.22. Búsqueda de chats por contenido
+
+1. Añadir lupa al buscador de la biblioteca de Chats y retirar el halo azul de
+   foco, conservando un borde neutro para reconocer el campo activo.
+2. Buscar por título, mensajes del propietario y respuestas visibles del
+   asistente dentro del negocio activo; conservar fijados y excluir eliminados.
+   Mostrar un fragmento de la coincidencia sin cargar historiales completos en
+   el navegador ni consultar modelos.
+3. Comprobar aislamiento, caracteres literales, solicitudes obsoletas, errores,
+   ausencia de coincidencias, idiomas y comportamiento visual en localhost.
+
+**Completado:** 219 pruebas frontend y 6 backend dirigidas pasan, compilación
+y lint sin errores. Búsqueda por contenido y campo enfocado sin halo azul
+comprobados en localhost, en escritorio y móvil. Véanse
+[comprobaciones y límites](../validation/2026-10-02-chat-search.md).
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Avance, 27 de septiembre de 2026:** completados **3.1** (medición inicial),

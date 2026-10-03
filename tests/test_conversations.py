@@ -7,8 +7,9 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 from uuid import uuid4
+from psycopg.types.json import Jsonb
 
-from decision_room.conversations import Conversations, memory_reply, search_history, snapshot, direct_question
+from decision_room.conversations import Conversations, memory_reply, search_history, snapshot, direct_question, library_query
 from decision_room.greetings import is_greeting
 from decision_room.database import connect
 from decision_room.service import import_batch
@@ -262,6 +263,53 @@ class ConversationTests(unittest.TestCase):
         self.chats.pin(older, {**payload, 'pinned': False})
         self.assertEqual(reopened.listing()['conversations'][0]['id'], newer)
         self.assertEqual(reopened.detail(older)['turns'], [])
+
+    def test_library_search_finds_titles_owner_messages_and_visible_responses(self):
+        chat = self.chat()
+        turn = self.chats.send(chat, dict(business_id=str(self.b), request_key=str(uuid4()),
+                                         text='Introducción. ' * 350 + 'El inventario contiene 100%_literal.'))
+        response = dict(kind='grounded_answer', text='Revisamos los márgenes.',
+                        paragraphs=['La campaña de verano funciona.'],
+                        evidence=dict(kind='evidence', claims=[dict(statement='Las mochilas aumentaron.')]),
+                        snapshot=dict(text='secret-search-token'), tool_payload=dict(text='internal-tool-token'))
+        with connect(self.config) as db:
+            db.execute('UPDATE chat_conversations SET title=%s WHERE id=%s', ('Notas de Cafetería', chat))
+            db.execute("UPDATE chat_turns SET response=%s,status='completed' WHERE id=%s", (Jsonb(response), turn['id']))
+        for query in ('CAFETERIA', 'inventario', '100%_literal', 'MARGENES', 'campaña de verano', 'mochilas'):
+            found = self.chats.listing(query)['conversations']
+            self.assertEqual([c['id'] for c in found], [chat], query)
+            if query != 'CAFETERIA':
+                self.assertIn(library_query(query), library_query(found[0]['search_match']['text']))
+                self.assertLess(len(found[0]['search_match']['text']), 400)
+        for query in ('sin coincidencias', 'secret-search-token', 'internal-tool-token'):
+            self.assertEqual(self.chats.listing(query)['conversations'], [], query)
+        self.assertNotIn('search_match', self.chats.listing()['conversations'][0])
+
+    def test_library_search_preserves_pins_and_excludes_deleted_and_foreign_chats(self):
+        older, newer = self.chat(), self.chat()
+        for chat in (older, newer):
+            self.chats.send(chat, dict(business_id=str(self.b), request_key=str(uuid4()), text='Búsqueda de productos.'))
+        self.chats.pin(older, dict(business_id=str(self.b), pinned=True))
+        self.assertEqual([c['id'] for c in self.chats.listing('productos')['conversations']], [older, newer])
+        other = self.ws.save_business(dict(request_key=str(uuid4()), expected_active_id=str(self.b), name='Other shop', description='Other context'))
+        foreign_chats = Conversations(self.ws.scoped(other['id']))
+        foreign = foreign_chats.create(dict(business_id=str(other['id']), request_key=str(uuid4())))['id']
+        foreign_chats.send(foreign, dict(business_id=str(other['id']), request_key=str(uuid4()), text='Búsqueda de productos.'))
+        self.assertNotIn(foreign, [c['id'] for c in self.chats.listing('productos')['conversations']])
+        self.chats.delete(older, dict(business_id=str(self.b)))
+        self.assertEqual([c['id'] for c in self.chats.listing('productos')['conversations']], [newer])
+
+    def test_library_search_http_is_authenticated_literal_and_bounded(self):
+        chat = self.chat()
+        self.chats.send(chat, dict(business_id=str(self.b), request_key=str(uuid4()), text='Oferta 100%_literal y C++ & café.'))
+        client, server = self.http()
+        self.assertEqual(client.get('/api/chats', params={'query': '100%_literal'}).status_code, 401)
+        client.post('/api/login', json={'token': server.token})
+        found = client.get('/api/chats', params={'query': 'C++ & cafe'})
+        self.assertEqual(found.status_code, 200, found.text)
+        self.assertEqual(found.json()['conversations'][0]['id'], str(chat))
+        self.assertEqual(client.get('/api/chats', params={'query': 'x' * 301}).status_code, 400)
+        self.assertEqual(client.get('/api/chats', params={'query': "' OR 1=1 --"}).json()['conversations'], [])
 
     def test_pin_http_validates_authentication_business_and_deleted_chats(self):
         chat = self.chat()
