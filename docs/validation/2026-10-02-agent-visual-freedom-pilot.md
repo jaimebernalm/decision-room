@@ -1,5 +1,13 @@
 # 3.9.9.2 — Informe nuevo con el encargo exacto de Luna
 
+**Nota posterior, 3 de octubre:** la [auditoría del recorrido](2026-10-03-report-quality-forensics.md)
+reproduce un defecto del esquema productor que impide generar capas válidas.
+La ausencia de capas no puede atribuirse exclusivamente a una elección del agente;
+la integración de esa capacidad queda reabierta. La puntuación siguiente conserva
+la evaluación histórica: el diagnóstico distingue ranking correcto de prioridad
+útil y aclara que la preferencia conversacional por líneas no formaba parte del
+prompt controlado. Las cifras del piloto no cambian.
+
 La composición visual está implementada y comprobada, pero este piloto **no
 demuestra una mejora de entrega respecto al mejor Luna**. La repetición termina
 con cifras correctas y aprobación parcial del producto. No pasa la aceptación

@@ -986,9 +986,18 @@ con estilos explícitos. La media móvil es una posibilidad verificada, no un
 formato obligatorio. Después se investiga de nuevo con el mismo encargo y los
 mismos CSV de Luna ronda 2, run 3, conservando errores y recursos. Se siguen
 [los pasos de implementación y evaluación](../technical/report-quality-plan.md#399-expresividad-de-los-agentes-y-nueva-comparación-con-luna).
-Estado: capacidad implementada y comprobada, con piloto nuevo en la aplicación
-habitual. 25 referencias correctas; 18/24 en evaluación independiente, sin aceptar
-la entrega ni demostrar mejora consistente. El agente no utilizó las capas nuevas.
+Estado del piloto: validador y representación implementados y comprobados, con
+informe nuevo en la aplicación habitual. 25 referencias correctas; 18/24 en
+evaluación independiente, sin aceptar la entrega ni demostrar mejora consistente.
+El agente no utilizó las capas nuevas. La auditoría posterior detecta que el
+esquema productor tampoco permitía generarlas válidamente; integración reabierta.
 Se conservan el intento interrumpido y la repetición. Véanse
 [resultados y límites](../validation/2026-10-02-agent-visual-freedom-pilot.md).
 3.9.7 sigue abierto.
+
+**Diagnóstico del recorrido y comparación con Luna (3.9.10), 3 de octubre:**
+completada la [investigación de decisiones, prompts y herramientas](../validation/2026-10-03-report-quality-forensics.md),
+con 73 llamadas del producto, seis sesiones CLI y comprobaciones offline.
+Se documentan cierre prematuro, defecto del esquema de capas, revisión insuficiente
+de utilidad y presentación, además de errores propios de Luna. Correcciones
+propuestas, todavía no implementadas; véase la secuencia en el plan técnico 3.9.10.

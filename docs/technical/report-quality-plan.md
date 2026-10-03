@@ -655,8 +655,12 @@ crear un informe nuevo con fuentes y encargo idénticos a un experimento Luna.
    de aprobación. Probar errores, fechas ausentes, precisión y regresiones;
    revisar archivos públicos y guardar un commit local.
 
-Estado: completado. 621 pruebas de servidor y 237 de interfaz pasan; build y
-lint completados. Véase la [validación de composición](../validation/2026-10-02-agent-visual-composition.md).
+Estado inicial: completado con 621 pruebas de servidor y 237 de interfaz; build
+y lint completados. Véase la [validación de composición](../validation/2026-10-02-agent-visual-composition.md).
+**Reabierto parcialmente el 3 de octubre:** el validador y el renderizador admiten
+capas, pero el esquema dinámico que recibe el modelo rechaza una composición
+válida. Falta corregir y probar esa frontera; no se da por integrada la capacidad
+de generación. Véase el [diagnóstico 3.9.10](../validation/2026-10-03-report-quality-forensics.md).
 
 Corrección localizada durante el piloto: el encargo explícito de guardar HTML
 se convirtió en una tarea de investigación, bloqueando el paso a la entrega.
@@ -686,3 +690,35 @@ profundidad y utilidad/presentación. El agente no adoptó capas ni medias móvi
 No se reenvió la llamada interrumpida ni se borró el intento del denominador.
 Véanse [resultados y límites](../validation/2026-10-02-agent-visual-freedom-pilot.md).
 3.9.7 sigue abierto; capacidad y prueba no equivalen a mejora consistente.
+
+### 3.9.10 — Diagnóstico del recorrido, herramientas y cierre
+
+Solicitud del propietario: investigar a fondo la entrega actual y Luna, con
+contextos, prompts, herramientas, fallos y apuntes Markdown duraderos antes de
+seguir cambiando el producto.
+
+1. Conservar e inventariar trazas e instantáneas, incluidos intentos fallidos.
+2. Reconstruir decisiones, sistemas y contratos por llamada, identificando lo
+   que no puede recuperarse del registro original.
+3. Contrastar las señales contra CSV y seguirlas hasta la síntesis y revisión.
+4. Comparar el uso real de herramientas de Luna, incluidas comprobaciones fallidas.
+5. Reproducir defectos deterministas y separar hipótesis de comportamiento.
+6. Documentar propuestas y criterios de aceptación; revisar privacidad, validar
+   evidencias y guardar el diagnóstico en un commit local.
+
+Estado: diagnóstico completado el 3 de octubre. 73 llamadas del producto y seis
+sesiones Luna reconstruidas; 34 huellas de fuentes intactas; sondas offline del
+esquema de capas, artefactos, señales y etiquetas. Los contextos íntegros y las
+transcripciones están en un dossier local ignorado por Git. No se generaron
+informes ni se cambió el producto. Las correcciones siguen pendientes.
+
+La [investigación completa](../validation/2026-10-03-report-quality-forensics.md)
+localiza el cierre prematuro pese a cálculos posibles, la aprobación sin contraste
+suficiente, el contrato inválido de capas y la falta de revisión del render real.
+También documenta los errores de Luna y las limitaciones de comparabilidad.
+
+Orden propuesto para la siguiente implementación: contratos y capacidades;
+continuidad de investigación y cierre justificado; revisión de fidelidad y
+alternativas; síntesis y presentación verificadas; evaluación por variantes con
+tres repeticiones y un segundo negocio. No se marca esta implementación como
+iniciada ni se cierra 3.9.7 con un diagnóstico.
