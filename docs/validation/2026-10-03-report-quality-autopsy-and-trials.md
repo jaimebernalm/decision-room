@@ -157,8 +157,11 @@ salida de terminal. Un propietario puede subir cinco años. Riesgos esperados:
 - **El sandbox de Codex lee todo el disco del usuario** (comprobado: un comando
   dentro de `codex sandbox` lee un archivo de la carpeta superior). Por eso los
   oráculos no se guardan junto a las entradas ni dentro del lote; se pasan solo
-  al puntuar, y se marcan los comandos de Luna que nombran rutas fuera de su
-  carpeta. El producto calcula en Docker con solo sus entradas autorizadas.
+  al puntuar. Los comandos de Luna que nombran rutas fuera de su carpeta se
+  marcan como **diagnóstico, no como garantía**: no bloquean el acceso ni detectan
+  rutas construidas dentro de un programa. En la evaluación reservada, oráculo,
+  generador y claves permanecen inaccesibles hasta puntuar. El producto calcula
+  en Docker con solo sus entradas autorizadas.
 
 Lanzador: [`decision_room/evaluation/trials.py`](../../decision_room/evaluation/trials.py).
 Los resultados se guardan en una carpeta local ignorada; cada intento conserva su
@@ -203,8 +206,25 @@ cambios del entorno, no una medida de calidad estable. Ante una decisión dudosa
 se amplían repeticiones antes de elegir; se conservan dispersión y fallos y nunca
 se presenta la mejor de tres como rendimiento.
 
-Coste aproximado: unas 80 ejecuciones de desarrollo. Las del producto duran entre
-4 y 15 min y van en serie, así que el calendario se mide en días, no en horas.
+Repeticiones acordadas: Bruma 3 en línea base y candidato final y 1 en las fases
+intermedias; Albor 3 por variante. Bruma se amplía a 3 ante una regresión o un
+resultado ambiguo. Una cifra incorrecta o un gráfico roto se investiga como fallo,
+no se repite hasta obtener una entrega buena.
+
+| Alcance | Ejecuciones |
+| --- | ---: |
+| Fases 0–6 | 62 (42 producto, 20 Luna) |
+| Con una variante opcional de fase 7 | 68 |
+| Reservado final | +9 |
+
+A 4–15 min por ejecución del producto, unas 2,8–10,5 h de producto más Luna,
+esperas, implementación y evaluación. La línea base en Albor sirve para afinar
+esta estimación antes de comprometer las variantes opcionales.
+
+Reparto: Astra implementa la fase 1 en `codex/fix/report-quality-contracts`
+desde `4815b68` (incluida una solución general de invariancia al orden, no la
+corrección de un programa histórico); este plan mantiene el lanzador y ejecuta la
+línea base congelada con instantáneas y entornos separados.
 
 ### Negocio reservado
 
@@ -310,6 +330,7 @@ el eje recorta las etiquetas a 20 caracteres.
   coordinador, del redactor y del revisor; seis ejecuciones efectivas de HTML, no
   siete; tokens parecidos no significan coste equivalente.
 - Sin `priority_rank` fijo en el oráculo.
+- Presupuesto y reparto: adenda de la revisión de Astra, commit `0f41cf5`.
 
 ## 10. Límites
 
