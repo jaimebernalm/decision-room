@@ -1,0 +1,198 @@
+# Autopsia de calidad y diseño de pruebas: Decision Room frente a Luna en Codex
+
+Fecha: 3 de octubre de 2026. Estado: **diagnóstico y diseño**. No cambia el
+producto. Las pruebas de línea base aún no se han ejecutado; este documento fija
+qué se mide y qué resultado refutaría cada propuesta **antes** de verlos.
+
+Otra investigación paralela (GPT-6 Astra, en la rama
+`codex/feature/bruma-web-integration`) analiza las mismas trazas. Sus conclusiones
+se contrastarán con estas antes de lanzar las pruebas; las discrepancias se
+documentarán, no se resolverán eligiendo la opinión preferida.
+
+## 1. Material examinado
+
+- Piloto 3.9.9.2 de Decision Room con el encargo exacto de Luna: intento
+  interrumpido (57 llamadas) y repetición aprobada parcial (16 llamadas, 3
+  ejecuciones de cálculo, 2 completadas). Contextos persistidos, salidas, código,
+  resultados, informe HTML y presupuestos.
+- Seis sesiones de Luna en Codex CLI (`gpt-6-luna`, esfuerzo `low`) con eventos
+  JSONL, comandos, salidas e informes. Detalle principal: ronda 2, ejecución 2
+  (23/24, mejor resultado) y ejecución 3 (15/24).
+- Prompts y contratos del producto en la revisión `4815b68`.
+
+Véanse la [comparación Luna](2026-10-02-codex-luna-comparison.md) y el
+[piloto con encargo exacto](2026-10-02-agent-visual-freedom-pilot.md). Las trazas
+permanecen locales e ignoradas por Git.
+
+## 2. Resultado principal
+
+El modelo es el mismo y el consumo es comparable: la repetición del producto usa
+348.395 tokens de entrada y 246 s; la mejor sesión de Luna, 342.513 y 263 s. La
+diferencia está en **en qué se gastan**. Luna los gasta en ver datos; el producto,
+en reenviar reglas y contexto estructurado a roles que nunca ven el conjunto.
+
+La pérdida ocurre en la **investigación**, antes de redactar, y no por falta de
+presupuesto: la repetición usó 7 de 192 turnos y 3 de 48 ejecuciones permitidas.
+
+## 3. Seguimiento de una señal concreta
+
+Señal más útil para el propietario de Bruma: entre julio y agosto la tienda
+física baja de 621 a 528 unidades (−93; −15,0 %), con cinco de sus seis productos
+en descenso, mientras web (+237) y marketplace (+332) crecen.
+
+| Paso | Luna en Codex (ronda 2, ejecución 2) | Decision Room (repetición) |
+| --- | --- | --- |
+| Exploración | Quinto comando: imprime mes×canal, totales por producto y canal, semanas. Octavo comando: cambio por canal julio–agosto (−93, +237, +332). | Dos programas: totales mensuales y diferencias mensuales de las 18 combinaciones. Nunca agrega por canal. |
+| Registro | No aplica: el mismo agente sigue razonando con todo a la vista. | 16 métricas guardadas; 14 son validaciones (filas, nulos, duplicados, rango). El resumen dice «No propongo ampliar este análisis local». |
+| Priorización | Prioridad 1: caída extendida en tienda. Luego Kit–Web y Café–Marketplace. | El planificador ordena +118 > +100. Es el ranking por volumen que su prompt prohíbe. En el intento interrumpido vio caídas en junio–agosto (máximo −24) y las descartó «por magnitud». |
+| Redacción | El mismo agente escribe con las cifras que calculó. | El redactor solo puede citar números guardados: −93 no existe como métrica y no puede aparecer, aunque las barras negativas se vean en el gráfico. |
+| Revisión | Autoverificación con asserts de reconciliación. | Aprobado con todos los criterios en `pass`; no se comprueba si falta una señal mayor. |
+
+## 4. Causas, de mayor a menor peso
+
+1. **Mirar es caro en el producto y barato en Codex.** Cada ejecución exige
+   `write_result` con 3–8 métricas escalares, una evidencia por métrica,
+   assertions y registro de candidato antes de ampliar. Imprimir para explorar
+   «no es un resultado». El agente minimiza las veces que mira y llena métricas
+   con validaciones. Luna imprime tablas completas y decide después.
+2. **Quien ve los números no decide y quien decide no los ve.** Cada llamada es
+   independiente (`store=False`, un mensaje de sistema y otro con el contexto JSON).
+   No hay razonamiento persistente entre pasos. Cinco roles se pasan resúmenes;
+   el investigador cierra sin interpretar y el planificador prioriza sobre
+   resúmenes. Codex mantiene un único bucle continuo.
+3. **Prompts enormes y defensivos.** Sistema de investigación ≈ 5.000 palabras,
+   planificador ≈ 2.350, analista ≈ 7.050, revisor ≈ 7.270, acumulados como parches
+   «Do not…». El encargo de Luna tenía ≈ 350 palabras sobre las instrucciones de
+   Codex. La salida refleja cautela, no análisis: la reacción final es «mantener
+   el aumento como señal descriptiva» y cada comprobación añade «si existen».
+4. **Texto no dirigido a un propietario no técnico.** El informe muestra
+   «P06×WE», «unidades registradas de cambio», «118.0000» y
+   «51.36666666666666666666666667». Luna titula «Revisar primero la caída
+   extendida en tienda física».
+5. **La entrega HTML contamina la investigación.** El intento interrumpido gasta
+   siete ejecuciones intentando generar HTML. En la repetición, el analista
+   comunica al cliente que no puede afirmar que exista `informe.html`, aunque la
+   aplicación lo exporta después.
+6. **El revisor valida campos, no omisiones.** Aprueba orientación, reacciones y
+   cifras sin comparar el informe con lo que los datos muestran a nivel agregado.
+
+Lo que **no** explica la diferencia: el modelo, el esfuerzo de razonamiento
+(ambos `low`), los presupuestos ni el número de tokens.
+
+## 5. Lo que hay que conservar del producto
+
+Luna sola no es fiable. En la ronda 2, dos de tres sesiones tienen cifras
+erróneas o gráficos rotos; ninguna de las seis nuevas pasa todos los criterios de
+entrega. La verificación de cifras, el rastro de evidencia, la exportación
+controlada y el aislamiento del cálculo son valor del producto. El objetivo es
+un híbrido: **libertad de exploración como en Codex y garantías al final**.
+
+## 6. Propuestas (hipótesis a probar, no decisiones)
+
+| # | Cambio | Hipótesis comprobable | Coste |
+| --- | --- | --- | --- |
+| P1 | Panorama determinista de los datos antes de investigar: totales por dimensión × periodo, subidas y bajadas, último periodo frente al anterior y al mismo del año previo, día de la semana, huecos de fechas. Calculado por código, sin modelo. | Aumenta la detección de señales plantadas, en especial las que van contra el total. | Bajo |
+| P2 | Revisor con control de omisiones: compara el informe con el panorama y bloquea si un movimiento mayor de sentido contrario no se comenta. | Reduce aprobaciones con la señal principal ausente. | Bajo |
+| P3 | Sacar el HTML del contexto de investigación; redacción para un no técnico (sin IDs, cifras redondeadas, cautelas una vez, reacciones de negocio condicionadas). | Mejora claridad y orientación sin empeorar cifras. | Bajo-medio |
+| P4 | Un analista en bucle continuo con razonamiento conservado y una herramienta Python exploratoria que devuelve stdout acotado. El contrato de métricas y evidencias se exige al final, en un script que recalcula cada cifra citada. | Iguala o supera la profundidad de Luna manteniendo 0 errores numéricos publicados. | Alto |
+| P5 | Planificador reducido a encargo inicial y crítica final; prompts reescritos (≈ 1.000 palabras por rol). | Menos tokens por llamada sin pérdida de calidad. | Medio |
+
+Orden previsto: P1–P3 primero, medir, y solo después P4–P5.
+
+## 7. Escala: por qué Bruma no basta
+
+Bruma tiene 1.656 filas, 92 días, 6 productos y 3 canales: cabe entero en una
+salida de terminal. Un propietario puede subir cinco años. Riesgos esperados:
+
+- **Luna en Codex:** su ventaja es imprimir tablas completas. Con cientos de miles
+  de filas y cientos de combinaciones tendrá que seleccionar; previsiblemente
+  aumenta la variabilidad, los errores de agregación y la compactación de contexto.
+- **Decision Room:** el cálculo escala (DuckDB, agregados), pero crece el riesgo de
+  perder señales en los traspasos y de comparar ventanas inadecuadas (meses
+  consecutivos frente a estacionalidad anual). La especialización en varios
+  agentes podría ayudar con datos amplios; es una hipótesis a medir, no un supuesto.
+
+## 8. Diseño de las pruebas
+
+### Conjuntos de datos
+
+1. **Bruma (pequeño):** los cuatro CSV congelados y el encargo de la ronda 2, con
+   los hashes publicados en la comparación Luna.
+2. **Albor Café (grande, generado):** negocio ficticio y datos sintéticos; cinco
+   años diarios (septiembre de 2021 a agosto de 2026), 30 productos y 4 canales.
+   Generador determinista con semilla en
+   [`decision_room/evaluation/trial_data.py`](../../decision_room/evaluation/trial_data.py).
+   Incluye señales plantadas cuya verdad se calcula desde los propios CSV y se
+   guarda en un oráculo que **nunca** llega a los agentes:
+
+| Clave | Señal | Lectura correcta esperada |
+| --- | --- | --- |
+| S1 | Desde el 7 de junio de 2026 la tienda casi no registra unidades en domingo, en todos los productos. | Caída de tienda frente al año anterior aunque el total crece; concentrada en domingos desde una fecha. Comprobar horario/apertura. |
+| S2 | Hostelería deja de registrar un producto a partir de abril de 2026. | Desaparición de una combinación; comprobar cliente o pedido recurrente. |
+| S3 | Un molinillo eléctrico salta en web desde mediados de junio de 2026. | Oportunidad concreta; comprobar stock y origen del aumento. |
+| S4 | Marketplace no tiene registros del 10 al 18 de marzo de 2026. | Hueco de datos, no caída de demanda. Comprobar extracción. |
+| S5 | Un descafeinado pierde ≈ 2,5 % mensual desde marzo de 2025 en todos los canales. | Erosión lenta que solo se ve con horizonte largo. |
+| S6 | El café frío triplica en verano todos los años (señuelo). | Estacional; no presentarlo como novedad por comparar mayo con junio. |
+
+### Sistemas y repeticiones
+
+- **Luna en Codex:** mismo comando que la comparación Luna (CLI, `gpt-6-luna`,
+  esfuerzo `low`, sin búsqueda ni agentes secundarios), carpeta aislada por sesión.
+- **Decision Room:** código congelado con `git archive` en la revisión indicada,
+  base de datos y almacenamiento nuevos por lote, mismo modelo y esfuerzo.
+- Tres repeticiones por sistema y conjunto: 12 ejecuciones por fase. Orden
+  intercalado; concurrencia 1 para el producto, para no mezclar 429 con calidad.
+
+Lanzador: [`decision_room/evaluation/trials.py`](../../decision_room/evaluation/trials.py).
+Los resultados se guardan en una carpeta local ignorada; cada intento conserva su
+estado aunque falle y nunca se relanza un intento ya iniciado.
+
+### Medidas
+
+1. **Recursos:** segundos, llamadas o comandos, tokens de entrada y salida, fallos.
+2. **Detección de señales:** por señal, detectada / priorizada / cifra correcta /
+   lectura correcta (en S6, no presentarla como novedad). La herramienta marca
+   indicios por texto; la puntuación final es humana y se registra por separado.
+3. **Rúbrica 3.9:** doce criterios 0/1/2 de la evaluación existente.
+4. **Cifras:** auditoría de las referencias numéricas contra el oráculo.
+5. **Lectura para no técnicos:** presencia de identificadores internos, decimales
+   crudos y repetición de cautelas.
+
+### Fases
+
+1. **Línea base** con `4815b68` y Luna en Codex, sin cambios.
+2. **Cambios** P1–P3, cada uno en un commit.
+3. **Repetición** de las mismas 12 ejecuciones con los mismos datos y encargos.
+
+### Uso
+
+```sh
+python -m decision_room.evaluation.trial_data albor TRIALS/inputs/albor
+python -m decision_room.evaluation.trial_data bruma BRUMA_FROZEN TRIALS/inputs/bruma
+python -m decision_room.evaluation.trials prepare TRIALS/baseline \
+    --dataset bruma=TRIALS/inputs/bruma --dataset albor=TRIALS/inputs/albor \
+    --product-ref 4815b68 --repeats 3 --env-file PRIVATE_ENV
+python -m decision_room.evaluation.trials run TRIALS/baseline
+python -m decision_room.evaluation.trials score TRIALS/baseline
+python -m decision_room.evaluation.trials summary TRIALS/baseline
+```
+
+`prepare` congela el código, crea base de datos y almacenamiento nuevos, migra y
+comprueba el sandbox sin llamar al modelo. `score` solo calcula indicadores
+automáticos: recursos, indicios de texto por señal e identificadores internos o
+decimales crudos visibles. Además deja una plantilla `evaluation.json` para la
+puntuación humana, que es la que cuenta. `TRIALS` debe estar en una carpeta
+ignorada por Git.
+
+Qué refutaría el plan: si tras P1–P3 la detección de S1/S2 en el producto no
+mejora en al menos dos de tres ejecuciones en Albor, o si aparecen cifras
+publicadas erróneas, las propuestas no se mantienen tal como están formuladas.
+
+## 9. Límites
+
+Tres repeticiones son pocas para afirmar consistencia; sirven para detectar
+diferencias grandes. Albor es sintético y sus señales las diseñó el mismo autor
+del análisis: hay riesgo de que el diseño favorezca las propuestas. Por eso las
+señales y su lectura esperada se fijan aquí, antes de cualquier ejecución, y se
+incluye un señuelo. Autenticación, transporte y límites de Codex CLI y de la API
+del producto difieren; no se infiere coste API de los tokens CLI.

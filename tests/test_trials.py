@@ -1,0 +1,101 @@
+"""Trial datasets and launcher: deterministic inputs, hidden oracle, no redispatch."""
+import json
+import os
+from pathlib import Path
+import stat
+from tempfile import TemporaryDirectory
+import unittest
+from unittest.mock import patch
+
+from decision_room.evaluation import trial_data, trials
+
+FAKE_CODEX = '''#!/bin/sh
+if [ "$1" = "--version" ]; then echo "codex-cli fake"; exit 0; fi
+cat > /dev/null
+ls oracle.json ../oracle.json 2>/dev/null && exit 3
+printf '<html><body><h1>Tienda física: cae en domingo</h1><p>P06×WE 118.0000</p></body></html>' > informe.html
+echo '{"type":"item.completed","item":{"type":"command_execution","exit_code":0}}'
+echo '{"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":2}}'
+'''
+
+
+class TrialDataTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = TemporaryDirectory()
+        cls.facts = trial_data.build(Path(cls.tmp.name) / 'albor')
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def test_generation_is_deterministic_and_large(self):
+        with TemporaryDirectory() as tmp:
+            again = trial_data.build(Path(tmp) / 'albor')
+        self.assertEqual(again['inputs'], self.facts['inputs'])
+        self.assertGreater(self.facts['rows'], 100_000)
+
+    def test_oracle_recovers_planted_signals_from_written_rows(self):
+        signals = {s['key']: s for s in self.facts['signals']}
+        self.assertEqual(signals['S1']['first_affected_date'], '2026-06-07')
+        self.assertLess(signals['S1']['facts']['store_change'], 0)
+        self.assertGreater(signals['S1']['facts']['total_change'], 0)
+        self.assertLess(signals['S2']['facts']['last_recorded_date'], '2026-04-01')
+        self.assertGreater(signals['S3']['facts']['daily_rate_after'], 2 * signals['S3']['facts']['daily_rate_before'])
+        self.assertEqual(len(signals['S4']['facts']['missing_dates']), 9)
+        self.assertLess(signals['S5']['facts']['mar_may_2026'], signals['S5']['facts']['mar_may_2025'])
+        decoy = signals['S6']['facts']
+        self.assertGreater(decoy['june_2026'], 1.5 * decoy['may_2026'])
+        self.assertIsNone(signals['S6']['priority_rank'])
+
+    def test_prompt_shares_the_bruma_round_two_request(self):
+        prompt = (Path(self.tmp.name) / 'albor/prompt.txt').read_text()
+        self.assertTrue(prompt.startswith('Mi negocio es Albor Café'))
+        self.assertTrue(prompt.endswith(trial_data.OWNER_REST))
+        self.assertNotIn('oracle', ' '.join(p.name for p in (Path(self.tmp.name) / 'albor/datos').iterdir()))
+
+
+class LauncherTests(unittest.TestCase):
+    def test_order_interleaves_systems_and_datasets(self):
+        order = trials.plan_order(['bruma', 'albor'], ['luna', 'product'], 2)
+        self.assertEqual(order[:4], ['bruma-luna-1', 'bruma-product-1', 'albor-luna-1', 'albor-product-1'])
+        self.assertEqual(order[4:], ['albor-product-2', 'albor-luna-2', 'bruma-product-2', 'bruma-luna-2'])
+
+    def test_hints_require_every_group(self):
+        self.assertTrue(trials.hinted('La Tienda cae en domingo', [['domingo'], ['tienda']]))
+        self.assertFalse(trials.hinted('La tienda cae', [['domingo'], ['tienda']]))
+
+    def test_luna_batch_end_to_end_without_oracle_leak_or_redispatch(self):
+        with TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            source = tmp / 'dataset'
+            (source / 'datos').mkdir(parents=True)
+            (source / 'datos/x-000.csv').write_text('fecha,unidades\n2026-01-01,1\n')
+            (source / 'prompt.txt').write_text('Mi negocio es Prueba. Quiero un informe.')
+            (source / 'oracle.json').write_text(json.dumps({'signals': [
+                {'key': 'S1', 'hints': [['domingo'], ['tienda']]}, {'key': 'S2', 'hints': [['hostelería']]}]}))
+            binary = tmp / 'bin/codex'
+            binary.parent.mkdir()
+            binary.write_text(FAKE_CODEX)
+            binary.chmod(binary.stat().st_mode | stat.S_IEXEC)
+            batch = tmp / 'batch'
+            with patch.dict(os.environ, {'PATH': f'{binary.parent}:{os.environ["PATH"]}'}):
+                trials.prepare(batch, {'demo': str(source)}, 'HEAD', 2, ['luna'], tmp, tmp / '.env')
+                self.assertFalse(list((batch / 'jobs').rglob('oracle.json')))
+                self.assertEqual(trials.run(batch), 2)
+                self.assertEqual(trials.run(batch), 0)
+            state = json.loads((batch / 'jobs/demo-luna-1/state.json').read_text())
+            self.assertEqual(state['status'], 'completed')
+            self.assertTrue(state['inputs_unchanged'])
+            rows = trials.score(batch)
+            self.assertEqual(rows[0]['signal_hints'], {'S1': True, 'S2': False})
+            self.assertEqual(rows[0]['input_tokens'], 10)
+            self.assertEqual(rows[0]['jargon']['internal_ids'], 1)
+            self.assertEqual(rows[0]['jargon']['raw_decimals'], 1)
+            self.assertIn('| demo | luna | 2/2 |', trials.summary(batch))
+            with self.assertRaises(SystemExit):
+                trials.prepare(batch, {'demo': str(source)}, 'HEAD', 2, ['luna'], tmp, tmp / '.env')
+
+
+if __name__ == '__main__':
+    unittest.main()
