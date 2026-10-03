@@ -3,7 +3,8 @@
 python -m decision_room.evaluation.trial_kit BATCH OUT
 
 Reports get fresh random codes and are shuffled; the code-to-attempt key is
-written to BATCH/kit-key.json, never into OUT. OUT/lector holds one offline
+written to BATCH/kit-key-<OUT name>.json, never into OUT. Every report gets the
+same neutral typography and grayscale palette. OUT/lector holds one offline
 page for the owner (full reports, plain questions, saved in the browser and
 exported as JSON). OUT/tecnica holds de-branded reports, the agents' inputs and
 a template for a technical evaluator, without any oracle. Style can still
@@ -32,10 +33,35 @@ RUBRIC = ['significado', 'cobertura', 'profundidad', 'prioridad', 'siguientes_co
           'integridad_visual', 'incertidumbre_de_fuentes']
 
 
+NEUTRAL = '''<style id="kit-neutral">
+html{filter:grayscale(1)!important;background:#fff!important}
+body{background:#fff!important;color:#222!important;font-size:16px!important}
+*{font-family:-apple-system,"Helvetica Neue",Arial,sans-serif!important;letter-spacing:normal!important;
+  text-transform:none!important;box-shadow:none!important;text-shadow:none!important;border-radius:0!important}
+h1{font-size:28px!important;font-weight:700!important;line-height:1.25!important}
+h2{font-size:22px!important;font-weight:700!important;line-height:1.3!important}
+h3,h4{font-size:18px!important;font-weight:700!important}
+p,li,td,th,dd,dt,summary,blockquote{font-size:16px!important;line-height:1.55!important}
+/* Text blocks white with dark text; empty elements (bars, swatches) keep their shade. */
+body *:not(:empty){background-color:#fff!important;background-image:none!important;
+  color:#222!important;border-color:#ddd!important}
+</style>'''
+
+
 def debrand(html):
     for pattern, replacement in BRANDING:
         html = pattern.sub(replacement, html)
     return html
+
+
+def neutralize(html):
+    """Same fonts, sizes, white text blocks and grayscale for every report.
+
+    CSS only: some reports forbid scripts, and both systems must get identical
+    treatment. Removes quick visual tells (palette, typography, dark cards).
+    Structure and wording can still reveal a system; charts keep their shapes."""
+    match = re.search(r'</head\s*>', html, flags=re.I)
+    return html[:match.start()] + NEUTRAL + html[match.start():] if match else NEUTRAL + html
 
 
 def collect(batch):
@@ -45,27 +71,29 @@ def collect(batch):
         job = batch / 'jobs' / name
         state = read(job / 'state.json')
         if state['status'] == 'completed' and (job / 'informe.html').exists():
-            reports.append((state['dataset'], name, debrand((job / 'informe.html').read_text(errors='replace'))))
+            original = debrand((job / 'informe.html').read_text(errors='replace'))
+            reports.append((state['dataset'], name, neutralize(original), original))
     return manifest, reports
 
 
 def build(batch, out):
     batch, out = Path(batch).resolve(), Path(out).resolve()
-    if (batch / 'kit-key.json').exists() or out.exists():
+    key_path = batch / f'kit-key-{out.name}.json'
+    if key_path.exists() or out.exists():
         raise SystemExit('Kit already built; keep its codes so evaluators stay aligned.')
     if out.is_relative_to(batch):
         raise SystemExit('Build the kit outside the batch, so evaluators never browse attempts or keys.')
     manifest, reports = collect(batch)
     rng = random.Random(uuid4().int)
     rng.shuffle(reports)
-    order = sorted(set(d for d, _, _ in reports), key=lambda d: (d != 'bruma', d))
+    order = sorted(set(r[0] for r in reports), key=lambda d: (d != 'bruma', d))
     reports.sort(key=lambda r: order.index(r[0]))
     key, items = {}, []
-    for dataset, name, html in reports:
+    for dataset, name, html, original in reports:
         code = uuid4().hex[:6]
         key[code] = name
-        items.append({'code': code, 'dataset': dataset, 'html': html})
-    write(batch / 'kit-key.json', {'created_at': datetime.now(timezone.utc).isoformat(), 'out': str(out), 'codes': key})
+        items.append({'code': code, 'dataset': dataset, 'html': html, 'original': original})
+    write(key_path, {'created_at': datetime.now(timezone.utc).isoformat(), 'out': str(out), 'codes': key})
     reader(out / 'lector', items)
     technical(batch, out / 'tecnica', items, manifest)
     signals(out / 'senales', items)
@@ -82,9 +110,11 @@ def reader(folder, items):
 
 def technical(batch, folder, items, manifest):
     (folder / 'informes').mkdir(parents=True)
+    (folder / 'render').mkdir()
     for item in items:
         stem = f"{item['dataset']}-{item['code']}"
         (folder / 'informes' / f'{stem}.html').write_text(item['html'], encoding='utf-8')
+        (folder / 'render' / f'{stem}.html').write_text(item['original'], encoding='utf-8')
         (folder / 'informes' / f'{stem}.txt').write_text(text_of(item['html']) + '\n', encoding='utf-8')
     for dataset in sorted({i['dataset'] for i in items}):
         target = folder / 'entradas' / dataset
@@ -111,14 +141,16 @@ def signals(folder, items):
 
 TECHNICAL = '''# Evaluación técnica a ciegas
 
-Hay {count} informes en `informes/`, con códigos aleatorios. Cada informe está
-en HTML (ábrelo en un navegador) y en texto. Se ha quitado la marca visible, pero
-el estilo puede delatar el sistema: no intentes deducirlo.
+Hay {count} informes en `informes/`, con códigos aleatorios, en HTML y en texto.
+Se ha quitado la marca y todos usan la misma tipografía y escala de grises; la
+estructura y la redacción aún pueden delatar el sistema: no intentes deducirlo.
+Puntúa primero el contenido con `informes/`. Solo después, para la parte de
+render, abre `render/`, que conserva el diseño original de cada informe.
 
 ## Reglas de ceguera
 
 - No abras nada fuera de esta carpeta `tecnica/`: ni los lotes de ensayo, ni
-  `kit-key.json`, ni registros, resúmenes ni puntuaciones automáticas.
+  las claves `kit-key-*.json`, ni registros, resúmenes ni puntuaciones automáticas.
 - No abras oráculos ni el generador de datos. No uses lo que veas aquí sobre las
   señales de Albor para ajustar implementaciones: Albor es de desarrollo y el
   acuerdo es no adaptar el producto a sus señales.

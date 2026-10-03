@@ -146,9 +146,10 @@ class LauncherTests(unittest.TestCase):
             self.assertNotIn('Decision Room', ' '.join(p.read_text() for p in (tmp / 'kit/tecnica/informes').glob('*')))
             self.assertNotIn('demo-luna', kit_text)
             self.assertNotIn('hostelería', kit_text)
-            self.assertEqual(len(trials.read(batch / 'kit-key.json')['codes']), 2)
+            self.assertEqual(len(trials.read(batch / 'kit-key-kit.json')['codes']), 2)
+            self.assertIn('kit-neutral', (tmp / 'kit/tecnica/informes').glob('*.html').__next__().read_text())
             with self.assertRaises(SystemExit):
-                trial_kit.build(batch, tmp / 'kit2')
+                trial_kit.build(batch, tmp / 'kit')
 
 
 if __name__ == '__main__':
