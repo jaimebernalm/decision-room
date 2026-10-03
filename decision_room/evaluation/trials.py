@@ -3,11 +3,13 @@
   python -m decision_room.evaluation.trials prepare BATCH --dataset bruma=DIR \
       --dataset albor=DIR --product-ref REF [--repeats 3] [--systems luna,product]
   python -m decision_room.evaluation.trials run BATCH [--system luna|product] [--limit N]
-  python -m decision_room.evaluation.trials score BATCH
+  python -m decision_room.evaluation.trials score BATCH [--oracle NAME=PATH ...]
   python -m decision_room.evaluation.trials summary BATCH
 
-Each DIR holds datos/*.csv and prompt.txt; an optional oracle.json beside them is
-copied to BATCH/oracles and never into any agent's folder. Product jobs use a
+Each DIR holds datos/*.csv and prompt.txt. Oracles are never copied into the
+batch: Luna in Codex can read any file the user can, so they are passed only at
+scoring time from a separate location, and Luna commands that reach outside
+their own folder are flagged. Product jobs use a
 `git archive` snapshot, a fresh database and storage. Every attempt keeps its
 state; an attempt that has started is never dispatched again. BATCH must live in
 an ignored folder: it holds model traces and private runtime details.
@@ -106,8 +108,7 @@ def prepare(batch, datasets, product_ref, repeats, systems, runtime_root, env_fi
         manifest['datasets'][name] = {'inputs': inputs, 'prompt_sha256': hashlib.sha256(prompt.encode()).hexdigest(),
                                       'business': re.sub(r'^Mi negocio es ', '', first)[:80]}
         if (source / 'oracle.json').exists():
-            (batch / 'oracles').mkdir(exist_ok=True)
-            shutil.copyfile(source / 'oracle.json', batch / 'oracles' / f'{name}.json')
+            raise SystemExit(f'{source} contains oracle.json; keep oracles away from agent inputs.')
     if 'product' in systems:
         from ..agent.model import ModelSettings
         from ..local_env import load_env
@@ -209,6 +210,7 @@ def run_luna(batch, job):
         state.update(exit_code=code, usage=[e.get('usage') for e in completed], commands=len(commands),
                      failed_commands=sum(c.get('exit_code') not in (0, None) for c in commands),
                      shared_tmp_commands=sum('/tmp/' in (c.get('command') or '') for c in commands),
+                     outside_paths=sorted({p for c in commands for p in outside(c.get('command') or '', job)}),
                      report_exists=(job / 'informe.html').exists(),
                      inputs_unchanged={p.name: sha(p) for p in sorted((job / 'datos').glob('*.csv'))}
                      == read(batch / 'manifest.json')['datasets'][state['dataset']]['inputs'])
@@ -219,6 +221,19 @@ def run_luna(batch, job):
     finally:
         state['seconds'] = round(time.monotonic() - started, 3)
         write(job / 'state.json', state)
+
+
+SYSTEM_PREFIXES = ('/bin/', '/usr/', '/opt/homebrew/', '/tmp/', '/dev/', '/System/', '/Library/', '/private/var/folders/')
+
+
+def outside(command, job):
+    """Paths a Luna command names outside its job folder (reads are not sandboxed)."""
+    found = set(re.findall(r'(?:\.\./[^\s\'";|)]*)', command))
+    for path in re.findall(r'(?<![\w.])(/[\w.@~-][^\s\'";|)]*)', command):
+        if not path.startswith(str(job)) and not path.startswith(SYSTEM_PREFIXES):
+            found.add(path)
+    found |= {w for w in re.findall(r'\S*oracle\S*', command, flags=re.I)}
+    return found
 
 
 def run_product(batch, job):
@@ -291,19 +306,21 @@ def resources(job, state):
             'output_tokens': sum(u.get('completion_tokens', u.get('output_tokens', 0)) or 0 for u in usage)}
 
 
-def score(batch):
+def score(batch, oracles=None):
     """Automatic indicators only. Signal hints are NOT a verdict; humans score separately."""
     manifest = read(batch / 'manifest.json')
+    oracles = {name: read(path) for name, path in (oracles or {}).items()}
     rows = []
     for name in manifest['order']:
         job = batch / 'jobs' / name
         state = read(job / 'state.json')
         report = job / 'informe.html'
         text = text_of(report.read_text(errors='replace')) if report.exists() else ''
-        oracle = read(batch / 'oracles' / f"{state['dataset']}.json", {'signals': []})
+        oracle = oracles.get(state['dataset'], {'signals': []})
         rows.append({'job': name, 'dataset': state['dataset'], 'system': state['system'],
                      'status': state['status'], 'publishable': state.get('publishable'),
                      'report': report.exists(), 'words': len(text.split()), **resources(job, state),
+                     'outside_paths': state.get('outside_paths', []),
                      'signal_hints': {s['key']: hinted(text, s['hints']) for s in oracle['signals']} if text else {},
                      'jargon': {k: len(re.findall(v, text, flags=re.I)) for k, v in JARGON.items()}})
     write(batch / 'scores.json', rows)
@@ -388,8 +405,10 @@ def main():
     r.add_argument('batch', type=Path)
     r.add_argument('--system', choices=SYSTEMS)
     r.add_argument('--limit', type=int)
-    for name in ('score', 'summary'):
-        commands.add_parser(name).add_argument('batch', type=Path)
+    s = commands.add_parser('score')
+    s.add_argument('batch', type=Path)
+    s.add_argument('--oracle', action='append', default=[], help='NAME=PATH, kept outside the batch')
+    commands.add_parser('summary').add_argument('batch', type=Path)
     args = parser.parse_args()
     if args.command == 'prepare':
         datasets = dict(item.split('=', 1) for item in args.dataset)
@@ -402,7 +421,8 @@ def main():
     elif args.command == 'run':
         print(json.dumps({'dispatched': run(args.batch.resolve(), args.system, args.limit)}))
     elif args.command == 'score':
-        print(json.dumps(score(args.batch.resolve()), ensure_ascii=False, indent=2))
+        oracles = dict(item.split('=', 1) for item in args.oracle)
+        print(json.dumps(score(args.batch.resolve(), oracles), ensure_ascii=False, indent=2))
     else:
         print(summary(args.batch.resolve()))
 

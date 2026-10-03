@@ -12,9 +12,9 @@ from decision_room.evaluation import trial_data, trials
 FAKE_CODEX = '''#!/bin/sh
 if [ "$1" = "--version" ]; then echo "codex-cli fake"; exit 0; fi
 cat > /dev/null
-ls oracle.json ../oracle.json 2>/dev/null && exit 3
+cat ../../../oracle.json > /dev/null 2>&1
 printf '<html><body><h1>Tienda física: cae en domingo</h1><p>P06×WE 118.0000</p></body></html>' > informe.html
-echo '{"type":"item.completed","item":{"type":"command_execution","exit_code":0}}'
+echo '{"type":"item.completed","item":{"type":"command_execution","exit_code":0,"command":"cat ../../../oracle.json"}}'
 echo '{"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":2}}'
 '''
 
@@ -23,7 +23,7 @@ class TrialDataTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = TemporaryDirectory()
-        cls.facts = trial_data.build(Path(cls.tmp.name) / 'albor')
+        cls.facts = trial_data.build(Path(cls.tmp.name) / 'albor', Path(cls.tmp.name) / 'oracles/albor.json')
 
     @classmethod
     def tearDownClass(cls):
@@ -31,7 +31,7 @@ class TrialDataTests(unittest.TestCase):
 
     def test_generation_is_deterministic_and_large(self):
         with TemporaryDirectory() as tmp:
-            again = trial_data.build(Path(tmp) / 'albor')
+            again = trial_data.build(Path(tmp) / 'albor', Path(tmp) / 'oracle.json')
         self.assertEqual(again['inputs'], self.facts['inputs'])
         self.assertGreater(self.facts['rows'], 100_000)
 
@@ -46,13 +46,15 @@ class TrialDataTests(unittest.TestCase):
         self.assertLess(signals['S5']['facts']['mar_may_2026'], signals['S5']['facts']['mar_may_2025'])
         decoy = signals['S6']['facts']
         self.assertGreater(decoy['june_2026'], 1.5 * decoy['may_2026'])
-        self.assertIsNone(signals['S6']['priority_rank'])
+        self.assertTrue(signals['S6']['decoy'])
+        self.assertNotIn('priority_rank', json.dumps(self.facts))
+        self.assertIn('inferable', signals['S1'])
 
     def test_prompt_shares_the_bruma_round_two_request(self):
         prompt = (Path(self.tmp.name) / 'albor/prompt.txt').read_text()
         self.assertTrue(prompt.startswith('Mi negocio es Albor Café'))
         self.assertTrue(prompt.endswith(trial_data.OWNER_REST))
-        self.assertNotIn('oracle', ' '.join(p.name for p in (Path(self.tmp.name) / 'albor/datos').iterdir()))
+        self.assertFalse(list((Path(self.tmp.name) / 'albor').rglob('oracle*')))
 
 
 class LauncherTests(unittest.TestCase):
@@ -72,7 +74,9 @@ class LauncherTests(unittest.TestCase):
             (source / 'datos').mkdir(parents=True)
             (source / 'datos/x-000.csv').write_text('fecha,unidades\n2026-01-01,1\n')
             (source / 'prompt.txt').write_text('Mi negocio es Prueba. Quiero un informe.')
-            (source / 'oracle.json').write_text(json.dumps({'signals': [
+            oracle = tmp / 'evaluators/demo.json'
+            oracle.parent.mkdir()
+            oracle.write_text(json.dumps({'signals': [
                 {'key': 'S1', 'hints': [['domingo'], ['tienda']]}, {'key': 'S2', 'hints': [['hostelería']]}]}))
             binary = tmp / 'bin/codex'
             binary.parent.mkdir()
@@ -81,13 +85,14 @@ class LauncherTests(unittest.TestCase):
             batch = tmp / 'batch'
             with patch.dict(os.environ, {'PATH': f'{binary.parent}:{os.environ["PATH"]}'}):
                 trials.prepare(batch, {'demo': str(source)}, 'HEAD', 2, ['luna'], tmp, tmp / '.env')
-                self.assertFalse(list((batch / 'jobs').rglob('oracle.json')))
+                self.assertFalse(list(batch.rglob('*oracle*')))
                 self.assertEqual(trials.run(batch), 2)
                 self.assertEqual(trials.run(batch), 0)
             state = json.loads((batch / 'jobs/demo-luna-1/state.json').read_text())
             self.assertEqual(state['status'], 'completed')
             self.assertTrue(state['inputs_unchanged'])
-            rows = trials.score(batch)
+            self.assertIn('../../../oracle.json', state['outside_paths'])
+            rows = trials.score(batch, {'demo': oracle})
             self.assertEqual(rows[0]['signal_hints'], {'S1': True, 'S2': False})
             self.assertEqual(rows[0]['input_tokens'], 10)
             self.assertEqual(rows[0]['jargon']['internal_ids'], 1)
@@ -96,8 +101,11 @@ class LauncherTests(unittest.TestCase):
             copies = sorted((batch / 'blind').iterdir())
             self.assertEqual(len(copies), 2)
             self.assertNotIn('luna', ' '.join(p.name for p in copies))
-            trials.score(batch)
+            trials.score(batch, {'demo': oracle})
             self.assertEqual(len(list((batch / 'blind').iterdir())), 2)
+            (source / 'oracle.json').write_text('{}')
+            with self.assertRaises(SystemExit):
+                trials.prepare(tmp / 'other', {'demo': str(source)}, 'HEAD', 1, ['luna'], tmp, tmp / '.env')
             self.assertTrue((batch / 'jobs/demo-luna-1/tmp').is_dir())
             with self.assertRaises(SystemExit):
                 trials.prepare(batch, {'demo': str(source)}, 'HEAD', 2, ['luna'], tmp, tmp / '.env')

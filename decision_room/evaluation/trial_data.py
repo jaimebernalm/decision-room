@@ -1,10 +1,11 @@
 """Deterministic multi-year synthetic business with planted, documented signals.
 
-python -m decision_room.evaluation.trial_data albor OUTPUT [--seed N]
-python -m decision_room.evaluation.trial_data bruma SOURCE OUTPUT
+python -m decision_room.evaluation.trial_data albor OUTPUT ORACLE [--seed N]
+python -m decision_room.evaluation.trial_data bruma SOURCE OUTPUT ORACLE
 
-Writes OUTPUT/datos/*.csv and OUTPUT/prompt.txt for the agents, and
-OUTPUT/oracle.json for evaluators only. For Bruma, SOURCE is a folder with the
+Writes OUTPUT/datos/*.csv and OUTPUT/prompt.txt for the agents, and ORACLE for
+evaluators only, in a separate location: Luna in Codex can read any file the
+user can, so never place the oracle beside or above the agents' inputs. For Bruma, SOURCE is a folder with the
 frozen datos/ and prompt.txt; their hashes are checked against the published ones. The oracle is computed from the written
 CSV rows, never from the generator's expected values, and must never be placed
 next to the agents' inputs. Albor Café is fictitious; all values are synthetic.
@@ -204,6 +205,11 @@ def read_activity(folder, prefix=PREFIX):
     return rows
 
 
+PRIORITY_NOTE = ('No hay un orden único correcto. Se evalúa si la prioridad elegida está justificada por el '
+                 'encargo frente a alternativas materiales, no si reproduce esta lista. La causa plantada '
+                 '(generator_truth) no es exigible si los archivos no la identifican; se evalúa inferable.')
+
+
 def window_sum(rows, start, end, keep=lambda r: True):
     return sum(r[3] for r in rows if start <= r[0] <= end and keep(r))
 
@@ -251,49 +257,62 @@ def oracle(folder):
     total_now, total_before = window_sum(rows, *summer), window_sum(rows, *last_summer)
 
     return {
+        'priority_note': PRIORITY_NOTE,
         'business': 'Albor Café (ficticio)', 'period': [START.isoformat(), END.isoformat()],
         'rows': len(rows), 'products': len(PRODUCTS), 'channels': len(CHANNELS),
         'totals': {'jun_aug_2026': total_now, 'jun_aug_2025': total_before},
         'signals': [
-            {'key': 'S1', 'priority_rank': 1, 'kind': 'hidden decline',
+            {'key': 'S1', 'kind': 'hidden decline', 'decoy': False,
              'segment': 'Tienda física, domingos', 'first_affected_date': break_day.isoformat(),
              'facts': {'store_jun_aug_2026': store_now, 'store_jun_aug_2025': store_before,
                        'store_change': store_now - store_before,
                        'store_sunday_jun_aug_2026': sunday_now, 'store_sunday_jun_aug_2025': sunday_before,
                        'sunday_change': sunday_now - sunday_before,
                        'total_change': total_now - total_before},
-             'correct_reading': 'La tienda cae frente al año anterior aunque el total crece; la caída se concentra en domingos desde la fecha indicada. Comprobar horario o apertura dominical.',
+             'generator_truth': 'Unidades de tienda en domingo multiplicadas por 0,06 desde la fecha indicada.',
+             'inferable': 'La tienda cae frente al mismo periodo del año anterior aunque el total crece; la caída se concentra en domingos a partir de una fecha concreta. El motivo (cierre, horario, registro) no se deduce de los archivos.',
+             'reasonable_checks': ['horario o apertura dominical', 'registro del TPV en domingo', 'personal o incidencias en domingos'],
              'hints': [['domingo'], ['tienda']]},
-            {'key': 'S2', 'priority_rank': 2, 'kind': 'disappearing combination',
+            {'key': 'S2', 'kind': 'disappearing combination', 'decoy': False,
              'segment': f'{names[HO_LOSS[0]]} × Hostelería', 'first_affected_date': HO_LOSS[1].isoformat(),
              'facts': {'last_recorded_date': ho_last.isoformat(), 'monthly_units': dict(sorted(ho_months.items()))},
-             'correct_reading': 'La combinación deja de registrar unidades desde abril de 2026. Comprobar cliente o pedido recurrente perdido.',
+             'generator_truth': 'La combinación tiene demanda cero desde la fecha indicada.',
+             'inferable': 'Una combinación con pedidos regulares deja de registrar unidades a final de marzo de 2026. No se deduce si es pérdida de cliente, cambio de formato o error de registro.',
+             'reasonable_checks': ['pedidos recurrentes o clientes de hostelería de ese producto', 'cambio de referencia o formato', 'registro del canal'],
              'hints': [['hostelería'], ['1 kg', 'casa']]},
-            {'key': 'S3', 'priority_rank': 3, 'kind': 'breakout opportunity',
+            {'key': 'S3', 'kind': 'breakout opportunity', 'decoy': False,
              'segment': f'{names[WEB_BREAKOUT[0]]} × Web propia', 'first_affected_date': WEB_BREAKOUT[1].isoformat(),
              'facts': {'daily_rate_after': round(rate(after, web), 3), 'daily_rate_before': round(rate(before, web), 3),
                        'window_after': [a.isoformat() for a in after], 'window_before': [b.isoformat() for b in before]},
-             'correct_reading': 'Aumento escalonado en web desde mediados de junio. Comprobar stock, origen del tráfico o pedidos.',
+             'generator_truth': 'Demanda web del producto multiplicada por 2,6 desde la fecha indicada.',
+             'inferable': 'Aumento escalonado y sostenido del producto en web desde mediados de junio de 2026, no visible en otros canales.',
+             'reasonable_checks': ['existencias y reposición', 'pedidos web reales del producto', 'cambios de ficha, precio o promoción'],
              'hints': [['molinillo eléctrico'], ['web']]},
-            {'key': 'S4', 'priority_rank': 4, 'kind': 'data gap',
+            {'key': 'S4', 'kind': 'data gap', 'decoy': False,
              'segment': 'Marketplace, todos los productos', 'first_affected_date': gap[0] if gap else None,
              'facts': {'missing_dates': gap, 'march_2026': month_total(2026, 3, ma),
                        'february_2026': month_total(2026, 2, ma), 'april_2026': month_total(2026, 4, ma)},
-             'correct_reading': 'Fechas sin ningún registro del canal: hueco de datos, no caída de demanda. Comprobar extracción.',
+             'generator_truth': 'Filas del canal omitidas en esas fechas; la demanda generada no cambia.',
+             'inferable': 'El canal no tiene ninguna fila durante nueve días consecutivos, para ningún producto; marzo parece más bajo por esa ausencia. Los archivos no distinguen fallo de extracción de canal inactivo.',
+             'reasonable_checks': ['exportación o extracción del marketplace en esas fechas', 'cuenta o anuncios suspendidos'],
              'hints': [['marketplace'], ['marzo'], ['sin registro', 'hueco', 'faltan', 'ausen']]},
-            {'key': 'S5', 'priority_rank': 5, 'kind': 'slow erosion',
+            {'key': 'S5', 'kind': 'slow erosion', 'decoy': False,
              'segment': f'{names[EROSION[0]]}, todos los canales', 'first_affected_date': EROSION[1].isoformat(),
              'facts': {'mar_may_2025': window_sum(rows, date(2025, 3, 1), date(2025, 5, 31), decaf),
                        'mar_may_2026': window_sum(rows, *spring, decaf),
                        'jun_aug_2025': window_sum(rows, *last_summer, decaf),
                        'jun_aug_2026': window_sum(rows, *summer, decaf)},
-             'correct_reading': 'Descenso sostenido de un producto en todos los canales, visible solo con horizonte largo.',
+             'generator_truth': 'Demanda del producto multiplicada por 0,975 cada mes desde la fecha indicada, en todos los canales.',
+             'inferable': 'Descenso sostenido del producto en todos los canales frente al año anterior, poco visible mes a mes.',
+             'reasonable_checks': ['surtido o sustitución por otro formato', 'precio relativo', 'existencias'],
              'hints': [['descafeinado 1 kg']]},
-            {'key': 'S6', 'priority_rank': None, 'kind': 'seasonal decoy',
+            {'key': 'S6', 'kind': 'seasonal decoy', 'decoy': True,
              'segment': 'Café frío', 'first_affected_date': None,
              'facts': {'may_2026': month_total(2026, 5, cold), 'june_2026': month_total(2026, 6, cold),
                        'jun_aug_2025': window_sum(rows, *last_summer, cold), 'jun_aug_2026': window_sum(rows, *summer, cold)},
-             'correct_reading': 'El salto de mayo a junio se repite cada verano; no es una novedad ni una prioridad por sí misma.',
+             'generator_truth': 'Estacionalidad idéntica todos los años; sin cambio planteado.',
+             'inferable': 'El salto de mayo a junio se repite cada verano; frente al año anterior el crecimiento es similar al del resto.',
+             'reasonable_checks': [],
              'hints': [['cold brew', 'café frío'], ['estacional', 'cada verano', 'cada año', 'año anterior']]},
         ],
     }
@@ -310,26 +329,27 @@ def bruma_oracle(folder):
     store_products = sorted({k[2] for k in cells if k[1] == 'TI'})
     falling = [p for p in store_products if cells['2026-08', 'TI', p] < cells['2026-07', 'TI', p]]
     return {
+        'priority_note': PRIORITY_NOTE,
         'business': 'Bruma Café (sintético)', 'rows': len(rows),
         'signals': [
-            {'key': 'B1', 'priority_rank': 1, 'kind': 'hidden decline', 'segment': 'Tienda física',
+            {'key': 'B1', 'kind': 'hidden decline', 'decoy': False, 'segment': 'Tienda física',
              'facts': {'july': channel('2026-07', 'TI'), 'august': channel('2026-08', 'TI'),
                        'products_falling': len(falling), 'store_products': len(store_products)},
-             'correct_reading': 'La tienda cae de julio a agosto en casi todos sus productos mientras web y marketplace crecen.',
+             'inferable': 'La tienda cae de julio a agosto en casi todos sus productos mientras web y marketplace crecen.',
              'hints': [['tienda'], ['cae', 'caída', 'baja', 'descen', 'retroced', '−93', '-93']]},
-            {'key': 'B2', 'priority_rank': 2, 'kind': 'breakout', 'segment': 'Kit de iniciación × Web propia',
+            {'key': 'B2', 'kind': 'breakout', 'decoy': False, 'segment': 'Kit de iniciación × Web propia',
              'facts': {'july': cells['2026-07', 'WE', 'P06'], 'august': cells['2026-08', 'WE', 'P06']},
-             'correct_reading': 'Mayor aumento individual de julio a agosto.',
+             'inferable': 'Mayor aumento individual de julio a agosto.',
              'hints': [['kit'], ['web']]},
-            {'key': 'B3', 'priority_rank': 3, 'kind': 'sustained growth', 'segment': 'Café de la casa 250 g × Marketplace',
+            {'key': 'B3', 'kind': 'sustained growth', 'decoy': False, 'segment': 'Café de la casa 250 g × Marketplace',
              'facts': {'june': cells['2026-06', 'MA', 'P01'], 'august': cells['2026-08', 'MA', 'P01']},
-             'correct_reading': 'Mayor aumento acumulado de junio a agosto.',
+             'inferable': 'Mayor aumento acumulado de junio a agosto.',
              'hints': [['café de la casa'], ['marketplace']]},
         ],
     }
 
 
-def build(output, seed=SEED):
+def build(output, oracle_path, seed=SEED):
     output = Path(output)
     data = output / 'datos'
     data.mkdir(parents=True)
@@ -346,8 +366,15 @@ def build(output, seed=SEED):
     facts['seed'] = seed
     facts['inputs'] = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(data.glob('*.csv'))}
     facts['prompt_sha256'] = hashlib.sha256(PROMPT.encode()).hexdigest()
-    (output / 'oracle.json').write_text(json.dumps(facts, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    save_oracle(oracle_path, facts)
     return facts
+
+
+def save_oracle(path, facts):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    path.write_text(json.dumps(facts, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    path.chmod(0o600)
 
 
 BRUMA_INPUTS = {
@@ -359,7 +386,7 @@ BRUMA_INPUTS = {
 BRUMA_PROMPT = '906ffd097108352e1e4f0656138748f1533c6246fb7701216f81c87f75480e06'
 
 
-def build_bruma(source, output):
+def build_bruma(source, output, oracle_path):
     source, output = Path(source), Path(output)
     found = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted((source / 'datos').glob('*.csv'))}
     prompt = (source / 'prompt.txt').read_bytes()
@@ -370,7 +397,7 @@ def build_bruma(source, output):
         (output / 'datos' / name).write_bytes((source / 'datos' / name).read_bytes())
     (output / 'prompt.txt').write_bytes(prompt)
     facts = {**bruma_oracle(output / 'datos'), 'inputs': found, 'prompt_sha256': BRUMA_PROMPT}
-    (output / 'oracle.json').write_text(json.dumps(facts, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    save_oracle(oracle_path, facts)
     return facts
 
 
@@ -379,12 +406,17 @@ def main():
     commands = parser.add_subparsers(dest='dataset', required=True)
     albor = commands.add_parser('albor')
     albor.add_argument('output', type=Path)
+    albor.add_argument('oracle', type=Path)
     albor.add_argument('--seed', type=int, default=SEED)
     bruma = commands.add_parser('bruma')
     bruma.add_argument('source', type=Path)
     bruma.add_argument('output', type=Path)
+    bruma.add_argument('oracle', type=Path)
     args = parser.parse_args()
-    facts = build(args.output, args.seed) if args.dataset == 'albor' else build_bruma(args.source, args.output)
+    if args.oracle.resolve().is_relative_to(args.output.resolve()):
+        raise SystemExit('Keep the oracle outside the agents\' input folder.')
+    facts = (build(args.output, args.oracle, args.seed) if args.dataset == 'albor'
+             else build_bruma(args.source, args.output, args.oracle))
     print(json.dumps({'rows': facts['rows'], 'inputs': facts['inputs']}, ensure_ascii=False, indent=2))
 
 

@@ -26,13 +26,15 @@ permanecen locales e ignoradas por Git.
 
 ## 2. Resultado principal
 
-El modelo es el mismo y el consumo es comparable: la repetición del producto usa
-348.395 tokens de entrada y 246 s; la mejor sesión de Luna, 342.513 y 263 s. La
-diferencia está en **en qué se gastan**. Luna los gasta en ver datos; el producto,
-en reenviar reglas y contexto estructurado a roles que nunca ven el conjunto.
+El modelo es el mismo y el volumen de entrada es parecido: la repetición del
+producto usa 348.395 tokens y 246 s; la mejor sesión de Luna, 342.513 y 263 s. No
+implica trabajo ni coste equivalentes: buena parte de la entrada de Luna es caché
+y transporte e instrucciones difieren. Sí indica **en qué se gasta**: Luna, en
+calcular y leer agregados; el producto, en reenviar reglas y contexto estructurado.
 
-La pérdida ocurre en la **investigación**, antes de redactar, y no por falta de
-presupuesto: la repetición usó 7 de 192 turnos y 3 de 48 ejecuciones permitidas.
+La pérdida **empieza** en la investigación y no por falta de presupuesto: la
+repetición usó 7 de 192 turnos y 3 de 48 ejecuciones. Redacción y revisión
+podían recuperarla (tenían Python) y no lo hicieron.
 
 ## 3. Seguimiento de una señal concreta
 
@@ -45,7 +47,7 @@ en descenso, mientras web (+237) y marketplace (+332) crecen.
 | Exploración | Quinto comando: imprime mes×canal, totales por producto y canal, semanas. Octavo comando: cambio por canal julio–agosto (−93, +237, +332). | Dos programas: totales mensuales y diferencias mensuales de las 18 combinaciones. Nunca agrega por canal. |
 | Registro | No aplica: el mismo agente sigue razonando con todo a la vista. | 16 métricas guardadas; 14 son validaciones (filas, nulos, duplicados, rango). El resumen dice «No propongo ampliar este análisis local». |
 | Priorización | Prioridad 1: caída extendida en tienda. Luego Kit–Web y Café–Marketplace. | El planificador ordena +118 > +100. Es el ranking por volumen que su prompt prohíbe. En el intento interrumpido vio caídas en junio–agosto (máximo −24) y las descartó «por magnitud». |
-| Redacción | El mismo agente escribe con las cifras que calculó. | El redactor solo puede citar números guardados: −93 no existe como métrica y no puede aparecer, aunque las barras negativas se vean en el gráfico. |
+| Redacción | El mismo agente escribe con las cifras que calculó. | El redactor solo cita números guardados y −93 no lo estaba. Tenía Python y seis ejecuciones para calcularlo y no usó ninguna: el contrato eleva la fricción, no lo impide. |
 | Revisión | Autoverificación con asserts de reconciliación. | Aprobado con todos los criterios en `pass`; no se comprueba si falta una señal mayor. |
 
 ## 4. Causas probables, de mayor a menor peso
@@ -60,12 +62,13 @@ de los prompts por separado; las fases de la sección 8 los aíslan uno a uno.
    `write_result` con 3–8 métricas escalares, una evidencia por métrica,
    assertions y registro de candidato antes de ampliar. Imprimir para explorar
    «no es un resultado». El agente minimiza las veces que mira y llena métricas
-   con validaciones. Luna imprime tablas completas y decide después.
-2. **Quien ve los números no decide y quien decide no los ve.** Cada llamada es
-   independiente (`store=False`, un mensaje de sistema y otro con el contexto JSON).
-   No hay razonamiento persistente entre pasos. Cinco roles se pasan resúmenes;
-   el investigador cierra sin interpretar y el planificador prioriza sobre
-   resúmenes. Codex mantiene un único bucle continuo.
+   con validaciones. Luna imprime tablas de agregados (no filas) y decide después.
+2. **La evidencia llega al que decide poco preparada para usarse.** El coordinador
+   tenía los 18 cambios y podía obtener −93; faltaba el agregado listo y nadie
+   decidió calcularlo. Cada llamada es independiente (`store=False`, un mensaje de
+   sistema y otro con el contexto JSON), sin razonamiento persistente; cinco roles
+   se pasan resúmenes y el investigador cierra sin interpretar. Codex mantiene un
+   único bucle continuo.
 3. **Prompts enormes y defensivos.** Sistema de investigación ≈ 5.000 palabras,
    planificador ≈ 2.350, analista ≈ 7.050, revisor ≈ 7.270, acumulados como parches
    «Do not…». El encargo de Luna tenía ≈ 350 palabras sobre las instrucciones de
@@ -76,14 +79,14 @@ de los prompts por separado; las fases de la sección 8 los aíslan uno a uno.
    «51.36666666666666666666666667». Luna titula «Revisar primero la caída
    extendida en tienda física».
 5. **La entrega HTML contamina la investigación.** El intento interrumpido gasta
-   siete ejecuciones intentando generar HTML. En la repetición, el analista
+   seis ejecuciones efectivas intentando generar HTML. En la repetición, el analista
    comunica al cliente que no puede afirmar que exista `informe.html`, aunque la
    aplicación lo exporta después.
 6. **El revisor valida campos, no omisiones.** Aprueba orientación, reacciones y
    cifras sin comparar el informe con lo que los datos muestran a nivel agregado.
 
 Lo que **no** explica la diferencia: el modelo, el esfuerzo de razonamiento
-(ambos `low`), los presupuestos ni el número de tokens.
+(ambos `low`) ni los presupuestos.
 
 ## 5. Lo que hay que conservar del producto
 
@@ -98,20 +101,20 @@ un híbrido: **libertad de exploración como en Codex y garantías al final**.
 | # | Cambio | Hipótesis comprobable | Coste |
 | --- | --- | --- | --- |
 | P1 | Panorama determinista de los datos antes de investigar: totales por dimensión × periodo, subidas y bajadas, último periodo frente al anterior y al mismo del año previo, día de la semana, huecos de fechas. Calculado por código, sin modelo. | Aumenta la detección de señales plantadas, en especial las que van contra el total. | Bajo |
-| P2 | Revisor con control de omisiones: compara el informe con el panorama y bloquea si un movimiento mayor de sentido contrario no se comenta. | Reduce aprobaciones con la señal principal ausente. | Bajo |
+| P2 | Revisor crítico con comprobaciones propias: puede calcular, contrastar alternativas materiales y pedir justificación de un descarte. No bloquea mecánicamente por cada movimiento de signo contrario. Independiente de P1; solo el brazo con panorama le da ese panorama. | Reduce aprobaciones sin justificar frente a una alternativa material. | Bajo |
 | P3 | Sacar el HTML del contexto de investigación; redacción para un no técnico (sin IDs, cifras redondeadas, cautelas una vez, reacciones de negocio condicionadas). | Mejora claridad y orientación sin empeorar cifras. | Bajo-medio |
-| P4 | Un analista en bucle continuo con razonamiento conservado y una herramienta Python exploratoria que devuelve stdout acotado. El contrato de métricas y evidencias se exige al final, en un script que recalcula cada cifra citada. | Iguala o supera la profundidad de Luna manteniendo 0 errores numéricos publicados. | Alto |
+| P4 | Exploración provisional: consulta Python/SQL que devuelve una tabla o salida acotada sin exigir ficha de hallazgo. Se registra todo (consulta, fuentes, resultado, errores, truncados); lo que apoye una conclusión se promueve a evidencia verificable en el momento en que se vuelve material, y la entrega se comprueba al final. Variante posterior: bucle continuo con razonamiento conservado. | Más contrastes útiles por señal manteniendo 0 errores numéricos publicados. | Medio-alto |
 | P5 | Planificador reducido a encargo inicial y crítica final; prompts reescritos (≈ 1.000 palabras por rol). | Menos tokens por llamada sin pérdida de calidad. | Medio |
 
-Orden previsto: P1–P3 primero, medir, y solo después P4–P5.
+Orden acordado con Astra: sección 8, «Fases».
 
 ## 7. Escala: por qué Bruma no basta
 
 Bruma tiene 1.656 filas, 92 días, 6 productos y 3 canales: cabe entero en una
 salida de terminal. Un propietario puede subir cinco años. Riesgos esperados:
 
-- **Luna en Codex:** su ventaja es imprimir tablas completas. Con cientos de miles
-  de filas y cientos de combinaciones tendrá que seleccionar; previsiblemente
+- **Luna en Codex:** su ventaja es leer agregados completos de un vistazo. Con
+  cientos de combinaciones y años de fechas tendrá que seleccionar; previsiblemente
   aumenta la variabilidad, los errores de agregación y la compactación de contexto.
 - **Decision Room:** el cálculo escala (DuckDB, agregados), pero crece el riesgo de
   perder señales en los traspasos y de comparar ventanas inadecuadas (meses
@@ -129,14 +132,18 @@ salida de terminal. Un propietario puede subir cinco años. Riesgos esperados:
    Generador determinista con semilla en
    [`decision_room/evaluation/trial_data.py`](../../decision_room/evaluation/trial_data.py).
    Incluye señales plantadas cuya verdad se calcula desde los propios CSV y se
-   guarda en un oráculo que **nunca** llega a los agentes:
+   guarda en un oráculo fuera de la carpeta de entradas. El oráculo separa la
+   **verdad del generador** (la causa plantada), lo **deducible de los archivos**
+   y las **comprobaciones razonables**. No contiene un orden de prioridad: varias
+   prioridades pueden estar justificadas, y una causa plantada no es exigible si
+   los archivos no la identifican.
 
-| Clave | Señal | Lectura correcta esperada |
+| Clave | Señal | Deducible de los archivos |
 | --- | --- | --- |
-| S1 | Desde el 7 de junio de 2026 la tienda casi no registra unidades en domingo, en todos los productos. | Caída de tienda frente al año anterior aunque el total crece; concentrada en domingos desde una fecha. Comprobar horario/apertura. |
+| S1 | Desde el 7 de junio de 2026 la tienda casi no registra unidades en domingo, en todos los productos. | Caída de tienda frente al año anterior aunque el total crece; concentrada en domingos desde una fecha. El motivo no se deduce. |
 | S2 | Hostelería deja de registrar un producto a partir de abril de 2026. | Desaparición de una combinación; comprobar cliente o pedido recurrente. |
 | S3 | Un molinillo eléctrico salta en web desde mediados de junio de 2026. | Oportunidad concreta; comprobar stock y origen del aumento. |
-| S4 | Marketplace no tiene registros del 10 al 18 de marzo de 2026. | Hueco de datos, no caída de demanda. Comprobar extracción. |
+| S4 | Marketplace no tiene registros del 10 al 18 de marzo de 2026. | Nueve días sin ninguna fila del canal; no distingue fallo de extracción de canal inactivo. |
 | S5 | Un descafeinado pierde ≈ 2,5 % mensual desde marzo de 2025 en todos los canales. | Erosión lenta que solo se ve con horizonte largo. |
 | S6 | El café frío triplica en verano todos los años (señuelo). | Estacional; no presentarlo como novedad por comparar mayo con junio. |
 
@@ -146,8 +153,12 @@ salida de terminal. Un propietario puede subir cinco años. Riesgos esperados:
   esfuerzo `low`, sin búsqueda ni agentes secundarios), carpeta aislada por sesión.
 - **Decision Room:** código congelado con `git archive` en la revisión indicada,
   base de datos y almacenamiento nuevos por lote, mismo modelo y esfuerzo.
-- Tres repeticiones por sistema y conjunto: 12 ejecuciones por fase. Orden
-  intercalado; concurrencia 1 para el producto, para no mezclar 429 con calidad.
+- Orden intercalado y ejecución en serie, para no mezclar 429 con calidad.
+- **El sandbox de Codex lee todo el disco del usuario** (comprobado: un comando
+  dentro de `codex sandbox` lee un archivo de la carpeta superior). Por eso los
+  oráculos no se guardan junto a las entradas ni dentro del lote; se pasan solo
+  al puntuar, y se marcan los comandos de Luna que nombran rutas fuera de su
+  carpeta. El producto calcula en Docker con solo sus entradas autorizadas.
 
 Lanzador: [`decision_room/evaluation/trials.py`](../../decision_room/evaluation/trials.py).
 Los resultados se guardan en una carpeta local ignorada; cada intento conserva su
@@ -156,43 +167,68 @@ estado aunque falle y nunca se relanza un intento ya iniciado.
 ### Medidas
 
 1. **Recursos:** segundos, llamadas o comandos, tokens de entrada y salida, fallos.
-2. **Detección de señales:** por señal, detectada / priorizada / cifra correcta /
-   lectura correcta (en S6, no presentarla como novedad). La herramienta marca
-   indicios por texto; la puntuación final es humana y se registra por separado.
-3. **Rúbrica 3.9:** doce criterios 0/1/2 de la evaluación existente.
-4. **Cifras:** auditoría de las referencias numéricas contra el oráculo.
-5. **Lectura para no técnicos:** presencia de identificadores internos, decimales
-   crudos y repetición de cautelas.
+2. **Señales:** por señal, detectada / cifra correcta / lectura correcta según lo
+   deducible (en S6, no presentarla como novedad); falsas alarmas y señales útiles
+   fuera del oráculo. La herramienta marca indicios por texto; la puntuación final
+   es humana y se registra por separado.
+3. **Prioridad útil, separada del ranking:** ¿la prioridad elegida está justificada
+   frente a una alternativa material? Se acepta cualquier orden bien justificado.
+4. **Fidelidad:** cifras y rankings narrados coinciden con lo calculado.
+5. **Decisión del lector:** quien lee responde qué haría primero y qué comprobaría.
+6. **Rúbrica 3.9:** doce criterios 0/1/2 de la evaluación existente.
+7. **Lectura para no técnicos:** identificadores internos, decimales crudos y
+   repetición de cautelas.
+8. **Render real:** JavaScript sin errores, tablas no vacías, etiquetas
+   distinguibles, móvil. La evaluación ciega del texto (copias sin marca) y la del
+   informe completo con su interfaz se hacen por separado.
 
 ### Fases
 
-Revisadas tras contrastar con Astra (sección 9). Cada fase es un conjunto de
-commits y una medición; no se mezclan reparaciones de contrato con cambios de
-comportamiento.
+Acordadas con Astra. Cada intervención va detrás de una opción separable, para
+compararla sobre la misma base sin reconstruir todo entre ensayos.
 
-| Fase | Contenido | Producto | Luna |
-| --- | --- | --- | --- |
-| 0. Línea base | `4815b68` sin cambios | 3 × cada conjunto | 3 × cada conjunto |
-| 1. Contratos | Astra A: capas en el esquema productor, exportación comunicada sin ambigüedad, errores de artefacto distintos, rango invariante al orden, etiquetas no recortadas a identidades indistinguibles. Registro del sistema, esquema y correcciones efectivos por llamada. | 3 × cada conjunto | 1 × cada conjunto (control contemporáneo) |
-| 2. Recorrido y cierre | Astra B (seguir una señal sin reabrir tarea; nota de cierre: qué cálculo pendiente cambiaría la decisión) + P2/Astra C (revisor contra omisiones y fidelidad). | 3 × cada conjunto | 1 × cada conjunto |
-| 2b. Panorama | P1 como brazo separado, para medir su efecto propio. | 3 × cada conjunto | — |
-| 3. Presentación | P3 + Astra D: lenguaje para propietario no técnico, una idea una vez, verificación real del render. | 3 × cada conjunto | 1 × cada conjunto |
-| 4. Variantes | Una a una: bucle continuo (P4) o continuidad Responses, prompts consolidados (P5), esfuerzo de razonamiento, reparto de agentes. | 3 × cada conjunto | 3 × cada conjunto al final |
+| Fase | Intervención sobre la anterior | Producto candidato | Producto de referencia congelado | Luna |
+| --- | --- | --- | --- | --- |
+| 0. Línea base | `4815b68` sin cambios | 3 × conjunto | — | 3 × conjunto |
+| 1. Contratos | Astra A: capas en el esquema productor, exportación sin ambigüedad, errores de artefacto distintos, rango invariante al orden, etiquetas distinguibles, registro de sistema/esquema/correcciones efectivos. Filtrado primero con tests; esta versión pasa a ser la referencia. | 3 × conjunto | — | 1 × conjunto |
+| 2. Continuidad | Seguir una señal sin cerrar ni reabrir tarea; nota de cierre: qué cálculo pendiente cambiaría la decisión. | 3 × conjunto | 1 × conjunto | 1 × conjunto |
+| 3. Exploración | P4: consulta provisional registrada, promoción de evidencia al volverse material. | 3 × conjunto | 1 × conjunto | 1 × conjunto |
+| 4. Revisión | P2: revisor que calcula, contrasta alternativas y acepta descartes justificados. | 3 × conjunto | 1 × conjunto | 1 × conjunto |
+| 5. Panorama | P1 como brazo sobre la base de la fase 4. Declara qué cubre y qué omite; permite investigar fuera de él; se miden aciertos, omisiones y falsas alarmas. | 3 × conjunto | 1 × conjunto | — |
+| 6. Presentación | P3 + Astra D: lenguaje para propietario no técnico, una idea una vez, verificación real del render. | 3 × conjunto | 1 × conjunto | 3 × conjunto |
+| 7. Variantes | Una a una, si compensan: bucle continuo/Responses, prompts consolidados (P5), esfuerzo de razonamiento, reparto de agentes. | 3 × conjunto | 1 × conjunto | — |
 
-Conjuntos: Bruma, Albor y un **tercer negocio reservado** que diseña Astra sin
-que este autor conozca sus señales (sección 9). Ninguna instrucción se
-ajusta mirando ese tercer conjunto.
+Conjuntos de desarrollo: Bruma y Albor. Un control único de Luna es una alarma de
+cambios del entorno, no una medida de calidad estable. Ante una decisión dudosa
+se amplían repeticiones antes de elegir; se conservan dispersión y fallos y nunca
+se presenta la mejor de tres como rendimiento.
+
+Coste aproximado: unas 80 ejecuciones de desarrollo. Las del producto duran entre
+4 y 15 min y van en serie, así que el calendario se mide en días, no en horas.
+
+### Negocio reservado
+
+Diseñado por Astra: otro tipo de negocio, otra estructura y otra pregunta. Se
+congelan antes el protocolo, la rúbrica y las propuestas. Generador, semilla, CSV,
+prompt y oráculo se guardan con huellas y **fuera de cualquier ruta legible por
+los agentes** (en la práctica, fuera de la máquina o cifrados hasta la ejecución,
+porque el sandbox de Codex lee el disco). No se usa en desarrollo ni se comunican
+resultados intermedios. Se ejecuta una sola vez, al final: 3 × producto con
+contratos reparados, 3 × candidato final y 3 × Luna. Lo puntúan al menos dos
+personas además de quien lo diseñó, incluido el propietario como lector. Si
+después se usa para corregir el producto, pasa a ser desarrollo y hará falta otro.
 
 ### Uso
 
 ```sh
-python -m decision_room.evaluation.trial_data albor TRIALS/inputs/albor
-python -m decision_room.evaluation.trial_data bruma BRUMA_FROZEN TRIALS/inputs/bruma
+python -m decision_room.evaluation.trial_data albor TRIALS/inputs/albor EVALUATORS/albor.json
+python -m decision_room.evaluation.trial_data bruma BRUMA_FROZEN TRIALS/inputs/bruma EVALUATORS/bruma.json
 python -m decision_room.evaluation.trials prepare TRIALS/baseline \
     --dataset bruma=TRIALS/inputs/bruma --dataset albor=TRIALS/inputs/albor \
     --product-ref 4815b68 --repeats 3 --env-file PRIVATE_ENV
 python -m decision_room.evaluation.trials run TRIALS/baseline
-python -m decision_room.evaluation.trials score TRIALS/baseline
+python -m decision_room.evaluation.trials score TRIALS/baseline \
+    --oracle bruma=EVALUATORS/bruma.json --oracle albor=EVALUATORS/albor.json
 python -m decision_room.evaluation.trials summary TRIALS/baseline
 ```
 
@@ -203,9 +239,13 @@ decimales crudos visibles. Además deja una plantilla `evaluation.json` para la
 puntuación humana, que es la que cuenta. `TRIALS` debe estar en una carpeta
 ignorada por Git.
 
-Qué refutaría el plan: si tras P1–P3 la detección de S1/S2 en el producto no
-mejora en al menos dos de tres ejecuciones en Albor, o si aparecen cifras
-publicadas erróneas, las propuestas no se mantienen tal como están formuladas.
+`EVALUATORS` es una carpeta fuera de `TRIALS` y fuera del repositorio.
+
+Qué refutaría cada intervención en desarrollo: no mejorar la prioridad útil ni
+las señales deducibles frente a su fase anterior, aumentar falsas alarmas o
+publicar alguna cifra errónea. La aceptación general exige además fidelidad,
+utilidad del siguiente paso para el lector y el resultado del negocio reservado;
+detectar en Albor lo que el panorama fue diseñado para ver no valida generalización.
 
 ## 9. Contraste con el diagnóstico de Astra
 
@@ -257,13 +297,19 @@ el eje recorta las etiquetas a 20 caracteres.
    planificador produce más tokens de salida que la investigación (8.126 frente a
    7.913) y los contextos de redacción y revisión superan los 100 KB.
 
-**Abierto para discutir con Astra:**
+**Resuelto en la discusión** (revisión de Astra, commit `644df24`):
 
-- Si basta con permitir continuar dentro de una investigación (su B) o si hay que
-  abaratar también *mirar*: salida exploratoria visible que no cuente como
-  evidencia hasta registrarla.
-- Si P1 sesga al agente hacia las señales que calcula y empobrece su criterio.
-- Cuántas ejecuciones de control de Luna por fase hacen falta frente al coste.
+- Continuidad y exploración barata son hipótesis distintas y se miden en fases
+  separadas. Provisional no significa sin registro, y la evidencia se promueve
+  cuando se vuelve material, no en un único programa final.
+- El panorama orienta la atención aunque lo calcule código: brazo propio, con
+  cobertura declarada y medida de omisiones y falsas alarmas.
+- El revisor no bloquea mecánicamente; P2 ya no depende de P1.
+- El negocio reservado se abre una sola vez, al final.
+- Matices aceptados sobre el diagnóstico: la señal estaba al alcance del
+  coordinador, del redactor y del revisor; seis ejecuciones efectivas de HTML, no
+  siete; tokens parecidos no significan coste equivalente.
+- Sin `priority_rank` fijo en el oráculo.
 
 ## 10. Límites
 
