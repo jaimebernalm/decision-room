@@ -229,11 +229,20 @@ SYSTEM_PREFIXES = ('/bin/', '/usr/', '/opt/homebrew/', '/tmp/', '/dev/', '/Syste
 def outside(command, job):
     """Paths a Luna command names outside its job folder (reads are not sandboxed)."""
     found = set(re.findall(r'(?:\.\./[^\s\'";|)]*)', command))
-    for path in re.findall(r'(?<![\w.])(/[\w.@~-][^\s\'";|)]*)', command):
+    # Only filesystem roots, so HTML closing tags or divisions in code are ignored.
+    roots = r'(?:Users|Volumes|private|home|etc|var|opt|Library|System|tmp|usr|bin)'
+    for path in re.findall(r'(?<![\w.<])(/' + roots + r'/[^\s\'";|)<>]*)', command):
         if not path.startswith(str(job)) and not path.startswith(SYSTEM_PREFIXES):
             found.add(path)
-    found |= {w for w in re.findall(r'\S*oracle\S*', command, flags=re.I)}
+    found |= set(re.findall(r'[^\s;\'"|<>]*oracle[^\s;\'"|<>]*', command, flags=re.I))
     return found
+
+
+def luna_outside(job):
+    """Recomputed from the events so detector fixes apply to earlier jobs too."""
+    commands = [e['item'].get('command') or '' for e in events(job / 'eventos.jsonl')
+                if e.get('type') == 'item.completed' and e.get('item', {}).get('type') == 'command_execution']
+    return sorted({p for c in commands for p in outside(c, job)})
 
 
 def run_product(batch, job):
@@ -320,7 +329,7 @@ def score(batch, oracles=None):
         rows.append({'job': name, 'dataset': state['dataset'], 'system': state['system'],
                      'status': state['status'], 'publishable': state.get('publishable'),
                      'report': report.exists(), 'words': len(text.split()), **resources(job, state),
-                     'outside_paths': state.get('outside_paths', []),
+                     'outside_paths': luna_outside(job) if state['system'] == 'luna' else [],
                      'signal_hints': {s['key']: hinted(text, s['hints']) for s in oracle['signals']} if text else {},
                      'jargon': {k: len(re.findall(v, text, flags=re.I)) for k, v in JARGON.items()}})
     write(batch / 'scores.json', rows)
