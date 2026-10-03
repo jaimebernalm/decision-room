@@ -217,6 +217,11 @@ def render_client(data, exported_at, *, embedded=False):
             ready = all(c['passed'] for c in checks(draft, data['observations']))
         except ValueError:
             ready = False
+    from .owner_presentation import enabled
+    if ready and enabled(data):
+        from .web.dashboard import presentation
+        from .web.presentation_html import render
+        return render(presentation(data), exported_at)
     title = draft['title'] if ready else 'Tu informe está pendiente'
     body = [f'<header><p class="eyebrow">Decision Room · Informe de negocio</p><h1>{e(title)}</h1>']
     if ready:

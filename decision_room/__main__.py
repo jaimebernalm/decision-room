@@ -109,6 +109,7 @@ def main():
         if name == 'review-start':
             command.add_argument('--research', type=uuid.UUID, required=True)
             command.add_argument('--request-key', required=True)
+            command.add_argument('--owner-presentation', action='store_true', default=None, help='P3: plain-language report presentation (experimental).')
             command.add_argument('--reviewer-model', help='Omit to use the analyst model in a separate reviewer role.')
             command.add_argument('--max-review-rounds', type=int, default=4)
         else:
@@ -131,7 +132,7 @@ def main():
             if args.command == 'review-start':
                 reviewer = ModelClient(ModelSettings.load(args.reviewer_model)) if args.reviewer_model else None
                 report = review.start(config, args.business, args.research, request_key=args.request_key,
-                                      reviewer=reviewer, max_review_rounds=args.max_review_rounds)
+                                      reviewer=reviewer, max_review_rounds=args.max_review_rounds, owner_presentation=args.owner_presentation)
             elif args.command == 'review-answer':
                 report = review.answer(config, args.business, args.review, step=args.step, text=args.text,
                                        disposition=args.disposition, request_key=args.request_key)

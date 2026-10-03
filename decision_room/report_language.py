@@ -3,6 +3,9 @@ from copy import deepcopy
 import re
 
 LABELS = {
+    'Detalle técnico y valores originales': 'Technical details and original values',
+    'Fuentes, cálculos y valores originales': 'Sources, calculations and original values',
+    'Valores del gráfico': 'Chart values',
     'Revisado': 'Reviewed', ' · Entrega parcial': ' · Partial delivery',
     'Contexto y alcance': 'Context and scope', 'Pregunta del análisis': 'Analysis question',
     'Siguiente comprobación': 'Next check', 'Periodo / categoría': 'Period / category',
@@ -32,7 +35,7 @@ def label(text, language):
 
 
 def number(value, language):
-    if language == 'en' and re.fullmatch(r'[+-]?(?:\d{1,3}(?:\.\d{3})+|\d+)(?:,\d+)?', value):
+    if language == 'en' and re.fullmatch(r'[+-]?(?:\d{1,3}(?:\.\d{3})+|\d+)(?:,\d+)?(?:[eE][+-]?\d+)?', value):
         return value.translate(str.maketrans({'.': ',', ',': '.'}))
     return value
 
@@ -47,4 +50,9 @@ def export_view(report):
         chart['response_language'] = 'en'
         for point in chart['points']:
             point['formatted'] = number(point['formatted'], 'en')
+    if result.get('owner_presentation'):
+        for claim in result.get('claims', []):
+            for row in claim.get('evidence_details', {}).get('metrics', []):
+                row['value'] = number(row['value'], 'en')
+                row['label'] = re.sub(r'^Cifra de apoyo (\d+)$', r'Supporting figure \1', row['label'])
     return result

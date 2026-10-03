@@ -1,8 +1,16 @@
 import { locale } from "./i18n";
 /** Localize server-formatted Spanish decimals without rounding or floating point. */
 export function displayNumber(formatted: string): string {
-  if (locale() !== "en-US" || !/^[+-]?(?:\d{1,3}(?:\.\d{3})+|\d+)(?:,\d+)?$/.test(formatted)) return formatted;
-  return formatted.replace(/[.,]/g, separator => separator === "." ? "," : ".");
+  if (
+    locale() !== "en-US" ||
+    !/^[+-]?(?:\d{1,3}(?:\.\d{3})+|\d+)(?:,\d+)?(?:[eE][+-]?\d+)?$/.test(
+      formatted,
+    )
+  )
+    return formatted;
+  return formatted.replace(/[.,]/g, (separator) =>
+    separator === "." ? "," : ".",
+  );
 }
 /** Exact decimal preview with the server's half-up rounding; no float conversion. */
 export function presentationNumber(raw: string, decimals: number): string {

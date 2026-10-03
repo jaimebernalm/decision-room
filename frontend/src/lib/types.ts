@@ -81,7 +81,18 @@ export type Claim = {
   next_step?: string;
   evidence_details?: {
     files: string[];
-    metrics: { label: string; value: string }[];
+    metrics: {
+      label: string;
+      value: string;
+      raw_value?: string;
+      original_label?: string;
+      reference?: {
+        execution_id: string;
+        metric?: string;
+        series?: string;
+        label?: string;
+      };
+    }[];
     operations: string[];
   };
 };
@@ -106,6 +117,7 @@ export type ChartPanel = {
   coordinates: { label: string; category: string; series: string }[];
 };
 export type ChartData = {
+  owner_presentation?: boolean;
   details?: {
     point_label: string;
     claim_key?: string | null;
@@ -153,6 +165,7 @@ export type Presentation = {
   }[];
 };
 export type Report = {
+  owner_presentation?: boolean;
   presentation?: Presentation;
   partial?: boolean;
   report_id?: string;

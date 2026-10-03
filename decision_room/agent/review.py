@@ -36,7 +36,10 @@ def _stale(config, db, session, run):
 
 
 def start(config, business_id, research_id, *, request_key, analyst=None, reviewer=None,
-          max_review_rounds=None, executor=execute):
+          max_review_rounds=None, owner_presentation=None, executor=execute):
+    owner_presentation = config.owner_presentation if owner_presentation is None else owner_presentation
+    if type(owner_presentation) is not bool:
+        raise ValueError('Owner presentation flag must be boolean.')
     _key(request_key)
     with connect(config) as db:
         research = db.execute('SELECT * FROM agent_research WHERE id=%s AND business_id=%s', (research_id, business_id)).fetchone()
@@ -72,6 +75,8 @@ def start(config, business_id, research_id, *, request_key, analyst=None, review
         snapshot = enrich(db,research_id,snapshot)
         options = {'max_review_rounds': max_review_rounds, 'max_turns': 20, 'max_calls_per_role': 16,
                    'max_python_per_role': 3, 'max_questions': 3, 'python_timeout': 30, 'review_policy': 5}
+        if owner_presentation:
+            options['owner_presentation'] = True
         snapshot['accepted_owner_request'] = {'text': snapshot['source']['owner_context']}
         if quality:
             options.update(max_turns=48,max_calls_per_role=48,max_python_per_role=6,max_questions=6,

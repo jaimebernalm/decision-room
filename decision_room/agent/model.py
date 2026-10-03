@@ -391,7 +391,7 @@ class ModelClient:
         schema['required'] = list(schema['properties'])
         schema['properties']['action']['enum'] = self._review_actions(context, 'analyst', ['submit', 'execute', 'ask_owner', 'withdraw'])
         self._review_references(schema, context)
-        return self._generate(context, correction, ANALYST_SYSTEM, schema)
+        return self._generate(context, correction, self._presentation_system(ANALYST_SYSTEM, context), schema)
 
     def generate_reviewer(self, context, correction=None):
         schema = ReviewAction.model_json_schema()
@@ -403,7 +403,18 @@ class ModelClient:
         schema['required'] = list(schema['properties'])
         schema['properties']['action']['enum'] = self._review_actions(context, 'reviewer', allowed)
         self._review_references(schema, context)
-        return self._generate(context, correction, REVIEWER_SYSTEM, schema)
+        return self._generate(context, correction, self._presentation_system(REVIEWER_SYSTEM, context), schema)
+
+    @staticmethod
+    def _presentation_system(system, context):
+        if context.get('budgets', {}).get('owner_presentation'):
+            from .owner_presentation import SYSTEM
+            system = system.replace('The client sees a partial-delivery marker and the list of unanswered questions.',
+                                    'The client sees concrete unanswered questions in the limitations section.')
+            system = system.replace('Controller caveats and counts remain intact.',
+                                    'Controller coverage and counts remain intact in the audit; explain concrete limits to the owner.')
+            return system + SYSTEM
+        return system
 
     @staticmethod
     def _table_choices(field, identifiers):

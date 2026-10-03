@@ -931,9 +931,10 @@ export function ChartValues({
               <TableHead className="whitespace-normal">
                 {tr("Periodo / categoría")}
               </TableHead>
-              {chart.points.some(
-                (p) => p.original_label && p.original_label !== p.label,
-              ) && <TableHead>{tr("Código original")}</TableHead>}
+              {!chart.owner_presentation &&
+                chart.points.some(
+                  (p) => p.original_label && p.original_label !== p.label,
+                ) && <TableHead>{tr("Código original")}</TableHead>}
               <TableHead className="text-right whitespace-normal">
                 {chart.unit}
               </TableHead>
@@ -943,13 +944,14 @@ export function ChartValues({
             {chart.points.map((p, i) => (
               <TableRow key={i}>
                 <TableCell>{p.label}</TableCell>
-                {chart.points.some(
-                  (x) => x.original_label && x.original_label !== x.label,
-                ) && (
-                  <TableCell className="font-mono text-xs">
-                    {p.original_label || p.label}
-                  </TableCell>
-                )}
+                {!chart.owner_presentation &&
+                  chart.points.some(
+                    (x) => x.original_label && x.original_label !== x.label,
+                  ) && (
+                    <TableCell className="font-mono text-xs">
+                      {p.original_label || p.label}
+                    </TableCell>
+                  )}
                 <TableCell className="text-right font-mono tabular-nums">
                   {displayNumber(p.formatted)}
                 </TableCell>
@@ -957,6 +959,15 @@ export function ChartValues({
             ))}
           </TableBody>
         </Table>
+      )}
+      {chart.owner_presentation && (
+        <Disclosure title={tr("Detalle técnico y valores originales")}>
+          {chart.points.map((p) => (
+            <p key={p.label} className="font-mono text-xs">
+              {p.original_label ?? p.label}: {p.value}
+            </p>
+          ))}
+        </Disclosure>
       )}
     </>
   );
@@ -1039,6 +1050,24 @@ export function ReportView({
       report.claims.flatMap((claim) => claim.evidence_details?.files ?? []),
     ),
   ];
+  const limitations = report.limitations.length > 0 && (
+    <Selectable
+      item={item("section", "limitations", {
+        key: "limitations",
+        title: tr("Limitaciones"),
+        statement: report.limitations.join("\n"),
+      })}
+    >
+      <div className="rounded-xl border-l-2 border-primary/30 bg-muted/40 px-4 py-3 text-xs leading-6">
+        <p className="font-medium">{tr("Para interpretar este informe")}</p>
+        <ul className="list-disc pl-4">
+          {report.limitations.map((text, i) => (
+            <li key={i}>{text}</li>
+          ))}
+        </ul>
+      </div>
+    </Selectable>
+  );
   const metrics = (highlights: ReportData["highlights"]) => (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
       {highlights.map((h, i) => (
@@ -1077,7 +1106,7 @@ export function ReportView({
             {report.scope.period}
           </Badge>
           <Badge variant="secondary">{tr("Revisado")}</Badge>
-          {report.partial && (
+          {report.partial && !report.owner_presentation && (
             <Badge variant="outline">{tr("Entrega parcial")}</Badge>
           )}
           {report.presentation && report.presentation.revision > 0 && (
@@ -1179,24 +1208,7 @@ export function ReportView({
           )}
         </p>
       )}
-      {report.limitations.length > 0 && (
-        <Selectable
-          item={item("section", "limitations", {
-            key: "limitations",
-            title: tr("Limitaciones"),
-            statement: report.limitations.join("\n"),
-          })}
-        >
-          <div className="rounded-xl border-l-2 border-primary/30 bg-muted/40 px-4 py-3 text-xs leading-6">
-            <p className="font-medium">{tr("Para interpretar este informe")}</p>
-            <ul className="list-disc pl-4">
-              {report.limitations.map((text, i) => (
-                <li key={i}>{text}</li>
-              ))}
-            </ul>
-          </div>
-        </Selectable>
-      )}
+      {!report.owner_presentation && limitations}
       {metrics(report.highlights.slice(0, 3))}
       {report.highlights.length > 3 && (
         <Disclosure title={tr("Más indicadores del informe")}>
@@ -1264,13 +1276,44 @@ export function ReportView({
                   </h4>
                   <p>{claim.evidence_details.files.join(" · ")}</p>
                   {claim.evidence_details.metrics.map((m, j) => (
-                    <p key={j} className="font-mono text-xs">
-                      {m.label}: {m.value}
+                    <p
+                      key={j}
+                      className={
+                        report.owner_presentation
+                          ? "text-sm tabular-nums"
+                          : "font-mono text-xs"
+                      }
+                    >
+                      {report.owner_presentation
+                        ? m.label.replace(
+                            /^Cifra de apoyo /,
+                            tr("Cifra de apoyo") + " ",
+                          )
+                        : m.label}
+                      :{" "}
+                      {report.owner_presentation
+                        ? displayNumber(m.value)
+                        : m.value}
                     </p>
                   ))}
-                  {claim.evidence_details.operations.map((o, j) => (
-                    <p key={j}>{o}</p>
-                  ))}
+                  {report.owner_presentation ? (
+                    <Disclosure
+                      title={tr("Detalle técnico y valores originales")}
+                    >
+                      {claim.evidence_details.metrics.map((m, j) => (
+                        <p key={j} className="font-mono text-xs break-words">
+                          {m.original_label}: {m.raw_value}
+                        </p>
+                      ))}
+                      {claim.evidence_details.operations.map((o, j) => (
+                        <p key={j}>{o}</p>
+                      ))}
+                    </Disclosure>
+                  ) : (
+                    claim.evidence_details.operations.map((o, j) => (
+                      <p key={j}>{o}</p>
+                    ))
+                  )}
                 </div>
               )}
               {report.charts
@@ -1294,6 +1337,7 @@ export function ReportView({
             <EvidenceChart chart={c} actions={edit("chart", c.key, c.title)} />
           </Selectable>
         ))}
+      {report.owner_presentation && limitations}
     </div>
   );
 }

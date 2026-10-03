@@ -96,6 +96,34 @@ def relabel(result, labels):
                 coordinate['series'] = dimension(coordinate['series'])
             panel['series_order'] = [dimension(s) for s in panel['series_order']]
             panel['colors'] = {dimension(k): v for k, v in panel.get('colors', {}).items()}
+    if display.get('owner_presentation'):
+        for field in ('coverage', 'question', 'period'):
+            if display.get('scope', {}).get(field):
+                display['scope'][field] = text(display['scope'][field])
+        display['limitations'] = [text(value) for value in display['limitations']]
+        for claim in display['claims']:
+            if claim.get('method'):
+                claim['method'] = text(claim['method'])
+            orientation = claim.get('orientation') or {}
+            for key in ('segment', 'period', 'signal', 'relative_priority', 'next_check', 'decision_value', 'limitation'):
+                if key in orientation:
+                    orientation[key] = text(orientation[key])
+            for reaction in orientation.get('reactions', []):
+                for key in ('condition', 'reaction'):
+                    reaction[key] = text(reaction[key])
+            for row in claim.get('evidence_details', {}).get('metrics', []):
+                row['label'] = text(row['label'])
+        for chart in display['charts']:
+            chart['caption'] = text(chart['caption'])
+            for detail in chart.get('details', []):
+                detail['point_label'] = dimension(detail['point_label'])
+                for value in detail['values']:
+                    value['label'] = text(value['label'])
+            for panel in chart['panels']:
+                for field in ('title', 'category_title', 'series_title'):
+                    panel[field] = text(panel[field])
+                panel['styles'] = {dimension(key): {**style, 'description': text(style.get('description', ''))}
+                                   for key, style in panel.get('styles', {}).items()}
     return display
 
 class Change(BaseModel):

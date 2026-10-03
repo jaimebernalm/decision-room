@@ -253,3 +253,81 @@ it("keeps distinct chart and finding references for contextual chat selection", 
     }),
   );
 });
+
+it("P3 keeps limits after findings and technical evidence behind a second disclosure", async () => {
+  const readable: Report = {
+    ...report,
+    owner_presentation: true,
+    claims: report.claims.map((claim, i) =>
+      i
+        ? claim
+        : {
+            ...claim,
+            evidence_details: {
+              files: ["ventas.csv"],
+              metrics: [
+                {
+                  label: "Importe del periodo",
+                  value: "51,37",
+                  raw_value: "51.366666",
+                  original_label: "window_amount",
+                },
+              ],
+              operations: ["SUM(TRY_CAST(amount AS DECIMAL))"],
+            },
+          },
+    ),
+  };
+  const { container } = render(<ReportView report={readable} />);
+  expect(screen.queryByText("Entrega parcial")).toBeNull();
+  const limit = screen.getByText(report.limitations[0]);
+  expect(limit).toBeVisible();
+  const finding = container.querySelector<HTMLElement>("#finding-context")!;
+  expect(
+    finding.compareDocumentPosition(limit) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  expect(screen.queryByText(/TRY_CAST/)).toBeNull();
+  await userEvent.click(
+    screen.getByRole("button", { name: "Datos y fuentes: Ventas del periodo" }),
+  );
+  expect(screen.getByText("Importe del periodo: 51,37")).toBeVisible();
+  expect(screen.queryByText(/TRY_CAST/)).toBeNull();
+  const technical = screen.getByRole("button", {
+    name: "Detalle técnico y valores originales",
+  });
+  technical.focus();
+  await userEvent.keyboard("{Enter}");
+  expect(screen.getByText("window_amount: 51.366666")).toBeVisible();
+  expect(screen.getByText("SUM(TRY_CAST(amount AS DECIMAL))")).toBeVisible();
+  expect(screen.getAllByText(report.limitations[0])).toHaveLength(1);
+});
+
+it("P3 table shows names and keeps original codes and precision in optional detail", async () => {
+  const { ChartValues } = await import("./report");
+  render(
+    <ChartValues
+      inline
+      chart={{
+        ...report.charts[1],
+        owner_presentation: true,
+        points: [
+          {
+            label: "Cuaderno · Web",
+            original_label: "U17×D2",
+            value: "51.366666",
+            formatted: "51,37",
+          },
+        ],
+      }}
+    />,
+  );
+  expect(screen.getByRole("cell", { name: "Cuaderno · Web" })).toBeVisible();
+  expect(screen.queryByText("Código original")).toBeNull();
+  expect(screen.queryByText(/U17×D2/)).toBeNull();
+  await userEvent.click(
+    screen.getByRole("button", {
+      name: "Detalle técnico y valores originales",
+    }),
+  );
+  expect(screen.getByText("U17×D2: 51.366666")).toBeVisible();
+});

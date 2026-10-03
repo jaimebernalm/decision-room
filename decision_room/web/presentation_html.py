@@ -8,9 +8,10 @@ def render(report, exported_at):
     report = export_view(report)
     tr = lambda text: label(text, report.get('response_language'))
     language = report.get('response_language') or 'es'
+    owner = report.get('owner_presentation', False)
     scope = report['scope']
     output = [f"""<header><p class="eyebrow">{tr('Decision Room · Informe de negocio')}</p><h1>{e(report['title'])}</h1>""", f"""<p class="meta">{e(scope.get('business', ''))} · {e(scope['period'])}</p>""", f"""<p class="meta">{tr('Exportado:')} {e(exported_at)}</p></header><div class="content">""", f"""<p>{e(scope.get('question', ''))}</p><aside class="coverage">{e(scope['coverage'])}</aside>""", f"""<p class="intro">{e(report.get('summary', ''))}</p>"""]
-    if report.get('partial'):
+    if report.get('partial') and not owner:
         output.append(f"<p>{tr('Entrega parcial · Consulta las preguntas pendientes en alcance y límites.')}</p>")
     output.append(f'''<section class="highlights" aria-label="{tr('Cifras clave')}">''')
     for h in report['highlights']:
@@ -22,18 +23,30 @@ def render(report, exported_at):
     for c in report['claims']:
         output.append(f"""<section class="finding" id="finding-{e(c['key'])}"><h2>{e(c['title'])}</h2><p>{e(c['statement'])}</p>""")
         for field in ('interpretation', 'next_step'):
-            if c.get(field):
+            if c.get(field) and not (owner and field == 'next_step' and c.get('orientation')):
                 output.append(f'<p class="{field}">{e(c[field])}</p>')
-        if c.get('method'):
+        if owner:
+            from ..owner_presentation import guidance
+            for heading, text in guidance(c):
+                output.append(f'<p><strong>{e(tr(heading))}</strong>: {e(text)}</p>')
+        if c.get('method') and not owner:
             output.append(f"<details><summary>{tr('Ver cómo se ha calculado')}</summary><p>{e(c['method'])}</p></details>")
         evidence = c.get('evidence_details')
         if evidence:
             output.append(f"<details><summary>{tr('Fuentes y evidencia')}</summary>")
+            if owner and c.get('method'):
+                output.append(f'<p>{e(c["method"])}</p>')
             output.append(f"<p>{e(' · '.join(evidence['files']))}</p>")
             for item in evidence['metrics']:
                 output.append(f"<p>{e(item['label'])}: {e(item['value'])}</p>")
+            if owner:
+                output.append(f'<details><summary>{tr("Detalle técnico y valores originales")}</summary>')
+                for item in evidence['metrics']:
+                    output.append(f'<p>{e(item["original_label"])}: {e(item["raw_value"])}</p>')
             for operation in evidence['operations']:
                 output.append(f'<p>{e(operation)}</p>')
+            if owner:
+                output.append('</details>')
             output.append('</details>')
         for chart in [x for x in report['charts'] if x['claim_key'] == c['key']]:
             output.append(f"""<figure><h3>{e(chart['title'])}</h3><p class="unit">{e(chart['unit'])}</p>""")
@@ -45,16 +58,24 @@ def render(report, exported_at):
                     output.append(f'<h4>{e(panel_title)}</h4>')
                 svg = renderSVG.drawToString(drawing)
                 output.append('<div class="plot">' + svg[svg.index('<svg'):] + '</div>')
-            original = any((p.get('original_label', p['label']) != p['label'] for p in chart['points']))
+            if owner and chart['kind'] != 'table':
+                output.append(f'<details><summary>{tr("Valores del gráfico")}</summary>')
+            original = not owner and any((p.get('original_label', p['label']) != p['label'] for p in chart['points']))
             output.append(f"<table><thead><tr><th>{tr('Periodo / categoría')}</th>" + (f"<th>{tr('Código original')}</th>" if original else '') + f"<th>{e(chart['unit'])}</th></tr></thead><tbody>")
             for point in chart['points']:
                 output.append(f"""<tr><th scope="row">{e(point['label'])}</th>""" + (f"<td>{e(point.get('original_label', point['label']))}</td>" if original else '') + f"<td>{e(point['formatted'])}</td></tr>")
-            output.append(f"</tbody></table><figcaption>{e(chart['caption'])}</figcaption></figure>")
+            output.append("</tbody></table>" + ("</details>" if owner and chart['kind'] != 'table' else ""))
+            if owner:
+                output.append(f'<details><summary>{tr("Detalle técnico y valores originales")}</summary>')
+                for point in chart['points']:
+                    output.append(f'<p>{e(point.get("original_label", point["label"]))}: {e(point["value"])}</p>')
+                output.append('</details>')
+            output.append(f"<figcaption>{e(chart['caption'])}</figcaption></figure>")
         output.append('</section>')
     if report.get('no_chart_reason'):
         output.append(f"<p>{e(report['no_chart_reason'])}</p>")
     output.append(f"""<section class="limits"><h2>{tr('Alcance y límites')}</h2>""")
-    for question in report.get('question_coverage', []):
+    for question in ([] if owner else report.get('question_coverage', [])):
         output.append(f"<p>{e(question['explanation'])}</p>")
     for limitation in report['limitations']:
         output.append(f'<p>{e(limitation)}</p>')

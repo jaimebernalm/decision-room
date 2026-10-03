@@ -119,6 +119,7 @@ def cases():
             elif state == 'budget':
                 context['budgets'] = dict(python_used={'analyst': 3, 'reviewer': 3}, questions_used=3)
             yield f'{method}-{state}', method, context
+            yield f'{method}-{state}-p3', method, {**context, 'budgets': {**context.get('budgets', {}), 'owner_presentation': True}}
 
 
 class StrictProviderSchemaTests(unittest.TestCase):

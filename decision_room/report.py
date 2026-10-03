@@ -22,7 +22,17 @@ def export(config, business_id, review_id):
         directory = store.path(business_id, f'{business_id}/reports/{review_id}/{uuid4().hex}')
         directory.mkdir(parents=True, mode=0o700)
         html = directory / 'report.html'
-        html.write_text(render_client(data, now))
+        from .owner_presentation import enabled
+        if enabled(data) and data['publishable']:
+            from types import SimpleNamespace
+            from .web.dashboard import presentation
+            from .web.presentation_editing import decorate
+            from .web.presentation_html import render as render_presentation
+            ws = SimpleNamespace(config=config, business_id=lambda: business_id)
+            view = decorate(ws, data, presentation(data), db=db)
+            html.write_text(render_presentation(view, now))
+        else:
+            html.write_text(render_client(data, now))
         internal = directory / 'internal.html'
         internal.write_text(render(data, now))
         internal.chmod(0o600)

@@ -17,6 +17,7 @@ class Config:
     max_batch_bytes: int = 2_000_000_000
     max_columns: int = 256
     max_rows: int = 10_000_000
+    owner_presentation: bool = False
     research_continuity: bool = False
     research_validation_recovery: bool = False
     semantic_search: bool = False
@@ -34,6 +35,7 @@ class Config:
                                 dbname='decision_room', user=getpass.getuser(), connect_timeout=5)
         return cls(os.environ.get('DECISION_ROOM_DATABASE_URL', default),
                    Path(os.environ.get('DECISION_ROOM_STORAGE', ROOT / '.local/storage')).resolve(),
+                   owner_presentation=os.environ.get('DECISION_ROOM_OWNER_PRESENTATION', 'false').lower() == 'true',
                    research_continuity=os.environ.get('DECISION_ROOM_RESEARCH_CONTINUITY', 'false').lower() == 'true',
                    research_validation_recovery=os.environ.get('DECISION_ROOM_RESEARCH_VALIDATION_RECOVERY', 'false').lower() == 'true',
                    semantic_search=os.environ.get('DECISION_ROOM_SEMANTIC_SEARCH', 'false').lower() == 'true',

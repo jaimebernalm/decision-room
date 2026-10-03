@@ -112,6 +112,9 @@ def model_context(materialized, role):
     if context.get('report'):
         from .report_reading import reading_feedback
         context['report_reading'] = reading_feedback(context['report'])
+        if context.get('budgets', {}).get('owner_presentation'):
+            from .owner_presentation import feedback
+            context['owner_reading_feedback'] = feedback(context['report'])
     # Keep every turn and every distinct payload, but send identical code/report
     # only once. Explicit references point to full objects in this same request;
     # this is lossless deduplication, not a generated memory summary.

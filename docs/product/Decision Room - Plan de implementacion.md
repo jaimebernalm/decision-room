@@ -1009,3 +1009,10 @@ Opción independiente y desactivada por defecto; sin reglas de negocio específi
 ni llamadas reales al modelo. [Plan](../technical/research-continuity-plan.md) y
 [activación y validación](../validation/2026-10-03-research-continuity.md).
 La aceptación analítica y la comparación del candidato permanecen abiertas.
+
+**Fase experimental P3 — Presentación (3.9.10.3), 3 de octubre:** desde `b47c9da`,
+redacción y revisión para lectores no técnicos, formato de cifras y nombres del
+catálogo, límites en una sección y evidencia técnica bajo demanda/anexo. Opción
+independiente y desactivada por defecto. [Plan](../technical/report-presentation-plan.md)
+y [activación, pruebas y límites](../validation/2026-10-03-owner-presentation.md).
+Sin llamadas reales al modelo; aceptación de calidad y comparación ciega pendientes.

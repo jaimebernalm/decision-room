@@ -13,10 +13,11 @@ from reportlab.graphics.shapes import Drawing, Rect, String, Line, Circle
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, KeepTogether
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, KeepTogether, PageBreak
 
 from .chart_layout import CHART_PALETTE
 from .client_report import formatted
+from .owner_presentation import readable_number
 from .report_language import number
 
 WIDTH = A4[0] - 88
@@ -111,7 +112,7 @@ def bar_drawings(chart):
                 value = low + span * Decimal(t) / 4
                 tx = x(value)
                 drawing.add(Line(tx, 22, tx, height - legend_height - 7, strokeColor=BORDER, strokeWidth=.3))
-                drawing.add(String(tx, 8, number(formatted(value, 0), chart.get('response_language')), fontSize=7, textAnchor='middle', fillColor=GRAY))
+                drawing.add(String(tx, 8, number(readable_number(value) if chart.get('owner_presentation') else formatted(value, 0), chart.get('response_language')), fontSize=7, textAnchor='middle', fillColor=GRAY))
             for i, category in enumerate(batch):
                 y = height - legend_height - 17 - i * row_height
                 for n, label in enumerate(category_lines[category]):
@@ -142,7 +143,7 @@ def line_drawing(chart):
         value = low + span * Decimal(i) / 4
         pos = y(value)
         drawing.add(Line(50, pos, WIDTH - 14, pos, strokeColor=BORDER, strokeWidth=.5))
-        drawing.add(String(43, pos - 3, number(formatted(value, 0), chart.get('response_language')), textAnchor='end', fontSize=8, fillColor=GRAY))
+        drawing.add(String(43, pos - 3, number(readable_number(value) if chart.get('owner_presentation') else formatted(value, 0), chart.get('response_language')), textAnchor='end', fontSize=8, fillColor=GRAY))
     palette = (chart.get('panels') or [{}])[0].get('colors', {})
     for i, name in enumerate(order):
         shade = palette.get(name, CHART_PALETTE[i % len(CHART_PALETTE)])
@@ -171,10 +172,12 @@ def render_pdf(report):
     from .report_language import export_view, label
     report = export_view(report)
     tr = lambda text: label(text, report.get('response_language'))
+    owner = report.get('owner_presentation', False)
+    appendix = []
     stream = BytesIO()
     story = [paragraph('Decision Room', 'heading'), paragraph(report['scope'].get('business', ''), 'muted'),
              paragraph(report['scope']['period'], 'muted'),
-             paragraph(tr('Revisado') + (tr(' · Entrega parcial') if report.get('partial') else ''), 'muted'),
+             paragraph(tr('Revisado') + (tr(' · Entrega parcial') if report.get('partial') and not owner else ''), 'muted'),
              paragraph(report['title'], 'title')]
     if report.get('summary'): story.append(paragraph(report['summary']))
     for offset in range(0, len(report.get('highlights', [])), 3):
@@ -195,7 +198,8 @@ def render_pdf(report):
         story += [paragraph(f"{i+1:02d} · {claim['title']}", 'heading'), paragraph(claim['statement'])]
         if claim.get('interpretation'): story.append(paragraph(claim['interpretation'], 'muted'))
         from .agent.delivery_contract import orientation_sections
-        for heading, text in orientation_sections(claim.get('orientation')):
+        from .owner_presentation import guidance
+        for heading, text in (guidance(claim) if owner else orientation_sections(claim.get('orientation'))):
             story.append(Paragraph('<b>' + escape(tr(heading)) + '</b>: ' + escape(text), STYLES['body']))
         if claim.get('next_step') and not claim.get('orientation'):
             story += [paragraph(tr('Siguiente comprobación'), 'heading'), paragraph(claim['next_step'])]
@@ -219,24 +223,32 @@ def render_pdf(report):
                 story.append(paragraph(detail['point_label'] + ': ' + '; '.join(v['label'] + ': ' + v['formatted'] + ' ' + v['unit'] for v in detail['values'])))
             from .chart_layout import comparison_tables
             for title, headings, rows in comparison_tables(chart, chart['points'], [p['formatted'] for p in chart['points']]):
-                story.append(grid([headings, *rows], [WIDTH/len(headings)]*len(headings), title=title or tr('Valores exactos')))
+                if not owner or chart['kind'] == 'table':
+                    story.append(grid([headings, *rows], [WIDTH/len(headings)]*len(headings), title=title or tr('Valores exactos')))
+            if owner:
+                appendix.append(grid([[tr('Periodo / categoría'), chart['unit']],
+                                      *[[p.get('original_label', p['label']), p['value']] for p in chart['points']]],
+                                     [WIDTH * .65, WIDTH * .35], title=chart['title']))
+        detail_story = appendix if owner else story
+        if owner:
+            detail_story.append(paragraph(claim['title'], 'heading'))
         if claim.get('method'):
-            story += [paragraph(tr('Cómo se ha calculado'), 'heading'), paragraph(claim['method'])]
+            detail_story += [paragraph(tr('Cómo se ha calculado'), 'heading'), paragraph(claim['method'])]
         details = claim.get('evidence_details')
         if details:
-            story += [paragraph(tr('Fuentes y evidencia'), 'heading')]
-            for name in details['files']: story.append(paragraph(name, 'muted'))
+            detail_story += [paragraph(tr('Fuentes y evidencia'), 'heading')]
+            for name in details['files']: detail_story.append(paragraph(name, 'muted'))
             if details['metrics']:
-                story.append(grid([[tr('Resultado guardado'), tr('Valor')]] +
-                                  [[m['label'], m['value']] for m in details['metrics']], [WIDTH * .65, WIDTH * .35]))
-            for operation in details['operations']: story.append(paragraph(operation, 'muted'))
+                detail_story.append(grid([[tr('Resultado guardado'), tr('Valor')]] +
+                                  [[m.get('original_label', m['label']), m.get('raw_value', m['value'])] for m in details['metrics']], [WIDTH * .65, WIDTH * .35]))
+            for operation in details['operations']: detail_story.append(paragraph(operation, 'muted'))
     if report.get('no_chart_reason'): story.append(paragraph(report['no_chart_reason'], 'muted'))
-    if report.get('owner_coverage'):
+    if report.get('owner_coverage') and not owner:
         story.append(paragraph(tr('Cobertura del encargo'), 'heading'))
         names = {'complete':'Completo','partial':'Parcial','unavailable':'Información no disponible','deferred':'Pendiente'}
         for q in report['owner_coverage']:
             story.append(paragraph(tr(names[q['status']]) + ': ' + q['explanation']))
-    elif report.get('question_coverage'):
+    elif report.get('question_coverage') and not owner:
         story.append(paragraph(tr('Cobertura de las preguntas'), 'heading'))
         names = {'answered': 'Respondida', 'unavailable': 'Información no disponible', 'deferred': 'Pendiente'}
         for q in report['question_coverage']:
@@ -244,6 +256,9 @@ def render_pdf(report):
     if report.get('limitations'):
         story.append(paragraph(tr('Limitaciones'), 'heading'))
         for item in report['limitations']: story.append(paragraph('• ' + item, 'muted'))
+
+    if owner and appendix:
+        story += [PageBreak(), paragraph(tr('Fuentes, cálculos y valores originales'), 'title'), *appendix]
 
     def footer(canvas, doc):
         canvas.saveState()
