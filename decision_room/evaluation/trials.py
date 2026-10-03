@@ -415,7 +415,8 @@ def summary(batch):
              '| --- | --- | ---: | ---: | ---: | ---: | ---: | --- | ---: | --- |']
     groups = {}
     for row in rows:
-        groups.setdefault((row['dataset'], row['system']), []).append(row)
+        if row['status'] != 'abandoned':  # operator interruptions are kept, not scored
+            groups.setdefault((row['dataset'], row['system']), []).append(row)
     for (dataset, system), items in sorted(groups.items()):
         hints = Counter(k for r in items for k, v in r['signal_hints'].items() if v)
         detected = Counter(k for r in items for k, v in human.get(r['job'], {}).get('signals', {}).items()
