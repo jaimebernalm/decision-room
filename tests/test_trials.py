@@ -93,6 +93,12 @@ class LauncherTests(unittest.TestCase):
             self.assertEqual(rows[0]['jargon']['internal_ids'], 1)
             self.assertEqual(rows[0]['jargon']['raw_decimals'], 1)
             self.assertIn('| demo | luna | 2/2 |', trials.summary(batch))
+            copies = sorted((batch / 'blind').iterdir())
+            self.assertEqual(len(copies), 2)
+            self.assertNotIn('luna', ' '.join(p.name for p in copies))
+            trials.score(batch)
+            self.assertEqual(len(list((batch / 'blind').iterdir())), 2)
+            self.assertTrue((batch / 'jobs/demo-luna-1/tmp').is_dir())
             with self.assertRaises(SystemExit):
                 trials.prepare(batch, {'demo': str(source)}, 'HEAD', 2, ['luna'], tmp, tmp / '.env')
 

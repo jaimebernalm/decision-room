@@ -180,6 +180,10 @@ def run_luna(batch, job):
     binary = shutil.which('codex')
     argv = [binary, *read(batch / 'manifest.json')['codex']['args']]
     env = {k: v for k, v in os.environ.items() if k != 'OPENAI_API_KEY' and not k.startswith('DECISION_ROOM_')}
+    # Jobs run one at a time with a private TMPDIR. Commands may still hardcode
+    # /tmp, so its use is flagged below rather than assumed harmless.
+    (job / 'tmp').mkdir(exist_ok=True)
+    env['TMPDIR'] = str(job / 'tmp')
     state.update(status='running', started_at=datetime.now(timezone.utc).isoformat())
     write(job / 'state.json', state)
     started = time.monotonic()
@@ -204,6 +208,7 @@ def run_luna(batch, job):
                     and e.get('item', {}).get('type') == 'command_execution']
         state.update(exit_code=code, usage=[e.get('usage') for e in completed], commands=len(commands),
                      failed_commands=sum(c.get('exit_code') not in (0, None) for c in commands),
+                     shared_tmp_commands=sum('/tmp/' in (c.get('command') or '') for c in commands),
                      report_exists=(job / 'informe.html').exists(),
                      inputs_unchanged={p.name: sha(p) for p in sorted((job / 'datos').glob('*.csv'))}
                      == read(batch / 'manifest.json')['datasets'][state['dataset']]['inputs'])
@@ -302,6 +307,7 @@ def score(batch):
                      'signal_hints': {s['key']: hinted(text, s['hints']) for s in oracle['signals']} if text else {},
                      'jargon': {k: len(re.findall(v, text, flags=re.I)) for k, v in JARGON.items()}})
     write(batch / 'scores.json', rows)
+    blind(batch, rows)
     template = batch / 'evaluation.json'
     if not template.exists():
         write(template, {'instructions': 'Human scoring after reading each report. Per signal: detected, prioritized '
@@ -310,6 +316,28 @@ def score(batch):
                                                              'reading_correct': None} for k in r['signal_hints']},
                                              'rubric_39': None, 'notes': ''} for r in rows if r['report']}})
     return rows
+
+
+BRANDING = re.compile(r'Decision Room[^.\n]{0,40}|Generado: \S+', re.I)
+
+
+def blind(batch, rows):
+    """Shuffled, de-branded text copies for scoring without knowing the system.
+
+    Layout and style can still reveal the origin; this reduces, not removes, bias.
+    The key stays in BATCH; give evaluators only the blind folder."""
+    folder = batch / 'blind'
+    key = read(batch / 'blind-key.json', {})
+    folder.mkdir(exist_ok=True)
+    for row in rows:
+        report = batch / 'jobs' / row['job'] / 'informe.html'
+        if not report.exists() or row['job'] in key.values():
+            continue
+        code = uuid4().hex[:8]
+        key[code] = row['job']
+        text = BRANDING.sub('', text_of(report.read_text(errors='replace')))
+        (folder / f"{row['dataset']}-{code}.txt").write_text(text + '\n')
+    write(batch / 'blind-key.json', key)
 
 
 def median(values):

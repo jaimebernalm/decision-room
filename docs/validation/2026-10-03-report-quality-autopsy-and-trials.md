@@ -48,7 +48,13 @@ en descenso, mientras web (+237) y marketplace (+332) crecen.
 | Redacción | El mismo agente escribe con las cifras que calculó. | El redactor solo puede citar números guardados: −93 no existe como métrica y no puede aparecer, aunque las barras negativas se vean en el gráfico. |
 | Revisión | Autoverificación con asserts de reconciliación. | Aprobado con todos los criterios en `pass`; no se comprueba si falta una señal mayor. |
 
-## 4. Causas, de mayor a menor peso
+## 4. Causas probables, de mayor a menor peso
+
+Son hipótesis apoyadas por las trazas, no causas aisladas por experimento. El
+diagnóstico de Astra (`2026-10-03-report-quality-forensics.md`, commit `8a2e66f`
+en `codex/feature/bruma-web-integration`) señala con razón
+que no hay evidencia para atribuir la diferencia al número de agentes o al tamaño
+de los prompts por separado; las fases de la sección 8 los aíslan uno a uno.
 
 1. **Mirar es caro en el producto y barato en Codex.** Cada ejecución exige
    `write_result` con 3–8 métricas escalares, una evidencia por métrica,
@@ -160,9 +166,22 @@ estado aunque falle y nunca se relanza un intento ya iniciado.
 
 ### Fases
 
-1. **Línea base** con `4815b68` y Luna en Codex, sin cambios.
-2. **Cambios** P1–P3, cada uno en un commit.
-3. **Repetición** de las mismas 12 ejecuciones con los mismos datos y encargos.
+Revisadas tras contrastar con Astra (sección 9). Cada fase es un conjunto de
+commits y una medición; no se mezclan reparaciones de contrato con cambios de
+comportamiento.
+
+| Fase | Contenido | Producto | Luna |
+| --- | --- | --- | --- |
+| 0. Línea base | `4815b68` sin cambios | 3 × cada conjunto | 3 × cada conjunto |
+| 1. Contratos | Astra A: capas en el esquema productor, exportación comunicada sin ambigüedad, errores de artefacto distintos, rango invariante al orden, etiquetas no recortadas a identidades indistinguibles. Registro del sistema, esquema y correcciones efectivos por llamada. | 3 × cada conjunto | 1 × cada conjunto (control contemporáneo) |
+| 2. Recorrido y cierre | Astra B (seguir una señal sin reabrir tarea; nota de cierre: qué cálculo pendiente cambiaría la decisión) + P2/Astra C (revisor contra omisiones y fidelidad). | 3 × cada conjunto | 1 × cada conjunto |
+| 2b. Panorama | P1 como brazo separado, para medir su efecto propio. | 3 × cada conjunto | — |
+| 3. Presentación | P3 + Astra D: lenguaje para propietario no técnico, una idea una vez, verificación real del render. | 3 × cada conjunto | 1 × cada conjunto |
+| 4. Variantes | Una a una: bucle continuo (P4) o continuidad Responses, prompts consolidados (P5), esfuerzo de razonamiento, reparto de agentes. | 3 × cada conjunto | 3 × cada conjunto al final |
+
+Conjuntos: Bruma, Albor y un **tercer negocio reservado** que diseña Astra sin
+que este autor conozca sus señales (sección 9). Ninguna instrucción se
+ajusta mirando ese tercer conjunto.
 
 ### Uso
 
@@ -188,7 +207,65 @@ Qué refutaría el plan: si tras P1–P3 la detección de S1/S2 en el producto n
 mejora en al menos dos de tres ejecuciones en Albor, o si aparecen cifras
 publicadas erróneas, las propuestas no se mantienen tal como están formuladas.
 
-## 9. Límites
+## 9. Contraste con el diagnóstico de Astra
+
+Astra (GPT-6) investigó las mismas trazas por separado. Coincidimos en el núcleo:
+cifras correctas, cierre prematuro sin presión de presupuesto, el −93 de tienda
+calculable con lo que ya estaba en el contexto, ranking +118 > +100 convertido
+en prioridad, revisor que aprueba sin reparos y HTML mal comunicado. Comprobado en
+el código: las variantes de gráfico del esquema productor no incluyen capas, y
+el eje recorta las etiquetas a 20 caracteres.
+
+**Incorporado de Astra a este plan:**
+
+1. Defectos deterministas que no había encontrado: capas imposibles en el esquema
+   productor; error idéntico para extensión no admitida y nombre duplicado; rango
+   temporal dependiente del orden de filas; 18 etiquetas convertidas en 8 textos
+   distintos; registro sin sistema, esquema ni correcciones efectivos. Pasan a la
+   fase 1, antes de tocar comportamiento.
+2. El investigador no puede ejecutar de nuevo tras un resultado correcto sin
+   registrar y reabrir mediante el coordinador. Concreta mi causa 1 en el punto
+   exacto del grafo. El redactor y el revisor disponían de seis ejecuciones Python
+   cada uno y usaron cero.
+3. Rúbrica: separar «ranking correcto» de «prioridad útil»; añadir fidelidad entre
+   cálculo y relato (el fallo de Luna en la ronda 2, ejecución 3); preguntar al
+   lector qué haría primero y qué comprobaría; puntuar sin conocer el sistema.
+4. Ejecuciones de Luna aisladas: algunas sesiones concurrentes reutilizaron
+   nombres fijos en `/tmp`. El lanzador ya ejecuta en serie, con `TMPDIR` propio
+   por ejecución, y marca los comandos que usan `/tmp` igualmente.
+5. Verificación real del render (JavaScript, tablas vacías, etiquetas
+   indistinguibles, móvil) en la puntuación y, más adelante, en el producto.
+6. Presión de tokens por minuto como factor de confusión: el producto se ejecuta
+   en serie y los 429 se registran por intento.
+
+**Lo que este plan añade al de Astra:**
+
+1. **Escala.** Bruma cabe en una pantalla. Albor (5 años, 30 productos, 4 canales)
+   prueba ambos sistemas donde no se puede mirar todo.
+2. **Señales plantadas con verdad conocida**, incluido un señuelo estacional, para
+   medir detección y no solo exactitud de las cifras citadas.
+3. **Panorama determinista (P1)** como brazo separado: no es una regla más para
+   el agente, sino un cálculo previo por código.
+4. **Riesgo de circularidad propio:** las señales de Albor (domingos, huecos,
+   desapariciones) son justo lo que P1 detectaría. Por eso se pide a Astra un
+   tercer negocio cuyas señales no conozca el autor de P1, con su oráculo guardado
+   fuera de este análisis. Simétricamente, Astra no debería ajustar sus propuestas
+   mirando Albor.
+5. **Lectura para un propietario no técnico** como criterio propio, no solo como
+   ausencia de repetición.
+6. **El bucle continuo (P4)** como variante a probar, no a descartar: el
+   planificador produce más tokens de salida que la investigación (8.126 frente a
+   7.913) y los contextos de redacción y revisión superan los 100 KB.
+
+**Abierto para discutir con Astra:**
+
+- Si basta con permitir continuar dentro de una investigación (su B) o si hay que
+  abaratar también *mirar*: salida exploratoria visible que no cuente como
+  evidencia hasta registrarla.
+- Si P1 sesga al agente hacia las señales que calcula y empobrece su criterio.
+- Cuántas ejecuciones de control de Luna por fase hacen falta frente al coste.
+
+## 10. Límites
 
 Tres repeticiones son pocas para afirmar consistencia; sirven para detectar
 diferencias grandes. Albor es sintético y sus señales las diseñó el mismo autor
