@@ -69,6 +69,29 @@ def schema_for(schema):
     import copy
     result = copy.deepcopy(schema)
     request = Request.model_json_schema()
+    if 'decision' in result['properties']:
+        # Continuity uses action-specific branches. Retrieval is a separate
+        # branch, never a loophole for null continuations on execute.
+        branches = result['properties']['decision']['anyOf']
+        retrieve = copy.deepcopy(branches[0])
+        for branch in branches:
+            branch['properties']['retrieval'] = {'type': 'null'}
+            branch['required'].append('retrieval')
+        for name, field in retrieve['properties'].items():
+            if name == 'action':
+                field['enum'] = ['retrieve']
+            elif name in ('summary',):
+                continue
+            elif name in ('investigation_key', 'code'):
+                retrieve['properties'][name] = {'type': 'string', 'enum': ['']}
+            elif name in ('table_ids', 'metric_keys', 'followups', 'assignments', 'evidence_refs'):
+                retrieve['properties'][name] = {'type': 'array', 'items': {'type': 'string'}, 'maxItems': 0}
+            else:
+                retrieve['properties'][name] = {'type': 'null'}
+        retrieve['properties']['retrieval'] = request
+        retrieve['required'].append('retrieval')
+        branches.append(retrieve)
+        return result
     result['properties']['action']['enum'] = list(dict.fromkeys([*result['properties']['action']['enum'], 'retrieve']))
     if 'investigation_key' in result['properties'] and 'enum' in result['properties']['investigation_key']:
         result['properties']['investigation_key']['enum'] = list(dict.fromkeys([*result['properties']['investigation_key']['enum'], '']))

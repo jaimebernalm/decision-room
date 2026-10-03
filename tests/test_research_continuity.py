@@ -110,12 +110,12 @@ class ContinuityContractTests(unittest.TestCase):
         s,o,b=fixtures();c=prompt_context(s,o,[],b,1);client=ModelClient(ModelSettings('test'))
         with patch.object(client,'_generate',return_value=({},{})) as call:client.generate_research(c)
         system=call.call_args.args[2];schema=client._wire_schema(call.call_args.args[3]);v=Draft202012Validator(schema)
-        self.assertIn('execute',schema['properties']['action']['enum'])
+        self.assertIn('execute',[b['properties']['action']['enum'][0] for b in schema['properties']['decision']['anyOf']])
         self.assertNotIn('save it as an UNVERIFIED candidate before any',system)
         self.assertNotIn('BEFORE expanding the scope with another program',system)
         a=ContinuityAction.model_validate(action('record_candidate',evidence_refs=[ref(series=['groups'])],closure=closure())).model_dump()
-        v.validate(a)
-        a['evidence_refs'][0]['series_keys']=['invented'];self.assertFalse(v.is_valid(a))
+        v.validate({'decision': a})
+        a['evidence_refs'][0]['series_keys']=['invented'];self.assertFalse(v.is_valid({'decision': a}))
         with patch.object(client,'_generate',return_value=({},{})) as call:
             client.generate_research(prompt_context(s,o,[],{**b,'research_continuity':False},1))
         self.assertTrue(call.call_args.args[2].endswith(RESEARCH_SYSTEM))
@@ -138,7 +138,7 @@ class ContinuityContractTests(unittest.TestCase):
         s,o,b=fixtures();b['max_executions']=1
         c=prompt_context(s,o,[],b,1);client=ModelClient(ModelSettings('test'))
         with patch.object(client,'_generate',return_value=({},{})) as call:client.generate_research(c)
-        allowed=call.call_args.args[3]['properties']['action']['enum']
+        allowed=[v['properties']['action']['enum'][0] for v in call.call_args.args[3]['properties']['decision']['anyOf']]
         self.assertNotIn('execute',allowed)
         self.assertIn('record_candidate',allowed)
         self.assertIn('block',allowed)
@@ -189,11 +189,30 @@ write_result({{{metric!r}:value}},evidence=[{{'metric':{metric!r},'tables':[{tab
         return a,{}
 
 
+class EnvelopedModel(ContinuingModel):
+    def generate_research(self, context, correction=None):
+        output, usage = super().generate_research(context, correction)
+        return {'decision': output}, usage
+
+
 class ContinuityIntegrationTests(unittest.TestCase):
     setUpClass=classmethod(base.ResearchTests.setUpClass.__func__)
     tearDownClass=classmethod(base.ResearchTests.tearDownClass.__func__)
     setUp=base.ResearchTests.setUp
     start=base.ResearchTests.start
+
+    def test_wire_envelope_is_saved_unchanged_and_unwrapped_for_dispatch(self):
+        m = EnvelopedModel()
+        run = self.start(model=m, research_continuity=True)
+        self.assertEqual(run['status'], 'completed')
+        self.assertEqual(len(run['findings'][0]['evidence_refs']), 2)
+        with connect(self.config) as db:
+            outputs = db.execute("SELECT output FROM agent_calls WHERE scope=%s AND phase='research' ORDER BY created_at",
+                                 (str(run['id']),)).fetchall()
+        self.assertTrue(all(set(row['output']) == {'decision'} for row in outputs))
+        calls = m.calls
+        research.resume(self.config, self.business, run['id'], model=m)
+        self.assertEqual(m.calls, calls)
 
     def test_same_task_keeps_two_executions_and_closure_and_replay_is_idempotent(self):
         m=ContinuingModel();run=self.start(model=m,research_continuity=True,business_planner=True)
@@ -210,7 +229,7 @@ class ContinuityIntegrationTests(unittest.TestCase):
         self.assertEqual(len(again['steps']),4);self.assertEqual(m.calls,4)
         with connect(self.config) as db:
             versions=db.execute("SELECT DISTINCT prompt_version FROM agent_calls WHERE scope=%s AND phase='research'",(str(run['id']),)).fetchall()
-        self.assertEqual([v['prompt_version'] for v in versions],['research-continuity-v1'])
+        self.assertEqual([v['prompt_version'] for v in versions],['research-continuity-v2'])
 
     def test_later_failure_preserves_earlier_reviewable_evidence(self):
         run=self.start(model=ContinuingModel(fail_last=True),research_continuity=True)

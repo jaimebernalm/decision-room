@@ -139,3 +139,39 @@ del cambio coinciden con los posteriores. No se ha llamado a ningún modelo real
 ni iniciado bases de datos o servicios compartidos. Esta es una comprobación
 local de contratos, no una garantía de aceptación de cualquier esquema futuro por
 el servicio. El lote corregido y su medición permanecen pendientes.
+
+## Correction: context-bound action schemas (research-continuity-v2)
+
+The v1 measurement exposed two deterministic contract mismatches. New continuity
+requests use `{decision: <action>}` with a nested strict union per action and
+investigation. Successful continuation cannot select null; closing actions require
+closure. Expansion references (including child bases) are restricted to the
+parent's registered, visible execution IDs and metric/series keys. For expansion,
+the registered parent is the source of authority, rather than a second subset
+selected in the expansion action. New actions use explicit execution-scoped
+references; historical scalar shorthand remains readable.
+
+The schema also binds authorized tables, per-task budgets, nonempty evidence,
+closure reason/pending calculation, worker/coordinator permissions, work-field
+exclusivity and followup dependencies. Memory retrieval gets its own branch and
+cannot loosen execute requirements. The raw envelope is saved in `agent_calls.output`;
+only dispatch unwraps it. Effective request/schema/corrections remain recorded.
+Off retains the original wire contract and prompt. No resilience behavior is part
+of this correction; double rejection still fails, allowing an isolated comparison.
+
+### Checks and boundary of the guarantee
+
+103 tests passed: continuity contracts and PostgreSQL/Docker flows, 10 schema/domain
+parity tests, the full producer strict-schema matrix (including late memory
+injection), phase-1 contract regressions, and research-round/delegation/business-planner regressions. HTTP is mocked; no paid model calls.
+The integration checks envelope audit/replay, delegation, evidence handoff and
+budget closure. All inputs are generic synthetic protocol fixtures.
+
+This does **not** claim that every possible schema-valid sentence is valid domain
+behavior. Remaining post-generation checks include duplicate array entries,
+new-candidate child evidence being a subset of the selected evidence, duplicate
+questions/operations, and synthesis partition/disagreement consistency. Those are
+cross-output or semantic rules, not just enums known from the request context;
+provider strict schema is not the entire domain validator. Source labels containing
+quotes also retain the existing wire-schema compatibility treatment. The known
+null-continuation and unregistered-parent cases are now rejected by both layers.

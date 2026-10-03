@@ -5,8 +5,9 @@ from pydantic import Field
 
 from .contracts import Strict
 from .research_contract import Followup, ResearchAction
+from .research_schema import constrain_schema
 
-VERSION = 'research-continuity-v1'
+VERSION = 'research-continuity-v2'
 
 
 class EvidenceRef(Strict):
@@ -100,21 +101,28 @@ def validate(action, observations, findings):
     if not action.evidence_refs:
         raise ValueError('A candidate or expansion needs registered metrics or series in evidence_refs.')
     validate_refs(action.evidence_refs, observations, action.investigation_key)
+    basis = atoms(action.evidence_refs)
     if action.action == 'expand':
         parent = next((f for f in findings if f['investigation_key'] == action.investigation_key and f['status'] == 'candidate'), None)
         registered = (parent or {}).get('evidence_refs') or ([dict(execution_id=parent['execution_id'], metric_keys=parent['metric_keys'])] if parent else [])
-        if not atoms(action.evidence_refs) <= atoms([EvidenceRef.model_validate(r) for r in registered]):
+        basis = atoms([EvidenceRef.model_validate(r) for r in registered])
+        if not atoms(action.evidence_refs) <= basis:
             raise ValueError('Expansion must use registered parent candidate evidence (execution-scoped metrics or series).')
     for child in action.followups:
         if not child.basis_metric_keys and not child.basis_evidence:
             raise ValueError('Followup needs basis_metric_keys or basis_evidence (metrics or series).')
         validate_refs(child.basis_evidence, observations, action.investigation_key)
-        if not atoms(child.basis_evidence) <= atoms(action.evidence_refs):
+        if not atoms(child.basis_evidence) <= basis:
             raise ValueError('Followup basis must use evidence registered/selected in this parent candidate.')
 
 
 SYSTEM = '''
 CONTINUITY EXPERIMENT (budgets.research_continuity=true):
+Return the action inside the required decision object. Its schema binds action,
+investigation, continuation, closure and evidence to this exact context.
+Use explicit evidence_refs and basis_evidence; leave legacy metric_keys and
+basis_metric_keys empty. An expansion can use any evidence registered in its parent.
+For a newly recorded candidate, retain every reference used by its followups.
 You may execute again within the SAME unfinished investigation after success.
 Do not close, request coordinator reopening or create another task just to follow
 that signal. Provide continuation with execution-scoped evidence references,
@@ -129,44 +137,12 @@ and explain why. Do not invent a pending calculation or a causal conclusion.
 record_candidate can retain metrics AND series from multiple successful executions
 of this task through evidence_refs (execution_id, metric_keys, series_keys). It can
 retain earlier evidence after a later failure; never call the failed result evidence.
-metric_keys remains shorthand for scalar keys in the latest successful attempt only.
+Historical metric_keys shorthand is supported on replay; new output uses evidence_refs.
 For expand and followups, series use evidence_refs and basis_evidence respectively;
 never put a series key in metric_keys. Select only evidence registered in the parent
 candidate, with its original execution ID. The closure and evidence survive handoff.
 Unrelated agenda tasks still belong to the coordinator. Do not delegate recursively.
 '''
-
-
-def constrain_schema(schema, context):
-    """Offer real execution/key pairs, with validation still enforcing task scope."""
-    from copy import deepcopy
-    original = schema['$defs']['EvidenceRef']
-    # Runtime defaults accept historical/internal references, but the strict
-    # provider requires both lists explicitly (use [] for the unused kind).
-    # Normalize before copying branches, including when no evidence exists yet.
-    original['required'] = list(original['properties'])
-    choices = []
-    for o in context.get('observations', []):
-        if o['status'] != 'completed' or o.get('result_omitted') or o.get('current') is False:
-            continue
-        result = o.get('result') or {}
-        if not result.get('metrics') and not result.get('series'):
-            continue
-        branch = deepcopy(original)
-        branch['properties']['execution_id']['enum'] = [o['execution_id']]
-        for field, result_field in [('metric_keys', 'metrics'), ('series_keys', 'series')]:
-            keys = sorted(result.get(result_field, {}))
-            if keys:
-                branch['properties'][field]['items']['enum'] = keys
-            else:
-                branch['properties'][field]['maxItems'] = 0
-        choices.append(branch)
-    if choices:
-        schema['$defs']['EvidenceRef'] = {'anyOf': choices}
-    else:
-        schema['properties']['evidence_refs']['maxItems'] = 0
-        schema['properties']['continuation'] = {'type': 'null'}
-        schema['$defs']['ContinuityFollowup']['properties']['basis_evidence']['maxItems'] = 0
 
 
 def system_prompt(base):

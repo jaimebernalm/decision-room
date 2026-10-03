@@ -162,7 +162,7 @@ class StrictProviderSchemaTests(unittest.TestCase):
         schema = self.capture('generate_research', context)
         for fault in ('required', 'additionalProperties'):
             bad = deepcopy(schema)
-            branch = bad['$defs']['EvidenceRef']['anyOf'][0]
+            branch = bad['properties']['decision']['anyOf'][0]
             if fault == 'required':
                 branch['required'] = ['execution_id']
             else:

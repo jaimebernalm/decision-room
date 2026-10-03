@@ -180,6 +180,12 @@ def model_call(db, session_id, model, context, correction, retry_uncertain, *, c
         output = _model_call(db, session_id, model, payload, correction, retry_uncertain,
                              phase=phase, scope=scope, max_calls=max_calls, before_call=before_call)
         memory_context.ensure(db, session_id)
+        # Raw response (including the envelope) remains in agent_calls.output.
+        # Dispatch changes shape only; it never repairs an invalid decision.
+        if phase == 'research' and context.get('budgets', {}).get('research_continuity') and 'decision' in output:
+            if set(output) != {'decision'} or not isinstance(output['decision'], dict):
+                return {'invalid_model_output': 'Expected exactly one decision object.'}
+            output = output['decision']
         if output.get('action') != 'retrieve':
             if output.get('retrieval') is not None:
                 return {'invalid_model_output': 'Only retrieve may contain a retrieval request.'}
