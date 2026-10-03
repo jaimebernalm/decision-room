@@ -29,7 +29,7 @@ export function AssistantToggle() {
     <span>
       <Button
         variant="default"
-        size="icon"
+        size="icon-lg"
         className="rounded-full"
         aria-label={continuing ? tr("Continuar chat") : tr("Preguntar algo")}
         title={continuing ? tr("Continuar chat") : tr("Preguntar algo")}
@@ -37,7 +37,7 @@ export function AssistantToggle() {
           assistant.setDock({ ...assistant.dock, open: true, origin: route })
         }
       >
-        <BotMessageSquare aria-hidden="true" className="size-5" />
+        <BotMessageSquare aria-hidden="true" className="size-6" />
       </Button>
     </span>
   );

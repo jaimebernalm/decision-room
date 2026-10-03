@@ -631,6 +631,15 @@ Comprobados ajuste inmediato, coincidencia de borde y tirador, y acceso azul
 al asistente en escritorio y móvil. Véanse
 [comprobaciones y límites](../validation/2026-10-02-assistant-resize.md).
 
+### 2.5.25. Tamaño del acceso al asistente
+
+1. Aumentar ligeramente el botón azul de 32 a 36 px y su icono de 20 a 24 px.
+2. Compilar y comprobar dimensiones, alineación y apertura en localhost.
+
+**Completado:** TypeScript y Vite pasan (avisos existentes de tamaño de paquetes).
+En localhost 8788, comprobados botón de 36 × 36 px, icono de 24 × 24 px y
+apertura/cierre del chat. Revisión visual y `git diff --check` sin incidencias.
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Avance, 27 de septiembre de 2026:** completados **3.1** (medición inicial),
