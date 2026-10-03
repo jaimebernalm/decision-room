@@ -282,6 +282,28 @@ def run(batch, system=None, limit=None):
     return dispatched
 
 
+def abandon(batch, name, reason):
+    """Keep an interrupted attempt as evidence and queue a fresh replacement in its slot."""
+    manifest = read(batch / 'manifest.json')
+    job = batch / 'jobs' / name
+    state = read(job / 'state.json')
+    if state['status'] not in ('running', 'not_run'):
+        raise SystemExit(f'{name} finished as {state["status"]}; keep it.')
+    state.update(status='abandoned', issue=reason, abandoned_at=datetime.now(timezone.utc).isoformat())
+    write(job / 'state.json', state)
+    replacement = f"{name}r{sum(n.startswith(name + 'r') for n in manifest['order']) + 1}"
+    target = batch / 'jobs' / replacement
+    target.mkdir()
+    if state['system'] == 'luna':
+        copy_inputs(batch / 'inputs' / state['dataset'], target)
+    write(target / 'state.json', {**{k: state[k] for k in ('dataset', 'system', 'repetition')},
+                                  'job': replacement, 'status': 'not_run', 'replaces': name,
+                                  'key': 'trial-' + uuid4().hex})
+    manifest['order'].insert(manifest['order'].index(name) + 1, replacement)
+    write(batch / 'manifest.json', manifest)
+    return replacement
+
+
 def text_of(html):
     html = re.sub(r'<(script|style)[^>]*>.*?</\1>', ' ', html, flags=re.S | re.I)
     return re.sub(r'\s+', ' ', unescape(re.sub(r'<[^>]+>', ' ', html))).strip()
@@ -414,6 +436,10 @@ def main():
     r.add_argument('batch', type=Path)
     r.add_argument('--system', choices=SYSTEMS)
     r.add_argument('--limit', type=int)
+    a = commands.add_parser('abandon')
+    a.add_argument('batch', type=Path)
+    a.add_argument('job')
+    a.add_argument('--reason', required=True)
     s = commands.add_parser('score')
     s.add_argument('batch', type=Path)
     s.add_argument('--oracle', action='append', default=[], help='NAME=PATH, kept outside the batch')
@@ -429,6 +455,8 @@ def main():
         print(json.dumps({'jobs': manifest['order'], 'revision': manifest.get('revision')}, indent=2))
     elif args.command == 'run':
         print(json.dumps({'dispatched': run(args.batch.resolve(), args.system, args.limit)}))
+    elif args.command == 'abandon':
+        print(json.dumps({'replacement': abandon(args.batch.resolve(), args.job, args.reason)}))
     elif args.command == 'score':
         oracles = dict(item.split('=', 1) for item in args.oracle)
         print(json.dumps(score(args.batch.resolve(), oracles), ensure_ascii=False, indent=2))

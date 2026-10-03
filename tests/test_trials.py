@@ -63,6 +63,21 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(order[:4], ['bruma-luna-1', 'bruma-product-1', 'albor-luna-1', 'albor-product-1'])
         self.assertEqual(order[4:], ['albor-product-2', 'albor-luna-2', 'bruma-product-2', 'bruma-luna-2'])
 
+    def test_abandoned_attempt_is_kept_and_replaced_in_place(self):
+        with TemporaryDirectory() as tmp:
+            batch = Path(tmp)
+            (batch / 'inputs/demo/datos').mkdir(parents=True)
+            (batch / 'inputs/demo/prompt.txt').write_text('p')
+            for name in ('demo-luna-1', 'demo-luna-2'):
+                (batch / 'jobs' / name).mkdir(parents=True)
+                trials.write(batch / 'jobs' / name / 'state.json', dict(job=name, dataset='demo', system='luna',
+                                                                       repetition=int(name[-1]), status='running'))
+            trials.write(batch / 'manifest.json', dict(order=['demo-luna-1', 'demo-luna-2']))
+            self.assertEqual(trials.abandon(batch, 'demo-luna-1', 'operator stop'), 'demo-luna-1r1')
+            self.assertEqual(trials.read(batch / 'manifest.json')['order'], ['demo-luna-1', 'demo-luna-1r1', 'demo-luna-2'])
+            self.assertEqual(trials.read(batch / 'jobs/demo-luna-1/state.json')['status'], 'abandoned')
+            self.assertEqual(trials.read(batch / 'jobs/demo-luna-1r1/state.json')['replaces'], 'demo-luna-1')
+
     def test_hints_require_every_group(self):
         self.assertTrue(trials.hinted('La Tienda cae en domingo', [['domingo'], ['tienda']]))
         self.assertFalse(trials.hinted('La tienda cae', [['domingo'], ['tienda']]))
@@ -109,6 +124,8 @@ class LauncherTests(unittest.TestCase):
             self.assertTrue((batch / 'jobs/demo-luna-1/tmp').is_dir())
             with self.assertRaises(SystemExit):
                 trials.prepare(batch, {'demo': str(source)}, 'HEAD', 2, ['luna'], tmp, tmp / '.env')
+            with self.assertRaises(SystemExit):
+                trials.abandon(batch, 'demo-luna-1', 'completed attempts are kept')
 
 
 if __name__ == '__main__':
