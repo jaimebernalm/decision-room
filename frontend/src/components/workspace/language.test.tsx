@@ -182,9 +182,9 @@ it("localizes formatted report numbers while preserving category names and raw e
   expect(screen.getByText("1,234.50")).toBeVisible();
   expect(screen.getByText("Producto 1.000")).toBeVisible();
   await userEvent.click(screen.getByRole("button", { name: /Mi conclusión/ }));
-  await userEvent.click(
-    screen.getByRole("button", { name: "Sources and evidence" }),
-  );
+  expect(
+    screen.getByRole("heading", { name: "Sources and evidence" }),
+  ).toBeVisible();
   expect(await screen.findByText("raw: 20.005")).toBeVisible();
   const table = within(screen.getByRole("table"));
   expect(table.getByText("1.000")).toBeVisible();

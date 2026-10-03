@@ -11,7 +11,7 @@ import {
   YAxis,
   ReferenceLine,
 } from "recharts";
-import { ArrowUpRight, Eye, EyeOff } from "lucide-react";
+import { EyeOff } from "lucide-react";
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart";
 import {
   Card,
@@ -29,11 +29,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import {
-  Sources,
-  SourcesTrigger,
-  SourcesContent,
-} from "@/components/ai-elements/sources";
 import { Selectable } from "./context-selection";
 import { Disclosure } from "./shared";
 import {
@@ -98,7 +93,7 @@ function GroupedBars({
           </li>
         ))}
       </ul>
-      <p className="text-xs text-muted-foreground">
+      <p className="sr-only">
         {tr(
           "Pulsa una serie para ocultarla o mostrarla. Debe quedar al menos una visible.",
         )}
@@ -351,6 +346,10 @@ function GroupedLines({
   useLanguage();
   const rows = groupedPoints(chart, panel);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const [hovered, setHovered] = useState<string | null>(null);
+  const [focused, setFocused] = useState<string | null>(null);
+  const highlighted =
+    [hovered, focused].find((key) => key && !hidden.has(key)) ?? null;
   const series = panel.series_order.map((name, i) => ({
     key: `s${i}`,
     name,
@@ -377,10 +376,15 @@ function GroupedLines({
                   ? tr("Debe quedar al menos una serie visible")
                   : tr("Ocultar {0}", { "0": s.name })
             }
-            className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default motion-reduce:transition-none ${
-              hidden.has(s.key)
-                ? "border-border bg-background text-muted-foreground hover:bg-muted"
-                : "border-foreground bg-foreground text-background hover:bg-foreground/85"
+            data-highlighted={highlighted === s.key ? "true" : undefined}
+            onMouseEnter={() => setHovered(s.key)}
+            onMouseLeave={() => setHovered(null)}
+            onFocus={(e) => {
+              if (e.currentTarget.matches(":focus-visible")) setFocused(s.key);
+            }}
+            onBlur={() => setFocused(null)}
+            className={`inline-flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 text-xs transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[highlighted=true]:bg-muted disabled:cursor-default motion-reduce:transition-none ${
+              hidden.has(s.key) ? "text-muted-foreground" : "text-foreground"
             }`}
             onClick={() =>
               setHidden((previous) => {
@@ -396,14 +400,8 @@ function GroupedLines({
               className="size-2 shrink-0 rounded-full"
               style={{ backgroundColor: s.color }}
             />
-            <span className={hidden.has(s.key) ? "line-through" : undefined}>
-              {s.name}
-            </span>
-            {hidden.has(s.key) ? (
-              <EyeOff aria-hidden className="size-3.5" />
-            ) : (
-              <Eye aria-hidden className="size-3.5" />
-            )}
+            <span>{s.name}</span>
+            {hidden.has(s.key) && <EyeOff aria-hidden className="size-3.5" />}
             <span className="sr-only">
               {" "}
               {hidden.has(s.key) ? tr("Oculta") : tr("Visible")}
@@ -411,7 +409,7 @@ function GroupedLines({
           </button>
         ))}
       </div>
-      <p className="text-xs text-muted-foreground">
+      <p className="sr-only">
         {tr(
           "Pulsa una serie para ocultarla o mostrarla. Debe quedar al menos una visible.",
         )}
@@ -497,10 +495,23 @@ function GroupedLines({
               key={s.key}
               dataKey={s.key}
               hide={hidden.has(s.key)}
-              stroke={s.color}
+              stroke={
+                highlighted === s.key
+                  ? `color-mix(in srgb, ${s.color} 70%, var(--foreground))`
+                  : s.color
+              }
+              strokeWidth={highlighted === s.key ? 3 : 1.5}
+              strokeOpacity={highlighted && highlighted !== s.key ? 0.35 : 1}
+              onMouseEnter={() => setHovered(s.key)}
+              onMouseLeave={() => setHovered(null)}
               type="linear"
               connectNulls={false}
-              dot={{ r: 3 }}
+              dot={{
+                r: 3,
+                opacity: highlighted && highlighted !== s.key ? 0.35 : 1,
+                onMouseEnter: () => setHovered(s.key),
+                onMouseLeave: () => setHovered(null),
+              }}
               isAnimationActive={false}
             />
           ))}
@@ -841,56 +852,69 @@ export function EvidenceChart({
     </Card>
   );
 }
-export function ChartValues({ chart }: { chart: ChartData }) {
+export function ChartValues({
+  chart,
+  inline = false,
+}: {
+  chart: ChartData;
+  inline?: boolean;
+}) {
   useLanguage();
-  return (
+  const values = (
+    <>
+      {chart.unit_origin === "owner" && (
+        <p className="mb-3 text-xs text-muted-foreground">
+          {tr("Unidad visible indicada por ti. Unidad del análisis:")}{" "}
+          {chart.original_unit}.
+        </p>
+      )}
+      {chart.panels?.length ? (
+        <ExactValues chart={chart} />
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="whitespace-normal">
+                {tr("Periodo / categoría")}
+              </TableHead>
+              {chart.points.some(
+                (p) => p.original_label && p.original_label !== p.label,
+              ) && <TableHead>{tr("Código original")}</TableHead>}
+              <TableHead className="text-right whitespace-normal">
+                {chart.unit}
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {chart.points.map((p, i) => (
+              <TableRow key={i}>
+                <TableCell>{p.label}</TableCell>
+                {chart.points.some(
+                  (x) => x.original_label && x.original_label !== x.label,
+                ) && (
+                  <TableCell className="font-mono text-xs">
+                    {p.original_label || p.label}
+                  </TableCell>
+                )}
+                <TableCell className="text-right font-mono tabular-nums">
+                  {displayNumber(p.formatted)}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+    </>
+  );
+  return inline ? (
+    <div className="overflow-x-auto">{values}</div>
+  ) : (
     <div className="mt-4">
       <Disclosure
         title={tr("Ver valores exactos")}
         defaultOpen={chart.kind === "table"}
       >
-        {chart.unit_origin === "owner" && (
-          <p className="mb-3 text-xs text-muted-foreground">
-            {tr("Unidad visible indicada por ti. Unidad del análisis:")}{" "}
-            {chart.original_unit}.
-          </p>
-        )}
-        {chart.panels?.length ? (
-          <ExactValues chart={chart} />
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="whitespace-normal">
-                  {tr("Periodo / categoría")}
-                </TableHead>
-                {chart.points.some(
-                  (p) => p.original_label && p.original_label !== p.label,
-                ) && <TableHead>{tr("Código original")}</TableHead>}
-                <TableHead className="text-right whitespace-normal">
-                  {chart.unit}
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {chart.points.map((p, i) => (
-                <TableRow key={i}>
-                  <TableCell>{p.label}</TableCell>
-                  {chart.points.some(
-                    (x) => x.original_label && x.original_label !== x.label,
-                  ) && (
-                    <TableCell className="font-mono text-xs">
-                      {p.original_label || p.label}
-                    </TableCell>
-                  )}
-                  <TableCell className="text-right font-mono tabular-nums">
-                    {displayNumber(p.formatted)}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
+        {values}
       </Disclosure>
     </div>
   );
@@ -1137,6 +1161,14 @@ export function ReportView({
               key={`${report.report_id}:${report.report_version}:${claim.key}`}
               id={`finding-${claim.key}`}
               title={claim.title}
+              hasDetails={Boolean(
+                claim.interpretation ||
+                claim.method ||
+                claim.evidence_details ||
+                report.charts?.some(
+                  (c) => c.claim_key === claim.key && c.kind !== "table",
+                ),
+              )}
               number={String(i + 1).padStart(2, "0")}
               actions={edit("insight", claim.key, claim.title)}
               defaultOpen={Boolean(
@@ -1164,37 +1196,35 @@ export function ReportView({
                 <p className="text-muted-foreground">{claim.interpretation}</p>
               )}
               {claim.method && (
-                <Disclosure title={tr("Cómo se ha calculado")}>
+                <div className="space-y-2">
+                  <h4 className="text-xs font-medium text-muted-foreground">
+                    {tr("Base del análisis")}
+                  </h4>
                   <p>{claim.method}</p>
-                </Disclosure>
+                </div>
               )}
               {claim.evidence_details && (
-                <Sources>
-                  <SourcesTrigger count={claim.evidence_details.files.length}>
-                    <span>{tr("Fuentes y evidencia")}</span>
-                    <ArrowUpRight className="size-4" />
-                  </SourcesTrigger>
-                  <SourcesContent>
-                    <div className="rounded-lg border p-4 space-y-3">
-                      <p>{claim.evidence_details.files.join(" · ")}</p>
-                      {claim.evidence_details.metrics.map((m, j) => (
-                        <p key={j} className="font-mono text-xs">
-                          {m.label}: {m.value}
-                        </p>
-                      ))}
-                      {claim.evidence_details.operations.map((o, j) => (
-                        <p key={j}>{o}</p>
-                      ))}
-                    </div>
-                  </SourcesContent>
-                </Sources>
+                <div className="space-y-2">
+                  <h4 className="text-xs font-medium text-muted-foreground">
+                    {tr("Fuentes y evidencia")}
+                  </h4>
+                  <p>{claim.evidence_details.files.join(" · ")}</p>
+                  {claim.evidence_details.metrics.map((m, j) => (
+                    <p key={j} className="font-mono text-xs">
+                      {m.label}: {m.value}
+                    </p>
+                  ))}
+                  {claim.evidence_details.operations.map((o, j) => (
+                    <p key={j}>{o}</p>
+                  ))}
+                </div>
               )}
               {report.charts
                 ?.filter((c) => c.claim_key === claim.key && c.kind !== "table")
                 .map((c) => (
                   <div key={c.key}>
                     <h4 className="font-medium">{c.title}</h4>
-                    <ChartValues chart={c} />
+                    <ChartValues chart={c} inline />
                   </div>
                 ))}
             </ReportSection>

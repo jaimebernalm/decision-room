@@ -136,3 +136,21 @@ No cierra la aceptación analítica de 3.9.7 ni constituye una nueva investigaci
    en la web habitual. Guardar evidencia local y commit tras revisión pública.
 
 Estado: completado y comprobado. Véase [validación](../validation/2026-10-02-report-hierarchy-and-legend.md).
+
+## 3.9.8.3. Lectura continua y leyenda discreta
+
+Revisión solicitada después de probar el fondo oscuro y los controles de detalle.
+
+1. Devolver la leyenda a fondo transparente con gris al pasar el puntero; mostrar
+   un ojo cerrado únicamente para series ocultas y conservar teclado y estados.
+2. Vincular el énfasis entre leyenda y curva/puntos: oscurecer y engrosar la serie
+   señalada, atenuar las otras y restaurar la vista al salir. No cambiar escalas
+   ni valores, y no enfatizar una serie oculta.
+3. Presentar los hallazgos como secciones continuas con separadores finos. Cambiar
+   el pie completo de detalle por un enlace discreto «Datos y fuentes». Reunir
+   método, fuentes y tablas en una sola apertura, omitiendo controles vacíos.
+4. Verificar estados, precisión, idioma, teclado y lectura histórica; ejecutar
+   frontend, compilación y lint. Revisar Bruma en la aplicación habitual, guardar
+   evidencia local y hacer un commit tras revisar archivos públicos.
+
+Estado: completado. Véase [validación](../validation/2026-10-02-report-continuous-reading.md).

@@ -58,5 +58,8 @@
   "Debe quedar al menos una serie visible": "Debe quedar al menos una serie visible",
   "Pulsa una serie para ocultarla o mostrarla. Debe quedar al menos una visible.": "Pulsa una serie para ocultarla o mostrarla. Debe quedar al menos una visible.",
   "Oculta": "Oculta",
-  "Visible": "Visible"
+  "Visible": "Visible",
+  "Datos y fuentes": "Datos y fuentes",
+  "Ocultar datos y fuentes": "Ocultar datos y fuentes",
+  "Base del análisis": "Base del análisis"
 }

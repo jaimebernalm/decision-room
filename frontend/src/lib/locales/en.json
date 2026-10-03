@@ -1258,5 +1258,8 @@
   "Debe quedar al menos una serie visible": "At least one series must remain visible",
   "Pulsa una serie para ocultarla o mostrarla. Debe quedar al menos una visible.": "Click a series to hide or show it. At least one must stay visible.",
   "Oculta": "Hidden",
-  "Visible": "Visible"
+  "Visible": "Visible",
+  "Datos y fuentes": "Data and sources",
+  "Ocultar datos y fuentes": "Hide data and sources",
+  "Base del análisis": "Analysis basis"
 }

@@ -970,3 +970,12 @@ de aparecer cuando no hay un desglose guardado; si existe, queda en un detalle
 plegado. Pasan 233 pruebas frontend, compilación y lint; verificado en Bruma
 en la web habitual. Véanse [pasos](../technical/report-reading-plan.md#3982-jerarquía-de-hallazgos-y-control-de-series)
 y [validación](../validation/2026-10-02-report-hierarchy-and-legend.md).
+
+**Lectura continua y leyenda discreta, 2 de octubre de 2026 (3.9.8.3):** se
+retira el fondo oscuro de las series y se utiliza gris al señalar la leyenda.
+Curvas y nombres se resaltan entre sí; las series ocultas tienen un ojo cerrado.
+Los hallazgos se presentan como secciones con separadores y un enlace discreto
+a datos y fuentes. Método, evidencia y cifras exactas se abren juntos, sin la
+cadena de desplegables. Pasan 236 pruebas frontend, compilación y lint, y se
+comprueba Bruma en el puerto habitual. Véanse [pasos](../technical/report-reading-plan.md#3983-lectura-continua-y-leyenda-discreta)
+y [validación](../validation/2026-10-02-report-continuous-reading.md).

@@ -138,7 +138,7 @@ it("navigates by keyboard within its own report without opening details, changin
   expect(destination).toHaveFocus();
   expect(
     within(destination).getByRole("button", {
-      name: "Ver detalle: Hallazgo sin gráfico",
+      name: "Datos y fuentes: Hallazgo sin gráfico",
     }),
   ).toHaveAttribute("aria-expanded", "false");
   expect(location.hash).toBe("#report/job");
@@ -151,7 +151,7 @@ it("keeps multiple visuals in the finding card before keyboard-opened details", 
   const chartTitle = scoped.getByText("Ventas diarias");
   const tableTitle = scoped.getByText("Tabla de ventas");
   const trigger = scoped.getByRole("button", {
-    name: "Ver detalle: Ventas del periodo",
+    name: "Datos y fuentes: Ventas del periodo",
   });
   expect(
     chartTitle.compareDocumentPosition(trigger) &
@@ -172,21 +172,14 @@ it("keeps multiple visuals in the finding card before keyboard-opened details", 
       Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();
   expect(scoped.getByText(/Comprobar días de apertura/)).toBeVisible();
-  await userEvent.click(
-    scoped.getByRole("button", { name: "Cómo se ha calculado" }),
-  );
   expect(scoped.getByText("Suma de importes")).toBeVisible();
-  await userEvent.click(
-    scoped.getByRole("button", { name: "Fuentes y evidencia" }),
-  );
   expect(scoped.getByText("Total original: 20005")).toBeVisible();
-  await userEvent.click(
-    scoped.getAllByRole("button", { name: "Ver valores exactos" })[1],
-  );
   expect(scoped.getByText("día-1")).toBeVisible();
   expect(scoped.getByText("Código original")).toBeVisible();
   await userEvent.click(
-    screen.getByRole("button", { name: "Ver detalle: Hallazgo sin gráfico" }),
+    screen.getByRole("button", {
+      name: "Datos y fuentes: Hallazgo sin gráfico",
+    }),
   );
   expect(screen.getByText("Detalle sin gráfico")).toBeVisible();
 });
@@ -214,7 +207,9 @@ it("opens and focuses the exact linked finding only in the expected reviewed ver
   history.replaceState(null, "", "#report/job/finding/sales/review/v1");
   const { container } = render(<ReportView report={report} />);
   expect(
-    screen.getByRole("button", { name: "Ocultar detalle: Ventas del periodo" }),
+    screen.getByRole("button", {
+      name: "Ocultar datos y fuentes: Ventas del periodo",
+    }),
   ).toHaveAttribute("aria-expanded", "true");
   expect(container.querySelector("#finding-sales")).toHaveFocus();
 });
@@ -227,7 +222,7 @@ it("does not substitute a missing or changed finding when following an old card"
   render(<ReportView report={report} />);
   expect(screen.getByRole("status")).toHaveTextContent("otra revisión");
   expect(
-    screen.getByRole("button", { name: "Ver detalle: Ventas del periodo" }),
+    screen.getByRole("button", { name: "Datos y fuentes: Ventas del periodo" }),
   ).toHaveAttribute("aria-expanded", "false");
 });
 it("keeps distinct chart and finding references for contextual chat selection", async () => {

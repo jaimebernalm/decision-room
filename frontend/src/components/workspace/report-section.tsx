@@ -23,6 +23,7 @@ export function ReportSection({
   visual,
   lead,
   defaultOpen = false,
+  hasDetails = true,
 }: {
   title: string;
   preview?: string;
@@ -33,6 +34,7 @@ export function ReportSection({
   visual?: ReactNode;
   lead?: ReactNode;
   defaultOpen?: boolean;
+  hasDetails?: boolean;
 }) {
   useLanguage();
   const [open, setOpen] = useState(defaultOpen);
@@ -41,9 +43,9 @@ export function ReportSection({
       <Card
         id={id}
         tabIndex={-1}
-        className="gap-0 py-0 shadow-none scroll-mt-6"
+        className="gap-0 rounded-none bg-transparent py-0 pb-7 shadow-none ring-0 border-b scroll-mt-6"
       >
-        <div className="flex items-start p-5">
+        <div className="flex items-start pt-6 pb-4">
           <div className="flex min-w-0 flex-1 items-start gap-3">
             {number && (
               <span
@@ -66,23 +68,27 @@ export function ReportSection({
           </div>
           {actions && <div className="shrink-0 pl-2">{actions}</div>}
         </div>
-        {lead && <div className="px-5 pb-4 text-sm leading-7">{lead}</div>}
-        {visual && <div className="space-y-5 px-5 pb-4">{visual}</div>}
-        <CollapsibleTrigger
-          aria-label={`${open ? tr("Ocultar detalle") : tr("Ver detalle")}: ${title}`}
-          className="group flex w-full cursor-pointer items-center justify-between gap-2 border-t px-5 py-3 text-left text-sm font-medium text-primary transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring motion-reduce:transition-none"
-        >
-          {open ? tr("Ocultar detalle") : tr("Ver detalle")}
-          <ChevronDown
-            aria-hidden
-            className="size-4 transition-transform group-data-[state=open]:rotate-180 motion-reduce:transition-none"
-          />
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-          <div className="space-y-3 border-t px-5 py-4 text-sm leading-7">
-            {children}
-          </div>
-        </CollapsibleContent>
+        {lead && <div className="pb-5 text-sm leading-7">{lead}</div>}
+        {visual && <div className="space-y-7 pb-4">{visual}</div>}
+        {hasDetails && (
+          <CollapsibleTrigger
+            aria-label={`${open ? tr("Ocultar datos y fuentes") : tr("Datos y fuentes")}: ${title}`}
+            className="group flex w-fit cursor-pointer items-center gap-2 rounded py-1 text-left text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
+          >
+            {open ? tr("Ocultar datos y fuentes") : tr("Datos y fuentes")}
+            <ChevronDown
+              aria-hidden
+              className="size-4 transition-transform group-data-[state=open]:rotate-180 motion-reduce:transition-none"
+            />
+          </CollapsibleTrigger>
+        )}
+        {hasDetails && (
+          <CollapsibleContent>
+            <div className="mt-4 space-y-5 rounded-lg bg-muted/30 px-4 py-4 text-sm leading-7">
+              {children}
+            </div>
+          </CollapsibleContent>
+        )}
       </Card>
     </Collapsible>
   );

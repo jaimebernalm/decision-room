@@ -168,11 +168,7 @@ it("keeps the full conclusion and decision guidance with its chart while detail 
   await userEvent.click(
     screen.getByRole("button", { name: /Prioridad del canal/ }),
   );
-  await userEvent.click(
-    await screen.findByRole("button", { name: "Cómo se ha calculado" }),
-  );
   expect(await screen.findByText("Método completo")).toBeVisible();
-  await userEvent.click(screen.getByText("Ver valores exactos"));
   expect(screen.getByText("9.007.199.254.740.993,01")).toBeVisible();
   expect(screen.getByText("Sin dato")).toBeVisible();
   expect(screen.getAllByText(conclusion)).toHaveLength(1);
@@ -257,4 +253,60 @@ it("restores a hidden series by keyboard with clear show and hide actions", asyn
   expect(b).toHaveAccessibleName("B Visible");
   expect(b).toHaveAttribute("aria-pressed", "true");
   expect(screen.getByRole("button", { name: "A Visible" })).toBeEnabled();
+});
+
+it("highlights hovered visible series and clears emphasis without changing evidence", async () => {
+  const saved = JSON.stringify(chart);
+  render(<EvidenceChart chart={chart} />);
+  const a = screen.getByRole("button", { name: "A Visible" });
+  const b = screen.getByRole("button", { name: "B Visible" });
+  await userEvent.hover(a);
+  expect(a).toHaveAttribute("data-highlighted", "true");
+  expect(b).not.toHaveAttribute("data-highlighted");
+  await userEvent.unhover(a);
+  expect(a).not.toHaveAttribute("data-highlighted");
+  await userEvent.click(b);
+  await userEvent.hover(b);
+  expect(b).not.toHaveAttribute("data-highlighted");
+  expect(b).toHaveAttribute("aria-pressed", "false");
+  expect(JSON.stringify(chart)).toBe(saved);
+});
+it("shows method, sources and exact values together after one data disclosure", async () => {
+  render(<ReportView report={report} compact />);
+  expect(screen.queryByText("Método completo")).toBeNull();
+  await userEvent.click(
+    screen.getByRole("button", {
+      name: "Datos y fuentes: Prioridad del canal",
+    }),
+  );
+  expect(screen.getByText("Método completo")).toBeVisible();
+  expect(screen.getByText("9.007.199.254.740.993,01")).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Cómo se ha calculado" }),
+  ).toBeNull();
+  expect(
+    screen.queryByRole("button", { name: "Ver valores exactos" }),
+  ).toBeNull();
+});
+it("omits an empty data disclosure for a finding without supporting detail", () => {
+  render(
+    <ReportView
+      report={{
+        ...report,
+        charts: [],
+        claims: [
+          {
+            key: "plain",
+            title: "Conclusión sencilla",
+            statement: "Conclusión completa.",
+          },
+        ],
+      }}
+      compact
+    />,
+  );
+  expect(
+    screen.getByRole("heading", { name: "Conclusión sencilla" }),
+  ).toBeVisible();
+  expect(screen.queryByRole("button", { name: /Datos y fuentes:/ })).toBeNull();
 });

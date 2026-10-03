@@ -170,7 +170,6 @@ it("shows approved formatting and exact values, with escaped claim text", async 
   expect(screen.getByText(/Revisar detalle/)).toBeInTheDocument();
   expect(screen.queryByText("Suma")).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: /Resultado/ }));
-  await userEvent.click(screen.getByRole("button", { name: /Cómo se ha calculado/ }));
   expect(screen.getByText("Suma")).toBeInTheDocument();
   expect(screen.getByText(/Revisar detalle/)).toBeInTheDocument();
 });
