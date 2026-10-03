@@ -600,6 +600,22 @@ y lint sin errores. Búsqueda por contenido y campo enfocado sin halo azul
 comprobados en localhost, en escritorio y móvil. Véanse
 [comprobaciones y límites](../validation/2026-10-02-chat-search.md).
 
+### 2.5.23. Creación de informes y tiradores de anchura
+
+1. Añadir una acción independiente `+` junto a Informes, después del enlace y
+   su flecha, igual que Chats; usar el mismo gris de hover en ambas acciones.
+2. Centrar los tiradores de navegación y chat sobre el borde real de la página,
+   con una marca corta central y una zona transparente de arrastre más amplia.
+   Conservar teclado, límites y persistencia; evitar saltos al comenzar a arrastrar.
+3. Comprobar creación, posición y arrastre de ambos lados en localhost,
+   navegación compacta y móvil, pruebas frontend, compilación y lint.
+
+**Completado:** 224 pruebas frontend pasan, compilación y lint sin errores;
+acción de creación, gris común, alineación y arrastre en ambos bordes revisados
+en localhost, escritorio y móvil. Véanse
+[comprobaciones y límites](../validation/2026-10-02-sidebar-controls.md), incluida
+la limitación observada al recargar preferencias en el navegador integrado.
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Avance, 27 de septiembre de 2026:** completados **3.1** (medición inicial),

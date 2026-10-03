@@ -213,17 +213,45 @@
   background: var(--sidebar);
   color: var(--sidebar-foreground);
 }
-.assistant-resize {
-  position: absolute;
-  inset: 0 auto 0 -3px;
-  width: 6px;
-  cursor: col-resize;
-  z-index: 30;
+.workspace-create:hover {
+  background: var(--sidebar-accent);
+  color: var(--sidebar-accent-foreground);
 }
-.assistant-resize:hover,
-.assistant-resize:focus-visible {
-  background: var(--ring);
-  opacity: 0.5;
+.workspace-resize {
+  position: absolute;
+  inset-block: 8px;
+  width: 16px;
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+  z-index: 30;
+  outline: none;
+}
+.workspace-resize::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 3px;
+  height: 64px;
+  border-radius: 999px;
+  background: var(--muted-foreground);
+  opacity: 0;
+  transition: opacity 120ms;
+  pointer-events: none;
+}
+.workspace-resize:hover::after,
+.workspace-resize:focus-visible::after,
+.workspace-resize[data-dragging]::after {
+  opacity: 0.65;
+}
+/* The inset page starts 8px beyond navigation and ends 8px before the chat. */
+.navigation-resize {
+  right: -16px;
+}
+.assistant-resize {
+  right: min(var(--chat-panel-width), 55vw);
 }
 .context-block {
   position: relative;
@@ -363,7 +391,7 @@
   }
   .workspace-shell
     [data-slot="sidebar"][data-state="collapsed"]
-    .workspace-new-chat {
+    .workspace-create {
     width: 2.5rem;
     height: 2rem;
     flex-shrink: 0;
@@ -375,7 +403,7 @@
   }
   .workspace-shell
     [data-slot="sidebar"][data-state="collapsed"]
-    .workspace-new-chat
+    .workspace-create
     > svg {
     width: 1.125rem;
     height: 1.125rem;

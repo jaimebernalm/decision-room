@@ -32,6 +32,7 @@ import { Button } from "@/components/ui/button";
 import { useWorkspace } from "@/lib/workspace";
 import { store, shortTitle, analysisHref } from "@/lib/api";
 import { AssistantProvider, useAssistant } from "@/lib/assistant";
+import { ResizeHandle } from "./resize-handle";
 import { ChatActions } from "./chat-actions";
 import { AssistantFrame } from "./assistant-frame";
 import { AssistantToggle } from "./floating-assistant";
@@ -153,7 +154,7 @@ function Navigation({
               asChild
               variant="ghost"
               size="icon"
-              className="workspace-new-chat ml-auto size-7"
+              className="workspace-create workspace-new-chat ml-auto size-7"
             >
               <a
                 href="#ask"
@@ -236,12 +237,8 @@ function Navigation({
               aria-label={tr("Informes")}
               title={tr("Informes")}
               aria-current={route === "reports" ? "page" : undefined}
-              className="workspace-library-link group/library flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-sidebar-accent-foreground group-data-[collapsible=icon]:h-6 group-data-[collapsible=icon]:justify-center"
+              className="workspace-library-link group/library flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-sidebar-accent-foreground group-data-[collapsible=icon]:hidden"
             >
-              <span
-                aria-hidden="true"
-                className="hidden h-px w-4 bg-sidebar-border group-data-[collapsible=icon]:block"
-              />
               <span className="group-data-[collapsible=icon]:hidden">
                 {tr("Informes")}
               </span>
@@ -250,6 +247,21 @@ function Navigation({
                 className="ml-auto size-3.5 text-muted-foreground group-hover/library:text-foreground group-data-[collapsible=icon]:hidden"
               />
             </a>
+            <Button
+              asChild
+              variant="ghost"
+              size="icon"
+              className="workspace-create ml-auto size-7"
+            >
+              <a
+                href="#new"
+                aria-label={tr("Crear informe")}
+                title={tr("Crear informe")}
+                onClick={close}
+              >
+                <Plus className="size-4" />
+              </a>
+            </Button>
           </SidebarGroupLabel>
           <SidebarMenu>
             {reportRows.map((item) => (
@@ -306,46 +318,18 @@ function Navigation({
         <SpaceMenu />
       </SidebarFooter>
       {!isMobile && state === "expanded" && (
-        <div
-          role="separator"
-          aria-label={tr("Anchura de la barra lateral")}
-          aria-orientation="vertical"
-          aria-valuemin={216}
-          aria-valuemax={420}
-          aria-valuenow={Math.round(width)}
-          tabIndex={0}
-          className="absolute inset-y-0 right-0 z-20 w-1 cursor-col-resize hover:bg-border focus-visible:bg-ring"
-          onPointerDown={(e) => {
-            e.currentTarget.setPointerCapture(e.pointerId);
-            e.preventDefault();
-          }}
-          onPointerMove={(e) => {
-            if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-              const value = Math.max(
-                216,
-                Math.min(e.clientX, 420, innerWidth * 0.4),
-              );
-              setWidth(value);
-              store.set("dr-sidebar-width", value);
-            }
-          }}
-          onKeyDown={(e) => {
-            if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) {
-              e.preventDefault();
-              const value = Math.max(
-                216,
-                Math.min(
-                  e.key === "Home"
-                    ? 216
-                    : e.key === "End"
-                      ? 420
-                      : width + (e.key === "ArrowRight" ? 16 : -16),
-                  420,
-                ),
-              );
-              setWidth(value);
-              store.set("dr-sidebar-width", value);
-            }
+        <ResizeHandle
+          label={tr("Anchura de la barra lateral")}
+          className="navigation-resize"
+          min={216}
+          max={420}
+          width={width}
+          direction={1}
+          step={16}
+          onResize={(next) => {
+            const value = Math.max(216, Math.min(next, 420, innerWidth * 0.4));
+            setWidth(value);
+            store.set("dr-sidebar-width", value);
           }}
         />
       )}

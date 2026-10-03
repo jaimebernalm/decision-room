@@ -29,6 +29,7 @@ import { SidebarInset, useSidebar } from "@/components/ui/sidebar";
 const ChatPage = lazy(() =>
   import("./chat").then((m) => ({ default: m.ChatPage })),
 );
+import { ResizeHandle } from "./resize-handle";
 import { SelectionTool } from "./context-selection";
 import { Loading } from "./shared";
 import "./contextual-chat.css";
@@ -52,6 +53,7 @@ export function AssistantFrame({
   const floatingComposer = Boolean(
     workspace.business && contextualRoute(route) && !panel,
   );
+  const panelRef = useRef<HTMLElement>(null);
   const pageRef = useRef<HTMLElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -155,42 +157,29 @@ export function AssistantFrame({
           </div>
         )}
       </SidebarInset>
+      {panel && !isMobile && (
+        <ResizeHandle
+          label={tr("Anchura del chat")}
+          className="assistant-resize"
+          min={340}
+          max={640}
+          width={width}
+          direction={-1}
+          step={24}
+          getWidth={() =>
+            panelRef.current?.getBoundingClientRect().width ?? width
+          }
+          onResize={resize}
+        />
+      )}
       <AnimatePresence initial={false}>
         {panel && (
           <PanelPresence key="chat-panel" mobile={isMobile} width={width}>
-            <aside className="assistant-panel" aria-label={tr("Chat lateral")}>
-              <div
-                role="separator"
-                tabIndex={0}
-                aria-label={tr("Anchura del chat")}
-                aria-orientation="vertical"
-                aria-valuemin={340}
-                aria-valuemax={640}
-                aria-valuenow={Math.round(width)}
-                className="assistant-resize"
-                onPointerDown={(e) => {
-                  e.currentTarget.setPointerCapture(e.pointerId);
-                  e.preventDefault();
-                }}
-                onPointerMove={(e) => {
-                  if (e.currentTarget.hasPointerCapture(e.pointerId))
-                    resize(innerWidth - e.clientX);
-                }}
-                onKeyDown={(e) => {
-                  if (
-                    ["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)
-                  ) {
-                    e.preventDefault();
-                    resize(
-                      e.key === "Home"
-                        ? 340
-                        : e.key === "End"
-                          ? 640
-                          : width + (e.key === "ArrowLeft" ? 24 : -24),
-                    );
-                  }
-                }}
-              />
+            <aside
+              ref={panelRef}
+              className="assistant-panel"
+              aria-label={tr("Chat lateral")}
+            >
               <header className="flex h-14 shrink-0 items-center gap-1 px-4">
                 <span className="mr-auto text-sm font-medium">
                   {tr("Chat")}
