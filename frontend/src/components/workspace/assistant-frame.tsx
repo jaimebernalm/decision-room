@@ -285,12 +285,10 @@ function PanelPresence({
   return (
     <motion.div
       className="assistant-panel-shell"
-      initial={{ width: 0, opacity: 0 }}
-      animate={{
-        width: mobile ? "100%" : width,
-        opacity: 1,
-      }}
-      exit={{ width: 0, opacity: 0 }}
+      style={{ width: mobile ? "100%" : width }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
       transition={{ duration: reduced ? 0 : 0.28, ease: [0.22, 1, 0.36, 1] }}
       aria-hidden={!present}
       inert={!present}

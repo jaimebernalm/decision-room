@@ -1,6 +1,6 @@
 import { translate as tr, useLanguage } from "@/lib/i18n";
 import { useEffect, useRef } from "react";
-import { PanelRightOpen, X } from "lucide-react";
+import { BotMessageSquare, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useWorkspace } from "@/lib/workspace";
 import { useAction, useDraft } from "@/lib/hooks";
@@ -28,17 +28,16 @@ export function AssistantToggle() {
   return (
     <span>
       <Button
-        variant="ghost"
+        variant="default"
         size="icon"
-        aria-label={
-          continuing ? tr("Continuar chat") : tr("Preguntar algo")
-        }
+        className="rounded-full"
+        aria-label={continuing ? tr("Continuar chat") : tr("Preguntar algo")}
         title={continuing ? tr("Continuar chat") : tr("Preguntar algo")}
         onClick={() =>
           assistant.setDock({ ...assistant.dock, open: true, origin: route })
         }
       >
-        <PanelRightOpen className="size-4" />
+        <BotMessageSquare aria-hidden="true" className="size-5" />
       </Button>
     </span>
   );

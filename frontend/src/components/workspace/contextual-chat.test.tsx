@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { it, expect, vi } from "vitest";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { WorkspaceState, type WorkspaceContext } from "@/lib/workspace";
@@ -166,6 +166,23 @@ function server(delayed?: Promise<void>, failSend = 0) {
   );
   return calls;
 }
+it("applies right-panel width changes immediately, without a trailing width animation", async () => {
+  location.hash = "home";
+  server();
+  render(<Harness />);
+  await userEvent.click(screen.getByRole("button", { name: "Preguntar algo" }));
+  const panel = await screen.findByRole("complementary", {
+    name: "Chat lateral",
+  });
+  const shell = panel.parentElement!;
+  expect(shell).toHaveStyle({ width: "420px" });
+  const handle = screen.getByRole("separator", { name: "Anchura del chat" });
+  fireEvent.keyDown(handle, { key: "ArrowLeft" });
+  expect(shell).toHaveStyle({ width: "444px" });
+  expect(store.get("dr-chat-panel-width", 0)).toBe(444);
+  fireEvent.keyDown(handle, { key: "ArrowRight" });
+  expect(shell).toHaveStyle({ width: "420px" });
+});
 it.each(["home", "my-business", "reports", "chats"])(
   "opens the right panel immediately from the launcher on %s, preserving a folded draft",
   async (route) => {

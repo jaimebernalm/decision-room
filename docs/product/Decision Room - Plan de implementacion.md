@@ -616,6 +616,21 @@ en localhost, escritorio y móvil. Véanse
 [comprobaciones y límites](../validation/2026-10-02-sidebar-controls.md), incluida
 la limitación observada al recargar preferencias en el navegador integrado.
 
+### 2.5.24. Anchura inmediata del chat y acceso visible al asistente
+
+1. Retirar la interpolación de anchura del panel derecho para que página,
+   borde y tirador respondan juntos al arrastre y al teclado, sin movimiento
+   posterior al ajuste. Conservar apertura/cierre, límites y borradores.
+2. Sustituir el icono de abrir panel por una cabeza de agente con bocadillo,
+   en un botón azul del tema, conservando nombre accesible y continuación.
+3. Comprobar ausencia de animación de anchura, alineación y botón en localhost,
+   escritorio y móvil; ejecutar pruebas frontend, compilación y lint.
+
+**Completado:** 225 pruebas frontend pasan; compilación y lint sin errores.
+Comprobados ajuste inmediato, coincidencia de borde y tirador, y acceso azul
+al asistente en escritorio y móvil. Véanse
+[comprobaciones y límites](../validation/2026-10-02-assistant-resize.md).
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Avance, 27 de septiembre de 2026:** completados **3.1** (medición inicial),
