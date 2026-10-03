@@ -36,7 +36,8 @@ repetida de 3.9.7 permanece abierta.
 El prompt exacto de Luna pide `informe.html`. El primer recorrido produjo evidencia
 comercial, pero intentó generar HTML dentro del cálculo (formato no permitido) y
 el planificador exigió ese archivo antes de entregar el material a la fase que lo
-genera. Se interrumpió tras 738,294 segundos; se conservan 57 llamadas, ocho
+genera. Se interrumpió tras 738,294 segundos; se conservan 58 llamadas (incluido
+el descubrimiento de datos), ocho
 rechazos de transporte 429, catorce ejecuciones (seis completadas y ocho fallidas),
 incluida la llamada interrumpida y su uso incompleto. No es una entrega aceptada.
 
@@ -53,5 +54,5 @@ independiente (111,244 segundos). Incluyen detener el bucle sin aprobar y reanud
 sin duplicar llamadas, además de rechazar puntos derivados incorrectos o sin
 vínculo independiente. El build de interfaz anterior no cambia.
 
-La repetición partirá de una nueva instantánea, manteniendo las mismas fuentes y
-prompt. El primer intento y sus errores permanecerán separados y contabilizados.
+La repetición conservó fuentes y prompt; ambos intentos y sus errores siguen
+separados y contabilizados. Véanse los [resultados del piloto](2026-10-02-agent-visual-freedom-pilot.md).

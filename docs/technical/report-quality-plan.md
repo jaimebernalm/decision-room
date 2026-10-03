@@ -679,6 +679,10 @@ independiente expande también todas las referencias de las nuevas capas.
    fallos y distinguir un piloto de la aceptación repetida de 3.9.7. Documentar
    y guardar el commit de evaluación; no hacer push.
 
-Estado: primer intento interrumpido y conservado; la repetición usará una nueva
-instantánea comprobada, con el mismo prompt y CSV. No se reenvía la llamada
-interrumpida ni se borra el intento del denominador.
+Estado: piloto completado y documentado; primer intento interrumpido conservado
+y repetición corregida con entrega parcial en la aplicación habitual. 25
+referencias numéricas correctas; la aceptación independiente falla (18/24) por
+profundidad y utilidad/presentación. El agente no adoptó capas ni medias móviles.
+No se reenvió la llamada interrumpida ni se borró el intento del denominador.
+Véanse [resultados y límites](../validation/2026-10-02-agent-visual-freedom-pilot.md).
+3.9.7 sigue abierto; capacidad y prueba no equivalen a mejora consistente.

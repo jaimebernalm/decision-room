@@ -986,4 +986,9 @@ con estilos explícitos. La media móvil es una posibilidad verificada, no un
 formato obligatorio. Después se investiga de nuevo con el mismo encargo y los
 mismos CSV de Luna ronda 2, run 3, conservando errores y recursos. Se siguen
 [los pasos de implementación y evaluación](../technical/report-quality-plan.md#399-expresividad-de-los-agentes-y-nueva-comparación-con-luna).
-Estado: implementación y comprobaciones en curso; 3.9.7 sigue abierto.
+Estado: capacidad implementada y comprobada, con piloto nuevo en la aplicación
+habitual. 25 referencias correctas; 18/24 en evaluación independiente, sin aceptar
+la entrega ni demostrar mejora consistente. El agente no utilizó las capas nuevas.
+Se conservan el intento interrumpido y la repetición. Véanse
+[resultados y límites](../validation/2026-10-02-agent-visual-freedom-pilot.md).
+3.9.7 sigue abierto.
