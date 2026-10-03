@@ -50,7 +50,10 @@ def mark_stale(db, session):
 def start(config, business_id, session_id, *, request_key, max_investigations=None,
           investigation_keys=None, python_timeout=30, max_rounds=None, max_executions=None,
           max_model_calls=None, max_turns=None, max_seconds=None, max_parallel=3, delegation=True,
-          business_planner=False, quality_first=False, model=None, executor=execute):
+          business_planner=False, quality_first=False, research_continuity=None, model=None, executor=execute):
+    research_continuity = config.research_continuity if research_continuity is None else research_continuity
+    if type(research_continuity) is not bool:
+        raise ValueError('Research continuity flag must be boolean.')
     if type(business_planner) is not bool or type(quality_first) is not bool:
         raise ValueError('Planner and quality profile flags must be boolean.')
     max_investigations = max_investigations if max_investigations is not None else (12 if quality_first else 6)
@@ -90,6 +93,8 @@ def start(config, business_id, session_id, *, request_key, max_investigations=No
                    'max_rounds': max_rounds, 'max_executions': max_executions, 'max_seconds': max_seconds, 'max_agenda': 24}
         options.update(delivery_quality=1, business_planner=business_planner, quality_first=quality_first, max_planner_checkpoints=24,
                        max_context_bytes=512000 if quality_first else 200000)
+        if research_continuity:
+            options['research_continuity'] = True
         request_hash = fingerprint({'knowledge': key, 'options': options, 'keys': keys, 'version': RESEARCH_GRAPH_VERSION})
         row = db.execute('''INSERT INTO agent_research(id,business_id,session_id,analysis_id,plan_revision,
             request_key,request_sha256,knowledge_sha256,snapshot,options,graph_version,status)

@@ -29,11 +29,16 @@ def steps(db, run_id):
 
 
 def findings(db, run_id):
-    rows = db.execute('''SELECT f.*,s.execution_id FROM agent_research_findings f
+    rows = db.execute('''SELECT f.*,s.execution_id,s.action FROM agent_research_findings f
         JOIN agent_research_steps s ON s.research_id=f.research_id AND s.step=f.step
         WHERE f.research_id=%s ORDER BY f.step''', (run_id,)).fetchall()
-    return [{**row, 'research_id': str(row['research_id']),
-             'execution_id': str(row['execution_id']) if row['execution_id'] else None} for row in rows]
+    result = []
+    for row in rows:
+        action = row.pop('action')
+        extra = {k: action[k] for k in ('evidence_refs', 'closure') if k in action}
+        result.append({**row, **extra, 'research_id': str(row['research_id']),
+                       'execution_id': str(row['execution_id']) if row['execution_id'] else None})
+    return result
 
 
 def build(config, db, session, run, model, saver, *, retry_uncertain=False, executor=execute):
@@ -80,8 +85,12 @@ def build(config, db, session, run, model, saver, *, retry_uncertain=False, exec
             except ResearchBudgetReached as error:
                 return {'stop_reason': str(error)}
             try:
-                action = validate_research_action(raw, current, results, recorded, current_options)
-                if action['action'] in ('record_candidate', 'expand'):
+                validation_options = current_options
+                if options.get('research_continuity'):
+                    validation_options = {**current_options, 'visible_execution_ids': [o['execution_id']
+                        for o in context['observations'] if not o.get('result_omitted')]}
+                action = validate_research_action(raw, current, results, recorded, validation_options)
+                if action['action'] in ('record_candidate', 'expand') and not options.get('research_continuity'):
                     last = next(o for o in reversed(context['observations'])
                                 if o['investigation_key'] == action['investigation_key'])
                     if last.get('result_omitted'):
@@ -132,7 +141,8 @@ def build(config, db, session, run, model, saver, *, retry_uncertain=False, exec
             result = db.execute('''SELECT execution_id FROM agent_research_steps WHERE research_id=%s
                 AND action->>'action'='execute' AND action->>'investigation_key'=%s
                 ORDER BY step DESC LIMIT 1''', (run_id, action['investigation_key'])).fetchone()
-            execution_id = result['execution_id']
+            execution_id = (action['evidence_refs'][0]['execution_id'] if action.get('evidence_refs') and not action['metric_keys']
+                            else result['execution_id'])
         with db.transaction():
             db.execute('UPDATE agent_research_steps SET execution_id=%s WHERE research_id=%s AND step=%s',
                        (execution_id, run_id, state['turn']))

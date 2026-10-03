@@ -1,7 +1,7 @@
 # Local runtimes, private application data and generated outputs
 /.venv
 /venv/
-/.tools/
+/.tools
 /.local/
 /frontend/.local/
 /outputs/

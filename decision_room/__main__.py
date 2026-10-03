@@ -90,6 +90,7 @@ def main():
         if name == 'agent-research':
             command.add_argument('--max-investigations', type=int, default=6)
             command.add_argument('--max-parallel', type=int, default=3, help='Use 1 for identical delegated tasks scheduled sequentially; at most 3.')
+            command.add_argument('--research-continuity', action='store_true', default=None, help='Continue within a task while preserving execution-scoped evidence (experimental).')
             command.add_argument('--no-delegation', action='store_true', help='Use only the principal analyst.')
             command.add_argument('--max-rounds', type=int, default=3)
             command.add_argument('--max-executions', type=int, default=12)
@@ -203,7 +204,7 @@ def main():
                 report = research.start(config, args.business, args.session, request_key=args.request_key,
                                         max_investigations=args.max_investigations, max_parallel=args.max_parallel, delegation=not args.no_delegation,
                                         investigation_keys=args.investigation, python_timeout=args.timeout,
-                                        max_rounds=args.max_rounds, max_executions=args.max_executions,
+                                        max_rounds=args.max_rounds, max_executions=args.max_executions, research_continuity=args.research_continuity,
                                         max_model_calls=args.max_model_calls, max_seconds=args.max_seconds)
             elif args.command == 'research-show':
                 report = research.show(config, args.business, args.research)

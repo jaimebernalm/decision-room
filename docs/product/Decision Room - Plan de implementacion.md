@@ -1001,3 +1001,11 @@ comprobación de cálculos ante inversión del orden físico de las filas. Se si
 registran [garantías, pruebas y límites](../validation/2026-10-03-report-quality-contracts.md).
 Sin llamadas reales al modelo durante la línea base de Opus. La comparación de
 calidad y la aceptación 3.9.7 permanecen pendientes.
+
+**Fase experimental 2 — Continuidad (3.9.10.2), 3 de octubre:** desde `baa0bbb`,
+se permite seguir una señal en la misma tarea, conservar evidencia de varias
+ejecuciones y series y cerrar con el cálculo pendiente que cambiaría la decisión.
+Opción independiente y desactivada por defecto; sin reglas de negocio específicas
+ni llamadas reales al modelo. [Plan](../technical/research-continuity-plan.md) y
+[activación y validación](../validation/2026-10-03-research-continuity.md).
+La aceptación analítica y la comparación del candidato permanecen abiertas.

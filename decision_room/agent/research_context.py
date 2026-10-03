@@ -22,13 +22,15 @@ def observations(config, business_id, steps):
 
 
 def prompt_context(snapshot, observations, findings, options, turns):
-    # The latest attempt per investigation suffices for correction; the full
-    # attempt history remains available through the research record.
+    # Baseline exposes latest attempts. Continuity also retains successful
+    # earlier evidence; failed attempts still count in the unabridged budget.
     latest = {}
     for item in observations:
         latest[item['investigation_key']] = item
     feedback = []
-    for value in latest.values():
+    visible = ([o for o in observations if o['status'] == 'completed' or latest[o['investigation_key']] is o]
+               if options.get('research_continuity') else latest.values())
+    for value in visible:
         item = deepcopy(value)
         item['logs'] = {k: v[-4000:] if isinstance(v, str) else v for k, v in item['logs'].items()}
         item['logs_may_be_truncated'] = True

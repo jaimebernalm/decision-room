@@ -87,6 +87,9 @@ def _model_call(db, session_id, model, context, correction, retry_uncertain, *, 
     from .business_planner import VERSION as BUSINESS_VERSION
     version = {'planning': PROMPT_VERSION, 'research': RESEARCH_PROMPT_VERSION,
                'business_planner': BUSINESS_VERSION, 'analyst_review': REVIEW_PROMPT_VERSION, 'reviewer': REVIEW_PROMPT_VERSION}[phase]
+    if phase == 'research' and context.get('budgets', {}).get('research_continuity'):
+        from .research_continuity import VERSION
+        version = VERSION
     identity = {'context': context, 'correction': correction, 'prompt': version}
     if phase != 'planning':
         identity.update(phase=phase, scope=scope)

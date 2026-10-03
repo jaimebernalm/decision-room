@@ -73,7 +73,16 @@ def dependencies(snapshot, findings, recording=None):
 
 
 def validate_research_action(raw, snapshot, observations, findings, options):
-    action = ResearchAction.model_validate(raw)
+    continuity = options.get('research_continuity', False)
+    if continuity:
+        from .research_continuity import ContinuityAction, validate
+        action = ContinuityAction.model_validate(raw)
+        visible_ids = options.get('visible_execution_ids')
+        reference_observations = [dict(o, result_omitted=True)
+            if visible_ids is not None and o['execution_id'] not in visible_ids else o for o in observations]
+        validate(action, reference_observations, findings)
+    else:
+        action = ResearchAction.model_validate(raw)
     work = {i['key']: i for i in snapshot['proposal']['investigations']}
     finished = {f['investigation_key'] for f in findings} | set(options.get('discarded_keys', []))
     if action.assignments and action.action != 'delegate':
@@ -146,7 +155,7 @@ def validate_research_action(raw, snapshot, observations, findings, options):
     latest = attempts[-1] if attempts else None
     if action.action == 'execute':
         from .context import encoded
-        if latest and latest['status'] == 'completed' and len(encoded(latest.get('result')).encode()) <= 64000:
+        if not continuity and latest and latest['status'] == 'completed' and len(encoded(latest.get('result')).encode()) <= 64000:
             raise ValueError('Preserve the completed result first: record_candidate (still pending independent review), or block if unusable. Expand through a new followup rather than overwriting successful evidence.')
         if not action.code.strip() or not action.table_ids or action.metric_keys:
             raise ValueError('execute requires Python code, table_ids and empty metric_keys.')
@@ -165,7 +174,7 @@ def validate_research_action(raw, snapshot, observations, findings, options):
     else:
         if action.table_ids or action.code:
             raise ValueError('Only execute may contain code or table_ids.')
-        if action.action in ('record_candidate', 'expand'):
+        if action.action in ('record_candidate', 'expand') and not continuity:
             if not latest or latest['status'] != 'completed' or not action.metric_keys:
                 raise ValueError('A candidate requires the latest execution to succeed, with named metrics.')
             if expanding and not set(action.metric_keys) <= set(next(f['metric_keys'] for f in findings if f['investigation_key'] == action.investigation_key)):
@@ -173,7 +182,7 @@ def validate_research_action(raw, snapshot, observations, findings, options):
             if not set(action.metric_keys) <= set(latest['result']['metrics']):
                 missing = sorted(set(action.metric_keys) - set(latest['result']['metrics']))
                 raise ValueError('Candidate refers to missing metrics in the latest execution: ' + ', '.join(missing[:8]) + '. Copy exact keys from result.metrics, or remove unsupported references.')
-        elif action.metric_keys:
+        elif action.metric_keys and action.action not in ('record_candidate', 'expand'):
             raise ValueError('block/discard requires empty metric_keys.')
     if action.followups:
         if len(work) + len(action.followups) > options.get('max_agenda', 24):

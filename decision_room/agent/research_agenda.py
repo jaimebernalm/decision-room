@@ -48,7 +48,10 @@ def coverage(snapshot, history, recorded, options, reason=''):
                   'awaiting_result' if key in attempted else
                   'pending_definition' if item['status'] == 'blocked' else
                   'not_possible' if item['status'] == 'not_possible' else 'pending')
-        items.append({**item, 'research_status': status, 'priority_score': score(item),
+        closure = next((s['action'].get('closure') for s in reversed(history)
+                        if s['action'].get('investigation_key') == key and s['action'].get('closure')), None)
+        extra = {'closure': closure, 'closure_status': 'recorded' if closure else 'not_recorded'} if options.get('research_continuity') else {}
+        items.append({**item, **extra, 'research_status': status, 'priority_score': score(item),
                       'resolution': discarded.get(key) or next((f['summary'] for f in recorded if f['investigation_key'] == key), '')})
     return {'investigations': items, 'stop_reason': reason,
             'complete': all(i['research_status'] == 'candidate' for i in items),

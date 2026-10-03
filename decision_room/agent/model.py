@@ -275,8 +275,13 @@ class ModelClient:
         return self._generate(context, correction, SYSTEM, schema)
 
     def generate_research(self, context, correction=None):
-        schema = ResearchAction.model_json_schema()
-        followup = schema['$defs']['Followup']
+        continuity = context.get('budgets', {}).get('research_continuity', False)
+        if continuity:
+            from .research_continuity import ContinuityAction
+            schema = ContinuityAction.model_json_schema()
+        else:
+            schema = ResearchAction.model_json_schema()
+        followup = schema['$defs']['ContinuityFollowup' if continuity else 'Followup']
         followup['required'] = list(followup['properties'])
         for prop in followup['properties'].values():
             prop.pop('default', None)
@@ -298,7 +303,10 @@ class ModelClient:
                           if i['status'] == 'ready' and i['key'] not in finished]
             latest = {o['investigation_key']: o for o in context['observations']}
             allowed = ['execute', 'block', 'discard'] if unfinished else []
-            if any(latest.get(key, {}).get('status') == 'completed' for key in unfinished):
+            can_record = (any(o['status'] == 'completed' and o['investigation_key'] in unfinished
+                              and not o.get('result_omitted') for o in context['observations']) if continuity
+                          else any(latest.get(key, {}).get('status') == 'completed' for key in unfinished))
+            if can_record:
                 allowed.append('record_candidate')
             if not (latest.keys() - finished):
                 allowed.append('finish')
@@ -320,13 +328,21 @@ class ModelClient:
                     allowed.remove('finish')
             unrecorded_success = [key for key in unfinished if latest.get(key, {}).get('status') == 'completed'
                                   and not latest[key].get('result_omitted')]
-            if unrecorded_success:
+            if unrecorded_success and not continuity:
                 # Preserve a usable result before another program can hide it.
                 # A candidate is still unverified; a concrete unusable result may be blocked.
                 allowed = ['record_candidate', 'block']
                 unfinished, expandable = unrecorded_success, []
             if context.get('budgets', {}).get('business_planner') and not unrecorded_success:
                 allowed.append('consult_business')
+            if continuity and 'execute' in allowed:
+                budget = context.get('budgets', {})
+                used = budget.get('attempts_used', {})
+                can_execute = (sum(used.values()) < budget.get('max_executions', 100)
+                               and any(used.get(key, 0) < budget.get('max_attempts_per_investigation', 3)
+                                       for key in unfinished))
+                if not can_execute:
+                    allowed.remove('execute')
             if allowed:
                 schema['properties']['action']['enum'] = allowed
                 schema['properties']['investigation_key']['enum'] = list(dict.fromkeys(unfinished + expandable)) + ([''] if any(a in allowed for a in ('finish','delegate','consult_business')) else [])
@@ -360,10 +376,15 @@ class ModelClient:
                 schema['$defs']['Synthesis']['properties'][name]['maxItems'] = 0
         schema['required'] = list(schema['properties'])
         if 'table_catalog' in context:
-            self._table_choices(schema['$defs']['Followup']['properties']['table_ids'], [t['id'] for t in context['table_catalog']])
+            self._table_choices(followup['properties']['table_ids'], [t['id'] for t in context['table_catalog']])
         role = 'You are the subanalyst for budgets.worker_assignment; complete only that assignment.' if context.get('budgets', {}).get('worker_assignment') else (
             'You are the PRINCIPAL COORDINATOR. Your available calculation tool is action=delegate: workers execute Python. When execute is absent from your action schema, delegate IS available; never claim Python is unavailable. After expand, delegate the ready tasks. Retain synthesis and prioritization. Explicitly discard a ready task only with a concrete reason of low value or insufficient evidence.' if context.get('budgets', {}).get('delegation') else 'You are the sole analyst.')
-        return self._generate(context, correction, role + '\n' + RESEARCH_SYSTEM, schema)
+        system = RESEARCH_SYSTEM
+        if continuity:
+            from .research_continuity import system_prompt, constrain_schema
+            constrain_schema(schema, context)
+            system = system_prompt(system)
+        return self._generate(context, correction, role + '\n' + system, schema)
 
     def generate_analyst_review(self, context, correction=None):
         schema = ReviewAction.model_json_schema()
