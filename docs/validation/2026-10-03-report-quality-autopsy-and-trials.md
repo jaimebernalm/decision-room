@@ -332,6 +332,67 @@ el eje recorta las etiquetas a 20 caracteres.
 - Sin `priority_rank` fijo en el oráculo.
 - Presupuesto y reparto: adenda de la revisión de Astra, commit `0f41cf5`.
 
+## 11. Resultados: línea base y fase 1
+
+Ejecuciones el 3 de octubre de 2026. Línea base `4815b68`: 12 intentos (más uno
+detenido por el operador, conservado como abandonado). Fase 1 `baa0bbb`: Bruma 1
+y Albor 3 del producto, Luna 1 por conjunto. Tres evaluaciones independientes de
+los 16 informes completados, con aspecto normalizado (misma tipografía, escala de
+grises) y códigos aleatorios:
+
+- **Lector:** dos sesiones nuevas de modelo con el papel de dueño no técnico, sin
+  ningún dato del experimento; sustituye la lectura del propietario por decisión
+  suya. Es una aproximación a un lector real, no un usuario.
+- **Técnica:** Astra, a ciegas, recalculando desde los CSV y comprobando render.
+- **Señales:** este autor frente al oráculo. **No ciega.** Una detección por código
+  de producto (`P02`) se corrigió tras leer la evaluación del lector.
+
+| Conjunto · sistema (línea base) | Informes | Cifras erróneas / informe | Fidelidad 0–2 | Prioridad justificada 0–2 | Rúbrica /24 | Lector: entiende 1–5 | Lector: confía 1–5 | Lector: puesto medio |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Bruma · Luna | 3 | 3,3 | 0,7 | 1,0 | 16,7 | 3,7 | 3,3 | 3,0 de 7 |
+| Bruma · producto | 2 | 0,5 | 1,0 | 0,5 | 15,0 | 2,5 | 2,0 | 6,5 de 7 |
+| Albor · Luna | 3 | 0,7 | 0,7 | 1,0 | 17,0 | 3,7 | 3,0 | 3,3 de 9 |
+| Albor · producto | 3 | 0,0 | 2,0 | 0,7 | 17,7 | 2,3 | 1,7 | 7,7 de 9 |
+
+Fallos sin informe: el producto pierde 2 de 10 intentos (uno por fase) porque una
+salida del modelo no pasa la validación dos veces seguidas (evidencia obsoleta en
+el planificador; ampliación sin métricas del candidato padre). Luna no pierde
+ninguno, pero 3 de sus 8 informes tienen errores de JavaScript que dejan gráficos
+vacíos o rotos.
+
+Lectura:
+
+1. **Utilidad para el dueño: gana Luna con claridad.** En Bruma los cuatro
+   primeros puestos del lector son de Luna; en Albor, cuatro de los cinco primeros.
+   Las quejas sobre el producto son concretas y repetidas: «Entrega parcial · 0 de
+   1 entregables», nombres internos en inglés en tablas (`combo_a_june_july_change`,
+   `earlier_window_units`), `TRY_CAST`, «Resultados guardados», `188.0000`,
+   cautelas repetidas y ventanas de comparación sin explicar.
+2. **Exactitud: gana el producto con claridad.** Cero o casi cero cifras erróneas y
+   fidelidad máxima en Albor; Luna llega a 4–5 errores por informe en Bruma, con
+   cifras contradictorias dentro del mismo informe. El lector baja su confianza
+   cuando ve las contradicciones, pero no detecta las que no son visibles.
+3. **Prioridad útil: ninguno.** Ambos priorizan por magnitud sin justificar el
+   valor de decisión frente a alternativas (media ≤ 1 de 2 en todos los grupos).
+4. **Señales:**
+   - En Bruma, Luna menciona la caída de tienda en sus 4 informes; el producto, en
+     ninguno de sus 3.
+   - En Albor nadie localiza la caída dominical de la tienda (S1), el hueco del
+     marketplace (S4), el despegue del molinillo en web (S3) ni la erosión del
+     descafeinado (S5). La desaparición en hostelería (S2) solo se lee
+     correctamente una vez, en el control de Luna de la fase 1.
+   - Nadie cae en el señuelo estacional.
+   - Con cinco años de datos, ninguno de los dos investiga más allá de comparar
+     bloques anuales o mensuales.
+5. **Fase 1:** sin efecto apreciable en contenido ni lectura, como se esperaba de
+   una reparación de contratos. La cifra relevante es que no empeora la exactitud.
+
+Implicaciones para el orden de las fases: el mayor desfase para el dueño está en
+presentación (P3) y, en datos grandes, en descubrimiento (continuidad,
+exploración, panorama). P3 son correcciones baratas y concretas que el lector ha
+enumerado; conviene no dejarlas para el final. Con tres repeticiones y un lector
+simulado, son tendencias de desarrollo, no resultados concluyentes.
+
 ## 10. Límites
 
 Tres repeticiones son pocas para afirmar consistencia; sirven para detectar
