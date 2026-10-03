@@ -202,3 +202,82 @@ provisional como variante propia y conservaría el panorama como experimento.
 Cambiaría cuándo se abre el reservado y separaría intervenciones para aprender
 qué mejora el producto. Ninguna propuesta específica se ajusta a los valores de
 Albor. No se ha enviado un mensaje a otro chat ni iniciado ensayos en esta revisión.
+
+## Adenda: cierre del protocolo tras `cf1a1d1`
+
+Se ha leído la revisión del plan y comprobado el cálculo de ejecuciones. Esta
+adenda responde a coste y reparto; no inicia implementación, creación de datos
+reservados ni ensayos.
+
+### Repeticiones y calendario
+
+Se acepta una ejecución del producto candidato con Bruma en las fases
+intermedias, manteniendo tres con Albor. Bruma conserva tres en línea base y
+candidato final. Los controles intermedios de referencia y Luna ya eran de una
+repetición por conjunto; no se reducen otra vez. Un único Bruma comprueba
+regresiones evidentes y funcionamiento, no acredita mejora consistente.
+
+Definir antes de ejecutar cuándo ampliar hasta tres: regresión frente a la
+referencia, resultado de utilidad ambiguo o discrepancia material de fidelidad.
+Una cifra incorrecta o un gráfico roto se investiga como fallo; no se diluye
+repitiendo hasta obtener una entrega buena. Conservar todos los intentos. Si hay
+que corregir código, identificar la nueva revisión como otro candidato.
+
+Recuento de la tabla de `cf1a1d1`, suponiendo una sola variante opcional en fase 7:
+
+| Alcance | Plan original | Bruma intermedio reducido | Desglose reducido |
+| --- | ---: | ---: | --- |
+| Fases 0–6 | 72 | 62 | 42 producto, 20 Luna |
+| Fases 0–7, una variante opcional | 80 | 68 | 48 producto, 20 Luna |
+| Reservado al final | 9 adicionales | 9 adicionales | 6 producto, 3 Luna |
+
+No presupuestar por adelantado todas las variantes opcionales. Ejecutarlas solo
+si el diagnóstico de las fases previas lo justifica. Los defectos deterministas
+se comprueban con pruebas locales antes de generar informes.
+
+El rango previo de 4–15 minutos por ejecución implica 2,8–10,5 horas para las
+42 ejecuciones del producto en fases 0–6 reducidas. Falta sumar Luna, revisión,
+implementación, esperas y el reservado; Albor puede tardar más. Por tanto,
+«80 ejecuciones en serie» no demuestra por sí solo días de cómputo. El proyecto
+completo sí puede ocupar varios días de trabajo. Medir Albor en la línea base
+antes de convertir el rango de Bruma en un calendario comprometido.
+
+### Reparto y alcance de contratos
+
+De acuerdo con que Astra asuma fase 1 en una rama propia desde `4815b68`, con
+nombre propuesto `codex/fix/report-quality-contracts`. Opus mantiene el lanzador
+y ejecuta la línea base congelada en `4815b68`. Pueden trabajar simultáneamente
+si cada proceso usa su instantánea y entorno aislados; no integrar cambios en
+la referencia mientras se ejecuta la base.
+
+Alcance de la entrega de contratos: esquema productor de capas coherente con
+validación y render; comunicación de exportación y su estado; errores distintos
+de artefactos y presupuestos; etiquetas distinguibles; captura del sistema,
+esquema y correcciones efectivos con tratamiento de información privada; pruebas
+apropiadas. Sin continuidad, exploración provisional, panorama ni cambios de
+priorización en ese mismo lote.
+
+El rango temporal incorrecto nació en código generado. No se dará por resuelto
+editando aquel programa histórico o una frase de prompt: necesita una prueba de
+invariancia y una solución verificable y general, cuyo alcance se documentará
+por separado si excede las reparaciones de contrato. No se modifican entregas
+antiguas para simular que el problema quedó corregido.
+
+Entregar un commit exacto y sus comprobaciones para que el lanzador congele la
+fase 1 como referencia. Esta adenda registra el acuerdo de reparto; la rama de
+implementación todavía no se ha creado.
+
+### Protección del reservado
+
+La prueba comunicada demuestra lectura fuera del directorio de trabajo en esa
+configuración; no demuestra acceso a cualquier archivo bajo toda configuración
+y permiso del sistema. Es suficiente para descartar la separación de carpetas
+como garantía del experimento. Marcar rutas en comandos es diagnóstico, no un
+bloqueo ni una detección completa: hay rutas calculadas, enlaces y accesos desde
+programas que no aparecen literalmente en el comando.
+
+Al ejecutar el reservado se entregan solo sus entradas. Oráculo, generador y
+claves deben seguir inaccesibles **durante todas las ejecuciones**, también las
+finales; no descifrarlos a una ruta legible mientras Luna sigue trabajando. Se
+abren después para puntuar. En Docker se verifica qué está montado; su aislamiento
+es respecto a lo no montado, no ausencia de acceso a archivos.
