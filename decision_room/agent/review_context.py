@@ -64,10 +64,10 @@ def material(config, db, session, run):
             **({'accepted_owner_request': run['snapshot'].get('accepted_owner_request') or
                  {'text': run['snapshot']['source']['owner_context']},
                 'owner_confirmed_answers': [a for a in owner_answers if a['disposition'] == 'answered']}
-               if run['options'].get('review_policy', 0) >= 5 else {}),
+               if (run['options'].get('review_policy') or 0) >= 5 else {}),
             'plan': run['snapshot']['proposal'], 'candidate_history': run['snapshot']['findings'],
             'planning_history': run['snapshot']['planning_history'],
-            'review_policy': run['options'].get('review_policy'),
+            'review_policy': run['options'].get('review_policy') or 0,
             'previous_review': run['snapshot'].get('previous_review'),
             'review_issues': ledger(conversation) or (run['snapshot'].get('previous_review') or {}).get('issues', []), 'delivery_manifest': delivery_manifest(report, observations),
             'research_coverage': run['snapshot'].get('research_coverage'),
@@ -142,7 +142,7 @@ def approval_digest(materialized, knowledge):
         cited.update(ref['execution_id'] for ref in [check['actual'], *check['operands']])
     policy = {'review_issues': materialized['review_issues'], 'delivery_manifest': materialized['delivery_manifest'],
               'assessment': next((e['action'].get('assessment') for e in reversed(materialized['conversation']) if e['role'] == 'reviewer'), None)} if materialized.get('review_policy') else {}
-    if materialized.get('review_policy', 0) >= 5:
+    if (materialized.get('review_policy') or 0) >= 5:
         policy['accepted_owner_request'] = materialized['accepted_owner_request']
         policy['owner_confirmed_answers'] = materialized['owner_confirmed_answers']
     return fingerprint({**policy, 'report': materialized['report'], 'knowledge': knowledge,

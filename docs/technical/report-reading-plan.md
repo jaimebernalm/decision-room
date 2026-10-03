@@ -96,3 +96,28 @@ aceptación analítica pendiente de 3.9.7.
 Estado: implementado y comprobado. Véanse [resultados y límites](../validation/2026-10-02-report-reading-and-synthesis.md).
 No se amplía el esquema del informe ni se cambian los
 cálculos, presupuestos del producto o requisitos de aceptación numérica y negocio.
+
+## 3.9.8.1. Bruma Café en la web habitual
+
+Incremento solicitado para ver la presentación y síntesis integrada con los
+negocios habituales, en una rama separada de los cambios de UI simultáneos.
+
+1. Crear una rama de integración e incorporar los commits terminados de UI y
+   búsqueda, sin modificar el checkout donde se realizan esos cambios.
+2. Trasladar únicamente el caso sintético de Bruma y sus fuentes, ejecuciones y
+   revisiones a la base habitual. Validar primero la inserción en una transacción
+   que se revierte; conservar identidades, archivos y aprobación del original.
+3. Someter la nueva redacción a revisión real con la evidencia congelada. Guardar
+   fallos y correcciones; publicar únicamente una versión cuya aprobación vigente
+   valide el contrato. Presentar la entrega parcial y la comprobación pendiente.
+4. Incorporar original y revisión a la biblioteca de Bruma, enlazar la actividad
+   existente y comprobar informe, gráficos, PDF y aislamiento entre negocios.
+5. Resolver compatibilidad de políticas históricas ausentes o nulas sin cambiar
+   huellas de aprobación. Hacer concretos los errores de referencias de la
+   evaluación sin relajar requisitos. Ejecutar regresiones e inspeccionar la web.
+6. Documentar resultados, revisar privacidad y guardar commits locales. Mantener
+   datos, scripts privados, capturas y respuestas de proveedores fuera de Git.
+
+Estado: completado para lectura en la aplicación local habitual. Véanse
+[resultados y límites](../validation/2026-10-02-bruma-web-integration.md).
+No cierra la aceptación analítica de 3.9.7 ni constituye una nueva investigación.

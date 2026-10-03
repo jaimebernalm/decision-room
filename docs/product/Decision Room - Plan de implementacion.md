@@ -951,3 +951,13 @@ experimento. Bruma reduce la primera lectura de 759 a 578 palabras; en WWI el
 cambio es mínimo. No demuestra mejora analítica consistente ni cierra 3.9.7.
 Véanse [incremento del plan](../technical/report-reading-plan.md#398-primera-lectura-y-síntesis-sobre-la-interfaz-integrada)
 y [validación](../validation/2026-10-02-report-reading-and-synthesis.md).
+
+**Bruma Café en la web habitual, 2 de octubre de 2026 (3.9.8.1):** rama
+`codex/feature/bruma-web-integration`, con calidad, los ajustes terminados de UI y
+la búsqueda de chats. La aplicación local habitual ofrece el informe original y
+una síntesis corregida con aprobación real como entrega parcial; conserva las
+cuatro visualizaciones y la evidencia congelada. Se resuelve la compatibilidad
+de informes históricos sin modificar aprobaciones. Los intentos de revisión
+limitados o inválidos quedan registrados y 3.9.7 permanece abierto. Véanse
+[pasos](../technical/report-reading-plan.md#3981-bruma-café-en-la-web-habitual) y
+[validación](../validation/2026-10-02-bruma-web-integration.md).

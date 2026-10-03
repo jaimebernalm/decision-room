@@ -163,7 +163,10 @@ def validate_assessment(action, role, context):
         for key, item in questions.items():
             delivered = coverage[key]
             if set(item.claim_keys) != set(delivered['claim_keys']):
-                raise ValueError('Usefulness must assess the actual delivered claim references.')
+                raise ValueError('Usefulness must assess the actual delivered claim references '
+                                 f'for {key}: expected {delivered["claim_keys"]}, received {item.claim_keys}. '
+                                 'Keep the delivered keys when judging them pass or fail; '
+                                 'do not change the draft through the assessment.')
             if delivered['status'] == 'answered' and item.verdict in ('unavailable', 'deferred'):
                 raise ValueError('An answered question cannot have unavailable usefulness.')
             if delivered['status'] != 'answered' and item.verdict == 'pass':

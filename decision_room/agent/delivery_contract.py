@@ -47,7 +47,7 @@ class OwnerCoverage(Strict):
 
 
 def owner_deliverables(context):
-    if context.get('review_policy', 0) >= 5:
+    if (context.get('review_policy') or 0) >= 5:
         # One source-backed accepted request, including all of its components.
         # Splitting an agent's interpretation must not create owner obligations.
         request = context.get('accepted_owner_request') or {}
@@ -58,7 +58,7 @@ def owner_deliverables(context):
 
 
 def validate_owner_coverage(report, context):
-    if context.get('review_policy', 0) < 4:
+    if (context.get('review_policy') or 0) < 4:
         return
     if report.get('contract_version') != 2:
         raise ValueError('New reviews require report contract_version=2; historical drafts remain unchanged.')

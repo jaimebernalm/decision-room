@@ -3,10 +3,24 @@ from copy import deepcopy
 import unittest
 
 from decision_room.agent.report_reading import reading_feedback
-from decision_room.agent.review_context import model_context
+from decision_room.agent.review_context import model_context, approval_digest
+from decision_room.agent.delivery_contract import owner_deliverables, validate_owner_coverage
 
 
 class ReportReadingTests(unittest.TestCase):
+    def test_legacy_null_policy_keeps_owner_context_without_new_coverage_requirements(self):
+        context = {'review_policy': None, 'owner_context': 'Encargo histórico.'}
+        self.assertEqual(owner_deliverables(context), ['Encargo histórico.'])
+        validate_owner_coverage({'contract_version': 1}, context)
+
+    def test_null_and_zero_legacy_policy_preserve_the_same_approval_digest(self):
+        material = {'report': {'claims': [], 'charts': [], 'checks': []},
+                    'observations': [], 'checks': [], 'review_policy': None}
+        original = deepcopy(material)
+        self.assertEqual(approval_digest(material, 'legacy-knowledge'),
+                         approval_digest({**material, 'review_policy': 0}, 'legacy-knowledge'))
+        self.assertEqual(material, original)
+
     def test_exact_repetition_is_located_without_removing_distinct_caveats(self):
         caveat = 'Los registros disponibles no certifican toda la actividad del negocio.'
         report = {'summary': 'Resultado del periodo.', 'scope': {'coverage': caveat},
