@@ -393,6 +393,44 @@ exploración, panorama). P3 son correcciones baratas y concretas que el lector h
 enumerado; conviene no dejarlas para el final. Con tres repeticiones y un lector
 simulado, son tendencias de desarrollo, no resultados concluyentes.
 
+## 12. Resultados: fase 2 (continuidad), evaluación técnica pendiente
+
+- `2cd836e` con continuidad: el esquema de `EvidenceRef` dejaba campos fuera de
+  `required` y OpenAI lo rechazaba (HTTP 400) en la primera llamada de
+  investigación. Tres intentos retirados sin sustituto. Corregido en `b47c9da`.
+- `b47c9da`: 3 de 4 intentos murieron por validación doble (`continuation`
+  anulable en el esquema pero exigida por el validador; ampliación con evidencia
+  ajena al candidato). Corregido en `af64f48`. La recuperación tras rechazos va
+  aparte en `5d3087c`, con su propia opción.
+- Lote `phase2c`, intercalado: A = `af64f48` con continuidad; B = `5d3087c` con
+  continuidad y recuperación. **8 de 8 completados y aprobados, cero muertes por
+  validación** (frente a 3 de 12 en `4815b68`/`baa0bbb`). La recuperación no llegó
+  a activarse, así que su efecto no está medido. En Albor se pasa de unos 4 a unos
+  9 cálculos por informe. Controles reutilizados del lote `phase2` (referencia
+  `baa0bbb` y Luna, horas antes).
+
+Segunda ronda de lectores independientes sobre los 24 informes mezclados. Su
+orden coincide con la primera ronda en los 16 comunes (Spearman 0,93 en Bruma y
+0,88 en Albor; diferencias medias de puntuación ≤ 0,12).
+
+| Grupo | Albor: puesto (0 mejor) | Albor: entiende / confía | Bruma: puesto | Bruma: entiende / confía |
+| --- | ---: | ---: | ---: | ---: |
+| Luna | 0,38 | 3,8 / 3,0 | 0,19 | 4,0 / 3,5 |
+| Producto línea base | 0,79 | 2,7 / 2,0 | 0,69 | 3,0 / 2,5 |
+| Producto fase 1 | 0,64 | 2,5 / 2,5 | 0,50 | 3,0 / 3,0 |
+| A · continuidad | 0,45 | 3,0 / 2,7 | 1,00 (n=1) | 3,0 / 2,0 |
+| B · continuidad + recuperación | 0,33 | 3,3 / 3,0 | 0,88 (n=1) | 2,0 / 2,0 |
+
+En Albor la continuidad lleva al producto a la altura de Luna para el lector; en
+Bruma no mejora, porque allí pesa la redacción y no la profundidad. La diferencia
+A/B no es atribuible a la recuperación. Señales (no ciegas): la caída de
+hostelería aparece en los 6 informes de Albor con continuidad (frente a 1 de 3 en
+la línea base), aunque solo uno dice que no hay registros desde abril, y en un pie
+de gráfico. S1, S3, S4 y S5 siguen sin detectarse.
+
+Estado: falta la evaluación técnica de Astra (`kits/phase2c/tecnica`). Siguiente
+fase acordada: P3, presentación, desde `5d3087c` y detrás de su propia opción.
+
 ## 10. Límites
 
 Tres repeticiones son pocas para afirmar consistencia; sirven para detectar
