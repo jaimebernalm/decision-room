@@ -85,7 +85,7 @@ def execute(config, business_id, analysis_id, *, code, tables, definitions=None,
                              for key in ('id', 'source_id', 'original_names', 'original_sha256', 'parquet_key',
                                          'parquet_sha256', 'row_count', 'columns', 'lineage_column', 'engine_version')}
         backend = backend or DockerBackend()
-        limits = {**LIMITS, 'timeout_seconds': timeout, 'outer_grace_seconds': 10}
+        limits = {**LIMITS, 'timeout_seconds': timeout, 'outer_grace_seconds': 10, 'row_order_checks': 1, 'max_program_runs': 2}
         fingerprint = sha(canonical({'code': code, 'inputs': inputs, 'definitions': definitions,
                                      'limits': limits, 'environment': backend.manifest}))
         # Recovery takes this lock exclusively; live executions share it.
@@ -175,6 +175,12 @@ def execute(config, business_id, analysis_id, *, code, tables, definitions=None,
                     status, logs, files, result = validate_payload(outcome['payload'], inputs)
                 except ValueError as error:
                     status, issue, files = 'invalid_output', str(error), {}
+                if status == 'completed':
+                    from .order_verification import verify
+                    check, order_issue = verify(backend, execution_id, stage, timeout, inputs, result)
+                    runtime = {**runtime, 'row_order_check': check}
+                    if order_issue:
+                        status, issue, result, files = 'invalid_output', order_issue, None, {}
                 for name, raw in files.items():
                     key = prefix + '/artifacts/' + name
                     path = storage.path(business_id, key)

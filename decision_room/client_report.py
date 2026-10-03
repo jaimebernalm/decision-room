@@ -39,7 +39,8 @@ def grouped_svg(chart, layout, points, values, colors):
         span = high - low or Decimal(1)
         def x(value): return 205 + float((value-low)/span) * 390
         top = 25 + 24 * ((len(order)+2)//3)
-        row_height = len(order)*24 + 28
+        category_lines = {c: textwrap.wrap(c, width=23) for c in categories}
+        row_height = max(len(order)*24 + 28, max(len(lines) for lines in category_lines.values())*18 + 16)
         height = top + len(categories)*row_height + 10
         shapes = []
         for i, name in enumerate(order):
@@ -48,7 +49,7 @@ def grouped_svg(chart, layout, points, values, colors):
         shapes.append(f'<line x1="{x(0):.2f}" x2="{x(0):.2f}" y1="{top}" y2="{height}" class="axis"/>')
         for i, category in enumerate(categories):
             y = top + i*row_height
-            for j, line in enumerate(textwrap.wrap(category, width=23)):
+            for j, line in enumerate(category_lines[category]):
                 shapes.append(f'<text x="10" y="{y+18+j*18}" class="chart-label">{e(line)}</text>')
             for j, name in enumerate(order):
                 value = cells.get((category, name))
@@ -116,14 +117,19 @@ def chart_html(data, chart):
         low, high = min(min(values), Decimal(0)), max(max(values), Decimal(0))
         span = high - low or Decimal(1)
         if chart['kind'] == 'bar':
-            height = 48 + 64 * len(values)
+            import textwrap
+            wrapped = [textwrap.wrap(label, 65) for label in labels]
+            row_height = max(64, max(len(lines) for lines in wrapped) * 18 + 40)
+            height = 48 + row_height * len(values)
             def x(v):
                 return 20 + float((v - low) / span) * 490
             baseline = x(Decimal(0))
             shapes = [f'<line x1="{baseline:.2f}" y1="34" x2="{baseline:.2f}" y2="{height - 8}" class="axis"/>']
             for i, (label, value, number) in enumerate(zip(labels, values, numbers)):
-                y = 28 + i * 64
-                shapes.append(f'<text x="20" y="{y}" class="chart-label">{e(label)}</text>')
+                y = 28 + i * row_height
+                for j, line in enumerate(wrapped[i]):
+                    shapes.append(f'<text x="20" y="{y+j*18}" class="chart-label">{e(line)}</text>')
+                y += (len(wrapped[i])-1)*18
                 shapes.append(f'<rect x="{min(x(value), baseline):.2f}" y="{y+8}" width="{abs(x(value)-baseline):.2f}" height="18" rx="3" class="bar"/>')
                 shapes.append(f'<text x="700" y="{y+23}" text-anchor="end" class="chart-number">{e(number)}</text>')
         else:

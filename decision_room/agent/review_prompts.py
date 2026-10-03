@@ -1,6 +1,6 @@
 from .series_prompt import SERIES_TOOL
 
-REVIEW_PROMPT_VERSION = 'review-v48'
+REVIEW_PROMPT_VERSION = 'review-v49'
 
 COMMON = '''You are part of Decision Room's bounded analyst/reviewer dialogue.
 Return ONLY ReviewAction JSON, every field present. Human-facing prose in Spanish.
@@ -284,7 +284,16 @@ answers the owner's goal and the undelivered detail is honestly stated.
 """
 
 DELIVERY_INSTRUCTIONS = """
-Respect delivery_capabilities supplied by the controller. This report's client
+Respect delivery_capabilities AND delivery_state supplied by the controller.
+Report export and execution artifacts are DIFFERENT capabilities: the application
+controller renders the approved report as web, standalone HTML and PDF on request.
+Do not generate HTML inside Python or treat absence of /output/informe.html as a
+missing deliverable. A draft is pending approval, not an already created export.
+The application can export it after approval; never claim that it cannot provide
+HTML/PDF because execution artifact downloads are disabled. Do not put internal
+export-stage caveats in client prose. Browser verification is a separate fact:
+never claim an export was opened or visually checked without recorded evidence.
+This report's client
 surfaces currently have NO execution artifact downloads or attachments. Saving a
 CSV under /output does NOT attach it, deliver it, or make it downloadable to the
 client. Never say 'CSV adjunto/descargable' or classify an answer as delivered on
@@ -693,3 +702,14 @@ Wrong meaning, unsupported action or a missing requested answer remains material
 """
 ANALYST_SYSTEM += DELIVERY_READING
 REVIEWER_SYSTEM += DELIVERY_READING
+
+ANALYST_SYSTEM += """
+Computation verifies row-order stability by rerunning successful code on reversed
+physical rows. Use order-independent min/max or explicit semantic sorting, never
+assume the first/last file row is a temporal bound. This adds one sandbox program
+run, not another model call; the verification does not establish business truth.
+"""
+REVIEWER_SYSTEM += """
+Computed candidates must pass the controller's recorded row-order check. This
+checks invariance under one permutation, not correctness of the business formula.
+"""

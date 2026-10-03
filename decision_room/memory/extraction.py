@@ -8,7 +8,8 @@ from pydantic import ValidationError
 from psycopg.types.json import Jsonb
 
 from ..database import connect
-from ..agent.model import ModelRequestUncertain
+from ..agent.model import ModelRequestUncertain, record_request
+from ..agent.context import fingerprint
 from ..greetings import is_greeting
 from .contracts import Extraction, PROMPT_VERSION
 from .service import (MemoryError, append, capture, current, digest, lock, overlap, same_subject,
@@ -281,6 +282,9 @@ def process(config, business_id, source_id, model):
                 db.execute("UPDATE memory_calls SET status='uncertain',finished_at=now() WHERE source_id=%s AND status='running'", (source_id,))
             return True
         call_id = None
+        def save_request(request):
+            db.execute('UPDATE memory_calls SET effective_request=%s, request_sha256=%s WHERE id=%s',
+                       (Jsonb(request), fingerprint(request), call_id))
         try:
             if source['status'] == 'pending':
                 with db.transaction():
@@ -293,7 +297,8 @@ def process(config, business_id, source_id, model):
                             VALUES (%s,%s,%s,%s,%s,%s,'running')''',
                                    (call_id, business_id, source_id, Jsonb(model.identity), PROMPT_VERSION, Jsonb(context)))
                 if call_id:
-                    response, usage = model.generate_memory(context)
+                    with record_request(save_request):
+                        response, usage = model.generate_memory(context)
                 elif source['payload']['disposition'] == 'answered':
                     response, usage = {'candidates': []}, {}
                 else:
@@ -322,7 +327,8 @@ def process(config, business_id, source_id, model):
                             VALUES (%s,%s,%s,%s,%s,%s,'running')''',
                                    (call_id, business_id, source_id, Jsonb(model.identity), PROMPT_VERSION,
                                     Jsonb({**corrected_context, 'validation_issue': correction})))
-                    response, usage = model.generate_memory(corrected_context, correction=correction)
+                    with record_request(save_request):
+                        response, usage = model.generate_memory(corrected_context, correction=correction)
                     with db.transaction():
                         db.execute("UPDATE memory_calls SET status='completed',response=%s,usage=%s,finished_at=now() WHERE id=%s",
                                    (Jsonb(response), Jsonb(usage), call_id))

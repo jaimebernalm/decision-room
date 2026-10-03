@@ -84,7 +84,7 @@ class BusinessMigrationTests(unittest.TestCase):
                                         (business,)).fetchone()['job_id'], job)
             for table in ('web_home_layouts', 'dataset_bundle_files', 'data_model_revisions', 'activity_traces', 'web_dossier_layouts', 'report_presentation_revisions'):
                 self.assertIsNotNone(db.execute('SELECT to_regclass(%s) AS name', (table,)).fetchone()['name'])
-            self.assertEqual(db.execute('SELECT max(version) AS version FROM schema_versions').fetchone()['version'], 29)
+            self.assertEqual(db.execute('SELECT max(version) AS version FROM schema_versions').fetchone()['version'], 30)
             for table in ('chat_calls', 'chat_answer_reviews'):
                 self.assertIsNotNone(db.execute('''SELECT column_name FROM information_schema.columns
                     WHERE table_schema='public' AND table_name=%s AND column_name='finished_at' ''', (table,)).fetchone())
@@ -110,7 +110,7 @@ class BusinessMigrationTests(unittest.TestCase):
             row = db.execute('SELECT revision,layout FROM web_dossier_layouts WHERE business_id=%s', (business,)).fetchone()
             self.assertEqual(row, {'revision': 3, 'layout': saved})
             self.assertIsNotNone(db.execute("SELECT to_regclass('report_presentation_revisions') AS name").fetchone()['name'])
-            self.assertEqual(db.execute('SELECT max(version) AS version FROM schema_versions').fetchone()['version'], 29)
+            self.assertEqual(db.execute('SELECT max(version) AS version FROM schema_versions').fetchone()['version'], 30)
             db.execute('DROP TABLE web_dossier_layouts')
             db.execute('DELETE FROM schema_versions WHERE version=28')
             db.execute(prefix)

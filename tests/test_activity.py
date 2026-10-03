@@ -50,7 +50,7 @@ class ActivityTests(unittest.TestCase):
             existing=create_business(config,'Legacy business')['id']
             migrate(config);migrate(config)
             with connect(config) as db:
-                self.assertEqual(db.execute('SELECT max(version) n FROM schema_versions').fetchone()['n'],29)
+                self.assertEqual(db.execute('SELECT max(version) n FROM schema_versions').fetchone()['n'],30)
                 self.assertEqual(db.execute('SELECT name FROM businesses WHERE id=%s',(existing,)).fetchone()['name'],'Legacy business')
                 self.assertEqual(db.execute('SELECT count(*) n FROM activity_traces').fetchone()['n'],0)
         finally:

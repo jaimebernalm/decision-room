@@ -42,6 +42,14 @@ def observation(config, business_id, execution_id, knowledge, current_knowledge,
             'artifacts': [{k: a[k] for k in ('name', 'sha256', 'byte_count')} for a in row['artifacts']]}
 
 
+def delivery_state(status, *, publishable=False):
+    """Approval alone does not establish current, unheld export availability."""
+    return {'content': status,
+            'report_exports': 'available_on_request' if publishable else
+                              'pending_approval' if status in ('new', 'running', 'waiting', 'draft_under_review') else 'unavailable',
+            'browser_verification': 'not_performed_by_review'}
+
+
 def material(config, db, session, run):
     history = events(db, run['id'])
     sources = {i['execution_id']: i.get('knowledge_sha256', run['snapshot']['initial_knowledge']) for i in run['snapshot']['executions']}
@@ -82,9 +90,13 @@ def material(config, db, session, run):
                                       'whole_series_temporal_grain': 'inherited from saved observations; chart.temporal_grain=null is required, not missing metadata',
                                       'claim_evidence_refs': 12, 'claims': 6, 'charts': 4,
                                       'surfaces': ['web_report', 'static_html', 'pdf'],
+                                      'report_exports': {'provider': 'application_controller',
+                                          'formats': ['html', 'pdf'], 'available_after': 'approval',
+                                          'requires_execution_artifact': False},
                                       'representations': {'bar': ['single', 'grouped'], 'table': ['single', 'grouped'], 'line': ['day', 'month', 'quarter', 'year', 'single', 'grouped']},
                                       'layers': {'selection': 'agent', 'max_layers': 6, 'max_points': 800, 'same_saved_unit_and_calendar_grain': True, 'styles': ['solid', 'dashed', 'dotted'], 'weight': ['normal', 'emphasis'], 'rolling_mean': 'optional; verified complete trailing calendar windows from saved source'},
                                       'selection': 'agent', 'orientation_contract': 'delivery-quality-v1'}, 'tables': run['snapshot']['tables'],
+            'delivery_state': delivery_state(run['status']),
             'conversation': conversation, 'observations': observations,
             'report': report, 'report_step': report_step, 'checks': checks(report, observations),
             'budgets': {**run['options'], 'turns_used': len(history),

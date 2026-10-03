@@ -153,11 +153,12 @@ def validate_research_action(raw, snapshot, observations, findings, options):
         if len(action.table_ids) != len(set(action.table_ids)) or not set(action.table_ids) <= set(investigation['table_ids']):
             raise ValueError('Use only unique table IDs authorized for this investigation.')
         if len(observations) >= options.get('max_executions', 100):
-            raise ResearchBudgetReached('Total Python execution budget reached. Record existing evidence, block, discard or finish.')
+            scope = 'worker assignment' if options.get('worker_assignment') else 'research run'
+            raise ResearchBudgetReached(f'Python execution budget reached for {scope} ({len(observations)}/{options.get("max_executions", 100)}). This does not exhaust allowances outside that scope. Record existing evidence, block, discard or finish.')
         if investigation.get('round', 1) > options.get('max_rounds', 1):
             raise ResearchBudgetReached('Round budget reached; discard or finish.')
         if len(attempts) >= options['max_attempts_per_investigation']:
-            raise ValueError('Python attempt budget reached for this investigation. Record a supported candidate or block it.')
+            raise ValueError(f'Python attempt budget reached for investigation {action.investigation_key} ({len(attempts)}/{options["max_attempts_per_investigation"]}); not the global budget. Record a supported candidate or block it.')
         attempted = {o['investigation_key'] for o in observations} | set(options.get('assigned_keys', []))
         if action.investigation_key not in attempted and len(attempted) >= options['max_investigations']:
             raise ResearchBudgetReached('Investigation budget reached; finish or address an already attempted investigation.')

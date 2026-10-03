@@ -231,6 +231,7 @@ def show(config, business_id, review_id, *, _db=None):
         valid_approval = bool(run['status'] == 'approved' and not stale and not hold_record and context['report'] and
                               all(c['passed'] for c in context['checks']) and
                               approval_digest(context, run['knowledge_sha256']) == run['approved_sha256'])
+        from .review_context import delivery_state
         pending = [e for e in context['conversation'] if e['action']['action'] == 'ask_owner' and 'owner_answer' not in e]
         calls = db.execute('''SELECT id,phase,status,usage,issue,prompt_version,created_at,finished_at
             FROM agent_calls WHERE session_id=%s AND scope=%s ORDER BY created_at''', (run['session_id'], str(review_id))).fetchall()
@@ -238,6 +239,7 @@ def show(config, business_id, review_id, *, _db=None):
                 'status': 'stale' if stale else 'held' if hold_record else run['status'],
                 'model_decision_status': run['status'], 'independent_hold': hold_record,
                 'issue': hold_record['reason'] if hold_record else run['issue'],
+                'delivery_state': delivery_state('stale' if stale else 'held' if hold_record else run['status'], publishable=valid_approval),
                 'publishable': valid_approval, 'verification': 'reviewed_by_agent' if valid_approval else 'not_approved',
                 'review_issues': context['review_issues'], 'delivery_manifest': context['delivery_manifest'],
                 'report': context['report'], 'checks': context['checks'], 'observations': context['observations'],

@@ -220,6 +220,12 @@ class RoundTests(unittest.TestCase):
         self.assertEqual(sum(q['status'] == 'unavailable' for q in reviewed['report']['question_coverage']), 2)
         self.assertFalse(analyst.contexts[-1]['delivery_capabilities']['execution_artifact_downloads'])
         self.assertFalse(reviewer.contexts[-1]['delivery_capabilities']['execution_artifact_downloads'])
+        for ctx in (analyst.contexts[-1], reviewer.contexts[-1]):
+            self.assertEqual(ctx['delivery_capabilities']['report_exports']['formats'], ['html', 'pdf'])
+            self.assertFalse(ctx['delivery_capabilities']['report_exports']['requires_execution_artifact'])
+            self.assertEqual(ctx['delivery_state']['report_exports'], 'pending_approval')
+        self.assertEqual(reviewed['delivery_state']['report_exports'], 'available_on_request')
+        self.assertEqual(reviewed['delivery_state']['browser_verification'], 'not_performed_by_review')
 
     def test_customer_coverage_never_reinjects_internal_stopping_reason(self):
         from decision_room.agent.research_agenda import limitation

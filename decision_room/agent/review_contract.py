@@ -402,7 +402,7 @@ def validate(raw, role, context):
                     and {t['id'] for t in observed['inputs'].values()} == set(action.table_ids)):
                 raise ValueError('This successful calculation already exists. Reuse its saved evidence; explain a concrete defect before changing code.')
         if context['budgets']['python_used'][role] >= context['budgets']['max_python_per_role']:
-            raise ValueError('Python budget reached. Submit supported work, ask the owner or stop without approval.')
+            raise ValueError(f'Python budget reached for review role {role}; other roles have separate allowances. Submit supported work, ask the owner or stop without approval.')
     elif action.code or action.table_ids:
         raise ValueError("Only action='execute' may include Python code or table_ids. If you intend to run Python, choose execute; otherwise clear both fields.")
     if action.action == 'ask_owner':

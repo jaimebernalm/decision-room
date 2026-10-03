@@ -161,3 +161,30 @@ export function groupedPoints(
     return [row];
   });
 }
+
+/** Wrap full category identities; never truncate away a distinguishing suffix. */
+export function categoryLabelLines(label: string, width = 20): string[] {
+  const characters = Array.from(label);
+  const lines: string[] = [];
+  let line = "";
+  let used = 0;
+  for (const character of characters) {
+    const size = /[MWmw@%#]|[^\u0000-\u024f]/u.test(character) ? 2 : 1;
+    if (line && used + size > width) {
+      lines.push(line);
+      line = "";
+      used = 0;
+    }
+    line += character;
+    used += size;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+export function categoryRowHeight(labels: string[]): number {
+  return Math.max(
+    36,
+    ...labels.map((label) => categoryLabelLines(label).length * 14 + 12),
+  );
+}

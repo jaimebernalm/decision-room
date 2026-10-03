@@ -22,6 +22,18 @@ from .review_contract import ReviewAction
 from .review_prompts import ANALYST_SYSTEM, REVIEWER_SYSTEM
 
 
+_REQUEST_RECORDER = ContextVar('model_request_recorder', default=None)
+
+
+@contextmanager
+def record_request(callback):
+    token = _REQUEST_RECORDER.set(callback)
+    try:
+        yield
+    finally:
+        _REQUEST_RECORDER.reset(token)
+
+
 _TRANSPORT_RECORDER = ContextVar('model_transport_recorder', default=None)
 
 
@@ -463,6 +475,7 @@ class ModelClient:
         scalar_chart = deepcopy(original_chart)
         scalar_chart['properties']['series'] = {'type': 'null'}
         scalar_chart['properties']['points']['minItems'] = 2
+        scalar_chart['properties']['layers']['maxItems'] = 0
         if series_choices:
             schema['$defs']['SeriesRef'] = {'anyOf': series_choices}
             charts = [scalar_chart]
@@ -472,6 +485,7 @@ class ModelClient:
                 branch['properties']['kind']['enum'] = [kind]
                 branch['properties']['series'] = {'anyOf': references}
                 branch['properties']['points']['maxItems'] = 0
+                branch['properties']['layers']['maxItems'] = 0
                 # Saved evidence defines its calendar grain. Grouped calendars
                 # are declared in encoding, rather than overriding the source's
                 # categorical grain on the chart itself.
@@ -487,6 +501,37 @@ class ModelClient:
             schema['$defs']['Chart'] = {'anyOf': charts}
         else:
             schema['$defs']['Chart'] = scalar_chart
+        # Layer evidence is selected as a compatible unit/calendar-grain group.
+        # A layer may have one point; combined layers may exceed 366 points.
+        # Runtime checks the combined 800-point cap and unique names.
+        groups = {}
+        for item in context.get('observations', []):
+            if not item.get('current') or item.get('status') != 'completed' or not item.get('result') or item.get('result_omitted'):
+                continue
+            for key, saved in item['result'].get('series', {}).items():
+                if saved.get('grain') not in ('day', 'month', 'quarter', 'year') or not 1 <= len(saved.get('points', [])) <= 366:
+                    continue
+                ref = {'type': 'object', 'additionalProperties': False,
+                       'properties': {'execution_id': {'type': 'string', 'enum': [item['execution_id']]},
+                                      'series': {'type': 'string', 'enum': [key]}},
+                       'required': ['execution_id', 'series']}
+                groups.setdefault((saved['unit'], saved['grain']), []).append(ref)
+        if groups:
+            charts = schema['$defs']['Chart'].get('anyOf', [scalar_chart])
+            for (unit, grain), references in sorted(groups.items()):
+                branch = deepcopy(original_chart)
+                props = branch['properties']
+                props['kind']['enum'] = ['line']
+                props['unit']['enum'] = [unit]
+                for field in ('series', 'encoding', 'temporal_grain'):
+                    props[field] = {'type': 'null'}
+                props['points']['maxItems'] = 0
+                layer = deepcopy(schema['$defs']['ChartLayer'])
+                layer['properties']['series'] = {'anyOf': references}
+                props['layers'].update(minItems=1, items=layer)
+                charts.append(branch)
+            schema['$defs']['Chart'] = {'anyOf': charts}
+
         investigations = context.get('plan', {}).get('investigations', [])
         if investigations:
             ready = sorted(i['key'] for i in investigations if i['status'] == 'ready')
@@ -655,6 +700,11 @@ class ModelClient:
                        'input': encoded(context) + ('\nValidation correction: ' + correction if correction else ''),
                        'reasoning': self.settings.reasoning, 'store': False, 'temperature': 0,
                        'max_output_tokens': self.settings.max_output_tokens}
+        recorder = _REQUEST_RECORDER.get()
+        if recorder:
+            # Private audit payload only: never capture headers, credentials or env.
+            recorder({'protocol': self.settings.protocol, 'endpoint': endpoint,
+                      'correction': correction, 'payload': deepcopy(payload)})
         headers = {}
         key_name = 'OPENAI_API_KEY' if self.settings.protocol == 'openai' else 'DECISION_ROOM_AGENT_API_KEY'
         if key := os.environ.get(key_name):

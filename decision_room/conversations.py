@@ -17,7 +17,7 @@ from psycopg.types.json import Jsonb
 from .database import connect
 from . import chat_agent, context_references as selections, conversation_context
 from .greetings import is_greeting, salutation
-from .agent.model import ModelSettings, ModelRequestUncertain, record_transport
+from .agent.model import ModelSettings, ModelRequestUncertain, record_transport, record_request
 from .agent import review
 from .memory import context as ctx, service as memory, extraction, retrieval, semantic
 from .web.errors import WebError, identifier, bounded
@@ -978,7 +978,11 @@ class Conversations:
                     transport(attempts)
                     db.execute('UPDATE chat_answer_reviews SET usage=%s WHERE turn_id=%s AND attempt=%s AND ordinal=%s',
                                (Jsonb({'transport_attempts':attempts,'rejected_attempt_usage_unknown':any(a['status']!=200 for a in attempts)}),turn['id'],turn['attempt'],ordinal))
-                with call_context(f'chat-review:{turn["id"]}:{turn["attempt"]}:{ordinal}'), record_transport(review_attempts):
+                def save_review_request(request):
+                    from .agent.context import fingerprint
+                    db.execute('UPDATE chat_answer_reviews SET effective_request=%s, request_sha256=%s WHERE turn_id=%s AND attempt=%s AND ordinal=%s',
+                               (Jsonb(request), fingerprint(request), turn['id'], turn['attempt'], ordinal))
+                with call_context(f'chat-review:{turn["id"]}:{turn["attempt"]}:{ordinal}'), record_transport(review_attempts), record_request(save_review_request):
                     result, usage = model.review_chat_answer(check_context)
                 recorded=db.execute('SELECT usage FROM chat_answer_reviews WHERE turn_id=%s AND attempt=%s AND ordinal=%s',
                                     (turn['id'],turn['attempt'],ordinal)).fetchone()['usage'] or {}
@@ -1343,7 +1347,11 @@ class Conversations:
                             transport(attempts)
                             db.execute('UPDATE chat_calls SET usage=%s WHERE turn_id=%s AND attempt=%s AND ordinal=%s',
                                        (Jsonb({'transport_attempts':attempts,'rejected_attempt_usage_unknown':any(a['status']!=200 for a in attempts)}),turn_id,turn['attempt'],ordinal))
-                        with call_context(f'chat:{turn_id}:{turn["attempt"]}:{ordinal}'), record_transport(chat_attempts):
+                        def save_chat_request(request):
+                            from .agent.context import fingerprint
+                            db.execute('UPDATE chat_calls SET effective_request=%s, request_sha256=%s WHERE turn_id=%s AND attempt=%s AND ordinal=%s',
+                                       (Jsonb(request), fingerprint(request), turn_id, turn['attempt'], ordinal))
+                        with call_context(f'chat:{turn_id}:{turn["attempt"]}:{ordinal}'), record_transport(chat_attempts), record_request(save_chat_request):
                             output, usage = model.generate_chat(context)
                         recorded=db.execute('SELECT usage FROM chat_calls WHERE turn_id=%s AND attempt=%s AND ordinal=%s',
                                             (turn_id,turn['attempt'],ordinal)).fetchone()['usage'] or {}

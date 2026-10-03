@@ -81,7 +81,8 @@ def bar_drawings(chart):
         left, plot_width = 142, WIDTH - 158
         def x(value):
             return left + float((Decimal(value) - low) / span) * plot_width
-        row_height = len(series) * 13 + 28
+        category_lines = {c: textwrap.wrap(c, 27) for c in categories}
+        row_height = max(len(series) * 13 + 28, max(len(lines) for lines in category_lines.values()) * 10 + 14)
         legend_lines = []
         line, used = [], 0
         for name in series:
@@ -113,7 +114,7 @@ def bar_drawings(chart):
                 drawing.add(String(tx, 8, number(formatted(value, 0), chart.get('response_language')), fontSize=7, textAnchor='middle', fillColor=GRAY))
             for i, category in enumerate(batch):
                 y = height - legend_height - 17 - i * row_height
-                for n, label in enumerate(textwrap.wrap(category, 27)[:4]):
+                for n, label in enumerate(category_lines[category]):
                     drawing.add(String(left - 12, y - n * 10, label, textAnchor='end', fontSize=8, fillColor=GRAY))
                 for j, name in enumerate(series):
                     point = mapped.get((category, name))

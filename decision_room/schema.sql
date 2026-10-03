@@ -841,3 +841,16 @@ INSERT INTO schema_versions(version) VALUES (28) ON CONFLICT DO NOTHING;
 -- 2.5.21: owner-pinned chats stay ahead of recent conversations.
 ALTER TABLE chat_conversations ADD COLUMN IF NOT EXISTS pinned_at timestamptz;
 INSERT INTO schema_versions(version) VALUES (29) ON CONFLICT DO NOTHING;
+
+-- Effective, private model requests; old/simulated calls remain explicitly unknown.
+ALTER TABLE agent_calls ADD COLUMN IF NOT EXISTS effective_request jsonb;
+ALTER TABLE agent_calls ADD COLUMN IF NOT EXISTS request_sha256 text;
+ALTER TABLE data_model_discoveries ADD COLUMN IF NOT EXISTS effective_request jsonb;
+ALTER TABLE data_model_discoveries ADD COLUMN IF NOT EXISTS request_sha256 text;
+ALTER TABLE chat_calls ADD COLUMN IF NOT EXISTS effective_request jsonb;
+ALTER TABLE chat_calls ADD COLUMN IF NOT EXISTS request_sha256 text;
+ALTER TABLE chat_answer_reviews ADD COLUMN IF NOT EXISTS effective_request jsonb;
+ALTER TABLE chat_answer_reviews ADD COLUMN IF NOT EXISTS request_sha256 text;
+ALTER TABLE memory_calls ADD COLUMN IF NOT EXISTS effective_request jsonb;
+ALTER TABLE memory_calls ADD COLUMN IF NOT EXISTS request_sha256 text;
+INSERT INTO schema_versions(version) VALUES (30) ON CONFLICT DO NOTHING;

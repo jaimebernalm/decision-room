@@ -167,7 +167,9 @@ plt.close('all')
     def test_failures_timeouts_memory_and_output_bounds(self):
         cases = [('syntax', 'this is not Python !!!', 'failed', 10),
                  ('timeout', 'while True: pass', 'timed_out', 1),
-                 ('memory', 'x=bytearray(2*1024**3)', 'resource_limit', 10),
+                 # Above the 768 MiB cgroup limit, below a small VM's total RAM.
+                 # A 2 GiB malloc can fail before the cgroup gets to enforce it.
+                 ('memory', 'x=bytearray(1024**3)', 'resource_limit', 10),
                  ('missing_result', 'print("hello")', 'invalid_output', 10),
                  ('link', 'import os; os.symlink("/etc/passwd", "/output/leak.json")', 'invalid_output', 10),
                  ('files', 'from pathlib import Path\nfor i in range(17): Path(f"/output/{i}.csv").write_text("a")', 'invalid_output', 10),

@@ -33,6 +33,8 @@ import { Selectable } from "./context-selection";
 import { Disclosure } from "./shared";
 import {
   CHART_PALETTE,
+  categoryLabelLines,
+  categoryRowHeight,
   groupedPoints,
   seriesColor,
   chartPoints,
@@ -105,7 +107,15 @@ function GroupedBars({
         className="w-full"
         style={{
           containerType: "inline-size",
-          height: Math.max(240, rows.length * (series.length * 22 + 28) + 32),
+          height: Math.max(
+            240,
+            rows.length *
+              Math.max(
+                series.length * 22 + 28,
+                categoryRowHeight(rows.map((row) => String(row.category))),
+              ) +
+              32,
+          ),
         }}
         aria-label={panel.title || chart.title}
       >
@@ -148,15 +158,7 @@ function GroupedBars({
             interval={0}
             tickLine={false}
             axisLine={false}
-            tick={({ x, y, payload }) => (
-              <g transform={`translate(${x},${y})`}>
-                <foreignObject x={-140} y={-26} width={132} height={52}>
-                  <div className="flex h-full items-center justify-end text-right text-xs leading-tight text-muted-foreground break-words">
-                    {payload.value}
-                  </div>
-                </foreignObject>
-              </g>
-            )}
+            tick={<CategoryTick />}
           />
           <ReferenceLine x={0} stroke="var(--muted-foreground)" />
           <ChartTooltip
@@ -534,6 +536,35 @@ function GroupedLines({
     </section>
   );
 }
+function CategoryTick({
+  x,
+  y,
+  payload,
+}: {
+  x?: string | number;
+  y?: string | number;
+  payload?: { value: string };
+}) {
+  const label = String(payload?.value ?? "");
+  const lines = categoryLabelLines(label);
+  return (
+    <text
+      x={x}
+      y={y}
+      textAnchor="end"
+      fill="var(--muted-foreground)"
+      fontSize={11}
+      aria-label={label}
+    >
+      {lines.map((line, i) => (
+        <tspan key={i} x={x} dy={i === 0 ? -(lines.length - 1) * 7 + 4 : 14}>
+          {line}
+        </tspan>
+      ))}
+    </text>
+  );
+}
+
 export function EvidenceChart({
   chart,
   actions,
@@ -646,12 +677,14 @@ export function EvidenceChart({
         }
         tickLine={false}
         axisLine={false}
-        tickFormatter={(v) =>
+        tick={bars ? <CategoryTick /> : undefined}
+        tickFormatter={
           bars
-            ? String(v).length > 21
-              ? String(v).slice(0, 20) + "…"
-              : String(v)
-            : new Intl.NumberFormat(locale(), { notation: "compact" }).format(v)
+            ? undefined
+            : (v) =>
+                new Intl.NumberFormat(locale(), { notation: "compact" }).format(
+                  v,
+                )
         }
       />
       <ReferenceLine {...(bars ? { x: 0 } : { y: 0 })} stroke="var(--border)" />
@@ -729,7 +762,14 @@ export function EvidenceChart({
             className="w-full"
             style={{
               containerType: "inline-size",
-              height: bars ? Math.max(256, chart.points.length * 36) : 256,
+              height: bars
+                ? Math.max(
+                    256,
+                    chart.points.length *
+                      categoryRowHeight(chart.points.map((p) => p.label)) +
+                      32,
+                  )
+                : 256,
             }}
             aria-label={chart.title}
           >

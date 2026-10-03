@@ -10,7 +10,7 @@ from psycopg.types.json import Jsonb
 from ..database import connect
 from .context import fingerprint, encoded
 from .prompts import PROMPT_VERSION
-from .model import ModelRequestUncertain, record_transport
+from .model import ModelRequestUncertain, record_transport, record_request
 from .research_prompts import RESEARCH_PROMPT_VERSION
 from .review_prompts import REVIEW_PROMPT_VERSION
 
@@ -107,7 +107,7 @@ def _model_call(db, session_id, model, context, correction, retry_uncertain, *, 
     if before_call:
         before_call()
     if count >= max_calls:
-        raise ValueError(f'Session model-call budget exhausted ({max_calls}). Inspect the saved state before starting another session.')
+        raise ValueError(f'Model-call budget exhausted for phase={phase}, scope={scope!r} ({count}/{max_calls}). This is the phase/scope allowance, not a global execution limit.')
     call_id = uuid4()
     db.execute('''INSERT INTO agent_calls(id,session_id,call_key,status,prompt_version,phase,scope,context_payload)
         VALUES (%s,%s,%s,'running',%s,%s,%s,%s)''', (call_id, session_id, key, version, phase, scope, Jsonb(context)))
@@ -120,7 +120,10 @@ def _model_call(db, session_id, model, context, correction, retry_uncertain, *, 
             db.execute('UPDATE agent_calls SET usage=%s WHERE id=%s',
                        (Jsonb({'transport_attempts': attempts,
                                'rejected_attempt_usage_unknown': any(a['status'] != 200 for a in attempts)}), call_id))
-        with call_context(call_id), record_transport(save_attempts):
+        def save_request(request):
+            db.execute('UPDATE agent_calls SET effective_request=%s, request_sha256=%s WHERE id=%s',
+                       (Jsonb(request), fingerprint(request), call_id))
+        with call_context(call_id), record_transport(save_attempts), record_request(save_request):
             output, usage = getattr(model, method)(context, correction)
         recorded=db.execute('SELECT usage FROM agent_calls WHERE id=%s',(call_id,)).fetchone()['usage'] or {}
         usage={**recorded,**usage}

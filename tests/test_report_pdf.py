@@ -37,6 +37,17 @@ class ReportPdfTests(unittest.TestCase):
         self.assertIn('47,00',text)
         self.assertIn('No conocemos costes ni causas.',text)
 
+    def test_long_common_prefix_does_not_hide_category_identity_in_chart(self):
+        from decision_room.report_pdf import bar_drawings
+        from reportlab.graphics.shapes import String
+        labels = ['Producto de referencia ' * 7 + suffix for suffix in ('Canal A', 'Canal B')]
+        chart = dict(kind='bar', points=[dict(label=label, value=str(i+1)) for i, label in enumerate(labels)])
+        drawings = list(bar_drawings(chart))
+        for label in labels:
+            self.assertTrue(any(label.replace(' ', '') in ''.join(
+                shape.text for shape in drawing.contents if isinstance(shape, String)
+            ).replace(' ', '') for _, drawing in drawings))
+
     def test_unpublishable_data_is_rejected_before_pdf_materialization(self):
         from decision_room.web.errors import WebError
         for change in ['unapproved','stale']:

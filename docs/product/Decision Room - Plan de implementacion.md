@@ -992,3 +992,12 @@ la entrega ni demostrar mejora consistente. El agente no utilizó las capas nuev
 Se conservan el intento interrumpido y la repetición. Véanse
 [resultados y límites](../validation/2026-10-02-agent-visual-freedom-pilot.md).
 3.9.7 sigue abierto.
+
+**3.9.10.1 — Contratos previos a los ensayos, 3 de octubre de 2026:** reparación
+acotada desde `4815b68`: capas accesibles en el esquema productor, estado de entrega
+y errores precisos, etiquetas completas, peticiones efectivas auditables y
+comprobación de cálculos ante inversión del orden físico de las filas. Se siguen
+[los seis pasos de fase 1](../technical/report-quality-contracts-plan.md) y se
+registran [garantías, pruebas y límites](../validation/2026-10-03-report-quality-contracts.md).
+Sin llamadas reales al modelo durante la línea base de Opus. La comparación de
+calidad y la aceptación 3.9.7 permanecen pendientes.

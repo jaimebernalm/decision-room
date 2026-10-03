@@ -3,6 +3,7 @@
 /venv/
 /.tools/
 /.local/
+/frontend/.local/
 /outputs/
 /uploads/
 /storage/

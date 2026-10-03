@@ -13,3 +13,6 @@ httpx==0.28.1
 # Complete static report export and independent PDF verification.
 reportlab==4.4.9
 pypdf==6.10.0
+
+# Independent producer-schema contract tests.
+jsonschema==4.26.0

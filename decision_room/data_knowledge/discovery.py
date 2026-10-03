@@ -127,12 +127,16 @@ def discover(config, business, analysis, model, *, retry_uncertain=False):
                     activity_store.safe(db,business,activity[2],activity_store.link,'discovery',discovery_id)
                     activity_runtime.notify(db)
                 try:
-                    from ..agent.model import record_transport
+                    from ..agent.model import record_transport, record_request
                     def save_attempts(attempts):
                         activity_runtime.transport(attempts)
                         db.execute('UPDATE data_model_discoveries SET usage=%s WHERE business_id=%s AND analysis_id=%s AND call_key=%s AND attempt=%s',
                             (Jsonb({'transport_attempts':attempts,'rejected_attempt_usage_unknown':any(a['status']!=200 for a in attempts)}),*args))
-                    with activity_runtime.call_context(uuid5(UUID(str(analysis)),f'{call_key}:{attempt}')), record_transport(save_attempts):
+                    def save_request(request):
+                        from ..agent.context import fingerprint
+                        db.execute('UPDATE data_model_discoveries SET effective_request=%s, request_sha256=%s WHERE business_id=%s AND analysis_id=%s AND call_key=%s AND attempt=%s',
+                                   (Jsonb(request), fingerprint(request), *args))
+                    with activity_runtime.call_context(uuid5(UUID(str(analysis)),f'{call_key}:{attempt}')), record_transport(save_attempts), record_request(save_request):
                         output, usage = model.generate_data_discovery(payload, correction)
                     recorded=db.execute('SELECT usage FROM data_model_discoveries WHERE business_id=%s AND analysis_id=%s AND call_key=%s AND attempt=%s',args).fetchone()['usage'] or {}
                     usage={**recorded,**usage}

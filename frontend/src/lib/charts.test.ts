@@ -151,3 +151,19 @@ it("multi-series temporal views break missing cells without changing saved value
   expect(rows[0].s0Exact).toBe("10,01");
   expect(monthly.points.length).toBe(2);
 });
+
+it("keeps category suffixes and unicode intact rather than collapsing channel identities", async () => {
+  const { categoryLabelLines, categoryRowHeight } = await import("./charts");
+  const labels = ["Tienda física", "Web propia", "Marketplace"].map(
+    (channel) => `Café de la casa 250 g | ${channel}`,
+  );
+  const rendered = labels.map((label) => categoryLabelLines(label).join(""));
+  expect(rendered).toEqual(labels);
+  expect(new Set(rendered).size).toBe(3);
+  const long = "包裝商品".repeat(12) + " 🛒 final";
+  expect(categoryLabelLines(long).join("")).toBe(long);
+  expect(categoryRowHeight([long])).toBeGreaterThanOrEqual(
+    categoryLabelLines(long).length * 14,
+  );
+  expect(categoryRowHeight([])).toBe(36);
+});

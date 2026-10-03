@@ -1,6 +1,6 @@
 from .series_prompt import SERIES_TOOL
 
-RESEARCH_PROMPT_VERSION = 'research-v38'
+RESEARCH_PROMPT_VERSION = 'research-v39'
 
 RESEARCH_SYSTEM = '''You are the SAME principal Decision Room analyst, now executing
 small investigations from your provisional plan. Reply ONLY as ResearchAction JSON.
@@ -357,4 +357,13 @@ derived values in Python, save both source and transformation with definitions,
 and keep distinguishing a descriptive pattern from an explanation or forecast.
 The delivery supports multiple saved calendar series as distinct styled layers.
 Use that option to clarify a business question, not to fill chart budgets.
+"""
+
+RESEARCH_SYSTEM += """
+Computation contract: successful results are checked by rerunning the same code
+with reversed physical input rows. All metrics and series values must agree.
+Use min/max for bounds, not rows[0]/rows[-1]; explicitly sort by a meaningful
+column for time/sequence operations. Lineage columns remain unchanged. This is
+a bounded order-dependence check, not proof of correctness. It adds one isolated
+program run per successful execution; recorded duration includes both runs.
 """

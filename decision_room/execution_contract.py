@@ -94,8 +94,12 @@ def validate_payload(raw, tables):
         if not isinstance(item, dict) or set(item) != {'name', 'base64'}:
             raise ValueError('Invalid artifact schema.')
         name = item['name']
-        if not isinstance(name, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,95}\.(json|csv|png|parquet)', name) or name in files:
-            raise ValueError('Invalid or duplicate artifact filename.')
+        if not isinstance(name, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,95}\.[A-Za-z0-9]+', name):
+            raise ValueError('artifact_invalid_name: use a simple filename without directories.')
+        if name.rsplit('.', 1)[1] not in ('json', 'csv', 'png', 'parquet'):
+            raise ValueError('artifact_unsupported_type: only json, csv, png and parquet are accepted; HTML belongs to report export, not computation. Renaming the HTML file cannot fix this.')
+        if name in files:
+            raise ValueError('artifact_duplicate_name: each artifact must have a distinct filename.')
         if not isinstance(item['base64'], str) or len(item['base64']) > (LIMITS['file_bytes'] + 2) // 3 * 4:
             raise ValueError('Artifact too large.')
         try:

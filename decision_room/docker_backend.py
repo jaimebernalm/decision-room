@@ -42,7 +42,7 @@ class DockerBackend:
         self.prefix = ['docker', '--config', str(client_config), '--host', endpoint]
         self.manifest['controller_files'] = {
             name: hashlib.sha256(Path(__file__).with_name(name).read_bytes()).hexdigest()
-            for name in ('docker_backend.py', 'execution.py', 'execution_contract.py')}
+            for name in ('docker_backend.py', 'execution.py', 'execution_contract.py', 'order_verification.py')}
         info = json.loads(self.control('image', 'inspect', self.manifest['image']).stdout)[0]
         if info['Id'] != self.manifest['image'] or not info['Id'].startswith('sha256:'):
             raise ValueError('Runtime must reference a locally available immutable image ID.')
@@ -71,7 +71,8 @@ class DockerBackend:
 
     def run(self, execution_id, stage, timeout):
         stage = Path(stage).resolve()
-        if stage.parent != INPUT_ROOT.resolve() or stage.name != str(execution_id):
+        root = INPUT_ROOT.resolve() / str(execution_id)
+        if stage not in (root, root / 'order-check'):
             raise ValueError('Invalid input staging directory.')
         name = self.name(execution_id)
         args = ['create', '--pull=never', '--name', name,
