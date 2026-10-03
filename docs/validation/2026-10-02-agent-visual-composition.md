@@ -30,3 +30,28 @@ incluye las capas y sus productores. Los informes históricos siguen admitidos.
 Estas pruebas verifican capacidad y coherencia. La adopción real por los agentes
 y la utilidad comparada requieren el nuevo recorrido de 3.9.9.2. La aceptación
 repetida de 3.9.7 permanece abierta.
+
+## Corrección detectada en el primer recorrido
+
+El prompt exacto de Luna pide `informe.html`. El primer recorrido produjo evidencia
+comercial, pero intentó generar HTML dentro del cálculo (formato no permitido) y
+el planificador exigió ese archivo antes de entregar el material a la fase que lo
+genera. Se interrumpió tras 738,294 segundos; se conservan 57 llamadas, ocho
+rechazos de transporte 429, catorce ejecuciones (seis completadas y ocho fallidas),
+incluida la llamada interrumpida y su uso incompleto. No es una entrega aceptada.
+
+La corrección conserva HTML/gráficos como requisito de entrega, asigna medidas y
+composición a los agentes y render/exportación a la aplicación después de revisar.
+Tres cierres consecutivos sin nuevo trabajo y con dos guías de entrega pendientes
+detienen el recorrido como parcial; no conceden aprobación automáticamente. La
+evaluación independiente ahora exige vincular cada punto de todas las capas a la
+referencia CSV, también cuando la serie solo aparece en el gráfico.
+
+Validación de la corrección: 147 pruebas focales de planificación, planificador,
+investigación, delegación, revisión, evaluación y capas pasan en una base temporal
+independiente (111,244 segundos). Incluyen detener el bucle sin aprobar y reanudar
+sin duplicar llamadas, además de rechazar puntos derivados incorrectos o sin
+vínculo independiente. El build de interfaz anterior no cambia.
+
+La repetición partirá de una nueva instantánea, manteniendo las mismas fuentes y
+prompt. El primer intento y sus errores permanecerán separados y contabilizados.

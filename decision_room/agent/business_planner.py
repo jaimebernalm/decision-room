@@ -10,7 +10,7 @@ from typing import Literal
 from .contracts import Strict, Question
 from .context import fingerprint
 
-VERSION = 'business-planner-v11'
+VERSION = 'business-planner-v12'
 
 
 class BusinessBrief(Strict):
@@ -71,7 +71,13 @@ Read analyst_message for its explicit consultation, progress summary or proposed
 final synthesis. Address the actual question; compare the proposed priorities with
 saved evidence and the business brief rather than merely repeating the agenda.
 At delivery, inspect saved results and the original goal: ready means adequate
-material to draft, NEVER independently verified or approved. If a feasible missing
+material to draft, NEVER independently verified or approved. For final HTML/PDF
+generation, chart rendering or export, keep the requirement in the
+delivery brief and explicitly hand it to drafting/review/the application renderer.
+Do not require the completed report file before declaring research material ready:
+that would block the later phase responsible for creating it. Judge readiness by
+saved business evidence and useful visual measures, not HTML bytes/chart counts.
+If a feasible missing
 component matters, guide with the specific next investigation and why. Initial
 rankings are not enough for discovery when a useful finer breakdown is feasible.
 Use evidence_keys only for saved candidates and priority_keys only for agenda keys;
@@ -215,6 +221,10 @@ def checkpoint(config, db, session, run, model, state, guard, retry_uncertain):
         for observation in context['observations']:
             observation.pop('code', None); observation.pop('logs', None)
         prior = events(db, run['id'])
+        if (stage == 'delivery' and len(history) >= 3 and len(prior) >= 2
+                and all(s['action']['action'] == 'finish' for s in history[-3:])
+                and all(e['stage'] == 'delivery' and e['direction']['action'] == 'guide' for e in prior[-2:])):
+            raise ResearchBudgetReached('La entrega repite el mismo cierre sin nuevo trabajo; se conserva la evidencia para revisar el bloqueo, sin declarar aprobación.')
         action = state.get('action', {})
         context.update(stage=stage, owner_replies=owner,
             analyst_message={k: action[k] for k in ('action','summary','synthesis') if k in action} or None,

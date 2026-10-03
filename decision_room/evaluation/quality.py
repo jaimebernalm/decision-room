@@ -6,6 +6,7 @@ import json
 from statistics import median
 
 from .assess import token_accounting
+from ..chart_evidence import series_refs
 
 RUBRIC = ('meaning', 'coverage', 'depth', 'priority', 'next_checks',
           'comparability', 'clarity', 'nonduplication', 'narrative_numbers')
@@ -33,15 +34,13 @@ def delivered_values(review):
     refs += [h['value'] for h in report.get('highlights', [])]
     for chart in report.get('charts', []):
         refs += [v['value'] for detail in chart.get('details', []) for v in detail['values']]
-        if chart.get('series'):
-            r = chart['series']
+        for r in series_refs(chart):
             o = observations[r['execution_id']]
             series = o['result']['series'][r['series']]
             if chart['unit'] != series['unit']:
                 raise ValueError('Chart unit disagrees with source')
             refs += [{**r, 'label': p['label']} for p in series['points']]
-        else:
-            refs += [p['value'] for p in chart['points']]
+        refs += [p['value'] for p in chart.get('points', [])]
     values = {}
     for ref in refs:
         o = observations[ref['execution_id']]

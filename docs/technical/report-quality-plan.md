@@ -658,6 +658,13 @@ crear un informe nuevo con fuentes y encargo idénticos a un experimento Luna.
 Estado: completado. 621 pruebas de servidor y 237 de interfaz pasan; build y
 lint completados. Véase la [validación de composición](../validation/2026-10-02-agent-visual-composition.md).
 
+Corrección localizada durante el piloto: el encargo explícito de guardar HTML
+se convirtió en una tarea de investigación, bloqueando el paso a la entrega.
+Se conserva ese intento interrumpido, se aclara la responsabilidad de las fases
+sin cambiar el encargo y se detienen tres cierres consecutivos sin trabajo nuevo,
+manteniendo estado parcial y sin inventar preparación ni aprobación. El evaluador
+independiente expande también todas las referencias de las nuevas capas.
+
 #### 3.9.9.2 — Informe nuevo y comparación
 
 5. Congelar el código comprobado, copiar exactamente prompt y CSV de Luna ronda
@@ -672,4 +679,6 @@ lint completados. Véase la [validación de composición](../validation/2026-10-
    fallos y distinguir un piloto de la aceptación repetida de 3.9.7. Documentar
    y guardar el commit de evaluación; no hacer push.
 
-Estado: pendiente de la ejecución nueva.
+Estado: primer intento interrumpido y conservado; la repetición usará una nueva
+instantánea comprobada, con el mismo prompt y CSV. No se reenvía la llamada
+interrumpida ni se borra el intento del denominador.

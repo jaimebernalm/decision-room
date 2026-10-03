@@ -151,6 +151,29 @@ class QualityTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'duplicate'):
             delivered_values(review)
 
+    def test_every_layer_point_requires_an_independent_binding(self):
+        state, review, oracle, assessment = self.fixture()
+        review['observations'][0]['result']['series'] = {
+            'raw': dict(unit='units', points=[dict(label='2026-01-01', value=1), dict(label='2026-01-02', value=3)]),
+            'mean': dict(unit='units', points=[dict(label='2026-01-02', value=2)])}
+        review['report']['charts'] = [dict(unit='units', points=[], layers=[
+            dict(series=dict(execution_id='e', series='raw')),
+            dict(series=dict(execution_id='e', series='mean'))])]
+        assessment['report_sha256'] = digest(review['report'])
+        self.assertEqual(len(delivered_values(review)), 4)
+        self.assertFalse(assess(state, review, oracle, assessment)['checks']['all_delivered_values_bound'])
+        for series, label, expected in [('raw', '2026-01-01', 1), ('raw', '2026-01-02', 3), ('mean', '2026-01-02', 2)]:
+            ref = dict(execution_id='e', series=series, label=label)
+            target = series + ':' + label
+            oracle['metrics'][target] = expected
+            assessment['bindings'][ref_key(ref)] = dict(reference=target, meaning='Source-mapped same dated measure')
+        self.assertTrue(assess(state, review, oracle, assessment)['accepted'])
+        review['observations'][0]['result']['series']['mean']['points'][0]['value'] = 9
+        self.assertFalse(assess(state, review, oracle, assessment)['accepted'])
+        review['report']['charts'][0]['unit'] = 'EUR'
+        with self.assertRaisesRegex(ValueError, 'unit'):
+            delivered_values(review)
+
     def test_usefulness_depends_on_intent(self):
         state, review, oracle, a = self.fixture()
         a['rubric']['depth']['score'] = 1

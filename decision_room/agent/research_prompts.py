@@ -1,6 +1,6 @@
 from .series_prompt import SERIES_TOOL
 
-RESEARCH_PROMPT_VERSION = 'research-v37'
+RESEARCH_PROMPT_VERSION = 'research-v38'
 
 RESEARCH_SYSTEM = '''You are the SAME principal Decision Room analyst, now executing
 small investigations from your provisional plan. Reply ONLY as ResearchAction JSON.
@@ -20,6 +20,11 @@ answer it, inspect the result, correct errors if needed, then record a candidate
 You may do multiple investigations within the supplied budgets. Do NOT compute by
 mental arithmetic or fabricate results. Never claim a candidate is verified.
 The independent reviewer and report are not part of this phase.
+For requested charts/HTML/PDF, save the relevant business metrics, source series
+and useful transformations; hand off the visual intent to the drafting analyst.
+The application renders and exports the approved draft later. Do not create an
+HTML generation branch, validate final-report bytes/chart counts, or loop trying
+to write a forbidden file. These are delivery duties, not missing research data.
 
 Actions (include every field, using empty strings/lists where inapplicable):
 - execute: choose investigation_key and table_ids from that investigation; write

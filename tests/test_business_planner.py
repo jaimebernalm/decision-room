@@ -152,6 +152,25 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(result['status'],'partial')
         self.assertEqual(len(result['findings']),2)
         self.assertFalse(result['publishable'])
+
+    def test_repeated_finish_without_work_stops_without_claiming_readiness(self):
+        class StalledTeam(TeamModel):
+            def generate_business_planner(self,context,correction=None):
+                raw,usage=super().generate_business_planner(context,correction)
+                if context['stage']=='delivery':raw['action']='guide'
+                return raw,usage
+        self.model=StalledTeam()
+        result=self.start()
+        self.assertEqual(result['status'],'partial')
+        self.assertIn('repite el mismo cierre',result['issue'])
+        self.assertEqual(len(result['findings']),2)
+        self.assertFalse(result['publishable'])
+        deliveries=[e for e in result['business_direction'] if e['stage']=='delivery']
+        self.assertEqual(len(deliveries),2)
+        executions=[s['execution_id'] for s in result['steps'] if s['execution_id']]
+        again=research.resume(self.config,self.business,result['id'],model=self.model)
+        self.assertEqual(len(again['model_calls']),len(result['model_calls']))
+        self.assertEqual([s['execution_id'] for s in again['steps'] if s['execution_id']],executions)
     def test_quality_workers_can_recover_after_three_failed_programs(self):
         class RecoveringTeam(TeamModel):
             def generate_research(self,context,correction=None):
