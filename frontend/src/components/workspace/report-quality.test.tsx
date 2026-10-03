@@ -109,6 +109,9 @@ it("localizes decision controls and period labels while preserving saved evidenc
   render(<ReportView report={report} compact />);
   expect(screen.getByText("Next check:")).toBeVisible();
   expect(screen.getByText("If se documenta falta de producto:")).toBeVisible();
+  await userEvent.click(
+    screen.getByRole("button", { name: "View breakdown by period" }),
+  );
   const select = screen.getByRole("combobox", {
     name: "Period or category for Canales por mes",
   });
@@ -178,6 +181,9 @@ it("selects exact saved values with keyboard and activates the linked finding wi
   const fetch = vi.fn();
   vi.stubGlobal("fetch", fetch);
   render(<ReportView report={report} compact />);
+  await userEvent.click(
+    screen.getByRole("button", { name: "Ver desglose por periodo" }),
+  );
   const select = screen.getByRole("combobox", { name: /Periodo o categoría/ });
   select.focus();
   await userEvent.selectOptions(select, "2026-08");
@@ -195,11 +201,13 @@ it("selects exact saved values with keyboard and activates the linked finding wi
 it("toggles series without removing exact evidence and preserves absent cells", async () => {
   render(<EvidenceChart chart={chart} />);
   const group = within(screen.getByRole("group", { name: "Series: Canal" }));
-  const a = group.getByRole("button", { name: "A" });
-  const b = group.getByRole("button", { name: "B" });
+  const a = group.getByRole("button", { name: "A Visible" });
+  const b = group.getByRole("button", { name: "B Visible" });
   b.focus();
   await userEvent.keyboard("{Enter}");
   expect(b).toHaveAttribute("aria-pressed", "false");
+  expect(b).toHaveAccessibleName("B Oculta");
+  expect(b).toHaveAttribute("title", "Mostrar B");
   expect(a).toBeDisabled();
   await userEvent.click(screen.getByText("Ver valores exactos"));
   expect(screen.getByText("9.007.199.254.740.993,01")).toBeVisible();
@@ -210,13 +218,43 @@ it("home charts link to their approved source and remounting preserves evidence"
   const first = render(
     <EvidenceChart chart={chart} sourceHref="#report/synthetic" />,
   );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Ver desglose por periodo" }),
+  );
   await userEvent.selectOptions(screen.getByRole("combobox"), "2026-08");
   expect(
     screen.getByRole("link", { name: /Ver hallazgo y detalle/ }),
   ).toHaveAttribute("href", "#report/synthetic");
   first.unmount();
   render(<EvidenceChart chart={chart} />);
+  expect(screen.queryByRole("combobox")).toBeNull();
+  await userEvent.click(
+    screen.getByRole("button", { name: "Ver desglose por periodo" }),
+  );
   expect(screen.getByRole("combobox")).toHaveValue("");
   await userEvent.click(screen.getByText("Ver valores exactos"));
   expect(screen.getByText("9.007.199.254.740.993,01")).toBeVisible();
+});
+
+it("omits redundant point controls when no saved breakdown exists", () => {
+  render(<EvidenceChart chart={{ ...chart, details: [] }} />);
+  expect(screen.queryByRole("combobox")).toBeNull();
+  expect(
+    screen.queryByRole("button", { name: "Ver desglose por periodo" }),
+  ).toBeNull();
+  expect(
+    screen.getByRole("button", { name: "Ver valores exactos" }),
+  ).toBeVisible();
+});
+it("restores a hidden series by keyboard with clear show and hide actions", async () => {
+  render(<EvidenceChart chart={chart} />);
+  const b = screen.getByRole("button", { name: "B Visible" });
+  expect(b).toHaveAttribute("title", "Ocultar B");
+  b.focus();
+  await userEvent.keyboard("{Enter}");
+  expect(b).toHaveAccessibleName("B Oculta");
+  await userEvent.keyboard("{Enter}");
+  expect(b).toHaveAccessibleName("B Visible");
+  expect(b).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByRole("button", { name: "A Visible" })).toBeEnabled();
 });

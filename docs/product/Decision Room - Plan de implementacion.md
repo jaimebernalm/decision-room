@@ -961,3 +961,12 @@ de informes históricos sin modificar aprobaciones. Los intentos de revisión
 limitados o inválidos quedan registrados y 3.9.7 permanece abierto. Véanse
 [pasos](../technical/report-reading-plan.md#3981-bruma-café-en-la-web-habitual) y
 [validación](../validation/2026-10-02-bruma-web-integration.md).
+
+**Jerarquía y leyenda del informe, 2 de octubre de 2026 (3.9.8.2):** títulos
+de hallazgos mayores que los títulos de gráficos, series visibles oscuras y
+ocultas atenuadas con texto tachado y ojo cerrado. La leyenda explica la acción
+y permite restaurar una serie con clic o teclado. El selector de puntos deja
+de aparecer cuando no hay un desglose guardado; si existe, queda en un detalle
+plegado. Pasan 233 pruebas frontend, compilación y lint; verificado en Bruma
+en la web habitual. Véanse [pasos](../technical/report-reading-plan.md#3982-jerarquía-de-hallazgos-y-control-de-series)
+y [validación](../validation/2026-10-02-report-hierarchy-and-legend.md).

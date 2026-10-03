@@ -11,7 +11,7 @@ import {
   YAxis,
   ReferenceLine,
 } from "recharts";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Eye, EyeOff } from "lucide-react";
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart";
 import {
   Card,
@@ -98,6 +98,11 @@ function GroupedBars({
           </li>
         ))}
       </ul>
+      <p className="text-xs text-muted-foreground">
+        {tr(
+          "Pulsa una serie para ocultarla o mostrarla. Debe quedar al menos una visible.",
+        )}
+      </p>
       <ChartContainer
         config={Object.fromEntries(
           series.map((s) => [s.key, { label: s.name, color: s.color }]),
@@ -363,8 +368,20 @@ function GroupedLines({
             type="button"
             key={s.key}
             aria-pressed={!hidden.has(s.key)}
+            aria-label={`${s.name} ${hidden.has(s.key) ? tr("Oculta") : tr("Visible")}`}
             disabled={!hidden.has(s.key) && hidden.size === series.length - 1}
-            className="rounded border px-3 py-2 text-xs focus-visible:ring-2 focus-visible:ring-ring"
+            title={
+              hidden.has(s.key)
+                ? tr("Mostrar {0}", { "0": s.name })
+                : hidden.size === series.length - 1
+                  ? tr("Debe quedar al menos una serie visible")
+                  : tr("Ocultar {0}", { "0": s.name })
+            }
+            className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default motion-reduce:transition-none ${
+              hidden.has(s.key)
+                ? "border-border bg-background text-muted-foreground hover:bg-muted"
+                : "border-foreground bg-foreground text-background hover:bg-foreground/85"
+            }`}
             onClick={() =>
               setHidden((previous) => {
                 const next = new Set(previous);
@@ -374,13 +391,31 @@ function GroupedLines({
               })
             }
           >
-            <span aria-hidden style={{ color: s.color }}>
-              ●{" "}
+            <span
+              aria-hidden
+              className="size-2 shrink-0 rounded-full"
+              style={{ backgroundColor: s.color }}
+            />
+            <span className={hidden.has(s.key) ? "line-through" : undefined}>
+              {s.name}
             </span>
-            {s.name}
+            {hidden.has(s.key) ? (
+              <EyeOff aria-hidden className="size-3.5" />
+            ) : (
+              <Eye aria-hidden className="size-3.5" />
+            )}
+            <span className="sr-only">
+              {" "}
+              {hidden.has(s.key) ? tr("Oculta") : tr("Visible")}
+            </span>
           </button>
         ))}
       </div>
+      <p className="text-xs text-muted-foreground">
+        {tr(
+          "Pulsa una serie para ocultarla o mostrarla. Debe quedar al menos una visible.",
+        )}
+      </p>
       <ChartContainer
         config={Object.fromEntries(
           series.map((s) => [s.key, { label: s.name, color: s.color }]),
@@ -716,85 +751,91 @@ export function EvidenceChart({
           {chart.caption}
         </p>
         {(!embedded || chart.kind === "table") && <ChartValues chart={chart} />}
-        <div className="mt-4 space-y-3">
-          <label className="flex flex-wrap items-center gap-2 text-xs">
-            {tr("Ver periodo o categoría")}
-            <select
-              aria-label={tr("Periodo o categoría de {0}", {
-                "0": chart.title,
-              })}
-              value={selected}
-              onChange={(e) => setSelected(e.target.value)}
-              className="max-w-full rounded border bg-background px-3 py-2 text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <option value="">{tr("Selecciona un punto")}</option>
-              {periods.map((p) => (
-                <option value={p} key={p}>
-                  {displayPeriod(p)}
-                </option>
-              ))}
-            </select>
-          </label>
-          {selected && (
-            <div
-              aria-live="polite"
-              className="space-y-2 rounded-lg bg-muted p-3 text-sm"
-            >
-              <strong>{displayPeriod(selected)}</strong>
-              {chart.points
-                .filter((p) => selectedLabels.includes(p.label))
-                .map((p) => (
-                  <p key={p.label}>
-                    {chart.panels
-                      ?.flatMap((panel) => panel.coordinates)
-                      .find((c) => c.label === p.label)?.series ?? p.label}
-                    : {displayNumber(p.formatted)} {chart.unit}
-                  </p>
-                ))}
-              {detail
-                .flatMap((d) => d.values)
-                .map((v, i) => (
-                  <p key={i}>
-                    {v.label}: {displayNumber(v.formatted)} {v.unit}
-                  </p>
-                ))}
-              {sourceHref ? (
-                <a href={sourceHref} className="text-primary underline">
-                  {tr("Ver hallazgo y detalle en el informe")}
-                </a>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    className="text-primary underline focus-visible:ring-2 focus-visible:ring-ring"
-                    onClick={() =>
-                      navigateToDetail(
-                        detail.find((d) => d.claim_key)?.claim_key ??
-                          chart.claim_key,
-                      )
-                    }
-                  >
-                    {tr("Ver hallazgo y siguiente comprobación")}
-                  </button>
+        {Boolean(chart.details?.length) && (
+          <Disclosure title={tr("Ver desglose por periodo")}>
+            <div className="space-y-3">
+              <label className="flex flex-wrap items-center gap-2 text-xs">
+                {tr("Ver periodo o categoría")}
+                <select
+                  aria-label={tr("Periodo o categoría de {0}", {
+                    "0": chart.title,
+                  })}
+                  value={selected}
+                  onChange={(e) => setSelected(e.target.value)}
+                  className="max-w-full rounded border bg-background px-3 py-2 text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <option value="">
+                    {tr("Elige un periodo con desglose")}
+                  </option>
+                  {periods.map((p) => (
+                    <option value={p} key={p}>
+                      {displayPeriod(p)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {selected && (
+                <div
+                  aria-live="polite"
+                  className="space-y-2 rounded-lg bg-muted p-3 text-sm"
+                >
+                  <strong>{displayPeriod(selected)}</strong>
+                  {chart.points
+                    .filter((p) => selectedLabels.includes(p.label))
+                    .map((p) => (
+                      <p key={p.label}>
+                        {chart.panels
+                          ?.flatMap((panel) => panel.coordinates)
+                          .find((c) => c.label === p.label)?.series ?? p.label}
+                        : {displayNumber(p.formatted)} {chart.unit}
+                      </p>
+                    ))}
                   {detail
-                    .filter((d) => d.detail_chart_key)
-                    .map((d) => (
+                    .flatMap((d) => d.values)
+                    .map((v, i) => (
+                      <p key={i}>
+                        {v.label}: {displayNumber(v.formatted)} {v.unit}
+                      </p>
+                    ))}
+                  {sourceHref ? (
+                    <a href={sourceHref} className="text-primary underline">
+                      {tr("Ver hallazgo y detalle en el informe")}
+                    </a>
+                  ) : (
+                    <>
                       <button
                         type="button"
-                        key={d.point_label}
-                        className="ml-3 text-primary underline focus-visible:ring-2 focus-visible:ring-ring"
+                        className="text-primary underline focus-visible:ring-2 focus-visible:ring-ring"
                         onClick={() =>
-                          navigateToDetail(d.detail_chart_key!, true)
+                          navigateToDetail(
+                            detail.find((d) => d.claim_key)?.claim_key ??
+                              chart.claim_key,
+                          )
                         }
                       >
-                        {tr("Ver desglose de este punto")}
+                        {tr("Ver hallazgo y siguiente comprobación")}
                       </button>
-                    ))}
-                </>
+                      {detail
+                        .filter((d) => d.detail_chart_key)
+                        .map((d) => (
+                          <button
+                            type="button"
+                            key={d.point_label}
+                            className="ml-3 text-primary underline focus-visible:ring-2 focus-visible:ring-ring"
+                            onClick={() =>
+                              navigateToDetail(d.detail_chart_key!, true)
+                            }
+                          >
+                            {tr("Ver desglose de este punto")}
+                          </button>
+                        ))}
+                    </>
+                  )}
+                </div>
               )}
             </div>
-          )}
-        </div>
+          </Disclosure>
+        )}
         {footer}
       </CardContent>
     </Card>

@@ -121,3 +121,18 @@ negocios habituales, en una rama separada de los cambios de UI simultáneos.
 Estado: completado para lectura en la aplicación local habitual. Véanse
 [resultados y límites](../validation/2026-10-02-bruma-web-integration.md).
 No cierra la aceptación analítica de 3.9.7 ni constituye una nueva investigación.
+
+## 3.9.8.2. Jerarquía de hallazgos y control de series
+
+1. Aumentar títulos y numeración de hallazgos para distinguirlos de la prosa y
+   de los títulos de gráficos. Conservar conclusiones completas.
+2. Retirar el selector de puntos de gráficos sin desglose adicional guardado.
+   Mantener tooltip, tablas exactas y navegación; si existe desglose, ofrecer
+   acceso por teclado en un detalle plegado con título explícito.
+3. Mostrar series visibles con fondo oscuro y ocultas con texto tachado y ojo
+   cerrado. Explicar el clic, permitir restaurar y mantener una serie visible;
+   conservar todos los valores originales aunque una línea se oculte.
+4. Comprobar teclado, idioma, datos exactos y estados, compilar y revisar Bruma
+   en la web habitual. Guardar evidencia local y commit tras revisión pública.
+
+Estado: completado y comprobado. Véase [validación](../validation/2026-10-02-report-hierarchy-and-legend.md).

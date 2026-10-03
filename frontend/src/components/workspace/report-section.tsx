@@ -48,13 +48,15 @@ export function ReportSection({
             {number && (
               <span
                 aria-hidden
-                className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs text-muted-foreground"
+                className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs text-muted-foreground"
               >
                 {number}
               </span>
             )}
             <div className="min-w-0 flex-1 space-y-2">
-              <h3 className="text-base font-semibold leading-snug">{title}</h3>
+              <h3 className="text-xl font-semibold leading-tight tracking-tight sm:text-2xl">
+                {title}
+              </h3>
               {preview && (
                 <span className="block text-sm leading-6 text-muted-foreground">
                   {preview}

@@ -50,5 +50,13 @@
   "Ver hallazgo y detalle en el informe": "Ver hallazgo y detalle en el informe",
   "Ver hallazgo y siguiente comprobación": "Ver hallazgo y siguiente comprobación",
   "Ver desglose de este punto": "Ver desglose de este punto",
-  "En este informe": "En este informe"
+  "En este informe": "En este informe",
+  "Ver desglose por periodo": "Ver desglose por periodo",
+  "Elige un periodo con desglose": "Elige un periodo con desglose",
+  "Mostrar {0}": "Mostrar {0}",
+  "Ocultar {0}": "Ocultar {0}",
+  "Debe quedar al menos una serie visible": "Debe quedar al menos una serie visible",
+  "Pulsa una serie para ocultarla o mostrarla. Debe quedar al menos una visible.": "Pulsa una serie para ocultarla o mostrarla. Debe quedar al menos una visible.",
+  "Oculta": "Oculta",
+  "Visible": "Visible"
 }
