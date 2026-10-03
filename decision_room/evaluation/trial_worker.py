@@ -47,10 +47,14 @@ def main(job):
     assert state['status'] == 'not_run', 'Never redispatch a started attempt.'
     load_env(Path(manifest['env_file']))
     os.environ['DECISION_ROOM_DATABASE_URL'] = manifest['dsn']
+    # Older batches have a single product arm described at the top level.
+    arm = manifest.get('arms', {}).get(state['system'], manifest)
+    os.environ.update(arm.get('env', {}))
+    state['arm'] = {k: arm.get(k) for k in ('ref', 'revision', 'env') if k in arm}
     dataset = manifest['datasets'][state['dataset']]
     inputs = sorted((batch / 'inputs' / state['dataset'] / 'datos').glob('*.csv'))
     prompt = (batch / 'inputs' / state['dataset'] / 'prompt.txt').read_text()
-    config = configuration(manifest)
+    config = configuration(arm)
     model = ModelClient(ModelSettings(**manifest['model']))
     started = time.monotonic()
 

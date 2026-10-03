@@ -35,7 +35,8 @@ from uuid import uuid4
 from ..config import ROOT
 from .runner import write
 
-SYSTEMS = ('luna', 'product')
+SYSTEMS = ('luna', 'product', 'reference')
+PRODUCT_ARMS = ('product', 'reference')
 CODEX_ARGS = ['exec', '--ignore-user-config', '--ephemeral', '--skip-git-repo-check',
               '--sandbox', 'workspace-write', '--model', 'gpt-6-luna',
               '-c', 'model_reasoning_effort="low"', '-c', 'web_search="disabled"',
@@ -97,7 +98,7 @@ def copy_inputs(source, target):
 
 
 def prepare(batch, datasets, product_ref, repeats, systems, runtime_root, env_file,
-            arm_repeats=None, python=None):
+            arm_repeats=None, python=None, reference_ref=None, product_env=None, reference_python=None):
     if (batch / 'manifest.json').exists():
         raise SystemExit('Batch already prepared; inspect it or choose another folder.')
     batch.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -116,7 +117,7 @@ def prepare(batch, datasets, product_ref, repeats, systems, runtime_root, env_fi
                                       'business': re.sub(r'^Mi negocio es ', '', first)[:80]}
         if (source / 'oracle.json').exists():
             raise SystemExit(f'{source} contains oracle.json; keep oracles away from agent inputs.')
-    if 'product' in systems:
+    if set(systems) & set(PRODUCT_ARMS):
         from ..agent.model import ModelSettings
         from ..local_env import load_env
         import psycopg
@@ -129,14 +130,24 @@ def prepare(batch, datasets, product_ref, repeats, systems, runtime_root, env_fi
         dsn = os.environ.get('DECISION_ROOM_DATABASE_URL')
         if not dsn:
             raise SystemExit('Set DECISION_ROOM_DATABASE_URL to the local PostgreSQL cluster.')
-        revision = freeze(batch / 'source', product_ref, runtime_root)
-        database = 'dr_trials_' + uuid4().hex
-        with psycopg.connect(dsn, autocommit=True) as db:
-            db.execute(sql.SQL('CREATE DATABASE {}').format(sql.Identifier(database)))
         shutil.copyfile(Path(__file__).with_name('trial_worker.py'), batch / 'worker.py')
-        manifest.update(product_ref=product_ref, revision=revision, database=database,
-                        dsn=make_conninfo(dsn, dbname='postgres'), storage=str(batch / 'storage'),
-                        env_file=str(Path(env_file).resolve()), model=asdict(settings))
+        manifest.update(dsn=make_conninfo(dsn, dbname='postgres'), env_file=str(Path(env_file).resolve()),
+                        model=asdict(settings), arms={})
+        refs = {'product': (product_ref, product_env or {}, manifest['python']),
+                'reference': (reference_ref, {}, str(reference_python or manifest['python']))}
+        for arm in [a for a in PRODUCT_ARMS if a in systems]:
+            ref, env, python_path = refs[arm]
+            if not ref:
+                raise SystemExit(f'Arm {arm} needs a revision.')
+            source = batch / ('source' if arm == 'product' else 'source-reference')
+            database = 'dr_trials_' + uuid4().hex
+            with psycopg.connect(dsn, autocommit=True) as db:
+                db.execute(sql.SQL('CREATE DATABASE {}').format(sql.Identifier(database)))
+            manifest['arms'][arm] = {'ref': ref, 'revision': freeze(source, ref, runtime_root), 'source': str(source),
+                                     'database': database, 'storage': str(batch / ('storage-' + arm)),
+                                     'python': python_path, 'env': env}
+        if 'product' in manifest['arms']:
+            manifest.update(product_ref=product_ref, revision=manifest['arms']['product']['revision'])
     if 'luna' in systems:
         binary = shutil.which('codex')
         if not binary:
@@ -154,9 +165,9 @@ def prepare(batch, datasets, product_ref, repeats, systems, runtime_root, env_fi
                                    'repetition': int(repetition), 'status': 'not_run',
                                    'key': 'trial-' + uuid4().hex})
     write(batch / 'manifest.json', manifest)
-    if 'product' in systems:
-        env = {**os.environ, 'PYTHONPATH': str(batch / 'source')}
-        subprocess.run([manifest['python'], '-c', PREFLIGHT, str(batch)], cwd=batch / 'source', env=env, check=True)
+    for arm, spec in manifest.get('arms', {}).items():
+        env = {**os.environ, 'PYTHONPATH': spec['source']}
+        subprocess.run([spec['python'], '-c', PREFLIGHT, str(batch), arm], cwd=spec['source'], env=env, check=True)
     return manifest
 
 
@@ -165,10 +176,10 @@ from pathlib import Path
 from decision_room.local_env import load_env
 from decision_room.database import migrate
 from decision_room.evaluation.quality_runner import configuration, preflight
-batch=Path(sys.argv[1]);manifest=json.loads((batch/"manifest.json").read_text())
-load_env(Path(manifest["env_file"]));os.environ["DECISION_ROOM_DATABASE_URL"]=manifest["dsn"]
-config=configuration(manifest);migrate(config);preflight(config,batch)
-print("Frozen source migrated; sandbox preflight passed.")
+batch=Path(sys.argv[1]);manifest=json.loads((batch/"manifest.json").read_text());arm=manifest["arms"][sys.argv[2]]
+load_env(Path(manifest["env_file"]));os.environ["DECISION_ROOM_DATABASE_URL"]=manifest["dsn"];os.environ.update(arm["env"])
+config=configuration(arm);migrate(config);preflight(config,batch/("preflight-"+sys.argv[2]))
+print("Frozen source migrated; sandbox preflight passed:",sys.argv[2])
 '''
 
 
@@ -257,10 +268,11 @@ def luna_outside(job):
 
 
 def run_product(batch, job):
-    env = {**os.environ, 'PYTHONPATH': str(batch / 'source')}
+    spec = read(batch / 'manifest.json')['arms'][read(job / 'state.json')['system']]
+    env = {**os.environ, 'PYTHONPATH': spec['source']}
     try:
-        subprocess.run([read(batch / 'manifest.json').get('python', sys.executable), str(batch / 'worker.py'), str(job)],
-                       cwd=batch / 'source',
+        subprocess.run([spec['python'], str(batch / 'worker.py'), str(job)],
+                       cwd=spec['source'],
                        env=env, timeout=PRODUCT_TIMEOUT)
     except subprocess.TimeoutExpired:
         state = read(job / 'state.json')
@@ -270,15 +282,15 @@ def run_product(batch, job):
 
 def run(batch, system=None, limit=None):
     manifest = read(batch / 'manifest.json')
-    if 'product' in manifest['systems']:
-        frozen = subprocess.run([manifest.get('python', sys.executable), '-c',
+    for arm, spec in manifest.get('arms', {}).items():
+        frozen = subprocess.run([spec['python'], '-c',
                                  'from decision_room.evaluation.quality_runner import source_version;print(source_version())'],
-                                cwd=batch / 'source', env={**os.environ, 'PYTHONPATH': str(batch / 'source')},
+                                cwd=spec['source'], env={**os.environ, 'PYTHONPATH': spec['source']},
                                 capture_output=True, text=True, check=True).stdout.strip()
-        manifest.setdefault('source_sha256', frozen)
-        if frozen != manifest['source_sha256']:
-            raise SystemExit('Frozen source changed; start a separate batch.')
-        write(batch / 'manifest.json', manifest)
+        spec.setdefault('source_sha256', frozen)
+        if frozen != spec['source_sha256']:
+            raise SystemExit(f'Frozen source of {arm} changed; start a separate batch.')
+    write(batch / 'manifest.json', manifest)
     dispatched = 0
     for name in manifest['order']:
         job = batch / 'jobs' / name
@@ -443,6 +455,9 @@ def main():
     p.add_argument('--repeats', type=int, default=3)
     p.add_argument('--arm-repeats', action='append', default=[], help='DATASET-SYSTEM=N, e.g. bruma-product=1')
     p.add_argument('--python', type=Path, help='Interpreter whose packages match the frozen revision')
+    p.add_argument('--reference-ref', help='Frozen product revision for the reference arm')
+    p.add_argument('--reference-python', type=Path)
+    p.add_argument('--product-env', action='append', default=[], help='KEY=VALUE set only for the product arm')
     p.add_argument('--systems', default='luna,product')
     p.add_argument('--runtime-root', type=Path, default=ROOT,
                    help='Checkout whose .local holds sandbox-runtime.json and the mounted sandbox-inputs')
@@ -467,7 +482,8 @@ def main():
             raise SystemExit('Systems must be luna and/or product.')
         arms = {k: int(v) for k, v in (item.split('=', 1) for item in args.arm_repeats)}
         manifest = prepare(args.batch.resolve(), datasets, args.product_ref, args.repeats, systems,
-                           args.runtime_root.resolve(), args.env_file, arms, args.python)
+                           args.runtime_root.resolve(), args.env_file, arms, args.python, args.reference_ref,
+                           dict(item.split('=', 1) for item in args.product_env), args.reference_python)
         print(json.dumps({'jobs': manifest['order'], 'revision': manifest.get('revision')}, indent=2))
     elif args.command == 'run':
         print(json.dumps({'dispatched': run(args.batch.resolve(), args.system, args.limit)}))
