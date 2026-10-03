@@ -100,3 +100,42 @@ La implementación y su validación local quedan completas. No se ha medido mejo
 en profundidad, utilidad, coste o tasa de aceptación: queda pendiente ejecutar el
 mismo lanzador contra `baa0bbb` y el candidato, con la opción activada únicamente
 en este último. La revisión local no incorpora resultados de los kits ciegos.
+
+## Corrección del esquema estricto tras el ensayo
+
+El candidato `2cd836e` fue rechazado en su primera llamada de investigación con
+HTTP 400: `EvidenceRef` declaraba `metric_keys` y `series_keys` como propiedades,
+pero solo exigía `execution_id`. Las pruebas anteriores validaban respuestas con
+JSON Schema; no comprobaban las restricciones adicionales del proveedor. Por tanto,
+los resultados locales anteriores no acreditaban la admisibilidad de la petición.
+
+La corrección exige las tres propiedades en el esquema productor, antes de copiar
+sus variantes por ejecución. También se aplica a la definición sin evidencia de
+la primera llamada. Una referencia usa `[]` para el tipo de evidencia no utilizado;
+los valores por defecto internos se conservan para compatibilidad. No cambia el
+prompt, las referencias autorizadas, la lógica analítica ni los esquemas del control.
+
+`tests/test_model_strict_schemas.py` comprueba las peticiones HTTP finales y su
+igualdad con `effective_request`, usando únicamente `MockTransport`. Recorre todos
+los objetos, incluidos `$defs`, elementos de arrays y ramas `anyOf`, y exige
+`additionalProperties: false` y `required` exactamente igual a sus propiedades,
+sin duplicados. Comprueba además la validez JSON Schema y las referencias locales.
+La regla procede de la [documentación oficial de Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs).
+
+Cobertura final: los diez métodos productores, 49 contextos genéricos y 90
+peticiones simuladas al incluir recuperación de memoria donde se utiliza. Incluye
+coordinador y trabajador en su primera llamada, éxitos, varias ejecuciones,
+fallos posteriores, métricas solas, series solas, evidencia obsoleta u omitida,
+ampliación, presupuestos y gráficos con capas en redacción/revisión. Un control de
+cobertura exige incorporar a la matriz los nuevos métodos productores. Las pruebas
+negativas reproducen la omisión de `required` y los objetos abiertos, y comprueban
+que omitir una lista falla mientras una lista vacía explícita es válida.
+
+Antes de corregir el código, la primera matriz reprodujo el fallo en los 16 casos
+experimentales y en la prueba de lista omitida. Después pasan las 30 pruebas de
+esquemas, transporte OpenAI, contrato de continuidad y productor de capas. También
+pasan `compileall` y `git diff --check`. Los 31 esquemas de control capturados antes
+del cambio coinciden con los posteriores. No se ha llamado a ningún modelo real,
+ni iniciado bases de datos o servicios compartidos. Esta es una comprobación
+local de contratos, no una garantía de aceptación de cualquier esquema futuro por
+el servicio. El lote corregido y su medición permanecen pendientes.

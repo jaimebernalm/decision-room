@@ -25,3 +25,12 @@ poder obtener esa nota, el controlador lo marca como cierre incompleto sin inven
 Los pasos 1–5 quedan implementados y verificados localmente en un único cambio
 experimental. [Registro de activación, pruebas y límites](../validation/2026-10-03-research-continuity.md).
 La medición comparativa queda abierta y la opción permanece desactivada por defecto.
+
+6. Corrección del rechazo HTTP 400 detectado en el ensayo: exigir ambas listas de
+   `EvidenceRef` en el esquema efectivo y verificar recursivamente las reglas de
+   objetos estrictos de todos los productores mediante transporte simulado.
+   Completado; resultados y reproducción previa al arreglo en el registro enlazado.
+
+La propuesta de adelantar presentación (P3) se mantiene separada de esta corrección
+y de la medición de continuidad; no se implementa ninguna intervención de
+presentación en este cambio.

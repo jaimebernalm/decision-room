@@ -141,6 +141,10 @@ def constrain_schema(schema, context):
     """Offer real execution/key pairs, with validation still enforcing task scope."""
     from copy import deepcopy
     original = schema['$defs']['EvidenceRef']
+    # Runtime defaults accept historical/internal references, but the strict
+    # provider requires both lists explicitly (use [] for the unused kind).
+    # Normalize before copying branches, including when no evidence exists yet.
+    original['required'] = list(original['properties'])
     choices = []
     for o in context.get('observations', []):
         if o['status'] != 'completed' or o.get('result_omitted') or o.get('current') is False:
