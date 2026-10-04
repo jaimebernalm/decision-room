@@ -1,5 +1,5 @@
 """Deterministic P3 reading projection. Original report and evidence stay unchanged."""
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 
 def enabled(data):
@@ -8,7 +8,15 @@ def enabled(data):
 
 def readable_number(value):
     from .client_report import formatted
-    value = Decimal(str(value))
+    # Saved evidence can describe a dimension, date or missing value. Only
+    # finite numbers receive numeric formatting; preserve everything else.
+    original = value
+    try:
+        value = Decimal(str(value))
+    except InvalidOperation:
+        return original
+    if not value.is_finite():
+        return original
     if not value:
         return '0'
     decimals = 2
