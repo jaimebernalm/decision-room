@@ -1,5 +1,5 @@
 """Small, evidence-backed projection of an approved report for the home page."""
-from ..owner_presentation import enabled, readable_number, limits, evidence_rows
+from ..owner_presentation import enabled, readable_number, limits, evidence_rows, delivery_note, source_summary
 from ..series import evidence_key, evidence_label
 
 import hashlib
@@ -15,6 +15,9 @@ from ..chart_evidence import resolve_chart, series_refs
 
 def client_orientation(claim, owner=False):
     value = claim.get('orientation')
+    if owner:
+        from ..owner_presentation import orientation
+        value = orientation(value)
     return {k: ('' if owner and k == 'limitation' else v) for k, v in value.items() if k != 'evidence'} if value else None
 
 
@@ -57,6 +60,9 @@ def projection(data):
                             'formatted': number(point['value'], chart['decimals'])}
                            for point in points],
             })
+            if owner and chart.get('layers'):
+                from ..owner_presentation import business_point_labels
+                business_point_labels(charts[-1])
         colors = series_colors(s for chart in charts for panel in chart['panels'] for s in panel['series_order'])
         for chart in charts:
             for panel in chart['panels']:
@@ -72,6 +78,7 @@ def projection(data):
         'claims': [{'key': claim['key'], 'title': claim['title'],
                     'statement': claim['statement'], 'orientation': client_orientation(claim, owner)} for claim in report['claims'][:3]],
         'charts': charts, 'limitations': limits(report) if owner else report['limitations'],
+        **({'technical_notes': [t for t in report['limitations'] if delivery_note(t)]} if owner else {}),
     }
 
 
@@ -108,7 +115,9 @@ def presentation(data):
                            for entry in (observation.get('result') or {}).get('evidence', [])
                            if entry.get('operation')]
             operations = list(dict.fromkeys(operations))
-        claims.append({**{key: claim[key] for key in ('key', 'title', 'statement', 'interpretation', 'method', 'next_step')},
+        source = ({'source_summary': source_summary(files, (claim.get('orientation') or {}).get('period') or report['scope']['period'])}
+                  if enabled(data) else {})
+        claims.append({**source, **{key: claim[key] for key in ('key', 'title', 'statement', 'interpretation', 'method', 'next_step')},
                        'orientation': client_orientation(claim, enabled(data)),
                        'evidence_details': dict(files=files, metrics=metrics, operations=operations)})
     identity = dict(report_id=str(data['id']), report_version=data['approved_sha256']) if data.get('id') and data.get('approved_sha256') else {}

@@ -226,6 +226,8 @@ def render_pdf(report):
             story.append(Paragraph('<b>' + escape(tr(heading)) + '</b>: ' + escape(text), STYLES['body']))
         if claim.get('next_step') and not claim.get('orientation'):
             story += [paragraph(tr('Siguiente comprobación'), 'heading'), paragraph(claim['next_step'])]
+        if owner and claim.get('source_summary'):
+            story.append(paragraph(claim['source_summary'], 'muted'))
         for chart in report.get('charts', []):
             if chart['claim_key'] != claim['key']: continue
             chart_heading = [paragraph(chart['title'], 'heading'), paragraph(chart['unit'], 'muted')]
@@ -280,6 +282,8 @@ def render_pdf(report):
         story.append(paragraph(tr('Limitaciones'), 'heading'))
         for item in report['limitations']: story.append(paragraph('• ' + item, 'muted'))
 
+    if owner:
+        appendix.extend(paragraph(note, 'muted') for note in report.get('technical_notes', []))
     if owner and appendix:
         story += [PageBreak(), paragraph(tr('Fuentes, cálculos y valores originales'), 'title'), *appendix]
 

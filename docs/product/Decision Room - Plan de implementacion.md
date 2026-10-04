@@ -1016,3 +1016,11 @@ catálogo, límites en una sección y evidencia técnica bajo demanda/anexo. Opc
 independiente y desactivada por defecto. [Plan](../technical/report-presentation-plan.md)
 y [activación, pruebas y límites](../validation/2026-10-03-owner-presentation.md).
 Sin llamadas reales al modelo; aceptación de calidad y comparación ciega pendientes.
+
+**P3b — Corrección experimental de lectura (3.9.10.3), 4 de octubre:** sobre
+`b91aefb`, misma opción P3: evidencia fuera del HTML del dueño y auditoría aparte,
+etiquetas de capas comprensibles, reacciones idénticas en una frase y notas de
+software fuera de límites del negocio. Instrucciones editoriales v2 para retirar
+jerga y cautelas repetidas. [Validación y límites](../validation/2026-10-04-owner-presentation-p3b.md).
+Sin llamadas reales al modelo. Pendiente volver a redactar sobre investigaciones
+congeladas y comparar por parejas; no supone aceptar P3 ni cerrar 3.9.7.

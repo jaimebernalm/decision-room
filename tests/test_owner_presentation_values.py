@@ -61,11 +61,11 @@ class OwnerEvidenceValueTests(unittest.TestCase):
             html = render(localized, 'today')
             pdf = '\n'.join(p.extract_text() for p in PdfReader(BytesIO(render_pdf(localized))).pages)
             for value in (TEXT, '2026-01-03', 'True', 'None'):
-                self.assertIn(value, html)
                 self.assertIn(value, pdf)
-            self.assertIn('&lt;b&gt;Nombre &amp; canal&lt;/b&gt;', html)
+            self.assertNotIn('&lt;b&gt;Nombre &amp; canal&lt;/b&gt;', html)
+            self.assertNotIn(TEXT, html)
             self.assertIn('<b>Nombre & canal</b>', pdf)
-        self.assertIn(TEXT, render_client(data, 'today'))
+        self.assertNotIn(TEXT, render_client(data, 'today'))
         self.assertEqual(data, before)
 
     def test_text_evidence_does_not_relax_numeric_chart_validation(self):
@@ -90,7 +90,9 @@ class OwnerEvidenceValueTests(unittest.TestCase):
                 patch('decision_room.web.presentation_editing.decorate', side_effect=lambda ws, data, view, **kw: view):
             result = export(Config('', Path(folder)), 'business', 'review')
             self.assertTrue(result['publishable'])
-            self.assertIn(TEXT, Path(result['path']).read_text())
+            self.assertNotIn(TEXT, Path(result['path']).read_text())
+            self.assertIn(TEXT, Path(result['internal_path']).read_text())
+            self.assertIn('href="internal.html"', Path(result['path']).read_text())
             audit = json.loads(Path(result['audit_path']).read_text())
             self.assertEqual(audit['report'], before['report'])
             self.assertEqual(audit['observations'], before['observations'])

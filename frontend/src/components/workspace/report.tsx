@@ -253,6 +253,12 @@ export function DecisionGuidance({
           </div>
         )}
       </div>
+      {value.reaction_summary && (
+        <p>
+          <strong>{tr("En los casos descritos")}: </strong>
+          {value.reaction_summary}
+        </p>
+      )}
       {value.limitation && (
         <p className="text-muted-foreground">{value.limitation}</p>
       )}
@@ -914,6 +920,7 @@ export function ChartValues({
   inline?: boolean;
 }) {
   useLanguage();
+  if (chart.owner_presentation && chart.kind !== "table") return null;
   const values = (
     <>
       {chart.unit_origin === "owner" && (
@@ -959,15 +966,6 @@ export function ChartValues({
             ))}
           </TableBody>
         </Table>
-      )}
-      {chart.owner_presentation && (
-        <Disclosure title={tr("Detalle técnico y valores originales")}>
-          {chart.points.map((p) => (
-            <p key={p.label} className="font-mono text-xs">
-              {p.original_label ?? p.label}: {p.value}
-            </p>
-          ))}
-        </Disclosure>
       )}
     </>
   );
@@ -1229,8 +1227,9 @@ export function ReportView({
               title={claim.title}
               hasDetails={Boolean(
                 claim.interpretation ||
-                claim.method ||
-                claim.evidence_details ||
+                claim.source_summary ||
+                (!report.owner_presentation &&
+                  (claim.method || claim.evidence_details)) ||
                 report.charts?.some(
                   (c) => c.claim_key === claim.key && c.kind !== "table",
                 ),
@@ -1261,7 +1260,12 @@ export function ReportView({
               {claim.interpretation && (
                 <p className="text-muted-foreground">{claim.interpretation}</p>
               )}
-              {claim.method && (
+              {report.owner_presentation && claim.source_summary && (
+                <p className="text-sm text-muted-foreground">
+                  {claim.source_summary}
+                </p>
+              )}
+              {!report.owner_presentation && claim.method && (
                 <div className="space-y-2">
                   <h4 className="text-xs font-medium text-muted-foreground">
                     {tr("Base del análisis")}
@@ -1269,55 +1273,29 @@ export function ReportView({
                   <p>{claim.method}</p>
                 </div>
               )}
-              {claim.evidence_details && (
+              {!report.owner_presentation && claim.evidence_details && (
                 <div className="space-y-2">
                   <h4 className="text-xs font-medium text-muted-foreground">
                     {tr("Fuentes y evidencia")}
                   </h4>
                   <p>{claim.evidence_details.files.join(" · ")}</p>
                   {claim.evidence_details.metrics.map((m, j) => (
-                    <p
-                      key={j}
-                      className={
-                        report.owner_presentation
-                          ? "text-sm tabular-nums"
-                          : "font-mono text-xs"
-                      }
-                    >
-                      {report.owner_presentation
-                        ? m.label.replace(
-                            /^Cifra de apoyo /,
-                            tr("Cifra de apoyo") + " ",
-                          )
-                        : m.label}
-                      :{" "}
-                      {report.owner_presentation
-                        ? displayNumber(m.value)
-                        : m.value}
+                    <p key={j} className="font-mono text-xs">
+                      {m.label}: {m.value}
                     </p>
                   ))}
-                  {report.owner_presentation ? (
-                    <Disclosure
-                      title={tr("Detalle técnico y valores originales")}
-                    >
-                      {claim.evidence_details.metrics.map((m, j) => (
-                        <p key={j} className="font-mono text-xs break-words">
-                          {m.original_label}: {m.raw_value}
-                        </p>
-                      ))}
-                      {claim.evidence_details.operations.map((o, j) => (
-                        <p key={j}>{o}</p>
-                      ))}
-                    </Disclosure>
-                  ) : (
-                    claim.evidence_details.operations.map((o, j) => (
-                      <p key={j}>{o}</p>
-                    ))
-                  )}
+                  {claim.evidence_details.operations.map((o, j) => (
+                    <p key={j}>{o}</p>
+                  ))}
                 </div>
               )}
               {report.charts
-                ?.filter((c) => c.claim_key === claim.key && c.kind !== "table")
+                ?.filter(
+                  (c) =>
+                    !report.owner_presentation &&
+                    c.claim_key === claim.key &&
+                    c.kind !== "table",
+                )
                 .map((c) => (
                   <div key={c.key}>
                     <h4 className="font-medium">{c.title}</h4>

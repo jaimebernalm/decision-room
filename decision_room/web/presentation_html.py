@@ -3,7 +3,7 @@ from ..client_report import CSS, EMBEDDED_CSS, e
 from ..report_pdf import bar_drawings, line_drawing
 from reportlab.graphics import renderSVG
 
-def render(report, exported_at):
+def render(report, exported_at, *, technical_href=None):
     from ..report_language import export_view, label
     report = export_view(report)
     tr = lambda text: label(text, report.get('response_language'))
@@ -31,22 +31,16 @@ def render(report, exported_at):
                 output.append(f'<p><strong>{e(tr(heading))}</strong>: {e(text)}</p>')
         if c.get('method') and not owner:
             output.append(f"<details><summary>{tr('Ver cómo se ha calculado')}</summary><p>{e(c['method'])}</p></details>")
+        if owner and c.get('source_summary'):
+            output.append(f'<p class="source-summary">{e(c["source_summary"])}</p>')
         evidence = c.get('evidence_details')
-        if evidence:
+        if evidence and not owner:
             output.append(f"<details><summary>{tr('Fuentes y evidencia')}</summary>")
-            if owner and c.get('method'):
-                output.append(f'<p>{e(c["method"])}</p>')
             output.append(f"<p>{e(' · '.join(evidence['files']))}</p>")
             for item in evidence['metrics']:
                 output.append(f"<p>{e(item['label'])}: {e(item['value'])}</p>")
-            if owner:
-                output.append(f'<details><summary>{tr("Detalle técnico y valores originales")}</summary>')
-                for item in evidence['metrics']:
-                    output.append(f'<p>{e(item["original_label"])}: {e(item["raw_value"])}</p>')
             for operation in evidence['operations']:
                 output.append(f'<p>{e(operation)}</p>')
-            if owner:
-                output.append('</details>')
             output.append('</details>')
         for chart in [x for x in report['charts'] if x['claim_key'] == c['key']]:
             output.append(f"""<figure><h3>{e(chart['title'])}</h3><p class="unit">{e(chart['unit'])}</p>""")
@@ -61,18 +55,12 @@ def render(report, exported_at):
                 if owner:
                     svg = svg.replace('<svg ', f'<svg role="img" aria-label="{e(chart["title"])}" ', 1)
                 output.append('<div class="plot">' + svg + '</div>')
-            if owner and chart['kind'] != 'table':
-                output.append(f'<details><summary>{tr("Valores del gráfico")}</summary>')
-            original = not owner and any((p.get('original_label', p['label']) != p['label'] for p in chart['points']))
-            output.append(f"<table><thead><tr><th>{tr('Periodo / categoría')}</th>" + (f"<th>{tr('Código original')}</th>" if original else '') + f"<th>{e(chart['unit'])}</th></tr></thead><tbody>")
-            for point in chart['points']:
-                output.append(f"""<tr><th scope="row">{e(point['label'])}</th>""" + (f"<td>{e(point.get('original_label', point['label']))}</td>" if original else '') + f"<td>{e(point['formatted'])}</td></tr>")
-            output.append("</tbody></table>" + ("</details>" if owner and chart['kind'] != 'table' else ""))
-            if owner:
-                output.append(f'<details><summary>{tr("Detalle técnico y valores originales")}</summary>')
+            if not owner or chart['kind'] == 'table':
+                original = not owner and any(p.get('original_label', p['label']) != p['label'] for p in chart['points'])
+                output.append(f"<table><thead><tr><th>{tr('Periodo / categoría')}</th>" + (f"<th>{tr('Código original')}</th>" if original else '') + f"<th>{e(chart['unit'])}</th></tr></thead><tbody>")
                 for point in chart['points']:
-                    output.append(f'<p>{e(point.get("original_label", point["label"]))}: {e(point["value"])}</p>')
-                output.append('</details>')
+                    output.append(f'<tr><th scope="row">{e(point['label'])}</th>' + (f"<td>{e(point.get('original_label', point['label']))}</td>" if original else '') + f"<td>{e(point['formatted'])}</td></tr>")
+                output.append('</tbody></table>')
             output.append(f"<figcaption>{e(chart['caption'])}</figcaption></figure>")
         output.append('</section>')
     if report.get('no_chart_reason'):
@@ -82,6 +70,11 @@ def render(report, exported_at):
         output.append(f"<p>{e(question['explanation'])}</p>")
     for limitation in report['limitations']:
         output.append(f'<p>{e(limitation)}</p>')
-    revision = report.get('presentation', {}).get('revision', 0)
-    output.append(f"</section></div><footer>{tr('Presentación · Versión')} {revision}{tr('. Cálculos y fuentes del análisis original conservados.')}</footer>")
+    output.append('</section></div>')
+    if owner:
+        if technical_href:
+            output.append(f'<footer><a href="{e(technical_href)}">{tr("Anexo técnico")}</a></footer>')
+    else:
+        revision = report.get('presentation', {}).get('revision', 0)
+        output.append(f"<footer>{tr('Presentación · Versión')} {revision}{tr('. Cálculos y fuentes del análisis original conservados.')}</footer>")
     return f'<!doctype html><html lang="{language}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' + f"<title>{e(report['title'])}</title><style>{CSS}{EMBEDDED_CSS}</style></head><body><main>" + ''.join(output) + '</main></body></html>'

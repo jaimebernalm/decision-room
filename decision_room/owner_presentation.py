@@ -1,5 +1,7 @@
 """Deterministic P3 reading projection. Original report and evidence stay unchanged."""
 from decimal import Decimal, InvalidOperation
+from copy import deepcopy
+import re
 
 
 def enabled(data):
@@ -47,7 +49,8 @@ def limits(report):
         # this also recovers text truncated in the 1600-character scope note.
         if controller_note and ' '.join(text.split()) == controller_note:
             continue
-        add(text)
+        if not delivery_note(text):
+            add(text)
     for claim in report.get('claims', []):
         add((claim.get('orientation') or {}).get('limitation', ''))
     entries = report.get('owner_coverage') or report.get('question_coverage', [])
@@ -72,7 +75,55 @@ def evidence_rows(data, refs):
     return rows
 
 
+def delivery_note(text):
+    """Recognize standalone software delivery notes, never general data caveats."""
+    return bool(re.match(r'^(?:Versión \d+\b|(?:La |El )?(?:exportación (?:HTML|del informe|del documento)|archivo HTML|HTML|renderizado)\b.*(?:no (?:ha sido |se ha |fue |está )?(?:verificad|validad|comprobad)|sin verificar))', text.strip(), re.I))
+
+
+def orientation(value):
+    result = deepcopy(value)
+    if not result:
+        return result
+    for reaction in result['reactions']:
+        reaction['condition'] = re.sub(r'^(?:(?:si|if)\s+)+', '', reaction['condition'].strip(), flags=re.I).rstrip(':').strip()
+    same = {' '.join(r['reaction'].split()).casefold().rstrip('.') for r in result['reactions']}
+    if len(result['reactions']) > 1 and len(same) == 1:
+        result['reaction_summary'] = 'Si ' + ' o si '.join(r['condition'] for r in result['reactions']) + ': ' + result['reactions'][0]['reaction']
+        result['reactions'] = []
+    return result
+
+
 def guidance(claim):
     from .agent.delivery_contract import orientation_sections
-    return [(heading, text) for heading, text in orientation_sections(claim.get('orientation'))
-            if heading != 'Señal' or text != claim['statement']]
+    value = orientation(claim.get('orientation'))
+    sections = [(heading, text) for heading, text in orientation_sections(value)
+                if heading != 'Señal' or text != claim['statement']]
+    if value and value.get('reaction_summary'):
+        sections.append(('En los casos descritos', value['reaction_summary']))
+    return sections
+
+
+def source_summary(files, period):
+    """A bounded source note, never a dump of metrics, SQL or daily rows."""
+    names = ', '.join(files)
+    source = names if len(names) <= 180 else ('1 archivo del análisis' if len(files) == 1 else f'{len(files)} archivos del análisis')
+    parts = [f'Datos utilizados: {source}.'] if source else []
+    if period and len(period) <= 140:
+        parts.append(f'Periodo: {period}.')
+    return ' '.join(parts)
+
+
+def business_point_labels(chart):
+    """Replace layer-generated IDs using reviewed series names and periods."""
+    mapping = {c['label']: c['series'] + ' · ' + c['category']
+               for panel in chart['panels'] for c in panel['coordinates']}
+    if len(set(mapping.values())) != len(mapping):
+        return  # Never merge distinct coordinates.
+    for point in chart['points']:
+        point['original_label'] = point['label']
+        point['label'] = mapping.get(point['label'], point['label'])
+    for panel in chart['panels']:
+        for coordinate in panel['coordinates']:
+            coordinate['label'] = mapping.get(coordinate['label'], coordinate['label'])
+    for detail in chart['details']:
+        detail['point_label'] = mapping.get(detail['point_label'], detail['point_label'])

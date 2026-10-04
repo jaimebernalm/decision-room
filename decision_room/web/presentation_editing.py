@@ -87,7 +87,10 @@ def relabel(result, labels):
     for chart in display['charts']:
         chart['title'] = text(chart['title'])
         for point in chart['points']:
-            point['original_label'] = point['label']
+            if display.get('owner_presentation'):
+                point.setdefault('original_label', point['label'])
+            else:
+                point['original_label'] = point['label']
             point['label'] = dimension(point['label'])
         for panel in chart['panels']:
             for coordinate in panel['coordinates']:
@@ -102,6 +105,8 @@ def relabel(result, labels):
                 display['scope'][field] = text(display['scope'][field])
         display['limitations'] = [text(value) for value in display['limitations']]
         for claim in display['claims']:
+            if claim.get('source_summary'):
+                claim['source_summary'] = text(claim['source_summary'])
             if claim.get('method'):
                 claim['method'] = text(claim['method'])
             orientation = claim.get('orientation') or {}

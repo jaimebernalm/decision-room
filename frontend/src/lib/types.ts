@@ -68,9 +68,11 @@ export type DecisionOrientation = {
   next_check: string;
   decision_value: string;
   reactions: { condition: string; reaction: string }[];
+  reaction_summary?: string;
   limitation: string;
 };
 export type Claim = {
+  source_summary?: string;
   orientation?: DecisionOrientation | null;
   key: string;
   title: string;

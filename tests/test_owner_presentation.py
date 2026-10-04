@@ -94,7 +94,7 @@ class OwnerPresentationTests(unittest.TestCase):
         self.assertEqual(ctx, original)
         self.assertEqual(feedback(data['report'])['review_period_rationale'], ['trend'])
 
-    def test_html_and_cli_keep_raw_values_inside_optional_details(self):
+    def test_html_and_cli_exclude_raw_evidence_even_inside_optional_details(self):
         class Reading(HTMLParser):
             def __init__(self):
                 super().__init__(); self.depth = 0; self.primary = []; self.all = []; self.raw_depths = []
@@ -112,7 +112,10 @@ class OwnerPresentationTests(unittest.TestCase):
             primary, all_text = '\n'.join(parser.primary), '\n'.join(parser.all)
             self.assertNotIn('Entrega parcial', all_text)
             self.assertEqual(all_text.count('No conocemos costes ni causas.'), 1)
-            self.assertEqual(parser.raw_depths, [2])
+            self.assertEqual(parser.raw_depths, [])
+            self.assertNotIn('20.005', all_text)
+            self.assertNotIn('TRY_CAST', all_text)
+            self.assertIn('Datos utilizados: ventas.csv.', all_text)
             self.assertNotIn('20.005', primary)
             self.assertNotIn('TRY_CAST', primary)
             self.assertIn(data['report']['charts'][0]['caption'], primary)
@@ -184,7 +187,7 @@ class OwnerPresentationPersistenceTests(unittest.TestCase):
         self.assertTrue(presentation(result)['owner_presentation'])
         with connect(config) as db:
             versions = db.execute('SELECT DISTINCT prompt_version FROM agent_calls WHERE scope=%s', (str(result['id']),)).fetchall()
-        self.assertEqual([r['prompt_version'] for r in versions], ['owner-presentation-v1'])
+        self.assertEqual([r['prompt_version'] for r in versions], ['owner-presentation-v2'])
         resumed = review.resume(self.config, self.business, result['id'], analyst=roles, reviewer=roles)
         self.assertTrue(resumed['options']['owner_presentation'])
         self.assertEqual(resumed['approved_sha256'], result['approved_sha256'])
@@ -192,7 +195,7 @@ class OwnerPresentationPersistenceTests(unittest.TestCase):
             review.start(config, self.business, self.research['id'], request_key='p3', owner_presentation=False,
                          analyst=roles, reviewer=roles)
         exported = export(self.config, self.business, result['id'])
-        self.assertIn('Detalle técnico y valores originales', Path(exported['path']).read_text())
+        self.assertIn('Anexo técnico', Path(exported['path']).read_text())
         self.assertTrue(Path(exported['audit_path']).is_file())
 
 

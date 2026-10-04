@@ -22,3 +22,21 @@ lector; las transformaciones deterministas se limitan a formato y organización.
 
 Pasos 1–5 completados y verificados localmente. [Activación, resultados y límites](../validation/2026-10-03-owner-presentation.md).
 La opción permanece desactivada y la medición con informes nuevos sigue pendiente.
+
+## P3b — Corrección de lectura, 4 de octubre
+
+Sobre `b91aefb`, conservar la misma opción e investigación congelada:
+
+1. Retirar los volcados de evidencia del HTML y React del dueño; ofrecer una nota
+   breve de fuentes y periodo y conservar la auditoría aparte.
+2. Usar nombres de serie y periodo en etiquetas de capas; mantener identificadores
+   originales en auditoría, sin alterar coordenadas ni cálculos.
+3. Normalizar condiciones y juntar reacciones idénticas, conservando condiciones;
+   pedir al redactor decisiones distintas solo cuando los resultados lo justifiquen.
+4. Separar notas de software de los límites del negocio y reforzar redacción/revisión
+   contra jerga y cautelas causales repetidas.
+5. Probar control apagado, exportación, PDF, interfaz y auditoría con datos sintéticos;
+   documentar lo determinista frente a lo pendiente de medición por parejas.
+
+Pasos implementados y comprobados. [Pruebas y alcance de P3b](../validation/2026-10-04-owner-presentation-p3b.md).
+La aceptación de calidad continúa pendiente; no se cambia la investigación.

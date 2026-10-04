@@ -1,7 +1,8 @@
 """P3 editorial instructions and feedback; no new business inference or acceptance gate."""
 import re
 
-VERSION = 'owner-presentation-v1'
+VERSION = 'owner-presentation-v2'
+TECHNICAL = r'\b(?:TRY_CAST|CAST\s*\(|SQL|resultados guardados|saved results|contribuciones firmadas|signed contributions|pares focales|liderazgo aritmético|residual de meses sin pareja|concilia con el cambio neto)\b'
 SYSTEM = '''
 OWNER PRESENTATION EXPERIMENT (budgets.owner_presentation=true):
 Write for a nontechnical business owner. Preserve the original question, findings,
@@ -31,7 +32,26 @@ claim or choose an action; centralizing caveats is not permission to overclaim.
 A partial answer is described through the concrete unanswered question and what data
 or check would answer it in limitations; do not print internal delivery counters.
 The application keeps status/coverage and original identifiers in its audit and moves
-technical evidence to optional details (PDF appendix). Scope must remain honest.
+technical evidence to a SEPARATE technical file or PDF appendix, not hidden HTML.
+Use method for ONE short source explanation in the report language (Spanish by
+default): what quantity was calculated, from which data and period. At most 40
+words; never list intermediate metrics, daily rows, SQL or execution descriptions.
+Do not refer readers to a hidden evidence dump. Scope must remain honest.
+Use the owner's language, not analytical jargon: say which products/channels you
+compare, which contributes most, what months are missing, or whether the parts add
+to the total. Avoid phrases such as "pares focales", "liderazgo aritmético",
+"residual de meses sin pareja" and "concilia con el cambio neto".
+Chart layer.name and coordinate series/category must be meaningful business names.
+Layer.key is an internal ID; never copy key:period into a visible label or prose.
+Reactions must describe DIFFERENT decisions for different outcomes. If all outcomes
+lead to the same action (e.g. keeping a descriptive comparison), write that once;
+do not manufacture differences or a decision tree. Do not prefix a condition twice.
+General causal uncertainty belongs ONCE in limitations. Remove paraphrases of that
+same caveat from summary, claims, methods and captions during rewriting. Retain
+specific decision conditions and distinct uncertainties; do not claim causality.
+Software delivery status (HTML export, browser verification, version numbers) is
+technical audit information, not a business limitation. Keep it out of prose and
+limitations; never remove a real data limitation or claim an export was verified.
 Reviewer: inspect the owner-visible reading as well as the evidence. Ask for concrete
 editorial corrections when labels, numeric precision, repeated caveats or unexplained
 period choices obscure the decision. owner_reading_feedback is diagnostic, not a
@@ -57,15 +77,29 @@ def feedback(report):
             prefix = f'{kind}[{index}]'
             for field in ('title', 'label', 'statement', 'interpretation', 'method', 'next_step', 'caption'):
                 add(prefix + '.' + field, item.get(field))
+            for j, layer in enumerate(item.get('layers') or []):
+                add(f'{prefix}.layers[{j}].name', layer['name'])
+            for j, point in enumerate(item.get('points') or []):
+                add(f'{prefix}.points[{j}].label', point['label'])
             for field, value in (item.get('orientation') or {}).items():
                 add(prefix + '.orientation.' + field, value)
+            for j, reaction in enumerate((item.get('orientation') or {}).get('reactions', [])):
+                add(f'{prefix}.reactions[{j}].condition', reaction['condition'])
+                add(f'{prefix}.reactions[{j}].reaction', reaction['reaction'])
     patterns = {
-        'technical_language': r'\b(?:TRY_CAST|CAST\s*\(|SQL|resultados guardados|saved results|contribuciones firmadas|signed contributions)\b',
+        'technical_language': TECHNICAL,
+        'software_delivery_note': r'\b(?:HTML|exportación|versión \d+)\b',
         'internal_identifier': r'\b[a-zA-Z][a-zA-Z0-9]*_[a-zA-Z0-9_]+\b',
         'excess_decimal_precision': r'(?<!\w)\d+[.,]\d{3,}(?!\w)',
     }
     return {'purpose': 'Editorial hints only; retain evidence, conditions and valid source names.',
             'locations': [{ 'path': path, 'issue': issue} for path, text in passages
                           for issue, pattern in patterns.items() if re.search(pattern, text, re.I)][:40],
+            'repeated_causal_caveat_locations': [path for path, text in passages if re.search(r'causal|causa|demuestra.*demanda', text, re.I)],
+            'identical_reactions': [c['key'] for c in report.get('claims', [])
+                if len((c.get('orientation') or {}).get('reactions', [])) > 1
+                and len({' '.join(r['reaction'].split()).casefold().rstrip('.')
+                         for r in c['orientation']['reactions']}) == 1],
+            'review_reactions': [c['key'] for c in report.get('claims', []) if (c.get('orientation') or {}).get('reactions')],
             'review_period_rationale': [c['key'] for c in report.get('charts', [])],
-            'instruction': 'Review period rationale and semantic repetition yourself; regex cannot establish either.'}
+            'instruction': 'Review period rationale and semantic repetition yourself. Rewrite duplicated causal caveats once in limitations, and merge equivalent reactions without inventing differences. Keep distinct uncertainties and conditional safeguards. The locations are hints, not facts or an automatic rejection rule.'}

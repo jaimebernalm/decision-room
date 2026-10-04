@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, afterEach, it, expect, vi } from "vitest";
-import { ReportView } from "./report";
+import { ReportView, DecisionGuidance } from "./report";
 import type { Report } from "@/lib/types";
 const selection = vi.hoisted(() => ({
   active: false,
@@ -254,7 +254,7 @@ it("keeps distinct chart and finding references for contextual chat selection", 
   );
 });
 
-it("P3 keeps limits after findings and technical evidence behind a second disclosure", async () => {
+it("P3 keeps limits and a short source note without embedding technical evidence", async () => {
   const readable: Report = {
     ...report,
     owner_presentation: true,
@@ -263,6 +263,8 @@ it("P3 keeps limits after findings and technical evidence behind a second disclo
         ? claim
         : {
             ...claim,
+            source_summary:
+              "Datos utilizados: ventas.csv. Periodo: septiembre.",
             evidence_details: {
               files: ["ventas.csv"],
               metrics: [
@@ -290,19 +292,21 @@ it("P3 keeps limits after findings and technical evidence behind a second disclo
   await userEvent.click(
     screen.getByRole("button", { name: "Datos y fuentes: Ventas del periodo" }),
   );
-  expect(screen.getByText("Importe del periodo: 51,37")).toBeVisible();
+  expect(
+    screen.getByText("Datos utilizados: ventas.csv. Periodo: septiembre."),
+  ).toBeVisible();
+  expect(screen.queryByText("Importe del periodo: 51,37")).toBeNull();
   expect(screen.queryByText(/TRY_CAST/)).toBeNull();
-  const technical = screen.getByRole("button", {
-    name: "Detalle técnico y valores originales",
-  });
-  technical.focus();
-  await userEvent.keyboard("{Enter}");
-  expect(screen.getByText("window_amount: 51.366666")).toBeVisible();
-  expect(screen.getByText("SUM(TRY_CAST(amount AS DECIMAL))")).toBeVisible();
+  expect(screen.queryByText(/window_amount/)).toBeNull();
+  expect(
+    screen.queryByRole("button", {
+      name: "Detalle técnico y valores originales",
+    }),
+  ).toBeNull();
   expect(screen.getAllByText(report.limitations[0])).toHaveLength(1);
 });
 
-it("P3 table shows names and keeps original codes and precision in optional detail", async () => {
+it("P3 table shows business names without a raw-code dump", async () => {
   const { ChartValues } = await import("./report");
   render(
     <ChartValues
@@ -324,10 +328,38 @@ it("P3 table shows names and keeps original codes and precision in optional deta
   expect(screen.getByRole("cell", { name: "Cuaderno · Web" })).toBeVisible();
   expect(screen.queryByText("Código original")).toBeNull();
   expect(screen.queryByText(/U17×D2/)).toBeNull();
-  await userEvent.click(
-    screen.getByRole("button", {
+  expect(
+    screen.queryByRole("button", {
       name: "Detalle técnico y valores originales",
     }),
+  ).toBeNull();
+});
+
+it("renders the shared reaction once with its retained conditions", () => {
+  render(
+    <DecisionGuidance
+      claim={{
+        key: "test",
+        title: "Comparación",
+        statement: "Se comparan registros.",
+        orientation: {
+          segment: "Todos",
+          period: "Enero",
+          signal: "Se comparan registros.",
+          knowledge: "calculated",
+          relative_priority: "Comprobar cobertura.",
+          next_check: "Revisar registros.",
+          decision_value: "Decidir si comparar.",
+          reactions: [],
+          limitation: "",
+          reaction_summary:
+            "Si hay cobertura completa o si falta cobertura: Mantener la comparación descriptiva.",
+        },
+      }}
+    />,
   );
-  expect(screen.getByText("U17×D2: 51.366666")).toBeVisible();
+  expect(
+    screen.getAllByText(/Mantener la comparación descriptiva/),
+  ).toHaveLength(1);
+  expect(screen.queryByText(/Si Si/)).toBeNull();
 });
