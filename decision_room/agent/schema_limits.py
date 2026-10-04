@@ -49,12 +49,24 @@ def bound_enums(schema):
         too_long = len(values) > 250 and sum(map(len, values)) > 15000
         if count <= MAX_ENUM_VALUES and not too_long:
             continue
-        # Escape regex syntax only (ECMAScript-compatible), not arbitrary spaces
-        # or punctuation. The final negative lookahead excludes the trailing
-        # newline that the conventional $ anchor otherwise admits.
-        escaped = [re.sub(r'([\\.^$|?*+()\[\]{}])', r'\\\1', value) for value in values]
-        node['pattern'] = '^(?:' + '|'.join(escaped) + ')$(?![\\s\\S])'
-        node.pop('enum')
+        # Group by exact string length so $ cannot admit a trailing newline.
+        # Use only literal alternatives and anchors, without regex lookaround.
+        # Preserve existing constraints in every branch of the intersection.
+        groups = {}
+        for value in values:
+            groups.setdefault(len(value), []).append(value)
+        choices = []
+        for length, group in groups.items():
+            choice = {k: deepcopy(v) for k, v in node.items() if k != 'enum'}
+            if length < choice.get('minLength', 0) or length > choice.get('maxLength', length):
+                continue
+            escaped = [re.sub(r'([\\.^$|?*+()\[\]{}])', r'\\\1', value) for value in group]
+            choice.update(minLength=length, maxLength=length, pattern='^(?:' + '|'.join(escaped) + ')$')
+            choices.append(choice)
+        if not choices:
+            continue  # Leave an already-unsatisfiable schema for the guard.
+        node.clear()
+        node.update(choices[0] if len(choices) == 1 else {'anyOf': choices})
         count -= len(values)
     validate_enum_limits(schema)
     return schema

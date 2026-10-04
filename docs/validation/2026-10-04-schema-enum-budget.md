@@ -11,7 +11,8 @@ preguntas, cálculos, validadores de evidencia o presupuestos de investigación.
 3. Si se excede el límite, representar los enums de texto mayores con patrones de
    alternativas literales escapadas. Preservan exactamente las claves permitidas
    y las demás restricciones del campo, incluidos longitud y ejecución padre.
-   El anclaje final rechaza también un salto de línea añadido. Los esquemas
+   Se agrupan por longitud exacta para rechazar también un salto de línea añadido,
+   sin usar lookahead ni otras extensiones de regex. Los esquemas
    pequeños no cambian por esta adaptación; no se truncan listas de claves.
 4. Un guardián local impide enviar cualquier esquema que aún exceda 1.000 valores,
    o el límite de 15.000 caracteres de un enum de texto con más de 250 valores.

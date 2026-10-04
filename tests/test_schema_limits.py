@@ -27,6 +27,7 @@ class SchemaLimitTests(unittest.TestCase):
         values = [f'key_{i}' for i in range(1001)] + ['a.b', 'a|b', '[x]', 'x\\y', '', 'line\nend', 'a"b']
         original = {'type': 'string', 'enum': values}
         bounded = bound_enums(original)
+        self.assertNotIn('(?!', str(bounded))
         v = Draft202012Validator(bounded)
         for value in values:
             self.assertTrue(v.is_valid(value), value)
