@@ -112,3 +112,14 @@ por fila y ajuste por ancho medido, con una muestra del color y trazo. Evita cor
 por un prefijo común y confundir series distintas; el control conserva su render.
 HTML añade un nombre accesible al gráfico. Los fixtures tienen nombres genéricos
 largos, series sintéticas y magnitudes pequeñas; no reutilizan señales de negocios.
+
+## Corrección del contador de cobertura, 4 de octubre
+
+P3 sustituye en su proyección el texto exacto de cobertura generado por el
+controlador por las explicaciones estructuradas de lo que falta, una sola vez
+en límites. Conserva las explicaciones completas incluso si el resumen del
+controlador estaba truncado a 1.600 caracteres. No elimina otras cautelas por
+prefijo, no cambia el informe aprobado ni su auditoría y no afecta al control.
+También se aplica al reexportar informes aprobados; no necesita investigación
+ni revisión nuevas. 31 pruebas locales de presentación, exportación y PDF pasan,
+incluidos estados completo/parcial, duplicados y conservación de evidencia textual.

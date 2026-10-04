@@ -37,7 +37,16 @@ def limits(report):
         if key and key not in seen:
             seen.add(key)
             result.append(text)
+    controller_note = None
+    if report.get('owner_coverage'):
+        from .agent.research_agenda import limitation
+        controller_note = ' '.join(limitation({}, report).split())
     for text in report.get('limitations', []):
+        # Replace only the exact controller-generated counter. The complete
+        # pending explanations are added below from structured owner coverage;
+        # this also recovers text truncated in the 1600-character scope note.
+        if controller_note and ' '.join(text.split()) == controller_note:
+            continue
         add(text)
     for claim in report.get('claims', []):
         add((claim.get('orientation') or {}).get('limitation', ''))
