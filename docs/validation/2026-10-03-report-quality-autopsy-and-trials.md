@@ -460,6 +460,95 @@ Estado: fase 2 cerrada. P3 implementada por Astra en `fbff764` (rama
 `codex/feature/report-owner-presentation-v2`, sobre `5d3087c`), detrás de
 `DECISION_ROOM_OWNER_PRESENTATION=true`.
 
+## 13. Resultados: fase 3 (presentación P3)
+
+Ejecución:
+- Lote `phase3`, congelado en `fbff764` de Astra.
+- Brazo con P3 (`DECISION_ROOM_OWNER_PRESENTATION=true`, más continuidad y
+  recuperación): 2 informes de Bruma y 3 de Albor.
+- Control sin P3 del mismo commit: 1 de Bruma. Control de Luna: 1 de Bruma.
+- Como control de continuidad sin P3 en Albor se reutilizan los 6 informes de
+  `phase2c`, del mismo código de investigación.
+
+Dos fallos del producto aparecieron en la ejecución:
+- **Exportación:** P3 daba por hecho que toda evidencia era numérica, y una
+  dimensión de texto («Café de la casa 250 g | Marketplace») hacía fallar la
+  exportación de informes ya aprobados (2 casos). Corregido en `f60278d`. Los dos
+  informes se reexportaron sin repetir la investigación con el nuevo comando
+  `trials.py reexport`.
+- **Límite de enum de OpenAI:** el esquema de investigación repetía el enum de
+  métricas acumuladas en cada variante del `anyOf`. OpenAI rechazó con HTTP 400
+  una llamada con 1.867 valores («at most 1000 enum values in total»); la mayor
+  aceptada en `phase2c` tenía 966. El fallo estaba latente desde la continuidad y
+  crece con la profundidad de la investigación: es un fallo de escala, no de P3.
+  Corregido en `d682b62`/`f0455c1`. El esquema rechazado, acotado, fue aceptado
+  por OpenAI (976 valores), y el intento sustituto (`phase3b`, `b91aefb`) llegó a
+  590 como máximo. Sesgo de supervivencia: el intento perdido era el de
+  investigación más profunda.
+
+`b91aefb` sustituye además el contador «0 de 1 entregables» por la explicación
+de lo pendiente. Los cuatro informes con P3 de `phase3` se reexportaron con esa
+revisión (`reexport --again`), así que los cinco se presentan igual.
+
+Lectores independientes, tercera ronda:
+- 2 lectores por negocio, cada uno con su propio orden aleatorio y sus propios
+  códigos.
+- Bruma: 9 informes (2 con P3, 3 de continuidad, 3 de Luna y 1 de la línea base).
+- Albor: 12 informes (3 con P3, 6 de continuidad y 3 de Luna).
+- Cambio de formato: el texto conserva títulos, listas y tablas y marca las
+  secciones plegadas (`trial_kit.reading_text`). Las rondas 1 y 2 usaban una sola
+  línea plana.
+- Concordancia entre lectores: Spearman 0,97 en Bruma y 0,70 en Albor.
+
+| Grupo | Bruma: puesto | Bruma: entiende / confía | Albor: puesto | Albor: entiende / confía |
+| --- | ---: | ---: | ---: | ---: |
+| Luna | 0,12 | 4,2 / 3,5 | 0,32 | 4,3 / 2,8 |
+| Continuidad sin P3 | 0,60 | 3,2 / 2,5 | 0,41 | 3,3 / 3,1 |
+| Producto línea base | 0,50 (n=1) | 3,5 / 3,0 | — | — |
+| **P3** | **0,91** | **2,3 / 2,0** | **0,86** | **2,2 / 2,3** |
+
+P3 queda el último en ambos negocios y con ambos lectores. La parte visible
+mide lo mismo que la de los demás (unas 1.000–1.200 palabras), pero P3 pliega
+2–3 veces más material: 1.292 y 2.471 palabras de media, con 14–28 «Cifra de
+apoyo N», descripciones de cálculo en inglés, `TRY_CAST` y valores diarios
+repetidos. Los lectores lo leen aunque esté plegado y es su queja principal.
+
+Diagnóstico: un lector por negocio, con los mismos informes y el mismo orden que
+el lector «a», pero viendo solo el título de cada sección plegada:
+
+| Grupo | Bruma: puesto | Albor: puesto |
+| --- | ---: | ---: |
+| Luna | 0,12 | 0,30 |
+| Continuidad sin P3 | 0,75 | 0,42 |
+| P3 | 0,56 | 0,85 |
+
+- **Bruma:** sin lo plegado, P3 pasa de último a ser el mejor producto, aunque
+  sigue muy lejos de Luna. El volcado de evidencia es lo que hundía a P3.
+  Quejas visibles que quedan:
+  - condicionales repetidos («Si Si los registros…») que acaban en «mantener
+    como descriptivo»;
+  - la cautela causal repetida;
+  - notas de «Versión 0» y de exportación HTML en límites;
+  - jerga en la prosa («pares focales», «liderazgo aritmético», «residual de
+    meses sin pareja»);
+  - etiquetas `cafe_casa:2022-01` en los gráficos.
+- **Albor:** P3 sigue último, pero por el contenido. P3 solo cambia la redacción
+  y la revisión (`budgets.owner_presentation`), y en 2 de los 3 intentos la
+  investigación nunca encontró la caída de hostelería. En `phase2c` la encontró
+  en los 6. Los dos lectores vuelven a elegir primero el informe de continuidad
+  que detecta que hostelería no tiene registros desde abril.
+
+Conclusión:
+- P3 no se adopta tal cual. El volcado de evidencia en el informe del dueño
+  empeora la lectura; la evidencia debe ir resumida en castellano o en un anexo
+  técnico aparte.
+- La mejora visible es real pero pequeña frente a Luna, y está medida con muy
+  pocos informes.
+- Las comparaciones entre lotes mezclan la variación de la investigación con la
+  de la presentación. Las próximas pruebas de presentación deben reutilizar la
+  misma investigación: volver a redactar y revisar sobre una investigación ya
+  hecha, para comparar en pareja.
+
 ## 10. Límites
 
 Tres repeticiones son pocas para afirmar consistencia; sirven para detectar
