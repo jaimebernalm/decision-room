@@ -134,5 +134,26 @@ def main(job):
                          ensure_ascii=False), flush=True)
 
 
+def reexport(job, revision):
+    """Render an approved review again with a fixed exporter; research and review are reused."""
+    job = Path(job)
+    manifest, state = read(job.parent.parent / 'manifest.json'), read(job / 'state.json')
+    load_env(Path(manifest['env_file']))
+    os.environ['DECISION_ROOM_DATABASE_URL'] = manifest['dsn']
+    arm = manifest['arms'][state['system']]
+    os.environ.update(arm.get('env', {}))
+    exported = export(configuration(arm), state['business_id'], state['review_id'])
+    write(job / 'export.json', exported)
+    shutil.copyfile(exported['path'], job / 'informe.html')
+    state['reexport'] = dict(revision=revision, original_issue=state.pop('issue'),
+                             original_failed_phase=state.pop('failed_phase'),
+                             at=time.strftime('%Y-%m-%dT%H:%M:%S%z'))
+    state.update(status='completed', phase='done')
+    write(job / 'state.json', state)
+
+
 if __name__ == '__main__':
-    main(sys.argv[1])
+    if sys.argv[2:3] == ['--reexport']:
+        reexport(sys.argv[1], sys.argv[3])
+    else:
+        main(sys.argv[1])

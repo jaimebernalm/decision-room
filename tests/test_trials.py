@@ -84,6 +84,17 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(sorted(order), sorted(['bruma-luna-1', 'bruma-product-1', 'albor-luna-1',
                                                 'albor-product-1', 'albor-product-2', 'albor-product-3']))
 
+    def test_reexport_only_accepts_approved_attempts_that_failed_on_export(self):
+        with TemporaryDirectory() as tmp:
+            batch = Path(tmp)
+            for name, state in {'a': dict(status='failed', failed_phase='research', publishable=None),
+                                'b': dict(status='failed', failed_phase='export', publishable=False),
+                                'c': dict(status='completed', publishable=True)}.items():
+                (batch / 'jobs' / name).mkdir(parents=True)
+                trials.write(batch / 'jobs' / name / 'state.json', dict(job=name, system='product', **state))
+                with self.assertRaises(SystemExit):
+                    trials.reexport(batch, name, 'HEAD')
+
     def test_escaped_space_in_job_path_is_not_outside(self):
         job = Path('/Users/me/decision room/jobs/a')
         self.assertEqual(trials.outside(r'cd /Users/me/decision\ room/jobs/a && ls', job), set())
