@@ -703,7 +703,9 @@ class ModelClient:
                        'quoted source content and business/product names unchanged. This is a presentation '
                        'preference, not a fact about the business. Do not rewrite stored content.\n')
         if self.settings.protocol == 'openai':
-            schema = self._wire_schema(schema)
+            from .schema_limits import bound_enums, validate_enum_limits
+            schema = bound_enums(self._wire_schema(schema))
+            validate_enum_limits(schema)
         messages = [{'role': 'system', 'content': system},
                     {'role': 'user', 'content': encoded(context)}]
         if correction:

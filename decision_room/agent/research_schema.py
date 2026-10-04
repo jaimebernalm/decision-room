@@ -74,6 +74,10 @@ def constrain_schema(schema, context):
         p['investigation_key']['enum'] = [key]
         for field in ('table_ids', 'metric_keys', 'followups', 'assignments', 'evidence_refs'):
             p[field]['maxItems'] = 0
+            # Unused lists admit no items; copying a global metric enum here
+            # multiplies provider size without constraining any valid action.
+            if field == 'metric_keys':
+                p[field]['items'] = {'type': 'string'}
         p['code']['enum'] = ['']
         for field in ('continuation', 'closure', 'synthesis'):
             p[field] = {'type': 'null'}
