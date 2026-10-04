@@ -102,6 +102,20 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(trials.outside(r'cd /Users/me/decision\ room/jobs/a && ls', job), set())
         self.assertEqual(trials.outside('ls /Users/me/Desktop', job), {'/Users/me/Desktop'})
 
+    def test_reading_text_keeps_structure_and_marks_folded_sections(self):
+        text = trial_kit.reading_text('<h2>Qué revisar</h2><p>Hostelería <b>cae</b>.</p><ul><li>Uno</li></ul>'
+                                      '<details><summary>Detalle técnico</summary><p>raw_value 1.0000</p></details>'
+                                      '<details open><summary>Abierto</summary><p>Visible</p></details>'
+                                      '<p><span>Total</span><span>914</span></p><script>x()</script><table><tr><td>a</td><td>1</td></tr></table>')
+        self.assertIn('## Qué revisar\n\nHostelería cae.', text)
+        self.assertIn('- Uno', text)
+        self.assertIn('[Sección plegada; solo se ve si se pulsa: Detalle técnico]\n\nraw_value 1.0000', text)
+        self.assertIn('[Fin de la sección plegada]', text)
+        self.assertNotIn('plegada; solo se ve si se pulsa: Abierto', text)
+        self.assertNotIn('x()', text)
+        self.assertIn('| a | 1', text)
+        self.assertIn('Total 914', text)
+
     def test_hints_require_every_group(self):
         self.assertTrue(trials.hinted('La Tienda cae en domingo', [['domingo'], ['tienda']]))
         self.assertFalse(trials.hinted('La tienda cae', [['domingo'], ['tienda']]))

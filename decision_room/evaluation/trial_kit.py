@@ -13,6 +13,7 @@ reveal a system: this reduces bias, it does not remove it.
 import argparse
 import base64
 from datetime import datetime, timezone
+from html.parser import HTMLParser
 import json
 from pathlib import Path
 import random
@@ -98,6 +99,61 @@ def build(batch, out):
     technical(batch, out / 'tecnica', items, manifest)
     signals(out / 'senales', items)
     return {'reports': len(items), 'by_dataset': {d: sum(i['dataset'] == d for i in items) for d in order}}
+
+
+class _ReadingText(HTMLParser):
+    BLOCKS = {'p', 'div', 'section', 'article', 'header', 'footer', 'main', 'figure', 'figcaption',
+              'table', 'tr', 'ul', 'ol', 'dl', 'dt', 'dd', 'blockquote', 'br', 'caption'}
+    INLINE = {'b', 'i', 'strong', 'em', 'a', 'code', 'sup', 'sub', 'small', 'abbr', 'mark', 'u', 's'}
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.out, self.skip, self.folded = [], 0, []
+
+    def handle_starttag(self, tag, attrs):
+        if tag in ('script', 'style', 'svg', 'canvas'):
+            self.skip += 1
+        elif tag == 'details':
+            folded = 'open' not in dict(attrs)
+            self.folded.append(folded)
+            self.out.append('\n[Sección plegada; solo se ve si se pulsa: ' if folded else '\n')
+        elif tag == 'summary':
+            pass
+        elif tag in ('h1', 'h2', 'h3', 'h4', 'h5', 'h6'):
+            self.out.append('\n\n' + '#' * int(tag[1]) + ' ')
+        elif tag == 'li':
+            self.out.append('\n- ')
+        elif tag in ('td', 'th'):
+            self.out.append(' | ')
+        elif tag in self.BLOCKS:
+            self.out.append('\n')
+        elif tag not in self.INLINE:
+            self.out.append(' ')
+
+    def handle_endtag(self, tag):
+        if tag in ('script', 'style', 'svg', 'canvas'):
+            self.skip = max(0, self.skip - 1)
+        elif tag == 'summary' and self.folded and self.folded[-1]:
+            self.out.append(']\n')
+        elif tag == 'details' and self.folded:
+            if self.folded.pop():
+                self.out.append('\n[Fin de la sección plegada]\n')
+        elif tag in self.BLOCKS or tag in ('h1', 'h2', 'h3', 'h4', 'h5', 'h6'):
+            self.out.append('\n')
+        elif tag not in self.INLINE:
+            self.out.append(' ')
+
+    def handle_data(self, data):
+        if not self.skip:
+            self.out.append(re.sub(r'\s+', ' ', data))
+
+
+def reading_text(html):
+    """Text as an owner sees the page: headings, lists and table rows kept, folded sections marked."""
+    parser = _ReadingText()
+    parser.feed(html)
+    lines = (' '.join(line.split()) for line in ''.join(parser.out).splitlines())
+    return re.sub(r'\n{3,}', '\n\n', '\n'.join(lines)).strip()
 
 
 def reader(folder, items):
