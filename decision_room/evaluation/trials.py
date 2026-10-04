@@ -335,13 +335,15 @@ def abandon(batch, name, reason, replace=True):
     return replacement
 
 
-def reexport(batch, name, ref, runtime_root=ROOT):
-    """Export an approved attempt again when only its exporter failed.
+def reexport(batch, name, ref, runtime_root=ROOT, again=False):
+    """Export an approved attempt again when only its exporter failed, or, with
+    again, so that every attempt of an arm shares one exporter revision.
 
-    Research and review stay as they were; the export revision is recorded."""
+    Research and review stay as they were; each export revision is recorded."""
     job = batch / 'jobs' / name
     state = read(job / 'state.json')
-    if not (state['status'] == 'failed' and state.get('failed_phase') == 'export' and state.get('publishable')):
+    failed_export = state['status'] == 'failed' and state.get('failed_phase') == 'export'
+    if not (state.get('publishable') and (failed_export or (again and state['status'] == 'completed'))):
         raise SystemExit(f'{name} is not an approved attempt that failed only on export.')
     spec = read(batch / 'manifest.json')['arms'][state['system']]
     revision = subprocess.run(['git', 'rev-parse', ref + '^{commit}'], cwd=ROOT,
@@ -352,7 +354,7 @@ def reexport(batch, name, ref, runtime_root=ROOT):
     shutil.copyfile(Path(__file__).with_name('trial_worker.py'), batch / 'export-worker.py')
     subprocess.run([spec['python'], str(batch / 'export-worker.py'), str(job), '--reexport', revision],
                    cwd=source, env={**os.environ, 'PYTHONPATH': str(source)}, check=True)
-    return read(job / 'state.json')['reexport']
+    return read(job / 'state.json')['reexports'][-1]
 
 
 def text_of(html):
@@ -507,6 +509,7 @@ def main():
     e.add_argument('job')
     e.add_argument('--ref', required=True, help='Revision whose exporter renders the approved review')
     e.add_argument('--runtime-root', type=Path, default=ROOT)
+    e.add_argument('--again', action='store_true', help='Also re-render completed approved attempts')
     commands.add_parser('summary').add_argument('batch', type=Path)
     args = parser.parse_args()
     if args.command == 'prepare':
@@ -529,7 +532,7 @@ def main():
         oracles = dict(item.split('=', 1) for item in args.oracle)
         print(json.dumps(score(args.batch.resolve(), oracles), ensure_ascii=False, indent=2))
     elif args.command == 'reexport':
-        print(json.dumps(reexport(args.batch.resolve(), args.job, args.ref, args.runtime_root.resolve())))
+        print(json.dumps(reexport(args.batch.resolve(), args.job, args.ref, args.runtime_root.resolve(), args.again)))
     else:
         print(summary(args.batch.resolve()))
 

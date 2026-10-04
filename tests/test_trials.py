@@ -94,6 +94,8 @@ class LauncherTests(unittest.TestCase):
                 trials.write(batch / 'jobs' / name / 'state.json', dict(job=name, system='product', **state))
                 with self.assertRaises(SystemExit):
                     trials.reexport(batch, name, 'HEAD')
+            with self.assertRaises(SystemExit):
+                trials.reexport(batch, 'a', 'HEAD', again=True)
 
     def test_escaped_space_in_job_path_is_not_outside(self):
         job = Path('/Users/me/decision room/jobs/a')
