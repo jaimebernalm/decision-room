@@ -393,7 +393,7 @@ exploración, panorama). P3 son correcciones baratas y concretas que el lector h
 enumerado; conviene no dejarlas para el final. Con tres repeticiones y un lector
 simulado, son tendencias de desarrollo, no resultados concluyentes.
 
-## 12. Resultados: fase 2 (continuidad), evaluación técnica pendiente
+## 12. Resultados: fase 2 (continuidad)
 
 - `2cd836e` con continuidad: el esquema de `EvidenceRef` dejaba campos fuera de
   `required` y OpenAI lo rechazaba (HTTP 400) en la primera llamada de
@@ -428,8 +428,37 @@ hostelería aparece en los 6 informes de Albor con continuidad (frente a 1 de 3 
 la línea base), aunque solo uno dice que no hay registros desde abril, y en un pie
 de gráfico. S1, S3, S4 y S5 siguen sin detectarse.
 
-Estado: falta la evaluación técnica de Astra (`kits/phase2c/tecnica`). Siguiente
-fase acordada: P3, presentación, desde `5d3087c` y detrás de su propia opción.
+Evaluación técnica a ciegas de Astra (`kits/phase2c/tecnica`, solo esa carpeta),
+cruzada con la clave. Medias por informe; rúbrica sobre 24.
+
+| Grupo | n | Cifras comprobadas | Errores | Prioridad justificada (0–2) | Siguiente comprobación (0–2) | Fidelidad (0–2) | Rúbrica |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Albor A · continuidad | 3 | 146 | 0,33 | 1,00 | 1,67 | 1,67 | 16,0 |
+| Albor B · + recuperación | 3 | 142 | 0,33 | 0,67 | 1,67 | 1,67 | 15,3 |
+| Albor producto línea base | 3 | — | 0 | 0,67 | 2,00 | 2,00 | 17,7 |
+| Albor Luna línea base | 3 | — | 0,67 | 1,00 | 2,00 | 0,67 | 17,0 |
+| Bruma A / B | 1 + 1 | 9 / 20 | 0 / 0 | 0 / 0 | 1 / 2 | 2 / 2 | 15 / 14 |
+
+- Exactitud: 892 cifras comprobadas, todas coinciden con los datos. Hay dos
+  errores de interpretación: un año equivocado al describir pedidos de 2025 y un
+  gráfico titulado «cinco mayores descensos» con tres caídas y dos aumentos.
+- Más cálculo no ha subido la rúbrica: el producto con continuidad (15,7 en
+  Albor) queda algo por debajo de su línea base (17,7). La prioridad sigue
+  decidiéndose por magnitud en 5 de 8 informes, y la caída de la tienda física
+  (mayor que la de hostelería en la misma ventana) queda como alternativa omitida
+  en los 6 informes de Albor. Es el hueco que atacan P1 (panorama) y P2 (revisor).
+- El mejor informe (rúbrica 18, prioridad 2) es el único que ordena por
+  hostelería sin filas desde abril de 2026, es decir, S2 bien leída.
+- Presentación: leyendas solapadas en 4 de 8 gráficos y ningún error de
+  JavaScript ni tablas vacías. Pasa a P3.
+- La lectura conjunta con los lectores es que la continuidad mejora lo que el
+  dueño entiende y cuánto se fía, pero no la calidad del criterio. No la
+  empeora de forma significativa (con n = 3 la diferencia de 2 puntos de rúbrica
+  queda dentro de la variación entre ejecuciones, de 14 a 18).
+
+Estado: fase 2 cerrada. P3 implementada por Astra en `fbff764` (rama
+`codex/feature/report-owner-presentation-v2`, sobre `5d3087c`), detrás de
+`DECISION_ROOM_OWNER_PRESENTATION=true`.
 
 ## 10. Límites
 
