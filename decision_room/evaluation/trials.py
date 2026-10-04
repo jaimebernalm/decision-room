@@ -172,6 +172,89 @@ def prepare(batch, datasets, product_ref, repeats, systems, runtime_root, env_fi
     return manifest
 
 
+def prepare_rewrite(batch, sources, ref, runtime_root, env_file, python=None, product_env=None,
+                    reference_env=None):
+    """Write and review again on research that already exists, to compare presentation in pairs.
+
+    sources are BATCH/JOB attempts whose research was approved. Each source database is cloned
+    (PostgreSQL TEMPLATE) with a copy of its storage, so the original batch is never touched;
+    both arms run the same frozen revision and differ only in their environment."""
+    if (batch / 'manifest.json').exists():
+        raise SystemExit('Batch already prepared; inspect it or choose another folder.')
+    import psycopg
+    from psycopg import sql
+    from psycopg.conninfo import make_conninfo
+    from ..local_env import load_env
+    load_env(env_file)
+    dsn = os.environ.get('DECISION_ROOM_DATABASE_URL')
+    if not dsn:
+        raise SystemExit('Set DECISION_ROOM_DATABASE_URL to the local PostgreSQL cluster.')
+    batch.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.umask(0o077)
+    python = str(python or sys.executable)
+    manifest = {'created_at': datetime.now(timezone.utc).isoformat(), 'kind': 'rewrite', 'systems': list(PRODUCT_ARMS),
+                'python': python, 'harness_sha256': sha(__file__), 'datasets': {}, 'clones': {}, 'arms': {},
+                'worker_sha256': sha(Path(__file__).with_name('trial_worker.py')),
+                'dsn': make_conninfo(dsn, dbname='postgres'), 'env_file': str(Path(env_file).resolve())}
+    shutil.copyfile(Path(__file__).with_name('trial_worker.py'), batch / 'worker.py')
+    source = batch / 'source'
+    revision = freeze(source, ref, runtime_root)
+    for arm, env in (('product', product_env or {}), ('reference', reference_env or {})):
+        manifest['arms'][arm] = {'ref': ref, 'revision': revision, 'source': str(source), 'python': python, 'env': env}
+    jobs = []
+    for item in sources:
+        origin, name = Path(item).parent.resolve(), Path(item).name
+        original, state = read(origin / 'manifest.json'), read(origin / 'jobs' / name / 'state.json')
+        if not (state['status'] == 'completed' and state.get('research_id') and state.get('publishable')):
+            raise SystemExit(f'{item} has no approved research to write again.')
+        manifest.setdefault('model', original['model'])
+        if original['model'] != manifest['model']:
+            raise SystemExit('Sources must share the model settings.')
+        manifest['datasets'].setdefault(state['dataset'], original['datasets'][state['dataset']])
+        arm = original['arms'][state['system']]
+        clone = f"{origin.name}-{state['system']}"
+        if clone not in manifest['clones']:
+            database = 'dr_trials_' + uuid4().hex
+            with psycopg.connect(dsn, autocommit=True) as db:
+                db.execute(sql.SQL('CREATE DATABASE {} TEMPLATE {}').format(sql.Identifier(database),
+                                                                            sql.Identifier(arm['database'])))
+            storage = batch / ('storage-' + clone)
+            shutil.copytree(arm['storage'], storage, symlinks=True)
+            manifest['clones'][clone] = {'database': database, 'storage': str(storage),
+                                         'from': {'batch': str(origin), 'arm': state['system'],
+                                                  'revision': arm['revision'], 'env': arm.get('env', {})}}
+        jobs.append((state, clone, f'{origin.name}/{name}'))
+    manifest['order'] = []
+    for number, (state, clone, origin) in enumerate(jobs, 1):
+        arms = list(PRODUCT_ARMS) if number % 2 else list(reversed(PRODUCT_ARMS))
+        for arm in arms:
+            name = f"{state['dataset']}-{arm}-{number}"
+            (batch / 'jobs' / name).mkdir(parents=True)
+            write(batch / 'jobs' / name / 'state.json', {
+                'job': name, 'dataset': state['dataset'], 'system': arm, 'repetition': number,
+                'status': 'not_run', 'key': 'trial-' + uuid4().hex, 'clone': clone, 'rewrite_of': origin,
+                **{k: state[k] for k in ('business_id', 'analysis_id', 'session_id', 'research_id')}})
+            manifest['order'].append(name)
+    write(batch / 'manifest.json', manifest)
+    for clone in manifest['clones']:
+        env = {**os.environ, 'PYTHONPATH': str(source)}
+        subprocess.run([python, '-c', PREFLIGHT_CLONE, str(batch), clone], cwd=source, env=env, check=True)
+    return manifest
+
+
+PREFLIGHT_CLONE = '''import json,os,sys
+from pathlib import Path
+from decision_room.local_env import load_env
+from decision_room.database import migrate
+from decision_room.evaluation.quality_runner import configuration, preflight
+batch=Path(sys.argv[1]);manifest=json.loads((batch/"manifest.json").read_text());clone=manifest["clones"][sys.argv[2]]
+load_env(Path(manifest["env_file"]));os.environ["DECISION_ROOM_DATABASE_URL"]=manifest["dsn"]
+probe=batch/("preflight-"+sys.argv[2]);probe.mkdir(exist_ok=True)
+config=configuration(clone);migrate(config);preflight(config,probe)
+print("Clone migrated; sandbox preflight passed:",sys.argv[2])
+'''
+
+
 PREFLIGHT = '''import json,os,sys
 from pathlib import Path
 from decision_room.local_env import load_env
@@ -504,6 +587,15 @@ def main():
     s = commands.add_parser('score')
     s.add_argument('batch', type=Path)
     s.add_argument('--oracle', action='append', default=[], help='NAME=PATH, kept outside the batch')
+    w = commands.add_parser('prepare-rewrite')
+    w.add_argument('batch', type=Path)
+    w.add_argument('--source', action='append', required=True, help='BATCH/JOB with approved research')
+    w.add_argument('--ref', required=True, help='Revision that writes and reviews again')
+    w.add_argument('--python', type=Path)
+    w.add_argument('--product-env', action='append', default=[], help='KEY=VALUE for the product arm')
+    w.add_argument('--reference-env', action='append', default=[], help='KEY=VALUE for the reference arm')
+    w.add_argument('--runtime-root', type=Path, default=ROOT)
+    w.add_argument('--env-file', type=Path, default=ROOT / '.env')
     e = commands.add_parser('reexport')
     e.add_argument('batch', type=Path)
     e.add_argument('job')
@@ -531,6 +623,12 @@ def main():
     elif args.command == 'score':
         oracles = dict(item.split('=', 1) for item in args.oracle)
         print(json.dumps(score(args.batch.resolve(), oracles), ensure_ascii=False, indent=2))
+    elif args.command == 'prepare-rewrite':
+        manifest = prepare_rewrite(args.batch.resolve(), args.source, args.ref, args.runtime_root.resolve(),
+                                   args.env_file, args.python,
+                                   dict(item.split('=', 1) for item in args.product_env),
+                                   dict(item.split('=', 1) for item in args.reference_env))
+        print(json.dumps({'jobs': manifest['order'], 'clones': list(manifest['clones'])}, indent=2))
     elif args.command == 'reexport':
         print(json.dumps(reexport(args.batch.resolve(), args.job, args.ref, args.runtime_root.resolve(), args.again)))
     else:
