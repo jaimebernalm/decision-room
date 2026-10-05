@@ -77,7 +77,8 @@ def build(config, db, session, run, analyst, reviewer, saver, *, executor=execut
                     if context.get('review_policy', 0) >= 5:
                         from .delivery_selection import selection_notes
                         prefixes += ('Selección entregada:',)
-                        controller_limits.extend(selection_notes(report, context['observations']))
+                        if not context['budgets'].get('owner_presentation'):
+                            controller_limits.extend(selection_notes(report, context['observations']))
                     limits = [l for l in report['limitations'] if not l.startswith(prefixes)]
                     report['limitations'] = [*limits, *controller_limits]
                     action = validate(action, state['role'], context)

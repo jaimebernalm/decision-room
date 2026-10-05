@@ -1042,3 +1042,11 @@ fuera del borrador P3 y conservado en auditoría; el revisor distingue esas nota
 sistemáticas de la prosa editable. Mantiene comprobaciones de cobertura sustantiva.
 [Prueba del bucle y corrección](../validation/2026-10-04-controller-review-ownership.md).
 15 pruebas locales con modelos simulados; evaluación real pendiente.
+
+**P3c — Limpieza adicional de lectura, 4 de octubre:** sobre `f740c0b`, misma opción
+P3: contadores de selección y notas de navegador fuera de la prosa del dueño,
+auditoría conservada, cautelas generales reconocibles una vez en límites e
+instrucciones editoriales v3 para jerga y razones de comparación.
+[Validación y límites](../validation/2026-10-04-owner-presentation-p3c.md).
+51 pruebas locales con modelos simulados; sin llamadas reales. Pendiente volver
+a redactar y comparar por parejas. P2 continúa pendiente.

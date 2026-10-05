@@ -31,7 +31,7 @@ def readable_number(value):
     return result.rstrip('0').rstrip(',') if ',' in result else result
 
 
-def limits(report):
+def limits(report, observations=None):
     """Move only explicitly marked limitations; never strip sentences from findings."""
     result, seen = [], set()
     def add(text):
@@ -39,6 +39,10 @@ def limits(report):
         if key and key not in seen:
             seen.add(key)
             result.append(text)
+    selection = set()
+    if observations is not None:
+        from .agent.delivery_selection import selection_notes
+        selection = set(selection_notes(report, observations))
     controller_note = None
     if report.get('owner_coverage'):
         from .agent.research_agenda import limitation
@@ -47,7 +51,7 @@ def limits(report):
         # Replace only the exact controller-generated counter. The complete
         # pending explanations are added below from structured owner coverage;
         # this also recovers text truncated in the 1600-character scope note.
-        if controller_note and ' '.join(text.split()) == controller_note:
+        if text in selection or (controller_note and ' '.join(text.split()) == controller_note):
             continue
         if not delivery_note(text):
             add(text)
@@ -76,8 +80,59 @@ def evidence_rows(data, refs):
 
 
 def delivery_note(text):
-    """Recognize standalone software delivery notes, never general data caveats."""
-    return bool(re.match(r'^(?:Versión \d+\b|(?:La |El )?(?:exportación (?:HTML|del informe|del documento)|archivo HTML|HTML|renderizado)\b.*(?:no (?:ha sido |se ha |fue |está )?(?:verificad|validad|comprobad)|sin verificar))', text.strip(), re.I))
+    """Only standalone software notes; never discard a mixed business paragraph."""
+    text = text.strip()
+    patterns = [
+        r'Versión \d+[.]?',
+        r'(?:La |El )?(?:exportación (?:HTML|del informe|del documento)|archivo HTML|HTML|renderizado)\b[^.!?;]*(?:no (?:ha sido |se ha |fue |está )?(?:verificad|validad|comprobad)[^.!?;]*|sin verificar)[.]?',
+        r'No (?:se (?:ha )?(?:comprobó|comprobado|acredita|acreditó|acreditado|verificó|verificado)|consta|está acreditado)\b[^.!?;]*\b(?:informe|HTML)\b[^.!?;]*\bnavegador[.]?',
+        r'(?:(?:Ver|Véase|Consultar) (?:el )?)?Anexo técnico[.]?',
+    ]
+    return any(re.fullmatch(pattern, text, re.I) for pattern in patterns)
+
+
+def generic_caveat(text):
+    """Narrow standalone caveats only; local qualifications stay with their claims."""
+    if re.fullmatch(r'(?:(?:Estos |Los )?datos (?:son )?(?:sintéticos|simulados)|(?:Son |Se usan |Se utilizan )datos (?:sintéticos|simulados))[.]?', text, re.I):
+        return 'synthetic'
+    if re.fullmatch(r'(?:No (?:se puede (?:inferir|establecer)|demuestra|demuestran) causalidad|(?:Estos |Los )?datos no permiten (?:establecer|inferir) causalidad)[.]?', text, re.I):
+        return 'causal'
+    return None
+
+
+def clean_reading(view):
+    """Project known audit sentences out of owner prose; source report stays intact."""
+    if not view.get('owner_presentation'):
+        return view
+    result = deepcopy(view)
+    technical = list(result.get('technical_notes', []))
+    caveats = {}
+    def clean(text):
+        kept = []
+        for sentence in re.split(r'(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÜÑ¿¡])', text.strip()):
+            if delivery_note(sentence):
+                if sentence not in technical:
+                    technical.append(sentence)
+            elif kind := generic_caveat(sentence):
+                caveats.setdefault(kind, sentence)
+            elif sentence:
+                kept.append(sentence)
+        return ' '.join(kept)
+    for key in ('summary', 'no_chart_reason'):
+        if result.get(key): result[key] = clean(result[key])
+    result['scope']['coverage'] = clean(result['scope']['coverage'])
+    for claim in result.get('claims', []):
+        for field in ('statement', 'interpretation', 'next_step'):
+            if claim.get(field): claim[field] = clean(claim[field])
+        orientation = claim.get('orientation') or {}
+        for field in ('signal', 'relative_priority', 'next_check', 'decision_value', 'limitation'):
+            if orientation.get(field): orientation[field] = clean(orientation[field])
+    for chart in result.get('charts', []):
+        chart['caption'] = clean(chart['caption'])
+    limits = [clean(text) for text in result.get('limitations', [])]
+    result['limitations'] = list(dict.fromkeys(text for text in [*limits, *caveats.values()] if text))
+    result['technical_notes'] = technical
+    return result
 
 
 def orientation(value):

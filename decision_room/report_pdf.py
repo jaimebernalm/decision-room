@@ -214,7 +214,8 @@ def render_pdf(report):
         for h in batch:
             if h.get('unit_origin') == 'owner':
                 story.append(paragraph(f"{h['label']}: {tr('unidad visible indicada por el propietario. Unidad del análisis:')} {h['original_unit']}.", 'muted'))
-    story += [paragraph(tr('Contexto y alcance'), 'heading'), paragraph(report['scope']['coverage'], 'muted')]
+    if report['scope']['coverage']:
+        story += [paragraph(tr('Contexto y alcance'), 'heading'), paragraph(report['scope']['coverage'], 'muted')]
     if report['scope'].get('question'):
         story += [paragraph(tr('Pregunta del análisis'), 'heading'), paragraph(report['scope']['question'])]
     for i, claim in enumerate(report['claims']):

@@ -1,8 +1,8 @@
 """P3 editorial instructions and feedback; no new business inference or acceptance gate."""
 import re
 
-VERSION = 'owner-presentation-v2-controller-notes'
-TECHNICAL = r'\b(?:TRY_CAST|CAST\s*\(|SQL|resultados guardados|saved results|contribuciones firmadas|signed contributions|pares focales|liderazgo aritmético|residual de meses sin pareja|concilia con el cambio neto)\b'
+VERSION = 'owner-presentation-v3'
+TECHNICAL = r'\b(?:TRY_CAST|CAST\s*\(|SQL|resultados guardados|saved results|contribuciones firmadas|signed contributions|pares focales|liderazgo aritmético|residual de meses sin pareja|concilia con el cambio neto|mitades cronológicas|unidades por fecha observada|conciliar (?:captura|mapeo)(?:/mapeo)?|imputar ceros|meses emparejados)\b'
 SYSTEM = '''
 OWNER PRESENTATION EXPERIMENT (budgets.owner_presentation=true):
 Write for a nontechnical business owner. Preserve the original question, findings,
@@ -41,6 +41,24 @@ Use the owner's language, not analytical jargon: say which products/channels you
 compare, which contributes most, what months are missing, or whether the parts add
 to the total. Avoid phrases such as "pares focales", "liderazgo aritmético",
 "residual de meses sin pareja" and "concilia con el cambio neto".
+Instead of "mitades cronológicas", explain the two date ranges and why they
+answer the question. Instead of "unidades por fecha observada", say the average
+per day WITH records and explicitly distinguish it from all calendar days.
+Instead of "conciliar captura/mapeo", name the records or product assignments to
+check. Instead of "imputar ceros", explain that days without records are not days
+with zero sales. Instead of "meses emparejados", name the same months compared.
+If a comparison window is not obvious, give ONE short sentence explaining why it
+was chosen. A label such as "first half" is not that explanation. Do not invent a
+seasonal or business reason for a convenience/exploratory window.
+State synthetic/simulated-data scope ONCE in limitations when supported by the
+actual input context. Never infer synthetic provenance from unusual data alone.
+Like the general causal caveat, remove semantic repetitions from other prose;
+retain distinct local conditions and specific weaknesses in the data.
+Do not print "Selección entregada" counters or "Anexo técnico" in owner prose.
+Keep selection metadata in the audit; explain relevant subset/coverage honestly
+and briefly in chart captions, never imply a selected subset is the whole business.
+Do not discuss whether the report opens in a browser or whether that was verified
+or accredited. Those are software audit notes, not business limitations.
 Chart layer.name and coordinate series/category must be meaningful business names.
 Layer.key is an internal ID; never copy key:period into a visible label or prose.
 Reactions must describe DIFFERENT decisions for different outcomes. If all outcomes
@@ -105,6 +123,7 @@ def feedback(report, controller_annotations=None):
     return {'purpose': 'Editorial hints only; retain evidence, conditions and valid source names.',
             'locations': [{ 'path': path, 'issue': issue} for path, text in passages
                           for issue, pattern in patterns.items() if re.search(pattern, text, re.I)][:40],
+            'synthetic_caveat_locations': [path for path, text in passages if re.search(r'sintétic|simulad', text, re.I)],
             'repeated_causal_caveat_locations': [path for path, text in passages if re.search(r'causal|causa|demuestra.*demanda', text, re.I)],
             'identical_reactions': [c['key'] for c in report.get('claims', [])
                 if len((c.get('orientation') or {}).get('reactions', [])) > 1
@@ -112,4 +131,4 @@ def feedback(report, controller_annotations=None):
                          for r in c['orientation']['reactions']}) == 1],
             'review_reactions': [c['key'] for c in report.get('claims', []) if (c.get('orientation') or {}).get('reactions')],
             'review_period_rationale': [c['key'] for c in report.get('charts', [])],
-            'instruction': 'Review period rationale and semantic repetition yourself. Rewrite duplicated causal caveats once in limitations, and merge equivalent reactions without inventing differences. Keep distinct uncertainties and conditional safeguards. The locations are hints, not facts or an automatic rejection rule.'}
+            'instruction': 'Review period rationale and semantic repetition yourself. Rewrite duplicated causal and synthetic-data caveats once in limitations, and merge equivalent reactions without inventing differences. Keep distinct uncertainties and conditional safeguards. The locations are hints, not facts or an automatic rejection rule.'}

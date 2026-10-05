@@ -3,7 +3,6 @@ from copy import deepcopy
 import re
 
 LABELS = {
-    'Anexo técnico': 'Technical appendix',
     'En los casos descritos': 'In the described cases',
     'Detalle técnico y valores originales': 'Technical details and original values',
     'Fuentes, cálculos y valores originales': 'Sources, calculations and original values',

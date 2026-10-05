@@ -195,7 +195,8 @@ class OwnerPresentationPersistenceTests(unittest.TestCase):
             review.start(config, self.business, self.research['id'], request_key='p3', owner_presentation=False,
                          analyst=roles, reviewer=roles)
         exported = export(self.config, self.business, result['id'])
-        self.assertIn('Anexo técnico', Path(exported['path']).read_text())
+        self.assertNotIn('Anexo técnico', Path(exported['path']).read_text())
+        self.assertTrue(Path(exported['internal_path']).is_file())
         self.assertTrue(Path(exported['audit_path']).is_file())
 
 

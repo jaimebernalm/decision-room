@@ -1,5 +1,5 @@
 """Small, evidence-backed projection of an approved report for the home page."""
-from ..owner_presentation import enabled, readable_number, limits, evidence_rows, delivery_note, source_summary
+from ..owner_presentation import enabled, readable_number, limits, evidence_rows, delivery_note, source_summary, clean_reading
 from ..series import evidence_key, evidence_label
 
 import hashlib
@@ -21,7 +21,7 @@ def client_orientation(claim, owner=False):
     return {k: ('' if owner and k == 'limitation' else v) for k, v in value.items() if k != 'evidence'} if value else None
 
 
-def projection(data):
+def _projection(data):
     """Return only reviewed content; callers must also check current publication."""
     owner = enabled(data)
     number = (lambda value, decimals: readable_number(value)) if owner else formatted
@@ -77,14 +77,19 @@ def projection(data):
         'scope': report['scope'], 'highlights': highlights,
         'claims': [{'key': claim['key'], 'title': claim['title'],
                     'statement': claim['statement'], 'orientation': client_orientation(claim, owner)} for claim in report['claims'][:3]],
-        'charts': charts, 'limitations': limits(report) if owner else report['limitations'],
+        'charts': charts, 'limitations': limits(report, data['observations']) if owner else report['limitations'],
         **({'technical_notes': [t for t in report['limitations'] if delivery_note(t)]} if owner else {}),
     }
 
 
+def projection(data):
+    view = _projection(data)
+    return clean_reading(view) if view is not None else None
+
+
 def presentation(data):
     """Complete React report, derived only from the approved evidence contract."""
-    result = projection(data)
+    result = _projection(data)
     if result is None:
         from .errors import WebError
         raise WebError('El informe necesita una nueva revisión.', 409)
@@ -121,4 +126,4 @@ def presentation(data):
                        'orientation': client_orientation(claim, enabled(data)),
                        'evidence_details': dict(files=files, metrics=metrics, operations=operations)})
     identity = dict(report_id=str(data['id']), report_version=data['approved_sha256']) if data.get('id') and data.get('approved_sha256') else {}
-    return {**result, **identity, 'claims': claims, 'no_chart_reason': report['no_chart_reason'], 'question_coverage': report.get('question_coverage', []), 'owner_coverage': report.get('owner_coverage', [])}
+    return clean_reading({**result, **identity, 'claims': claims, 'no_chart_reason': report['no_chart_reason'], 'question_coverage': report.get('question_coverage', []), 'owner_coverage': report.get('owner_coverage', [])})

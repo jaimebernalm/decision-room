@@ -30,7 +30,7 @@ def export(config, business_id, review_id):
             from .web.presentation_html import render as render_presentation
             ws = SimpleNamespace(config=config, business_id=lambda: business_id)
             view = decorate(ws, data, presentation(data), db=db)
-            html.write_text(render_presentation(view, now, technical_href='internal.html'))
+            html.write_text(render_presentation(view, now))
         else:
             html.write_text(render_client(data, now))
         internal = directory / 'internal.html'

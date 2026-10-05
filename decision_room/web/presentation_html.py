@@ -3,14 +3,15 @@ from ..client_report import CSS, EMBEDDED_CSS, e
 from ..report_pdf import bar_drawings, line_drawing
 from reportlab.graphics import renderSVG
 
-def render(report, exported_at, *, technical_href=None):
+def render(report, exported_at):
     from ..report_language import export_view, label
     report = export_view(report)
     tr = lambda text: label(text, report.get('response_language'))
     language = report.get('response_language') or 'es'
     owner = report.get('owner_presentation', False)
     scope = report['scope']
-    output = [f"""<header><p class="eyebrow">{tr('Decision Room · Informe de negocio')}</p><h1>{e(report['title'])}</h1>""", f"""<p class="meta">{e(scope.get('business', ''))} · {e(scope['period'])}</p>""", f"""<p class="meta">{tr('Exportado:')} {e(exported_at)}</p></header><div class="content">""", f"""<p>{e(scope.get('question', ''))}</p><aside class="coverage">{e(scope['coverage'])}</aside>""", f"""<p class="intro">{e(report.get('summary', ''))}</p>"""]
+    coverage = f'<aside class="coverage">{e(scope["coverage"])}</aside>' if scope['coverage'] else ''
+    output = [f"""<header><p class="eyebrow">{tr('Decision Room · Informe de negocio')}</p><h1>{e(report['title'])}</h1>""", f"""<p class="meta">{e(scope.get('business', ''))} · {e(scope['period'])}</p>""", f"""<p class="meta">{tr('Exportado:')} {e(exported_at)}</p></header><div class="content">""", f"""<p>{e(scope.get('question', ''))}</p>{coverage}""", f"""<p class="intro">{e(report.get('summary', ''))}</p>"""]
     if report.get('partial') and not owner:
         output.append(f"<p>{tr('Entrega parcial · Consulta las preguntas pendientes en alcance y límites.')}</p>")
     output.append(f'''<section class="highlights" aria-label="{tr('Cifras clave')}">''')
@@ -71,10 +72,7 @@ def render(report, exported_at, *, technical_href=None):
     for limitation in report['limitations']:
         output.append(f'<p>{e(limitation)}</p>')
     output.append('</section></div>')
-    if owner:
-        if technical_href:
-            output.append(f'<footer><a href="{e(technical_href)}">{tr("Anexo técnico")}</a></footer>')
-    else:
+    if not owner:
         revision = report.get('presentation', {}).get('revision', 0)
         output.append(f"<footer>{tr('Presentación · Versión')} {revision}{tr('. Cálculos y fuentes del análisis original conservados.')}</footer>")
     return f'<!doctype html><html lang="{language}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' + f"<title>{e(report['title'])}</title><style>{CSS}{EMBEDDED_CSS}</style></head><body><main>" + ''.join(output) + '</main></body></html>'

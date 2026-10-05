@@ -92,7 +92,7 @@ class OwnerEvidenceValueTests(unittest.TestCase):
             self.assertTrue(result['publishable'])
             self.assertNotIn(TEXT, Path(result['path']).read_text())
             self.assertIn(TEXT, Path(result['internal_path']).read_text())
-            self.assertIn('href="internal.html"', Path(result['path']).read_text())
+            self.assertNotIn('Anexo técnico', Path(result['path']).read_text())
             audit = json.loads(Path(result['audit_path']).read_text())
             self.assertEqual(audit['report'], before['report'])
             self.assertEqual(audit['observations'], before['observations'])
