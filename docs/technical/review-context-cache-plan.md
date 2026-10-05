@@ -77,3 +77,29 @@ El resultado distingue caché ausente de cero y no infiere precio ni ahorro de l
 cuenta. Las pruebas HTTP simuladas verifican prefijos idénticos, esquemas estrictos
 con 1.500 claves adicionales, rechazo/corrección local y contadores. No hay una
 medición real posterior todavía: la hará el lanzador sobre los lotes comparables.
+
+## Paso 3 implementado (punto 4 del encargo)
+
+`DECISION_ROOM_PANORAMA_OBLIGATION_GUARD=true`, por defecto apagado e independiente
+del guardián editorial. El contexto enumera exactamente los huecos materiales que
+admiten/exigen disposición, su cardinalidad y «Ninguna» si no existen. Los cambios
+no añaden obligaciones. Se calcula desde el panorama original antes de compactar.
+
+Una petición estructurada de más disposiciones que las admitidas se comprueba
+contra el contrato y contra **todas las disposiciones/prioridades actuales**.
+Tras repetirse, puede cerrarse como entrega del controlador con prueba auditada,
+aunque el revisor la llamara integridad. No altera ni borra su clasificación o
+texto original, no fabrica aprobación y no añade ruido al informe del dueño.
+
+No se interpreta texto libre para perdonar objeciones: debe identificar el campo
+y el mínimo solicitado. Si faltan huecos reales, hay evidencia/prioridad inválida,
+fallos numéricos/semánticos/gráficos o cualquier otra objeción de integridad, sigue
+bloqueando. La opción apagada conserva el enum anterior del esquema. El esquema
+estable usa la misma regla y el inventario actual permanece en el contexto variable.
+
+Validación: pruebas de contrato con cambios pero sin huecos, falta real de huecos,
+objeciones distintas/históricas, checks fallidos y ambos esquemas estrictos.
+Integración con CSV sintético con horas a medianoche, importación real, PostgreSQL
+propio y roles simulados: cuatro llamadas de roles, cierre en segunda objeción,
+auditoría original y reanudación sin llamadas adicionales. Las tres regresiones
+editoriales anteriores siguen pasando. No se han usado modelos reales.

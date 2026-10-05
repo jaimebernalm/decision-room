@@ -123,6 +123,9 @@ def material(config, db, session, run):
 def model_context(materialized, role):
     context = deepcopy(materialized)
     context['role'] = role
+    from .panorama_obligations import enabled as obligations_enabled, obligations
+    if obligations_enabled(context):
+        context['panorama_obligations'] = obligations(context)
     if context.get('budgets', {}).get('review_loop_guard'):
         from .review_loops import limits, unchanged_feedback
         context['review_schema_limits'] = limits()

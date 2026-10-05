@@ -38,7 +38,7 @@ def build(config, db, session, run, analyst, reviewer, saver, *, executor=execut
         if saved:
             if saved['role'] != state['role'] or saved['knowledge_sha256'] != current['knowledge_sha256']:
                 raise ValueError('Persisted decision no longer matches this review state.')
-            if saved['role'] == 'reviewer' and saved['action']['action'] == 'revise' and run['options'].get('review_loop_guard'):
+            if saved['role'] == 'reviewer' and saved['action']['action'] == 'revise' and (run['options'].get('review_loop_guard') or run['options'].get('panorama_obligation_guard')):
                 from .review_loops import resolution
                 if resolution(material(config, db, session, current)):
                     return {'turn': saved['step'], 'action': saved['action'], 'outcome': 'controller_close'}
@@ -105,7 +105,7 @@ def build(config, db, session, run, analyst, reviewer, saver, *, executor=execut
             VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING''',
                    (run['id'], step, session['business_id'], state['role'], Jsonb(action), current['knowledge_sha256']))
         notify(db)
-        if state['role'] == 'reviewer' and action['action'] == 'revise' and run['options'].get('review_loop_guard'):
+        if state['role'] == 'reviewer' and action['action'] == 'revise' and (run['options'].get('review_loop_guard') or run['options'].get('panorama_obligation_guard')):
             from .review_loops import resolution
             if resolution(material(config, db, session, fresh())):
                 return {'turn':step, 'action':action, 'outcome':'controller_close'}

@@ -12,6 +12,8 @@ def enabled(context):
 def schema(context):
     from .review_contract import ReviewAction
     result=ReviewAction.model_json_schema()
+    from .panorama_obligations import constrain
+    constrain(result,context)
     result['$defs']['ReportDraft']['properties']['panorama_dispositions']={
         'type':'array','items':{'type':'object','additionalProperties':False,
         'properties':{'signal_key':{'type':'string','minLength':1,'maxLength':100},

@@ -1095,3 +1095,8 @@ estable, referencias validadas localmente y adaptación de disposiciones sin per
 el contrato persistido. Telemetría y comparador de caché preparados; HTTP simulado
 y persistencia local verificados. Véase el [plan](../technical/review-context-cache-plan.md).
 Ahorro y calidad pendientes del ensayo real; no se han llamado modelos.
+
+**Obligaciones del panorama — 5 de octubre:** inventario exacto de huecos materiales
+y guardián independiente contra demandas estructuradas que el contrato prohíbe.
+Conserva objeciones y prueba del controlador en auditoría, con integridad real aún
+bloqueante. 47 pruebas offline de esta entrega y regresiones; [alcance y activación](../technical/review-context-cache-plan.md).

@@ -35,13 +35,15 @@ def unchanged_feedback(context):
 
 
 def resolution(context):
-    if not enabled(context) or not context.get('report'): return None
+    from .panorama_obligations import enabled as obligation_guard, impossible_demand
+    if not (enabled(context) or obligation_guard(context)) or not context.get('report'): return None
     history=context['conversation']
     reviews=[e for e in history if e['role']=='reviewer' and e['action'].get('assessment')]
     if len(reviews)<2 or reviews[-1]['action']['action'] != 'revise': return None
     last=reviews[-1]
     assessment=last['action']['assessment']
     issues={i['key']:i for i in context.get('review_issues', []) if i['status']=='open' and i['severity']=='blocker'}
+    proofs={key:proof for key,issue in issues.items() if (proof:=impossible_demand(issue,context))}
     stalled=[]
     for key,issue in issues.items():
         previous=next((e for e in reversed(reviews[:-1]) if any(i['key']==key and i['status']=='open' for i in e['action']['assessment']['issues'])),None)
@@ -49,16 +51,16 @@ def resolution(context):
         repair=issue.get('requested_change') or {}
         impossible=repair.get('minimum_count') is not None and repair.get('field') in limits() and repair['minimum_count']>limits()[repair['field']]
         unchanged=fingerprint(report_at(history,previous['step'],context['report'])) == fingerprint(context['report'])
-        if impossible or unchanged:
-            stalled.append(dict(key=key,reason='schema_limit' if impossible else 'unchanged_draft',first_review_step=previous['step'],last_review_step=last['step']))
+        if key in proofs or (enabled(context) and (impossible or unchanged)):
+            stalled.append(dict(key=key,reason='forbidden_disposition' if key in proofs else 'schema_limit' if impossible else 'unchanged_draft',first_review_step=previous['step'],last_review_step=last['step']))
     if not stalled: return None
     # An unknown classification is not permission to waive an integrity issue.
-    unsafe=[i for i in issues.values() if i.get('kind') not in ('presentation','completeness') or i.get('basis')=='evidence_integrity']
+    unsafe=[i for key,i in issues.items() if key not in proofs and (not enabled(context) or i.get('kind') not in ('presentation','completeness') or i.get('basis')=='evidence_integrity')]
     # Renaming an unchanged integrity objection as editorial is not a repair.
     for previous in reviews[:-1]:
         if fingerprint(report_at(history,previous['step'],context['report'])) != fingerprint(context['report']): continue
         unsafe.extend(i for i in previous['action']['assessment']['issues']
-                      if i['key'] in issues and i['status']=='open'
+                      if i['key'] in issues and i['status']=='open' and not impossible_demand(i,context)
                       and (i.get('kind')=='integrity' or i.get('basis')=='evidence_integrity'))
     delivery=assessment['delivery']
     blocked=bool(unsafe or (assessment.get('usefulness') or {}).get('decision_support') == 'fail' or any(not c['passed'] for c in context['checks']) or delivery['numbers']=='fail' or delivery['meaning']=='fail' or delivery['charts']=='fail')
@@ -66,12 +68,14 @@ def resolution(context):
     # Additional editorial objections qualify the delivery; integrity still blocks.
     notes=[]
     for issue in issues.values():
+        if issue['key'] in proofs: continue
         if issue.get('kind')=='completeness':
             notes.append(issue.get('owner_limitation') or issue['detail'])
         elif issue.get('owner_limitation'):
             notes.append(issue['owner_limitation'])
     return dict(version=VERSION,disposition='blocked_integrity' if blocked else 'publish_with_limitations',
                 report_step=context['report_step'],report_sha256=fingerprint(context['report']),
+                **({'contract_proofs':proofs} if proofs else {}),
                 stalled_issues=stalled,issues=deepcopy(list(issues.values())),
                 owner_limitations=list(dict.fromkeys(notes)),
                 explanation='El controlador detuvo la repetición; las objeciones originales permanecen abiertas en la auditoría. No es una aprobación del revisor.')

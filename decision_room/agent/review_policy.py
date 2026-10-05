@@ -7,7 +7,7 @@ from .contracts import Strict
 
 
 class RequestedChange(Strict):
-    field: Literal['reactions', 'claims', 'charts', 'other']
+    field: Literal['reactions', 'claims', 'charts', 'other', 'panorama_dispositions']
     minimum_count: int | None = Field(ge=0, le=1000)
 
 

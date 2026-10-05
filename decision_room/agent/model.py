@@ -442,6 +442,9 @@ class ModelClient:
         if context.get('budgets', {}).get('sales_panorama'):
             from .sales_panorama import SYSTEM
             system += SYSTEM
+        from .panorama_obligations import enabled as obligations_enabled, SYSTEM as OBLIGATIONS_SYSTEM
+        if obligations_enabled(context):
+            system += OBLIGATIONS_SYSTEM
         return system
 
     @staticmethod
@@ -455,6 +458,8 @@ class ModelClient:
 
     @classmethod
     def _review_references(cls, schema, context):
+        from .panorama_obligations import constrain as constrain_obligations
+        constrain_obligations(schema, context)
         assessment = schema['$defs']['ReviewAssessment']
         assessment['required'] = list(assessment['properties'])
         assessment['properties']['usefulness'].pop('default', None)

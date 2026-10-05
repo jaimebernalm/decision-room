@@ -96,6 +96,9 @@ def _model_call(db, session_id, model, context, correction, retry_uncertain, *, 
     if phase in ('analyst_review', 'reviewer') and context.get('budgets', {}).get('sales_panorama'):
         from .sales_panorama import VERSION
         version += '+' + VERSION
+    if phase in ('analyst_review','reviewer') and context.get('budgets', {}).get('panorama_obligation_guard'):
+        from .panorama_obligations import VERSION
+        version += '+' + VERSION
     if phase in ('analyst_review','reviewer') and context.get('budgets', {}).get('review_loop_guard'):
         from .review_loops import VERSION
         version += '+' + VERSION
