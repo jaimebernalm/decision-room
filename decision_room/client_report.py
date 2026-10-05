@@ -231,6 +231,9 @@ def render_client(data, exported_at, *, embedded=False):
         body += [f'<p class="meta">{e(scope["business"])} · {e(scope["period"])}</p>']
     body += [f'<p class="meta">Generado: {e(exported_at)}</p></header><div class="content">']
     if ready:
+        if data.get('options', {}).get('sales_panorama_contract') == 2:
+            from .panorama_presentation import owner_sections, render_html
+            body.append(render_html(owner_sections(data.get('sales_panorama'), data['observations'])))
         body += [f'<section><h2>La pregunta de negocio</h2><p>{e(scope["question"])}</p>',
                  f'<aside class="coverage"><strong>Qué cubre este análisis</strong><p>{e(scope["coverage"])}</p></aside></section>',
                  f'<section class="intro"><h2>Lo que muestran tus datos</h2><p>{e(draft["summary"])}</p></section>']

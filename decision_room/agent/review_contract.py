@@ -14,7 +14,11 @@ from ..series import saved_series, numeric, evidence_value
 from .delivery_contract import (MetricRef, SeriesPointRef, DecisionOrientation, OwnerCoverage, validate_owner_coverage, validate_orientation)
 
 
+from .panorama_contract import GapPriority, GapDismissal, PanoramaPriority
+
+
 class Claim(Strict):
+    panorama_priority: PanoramaPriority | None = None
     key: str = Field(pattern=r'^[a-z][a-z0-9_]{0,63}$')
     title: str = Field(min_length=1, max_length=160)
     statement: str = Field(min_length=1, max_length=1800)
@@ -132,6 +136,7 @@ class NumericCheck(Strict):
 
 
 class ReportDraft(Strict):
+    panorama_dispositions: dict[str, GapPriority | GapDismissal] = Field(default_factory=dict)
     contract_version: Literal[1, 2] = 1
     owner_coverage: list[OwnerCoverage] = Field(default_factory=list, max_length=12)
     title: str = Field(min_length=1, max_length=160)
@@ -324,6 +329,8 @@ def checks(report, observations):
 
 def validate_coverage(report, context):
     """Require explicit coverage, without pretending to verify semantic truth."""
+    from .panorama_contract import validate as validate_panorama
+    validate_panorama(report, context)
     validate_owner_coverage(report, context)
     validate_orientation(report, context)
     investigations = context.get('plan', {}).get('investigations', [])

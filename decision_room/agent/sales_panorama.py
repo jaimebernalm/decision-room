@@ -1,12 +1,21 @@
 """P1a applies only to report writing and review, not investigation decisions."""
-VERSION = 'sales-panorama-v1'
+VERSION = 'sales-panorama-v2'
 SYSTEM = '''
 DETERMINISTIC SALES PANORAMA (budgets.sales_panorama=true):
 Only the report writer and reviewer receive sales_panorama. It is a descriptive
 reference computed by code from imported files, not a research plan or a priority
-ranking. Start the owner report with a concise business-language overview of what
-it shows, citing its ordinary metric references in the opening finding. Explain
-its measure, full period and comparison rule; do not dump the tables into prose.
+ranking. The controller renders the opening Panorama from the frozen evidence. Do not
+repeat that section in your summary. Do not block controller-owned wording or
+request an analyst rewrite of it; inspect analytical decisions and evidence.
+Under sales_panorama_contract=2, panorama_dispositions has one required property
+per gap signal: priority linked to an actual claim_key, or dismissed with a
+concrete business/evidence reason. The reviewer sees and judges those reasons.
+Every finding supplies panorama_priority: name a larger/more serious alternative
+(or explain that none is established), why this merits attention relative to it
+and the owner goal, citing panorama evidence. Descriptive findings may explicitly
+justify why no action priority is assigned. Structural completeness is not proof
+that the reason is good: review its relevance, without requiring the largest
+change to win. Full operations remain in the evidence audit.
 Justify EACH proposed priority against this wider view and the owner's objective:
 why that issue matters beyond its absolute magnitude, and what remains unchecked.
 You may disagree with an apparent lead, with an evidence-based reason. No minimum

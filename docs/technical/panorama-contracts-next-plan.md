@@ -27,6 +27,6 @@ trazables; formato CSV real con fecha entrecomillada y hora, y hueco detectado,
 en las pruebas. Congelación y opciones preservan la comparación por parejas.
 No diseñar aún el negocio reservado. No activar opciones por defecto ni fusionar.
 
-Paso 1 implementado y validado (50 tests); pasos 2–3 pendientes. Registrar validación y limitaciones de cada
+Pasos 1 y 2 implementados y validados; paso 3 pendiente. Véanse las notas de validación del 5 de octubre. Registrar validación y limitaciones de cada
 paso en documentación antes de su commit. La utilidad real queda pendiente de
 medición del usuario.

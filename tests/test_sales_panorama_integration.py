@@ -29,11 +29,14 @@ class PanoramaDialogue(DialogueModel):
         self.contexts.append(deepcopy(context))
         report = draft(context)
         if context.get('sales_panorama'):
-            report['claims'][0]['evidence'] = [context['sales_panorama']['tables'][0]['total']]
+            report['claims'][0]['evidence'] = [context['sales_panorama']['tables'][0]['total']['reference']]
             report['claims'][0]['method'] = 'Suma de cantidades registradas en el archivo completo.'
         opening=deepcopy(report['claims'][0])
         opening.update(key='overview',title='Panorama del extracto')
         report['claims'].insert(0,opening)
+        if context.get('budgets', {}).get('sales_panorama_contract') == 2:
+            from test_panorama_contract_v2 import add_decisions
+            add_decisions(report, context)
         return action('submit',report=report), {}
 
 
@@ -167,7 +170,7 @@ class PanoramaPersistenceTests(unittest.TestCase):
             self.assertEqual(db.execute('SELECT snapshot FROM agent_research WHERE id=%s',(run['id'],)).fetchone()['snapshot'],original)
             self.assertEqual(db.execute("SELECT context_payload FROM agent_calls WHERE session_id=%s AND phase IN ('planning','research') ORDER BY created_at",(parent['id'],)).fetchall(),original_calls)
             versions=db.execute('SELECT DISTINCT prompt_version FROM agent_calls WHERE scope=%s',(str(candidate['id']),)).fetchall()
-        self.assertTrue(all('sales-panorama-v1' in v['prompt_version'] for v in versions))
+        self.assertTrue(all('sales-panorama-v2' in v['prompt_version'] for v in versions))
         self.assertNotIn('sales_panorama',json.dumps(original_calls,default=str))
         combined_model=PanoramaDialogue('simple')
         combined=review.start(config,self.business,run['id'],request_key='p1a-p3',owner_presentation=True,
@@ -182,3 +185,32 @@ class PanoramaPersistenceTests(unittest.TestCase):
         self.assertEqual(audit['sales_panorama'],candidate['sales_panorama'])
         self.assertEqual(audit['report']['claims'][0]['evidence'][0],ref)
         self.assertIn(VERSION,Path(exported['internal_path']).read_text())
+
+    def test_actual_quoted_csv_timestamp_gap_import_with_verified_catalog(self):
+        from decision_room.data_knowledge.discovery import discover
+        from decision_room.web.presentation_editing import catalog_labels
+        from decision_room.panorama_presentation import owner_sections, render_html
+        sales = self.root/'recorded.csv'
+        with sales.open('w', newline='') as file:
+            writer = csv.writer(file, quoting=csv.QUOTE_ALL)
+            writer.writerow(['fecha','canal_id','producto_id','unidades'])
+            writer.writerows([r[0]+' 00:00:00', 'LO' if r[2]=='Local' else 'WE', r[1], r[3]] for r in fixture())
+        catalog = self.root/'channels.csv'
+        catalog.write_text('canal_id,nombre\nLO,Tienda de barrio\nWE,Web propia\n')
+        analysis = import_batch(replace(self.config,sales_panorama=True), self.business, [sales,catalog])['analysis']['id']
+        class Proposer:
+            identity={'model':'scripted-catalog'}
+            def generate_data_discovery(inner, context, correction=None):
+                by={t['name']:t['id'] for t in context['profiles']}
+                return dict(tables=[],limitations=[],relations=[dict(source=by['recorded.csv'],target=by['channels.csv'],source_columns=['canal_id'],target_columns=['canal_id'],description='Catálogo de canales')]), {}
+        discover(self.config,self.business,analysis,Proposer())
+        with connect(self.config) as db:
+            labels=catalog_labels(self.config,self.business,analysis,db)
+        self.assertEqual({r['code'] for r in labels},{'LO','WE'})
+        frozen=review_snapshot(prepare(self.config,self.business,analysis),'knowledge',labels)
+        materialized=materialize(self.config,self.business,frozen,'knowledge')
+        html=render_html(owner_sections(materialized,materialized['observations']))
+        self.assertIn('Tienda de barrio: sin registros del 5 de mayo de 2025 al 18 de mayo de 2025',html)
+        self.assertIn('Web propia:',html)
+        self.assertNotIn('LO:',html)
+        self.assertNotIn('WE:',html)

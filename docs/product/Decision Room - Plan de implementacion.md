@@ -1063,3 +1063,9 @@ reintentos acotados tras rechazo, deadline cancelable y admisión local por TPM
 compartida entre roles/procesos. [Plan de los tres pasos](../technical/panorama-contracts-next-plan.md)
 y [garantías y límites](../validation/2026-10-05-model-transport-budget.md).
 Sin llamadas reales al proveedor; medición de escala pendiente.
+
+**P1a v2 — 5 de octubre:** apertura Panorama determinista en web/HTML/PDF,
+catálogos congelados, disposición obligatoria de huecos y comparación estructurada
+de prioridades con evidencia del panorama. Contexto compacto al principio de la
+petición efectiva. [Validación y alcance del contrato](../validation/2026-10-05-panorama-contract-v2.md).
+Sin llamadas reales; pendiente medición por parejas. P1b permanece separado.

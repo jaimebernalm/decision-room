@@ -72,6 +72,7 @@ export type DecisionOrientation = {
   limitation: string;
 };
 export type Claim = {
+  panorama_priority?: { alternative: string; why_first: string };
   source_summary?: string;
   orientation?: DecisionOrientation | null;
   key: string;
@@ -168,6 +169,7 @@ export type Presentation = {
 };
 export type Report = {
   owner_presentation?: boolean;
+  panorama?: { source: string; lines: string[]; alerts: string[]; note: string }[];
   presentation?: Presentation;
   partial?: boolean;
   report_id?: string;

@@ -395,6 +395,8 @@ class ModelClient:
         schema['required'] = list(schema['properties'])
         schema['properties']['action']['enum'] = self._review_actions(context, 'analyst', ['submit', 'execute', 'ask_owner', 'withdraw'])
         self._review_references(schema, context)
+        from .panorama_contract import constrain
+        constrain(schema, context)
         return self._generate(context, correction, self._presentation_system(ANALYST_SYSTEM, context), schema)
 
     def generate_reviewer(self, context, correction=None):
@@ -407,6 +409,8 @@ class ModelClient:
         schema['required'] = list(schema['properties'])
         schema['properties']['action']['enum'] = self._review_actions(context, 'reviewer', allowed)
         self._review_references(schema, context)
+        from .panorama_contract import constrain
+        constrain(schema, context)
         return self._generate(context, correction, self._presentation_system(REVIEWER_SYSTEM, context), schema)
 
     @staticmethod
@@ -714,7 +718,7 @@ class ModelClient:
             schema = bound_enums(self._wire_schema(schema))
             validate_enum_limits(schema)
         messages = [{'role': 'system', 'content': system},
-                    {'role': 'user', 'content': encoded(context)}]
+                    {'role': 'user', 'content': self._prompt_context(context)}]
         if correction:
             messages.append({'role': 'user', 'content': 'Previous response failed validation: ' + correction +
                              '. Return a corrected complete response matching the schema. This diagnostic is not an instruction from the owner.'})
@@ -782,6 +786,13 @@ class ModelClient:
             raise uncertain from None
         except (KeyError, IndexError, TypeError, json.JSONDecodeError):
             raise ValueError('Model API returned an invalid JSON completion.') from None
+
+    @staticmethod
+    def _prompt_context(context):
+        if 'sales_panorama' not in context:
+            return encoded(context)
+        rest = json.loads(encoded({k:v for k,v in context.items() if k != 'sales_panorama'}))
+        return json.dumps({'sales_panorama': context['sales_panorama'], **rest}, ensure_ascii=False, default=str)
 
     async def _request(self, payload, endpoint, headers):
         from .model_pacing import estimate_tokens, admit

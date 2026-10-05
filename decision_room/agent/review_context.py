@@ -123,6 +123,9 @@ def material(config, db, session, run):
 def model_context(materialized, role):
     context = deepcopy(materialized)
     context['role'] = role
+    if context.get('budgets', {}).get('sales_panorama_contract') == 2:
+        from ..panorama_presentation import compact
+        context['sales_panorama'] = compact(context['sales_panorama'], context['observations'])
     if context.get('report'):
         from .report_reading import reading_feedback
         context['report_reading'] = reading_feedback(context['report'])
@@ -176,6 +179,8 @@ def approval_digest(materialized, knowledge):
     if (materialized.get('review_policy') or 0) >= 5:
         policy['accepted_owner_request'] = materialized['accepted_owner_request']
         policy['owner_confirmed_answers'] = materialized['owner_confirmed_answers']
+    if materialized.get('budgets', {}).get('sales_panorama_contract') == 2:
+        policy['sales_panorama'] = materialized['sales_panorama']
     return fingerprint({**policy, 'report': materialized['report'], 'knowledge': knowledge,
                         'evidence': [o for o in materialized['observations'] if o['execution_id'] in cited],
                         'checks': materialized['checks']})

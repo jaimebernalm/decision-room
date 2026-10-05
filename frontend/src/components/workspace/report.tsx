@@ -1124,6 +1124,19 @@ export function ReportView({
         >
           {report.title}
         </h2>
+        {!!report.panorama?.length && (
+          <section aria-label="Panorama" className="mt-5 space-y-3 text-sm leading-7">
+            <h3 className="text-xl font-semibold">Panorama</h3>
+            {report.panorama.map((section, index) => (
+              <div key={index} className="space-y-2">
+                {report.panorama!.length > 1 && <h4 className="font-medium">{section.source}</h4>}
+                {section.lines.map((line, i) => <p key={i}>{line}</p>)}
+                {!!section.alerts.length && <ul className="list-disc space-y-1 pl-5">{section.alerts.map((alert, i) => <li key={i}>{alert}</li>)}</ul>}
+                {section.note && <p className="text-muted-foreground">{section.note}</p>}
+              </div>
+            ))}
+          </section>
+        )}
         {report.summary && (
           <div className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground">
             <Selectable
@@ -1242,6 +1255,7 @@ export function ReportView({
               lead={
                 <Selectable item={item("insight", claim.key, claim)}>
                   <p className="text-muted-foreground">{claim.statement}</p>
+                  {claim.panorama_priority && <p className="mt-2 text-sm">{claim.panorama_priority.alternative} {claim.panorama_priority.why_first}</p>}
                   <DecisionGuidance claim={claim} />
                 </Selectable>
               }

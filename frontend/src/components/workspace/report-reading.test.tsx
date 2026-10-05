@@ -363,3 +363,11 @@ it("renders the shared reaction once with its retained conditions", () => {
   ).toHaveLength(1);
   expect(screen.queryByText(/Si Si/)).toBeNull();
 });
+
+it("opens with the frozen panorama and its gap alert before the model summary", () => {
+  render(<ReportView report={{...report, panorama: [{source: "ventas.csv", lines: ["Web: 1.200 unidades."], alerts: ["Tienda: sin registros del 5 al 18 de mayo."], note: "No implica ventas cero."}]}} />);
+  const opening = screen.getByRole("region", {name: "Panorama"});
+  expect(within(opening).getByText("Web: 1.200 unidades.")).toBeVisible();
+  expect(within(opening).getByText("Tienda: sin registros del 5 al 18 de mayo.")).toBeVisible();
+  expect(opening.compareDocumentPosition(screen.getByText(report.summary!)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});

@@ -86,7 +86,9 @@ def start(config, business_id, research_id, *, request_key, analyst=None, review
             from ..sales_panorama_store import prepare, review_snapshot
             prepared = prepare(config, business_id, session['analysis_id'], panorama_mappings,
                                table_ids=[t['id'] for t in snapshot['source']['tables']])
-            snapshot['sales_panorama'] = review_snapshot(prepared, key)
+            from ..web.presentation_editing import catalog_labels
+            snapshot['sales_panorama'] = review_snapshot(prepared, key, catalog_labels(config, business_id, session['analysis_id'], db))
+            options['sales_panorama_contract'] = 2
             options['sales_panorama'] = True
         snapshot['accepted_owner_request'] = {'text': snapshot['source']['owner_context']}
         if quality:

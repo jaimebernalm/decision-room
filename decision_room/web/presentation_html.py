@@ -12,6 +12,9 @@ def render(report, exported_at):
     scope = report['scope']
     coverage = f'<aside class="coverage">{e(scope["coverage"])}</aside>' if scope['coverage'] else ''
     output = [f"""<header><p class="eyebrow">{tr('Decision Room · Informe de negocio')}</p><h1>{e(report['title'])}</h1>""", f"""<p class="meta">{e(scope.get('business', ''))} · {e(scope['period'])}</p>""", f"""<p class="meta">{tr('Exportado:')} {e(exported_at)}</p></header><div class="content">""", f"""<p>{e(scope.get('question', ''))}</p>{coverage}""", f"""<p class="intro">{e(report.get('summary', ''))}</p>"""]
+    from ..panorama_presentation import render_html
+    if report.get('panorama'):
+        output.insert(3, render_html(report['panorama']))
     if report.get('partial') and not owner:
         output.append(f"<p>{tr('Entrega parcial · Consulta las preguntas pendientes en alcance y límites.')}</p>")
     output.append(f'''<section class="highlights" aria-label="{tr('Cifras clave')}">''')
@@ -23,6 +26,8 @@ def render(report, exported_at):
     output.append('</section>')
     for c in report['claims']:
         output.append(f"""<section class="finding" id="finding-{e(c['key'])}"><h2>{e(c['title'])}</h2><p>{e(c['statement'])}</p>""")
+        if c.get('panorama_priority'):
+            output.append('<p>' + e(c['panorama_priority']['alternative']) + ' ' + e(c['panorama_priority']['why_first']) + '</p>')
         for field in ('interpretation', 'next_step'):
             if c.get(field) and not (owner and field == 'next_step' and c.get('orientation')):
                 output.append(f'<p class="{field}">{e(c[field])}</p>')

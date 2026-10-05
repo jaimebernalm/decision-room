@@ -202,6 +202,12 @@ def render_pdf(report):
              paragraph(report['scope']['period'], 'muted'),
              paragraph(tr('Revisado') + (tr(' · Entrega parcial') if report.get('partial') and not owner else ''), 'muted'),
              paragraph(report['title'], 'title')]
+    if report.get('panorama'):
+        story.append(paragraph('Panorama', 'heading'))
+        for section in report['panorama']:
+            if len(report['panorama']) > 1: story.append(paragraph(section['source'], 'muted'))
+            story.extend(paragraph(line) for line in section['lines'] + section['alerts'])
+            if section['note']: story.append(paragraph(section['note'], 'muted'))
     if report.get('summary'): story.append(paragraph(report['summary']))
     for offset in range(0, len(report.get('highlights', [])), 3):
         batch = report['highlights'][offset:offset + 3]
@@ -220,6 +226,8 @@ def render_pdf(report):
         story += [paragraph(tr('Pregunta del análisis'), 'heading'), paragraph(report['scope']['question'])]
     for i, claim in enumerate(report['claims']):
         story += [paragraph(f"{i+1:02d} · {claim['title']}", 'heading'), paragraph(claim['statement'])]
+        if claim.get('panorama_priority'):
+            story.append(paragraph(claim['panorama_priority']['alternative'] + ' ' + claim['panorama_priority']['why_first']))
         if claim.get('interpretation'): story.append(paragraph(claim['interpretation'], 'muted'))
         from .agent.delivery_contract import orientation_sections
         from .owner_presentation import guidance

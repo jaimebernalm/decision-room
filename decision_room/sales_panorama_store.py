@@ -60,7 +60,7 @@ def prepare(config, business_id, analysis_id, mappings=None, table_ids=None):
         return result
 
 
-def review_snapshot(prepared, knowledge):
+def review_snapshot(prepared, knowledge, catalog_labels=None):
     """Standard metric observations; numbers use the existing evidence resolver."""
     overviews, observations = [], []
     for item in prepared:
@@ -108,6 +108,8 @@ def review_snapshot(prepared, knowledge):
             return value
         overviews.append(dict(table_id=item['table_id'], names=item['names'], **bind(body['summary'])))
     frozen = dict(version=calculator.VERSION, tables=overviews, observations=observations)
+    if catalog_labels is not None:
+        frozen['catalog_labels'] = deepcopy(catalog_labels)
     return {**frozen, 'sha256': fingerprint(frozen)}
 
 
@@ -125,6 +127,12 @@ def materialize(config, business_id, snapshot, knowledge):
                 spec = next(o['specification'] for o in frozen['observations'] if o['inputs']['source']['id']==table['table_id'])
             if not row or row['parquet_sha256'] != spec['parquet_sha256'] or digest(Storage(config.storage).path(business_id,row['parquet_key'])) != spec['parquet_sha256']:
                 raise ValueError('Frozen panorama source changed or belongs to another business.')
+    with connect(config) as db:
+        for label in frozen.get('catalog_labels', []):
+            row = db.execute('SELECT parquet_key,parquet_sha256 FROM prepared_tables WHERE business_id=%s AND id=%s',
+                             (business_id, label['table_id'])).fetchone()
+            if not row or row['parquet_sha256'] != label['source_sha256'] or digest(Storage(config.storage).path(business_id,row['parquet_key'])) != label['source_sha256']:
+                raise ValueError('Frozen panorama catalog changed or belongs to another business.')
     for observation in frozen['observations']:
         observation['current'] = observation['knowledge_sha256'] == knowledge
     return frozen

@@ -69,7 +69,10 @@ def _projection(data):
                 panel['colors'] = {s: colors[s] for s in panel['series_order']}
     except (ValueError, KeyError, ArithmeticError):
         return None
+    from ..panorama_presentation import owner_sections
+    panorama = owner_sections(data.get('sales_panorama'), data['observations']) if data.get('options', {}).get('sales_panorama_contract') == 2 else []
     return {
+        **({'panorama': panorama} if panorama else {}),
         **({'owner_presentation': True} if owner else {}),
         'title': report['title'], 'summary': report['summary'],
         'partial': (any(q['status'] != 'complete' for q in report['owner_coverage']) if report.get('owner_coverage')
@@ -124,6 +127,7 @@ def presentation(data):
                   if enabled(data) else {})
         claims.append({**source, **{key: claim[key] for key in ('key', 'title', 'statement', 'interpretation', 'method', 'next_step')},
                        'orientation': client_orientation(claim, enabled(data)),
+                       **({'panorama_priority': {k:v for k,v in claim['panorama_priority'].items() if k != 'evidence'}} if claim.get('panorama_priority') else {}),
                        'evidence_details': dict(files=files, metrics=metrics, operations=operations)})
     identity = dict(report_id=str(data['id']), report_version=data['approved_sha256']) if data.get('id') and data.get('approved_sha256') else {}
     return clean_reading({**result, **identity, 'claims': claims, 'no_chart_reason': report['no_chart_reason'], 'question_coverage': report.get('question_coverage', []), 'owner_coverage': report.get('owner_coverage', [])})
