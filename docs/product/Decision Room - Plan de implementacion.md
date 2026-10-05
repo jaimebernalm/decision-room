@@ -1121,3 +1121,7 @@ offline aprobadas. [Registro](../technical/review-context-cache-plan.md).
 **Correcciones exactas — 5 de octubre:** errores de cobertura/prioridad con faltantes,
 claves inválidas y listas completas; sin truncado de estos diagnósticos. 13 pruebas
 locales de contratos/correcciones; [registro](../technical/review-context-cache-plan.md).
+
+**Presupuesto revisado — 5 de octubre:** objetivo de 110.000, estimación sin doble
+escape, tercer nivel de compactación y ampliación auditada dentro del techo TPM.
+14 pruebas locales aprobadas; [alcance](../technical/review-context-cache-plan.md).

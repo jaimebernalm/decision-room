@@ -7,7 +7,7 @@ from pydantic import Field
 from .contracts import Strict
 from .context import encoded, fingerprint
 
-VERSION = 'review-context-budget-v2'
+VERSION = 'review-context-budget-v3'
 
 
 @lru_cache(maxsize=1)
@@ -18,6 +18,20 @@ def tokenizer():
 
 def tokens(value):
     return len(tokenizer().encode(value if isinstance(value,str) else encoded(value), disallowed_special=()))
+
+
+def request_tokens(payload):
+    """Count message text once, not the escaped HTTP JSON envelope."""
+    total=0
+    for message in payload.get('messages',[]):
+        content=message.get('content','')
+        if isinstance(content,list):
+            total+=sum(tokens(part.get('text','')) for part in content)
+        else:total+=tokens(content)
+        total+=8  # conservative per-message framing, plus the global margin below
+    total+=tokens(payload.get('system_prompt',''))+tokens(payload.get('input',''))
+    total+=tokens(payload.get('response_format',{}))
+    return total
 
 
 def enabled(context):
@@ -123,7 +137,7 @@ def compact(context, level=0):
         # Keep every citable scalar and key, shorten only its operation text.
         for j,item in enumerate(result.get('evidence',[])):
             operation=item.get('operation','')
-            if tokens(operation)>80 or level:
+            if tokens(operation)>80:
                 item['operation']=archive(operation,f'{path}/result/evidence/{j}/operation')
         for key,series in result.get('series',{}).items():
             points=series.get('points',[])
@@ -153,29 +167,58 @@ def compact(context, level=0):
     if business.get('retrievals'):
         old=business['retrievals']; business['retrieval_history']=archive(old,'/business_context/retrievals')
         business['retrievals']=old[-1:]
-    # Do not drop current owner definitions, doubts, scope or latest read response.
+    if level>=2:
+        # Archive bulky calculation/provenance text as a whole instead of adding
+        # an inline hash and a second catalog entry for every scalar operation.
+        for i,observed in enumerate(view.get('observations',[])):
+            original=context['observations'][i]
+            for name in ('evidence','notes'):
+                value=(original.get('result') or {}).get(name)
+                if value:
+                    observed['result'][name]=reference(value,f'/observations/{i}/result/{name}')
+        for name in ('candidate_history','research_synthesis','research_coverage','planning_history'):
+            if context.get(name):view[name]=reference(context[name],'/'+name)
+        if context.get('business_direction'):
+            view['business_direction']=reference(context['business_direction'],'/business_direction')
+        view['conversation']=[e for e in kept if e['step']==last_submit or e.get('owner_answer')]
+        if view.get('plan'):
+            # Preserve identities, readiness, questions and permissions, not long
+            # historical rationale. Full plan remains accessible on demand.
+            view['plan']={**{k:v for k,v in view['plan'].items() if k=='investigations'},
+                          'detail':reference(context['plan'],'/plan')}
+        refs=[reference(context[root],'/'+root) for root in ROOTS if context.get(root)]
+    # Do not drop current owner definitions, doubts, scope, inventories or last read.
     view['review_archive']=refs
     return view
 
 
-def fit(context, payload, render):
-    budget=context['budgets'].get('review_context_tokens',70000)
-    if not 12000<=budget<=200000:raise ValueError('Review token budget must be between 12000 and 200000.')
-    before=tokens(payload)
+def fit(context, payload, render, *, hard_limit=200000):
+    requested=context['budgets'].get('review_context_tokens',110000)
+    if not 12000<=requested<=200000:raise ValueError('Review token budget must be between 12000 and 200000.')
+    ceiling=min(200000,hard_limit)
+    budget=min(requested,ceiling)
+    before=request_tokens(payload)
     output=payload.get('max_completion_tokens',payload.get('max_tokens',payload.get('max_output_tokens',8192)))
-    for level in (0,1):
+    best=None
+    for level in (0,1,2):
         view=compact(context,level)
         candidate=deepcopy(payload); messages=render(view)
         if 'system_prompt' in candidate:
             candidate['input']='\n'.join(m['content'] for m in messages[1:])
         else:
             candidate['messages']=messages
-        measured=tokens(candidate)+output+2048  # provider framing/model-tokenizer margin
-        if measured<=budget:
-            return candidate,dict(version=VERSION,tokenizer='o200k_base',input_before=before,
-                input_after=tokens(candidate),output_reserved=output,framing_margin=2048,total_reserved=measured,
-                target=budget,level=level,archive_references=len(view['review_archive']))
-    raise ValueError(f'Protected review material and schema exceed {budget} token budget after compaction; no request sent. Read a smaller scope or increase the explicit budget.')
+        measured=request_tokens(candidate)+output+2048
+        audit=dict(version=VERSION,tokenizer='o200k_base',input_before=before,
+            input_after=request_tokens(candidate),output_reserved=output,framing_margin=2048,total_reserved=measured,
+            requested_target=requested,target=budget,hard_limit=ceiling,level=level,
+            strategy='compacted',archive_references=len(view['review_archive']))
+        if best is None or measured<best[1]['total_reserved']:best=(candidate,audit)
+        if measured<=budget:return candidate,audit
+    if best[1]['total_reserved']<=ceiling:
+        # Explicit soft-target fallback, never a silent deletion of protected facts.
+        best[1]['strategy']='expanded_budget'
+        return best
+    raise ValueError(f'Protected review material and schema exceed hard limit {ceiling} after three compaction levels; no request sent. The protected report/owner facts cannot safely fit this provider limit.')
 
 
 SYSTEM = '''You are Decision Room's bounded report writer/reviewer. Context.role controls

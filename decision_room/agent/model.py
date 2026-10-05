@@ -802,7 +802,7 @@ class ModelClient:
             def render(view):
                 if stable_review(context): return cache_messages(view,system,correction)
                 return [messages[0], {'role':'user','content':self._prompt_context(view)}, *messages[2:]]
-            payload, budget_audit = fit(context, payload, render)
+            payload, budget_audit = fit(context, payload, render, hard_limit=self.settings.tokens_per_minute or 200000)
         prefix_audit = None
         if stable_review(context):
             from .context import fingerprint

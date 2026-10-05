@@ -199,3 +199,23 @@ sin el recorte de 1.800 caracteres del controlador. Los demás errores de refere
 incluyen el catálogo actual completo; ya no se añade una muestra de 16 métricas.
 13 pruebas locales de contratos/correcciones aprobadas, incluida una corrección
 mayor de 1.800 caracteres cuyo último elemento debe permanecer visible.
+
+### Presupuesto revisado
+
+Objetivo por defecto: 110.000 tokens, incluyendo salida y margen. Se cuenta el texto
+de cada mensaje una vez y el esquema por separado, no el JSON HTTP que vuelve a
+escapar esos textos. Sigue siendo una estimación local o200k, no una cifra del proveedor.
+
+Se prueban tres niveles. El último archiva operaciones/notas y relato histórico,
+conservando referencias de lectura, todas las claves contractuales, valores citables,
+metadatos de series, objetivo/dudas y borrador actual. Evita duplicar miles de hashes
+de operaciones pequeñas. Si todavía supera el objetivo pero cabe, se envía con
+`strategy=expanded_budget`, importe exacto auditado y techo de 200.000 o del TPM
+configurado si es menor. El objetivo es flexible; el techo es firme. No se truncan
+hechos protegidos para forzar su entrada. Una entrada imposible incluso bajo ese
+techo aún se rechaza antes del proveedor: no se promete un contexto sin límite.
+
+14 pruebas locales aprobadas: estimación sin doble escape, compactación profunda,
+conservación de inventarios/dudas y ampliación del objetivo sin perder el informe.
+Para usar el nuevo valor por defecto, quitar un override antiguo de 70.000; las
+revisiones ya creadas conservan su objetivo guardado y tienen la nueva estrategia.
