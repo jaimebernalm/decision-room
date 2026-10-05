@@ -78,6 +78,21 @@ class LauncherTests(unittest.TestCase):
             self.assertEqual(trials.read(batch / 'jobs/demo-luna-1/state.json')['status'], 'abandoned')
             self.assertEqual(trials.read(batch / 'jobs/demo-luna-1r1/state.json')['replaces'], 'demo-luna-1')
 
+    def test_retry_keeps_failed_attempt_and_reuses_rewrite_research(self):
+        with TemporaryDirectory() as tmp:
+            batch = Path(tmp)
+            (batch / 'jobs/demo-product-1').mkdir(parents=True)
+            trials.write(batch / 'jobs/demo-product-1/state.json', dict(
+                job='demo-product-1', dataset='demo', system='product', repetition=1, status='failed',
+                clone='c', rewrite_of='b/j', business_id='x', analysis_id='a', session_id='s', research_id='r'))
+            trials.write(batch / 'manifest.json', dict(order=['demo-product-1']))
+            self.assertEqual(trials.retry(batch, 'demo-product-1', 'ConnectTimeout'), 'demo-product-1r1')
+            new = trials.read(batch / 'jobs/demo-product-1r1/state.json')
+            self.assertEqual((new['research_id'], new['clone'], new['status']), ('r', 'c', 'not_run'))
+            self.assertEqual(trials.read(batch / 'jobs/demo-product-1/state.json')['status'], 'failed')
+            with self.assertRaises(SystemExit):
+                trials.retry(batch, 'demo-product-1', 'twice')
+
     def test_arm_repeats_reduce_intermediate_arms(self):
         order = trials.plan_order(['bruma', 'albor'], ['luna', 'product'], 3,
                                   {'bruma-product': 1, 'bruma-luna': 1, 'albor-luna': 1})

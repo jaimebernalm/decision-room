@@ -410,17 +410,43 @@ def abandon(batch, name, reason, replace=True):
     write(job / 'state.json', state)
     if not replace:
         return None
+    return queue_replacement(batch, manifest, name, state)
+
+
+# A rewrite job reuses research stored in its clone; the replacement must point at the same one.
+REWRITE_KEYS = ('clone', 'rewrite_of', 'business_id', 'analysis_id', 'session_id', 'research_id')
+
+
+def queue_replacement(batch, manifest, name, state):
     replacement = f"{name}r{sum(n.startswith(name + 'r') for n in manifest['order']) + 1}"
     target = batch / 'jobs' / replacement
     target.mkdir()
     if state['system'] == 'luna':
         copy_inputs(batch / 'inputs' / state['dataset'], target)
-    write(target / 'state.json', {**{k: state[k] for k in ('dataset', 'system', 'repetition')},
+    kept = ('dataset', 'system', 'repetition', *(REWRITE_KEYS if state.get('clone') else ()))
+    write(target / 'state.json', {**{k: state[k] for k in kept},
                                   'job': replacement, 'status': 'not_run', 'replaces': name,
                                   'key': 'trial-' + uuid4().hex})
     manifest['order'].insert(manifest['order'].index(name) + 1, replacement)
     write(batch / 'manifest.json', manifest)
     return replacement
+
+
+def retry(batch, name, reason):
+    """Queue a fresh attempt after an infrastructure failure (network, provider outage).
+
+    The failed attempt stays as it ended, with the operator's reason; product failures
+    (validation, budget, schema) are results and must not be retried this way."""
+    manifest = read(batch / 'manifest.json')
+    job = batch / 'jobs' / name
+    state = read(job / 'state.json')
+    if state['status'] != 'failed':
+        raise SystemExit(f'{name} finished as {state["status"]}; only failed attempts are retried.')
+    if any(read(batch / 'jobs' / n / 'state.json').get('replaces') == name for n in manifest['order'] if n != name):
+        raise SystemExit(f'{name} already has a replacement.')
+    state['retry_reason'] = reason
+    write(job / 'state.json', state)
+    return queue_replacement(batch, manifest, name, state)
 
 
 def reexport(batch, name, ref, runtime_root=ROOT, again=False):
@@ -589,6 +615,10 @@ def main():
     a.add_argument('job')
     a.add_argument('--reason', required=True)
     a.add_argument('--no-replacement', action='store_true')
+    rt = commands.add_parser('retry')
+    rt.add_argument('batch', type=Path)
+    rt.add_argument('job')
+    rt.add_argument('--reason', required=True)
     s = commands.add_parser('score')
     s.add_argument('batch', type=Path)
     s.add_argument('--oracle', action='append', default=[], help='NAME=PATH, kept outside the batch')
@@ -627,6 +657,8 @@ def main():
     elif args.command == 'abandon':
         print(json.dumps({'replacement': abandon(args.batch.resolve(), args.job, args.reason,
                                                  replace=not args.no_replacement)}))
+    elif args.command == 'retry':
+        print(json.dumps({'replacement': retry(args.batch.resolve(), args.job, args.reason)}))
     elif args.command == 'score':
         oracles = dict(item.split('=', 1) for item in args.oracle)
         print(json.dumps(score(args.batch.resolve(), oracles), ensure_ascii=False, indent=2))
