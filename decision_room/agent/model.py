@@ -415,6 +415,9 @@ class ModelClient:
 
     @staticmethod
     def _presentation_system(system, context):
+        if context.get('budgets', {}).get('review_loop_guard'):
+            from .review_loops import SYSTEM
+            system += SYSTEM
         if context.get('budgets', {}).get('owner_presentation'):
             from .owner_presentation import SYSTEM
             system = system.replace('The client sees a partial-delivery marker and the list of unanswered questions.',
@@ -447,6 +450,10 @@ class ModelClient:
             definition['required'] = list(definition['properties'])
             for field in definition['properties'].values():
                 field.pop('default', None)
+        if context.get('budgets', {}).get('review_loop_guard'):
+            schema['$defs']['Claim']['properties']['focal_combinations']['minItems'] = 1
+            issue = schema['$defs']['ReviewIssue']['properties']
+            issue['kind'] = {'type':'string','enum':['integrity','presentation','completeness']}
         if context.get('review_policy', 0) >= 5:
             definition = schema['$defs']['ReviewIssue']
             definition['required'] = list(definition['properties'])
@@ -460,6 +467,17 @@ class ModelClient:
                 schema['$defs']['OwnerCoverage']['properties']['deliverable_index']['enum'] = list(range(len(owner)))
                 schema['$defs']['OwnerUtility']['properties']['deliverable_index']['enum'] = list(range(len(owner)))
                 schema['$defs']['ReportDraft']['properties']['owner_coverage'].update(minItems=len(owner), maxItems=len(owner))
+        if context.get('budgets', {}).get('review_loop_guard'):
+            original = schema['$defs']['ReviewIssue']
+            branches = []
+            for kind in ('integrity', 'presentation', 'completeness'):
+                branch = deepcopy(original)
+                branch['properties']['kind']['enum'] = [kind]
+                branch['properties']['basis']['enum'] = ['evidence_integrity'] if kind == 'integrity' else ['owner_goal','optional_improvement']
+                if kind == 'completeness':
+                    branch['properties']['owner_limitation'] = {'type':'string','minLength':1,'maxLength':800,'pattern':r'\S'}
+                branches.append(branch)
+            schema['$defs']['ReviewIssue'] = {'anyOf':branches}
         point_choices = []
         for item in context.get('observations', []):
             if item.get('current') and item['status'] == 'completed' and item.get('result') and not item.get('result_omitted'):

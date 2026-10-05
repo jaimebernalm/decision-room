@@ -1069,3 +1069,10 @@ catálogos congelados, disposición obligatoria de huecos y comparación estruct
 de prioridades con evidencia del panorama. Contexto compacto al principio de la
 petición efectiva. [Validación y alcance del contrato](../validation/2026-10-05-panorama-contract-v2.md).
 Sin llamadas reales; pendiente medición por parejas. P1b permanece separado.
+
+**Corrección P1a v2 — Guardián de revisión, 5 de octubre:** opción independiente,
+por defecto apagada, para cerrar repeticiones editoriales con entrega limitada y
+resolución del controlador auditada. Integridad permanece bloqueante. Capacidades
+del esquema visibles y un foco declarado por hallazgo. 29 pruebas locales con
+modelos simulados; [garantías y alcance](../technical/review-loop-panorama-corrections.md).
+Pendiente medir utilidad; no cierra 3.9 ni incorpora P1b.

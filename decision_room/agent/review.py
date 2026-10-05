@@ -36,7 +36,10 @@ def _stale(config, db, session, run):
 
 
 def start(config, business_id, research_id, *, request_key, analyst=None, reviewer=None,
-          max_review_rounds=None, owner_presentation=None, sales_panorama=None, panorama_mappings=None, executor=execute):
+          max_review_rounds=None, owner_presentation=None, review_loop_guard=None, sales_panorama=None, panorama_mappings=None, executor=execute):
+    review_loop_guard = config.review_loop_guard if review_loop_guard is None else review_loop_guard
+    if type(review_loop_guard) is not bool:
+        raise ValueError('Review loop guard flag must be boolean.')
     owner_presentation = config.owner_presentation if owner_presentation is None else owner_presentation
     if type(owner_presentation) is not bool:
         raise ValueError('Owner presentation flag must be boolean.')
@@ -80,6 +83,8 @@ def start(config, business_id, research_id, *, request_key, analyst=None, review
         snapshot = enrich(db,research_id,snapshot)
         options = {'max_review_rounds': max_review_rounds, 'max_turns': 20, 'max_calls_per_role': 16,
                    'max_python_per_role': 3, 'max_questions': 3, 'python_timeout': 30, 'review_policy': 5}
+        if review_loop_guard:
+            options['review_loop_guard'] = True
         if owner_presentation:
             options['owner_presentation'] = True
         if sales_panorama:
@@ -258,7 +263,8 @@ def show(config, business_id, review_id, *, _db=None):
                 'model_decision_status': run['status'], 'independent_hold': hold_record,
                 'issue': hold_record['reason'] if hold_record else run['issue'],
                 'delivery_state': delivery_state('stale' if stale else 'held' if hold_record else run['status'], publishable=valid_approval),
-                'publishable': valid_approval, 'verification': 'reviewed_by_agent' if valid_approval else 'not_approved',
+                'publishable': valid_approval, 'verification': ('controller_qualified_delivery' if run['options'].get('review_loop_resolution') else 'reviewed_by_agent') if valid_approval else 'not_approved',
+                **({'controller_resolution': run['options']['review_loop_resolution']} if run['options'].get('review_loop_resolution') else {}),
                 'review_issues': context['review_issues'], 'delivery_manifest': context['delivery_manifest'],
                 **({'controller_annotations': context['controller_annotations']} if context.get('controller_annotations') else {}),
                 **({'sales_panorama': context['sales_panorama']} if context.get('sales_panorama') else {}),

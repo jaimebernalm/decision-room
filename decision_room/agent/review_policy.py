@@ -6,7 +6,15 @@ from pydantic import Field
 from .contracts import Strict
 
 
+class RequestedChange(Strict):
+    field: Literal['reactions', 'claims', 'charts', 'other']
+    minimum_count: int | None = Field(ge=0, le=1000)
+
+
 class ReviewIssue(Strict):
+    kind: Literal['integrity', 'presentation', 'completeness'] | None = None
+    requested_change: RequestedChange | None = None
+    owner_limitation: str | None = Field(default=None, min_length=1, max_length=800, pattern=r'\S')
     key: str = Field(pattern=r'^[a-z][a-z0-9_]{0,63}$')
     severity: Literal['blocker', 'suggestion']
     status: Literal['open', 'resolved']
@@ -117,6 +125,14 @@ def validate_assessment(action, role, context):
         return  # Historical runs retain their saved contract.
     if assessment is None or assessment.report_step != context['report_step']:
         raise ValueError('Review requires assessment of the exact current report_step.')
+    if context.get('budgets', {}).get('review_loop_guard'):
+        for issue in assessment.issues:
+            if issue.kind is None:
+                raise ValueError('Every issue needs an integrity, presentation or completeness kind.')
+            if issue.basis == 'evidence_integrity' and issue.kind != 'integrity':
+                raise ValueError('Evidence integrity cannot be waived as presentation/completeness.')
+            if issue.kind == 'completeness' and not issue.owner_limitation:
+                raise ValueError('Completeness objections need a plain owner_limitation.')
     issues = {i.key: i for i in assessment.issues}
     if len(issues) != len(assessment.issues):
         raise ValueError('Review issue keys must be unique.')

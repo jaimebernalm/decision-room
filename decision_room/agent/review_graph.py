@@ -38,6 +38,10 @@ def build(config, db, session, run, analyst, reviewer, saver, *, executor=execut
         if saved:
             if saved['role'] != state['role'] or saved['knowledge_sha256'] != current['knowledge_sha256']:
                 raise ValueError('Persisted decision no longer matches this review state.')
+            if saved['role'] == 'reviewer' and saved['action']['action'] == 'revise' and run['options'].get('review_loop_guard'):
+                from .review_loops import resolution
+                if resolution(material(config, db, session, current)):
+                    return {'turn': saved['step'], 'action': saved['action'], 'outcome': 'controller_close'}
             return {'turn': saved['step'], 'action': saved['action']}
         context = model_context(material(config, db, session, current), state['role'])
         budget = context['budgets']
@@ -100,6 +104,10 @@ def build(config, db, session, run, analyst, reviewer, saver, *, executor=execut
             VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING''',
                    (run['id'], step, session['business_id'], state['role'], Jsonb(action), current['knowledge_sha256']))
         notify(db)
+        if state['role'] == 'reviewer' and action['action'] == 'revise' and run['options'].get('review_loop_guard'):
+            from .review_loops import resolution
+            if resolution(material(config, db, session, fresh())):
+                return {'turn':step, 'action':action, 'outcome':'controller_close'}
         return {'turn': step, 'action': action}
 
     def python(state):
@@ -131,6 +139,23 @@ def build(config, db, session, run, analyst, reviewer, saver, *, executor=execut
         return {'role': 'reviewer' if state['action']['action'] == 'submit' else 'analyst'}
 
     def finish(state):
+        if state['outcome'] == 'controller_close':
+            from .review_loops import resolution
+            current = fresh()
+            context = material(config, db, session, current)
+            decision = resolution(context)
+            if decision is None:
+                raise ValueError('Controller closure no longer matches persisted review.')
+            db.execute('UPDATE agent_reviews SET options=%s WHERE id=%s', (Jsonb({**current['options'], 'review_loop_resolution': decision}), run['id']))
+            if decision['disposition'] != 'publish_with_limitations':
+                return {'outcome':'rejected'}
+            from ..memory.context import ensure
+            ensure(db, session['id'])
+            from .review_contract import validate_coverage
+            validate_coverage(context['report'], context)
+            context = material(config, db, session, fresh())
+            db.execute('UPDATE agent_reviews SET approved_sha256=%s WHERE id=%s', (approval_digest(context, current['knowledge_sha256']), run['id']))
+            return {'outcome':'approved'}
         if state['outcome']:
             return {}
         status = {'approve': 'approved', 'reject': 'rejected', 'withdraw': 'withdrawn'}[state['action']['action']]

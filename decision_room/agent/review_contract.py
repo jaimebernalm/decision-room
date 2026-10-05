@@ -17,7 +17,14 @@ from .delivery_contract import (MetricRef, SeriesPointRef, DecisionOrientation, 
 from .panorama_contract import GapPriority, GapDismissal, PanoramaPriority
 
 
+class FocalCombination(Strict):
+    table_id: str = Field(min_length=1, max_length=36)
+    product: str | None = Field(min_length=1, max_length=500)
+    channel: str | None = Field(min_length=1, max_length=500)
+
+
 class Claim(Strict):
+    focal_combinations: list[FocalCombination] = Field(default_factory=list, max_length=1)
     panorama_priority: PanoramaPriority | None = None
     key: str = Field(pattern=r'^[a-z][a-z0-9_]{0,63}$')
     title: str = Field(min_length=1, max_length=160)
@@ -331,6 +338,10 @@ def validate_coverage(report, context):
     """Require explicit coverage, without pretending to verify semantic truth."""
     from .panorama_contract import validate as validate_panorama
     validate_panorama(report, context)
+    if context.get('budgets', {}).get('review_loop_guard'):
+        for claim in report['claims']:
+            if len(claim.get('focal_combinations', [])) != 1:
+                raise ValueError('Each claim needs exactly one focal combination; split distinct priorities into separate claims.')
     validate_owner_coverage(report, context)
     validate_orientation(report, context)
     investigations = context.get('plan', {}).get('investigations', [])

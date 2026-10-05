@@ -257,7 +257,7 @@ def render_client(data, exported_at, *, embedded=False):
             body += [evidence_html(data, claim, charts), '</section>']
         if not draft['charts']:
             body += [f'<p class="empty">{e(draft["no_chart_reason"])}</p>']
-        body += ['<section class="limits"><h2>Cómo interpretar este informe</h2><ul>' + ''.join(f'<li>{e(x)}</li>' for x in draft['limitations']) + '</ul></section>']
+        body += ['<section class="limits"><h2>Cómo interpretar este informe</h2><ul>' + ''.join(f'<li>{e(x)}</li>' for x in list(dict.fromkeys([*draft['limitations'], *(data.get('controller_resolution') or {}).get('owner_limitations', [])]))) + '</ul></section>']
     else:
         body += ['<section><h2>Aún no hay un informe disponible para entregar</h2><p>Estamos pendientes de completar o corregir la revisión. Los resultados provisionales no se muestran como conclusiones.</p>']
         for question in data.get('pending_questions', []):

@@ -75,12 +75,12 @@ def _projection(data):
         **({'panorama': panorama} if panorama else {}),
         **({'owner_presentation': True} if owner else {}),
         'title': report['title'], 'summary': report['summary'],
-        'partial': (any(q['status'] != 'complete' for q in report['owner_coverage']) if report.get('owner_coverage')
+        'partial': bool((data.get('controller_resolution') or {}).get('owner_limitations')) or (any(q['status'] != 'complete' for q in report['owner_coverage']) if report.get('owner_coverage')
                     else any(q['status'] != 'answered' for q in report.get('question_coverage', []))),
         'scope': report['scope'], 'highlights': highlights,
         'claims': [{'key': claim['key'], 'title': claim['title'],
                     'statement': claim['statement'], 'orientation': client_orientation(claim, owner)} for claim in report['claims'][:3]],
-        'charts': charts, 'limitations': limits(report, data['observations']) if owner else report['limitations'],
+        'charts': charts, 'limitations': list(dict.fromkeys([*(limits(report, data['observations']) if owner else report['limitations']), *(data.get('controller_resolution') or {}).get('owner_limitations', [])])),
         **({'technical_notes': [t for t in report['limitations'] if delivery_note(t)]} if owner else {}),
     }
 
