@@ -704,6 +704,65 @@ Siguiente paso pedido a Astra, P1a v2:
 - panorama compacto al principio del contexto;
 - transporte que espere `reset_tokens_seconds`, con tope duro por llamada.
 
+## 17. P1a v2 (panorama obligatorio) con `c6bda76`, sin compactación
+
+Configuración (los dos brazos): continuidad, recuperación, P3c, guardián de
+bucles, `PANORAMA_OBLIGATION_GUARD`, TPM 1.800.000. Compactación, prefijo
+estable y caché explícita **apagados**: con ellos encendidos, dos pilotos de una
+pareja aprobaron 0 de 2, porque el analista no veía datos que el validador
+seguía exigiendo (`question_coverage`, `panorama_priority`, `delivery_selection`,
+`owner_coverage`). Brazo de tratamiento: `DECISION_ROOM_SALES_PANORAMA=true`.
+Lotes `pilot-c6bda76-nocompact` (pareja 1) y `phase1av4` (8 parejas).
+
+| Brazo | Aprobados | Marketplace sin filas 10–18 mar. (S4) | Hostelería 1 kg sin filas (S2) |
+| --- | ---: | ---: | ---: |
+| Albor con panorama | 4/6 | 4/4 | 4/4 |
+| Albor sin panorama | 6/6 | 0/6 | 1/6 |
+| Bruma con panorama | 2/3 | — | — |
+| Bruma sin panorama | 3/3 | — | — |
+
+Pérdidas con panorama (3/9), todas por contratos nuevos:
+- 2 por «linked finding must cover its source and combination»: la
+  investigación no trató esa combinación;
+- 1 por justificar con métricas del panorama (agosto frente a julio) cifras de
+  otra ventana de la investigación; integridad, bloqueo correcto.
+
+Lectores independientes, quinta ronda:
+- 2 por negocio, con las 6 parejas completas (4 de Albor y 2 de Bruma) y los
+  mismos 3 informes de Luna por negocio.
+
+| Grupo | Bruma: puesto | Bruma: entiende / confía | Albor: puesto | Albor: entiende / confía |
+| --- | ---: | ---: | ---: | ---: |
+| Luna | 0,17 | 3,8 / 3,5 | 0,48 | 4,2 / 2,8 |
+| Con panorama | 0,71 | 2,5 / 2,3 | 0,49 | 2,6 / 3,0 |
+| Sin panorama | 0,79 | 3,0 / 2,0 | 0,53 | 3,0 / 2,8 |
+
+- Por parejas, el panorama gana 6 de 12 (Albor 4/8, Bruma 2/4): sin efecto para
+  el lector.
+- En Albor, los dos lectores eligen primero un informe del producto **sin**
+  panorama, el que pone primero «Café 1 kg en hostelería sin pedidos desde
+  abril». El producto ya iguala a Luna en Albor (0,49–0,53 frente a 0,48); en
+  Bruma sigue lejos.
+- Quejas específicas del panorama:
+  - dos comparaciones distintas en el mismo informe: el panorama dice
+    enero–agosto, −957, y el redactor primeros y últimos 12 meses, −604;
+  - en Bruma se contradicen los «mayores cambios»: Kit/Web +118 en el panorama
+    frente a Café/Marketplace +188 en el informe;
+  - repeticiones;
+  - jerga del detector («regla de detección», «días esperados»);
+  - prioridad a lo que crece antes que a lo que desaparece.
+
+Conclusión:
+- El panorama mejora la detección de forma objetiva (S4 y S2 en el 100 % de
+  los informes de Albor), pero no la preferencia del lector. Pega un análisis
+  determinista con su propia ventana a una investigación con otras ventanas, y
+  el informe se contradice.
+- Además, sus contratos rígidos pierden 1 de cada 3 informes.
+- Cualquier versión siguiente necesita **una sola historia**: que la
+  investigación parta del panorama y use su ventana (P1b), o que el informe se
+  ordene sobre la comparación del panorama. Los contratos de enlace no pueden
+  bloquear el informe cuando la investigación no cubrió la combinación.
+
 ## 10. Límites
 
 Tres repeticiones son pocas para afirmar consistencia; sirven para detectar
