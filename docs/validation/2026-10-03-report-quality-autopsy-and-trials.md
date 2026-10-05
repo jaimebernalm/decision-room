@@ -549,6 +549,79 @@ Conclusión:
   misma investigación: volver a redactar y revisar sobre una investigación ya
   hecha, para comparar en pareja.
 
+## 14. Resultados: P3b, comparación por parejas sobre la misma investigación
+
+Diseño:
+- Astra implementó P3b en `929d142`, sobre `b91aefb`, detrás de la misma opción.
+  Cambios:
+  - sin volcado de evidencia en el HTML del dueño, con la auditoría aparte;
+  - etiquetas de gráficos con nombres de serie;
+  - sin «Si Si» y con las reacciones idénticas unificadas;
+  - notas de software fuera de los límites;
+  - instrucciones v2 contra la jerga y las cautelas repetidas.
+- Nuevo comando `trials.py prepare-rewrite`. Clona la base de datos de cada brazo
+  original (PostgreSQL `TEMPLATE`) y su almacenamiento, y sobre cada investigación
+  aprobada lanza solo la redacción y revisión, dos veces, con el mismo código
+  congelado: con P3b y sin P3.
+- Lote `phase3c`: 9 investigaciones (las 8 de `phase2c` y el control de Bruma de
+  `phase3`), es decir, 18 reescrituras. El coste equivale a unas 6 ejecuciones
+  completas.
+- 17 de 18 informes aprobados. Una reescritura con P3b se perdió por un bloqueo
+  entre el revisor y el controlador. Las instrucciones v2 del revisor bloquean
+  la línea «Cobertura del encargo: 0 de 1 entregables…», pero el controlador la
+  reinyecta en `limitations` tras cada `submit` (`review_graph.py:73`), así que
+  el analista no puede quitarla y se agota el presupuesto. El revisor no puede
+  bloquear lo que el sistema impone; corrección pedida a Astra. Esa pareja (5 de
+  Albor) queda fuera.
+- Comprobación automática: P3b no tiene nada plegado, ni «Cifra de apoyo», ni
+  claves internas, ni decimales largos, ni «Si Si». Su texto visible mide lo
+  mismo que sin P3.
+
+Lectores independientes, cuarta ronda:
+- 2 por negocio, con orden y códigos aleatorios.
+- Bruma: 3 parejas y 3 informes de Luna. Albor: 5 parejas y los mismos 3 de Luna
+  de la ronda 3.
+- Concordancia entre lectores: Spearman 0,78 en Bruma y 0,83 en Albor.
+
+| Grupo | Bruma: puesto | Bruma: entiende / confía | Albor: puesto | Albor: entiende / confía |
+| --- | ---: | ---: | ---: | ---: |
+| Luna | 0,12 | 3,8 / 3,5 | 0,12 | 4,5 / 3,5 |
+| P3b | 0,62 | 3,0 / 2,5 | 0,59 | 3,1 / 2,7 |
+| Sin P3 (misma investigación y código) | 0,75 | 2,3 / 2,2 | 0,63 | 2,6 / 2,6 |
+
+**Por parejas, P3b gana 12 de 16 comparaciones** (Bruma 5/6 y Albor 7/10). Con
+una prueba de signos de una cola, p ≈ 0,04. También mejora el entendimiento en
+0,5–0,7 puntos. Es un efecto pequeño pero consistente, y ya no depende de la
+variación de la investigación. Luna sigue primero en ambos negocios y para los
+cuatro lectores.
+
+Quejas que quedan sobre P3b:
+- Presentación:
+  - «no se comprobó que el informe se abra bien», que resta confianza;
+  - «Selección entregada: N elementos…» y «Anexo técnico»;
+  - cautelas causales y de datos sintéticos repetidas;
+  - jerga: «mitades cronológicas», «unidades por fecha observada», «conciliar
+    captura o mapeo», «imputar ceros», «meses emparejados»;
+  - bloques Señal / Por qué / Qué permite decidir con las mismas palabras.
+- Criterio, que es lo que separa al producto de Luna según los motivos de los
+  lectores:
+  - no hay panorama por canal (tienda, marketplace);
+  - una o dos prioridades, o «no hay una ganadora clara», sin elegir;
+  - ventanas de comparación arbitrarias y sin explicar;
+  - comprobaciones que dependen de registros que el dueño no tiene;
+  - reacciones que no son acciones de negocio («mantener como descriptivo»
+    frente a «reponer» o «corregir el recuento» de Luna);
+  - lo importante escondido en un pie de gráfico (hostelería sin registros desde
+    marzo o abril de 2026).
+
+Conclusión:
+- P3b se adopta como base, con los restos de presentación por limpiar.
+- Lo siguiente es el criterio. Primero P2 (revisor que exige prioridad
+  justificada frente a alternativas, comprobaciones al alcance del dueño y
+  reacciones de negocio), que se puede medir barato por parejas sobre las mismas
+  investigaciones. Después P1 (panorama), que cambia la investigación y necesita
+  ejecuciones completas.
+
 ## 10. Límites
 
 Tres repeticiones son pocas para afirmar consistencia; sirven para detectar
