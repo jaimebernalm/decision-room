@@ -622,6 +622,26 @@ Conclusión:
   investigaciones. Después P1 (panorama), que cambia la investigación y necesita
   ejecuciones completas.
 
+## 15. P1a (panorama determinista): primer intento sin efecto
+
+Lote `phase1a`:
+- `5d0aae0` de Astra (P3b más panorama, opción `DECISION_ROOM_SALES_PANORAMA`).
+- Reescritura solo del brazo con panorama sobre las 9 investigaciones, con el
+  control P3b de `phase3c`, más el control que faltaba de la pareja 5
+  (`prepare-rewrite --arms product --paired-source …`).
+
+Se paró tras la primera revisión porque el panorama llegaba como `unavailable`:
+- Se identificaron bien las columnas (`fecha`, `canal_id`, `producto_id`,
+  `unidades`), pero las 122.154 filas se marcaron inválidas.
+- La fecha de los dos conjuntos tiene el formato `2021-09-01 00:00:00`, y la
+  validación (`sales_panorama.py:149`) solo admite `YYYY-MM-DD` exacto.
+- El tratamiento era nulo. Un intento completado, que no se evalúa, y un
+  abandonado, sin sustituto.
+
+Lección para las pruebas del producto: validar con el formato real de las
+entradas (marcas de tiempo a medianoche), no solo con fixtures construidos para
+el test.
+
 ## 10. Límites
 
 Tres repeticiones son pocas para afirmar consistencia; sirven para detectar
