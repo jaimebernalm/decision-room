@@ -1104,3 +1104,7 @@ bloqueante. 47 pruebas offline de esta entrega y regresiones; [alcance y activac
 **Corrección de series compactadas — 5 de octubre:** metadatos completos explícitos,
 muestra identificada y gráficos por referencia a originales. 14 pruebas offline,
 incluido payload HTTP y superposición completa; [detalle](../technical/review-context-cache-plan.md).
+
+**Caché del piloto — 5 de octubre:** clave por revisión y evidencia antes del sufijo
+variable, con hashes y tamaños auditados. 14 pruebas offline; ahorro pendiente de
+lote, [detalle](../technical/review-context-cache-plan.md).

@@ -126,3 +126,22 @@ entre paréntesis; la presentación resuelve todos los puntos guardados. Las pru
 capturan HTTP simulado con/sin prefijo estable, superponen 178 puntos originales y
 rechazan una unidad abreviada incompatible. También comprueban extremos que no
 están en la muestra. 14 pruebas locales aprobadas; sin modelos.
+
+### Caché del piloto: implementado
+
+La clave opaca usa ahora el ID de **revisión**, estable al reanudar y distinto en
+otra revisión; solo contextos sin ese ID usan la sesión como respaldo. Antes ya
+había clave por sesión de investigación: la corrección no parte de ausencia de clave.
+
+Se encontró una barrera local concreta: el objeto variable ordenado alfabéticamente
+situaba presupuestos y conversación antes de las observaciones. Ahora el bloque
+`review_evidence` (panorama y evidencia actual) precede al borrador, presupuestos,
+conversación, recuperaciones y correcciones. No se duplica la evidencia. Cambiar o
+añadir evidencia sí cambia su prefijo deliberadamente; nunca se reutilizan datos
+obsoletos. Se auditan hashes hasta contexto estable y hasta evidencia, y estimaciones
+de tokens por bloque para comparar con los tokens cacheados reales del proveedor.
+
+14 pruebas offline de caché/series/presupuesto: mismos prefijos entre roles y
+correcciones, invalidación ante nueva evidencia y claves distintas por revisión.
+El ahorro sigue pendiente de lote; ni una clave ni un hash garantizan reutilización.
+Referencia OpenAI Docs consultada: https://developers.openai.com/api/docs/guides/prompt-caching

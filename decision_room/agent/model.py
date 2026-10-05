@@ -777,7 +777,7 @@ class ModelClient:
             payload['store'] = False
             if stable_review(context):
                 from .context import fingerprint
-                session = (context.get('business_context') or {}).get('manifest_id')
+                session = context.get('review_id') or (context.get('business_context') or {}).get('manifest_id')
                 if session: payload['prompt_cache_key']='dr-review-'+fingerprint(str(session))[:40]
         if self.settings.protocol == 'lmstudio_structured':
             # LM Studio compatibility API: schema-constrained output plus the
@@ -803,9 +803,22 @@ class ModelClient:
         prefix_audit = None
         if stable_review(context):
             from .context import fingerprint
-            prefix_audit={'version':'review-stable-prefix-v1',
+            from .review_cache import VERSION as CACHE_VERSION
+            from .review_budget import tokens
+            effective_messages=payload.get('messages') or messages
+            if 'system_prompt' in payload and bounded_review(context):
+                # Native input was rebuilt by fit; stable fields use the same
+                # compact level, so audit the actual effective prefix as well.
+                from .review_budget import compact
+                effective_messages=cache_messages(compact(context,budget_audit['level']),system,correction)
+            prefix_audit={'version':CACHE_VERSION,
                 'schema_sha256':fingerprint(schema),
-                'visible_prefix_sha256':fingerprint({'messages':payload.get('messages',messages)[:2], 'schema':schema})}
+                'visible_prefix_sha256':fingerprint({'messages':effective_messages[:2], 'schema':schema}),
+                'evidence_prefix_sha256':fingerprint({'messages':effective_messages[:3], 'schema':schema}),
+                'estimated_stable_tokens':tokens(effective_messages[:2])+tokens(schema),
+                'estimated_evidence_tokens':tokens(effective_messages[2]),
+                'estimated_variable_tokens':tokens(effective_messages[3:]),
+                'cache_key_scope':'review' if context.get('review_id') else 'session_fallback'}
         recorder = _REQUEST_RECORDER.get()
         if recorder:
             # Private audit payload only: never capture headers, credentials or env.

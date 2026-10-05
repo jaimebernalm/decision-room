@@ -82,7 +82,7 @@ def material(config, db, session, run):
     for event in conversation:
         if event['step'] in by_step:
             event['owner_answer'] = by_step[event['step']]
-    return {**({'controller_annotations': controller_annotations} if controller_annotations else {}), **({'sales_panorama': panorama} if panorama is not None else {}), 'owner_context': run['snapshot']['source']['owner_context'], 'owner_answers': owner_answers,
+    return {**({'review_id': str(run['id'])} if run['options'].get('review_stable_prefix') else {}), **({'controller_annotations': controller_annotations} if controller_annotations else {}), **({'sales_panorama': panorama} if panorama is not None else {}), 'owner_context': run['snapshot']['source']['owner_context'], 'owner_answers': owner_answers,
             **({'accepted_owner_request': run['snapshot'].get('accepted_owner_request') or
                  {'text': run['snapshot']['source']['owner_context']},
                 'owner_confirmed_answers': [a for a in owner_answers if a['disposition'] == 'answered']}

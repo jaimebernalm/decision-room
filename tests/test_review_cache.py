@@ -33,9 +33,34 @@ class ReviewCacheTests(unittest.TestCase):
         self.assertEqual(a['messages'][:2],b['messages'][:2])
         self.assertNotEqual(a['messages'][2:],b['messages'][2:])
         self.assertEqual(a['prompt_cache_key'],b['prompt_cache_key'])
-        self.assertEqual(requests[0]['cache_prefix'],requests[1]['cache_prefix'])
+        self.assertEqual(requests[0]['cache_prefix']['visible_prefix_sha256'],requests[1]['cache_prefix']['visible_prefix_sha256'])
+        self.assertNotEqual(requests[0]['cache_prefix']['evidence_prefix_sha256'],requests[1]['cache_prefix']['evidence_prefix_sha256'])
         assert_strict_objects(self,a['response_format']['json_schema']['schema'])
         self.assertLessEqual(requests[1]['context_budget']['total_reserved'],70000)
+
+    def test_evidence_prefix_precedes_changing_turns_and_keys_are_review_scoped(self):
+        from decision_room.agent.review_cache import messages
+        context=large_context();context['review_id']='review-1'
+        context['budgets']['review_stable_prefix']=True
+        before=messages(context,'system',None)
+        changed=deepcopy(context);changed['role']='analyst'
+        changed['budgets']['calls_used']=3;changed['report']['summary']='Texto corregido.'
+        changed['conversation']=[]
+        after=messages(changed,'system','Corregir estilo.')
+        self.assertEqual(before[:3],after[:3])
+        self.assertNotEqual(before[3:],after[3:])
+        self.assertIn('observations',json.loads(before[2]['content'])['review_evidence'])
+        self.assertNotIn('observations',json.loads(before[3]['content']))
+        keys=[]
+        for review_id in ('review-1','review-1','review-2'):
+            changed['review_id']=review_id;captured=[]
+            client=httpx.AsyncClient(transport=httpx.MockTransport(lambda r:httpx.Response(200,json={
+                'choices':[{'finish_reason':'stop','message':{'content':'{}'}}]})))
+            with patch('decision_room.agent.model.httpx.AsyncClient',return_value=client),patch.dict(os.environ,{'OPENAI_API_KEY':'test-only'}),record_request(captured.append):
+                ModelClient(ModelSettings('offline',base_url='https://api.openai.com/v1',protocol='openai',tokens_per_minute=0)).generate_reviewer(changed)
+            keys.append(captured[0]['payload']['prompt_cache_key'])
+            self.assertEqual(captured[0]['cache_prefix']['cache_key_scope'],'review')
+        self.assertEqual(keys[0],keys[1]);self.assertNotEqual(keys[0],keys[2])
 
     def test_dynamic_evidence_ids_are_not_embedded_in_schema(self):
         context=large_context();context['budgets']['review_stable_prefix']=True

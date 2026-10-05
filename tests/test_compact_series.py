@@ -66,7 +66,7 @@ class CompactSeriesTests(unittest.TestCase):
                 ModelClient(ModelSettings('offline',protocol='chat_completions')).generate_analyst_review(source)
             packed={}
             for message in saved[0]['payload']['messages'][1:]:
-                data=json.loads(message['content']);packed.update(data.get('stable_review_context',data))
+                data=json.loads(message['content']);packed.update(data.get('stable_review_context',data.get('review_evidence',data)))
             visible=next(o for o in packed['observations'] if o['execution_id']=='layers-only')['result']['series']
             report=deepcopy(source['report']);chart=report['charts'][0]
             chart['unit']=visible['raw']['unit']
