@@ -219,3 +219,25 @@ techo aún se rechaza antes del proveedor: no se promete un contexto sin límite
 conservación de inventarios/dudas y ampliación del objetivo sin perder el informe.
 Para usar el nuevo valor por defecto, quitar un override antiguo de 70.000; las
 revisiones ya creadas conservan su objetivo guardado y tienen la nueva estrategia.
+
+### Fronteras explícitas de caché (opción independiente)
+
+`DECISION_ROOM_REVIEW_EXPLICIT_CACHE=true`, o `review_explicit_cache=True` al crear
+la revisión, añade puntos de caché tras contexto estable y evidencia cuando también
+está activado el prefijo estable. Por defecto está apagado; modelos anteriores a
+GPT-5.6 y protocolos distintos de OpenAI conservan el modo implícito. El sufijo con
+borrador, contadores y correcciones queda fuera de esos puntos explícitos.
+
+El payload HTTP simulado confirma que se envía `prompt_cache_key` por revisión.
+También se auditan modo, fronteras, tamaños y tokens leídos/escritos de caché. El
+hash local idéntico no acredita una entrada de caché remota: depende del prefijo
+renderizado, de dónde se haya escrito y de su vigencia. El modo implícito escribe
+el último mensaje elegible; las fronteras explícitas permiten escribir antes del
+sufijo variable. Esta es una hipótesis para medir el escaso aprovechamiento del
+piloto, no una causa demostrada. Medir tanto `cached_tokens` como
+`cache_write_tokens` y coste, pues las escrituras también tienen precio.
+
+10 pruebas locales aprobadas de fronteras, prefijo y presupuesto; no se ha llamado
+al proveedor ni medido una mejora real de caché. Referencias oficiales consultadas:
+[prompt caching](https://developers.openai.com/api/docs/guides/prompt-caching) y
+[Chat Completions](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create).

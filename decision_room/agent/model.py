@@ -805,22 +805,24 @@ class ModelClient:
             payload, budget_audit = fit(context, payload, render, hard_limit=self.settings.tokens_per_minute or 200000)
         prefix_audit = None
         if stable_review(context):
+            from .review_cache import cache_boundaries
+            cache_audit=cache_boundaries(payload,context,self.settings)
             from .context import fingerprint
             from .review_cache import VERSION as CACHE_VERSION
-            from .review_budget import tokens
+            from .review_budget import request_tokens
             effective_messages=payload.get('messages') or messages
             if 'system_prompt' in payload and bounded_review(context):
                 # Native input was rebuilt by fit; stable fields use the same
                 # compact level, so audit the actual effective prefix as well.
                 from .review_budget import compact
                 effective_messages=cache_messages(compact(context,budget_audit['level']),system,correction)
-            prefix_audit={'version':CACHE_VERSION,
+            prefix_audit={'version':CACHE_VERSION,**cache_audit,
                 'schema_sha256':fingerprint(schema),
                 'visible_prefix_sha256':fingerprint({'messages':effective_messages[:2], 'schema':schema}),
                 'evidence_prefix_sha256':fingerprint({'messages':effective_messages[:3], 'schema':schema}),
-                'estimated_stable_tokens':tokens(effective_messages[:2])+tokens(schema),
-                'estimated_evidence_tokens':tokens(effective_messages[2]),
-                'estimated_variable_tokens':tokens(effective_messages[3:]),
+                'estimated_stable_tokens':request_tokens({'messages':effective_messages[:2],'response_format':{'schema':schema}}),
+                'estimated_evidence_tokens':request_tokens({'messages':effective_messages[2:3]}),
+                'estimated_variable_tokens':request_tokens({'messages':effective_messages[3:]}),
                 'cache_key_scope':'review' if context.get('review_id') else 'session_fallback'}
         recorder = _REQUEST_RECORDER.get()
         if recorder:

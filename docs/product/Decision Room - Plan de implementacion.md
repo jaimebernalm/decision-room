@@ -1125,3 +1125,7 @@ locales de contratos/correcciones; [registro](../technical/review-context-cache-
 **Presupuesto revisado — 5 de octubre:** objetivo de 110.000, estimación sin doble
 escape, tercer nivel de compactación y ampliación auditada dentro del techo TPM.
 14 pruebas locales aprobadas; [alcance](../technical/review-context-cache-plan.md).
+
+**Fronteras de caché — 5 de octubre:** opción independiente para guardar el prefijo
+hasta contexto estable y evidencia, clave por revisión confirmada en HTTP simulado.
+10 pruebas locales; efecto/coste pendientes de medición. [Detalle y activación](../technical/review-context-cache-plan.md).

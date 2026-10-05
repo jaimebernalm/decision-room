@@ -36,7 +36,10 @@ def _stale(config, db, session, run):
 
 
 def start(config, business_id, research_id, *, request_key, analyst=None, reviewer=None,
-          max_review_rounds=None, owner_presentation=None, review_loop_guard=None, review_context_budget=None, review_stable_prefix=None, panorama_obligation_guard=None, sales_panorama=None, panorama_mappings=None, executor=execute):
+          max_review_rounds=None, owner_presentation=None, review_loop_guard=None, review_context_budget=None, review_stable_prefix=None, review_explicit_cache=None, panorama_obligation_guard=None, sales_panorama=None, panorama_mappings=None, executor=execute):
+    review_explicit_cache = config.review_explicit_cache if review_explicit_cache is None else review_explicit_cache
+    if type(review_explicit_cache) is not bool:
+        raise ValueError('Explicit review cache flag must be boolean.')
     panorama_obligation_guard = config.panorama_obligation_guard if panorama_obligation_guard is None else panorama_obligation_guard
     if type(panorama_obligation_guard) is not bool:
         raise ValueError('Panorama obligation guard flag must be boolean.')
@@ -96,6 +99,8 @@ def start(config, business_id, research_id, *, request_key, analyst=None, review
             options['panorama_obligation_guard'] = True
         if review_stable_prefix:
             options['review_stable_prefix'] = True
+        if review_explicit_cache:
+            options['review_explicit_cache'] = True
         if review_context_budget:
             options.update(review_context_budget=True, review_context_tokens=config.review_context_tokens)
         if review_loop_guard:

@@ -27,6 +27,7 @@ class Config:
     panorama_obligation_guard: bool = False
     review_loop_guard: bool = False
     review_stable_prefix: bool = False
+    review_explicit_cache: bool = False
     review_context_budget: bool = False
     review_context_tokens: int = 110000
 
@@ -42,6 +43,7 @@ class Config:
         return cls(os.environ.get('DECISION_ROOM_DATABASE_URL', default),
                    Path(os.environ.get('DECISION_ROOM_STORAGE', ROOT / '.local/storage')).resolve(),
                    panorama_obligation_guard=os.environ.get('DECISION_ROOM_PANORAMA_OBLIGATION_GUARD', 'false').lower() == 'true',
+                   review_explicit_cache=os.environ.get('DECISION_ROOM_REVIEW_EXPLICIT_CACHE', 'false').lower() == 'true',
                    review_stable_prefix=os.environ.get('DECISION_ROOM_REVIEW_STABLE_PREFIX', 'false').lower() == 'true',
                    review_context_budget=os.environ.get('DECISION_ROOM_REVIEW_CONTEXT_BUDGET', 'false').lower() == 'true',
                    review_context_tokens=int(os.environ.get('DECISION_ROOM_REVIEW_CONTEXT_TOKENS', '110000')),
