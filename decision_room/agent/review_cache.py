@@ -2,7 +2,7 @@
 from copy import deepcopy
 from .context import encoded, fingerprint
 
-VERSION='review-stable-prefix-v2'
+VERSION='review-stable-prefix-v3'
 
 
 def enabled(context):
@@ -36,6 +36,9 @@ def schema(context):
             result['$defs']['Claim']['properties']['panorama_priority']={'$ref':'#/$defs/PanoramaPriority'}
             result['$defs']['PanoramaPriority']['properties']['comparison']={'anyOf':[{'$ref':'#/$defs/PanoramaComparison'},{'$ref':'#/$defs/CustomComparison'}]}
         result['$defs']['GapDismissal']['properties']['proof']={'anyOf':[{'$ref':'#/$defs/GapEvidenceProof'},{'$ref':'#/$defs/GapOwnerProof'}]}
+    from .review_requirements import constrain_coverage,constrain_panorama
+    constrain_coverage(result,context)
+    constrain_panorama(result,context)
     def strict(value):
         if isinstance(value,dict):
             value.pop('default',None)
@@ -124,7 +127,12 @@ def usage_summary(calls):
 SYSTEM='''
 STABLE REVIEW WIRE CONTRACT:
 The JSON shape is fixed across turns and roles. Availability and valid IDs/keys
-are enforced by the local validator against current original evidence, not enums.
+are enforced by the local validator against current original evidence. Frozen
+investigation keys and panorama metric pairs are ALSO enumerated in the schema.
+required_coverage_keys lists ALL ready tasks that must occur exactly once;
+allowed_coverage_keys includes optional blocked tasks (unavailable only).
+citable_panorama_metrics lists EVERY permitted execution_id/metric pair for
+panorama_priority. Do not substitute other evidence or infer keys from prose.
 Read role, budgets and current evidence before choosing actions. Do not invent refs.
 For the report's panorama_dispositions, output a LIST of {signal_key,decision}; the
 controller maps it to the stored dictionary. List every required material gap once,

@@ -1113,3 +1113,7 @@ lote, [detalle](../technical/review-context-cache-plan.md).
 con espacios normalizados; textos del dueño fuera de enums. Lint antes de HTTP
 sobre todos los productores y matriz de opciones/contextos grandes. 112 pruebas
 aprobadas de esta cadena, sin modelos reales; [detalle](../technical/review-context-cache-plan.md).
+
+**Contratos congelados de revisión — 5 de octubre:** enums de cobertura/panorama
+restaurados sin variar al añadir cálculos; inventarios visibles completos. 18 pruebas
+offline aprobadas. [Registro](../technical/review-context-cache-plan.md).

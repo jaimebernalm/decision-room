@@ -739,6 +739,9 @@ class ModelClient:
 
     def _generate(self, context, correction, system, schema):
         from .review_cache import enabled as stable_review, messages as cache_messages
+        if stable_review(context) or context.get('budgets',{}).get('review_context_budget'):
+            from .review_requirements import expose
+            context=expose(context)
         if context.get('business_context') or stable_review(context):
             from ..memory.retrieval import schema_for, INSTRUCTIONS
             schema = schema_for(schema)

@@ -123,6 +123,9 @@ def material(config, db, session, run):
 def model_context(materialized, role):
     context = deepcopy(materialized)
     context['role'] = role
+    if context.get('budgets',{}).get('review_stable_prefix') or context.get('budgets',{}).get('review_context_budget'):
+        from .review_requirements import expose
+        context=expose(context)
     from .panorama_obligations import enabled as obligations_enabled, obligations
     if obligations_enabled(context):
         context['panorama_obligations'] = obligations(context)

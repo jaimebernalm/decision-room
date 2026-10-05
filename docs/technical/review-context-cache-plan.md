@@ -170,3 +170,22 @@ recuperación de investigación. Incluye más de 1.000 claves, historial grande 
 mensajes multilínea. Detectó además `ReviewIssue.required` incompleto bajo políticas
 antiguas; corregido. Las pruebas verifican tanto rechazo del lint como peticiones
 finales válidas. Referencia oficial: https://developers.openai.com/api/docs/guides/structured-outputs
+
+## Piloto 0/2 — contratos congelados y presupuesto
+
+Base de estas correcciones: 32ae3ac. Plan: restaurar enums constantes por revisión
+con inventarios completos; corregir mensajes sin recortes; ampliar compactación y
+presupuesto por defecto; revisar el límite real de caché. Prueba final a través de
+HTTP simulado: las respuestas se construyen exclusivamente desde el payload visible.
+
+### Contratos constantes restaurados
+
+El esquema de prefijo estable vuelve a enumerar investigaciones conocidas, estados
+permitidos por tarea y referencias de métricas del panorama. Una nueva ejecución
+del revisor o un nuevo borrador no cambia esos enums. Se conservan referencias
+libres para cálculos que sí aparecen durante la conversación.
+
+El contexto expone íntegros `required_coverage_keys`, `allowed_coverage_keys` y
+`citable_panorama_metrics`, sin muestras ni recortes. Son datos del controlador,
+no claves inferidas del texto del plan. Las listas completas viajan también en el
+sufijo variable cuando se usa prefijo estable, como contrato explícito de cada turno.
