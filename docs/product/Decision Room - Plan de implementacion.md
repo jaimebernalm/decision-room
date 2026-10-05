@@ -1057,3 +1057,9 @@ Agrupa todas las horas por día y detalla las filas rechazadas por regla.
 [Validación y política de zona](../validation/2026-10-04-sales-panorama-iso-dates.md).
 21 pruebas, incluida la importación real de un CSV sintético entrecomillado;
 sin llamadas reales al modelo. Pendiente repetir la medición por parejas.
+
+**Transporte para los ensayos P1 — 5 de octubre:** resets de tokens completos,
+reintentos acotados tras rechazo, deadline cancelable y admisión local por TPM
+compartida entre roles/procesos. [Plan de los tres pasos](../technical/panorama-contracts-next-plan.md)
+y [garantías y límites](../validation/2026-10-05-model-transport-budget.md).
+Sin llamadas reales al proveedor; medición de escala pendiente.

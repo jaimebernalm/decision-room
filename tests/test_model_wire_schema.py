@@ -106,9 +106,9 @@ class WireSchemaTests(unittest.TestCase):
         def handler(request):
             payloads.append(json.loads(request.content))
             return httpx.Response(200, json={'choices': [{'finish_reason': 'stop', 'message': {'content': '{}'}}], 'usage': {}})
-        with patch('decision_room.agent.model.httpx.Client', return_value=httpx.Client(transport=httpx.MockTransport(handler))), \
+        with patch('decision_room.agent.model.httpx.AsyncClient', return_value=httpx.AsyncClient(transport=httpx.MockTransport(handler))), \
              patch.dict('os.environ', {'OPENAI_API_KEY': 'test-placeholder'}):
-            ModelClient(ModelSettings('test', protocol='openai', base_url='https://api.openai.com/v1', reasoning='low')).generate(context)
+            ModelClient(ModelSettings('test', protocol='openai', tokens_per_minute=0, base_url='https://api.openai.com/v1', reasoning='low')).generate(context)
         payload = payloads[0]
         self.assertEqual(json.loads(payload['messages'][1]['content'])['profiles'][0]['column_names'], ['Size "large"'])
         schema = payload['response_format']['json_schema']['schema']

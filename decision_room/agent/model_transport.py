@@ -22,7 +22,7 @@ ERROR_TYPES = {
     'invalid_request_error', 'service_unavailable_error', 'server_error',
 }
 MAX_ERROR_BYTES = 16 * 1024
-MAX_RETRY_WAIT = 30
+MAX_RETRY_WAIT = 300
 
 
 def retry_after(response):
@@ -117,7 +117,23 @@ def retry_delay(response, attempt, details=None):
     if response.status_code == 429 and details:
         limits = details.get('rate_limits', {})
         for kind in ('requests', 'tokens', 'project_tokens'):
-            if limits.get('remaining_' + kind) == 0:
+            if kind in ('tokens', 'project_tokens') or limits.get('remaining_' + kind) == 0:
                 wait = max(wait, limits.get('reset_' + kind + '_seconds', 0))
     # Both 429 and 503 hints are minima. A long wait requires deferred recovery.
     return max(1, wait) if wait <= MAX_RETRY_WAIT else None
+
+
+async def async_diagnostics(response):
+    """Bounded async error read; once rejected, a broken error body is still rejected."""
+    if response.status_code == 200:
+        return diagnostics(response)
+    body = bytearray()
+    try:
+        async for chunk in response.aiter_bytes(chunk_size=1024):
+            body.extend(chunk)
+            if len(body) > MAX_ERROR_BYTES:
+                body.clear()
+                break
+    except httpx.HTTPError:
+        body.clear()
+    return diagnostics(httpx.Response(response.status_code, headers=response.headers, content=bytes(body)))

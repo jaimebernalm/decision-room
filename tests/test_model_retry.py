@@ -6,8 +6,8 @@ from decision_room.agent.model import ModelAPIError, ModelClient, ModelRequestUn
 
 class ModelRetryTests(unittest.TestCase):
     def run_model(self, handler):
-        client=httpx.Client(transport=httpx.MockTransport(handler))
-        with patch('decision_room.agent.model.httpx.Client',return_value=client),patch('decision_room.agent.model.time.sleep') as sleep:
+        client=httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        with patch('decision_room.agent.model.httpx.AsyncClient',return_value=client),patch('decision_room.agent.model.asyncio.sleep') as sleep:
             result=ModelClient(ModelSettings('test',protocol='chat_completions')).generate({})
         return result,sleep
 
@@ -58,7 +58,7 @@ class ModelRetryTests(unittest.TestCase):
         self.assertEqual([a['status'] for a in usage['transport_attempts']],[429,429,200])
 
     def test_429_long_wait_is_not_shortened_or_retried(self):
-        for delay in ('31', '999', 'inf', 'nan', '1e999'):
+        for delay in ('301', '999', 'inf', 'nan', '1e999'):
             seen=[]
             def handler(request):
                 seen.append(request)
@@ -76,9 +76,10 @@ class ModelRetryTests(unittest.TestCase):
         self.assertEqual(retry_delay(httpx.Response(429,headers={'Retry-After':'invalid'}),1),4)
 
     def test_wait_cannot_exceed_request_budget(self):
-        with patch('decision_room.agent.model.time.monotonic', side_effect=[0, 0, 179]), self.assertRaises(ModelAPIError) as caught:
-            self.run_model(lambda request:httpx.Response(429,headers={'Retry-After':'3'}))
-        self.assertEqual(len(caught.exception.transport_attempts),1)
+        client=httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(429, headers={'Retry-After':'3'})))
+        with patch('decision_room.agent.model.httpx.AsyncClient',return_value=client), patch('decision_room.agent.model.asyncio.sleep',side_effect=TimeoutError), self.assertRaises(ModelAPIError) as caught:
+            ModelClient(ModelSettings('test',protocol='chat_completions')).generate({})
+        self.assertEqual(caught.exception.diagnostics['error_category'], 'deadline')
 
     def test_quota_and_billing_rejections_are_not_retried(self):
         codes = ('insufficient_quota', 'credit_balance_exhausted',
@@ -149,7 +150,7 @@ class ModelRetryTests(unittest.TestCase):
     def test_long_reset_and_503_wait_are_not_shortened(self):
         responses = [
             httpx.Response(503, headers={'Retry-After': '999'}),
-            httpx.Response(429, headers={'Retry-After': '2', 'x-ratelimit-remaining-tokens': '0', 'x-ratelimit-reset-tokens': '1m0.5s'}),
+            httpx.Response(429, headers={'Retry-After': '2', 'x-ratelimit-remaining-tokens': '0', 'x-ratelimit-reset-tokens': '6m0.5s'}),
         ]
         for response in responses:
             seen = []
@@ -175,8 +176,8 @@ class ModelRetryTests(unittest.TestCase):
             seen.append(request)
             return httpx.Response(429, headers={'Retry-After': '3'}) if len(seen) == 1 else httpx.Response(200,
                 json={'choices': [{'finish_reason': 'stop', 'message': {'content': '{}'}}], 'usage': {}})
-        client = httpx.Client(transport=httpx.MockTransport(handler))
-        with patch.dict('os.environ', {'OPENAI_API_KEY': 'test-only'}), patch('decision_room.agent.model.httpx.Client', return_value=client), \
-             patch('decision_room.agent.model.random.uniform', return_value=.5), patch('decision_room.agent.model.time.sleep') as sleep:
-            ModelClient(ModelSettings('test', protocol='openai', base_url='https://api.openai.com/v1')).generate({})
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        with patch.dict('os.environ', {'OPENAI_API_KEY': 'test-only'}), patch('decision_room.agent.model.httpx.AsyncClient', return_value=client), \
+             patch('decision_room.agent.model.random.uniform', return_value=.5), patch('decision_room.agent.model.asyncio.sleep') as sleep:
+            ModelClient(ModelSettings('test', protocol='openai', tokens_per_minute=0, base_url='https://api.openai.com/v1')).generate({})
         self.assertEqual(sleep.call_args.args[0], 3.5)

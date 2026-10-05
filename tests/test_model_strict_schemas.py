@@ -130,11 +130,11 @@ class StrictProviderSchemaTests(unittest.TestCase):
         def handler(request):
             payloads.append(json.loads(request.content))
             return httpx.Response(200, json={'choices': [dict(finish_reason='stop', message={'content': '{}'})]})
-        transport = httpx.Client(transport=httpx.MockTransport(handler))
-        with patch('decision_room.agent.model.httpx.Client', return_value=transport), \
+        transport = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        with patch('decision_room.agent.model.httpx.AsyncClient', return_value=transport), \
              patch.dict('os.environ', {'OPENAI_API_KEY': 'test-placeholder'}, clear=True), \
              record_request(recorded.append):
-            client = ModelClient(ModelSettings('test', protocol='openai', base_url='https://api.openai.com/v1'))
+            client = ModelClient(ModelSettings('test', protocol='openai', tokens_per_minute=0, base_url='https://api.openai.com/v1'))
             getattr(client, method)(deepcopy(context))
         self.assertEqual(len(payloads), 1)
         self.assertEqual(recorded[0]['payload'], payloads[0])

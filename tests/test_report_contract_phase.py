@@ -129,13 +129,13 @@ class EffectiveRequestTests(unittest.TestCase):
         def handler(request):
             sent.append(json.loads(request.content))
             return httpx.Response(200, json={'choices': [{'finish_reason': 'stop', 'message': {'content': '{}'}}]})
-        settings = ModelSettings('gpt-6-luna', protocol='openai', base_url='https://api.openai.com/v1',
+        settings = ModelSettings('gpt-6-luna', protocol='openai', tokens_per_minute=0, base_url='https://api.openai.com/v1',
                                  reasoning='low', response_language='en')
         context = {'owner_context': 'Private synthetic test input', 'business_context': {'available': True}}
         with connect(self.config) as db:
             for correction in (None, 'Choose a supported series reference'):
-                client = httpx.Client(transport=httpx.MockTransport(handler))
-                with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-header-secret'}), patch('decision_room.agent.model.httpx.Client', return_value=client):
+                client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+                with patch.dict(os.environ, {'OPENAI_API_KEY': 'test-header-secret'}), patch('decision_room.agent.model.httpx.AsyncClient', return_value=client):
                     _model_call(db, run['id'], ModelClient(settings), context, correction, False, scope='effective-test')
                 row = db.execute("SELECT * FROM agent_calls WHERE session_id=%s AND scope='effective-test' ORDER BY created_at DESC LIMIT 1", (run['id'],)).fetchone()
                 record = row['effective_request']
@@ -146,14 +146,14 @@ class EffectiveRequestTests(unittest.TestCase):
                 self.assertEqual(row['request_sha256'], fingerprint(record))
                 self.assertNotIn('test-header-secret', json.dumps(record))
                 if correction: self.assertIn(correction, record['payload']['messages'][-1]['content'])
-                with patch('decision_room.agent.model.httpx.Client') as network:
+                with patch('decision_room.agent.model.httpx.AsyncClient') as network:
                     _model_call(db, run['id'], ModelClient(settings), context, correction, False, scope='effective-test')
                     network.assert_not_called()
         self.assertEqual(len(sent), 2)
 
     def test_model_call_budget_identifies_phase_and_scope_without_network(self):
         run = self.start()
-        with connect(self.config) as db, patch('decision_room.agent.model.httpx.Client') as network:
+        with connect(self.config) as db, patch('decision_room.agent.model.httpx.AsyncClient') as network:
             with self.assertRaisesRegex(ValueError, "phase=research, scope='worker-a' "):
                 _model_call(db, run['id'], ModelClient(ModelSettings('test')), {}, None, False,
                             phase='research', scope='worker-a', max_calls=0)
@@ -162,8 +162,8 @@ class EffectiveRequestTests(unittest.TestCase):
     def test_request_is_saved_before_uncertain_transport_failure(self):
         run = self.start()
         def handler(request): raise httpx.ReadTimeout('simulated lost response')
-        client = httpx.Client(transport=httpx.MockTransport(handler))
-        with connect(self.config) as db, patch('decision_room.agent.model.httpx.Client', return_value=client):
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        with connect(self.config) as db, patch('decision_room.agent.model.httpx.AsyncClient', return_value=client):
             with self.assertRaises(ModelRequestUncertain):
                 _model_call(db, run['id'], ModelClient(ModelSettings('test', protocol='chat_completions')),
                             {'owner_context': 'uncertain'}, None, False, scope='uncertain-payload')
@@ -192,8 +192,8 @@ class DiscoveryRequestTests(unittest.TestCase):
             sent.append(json.loads(request.content))
             return httpx.Response(200, json={'choices': [{'finish_reason': 'stop', 'message': {
                 'content': json.dumps(dict(tables=[], relations=[], limitations=[]))}}]})
-        client = httpx.Client(transport=httpx.MockTransport(handler))
-        with patch('decision_room.agent.model.httpx.Client', return_value=client):
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        with patch('decision_room.agent.model.httpx.AsyncClient', return_value=client):
             discover(self.config, self.business, self.analysis, ModelClient(ModelSettings('test', protocol='chat_completions')))
         with connect(self.config) as db:
             row = db.execute('SELECT * FROM data_model_discoveries WHERE business_id=%s', (self.business,)).fetchone()
@@ -224,8 +224,8 @@ class ChatRequestTests(unittest.TestCase):
             fields = payload['response_format']['json_schema']['schema']['properties']
             output = dict(approved=True, issues=[]) if 'approved' in fields else conversation_tests.action('answer', text='Hola.', sources=[])
             return httpx.Response(200, json={'choices': [{'finish_reason': 'stop', 'message': {'content': json.dumps(output)}}]})
-        factory = httpx.Client
-        with patch('decision_room.agent.model.httpx.Client', side_effect=lambda **kw: factory(transport=httpx.MockTransport(handler))):
+        factory = httpx.AsyncClient
+        with patch('decision_room.agent.model.httpx.AsyncClient', side_effect=lambda **kw: factory(transport=httpx.MockTransport(handler))):
             turn = self.send(self.chat(), 'Hola')
         with connect(self.config) as db:
             for table, payload in zip(('chat_calls', 'chat_answer_reviews'), sent):
@@ -254,8 +254,8 @@ class MemoryRequestTests(unittest.TestCase):
             candidate = memory_tests.candidate(scope='source', scope_id=None) if len(sent) == 1 else memory_tests.candidate()
             return httpx.Response(200, json={'choices': [{'finish_reason': 'stop', 'message': {
                 'content': json.dumps({'candidates': [candidate]})}}]})
-        factory = httpx.Client
-        with patch('decision_room.agent.model.httpx.Client', side_effect=lambda **kw: factory(transport=httpx.MockTransport(handler))):
+        factory = httpx.AsyncClient
+        with patch('decision_room.agent.model.httpx.AsyncClient', side_effect=lambda **kw: factory(transport=httpx.MockTransport(handler))):
             extraction.process(self.config, self.b, source['id'], ModelClient(ModelSettings('test', protocol='chat_completions')))
         self.assertEqual(self.source(source)['status'], 'applied')
         with connect(self.config) as db:

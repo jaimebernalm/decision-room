@@ -1,12 +1,12 @@
 """A replaceable model boundary. No model access from the Python sandbox."""
 import json
 import os
-import time
 import random
+import asyncio
 from contextvars import ContextVar
 from contextlib import contextmanager
 from copy import deepcopy
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from urllib.parse import urlsplit
 
 import httpx
@@ -74,8 +74,11 @@ class ModelSettings:
     timeout_seconds: int = 180
     max_output_tokens: int = 8192
     response_language: str | None = None
+    tokens_per_minute: int = field(default_factory=lambda: int(os.environ.get('DECISION_ROOM_AGENT_TPM', '200000')))
 
     def __post_init__(self):
+        if not 0 <= self.tokens_per_minute <= 1000000000:
+            raise ValueError('Invalid model tokens-per-minute limit.')
         if self.response_language not in (None, 'en', 'es'):
             raise ValueError('Unsupported response language.')
         url = urlsplit(self.base_url)
@@ -100,6 +103,7 @@ class ModelSettings:
         return cls(model=model or os.environ.get('DECISION_ROOM_AGENT_MODEL', ''), protocol=protocol,
                    reasoning=os.environ.get('DECISION_ROOM_AGENT_REASONING', 'off'),
                    timeout_seconds=int(os.environ.get('DECISION_ROOM_AGENT_TIMEOUT', '180')),
+                   tokens_per_minute=int(os.environ.get('DECISION_ROOM_AGENT_TPM', '200000')),
                    max_output_tokens=int(os.environ.get('DECISION_ROOM_AGENT_MAX_OUTPUT_TOKENS', '8192')),
                    base_url=os.environ.get('DECISION_ROOM_AGENT_BASE_URL', default_url))
 
@@ -107,7 +111,7 @@ class ModelSettings:
 class ModelClient:
     def __init__(self, settings):
         self.settings = settings
-        self.identity = asdict(settings)
+        self.identity = {k:v for k,v in asdict(settings).items() if k != 'tokens_per_minute'}
 
     def check_ready(self):
         """Check local LM Studio loading state without triggering model loading.
@@ -749,44 +753,7 @@ class ModelClient:
         elif self.settings.protocol == 'openai':
             raise ValueError('Set OPENAI_API_KEY in the private environment before using OpenAI.')
         try:
-            # Only explicit rejections are retried, within one logical call.
-            # Read interruptions remain uncertain and need deliberate recovery.
-            deadline = time.monotonic() + self.settings.timeout_seconds
-            with httpx.Client(timeout=self.settings.timeout_seconds, trust_env=False) as client:
-                attempts = []
-                for attempt in range(3):
-                    remaining = deadline - time.monotonic()
-                    if remaining <= 0:
-                        error = ModelAPIError(attempts[-1]['status'], attempts[-1])
-                        error.transport_attempts = attempts
-                        raise error
-                    with client.stream('POST', self.settings.base_url.rstrip('/') + endpoint,
-                                       json=payload, headers=headers, timeout=remaining) as response:
-                        details = diagnostics(response)
-                        attempts.append({'status': response.status_code, **details})
-                        delay = retry_delay(response, attempt, details) if response.status_code in (429, 503) and attempt < 2 else None
-                        if delay is not None and self.settings.protocol == 'openai':
-                            delay += random.uniform(0, min(1, MAX_RETRY_WAIT - delay))
-                        if delay is not None and delay >= deadline - time.monotonic():
-                            delay = None
-                        if response.status_code != 200:
-                            attempts[-1]['usage_unknown'] = True
-                        if delay is not None:
-                            attempts[-1]['retry_delay_seconds'] = delay
-                        if recorder := _TRANSPORT_RECORDER.get():
-                            recorder(attempts)
-                        if response.status_code != 200 and delay is None:
-                            error = ModelAPIError(response.status_code, details)
-                            error.transport_attempts = attempts
-                            raise error
-                        if response.status_code == 200:
-                            body = bytearray()
-                            for chunk in response.iter_bytes():
-                                body.extend(chunk)
-                                if len(body) > 2 * 1024**2:
-                                    raise ValueError('Model response exceeds 2 MiB.')
-                            break
-                    time.sleep(delay)
+            body, attempts = asyncio.run(self._request(payload, endpoint, headers))
             result = strict_json(body)
             if self.settings.protocol == 'lmstudio':
                 usage = result['stats']
@@ -809,10 +776,94 @@ class ModelClient:
         except httpx.HTTPError as error:
             if isinstance(error, (httpx.ConnectError, httpx.ConnectTimeout)):
                 raise ValueError(f'Model connection failed ({type(error).__name__}); check the configured server.') from None
-            raise ModelRequestUncertain(f'Model response unavailable ({type(error).__name__}); processing is uncertain. '
-                                        'Use agent-resume --retry-model to retry deliberately.') from None
+            uncertain = ModelRequestUncertain(f'Model response unavailable ({type(error).__name__}); processing is uncertain. '
+                                              'Use agent-resume --retry-model to retry deliberately.')
+            uncertain.transport_attempts = getattr(error, 'transport_attempts', [])
+            raise uncertain from None
         except (KeyError, IndexError, TypeError, json.JSONDecodeError):
             raise ValueError('Model API returned an invalid JSON completion.') from None
+
+    async def _request(self, payload, endpoint, headers):
+        from .model_pacing import estimate_tokens, admit
+        from .model_transport import async_diagnostics
+        estimate = estimate_tokens(payload)
+        attempts = []
+        accepted = False
+        waiting = True
+        def record():
+            if callback := _TRANSPORT_RECORDER.get():
+                callback(deepcopy(attempts))
+        try:
+            # asyncio cancels the actual socket operation, including a response
+            # that dribbles bytes forever; no detached worker survives the bound.
+            async with asyncio.timeout(self.settings.timeout_seconds):
+                async with httpx.AsyncClient(timeout=self.settings.timeout_seconds, trust_env=False) as client:
+                    for attempt in range(3):
+                        waiting = True
+                        waited = await admit(self.settings, estimate)
+                        entry = {'status': 0, 'estimated_tokens': estimate, 'configured_tpm': self.settings.tokens_per_minute,
+                                 'pacing_wait_seconds': waited}
+                        prior_rejection = bool(attempts and attempts[-1]['status'] == 429)
+                        attempts.append(entry)
+                        accepted = False
+                        waiting = False
+                        try:
+                            async with client.stream('POST', self.settings.base_url.rstrip('/') + endpoint,
+                                                     json=payload, headers=headers) as response:
+                                entry['status'] = response.status_code
+                                accepted = response.status_code == 200
+                                details = await async_diagnostics(response)
+                                entry.update(details)
+                                if accepted:
+                                    record()
+                                    body = bytearray()
+                                    async for chunk in response.aiter_bytes():
+                                        body.extend(chunk)
+                                        if len(body) > 2 * 1024**2:
+                                            raise ValueError('Model response exceeds 2 MiB.')
+                                    return body, attempts
+                                entry['usage_unknown'] = True
+                                delay = retry_delay(response, attempt, details) if response.status_code in (429, 503) and attempt < 2 else None
+                                if delay is None:
+                                    record()
+                                    error = ModelAPIError(response.status_code, details)
+                                    error.transport_attempts = attempts
+                                    raise error
+                                if self.settings.protocol == 'openai':
+                                    delay += random.uniform(0, min(1, MAX_RETRY_WAIT - delay))
+                                entry['retry_delay_seconds'] = delay
+                        except (httpx.ConnectError, httpx.ConnectTimeout, httpx.RemoteProtocolError) as error:
+                            # A bounded replay after a known rejection is allowed
+                            # only before response headers/output. Accepted reads
+                            # remain uncertain. No generated action is run twice.
+                            safe = not accepted and (isinstance(error, (httpx.ConnectError, httpx.ConnectTimeout)) or prior_rejection)
+                            entry.update(transport_error=type(error).__name__, usage_unknown=True,
+                                         retry_after_rejection=prior_rejection)
+                            record()
+                            if not safe or attempt == 2:
+                                raise
+                            delay = 2 ** attempt
+                            entry['retry_delay_seconds'] = delay
+                        record()
+                        waiting = True
+                        await asyncio.sleep(delay)
+        except TimeoutError:
+            details = {'error_category': 'deadline', 'usage_unknown': not waiting,
+                       'deadline_seconds': self.settings.timeout_seconds}
+            attempts.append({'status': 0, **details})
+            record()
+            if waiting or (not accepted and len(attempts) > 1 and attempts[-2]['status'] in (429, 503)):
+                error = ModelAPIError(0, details)
+            else:
+                error = ModelRequestUncertain('Model call reached its hard deadline; processing is uncertain. Use agent-resume --retry-model to retry deliberately.')
+            error.transport_attempts = attempts
+            raise error from None
+        except httpx.HTTPError as error:
+            error.transport_attempts = attempts
+            if attempts:
+                attempts[-1].update(transport_error=type(error).__name__, usage_unknown=True)
+                record()
+            raise
 
     @staticmethod
     def _wire_schema(schema):
