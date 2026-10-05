@@ -72,7 +72,8 @@ def build(config, db, session, run, analyst, reviewer, saver, *, executor=execut
                     controller_limits = []
                     if context.get('research_coverage'):
                         prefixes += ('Cobertura del informe:', 'Cobertura de investigación:', 'Cobertura del encargo:')
-                        controller_limits.append(limitation(context['research_coverage'], report))
+                        if not context['budgets'].get('owner_presentation'):
+                            controller_limits.append(limitation(context['research_coverage'], report))
                     if context.get('review_policy', 0) >= 5:
                         from .delivery_selection import selection_notes
                         prefixes += ('Selección entregada:',)

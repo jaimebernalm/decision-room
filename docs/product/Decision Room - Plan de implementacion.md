@@ -1036,3 +1036,9 @@ panorama; investigación y sus prioridades guardadas permanecen intactas.
 Implementado con pruebas sintéticas y modelos simulados; pendiente evaluar por
 parejas sobre las nueve investigaciones. P1b y P2 quedan para fases posteriores;
 no se acepta todavía la mejora de utilidad ni se cierra 3.9.7.
+
+**Corrección de P3 — Notas del controlador, 4 de octubre:** contador de cobertura
+fuera del borrador P3 y conservado en auditoría; el revisor distingue esas notas
+sistemáticas de la prosa editable. Mantiene comprobaciones de cobertura sustantiva.
+[Prueba del bucle y corrección](../validation/2026-10-04-controller-review-ownership.md).
+15 pruebas locales con modelos simulados; evaluación real pendiente.

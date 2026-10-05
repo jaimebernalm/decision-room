@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import patch
 
 from decision_room.agent.model import ModelClient, ModelSettings
-from decision_room.agent.owner_presentation import feedback, SYSTEM
+from decision_room.agent.owner_presentation import feedback, SYSTEM, VERSION
 from decision_room.agent.review_context import model_context
 from decision_room.client_report import render_client
 from decision_room.owner_presentation import readable_number
@@ -187,7 +187,7 @@ class OwnerPresentationPersistenceTests(unittest.TestCase):
         self.assertTrue(presentation(result)['owner_presentation'])
         with connect(config) as db:
             versions = db.execute('SELECT DISTINCT prompt_version FROM agent_calls WHERE scope=%s', (str(result['id']),)).fetchall()
-        self.assertEqual([r['prompt_version'] for r in versions], ['owner-presentation-v2'])
+        self.assertEqual([r['prompt_version'] for r in versions], [VERSION])
         resumed = review.resume(self.config, self.business, result['id'], analyst=roles, reviewer=roles)
         self.assertTrue(resumed['options']['owner_presentation'])
         self.assertEqual(resumed['approved_sha256'], result['approved_sha256'])

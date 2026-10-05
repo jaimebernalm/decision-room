@@ -70,7 +70,7 @@ class P3bTests(unittest.TestCase):
         hints = feedback(data)
         self.assertIn('technical_language', {x['issue'] for x in hints['locations']})
         self.assertGreaterEqual(len(hints['repeated_causal_caveat_locations']), 2)
-        self.assertEqual(VERSION, 'owner-presentation-v2')
+        self.assertTrue(VERSION.startswith('owner-presentation-v'))
         self.assertIn('DIFFERENT decisions', SYSTEM)
         self.assertIn('ONCE in limitations', SYSTEM)
         note = source_summary(['x' * 300 + '.csv'], 'enero')

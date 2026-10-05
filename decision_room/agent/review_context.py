@@ -63,6 +63,15 @@ def material(config, db, session, run):
         panorama = materialize(config, session['business_id'], run['snapshot']['sales_panorama'], run['knowledge_sha256'])
         observations = panorama.pop('observations') + observations
     report, report_step = latest_report(history, run['knowledge_sha256'])
+    controller_annotations = None
+    if report and run['options'].get('owner_presentation'):
+        from .research_agenda import limitation
+        from .delivery_selection import selection_notes
+        controller_annotations = {
+            'coverage_note': limitation(run['snapshot'].get('research_coverage') or {}, report)
+                if run['snapshot'].get('research_coverage') or report.get('owner_coverage') else None,
+            'selection_notes': selection_notes(report, observations),
+            'instruction': 'Controller-owned audit metadata, not writer prose. Do not block its wording; review actual structured coverage and evidence.'}
     owner_answers = answers(db, session['id'])
     conversation = [{'step': e['step'], 'role': e['role'], 'action': e['action'],
                      'knowledge_sha256': e['knowledge_sha256'], 'execution_id': str(e['execution_id']) if e['execution_id'] else None}
@@ -73,7 +82,7 @@ def material(config, db, session, run):
     for event in conversation:
         if event['step'] in by_step:
             event['owner_answer'] = by_step[event['step']]
-    return {**({'sales_panorama': panorama} if panorama is not None else {}), 'owner_context': run['snapshot']['source']['owner_context'], 'owner_answers': owner_answers,
+    return {**({'controller_annotations': controller_annotations} if controller_annotations else {}), **({'sales_panorama': panorama} if panorama is not None else {}), 'owner_context': run['snapshot']['source']['owner_context'], 'owner_answers': owner_answers,
             **({'accepted_owner_request': run['snapshot'].get('accepted_owner_request') or
                  {'text': run['snapshot']['source']['owner_context']},
                 'owner_confirmed_answers': [a for a in owner_answers if a['disposition'] == 'answered']}
@@ -119,7 +128,7 @@ def model_context(materialized, role):
         context['report_reading'] = reading_feedback(context['report'])
         if context.get('budgets', {}).get('owner_presentation'):
             from .owner_presentation import feedback
-            context['owner_reading_feedback'] = feedback(context['report'])
+            context['owner_reading_feedback'] = feedback(context['report'], context.get('controller_annotations'))
     # Keep every turn and every distinct payload, but send identical code/report
     # only once. Explicit references point to full objects in this same request;
     # this is lossless deduplication, not a generated memory summary.

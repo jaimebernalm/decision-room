@@ -1,7 +1,7 @@
 """P3 editorial instructions and feedback; no new business inference or acceptance gate."""
 import re
 
-VERSION = 'owner-presentation-v2'
+VERSION = 'owner-presentation-v2-controller-notes'
 TECHNICAL = r'\b(?:TRY_CAST|CAST\s*\(|SQL|resultados guardados|saved results|contribuciones firmadas|signed contributions|pares focales|liderazgo aritmético|residual de meses sin pareja|concilia con el cambio neto)\b'
 SYSTEM = '''
 OWNER PRESENTATION EXPERIMENT (budgets.owner_presentation=true):
@@ -52,6 +52,14 @@ specific decision conditions and distinct uncertainties; do not claim causality.
 Software delivery status (HTML export, browser verification, version numbers) is
 technical audit information, not a business limitation. Keep it out of prose and
 limitations; never remove a real data limitation or claim an export was verified.
+CONTROLLER OWNERSHIP: controller_annotations contains system-generated coverage
+and selection audit notes, not editable writer prose. Legacy drafts may still
+contain these exact notes in limitations. NEVER revise/reject solely for their
+wording, counters or technical style: the writer cannot fix controller insertion.
+Do not copy them into prose. Inspect owner_coverage, question_coverage, delivery
+selections and evidence for substantive gaps, false completeness or wrong numbers;
+those still require correction. This exemption covers only the supplied exact
+controller notes, not arbitrary limitations or genuine unanswered business goals.
 Reviewer: inspect the owner-visible reading as well as the evidence. Ask for concrete
 editorial corrections when labels, numeric precision, repeated caveats or unexplained
 period choices obscure the decision. owner_reading_feedback is diagnostic, not a
@@ -60,11 +68,13 @@ because a heuristic flags them. All existing accuracy and coverage checks still 
 '''
 
 
-def feedback(report):
+def feedback(report, controller_annotations=None):
     """Point to likely leaks for judgment, without silently editing reviewed prose."""
     passages = []
+    annotations = controller_annotations or {}
+    controlled = {annotations.get('coverage_note'), *annotations.get('selection_notes', [])}
     def add(path, text):
-        if isinstance(text, str) and text.strip():
+        if isinstance(text, str) and text.strip() and text not in controlled:
             passages.append((path, text))
     for key in ('title', 'summary'):
         add(key, report.get(key))

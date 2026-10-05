@@ -258,6 +258,7 @@ def show(config, business_id, review_id, *, _db=None):
                 'delivery_state': delivery_state('stale' if stale else 'held' if hold_record else run['status'], publishable=valid_approval),
                 'publishable': valid_approval, 'verification': 'reviewed_by_agent' if valid_approval else 'not_approved',
                 'review_issues': context['review_issues'], 'delivery_manifest': context['delivery_manifest'],
+                **({'controller_annotations': context['controller_annotations']} if context.get('controller_annotations') else {}),
                 **({'sales_panorama': context['sales_panorama']} if context.get('sales_panorama') else {}),
                 'report': context['report'], 'checks': context['checks'], 'observations': context['observations'],
                 'owner_context': context['owner_context'], 'plan': context['plan'],
