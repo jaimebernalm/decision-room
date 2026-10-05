@@ -415,6 +415,10 @@ class ModelClient:
 
     @staticmethod
     def _presentation_system(system, context):
+        from .review_budget import enabled, SYSTEM as BOUNDED_SYSTEM
+        if enabled(context):
+            from .series_prompt import SERIES_TOOL
+            system = BOUNDED_SYSTEM + SERIES_TOOL
         if context.get('budgets', {}).get('review_loop_guard'):
             from .review_loops import SYSTEM
             system += SYSTEM
@@ -723,6 +727,9 @@ class ModelClient:
             from ..memory.retrieval import schema_for, INSTRUCTIONS
             schema = schema_for(schema)
             system += INSTRUCTIONS
+        from .review_budget import enabled as bounded_review, add_read_schema
+        if bounded_review(context):
+            schema = add_read_schema(schema)
         if self.settings.response_language:
             language = 'English' if self.settings.response_language == 'en' else 'Spanish'
             system += (f'\nApplication response language: {language}. Write all new human-facing text, '
@@ -763,11 +770,18 @@ class ModelClient:
                        'input': encoded(context) + ('\nValidation correction: ' + correction if correction else ''),
                        'reasoning': self.settings.reasoning, 'store': False, 'temperature': 0,
                        'max_output_tokens': self.settings.max_output_tokens}
+        budget_audit = None
+        if bounded_review(context):
+            from .review_budget import fit
+            def render(view):
+                return [messages[0], {'role':'user','content':self._prompt_context(view)}, *messages[2:]]
+            payload, budget_audit = fit(context, payload, render)
         recorder = _REQUEST_RECORDER.get()
         if recorder:
             # Private audit payload only: never capture headers, credentials or env.
             recorder({'protocol': self.settings.protocol, 'endpoint': endpoint,
-                      'correction': correction, 'payload': deepcopy(payload)})
+                      'correction': correction, 'payload': deepcopy(payload),
+                      **({'context_budget':budget_audit} if budget_audit else {})})
         headers = {}
         key_name = 'OPENAI_API_KEY' if self.settings.protocol == 'openai' else 'DECISION_ROOM_AGENT_API_KEY'
         if key := os.environ.get(key_name):
@@ -777,6 +791,9 @@ class ModelClient:
         try:
             body, attempts = asyncio.run(self._request(payload, endpoint, headers))
             result = strict_json(body)
+            if budget_audit:
+                key = 'stats' if self.settings.protocol == 'lmstudio' else 'usage'
+                result.setdefault(key,{})['context_budget'] = budget_audit
             if self.settings.protocol == 'lmstudio':
                 usage = result['stats']
                 if len(attempts) > 1 or any(set(a) - {'status'} for a in attempts):

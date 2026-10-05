@@ -25,6 +25,8 @@ class Config:
     embedding_dimensions: int = 1536
     sales_panorama: bool = False
     review_loop_guard: bool = False
+    review_context_budget: bool = False
+    review_context_tokens: int = 70000
 
     def __post_init__(self):
         maximum = {'text-embedding-3-small': 1536, 'text-embedding-3-large': 3072}
@@ -37,6 +39,8 @@ class Config:
                                 dbname='decision_room', user=getpass.getuser(), connect_timeout=5)
         return cls(os.environ.get('DECISION_ROOM_DATABASE_URL', default),
                    Path(os.environ.get('DECISION_ROOM_STORAGE', ROOT / '.local/storage')).resolve(),
+                   review_context_budget=os.environ.get('DECISION_ROOM_REVIEW_CONTEXT_BUDGET', 'false').lower() == 'true',
+                   review_context_tokens=int(os.environ.get('DECISION_ROOM_REVIEW_CONTEXT_TOKENS', '70000')),
                    review_loop_guard=os.environ.get('DECISION_ROOM_REVIEW_LOOP_GUARD', 'false').lower() == 'true',
                    sales_panorama=os.environ.get('DECISION_ROOM_SALES_PANORAMA', 'false').lower() == 'true',
                    owner_presentation=os.environ.get('DECISION_ROOM_OWNER_PRESENTATION', 'false').lower() == 'true',

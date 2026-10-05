@@ -149,6 +149,9 @@ def model_context(materialized, role):
         if action.get('report') is not None and action['report'] == context['report']:
             action['report'] = {'$ref': '#/report'}
             event['report_reference'] = 'report'
+    from .review_budget import enabled
+    if enabled(context):
+        return json.loads(encoded(context))
     for item in context['observations']:
         item['logs'] = {k: v[-3000:] if isinstance(v, str) else v for k, v in item['logs'].items()}
         item['logs_may_be_truncated'] = True

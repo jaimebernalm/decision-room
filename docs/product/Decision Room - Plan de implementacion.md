@@ -1084,3 +1084,8 @@ visible de ventanas alternativas. 97 pruebas offline, incluidas importación rea
 esquemas con 1.200 métricas, exportación y reanudación tras caída. Véanse
 [garantías, límites y activación](../technical/review-loop-panorama-corrections.md).
 Pendiente nueva medición por parejas; P1b se mantiene fuera de esta cadena.
+
+**Contexto de revisión — 5 de octubre:** opción de presupuesto local en tokens para
+la petición completa, vista compacta, instrucciones específicas de revisión y lectura
+paginada de originales auditada. 25 pruebas offline; [plan y límites](../technical/review-context-cache-plan.md).
+Pendiente medición de calidad/coste real; no cierra 3.9.

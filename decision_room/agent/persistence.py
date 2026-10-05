@@ -99,6 +99,9 @@ def _model_call(db, session_id, model, context, correction, retry_uncertain, *, 
     if phase in ('analyst_review','reviewer') and context.get('budgets', {}).get('review_loop_guard'):
         from .review_loops import VERSION
         version += '+' + VERSION
+    if phase in ('analyst_review','reviewer') and context.get('budgets', {}).get('review_context_budget'):
+        from .review_budget import VERSION
+        version += '+' + VERSION
     identity = {'context': context, 'correction': correction, 'prompt': version}
     if phase != 'planning':
         identity.update(phase=phase, scope=scope)
@@ -181,7 +184,8 @@ def model_call(db, session_id, model, context, correction, retry_uncertain, *, c
             business_context['retrievals'] = baseline['retrievals'] + additions
             payload = {**context, 'business_context': business_context, 'decision_key': decision}
             limit = context.get('budgets', {}).get('max_context_bytes', memory_context.CONTEXT_BYTES)
-            if len(encoded(payload).encode()) > limit:
+            bounded = phase in ('analyst_review','reviewer') and context.get('budgets', {}).get('review_context_budget')
+            if not bounded and len(encoded(payload).encode()) > limit:
                 if phase == 'research':
                     from .research_agenda import ResearchBudgetReached
                     raise ResearchBudgetReached(f'Presupuesto de contexto de investigación alcanzado ({limit // 1000} KB).')
@@ -204,9 +208,20 @@ def model_call(db, session_id, model, context, correction, retry_uncertain, *, c
         if any(output.get(k) for k in ('proposal', 'code', 'table_ids', 'report', 'metric_keys', 'question', 'investigation_key', 'followups', 'assignments', 'synthesis', 'assessment')):
             return {'invalid_model_output': 'retrieve requires empty action fields and a retrieval request.'}
         try:
-            retrieval.save(config, db, session_id, decision, ordinal, output.get('retrieval'))
+            request=output.get('retrieval') or {}
+            if bounded and request.get('tool')=='read_review_context':
+                from .review_budget import read
+                response=read(payload,request)
+                prior=db.execute('SELECT request,response FROM context_retrievals WHERE session_id=%s AND decision_key=%s AND ordinal=%s',(session_id,decision,ordinal)).fetchone()
+                if prior and (prior['request']!=request or prior['response']!=response):
+                    raise ValueError('Review read changed during replay.')
+                if not prior:
+                    db.execute('INSERT INTO context_retrievals(session_id,decision_key,ordinal,request,response,dependencies) VALUES (%s,%s,%s,%s,%s,%s)',
+                        (session_id,decision,ordinal,Jsonb(request),Jsonb(response),Jsonb([])))
+            else:
+                retrieval.save(config, db, session_id, decision, ordinal, request)
         except memory_context.StaleContext:
             raise
-        except ValueError:
-            return {'invalid_model_output': 'Invalid or unavailable retrieval. Supply tool/query/id/limit with a discovered UUID for inspect_dataset/open_report/open_evidence. Never open the current draft as a historical report; it is already in context. Respect the remaining retrieval budget.'}
+        except (ValueError, KeyError, IndexError, TypeError):
+            return {'invalid_model_output': 'Invalid or unavailable retrieval. For read_review_context use a supplied path, offset>=0 and limit 1..100. For other tools: Supply tool/query/id/limit with a discovered UUID for inspect_dataset/open_report/open_evidence. Never open the current draft as a historical report; it is already in context. Respect the remaining retrieval budget.'}
         ordinal += 1

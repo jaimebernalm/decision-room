@@ -16,3 +16,6 @@ pypdf==6.10.0
 
 # Independent producer-schema contract tests.
 jsonschema==4.26.0
+
+# Local review request token budgeting (no model calls).
+tiktoken==0.12.0
