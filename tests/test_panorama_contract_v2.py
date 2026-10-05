@@ -133,3 +133,14 @@ class PanoramaContractTests(unittest.TestCase):
             self.assertLess(body.index('Panorama'), body.index(view['summary']))
             self.assertIn('Local: sin registros del 5 de mayo', body)
         self.assertNotIn('channel_gap', html)
+
+    def test_approval_binds_uncited_panorama_values(self):
+        from decision_room.agent.review_context import approval_digest
+        from test_client_report import sample
+        data = sample()
+        data.update(budgets={'sales_panorama_contract':2},sales_panorama={k:v for k,v in self.frozen.items() if k!='observations'})
+        data['observations'] += deepcopy(self.frozen['observations'])
+        before = approval_digest(data, 'knowledge')
+        target = next(o for o in data['observations'] if 'total' in o['result']['metrics'])
+        target['result']['metrics']['total'] = '999999'
+        self.assertNotEqual(before, approval_digest(data, 'knowledge'))

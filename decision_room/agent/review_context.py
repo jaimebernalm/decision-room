@@ -181,6 +181,8 @@ def approval_digest(materialized, knowledge):
         policy['owner_confirmed_answers'] = materialized['owner_confirmed_answers']
     if materialized.get('budgets', {}).get('sales_panorama_contract') == 2:
         policy['sales_panorama'] = materialized['sales_panorama']
+        from ..panorama_presentation import refs
+        cited.update(ref['execution_id'] for ref in refs(materialized['sales_panorama']))
     return fingerprint({**policy, 'report': materialized['report'], 'knowledge': knowledge,
                         'evidence': [o for o in materialized['observations'] if o['execution_id'] in cited],
                         'checks': materialized['checks']})
