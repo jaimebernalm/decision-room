@@ -70,3 +70,34 @@ def bound_enums(schema):
         count -= len(values)
     validate_enum_limits(schema)
     return schema
+
+
+def validate_strict_schema(schema):
+    """Offline gate for the strict-provider invariants we can verify locally.
+
+    Walk serialized nodes once (including unused $defs), not expanded $refs.
+    This is a concrete compatibility lint, not a claim to emulate the whole API.
+    """
+    validate_enum_limits(schema)
+    if schema.get('type') != 'object' or 'anyOf' in schema:
+        raise ValueError('Strict schema root must be an object, not anyOf. Request not sent.')
+    def visit(node,path='$'):
+        if isinstance(node,dict):
+            types=node.get('type',[])
+            if types=='object' or 'object' in types or 'properties' in node:
+                properties=node.get('properties',{})
+                required=node.get('required')
+                if node.get('additionalProperties') is not False:
+                    raise ValueError(f'{path}: strict object needs additionalProperties: false. Request not sent.')
+                if not isinstance(required,list) or len(required)!=len(properties) or set(required)!=set(properties):
+                    raise ValueError(f'{path}: required must equal all properties. Request not sent.')
+            for keyword in ('enum','const','pattern'):
+                literals=node.get(keyword,[])
+                if keyword!='enum':literals=[literals]
+                for literal in literals:
+                    if isinstance(literal,str) and any(c in literal for c in ('\n','\r','\t')):
+                        raise ValueError(f'{path}.{keyword}: control character in strict literal. Request not sent.')
+            for key,value in node.items():visit(value,path+'/'+key)
+        elif isinstance(node,list):
+            for i,value in enumerate(node):visit(value,path+'/'+str(i))
+    visit(schema)

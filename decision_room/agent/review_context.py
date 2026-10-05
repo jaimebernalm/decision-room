@@ -132,6 +132,8 @@ def model_context(materialized, role):
         context['unchanged_submission'] = unchanged_feedback(context)
     if context.get('budgets', {}).get('sales_panorama') or context.get('budgets', {}).get('sales_panorama_contract', 0) >= 2:
         from ..panorama_presentation import compact
+        from .panorama_contract import owner_sources
+        context['panorama_owner_source_ids'] = list(owner_sources(context))
         context['sales_panorama'] = compact(context['sales_panorama'], context['observations'])
     if context.get('report'):
         from .report_reading import reading_feedback

@@ -145,3 +145,28 @@ de tokens por bloque para comparar con los tokens cacheados reales del proveedor
 correcciones, invalidación ante nueva evidencia y claves distintas por revisión.
 El ahorro sigue pendiente de lote; ni una clave ni un hash garantizan reutilización.
 Referencia OpenAI Docs consultada: https://developers.openai.com/api/docs/guides/prompt-caching
+
+### Citas y lint estricto: implementado
+
+`GapOwnerProof.quote` es texto libre, nunca el encargo completo dentro de un enum.
+`source` identifica un mensaje del dueño; `owner_message/<id>` usa el ID guardado,
+con alias antiguos conservados para informes existentes. El contexto enumera los
+IDs disponibles. El validador exige una subcadena literal no vacía del mensaje
+seleccionado, normalizando espacios en ambos textos (sin cambiar letras, números,
+puntuación o negaciones). No permite mezclar mensajes ni citar un origen ajeno.
+El revisor sigue juzgando la pertinencia de la cita y del descarte.
+
+Antes de cualquier envío OpenAI, el esquema final pasa por un lint que revisa
+**todos** los nodos, incluidas definiciones: objetos cerrados y required idéntico
+a las propiedades; ausencia de LF/CR/TAB reales en enum/const/pattern; máximo de
+1.000 valores de enum y el límite adicional de longitud existente. Los enums de
+etiquetas con caracteres rechazados se convierten en strings validados localmente,
+sin alterar etiquetas originales. Un patrón inválido restante impide abrir HTTP.
+Esto cubre reglas conocidas, no pretende replicar todo el validador del proveedor.
+
+La matriz recorre todos los productores existentes, las 64 combinaciones de seis
+opciones de revisión en ambos roles (128 peticiones simuladas), más continuidad y
+recuperación de investigación. Incluye más de 1.000 claves, historial grande y
+mensajes multilínea. Detectó además `ReviewIssue.required` incompleto bajo políticas
+antiguas; corregido. Las pruebas verifican tanto rechazo del lint como peticiones
+finales válidas. Referencia oficial: https://developers.openai.com/api/docs/guides/structured-outputs

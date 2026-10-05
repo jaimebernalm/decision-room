@@ -464,7 +464,7 @@ class ModelClient:
         assessment['required'] = list(assessment['properties'])
         assessment['properties']['usefulness'].pop('default', None)
         # Runtime defaults retain old reports; model output supplies all fields.
-        for name in ('ReportDraft', 'Chart', 'Claim', 'ChartEncoding', 'PointDetail', 'UsefulnessAudit', 'DeliverySelection'):
+        for name in ('ReportDraft', 'Chart', 'Claim', 'ChartEncoding', 'PointDetail', 'UsefulnessAudit', 'DeliverySelection', 'ReviewIssue'):
             definition = schema['$defs'][name]
             definition['required'] = list(definition['properties'])
             for field in definition['properties'].values():
@@ -755,9 +755,9 @@ class ModelClient:
                        'quoted source content and business/product names unchanged. This is a presentation '
                        'preference, not a fact about the business. Do not rewrite stored content.\n')
         if self.settings.protocol == 'openai':
-            from .schema_limits import bound_enums, validate_enum_limits
+            from .schema_limits import bound_enums, validate_strict_schema
             schema = bound_enums(self._wire_schema(schema))
-            validate_enum_limits(schema)
+            validate_strict_schema(schema)
         messages = [{'role': 'system', 'content': system},
                     {'role': 'user', 'content': self._prompt_context(context)}]
         if correction:
@@ -961,7 +961,7 @@ class ModelClient:
 
     @staticmethod
     def _wire_schema(schema):
-        """Preserve source labels when provider strict enums reject quote literals.
+        """Preserve source labels when strict enums reject quotes or control characters.
 
         Exact source/column/label/unit validation still runs after generation.
         Relax only the affected string enum, never change the underlying data or
@@ -971,7 +971,7 @@ class ModelClient:
         def visit(node):
             if isinstance(node, dict):
                 values = node.get('enum', [])
-                if values and all(isinstance(v, str) for v in values) and any('"' in v for v in values):
+                if values and all(isinstance(v, str) for v in values) and any(any(c in v for c in ('"', '\n', '\r', '\t')) for v in values):
                     node.pop('enum')
                     node.setdefault('type', 'string')
                 for value in node.values():

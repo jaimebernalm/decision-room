@@ -1108,3 +1108,8 @@ incluido payload HTTP y superposición completa; [detalle](../technical/review-c
 **Caché del piloto — 5 de octubre:** clave por revisión y evidencia antes del sufijo
 variable, con hashes y tamaños auditados. 14 pruebas offline; ahorro pendiente de
 lote, [detalle](../technical/review-context-cache-plan.md).
+
+**Lint estricto y citas — 5 de octubre:** citas por ID de mensaje y fragmento literal
+con espacios normalizados; textos del dueño fuera de enums. Lint antes de HTTP
+sobre todos los productores y matriz de opciones/contextos grandes. 112 pruebas
+aprobadas de esta cadena, sin modelos reales; [detalle](../technical/review-context-cache-plan.md).

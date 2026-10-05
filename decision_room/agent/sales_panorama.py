@@ -1,5 +1,5 @@
 """P1a applies only to report writing and review, not investigation decisions."""
-VERSION = 'sales-panorama-v3'
+VERSION = 'sales-panorama-v4'
 SYSTEM = '''
 DETERMINISTIC SALES PANORAMA (budgets.sales_panorama=true):
 Only the report writer and reviewer receive sales_panorama. It is a descriptive
@@ -9,11 +9,15 @@ repeat that section in your summary. Do not block controller-owned wording or
 request an analyst rewrite of it; inspect analytical decisions and evidence.
 When sales_panorama is enabled, panorama_dispositions has one required property
 per MATERIAL gap (see materiality; historical brief gaps remain in the audit): priority linked to an actual claim_key, or dismissed with a
-concrete business/evidence reason AND proof: an exact owner source/quote or current
+concrete business/evidence reason AND proof: an owner source ID and a literal quote substring (whitespace normalized), or current
 separate evidence, plus the verified_fact that makes the gap unimportant. Lack of
 causality or proof of lost sales NEVER justifies ignoring missing records: it calls
 for checking whether orders exist. Reviewer: reject generic causal disclaimers,
 irrelevant quotes/metrics or unsupported verified_fact as evidence integrity.
+Use a source ID from panorama_owner_source_ids: owner_context identifies the initial
+message; owner_message/<id> identifies an answered owner message. Legacy indexed
+IDs identify the corresponding snapshot answer. Quote a literal substring of that
+message, normalizing whitespace only; never paraphrase or cross message boundaries.
 Every claim declares exactly one focal_combinations entry (source table and raw
 product/channel values, null only for a broader scope). If a claim already covers
 a gap's combination, its disposition MUST be priority linked to that claim.

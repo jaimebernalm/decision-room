@@ -79,6 +79,8 @@ def owner_sources(context):
     for index, answer in enumerate(context.get('owner_answers', [])):
         if answer.get('disposition') == 'answered' and answer.get('text'):
             sources[f'owner_answers/{index}']=answer['text']
+            if answer.get('id'):
+                sources['owner_message/'+str(answer['id'])]=answer['text']
     for event in context.get('conversation', []):
         answer=event.get('owner_answer') or {}
         if answer.get('disposition') == 'answered' and answer.get('text'):
@@ -137,7 +139,7 @@ def constrain(schema, context):
                 dict(type='object',additionalProperties=False,properties=dict(
                     kind=dict(type='string',enum=['owner']),
                     verified_fact=dict(type='string',minLength=20,maxLength=800,pattern=r'\S'),
-                    source=dict(type='string',enum=[source]),quote=dict(type='string',enum=[quote])),
+                    source=dict(type='string',enum=[source]),quote=dict(type='string',minLength=1,pattern=r'\S')),
                     required=['kind','verified_fact','source','quote']) for source,quote in owners.items()]}
             proofs.append({'$ref':'#/$defs/GapOwnerProof'})
         dismissal=schema['$defs']['GapDismissal']
@@ -191,8 +193,10 @@ def validate(report, context):
             if proof is None:
                 raise ValueError('A material gap needs verifiable proof to dismiss it; lack of causality is not a reason.')
             if proof.kind=='owner':
-                if owners.get(proof.source) != proof.quote:
-                    raise ValueError('Dismissal must quote an exact current owner source.')
+                source_text=owners.get(proof.source)
+                normalized_quote=' '.join(proof.quote.split())
+                if source_text is None or not normalized_quote or normalized_quote not in ' '.join(source_text.split()):
+                    raise ValueError('Dismissal quote must be a literal substring of its current owner source (whitespace normalized). Valid source IDs: ' + ', '.join(owners))
             elif any((r.execution_id,r.metric) not in supporting for r in proof.evidence):
                 raise ValueError('Dismissal evidence must be a current separate calculation, not the gap itself.')
     choices = {(r['execution_id'],r['metric']) for r in metric_choices(context)}

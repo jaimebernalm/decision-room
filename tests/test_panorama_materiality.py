@@ -76,7 +76,8 @@ class MaterialityTests(unittest.TestCase):
         validate(report,context);jsonschema.validate(self.action(report),self.fixture.schema(context))
         bad=deepcopy(report);bad['panorama_dispositions'][key]['proof']['quote']='Inventado'
         with self.assertRaises(ValueError):validate(bad,context)
-        with self.assertRaises(jsonschema.ValidationError):jsonschema.validate(self.action(bad),self.fixture.schema(context))
+        # Free quote syntax is accepted on the wire; truth belongs to the validator.
+        jsonschema.validate(self.action(bad),self.fixture.schema(context))
         gap=next(g for g in material_gaps(context['sales_panorama']) if g['key']==key)
         report['claims'][0]['focal_combinations']=[dict(table_id=gap['table_id'],product=gap.get('product'),channel=gap['channel'])]
         with self.assertRaisesRegex(ValueError,'existing focal finding'):validate(report,context)

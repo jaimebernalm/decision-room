@@ -18,8 +18,11 @@ from test_research_continuity import fixtures, ref
 
 
 def assert_strict_objects(test, schema):
-    from decision_room.agent.schema_limits import validate_enum_limits
-    validate_enum_limits(schema)
+    from decision_room.agent.schema_limits import validate_strict_schema
+    try:
+        validate_strict_schema(schema)
+    except ValueError as error:
+        test.fail(str(error))
     Draft202012Validator.check_schema(schema)
     test.assertEqual(schema.get('type'), 'object')
     test.assertNotIn('anyOf', schema)
