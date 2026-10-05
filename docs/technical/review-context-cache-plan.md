@@ -103,3 +103,26 @@ Integración con CSV sintético con horas a medianoche, importación real, Postg
 propio y roles simulados: cuatro llamadas de roles, cierre en segunda objeción,
 auditoría original y reanudación sin llamadas adicionales. Las tres regresiones
 editoriales anteriores siguen pasando. No se han usado modelos reales.
+
+## Correcciones del piloto — 5 de octubre, base 26fcdc4
+
+Plan: (1) metadatos y superposición con contexto compacto; (2) clave de caché por
+revisión y evidencia estable antes del sufijo variable; (3) citas del dueño sin
+texto libre en enums y lint estricto de todos los productores; (4) rebasar P1b.
+Sin llamadas reales y con commits separados.
+
+### Series: implementado
+
+La inspección de 26fcdc4 no reproduce la eliminación de `unit`: la función hace
+copia profunda y ya marca la muestra dentro de `points_summary`. Queda pendiente
+contrastar la petición concreta del piloto. La nueva vista hace explícitos en cada
+serie unidad exacta, grano, etiqueta (identificador si no hay nombre guardado),
+conteo total, primero/último, mínimo/máximo sobre **todos** los puntos, `sampled` y
+la referencia paginada al original. No deriva el grano del espaciado de la muestra.
+
+`full_series_reference` permite construir `chart.series` o `layers[].series` con
+`points=[]`. Las instrucciones exigen copiar la unidad exacta, incluso definiciones
+entre paréntesis; la presentación resuelve todos los puntos guardados. Las pruebas
+capturan HTTP simulado con/sin prefijo estable, superponen 178 puntos originales y
+rechazan una unidad abreviada incompatible. También comprueban extremos que no
+están en la muestra. 14 pruebas locales aprobadas; sin modelos.

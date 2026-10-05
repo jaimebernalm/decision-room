@@ -1,12 +1,13 @@
 """Opt-in token-bounded review view. Durable originals remain authoritative."""
 from copy import deepcopy
 from functools import lru_cache
+from ..series import numeric
 from typing import Literal
 from pydantic import Field
 from .contracts import Strict
 from .context import encoded, fingerprint
 
-VERSION = 'review-context-budget-v1'
+VERSION = 'review-context-budget-v2'
 
 
 @lru_cache(maxsize=1)
@@ -127,11 +128,25 @@ def compact(context, level=0):
         for key,series in result.get('series',{}).items():
             points=series.get('points',[])
             n=len(points); sample=8 if level else 24
+            target=pointer(path+'/result/series',key)+'/points'
+            # Metadata describes the FULL saved series, never the sampled points.
+            # Unit is the exact machine compatibility contract, not a display label.
+            series.update(unit=series['unit'], grain=series['grain'],
+                label=series.get('label',key), label_source='saved' if 'label' in series else 'series_key',
+                point_count=n, sampled=n>sample,
+                first_point=deepcopy(points[0]) if n else None,
+                last_point=deepcopy(points[-1]) if n else None,
+                minimum=deepcopy(min(points,key=lambda p:numeric(p['value']))) if n else None,
+                maximum=deepcopy(max(points,key=lambda p:numeric(p['value']))) if n else None,
+                full_series_reference=dict(execution_id=observed['execution_id'],series=key))
+            series['points_summary']=dict(total=n,sampled=n>sample,
+                selection='evenly spaced sample, NOT the full series' if n>sample else 'all saved points',
+                detail=archive(points,target),
+                chart_instruction='Use full_series_reference in chart.series or layers[].series; copy unit exactly. Read detail for point-level analysis; do not copy the sample into chart.points.')
             if n>sample:
                 target=pointer(path+'/result/series',key)+'/points'
                 selected=sorted({round(i*(n-1)/(sample-1)) for i in range(sample)})
                 series['points']=[points[j] for j in selected]
-                series['points_summary']=dict(total=n,selection='evenly spaced sample, NOT the full series; read detail before judging individual days',detail=archive(points,target))
             if level and series.get('evidence'):
                 series['evidence']=archive(series['evidence'],pointer(path+'/result/series',key)+'/evidence')
     business=view.get('business_context') or {}
@@ -187,6 +202,13 @@ text. No unsupported causal or conditional claims. Percentages require matching
 recomputed checks. Use catalog names, legible rounded numbers and clear limitations.
 Charts: bars need zero baseline; time lines may use declared data scale. Preserve
 calendar grain and missing dates; never invent zeros, interpolation or moving means.
+For saved-series charts use full_series_reference in chart.series or layers[].series,
+with chart.points=[]; the renderer resolves ALL original points. Never turn a sample
+into the complete line. chart.unit must equal the saved unit EXACTLY (including any
+owner definition in parentheses); all layers must share that exact unit AND grain.
+Do not shorten the unit or infer calendar grain from the spacing of sampled points.
+The series metadata (first/last/min/max/count) describes the full source. A label
+with label_source=series_key is an internal identifier, not a verified business name.
 Whole saved series or mapped points are allowed; derived layers require saved,
 verified calculations with the same units/grain. Label selection/periods honestly.
 Respect schema limits; one focal priority per claim. If an addition exceeds capacity,

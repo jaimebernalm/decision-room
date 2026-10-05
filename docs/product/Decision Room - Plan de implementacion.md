@@ -1100,3 +1100,7 @@ Ahorro y calidad pendientes del ensayo real; no se han llamado modelos.
 y guardián independiente contra demandas estructuradas que el contrato prohíbe.
 Conserva objeciones y prueba del controlador en auditoría, con integridad real aún
 bloqueante. 47 pruebas offline de esta entrega y regresiones; [alcance y activación](../technical/review-context-cache-plan.md).
+
+**Corrección de series compactadas — 5 de octubre:** metadatos completos explícitos,
+muestra identificada y gráficos por referencia a originales. 14 pruebas offline,
+incluido payload HTTP y superposición completa; [detalle](../technical/review-context-cache-plan.md).
