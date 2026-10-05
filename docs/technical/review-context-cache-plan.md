@@ -1,6 +1,11 @@
 # Contexto de revisión, caché y panorama — 5 de octubre de 2026
 
-Base: 6c91932. Cambios locales separados, sin llamadas reales ni fusión de ramas.
+Base inicial: 6c91932. Cambios locales separados, sin llamadas reales ni fusión de ramas.
+
+Estado actual tras el piloto 32ae3ac: objetivo por defecto de 110.000 tokens,
+enums de cobertura/panorama fijos por revisión, inventarios y correcciones completos,
+y caché explícita opcional. Las secciones iniciales conservan el registro histórico;
+las correcciones vigentes están en «Piloto 0/2» y «Validación integrada» al final.
 
 1. Opción de contexto de revisión: presupuesto total de 70.000 tokens incluyendo
    sistema, esquema, correcciones y reserva de salida. Tokenizador local declarado;
@@ -241,3 +246,29 @@ piloto, no una causa demostrada. Medir tanto `cached_tokens` como
 al proveedor ni medido una mejora real de caché. Referencias oficiales consultadas:
 [prompt caching](https://developers.openai.com/api/docs/guides/prompt-caching) y
 [Chat Completions](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create).
+
+
+### Validación integrada del piloto 0/2
+
+130 pruebas offline aprobadas: esquemas estrictos y matriz de opciones, contratos
+de cobertura/panorama, series compactadas y capas, presupuestos, transporte simulado,
+guardianes, importación real de CSV con fechas entrecomilladas y exportación.
+PostgreSQL, almacenamiento y Docker privados; cero peticiones a modelos reales.
+
+`tests/test_review_wire_only.py` crea tres investigaciones sintéticas y ejecuta una
+revisión completa con y sin panorama. El respondedor simulado solo puede leer los
+mensajes HTTP efectivos; no recibe el contexto original ni consulta el disco o la
+base de datos. Construye cobertura desde `required_coverage_keys` y prioridad desde
+`citable_panorama_metrics`, valida su respuesta contra el esquema efectivamente
+enviado y obtiene `submit → approve` sin correcciones en ambos casos. Después el
+test compara inventarios visibles con los originales persistidos para detectar
+cualquier muestra o truncado. La auditoría confirma presupuesto y caché activados.
+La prueba completa volvió a pasar tras reforzar esas aserciones de auditoría.
+
+Esto demuestra suficiencia y coherencia mecánica de los datos del contrato, no
+que un modelo real vaya a producir buenas prioridades ni que alcance más caché.
+La medición por parejas sigue pendiente. Esta cadena no incorpora P1b ni fusiona
+otras ramas. Para el nuevo ensayo, retirar overrides antiguos de 70.000 o fijar
+`DECISION_ROOM_REVIEW_CONTEXT_TOKENS=110000`. La caché explícita se activa aparte
+con `DECISION_ROOM_REVIEW_EXPLICIT_CACHE=true`; no es necesaria para las correcciones
+de cobertura, prioridad o presupuesto.

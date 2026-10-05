@@ -1129,3 +1129,9 @@ escape, tercer nivel de compactación y ampliación auditada dentro del techo TP
 **Fronteras de caché — 5 de octubre:** opción independiente para guardar el prefijo
 hasta contexto estable y evidencia, clave por revisión confirmada en HTTP simulado.
 10 pruebas locales; efecto/coste pendientes de medición. [Detalle y activación](../technical/review-context-cache-plan.md).
+
+**Validación del piloto 0/2 — 5 de octubre:** 130 pruebas offline aprobadas y revisión
+completa simulada por HTTP con tres investigaciones, con/sin panorama. Cobertura y
+prioridad válidas a la primera usando solo el contexto compacto visible. [Resultados
+y límites](../technical/review-context-cache-plan.md). Pendiente el lote real; no
+se declara mejorada la calidad ni el porcentaje de caché sin esa medición.
