@@ -189,3 +189,13 @@ El contexto expone íntegros `required_coverage_keys`, `allowed_coverage_keys` y
 `citable_panorama_metrics`, sin muestras ni recortes. Son datos del controlador,
 no claves inferidas del texto del plan. Las listas completas viajan también en el
 sufijo variable cuando se usa prefijo estable, como contrato explícito de cada turno.
+
+### Correcciones exactas
+
+Los errores de cobertura identifican faltantes, desconocidas, duplicadas y todas
+las claves válidas. Los errores de prioridad identifican las referencias inválidas
+y todos los pares válidos del panorama. Un error tipado conserva esa información
+sin el recorte de 1.800 caracteres del controlador. Los demás errores de referencias
+incluyen el catálogo actual completo; ya no se añade una muestra de 16 métricas.
+13 pruebas locales de contratos/correcciones aprobadas, incluida una corrección
+mayor de 1.800 caracteres cuyo último elemento debe permanecer visible.

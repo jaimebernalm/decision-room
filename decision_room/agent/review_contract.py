@@ -362,7 +362,9 @@ def validate_coverage(report, context):
     entries = report.get('question_coverage', [])
     keys = [e['investigation_key'] for e in entries]
     if len(set(keys)) != len(keys) or not expected <= set(keys) or not set(keys) <= known:
-        raise ValueError('question_coverage must address every ready investigation exactly once, using only known investigations.')
+        from .review_requirements import ReviewContractError
+        raise ReviewContractError('question_coverage',missing=sorted(expected-set(keys)),invalid=sorted(set(keys)-known),
+            duplicates=sorted(k for k in set(keys) if keys.count(k)>1),valid=sorted(known))
     claims = {c['key'] for c in report['claims']}
     synthesis = context.get('research_synthesis') or {}
     unresolved = {key for d in synthesis.get('disagreements', []) if d['resolution'] != 'resolved'

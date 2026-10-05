@@ -89,7 +89,8 @@ def build(config, db, session, run, analyst, reviewer, saver, *, executor=execut
                 break
             except ValueError as error:
                 from .review_cache import enabled as stable_prefix, diagnostics
-                correction = (diagnostics(error,context) if stable_prefix(context) else str(error))[:1800]
+                from .review_requirements import ReviewContractError
+                correction = diagnostics(error,context) if stable_prefix(context) or isinstance(error,ReviewContractError) else str(error)[:1800]
                 if attempt + 1 == attempts:
                     count = 'twice' if attempts == 2 else f'{attempts} times'
                     raise ValueError(f'Review action failed validation {count}: ' + correction) from None

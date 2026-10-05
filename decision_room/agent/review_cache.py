@@ -98,10 +98,13 @@ def messages(context, system, correction):
 
 
 def diagnostics(error,context):
-    valid=[dict(execution_id=o['execution_id'],metrics=list((o.get('result') or {}).get('metrics',{}))[:16],
-        series=list((o.get('result') or {}).get('series',{}))) for o in context.get('observations',[])
+    from .review_requirements import ReviewContractError
+    if isinstance(error,ReviewContractError):
+        return str(error)
+    valid=[dict(execution_id=o['execution_id'],metrics=sorted((o.get('result') or {}).get('metrics',{})),
+        series=sorted((o.get('result') or {}).get('series',{}))) for o in context.get('observations',[])
         if o.get('current') and o.get('status')=='completed']
-    return str(error)[:800]+' Valid current references (sample; remaining keys in observations/read_review_context): '+encoded(valid)[:950]
+    return str(error)+' Valid current references (complete): '+encoded(valid)
 
 
 def usage_summary(calls):

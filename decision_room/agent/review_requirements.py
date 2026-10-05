@@ -40,3 +40,13 @@ def constrain_panorama(schema,context):
     if choices:
         schema['$defs']['FrozenPanoramaMetric']=reference_schema(choices)
         schema['$defs']['PanoramaPriority']['properties']['evidence']['items']={'$ref':'#/$defs/FrozenPanoramaMetric'}
+
+
+class ReviewContractError(ValueError):
+    """Complete machine-readable correction, never sliced by the graph."""
+    def __init__(self,field,*,missing=(),invalid=(),valid=(),duplicates=()):
+        from .context import encoded
+        self.repair=dict(field=field,missing=list(missing),invalid=list(invalid),
+                         valid=list(valid),duplicates=list(duplicates))
+        super().__init__(field+': falta '+encoded(list(missing))+'; no válida '+encoded(list(invalid))+
+                         '; duplicadas '+encoded(list(duplicates))+'; válidas: '+encoded(list(valid)))

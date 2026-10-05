@@ -220,4 +220,8 @@ def validate(report, context):
             if parsed.comparison is None:
                 raise ValueError('panorama_priority needs comparison basis; custom periods need a plain reason.')
         if comparison and (not choices or any((r['execution_id'],r['metric']) not in choices for r in comparison['evidence'])):
-            raise ValueError('panorama_priority must cite current panorama metrics from the context.')
+            from .review_requirements import ReviewContractError
+            invalid=[r for r in comparison['evidence'] if (r['execution_id'],r['metric']) not in choices]
+            raise ReviewContractError('panorama_priority.evidence',invalid=invalid,
+                missing=['at_least_one_current_panorama_metric'] if not comparison['evidence'] else [],
+                valid=[dict(execution_id=e,metric=m) for e,m in sorted(choices)])

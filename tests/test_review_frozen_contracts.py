@@ -39,3 +39,27 @@ class FrozenContractTests(unittest.TestCase):
         valid=report['claims'][0]['panorama_priority'];self.assertTrue(priority.is_valid(valid))
         invalid=deepcopy(valid);invalid['evidence']=[{'execution_id':'new-reviewer','metric':'fresh'}]
         self.assertFalse(priority.is_valid(invalid))
+
+
+class ExactCorrectionTests(FrozenContractTests):
+    def test_missing_unknown_and_duplicate_coverage_are_explicit(self):
+        from decision_room.agent.review_contract import validate_coverage
+        from decision_room.agent.review_requirements import ReviewContractError
+        context,report=self.pair()
+        context['review_policy']=0;context['budgets']={};context['sales_panorama']={}
+        report['question_coverage']=[dict(investigation_key=k,status='unavailable',claim_keys=[],explanation='Sin respuesta') for k in ('total','total','invented')]
+        with self.assertRaises(ReviewContractError) as failure:validate_coverage(report,context)
+        self.assertEqual(failure.exception.repair,dict(field='question_coverage',missing=['channels'],invalid=['invented'],valid=['channels','costs','total'],duplicates=['total']))
+
+    def test_panorama_correction_lists_every_reference_without_1800_character_cut(self):
+        from decision_room.agent.panorama_contract import validate
+        from decision_room.agent.review_requirements import ReviewContractError
+        from decision_room.agent.review_cache import diagnostics
+        context,report=self.pair()
+        report['claims'][0]['panorama_priority']['evidence']=[dict(execution_id='invented',metric='total')]
+        with self.assertRaises(ReviewContractError) as failure:validate(report,context)
+        text=diagnostics(failure.exception,context)
+        self.assertGreater(len(text),1800)
+        self.assertEqual(failure.exception.repair['valid'],inventories(context)['citable_panorama_metrics'])
+        self.assertIn(failure.exception.repair['valid'][-1]['metric'],text)
+        self.assertNotIn('sample',text)

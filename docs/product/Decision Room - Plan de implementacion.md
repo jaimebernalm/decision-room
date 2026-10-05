@@ -1117,3 +1117,7 @@ aprobadas de esta cadena, sin modelos reales; [detalle](../technical/review-cont
 **Contratos congelados de revisión — 5 de octubre:** enums de cobertura/panorama
 restaurados sin variar al añadir cálculos; inventarios visibles completos. 18 pruebas
 offline aprobadas. [Registro](../technical/review-context-cache-plan.md).
+
+**Correcciones exactas — 5 de octubre:** errores de cobertura/prioridad con faltantes,
+claves inválidas y listas completas; sin truncado de estos diagnósticos. 13 pruebas
+locales de contratos/correcciones; [registro](../technical/review-context-cache-plan.md).
