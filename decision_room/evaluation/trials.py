@@ -210,7 +210,9 @@ def prepare_rewrite(batch, sources, ref, runtime_root, env_file, python=None, pr
         manifest.setdefault('model', original['model'])
         if original['model'] != manifest['model']:
             raise SystemExit('Sources must share the model settings.')
-        manifest['datasets'].setdefault(state['dataset'], original['datasets'][state['dataset']])
+        if state['dataset'] not in manifest['datasets']:
+            manifest['datasets'][state['dataset']] = original['datasets'][state['dataset']]
+            shutil.copytree(origin / 'inputs' / state['dataset'], batch / 'inputs' / state['dataset'])
         arm = original['arms'][state['system']]
         clone = f"{origin.name}-{state['system']}"
         if clone not in manifest['clones']:
