@@ -196,11 +196,17 @@ def checks(report, observations):
 
     for claim in report['claims']:
         try:
-            for ref in [*claim['evidence'], *(claim.get('orientation') or {}).get('evidence', [])]:
+            for ref in [*claim['evidence'], *(claim.get('orientation') or {}).get('evidence', []), *(claim.get('panorama_priority') or {}).get('evidence', [])]:
                 value(ref)
             result.append({'check': 'evidence:' + claim['key'], 'passed': True, 'detail': 'Saved, current metrics with source evidence.'})
         except ValueError as error:
             result.append({'check': 'evidence:' + claim['key'], 'passed': False, 'detail': str(error)})
+    for key, decision in report.get('panorama_dispositions', {}).items():
+        try:
+            for ref in (decision.get('proof') or {}).get('evidence', []): value(ref)
+            result.append({'check':'gap_proof:'+key,'passed':True,'detail':'Current supporting evidence.'})
+        except ValueError as error:
+            result.append({'check':'gap_proof:'+key,'passed':False,'detail':str(error)})
     for chart in report.get('charts', []):
         try:
             layered = bool(chart.get('layers'))
@@ -309,7 +315,11 @@ def checks(report, observations):
         if isinstance(value, str):
             yield value
         elif isinstance(value, dict):
-            for item in value.values(): yield from prose(item)
+            for key, item in value.items():
+                # An exact owner-source quote is provenance, not a calculated
+                # percentage claimed by the writer. Its source is bound separately.
+                if key == 'quote' and value.get('kind') == 'owner' and 'source' in value: continue
+                yield from prose(item)
         elif isinstance(value, list):
             for item in value: yield from prose(item)
     for text in prose({k:v for k,v in report.items() if k != 'checks'}):

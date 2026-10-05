@@ -170,7 +170,7 @@ class PanoramaPersistenceTests(unittest.TestCase):
             self.assertEqual(db.execute('SELECT snapshot FROM agent_research WHERE id=%s',(run['id'],)).fetchone()['snapshot'],original)
             self.assertEqual(db.execute("SELECT context_payload FROM agent_calls WHERE session_id=%s AND phase IN ('planning','research') ORDER BY created_at",(parent['id'],)).fetchall(),original_calls)
             versions=db.execute('SELECT DISTINCT prompt_version FROM agent_calls WHERE scope=%s',(str(candidate['id']),)).fetchall()
-        self.assertTrue(all('sales-panorama-v2' in v['prompt_version'] for v in versions))
+        self.assertTrue(all('sales-panorama-v3' in v['prompt_version'] for v in versions))
         self.assertNotIn('sales_panorama',json.dumps(original_calls,default=str))
         combined_model=PanoramaDialogue('simple')
         combined=review.start(config,self.business,run['id'],request_key='p1a-p3',owner_presentation=True,

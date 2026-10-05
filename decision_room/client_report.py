@@ -231,7 +231,7 @@ def render_client(data, exported_at, *, embedded=False):
         body += [f'<p class="meta">{e(scope["business"])} · {e(scope["period"])}</p>']
     body += [f'<p class="meta">Generado: {e(exported_at)}</p></header><div class="content">']
     if ready:
-        if data.get('options', {}).get('sales_panorama_contract') == 2:
+        if data.get('options', {}).get('sales_panorama') or data.get('options', {}).get('sales_panorama_contract', 0) >= 2:
             from .panorama_presentation import owner_sections, render_html
             body.append(render_html(owner_sections(data.get('sales_panorama'), data['observations'])))
         body += [f'<section><h2>La pregunta de negocio</h2><p>{e(scope["question"])}</p>',
@@ -243,9 +243,10 @@ def render_client(data, exported_at, *, embedded=False):
                 value = formatted(metric(data, highlight['value']), highlight['decimals'])
                 body += [f'<a class="highlight" href="#finding-{e(highlight["claim_key"])}"><span>{e(highlight["label"])}</span><strong>{e(value)}</strong><small>{e(highlight["unit"])}</small></a>']
             body += ['</section>']
+        from .panorama_presentation import comparison_statement
         for i, claim in enumerate(draft['claims'], 1):
             charts = [c for c in draft['charts'] if c['claim_key'] == claim['key']]
-            body += [f'<section class="finding" id="finding-{e(claim["key"])}"><p class="number">HALLAZGO {i:02d}</p><h2>{e(claim["title"])}</h2><p>{e(claim["statement"])}</p>']
+            body += [f'<section class="finding" id="finding-{e(claim["key"])}"><p class="number">HALLAZGO {i:02d}</p><h2>{e(claim["title"])}</h2><p>{e(comparison_statement(claim))}</p>']
             body += [f'<div class="interpretation"><h3>Qué significa para el negocio</h3><p>{e(claim["interpretation"])}</p></div>']
             from .agent.delivery_contract import orientation_sections
             guidance = orientation_sections(claim.get('orientation'))

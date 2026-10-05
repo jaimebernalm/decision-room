@@ -1076,3 +1076,11 @@ resolución del controlador auditada. Integridad permanece bloqueante. Capacidad
 del esquema visibles y un foco declarado por hallazgo. 29 pruebas locales con
 modelos simulados; [garantías y alcance](../technical/review-loop-panorama-corrections.md).
 Pendiente medir utilidad; no cierra 3.9 ni incorpora P1b.
+
+**Correcciones de P1a v2 — 5 de octubre:** misma opción `sales_panorama`, materialidad
+explícita y cinco alertas como máximo; descartes con fuentes verificables y enlaces
+al foco existente; comparación y prioridad estructuradas obligatorias; explicación
+visible de ventanas alternativas. 97 pruebas offline, incluidas importación real,
+esquemas con 1.200 métricas, exportación y reanudación tras caída. Véanse
+[garantías, límites y activación](../technical/review-loop-panorama-corrections.md).
+Pendiente nueva medición por parejas; P1b se mantiene fuera de esta cadena.

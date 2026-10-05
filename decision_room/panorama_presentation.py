@@ -24,6 +24,52 @@ def signals(panorama, *, changes=False):
     return result
 
 
+def material_gaps(panorama, observations=()):
+    """Recent/open gaps with channel-wide scope or >=7 expected absent days.
+
+    Recency is relative to the file's period, never the machine date. All selected
+    gaps require disposition; the owner opening shows at most five of them.
+    """
+    from datetime import date
+    periods = {t['table_id']: t.get('period') for t in (panorama or {}).get('tables', [])}
+    entries = panorama.get('signals', []) if panorama and 'signals' in panorama else signals(panorama)
+    def number(value):
+        if isinstance(value, dict):
+            value = value.get('value') if 'value' in value else evidence_value(observations, value)
+        return float(value or 0)
+    selected=[]
+    for original in entries:
+        if original['kind'] != 'gap': continue
+        item=deepcopy(original)
+        period=periods.get(item['table_id'])
+        if not period: continue
+        end=date.fromisoformat(period[1]); stop=date.fromisoformat(item['end'])
+        opened=stop >= end
+        expected=number(item.get('absent_expected_days'))
+        monthly=number(item.get('absent_months'))
+        recent=(end-stop).days <= 365
+        whole_channel='product' not in item
+        if (opened or recent) and (opened or whole_channel or expected >= 7 or monthly >= 1):
+            item['materiality']=dict(open_at_end=opened,whole_channel=whole_channel,
+                expected_absent_days=expected,absent_months=monthly,
+                rule='Abierto al cierre, o reciente (365 días del cierre) y de canal entero, al menos 7 días esperados ausentes o un mes habitual ausente.')
+            selected.append(item)
+    return sorted(selected,key=lambda g:(-g['materiality']['expected_absent_days'],
+        -g['materiality']['absent_months'], -int(g['materiality']['open_at_end']),g['start'],g['key']))
+
+
+def focal_dimensions(panorama):
+    result={}
+    for table in (panorama or {}).get('tables', []):
+        if table.get('status', 'available') != 'available': continue
+        known=table.get('dimensions')
+        if known is None:
+            known={dimension:sorted({item[dimension] for item in table.get('totals', {}).get(dimension, [])})
+                for dimension in ('product','channel')}
+        result[table['table_id']]=known
+    return result
+
+
 def refs(panorama):
     def walk(value):
         if isinstance(value, dict):
@@ -38,8 +84,8 @@ def refs(panorama):
 
 def compact(panorama, observations):
     """Keep mandatory signals and refs; do not repeat operation descriptions/code."""
-    result = dict(version='panorama-contract-v2', tables=[], signals=signals(panorama, changes=True),
-                  instruction='Panorama rendered by controller; address every gap, justify priorities against its evidence. Missing rows are not zero sales.')
+    result = dict(version='panorama-contract-v3', tables=[], signals=signals(panorama, changes=True),
+                  instruction='Panorama rendered by controller; address every material gap, justify priorities against its evidence. Missing rows are not zero sales.')
     def with_values(value):
         if isinstance(value, dict):
             if set(value) == {'execution_id', 'metric'}:
@@ -53,7 +99,11 @@ def compact(panorama, observations):
             continue
         result['tables'].append(with_values({k:table[k] for k in ('table_id','names','period','comparison','total')}) |
                                 {'measure': {k:table['measure'][k] for k in ('column','unit','semantic_status')}, 'channels': with_values(table.get('totals', {}).get('channel', [])),
+                                 'dimensions': focal_dimensions({'tables':[table]})[table['table_id']],
                                  'gap_rule': table['gap_rule'], 'gap_selection':table['gap_selection']})
+    material = {g['key']:g['materiality'] for g in material_gaps(panorama, observations)}
+    for item in result['signals']:
+        if item['kind'] == 'gap': item['materiality'] = material.get(item['key'])
     result['signals'] = with_values(result['signals'])
     result['catalog_labels'] = [{k:label[k] for k in ('code','name')} for label in (panorama or {}).get('catalog_labels', [])]
     return result
@@ -78,11 +128,12 @@ def owner_sections(panorama, observations):
         return ' / '.join(name(item[k], k) for k in ('product','channel') if k in item)
     def amount(ref): return str(readable_number(evidence_value(observations, ref)))
     result = []
+    visible = material_gaps(panorama, observations)[:5]
     for table in (panorama or {}).get('tables', []):
         if table.get('status') != 'available': continue
         period = 'Del ' + day(table['period'][0]) + ' al ' + day(table['period'][1])
         channel_totals = [f"{group(item)}: {amount(item['value'])}" for item in table.get('totals', {}).get('channel', [])]
-        lines = [f"{period}: {amount(table['total'])} de cantidad registrada."]
+        lines = [f"{period}: {amount(table['total'])} unidades registradas."]
         if channel_totals: lines.append('Por canal: ' + '; '.join(channel_totals) + '.')
         comparison = table['comparison']
         if comparison['status'] == 'available':
@@ -97,8 +148,13 @@ def owner_sections(panorama, observations):
             for kind, heading in (('increases','Mayor aumento'),('decreases','Mayor descenso')):
                 if section.get(kind):
                     item = section[kind][0]
-                    lines.append(f"{heading}: {group(item)}, {amount(item['change'])} de cantidad registrada.")
-        alerts = list(dict.fromkeys(f"{group(item)}: sin registros del {day(item['start'])} al {day(item['end'])}." for item in table.get('gaps', [])))
+                    level = 'por canal' if dimension == 'channel' else 'por producto y canal'
+                    lines.append(f"{heading} {level}: {group(item)}, {amount(item['change'])} unidades registradas.")
+        alerts = list(dict.fromkeys(f"{group(item)}: sin registros del {day(item['start'])} al {day(item['end'])}." for item in visible if item['table_id'] == table['table_id']))
+        shown = sum(item['table_id'] == table['table_id'] for item in visible)
+        remaining = len(table.get('gaps', [])) - shown
+        if remaining:
+            lines.append(f'Otros {remaining} huecos registrados, en la auditoría.')
         result.append(dict(source=', '.join(table['names']), lines=lines, alerts=alerts,
                            note='Los huecos indican ausencia de registros, no ventas cero ni una causa confirmada.' if alerts else ''))
     return result
@@ -114,3 +170,13 @@ def render_html(sections):
         if section['alerts']: body += '<ul>' + ''.join('<li>'+escape(a)+'</li>' for a in section['alerts']) + '</ul>'
         if section['note']: body += '<p>'+escape(section['note'])+'</p>'
     return body + '</section>'
+
+
+def comparison_statement(claim):
+    comparison=(claim.get('panorama_priority') or {}).get('comparison') or {}
+    statement=claim['statement']
+    if comparison.get('basis')=='custom':
+        reason=comparison['reason']
+        if reason not in statement:
+            statement += ' ' + comparison['periods'].rstrip('.') + ': ' + reason
+    return statement

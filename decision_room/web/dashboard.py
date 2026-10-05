@@ -69,8 +69,8 @@ def _projection(data):
                 panel['colors'] = {s: colors[s] for s in panel['series_order']}
     except (ValueError, KeyError, ArithmeticError):
         return None
-    from ..panorama_presentation import owner_sections
-    panorama = owner_sections(data.get('sales_panorama'), data['observations']) if data.get('options', {}).get('sales_panorama_contract') == 2 else []
+    from ..panorama_presentation import owner_sections, comparison_statement
+    panorama = owner_sections(data.get('sales_panorama'), data['observations']) if data.get('options', {}).get('sales_panorama') or data.get('options', {}).get('sales_panorama_contract', 0) >= 2 else []
     return {
         **({'panorama': panorama} if panorama else {}),
         **({'owner_presentation': True} if owner else {}),
@@ -79,7 +79,7 @@ def _projection(data):
                     else any(q['status'] != 'answered' for q in report.get('question_coverage', []))),
         'scope': report['scope'], 'highlights': highlights,
         'claims': [{'key': claim['key'], 'title': claim['title'],
-                    'statement': claim['statement'], 'orientation': client_orientation(claim, owner)} for claim in report['claims'][:3]],
+                    'statement': comparison_statement(claim), 'orientation': client_orientation(claim, owner)} for claim in report['claims'][:3]],
         'charts': charts, 'limitations': list(dict.fromkeys([*(limits(report, data['observations']) if owner else report['limitations']), *(data.get('controller_resolution') or {}).get('owner_limitations', [])])),
         **({'technical_notes': [t for t in report['limitations'] if delivery_note(t)]} if owner else {}),
     }
@@ -125,7 +125,8 @@ def presentation(data):
             operations = list(dict.fromkeys(operations))
         source = ({'source_summary': source_summary(files, (claim.get('orientation') or {}).get('period') or report['scope']['period'])}
                   if enabled(data) else {})
-        claims.append({**source, **{key: claim[key] for key in ('key', 'title', 'statement', 'interpretation', 'method', 'next_step')},
+        from ..panorama_presentation import comparison_statement
+        claims.append({**source, **{key: claim[key] for key in ('key', 'title', 'statement', 'interpretation', 'method', 'next_step')}, 'statement': comparison_statement(claim),
                        'orientation': client_orientation(claim, enabled(data)),
                        **({'panorama_priority': {k:v for k,v in claim['panorama_priority'].items() if k != 'evidence'}} if claim.get('panorama_priority') else {}),
                        'evidence_details': dict(files=files, metrics=metrics, operations=operations)})

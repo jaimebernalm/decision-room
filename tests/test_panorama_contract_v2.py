@@ -26,10 +26,11 @@ def frozen_fixture():
 
 
 def add_decisions(report, context):
-    report['panorama_dispositions'] = {key:dict(disposition='dismissed', claim_key=None,
+    report['panorama_dispositions'] = {key:dict(disposition='priority', claim_key=report['claims'][0]['key'],
         reason='Comprobar primero la continuidad de los registros antes de recomendar cambios de oferta.') for key in gap_keys(context)}
     for claim in report['claims']:
-        claim['panorama_priority'] = dict(alternative='El hueco en los registros requiere comprobar cobertura antes de interpretar la caída.',
+        claim['focal_combinations']=[dict(table_id=context['sales_panorama']['tables'][0]['table_id'],product=None,channel=None)]
+        claim['panorama_priority'] = dict(comparison={'basis':'panorama'}, alternative='El hueco en los registros requiere comprobar cobertura antes de interpretar la caída.',
             why_first='Primero describimos la cantidad disponible para evitar decidir con cobertura incompleta.',
             evidence=[metric_choices(context)[0]])
 

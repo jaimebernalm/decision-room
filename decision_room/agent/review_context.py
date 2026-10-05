@@ -127,7 +127,7 @@ def model_context(materialized, role):
         from .review_loops import limits, unchanged_feedback
         context['review_schema_limits'] = limits()
         context['unchanged_submission'] = unchanged_feedback(context)
-    if context.get('budgets', {}).get('sales_panorama_contract') == 2:
+    if context.get('budgets', {}).get('sales_panorama') or context.get('budgets', {}).get('sales_panorama_contract', 0) >= 2:
         from ..panorama_presentation import compact
         context['sales_panorama'] = compact(context['sales_panorama'], context['observations'])
     if context.get('report'):
@@ -165,6 +165,8 @@ def model_context(materialized, role):
 
 def approval_digest(materialized, knowledge):
     cited = {ref['execution_id'] for claim in materialized['report']['claims'] for ref in claim['evidence']}
+    from ..panorama_presentation import refs
+    cited.update(ref['execution_id'] for ref in refs(materialized['report'].get('panorama_dispositions', {})))
     cited.update(ref['execution_id'] for claim in materialized['report']['claims']
                  for ref in (claim.get('orientation') or {}).get('evidence', []))
     for chart in materialized['report'].get('charts', []):
@@ -183,7 +185,7 @@ def approval_digest(materialized, knowledge):
     if (materialized.get('review_policy') or 0) >= 5:
         policy['accepted_owner_request'] = materialized['accepted_owner_request']
         policy['owner_confirmed_answers'] = materialized['owner_confirmed_answers']
-    if materialized.get('budgets', {}).get('sales_panorama_contract') == 2:
+    if materialized.get('budgets', {}).get('sales_panorama') or materialized.get('budgets', {}).get('sales_panorama_contract', 0) >= 2:
         policy['sales_panorama'] = materialized['sales_panorama']
         from ..panorama_presentation import refs
         cited.update(ref['execution_id'] for ref in refs(materialized['sales_panorama']))
