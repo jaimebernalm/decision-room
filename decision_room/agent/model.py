@@ -413,7 +413,10 @@ class ModelClient:
                                     'The client sees concrete unanswered questions in the limitations section.')
             system = system.replace('Controller caveats and counts remain intact.',
                                     'Controller coverage and counts remain intact in the audit; explain concrete limits to the owner.')
-            return system + SYSTEM
+            system += SYSTEM
+        if context.get('budgets', {}).get('sales_panorama'):
+            from .sales_panorama import SYSTEM
+            system += SYSTEM
         return system
 
     @staticmethod

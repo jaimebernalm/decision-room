@@ -64,7 +64,8 @@ def build(config, db, session, run, analyst, reviewer, saver, *, executor=execut
                 if action['action'] == 'submit':
                     report = action['report']
                     from .review_policy import prioritize_claims
-                    prioritize_claims(report, context.get('research_synthesis'))
+                    if not context.get('budgets', {}).get('sales_panorama'):
+                        prioritize_claims(report, context.get('research_synthesis'))
                     # Replace only reserved controller scope notes, preserving all
                     # substantive caveats. Computed candidates are not delivered answers.
                     prefixes = ()

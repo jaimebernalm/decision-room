@@ -57,6 +57,11 @@ def material(config, db, session, run):
     verified_files = set()
     observations = [observation(config, session['business_id'], execution_id, key,
                                 run['knowledge_sha256'], verified_files) for execution_id, key in sources.items()]
+    panorama = None
+    if run['options'].get('sales_panorama'):
+        from ..sales_panorama_store import materialize
+        panorama = materialize(config, session['business_id'], run['snapshot']['sales_panorama'], run['knowledge_sha256'])
+        observations = panorama.pop('observations') + observations
     report, report_step = latest_report(history, run['knowledge_sha256'])
     owner_answers = answers(db, session['id'])
     conversation = [{'step': e['step'], 'role': e['role'], 'action': e['action'],
@@ -68,7 +73,7 @@ def material(config, db, session, run):
     for event in conversation:
         if event['step'] in by_step:
             event['owner_answer'] = by_step[event['step']]
-    return {'owner_context': run['snapshot']['source']['owner_context'], 'owner_answers': owner_answers,
+    return {**({'sales_panorama': panorama} if panorama is not None else {}), 'owner_context': run['snapshot']['source']['owner_context'], 'owner_answers': owner_answers,
             **({'accepted_owner_request': run['snapshot'].get('accepted_owner_request') or
                  {'text': run['snapshot']['source']['owner_context']},
                 'owner_confirmed_answers': [a for a in owner_answers if a['disposition'] == 'answered']}

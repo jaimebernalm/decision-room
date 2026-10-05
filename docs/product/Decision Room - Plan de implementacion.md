@@ -1024,3 +1024,15 @@ software fuera de límites del negocio. Instrucciones editoriales v2 para retira
 jerga y cautelas repetidas. [Validación y límites](../validation/2026-10-04-owner-presentation-p3b.md).
 Sin llamadas reales al modelo. Pendiente volver a redactar sobre investigaciones
 congeladas y comparar por parejas; no supone aceptar P3 ni cerrar 3.9.7.
+
+**P1a — Panorama determinista (3.9.10.4), 4 de octubre:** desde `929d142`,
+opción `sales_panorama` independiente y apagada por defecto. Calcula al importar
+totales de cantidades, ventanas comparables, cambios por dimensión y huecos de
+registros, con reglas y evidencia trazables. Las importaciones antiguas usan el
+mismo cálculo al iniciar una revisión nueva. Solo redactor y revisor reciben el
+panorama; investigación y sus prioridades guardadas permanecen intactas.
+[Plan](../technical/sales-panorama-plan.md) y
+[activación, pruebas y límites](../validation/2026-10-04-sales-panorama-p1a.md).
+Implementado con pruebas sintéticas y modelos simulados; pendiente evaluar por
+parejas sobre las nueve investigaciones. P1b y P2 quedan para fases posteriores;
+no se acepta todavía la mejora de utilidad ni se cierra 3.9.7.

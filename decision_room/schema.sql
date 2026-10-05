@@ -854,3 +854,15 @@ ALTER TABLE chat_answer_reviews ADD COLUMN IF NOT EXISTS request_sha256 text;
 ALTER TABLE memory_calls ADD COLUMN IF NOT EXISTS effective_request jsonb;
 ALTER TABLE memory_calls ADD COLUMN IF NOT EXISTS request_sha256 text;
 INSERT INTO schema_versions(version) VALUES (30) ON CONFLICT DO NOTHING;
+
+-- P1a: immutable deterministic summaries, never injected into research context.
+CREATE TABLE IF NOT EXISTS sales_panoramas (
+    business_id uuid NOT NULL REFERENCES businesses(id),
+    table_id uuid NOT NULL REFERENCES prepared_tables(id) ON DELETE CASCADE,
+    request_sha256 text NOT NULL,
+    body_sha256 text NOT NULL,
+    body jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY(business_id,table_id,request_sha256)
+);
+INSERT INTO schema_versions(version) VALUES (31) ON CONFLICT DO NOTHING;

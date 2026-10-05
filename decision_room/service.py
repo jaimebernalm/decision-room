@@ -152,6 +152,9 @@ def resume(config, business_id, analysis_id, progress=None):
             report['data_model_revision'] = ensure(config, business_id, analysis_id)['revision']
         except (ValueError, duckdb.Error):
             report['data_model_issue'] = 'Los archivos están guardados. Reintenta preparar el modelo de datos desde Mi negocio.'
+    if state in ('ready', 'partial') and config.sales_panorama:
+        from .sales_panorama_store import prepare as prepare_panorama
+        prepare_panorama(config, business_id, analysis_id)
     return report
 
 

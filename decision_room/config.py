@@ -23,6 +23,7 @@ class Config:
     semantic_search: bool = False
     embedding_model: str = 'text-embedding-3-small'
     embedding_dimensions: int = 1536
+    sales_panorama: bool = False
 
     def __post_init__(self):
         maximum = {'text-embedding-3-small': 1536, 'text-embedding-3-large': 3072}
@@ -35,6 +36,7 @@ class Config:
                                 dbname='decision_room', user=getpass.getuser(), connect_timeout=5)
         return cls(os.environ.get('DECISION_ROOM_DATABASE_URL', default),
                    Path(os.environ.get('DECISION_ROOM_STORAGE', ROOT / '.local/storage')).resolve(),
+                   sales_panorama=os.environ.get('DECISION_ROOM_SALES_PANORAMA', 'false').lower() == 'true',
                    owner_presentation=os.environ.get('DECISION_ROOM_OWNER_PRESENTATION', 'false').lower() == 'true',
                    research_continuity=os.environ.get('DECISION_ROOM_RESEARCH_CONTINUITY', 'false').lower() == 'true',
                    research_validation_recovery=os.environ.get('DECISION_ROOM_RESEARCH_VALIDATION_RECOVERY', 'false').lower() == 'true',

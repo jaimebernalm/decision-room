@@ -36,10 +36,15 @@ def _stale(config, db, session, run):
 
 
 def start(config, business_id, research_id, *, request_key, analyst=None, reviewer=None,
-          max_review_rounds=None, owner_presentation=None, executor=execute):
+          max_review_rounds=None, owner_presentation=None, sales_panorama=None, panorama_mappings=None, executor=execute):
     owner_presentation = config.owner_presentation if owner_presentation is None else owner_presentation
     if type(owner_presentation) is not bool:
         raise ValueError('Owner presentation flag must be boolean.')
+    sales_panorama = config.sales_panorama if sales_panorama is None else sales_panorama
+    if type(sales_panorama) is not bool:
+        raise ValueError('Sales panorama flag must be boolean.')
+    if panorama_mappings and not sales_panorama:
+        raise ValueError('Enable sales panorama to supply column mappings.')
     _key(request_key)
     with connect(config) as db:
         research = db.execute('SELECT * FROM agent_research WHERE id=%s AND business_id=%s', (research_id, business_id)).fetchone()
@@ -77,6 +82,12 @@ def start(config, business_id, research_id, *, request_key, analyst=None, review
                    'max_python_per_role': 3, 'max_questions': 3, 'python_timeout': 30, 'review_policy': 5}
         if owner_presentation:
             options['owner_presentation'] = True
+        if sales_panorama:
+            from ..sales_panorama_store import prepare, review_snapshot
+            prepared = prepare(config, business_id, session['analysis_id'], panorama_mappings,
+                               table_ids=[t['id'] for t in snapshot['source']['tables']])
+            snapshot['sales_panorama'] = review_snapshot(prepared, key)
+            options['sales_panorama'] = True
         snapshot['accepted_owner_request'] = {'text': snapshot['source']['owner_context']}
         if quality:
             options.update(max_turns=48,max_calls_per_role=48,max_python_per_role=6,max_questions=6,
@@ -247,6 +258,7 @@ def show(config, business_id, review_id, *, _db=None):
                 'delivery_state': delivery_state('stale' if stale else 'held' if hold_record else run['status'], publishable=valid_approval),
                 'publishable': valid_approval, 'verification': 'reviewed_by_agent' if valid_approval else 'not_approved',
                 'review_issues': context['review_issues'], 'delivery_manifest': context['delivery_manifest'],
+                **({'sales_panorama': context['sales_panorama']} if context.get('sales_panorama') else {}),
                 'report': context['report'], 'checks': context['checks'], 'observations': context['observations'],
                 'owner_context': context['owner_context'], 'plan': context['plan'],
                 'planning_history': context['planning_history'],
