@@ -78,6 +78,24 @@ class LoopPersistenceTests(unittest.TestCase):
                 self.assertEqual(result['controller_resolution']['disposition'],'blocked_integrity')
                 self.assertEqual(len(result['model_calls']),4)
 
+    def test_restart_after_saved_objection_closes_without_another_model_call(self):
+        from decision_room.database import connect
+        model=StalledModel()
+        def interrupted(context):
+            if sum(e['role']=='reviewer' for e in context['conversation']) >= 2:
+                raise SystemExit(17)
+            return resolution(context)
+        with patch('decision_room.agent.review_loops.resolution',side_effect=interrupted), self.assertRaises(SystemExit):
+            review.start(self.config,self.business,self.research['id'],request_key='closure-crash',
+                review_loop_guard=True,analyst=model,reviewer=model)
+        with connect(self.config) as db:
+            run=db.execute('SELECT id FROM agent_reviews WHERE business_id=%s',(self.business,)).fetchone()
+        resumed=review.resume(self.config,self.business,run['id'],analyst=model,reviewer=model)
+        self.assertTrue(resumed['publishable'])
+        self.assertEqual(len(resumed['model_calls']),4)
+        self.assertEqual(len(model.contexts),4)
+        self.assertEqual(resumed['verification'],'controller_qualified_delivery')
+
     def test_schema_closes_focus_and_exposes_review_classification(self):
         model=StalledModel()
         review.start(self.config,self.business,self.research['id'],request_key='schema',review_loop_guard=True,analyst=model,reviewer=model)
@@ -118,11 +136,12 @@ class ResolutionSafetyTests(unittest.TestCase):
         self.assertIsNone(resolution(context))
 
     def test_no_integrity_or_fresh_objection_is_waived(self):
-        for fault in ('check','meaning','new_issue','unclassified'):
+        for fault in ('check','meaning','unsupported_reaction','new_issue','unclassified'):
             context=self.context()
             if fault=='check':context['checks']=[{'passed':False}]
             elif fault=='meaning':context['conversation'][-1]['action']['assessment']['delivery']['meaning']='fail'
-            elif fault=='new_issue':context['review_issues'].append(dict(context['review_issues'][0],key='new'))
+            elif fault=='unsupported_reaction':context['conversation'][-1]['action']['assessment']['usefulness']={'decision_support':'fail'}
+            elif fault=='new_issue':context['review_issues'].append(dict(context['review_issues'][0],key='new',kind='integrity',basis='evidence_integrity'))
             else:context['review_issues'][0]['kind']=None
             with self.subTest(fault=fault):self.assertEqual(resolution(context)['disposition'],'blocked_integrity')
 
@@ -134,3 +153,11 @@ class ResolutionSafetyTests(unittest.TestCase):
         issue=context['conversation'][1]['action']['assessment']['issues'][0]
         issue.update(kind='integrity',basis='evidence_integrity')
         self.assertEqual(resolution(context)['disposition'],'blocked_integrity')
+
+
+    def test_new_editorial_note_is_retained_without_losing_stalled_report(self):
+        context=self.context()
+        context['review_issues'].append(dict(context['review_issues'][0],key='new_style'))
+        result=resolution(context)
+        self.assertEqual(result['disposition'],'publish_with_limitations')
+        self.assertEqual({i['key'] for i in result['issues']},{'style','new_style'})

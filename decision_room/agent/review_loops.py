@@ -61,9 +61,9 @@ def resolution(context):
                       if i['key'] in issues and i['status']=='open'
                       and (i.get('kind')=='integrity' or i.get('basis')=='evidence_integrity'))
     delivery=assessment['delivery']
-    blocked=bool(unsafe or any(not c['passed'] for c in context['checks']) or delivery['numbers']=='fail' or delivery['meaning']=='fail' or delivery['charts']=='fail')
-    # Do not waive a different, newly raised objection just because one stalled.
-    if set(issues)-{i['key'] for i in stalled}: blocked=True
+    blocked=bool(unsafe or (assessment.get('usefulness') or {}).get('decision_support') == 'fail' or any(not c['passed'] for c in context['checks']) or delivery['numbers']=='fail' or delivery['meaning']=='fail' or delivery['charts']=='fail')
+    # Every open issue (including new ones) is retained and classified above.
+    # Additional editorial objections qualify the delivery; integrity still blocks.
     notes=[]
     for issue in issues.values():
         if issue.get('kind')=='completeness':
