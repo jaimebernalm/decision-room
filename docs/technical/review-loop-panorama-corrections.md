@@ -39,3 +39,8 @@ Validación: 29 tests (`test_review_loop_guard`, `test_review`,
 `test_model_strict_schemas`, `test_presentation_controller_ownership`), PostgreSQL
 propio y modelos simulados. Incluyen tres bucles, controles apagado/integridad,
 progreso real, objeciones nuevas, auditoría, exportación y reanudación. Sin API real.
+
+Refuerzo de seguridad: una objeción de integridad abierta sobre el mismo borrador
+no se puede desbloquear renombrándola como editorial. 19 pruebas de guardián y
+endurecimiento pasan. Se actualizaron dos simuladores HTTP antiguos al transporte
+asíncrono existente, con verificación de espera/estimación; no cambia el transporte.

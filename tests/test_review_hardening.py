@@ -184,8 +184,8 @@ class HardeningTests(unittest.TestCase):
                         return httpx.Response(429)
                     return httpx.Response(200,json={'choices':[{'finish_reason':'stop','message':{'content':json.dumps(response)}}],
                                                     'usage':{'prompt_tokens':1,'completion_tokens':1}})
-                client = httpx.Client(transport=httpx.MockTransport(handler))
-                with patch('decision_room.agent.model.httpx.Client',return_value=client), patch('decision_room.agent.model.time.sleep'):
+                client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+                with patch('decision_room.agent.model.httpx.AsyncClient',return_value=client), patch('decision_room.agent.model.asyncio.sleep'):
                     return ModelClient(ModelSettings('test',protocol='chat_completions')).generate_reviewer(context,correction)
         roles = HttpReviewer('plain')
         with self.assertRaisesRegex(ValueError, '429'):
@@ -233,11 +233,11 @@ class HardeningTests(unittest.TestCase):
     def test_interruption_during_backoff_preserves_attempt_before_sleep(self):
         class InterruptedReviewer(DialogueModel):
             def generate_reviewer(inner, context, correction=None):
-                client=httpx.Client(transport=httpx.MockTransport(lambda request:httpx.Response(429,
+                client=httpx.AsyncClient(transport=httpx.MockTransport(lambda request:httpx.Response(429,
                     headers={'Retry-After':'2','x-ratelimit-limit-tokens':'200000',
                              'x-ratelimit-remaining-tokens':'0','x-ratelimit-reset-tokens':'20s'},
                     json={'error':{'code':'rate_limit_exceeded','type':'tokens','message':'private provider message'}})))
-                with patch('decision_room.agent.model.httpx.Client',return_value=client), patch('decision_room.agent.model.time.sleep',side_effect=SystemExit(17)):
+                with patch('decision_room.agent.model.httpx.AsyncClient',return_value=client), patch('decision_room.agent.model.asyncio.sleep',side_effect=SystemExit(17)):
                     return ModelClient(ModelSettings('test',protocol='chat_completions')).generate_reviewer(context,correction)
         roles=InterruptedReviewer('plain')
         with self.assertRaises(SystemExit):
@@ -245,7 +245,11 @@ class HardeningTests(unittest.TestCase):
         with connect(self.config) as db:
             run=db.execute('SELECT id FROM agent_reviews WHERE business_id=%s',(self.business,)).fetchone()
             call=db.execute("SELECT * FROM agent_calls WHERE scope=%s AND status='running'",(str(run['id']),)).fetchone()
-        self.assertEqual(call['usage']['transport_attempts'],[{'status':429,'usage_unknown':True,
+        attempts=deepcopy(call['usage']['transport_attempts'])
+        self.assertGreater(attempts[0].pop('estimated_tokens'),0)
+        self.assertGreaterEqual(attempts[0].pop('configured_tpm'),0)
+        self.assertGreaterEqual(attempts[0].pop('pacing_wait_seconds'),0)
+        self.assertEqual(attempts,[{'status':429,'usage_unknown':True,
             'retry_delay_seconds':20,'retry_after_seconds':2,'error_code':'rate_limit_exceeded',
             'error_type':'tokens','error_category':'rate_limit',
             'rate_limits':{'limit_tokens':200000,'remaining_tokens':0,'reset_tokens_seconds':20}}])

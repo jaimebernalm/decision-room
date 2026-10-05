@@ -125,3 +125,12 @@ class ResolutionSafetyTests(unittest.TestCase):
             elif fault=='new_issue':context['review_issues'].append(dict(context['review_issues'][0],key='new'))
             else:context['review_issues'][0]['kind']=None
             with self.subTest(fault=fault):self.assertEqual(resolution(context)['disposition'],'blocked_integrity')
+
+
+    def test_unchanged_integrity_cannot_be_renamed_as_style(self):
+        context=self.context()
+        # Break fixture aliases: these are separate, persisted reviews.
+        context['conversation'][1]=deepcopy(context['conversation'][1])
+        issue=context['conversation'][1]['action']['assessment']['issues'][0]
+        issue.update(kind='integrity',basis='evidence_integrity')
+        self.assertEqual(resolution(context)['disposition'],'blocked_integrity')

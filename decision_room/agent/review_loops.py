@@ -54,6 +54,12 @@ def resolution(context):
     if not stalled: return None
     # An unknown classification is not permission to waive an integrity issue.
     unsafe=[i for i in issues.values() if i.get('kind') not in ('presentation','completeness') or i.get('basis')=='evidence_integrity']
+    # Renaming an unchanged integrity objection as editorial is not a repair.
+    for previous in reviews[:-1]:
+        if fingerprint(report_at(history,previous['step'],context['report'])) != fingerprint(context['report']): continue
+        unsafe.extend(i for i in previous['action']['assessment']['issues']
+                      if i['key'] in issues and i['status']=='open'
+                      and (i.get('kind')=='integrity' or i.get('basis')=='evidence_integrity'))
     delivery=assessment['delivery']
     blocked=bool(unsafe or any(not c['passed'] for c in context['checks']) or delivery['numbers']=='fail' or delivery['meaning']=='fail' or delivery['charts']=='fail')
     # Do not waive a different, newly raised objection just because one stalled.
