@@ -1089,3 +1089,9 @@ Pendiente nueva medición por parejas; P1b se mantiene fuera de esta cadena.
 la petición completa, vista compacta, instrucciones específicas de revisión y lectura
 paginada de originales auditada. 25 pruebas offline; [plan y límites](../technical/review-context-cache-plan.md).
 Pendiente medición de calidad/coste real; no cierra 3.9.
+
+**Prefijo de revisión — 5 de octubre:** opción independiente de esquema/prefijo
+estable, referencias validadas localmente y adaptación de disposiciones sin perder
+el contrato persistido. Telemetría y comparador de caché preparados; HTTP simulado
+y persistencia local verificados. Véase el [plan](../technical/review-context-cache-plan.md).
+Ahorro y calidad pendientes del ensayo real; no se han llamado modelos.

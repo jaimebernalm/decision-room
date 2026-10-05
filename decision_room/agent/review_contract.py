@@ -389,6 +389,9 @@ def validate(raw, role, context):
         # Local models sometimes omit inapplicable empty fields. Supplying only
         # empty defaults never chooses an action, writes code or grants approval.
         raw = {'report': None, 'code': '', 'table_ids': [], 'question': '', **raw}
+    if context.get('budgets',{}).get('review_stable_prefix'):
+        from .review_cache import normalize
+        raw=normalize(raw)
     action = ReviewAction.model_validate(raw)
     allowed = {'analyst': {'submit', 'execute', 'ask_owner', 'withdraw'},
                'reviewer': {'approve', 'revise', 'reject', 'execute', 'ask_owner'}}

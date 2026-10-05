@@ -48,3 +48,32 @@ Validación inicial: 25 pruebas locales (contexto grande, lectura paginada y ais
 PostgreSQL con roles simulados, reanudación, esquemas y contratos del panorama).
 Sin llamadas reales. Los dos límites históricos de bytes siguen vigentes con opción
 apagada. El cambio no aumenta el TPM por defecto de otras cuentas.
+
+## Paso 2 implementado
+
+`DECISION_ROOM_REVIEW_STABLE_PREFIX=true`, por defecto apagado. Recomendado junto
+con el presupuesto anterior. Esquema idéntico entre analista/revisor y correcciones
+con las mismas opciones; IDs y claves disponibles se validan contra originales.
+Las disposiciones viajan como una lista de pares clave/decisión y se normalizan al
+contrato persistido antes de validarlo; duplicados y referencias inventadas fallan.
+Las correcciones incluyen una muestra acotada de referencias válidas y remiten al
+catálogo completo. Las restricciones semánticas siguen siendo responsabilidad del
+validador; estabilizar el esquema no convierte cualquier string en evidencia válida.
+
+Sistema y contexto estable preceden evidencia, borrador, rol y corrección. Cambiar
+el objetivo o las definiciones sí cambia el prefijo deliberadamente. La petición
+audita hashes del esquema y prefijo visible; OpenAI recibe una clave opaca por
+sesión, sin datos personales. El transporte usa la estimación completa en tokens
+cuando está disponible y no resta caché del presupuesto TPM.
+
+La respuesta conserva la telemetría del proveedor. Comparar dos exportaciones de
+`review.show` (o listas de llamadas) con:
+
+```
+python scripts/compare_review_cache.py antes.json despues.json
+```
+
+El resultado distingue caché ausente de cero y no infiere precio ni ahorro de la
+cuenta. Las pruebas HTTP simuladas verifican prefijos idénticos, esquemas estrictos
+con 1.500 claves adicionales, rechazo/corrección local y contadores. No hay una
+medición real posterior todavía: la hará el lanzador sobre los lotes comparables.

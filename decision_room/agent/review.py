@@ -36,7 +36,10 @@ def _stale(config, db, session, run):
 
 
 def start(config, business_id, research_id, *, request_key, analyst=None, reviewer=None,
-          max_review_rounds=None, owner_presentation=None, review_loop_guard=None, review_context_budget=None, sales_panorama=None, panorama_mappings=None, executor=execute):
+          max_review_rounds=None, owner_presentation=None, review_loop_guard=None, review_context_budget=None, review_stable_prefix=None, sales_panorama=None, panorama_mappings=None, executor=execute):
+    review_stable_prefix = config.review_stable_prefix if review_stable_prefix is None else review_stable_prefix
+    if type(review_stable_prefix) is not bool:
+        raise ValueError('Stable prefix flag must be boolean.')
     review_context_budget = config.review_context_budget if review_context_budget is None else review_context_budget
     if type(review_context_budget) is not bool:
         raise ValueError('Review context budget flag must be boolean.')
@@ -86,6 +89,8 @@ def start(config, business_id, research_id, *, request_key, analyst=None, review
         snapshot = enrich(db,research_id,snapshot)
         options = {'max_review_rounds': max_review_rounds, 'max_turns': 20, 'max_calls_per_role': 16,
                    'max_python_per_role': 3, 'max_questions': 3, 'python_timeout': 30, 'review_policy': 5}
+        if review_stable_prefix:
+            options['review_stable_prefix'] = True
         if review_context_budget:
             options.update(review_context_budget=True, review_context_tokens=config.review_context_tokens)
         if review_loop_guard:

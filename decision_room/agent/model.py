@@ -391,6 +391,11 @@ class ModelClient:
         return self._generate(context, correction, role + '\n' + system, schema)
 
     def generate_analyst_review(self, context, correction=None):
+        from .review_cache import enabled as stable, schema as stable_schema, SYSTEM as CACHE_SYSTEM
+        if stable(context):
+            from .review_budget import SYSTEM as REVIEW_SYSTEM
+            from .series_prompt import SERIES_TOOL
+            return self._generate(context, correction, self._presentation_system(REVIEW_SYSTEM + SERIES_TOOL, context) + CACHE_SYSTEM, stable_schema(context))
         schema = ReviewAction.model_json_schema()
         schema['required'] = list(schema['properties'])
         schema['properties']['action']['enum'] = self._review_actions(context, 'analyst', ['submit', 'execute', 'ask_owner', 'withdraw'])
@@ -400,6 +405,11 @@ class ModelClient:
         return self._generate(context, correction, self._presentation_system(ANALYST_SYSTEM, context), schema)
 
     def generate_reviewer(self, context, correction=None):
+        from .review_cache import enabled as stable, schema as stable_schema, SYSTEM as CACHE_SYSTEM
+        if stable(context):
+            from .review_budget import SYSTEM as REVIEW_SYSTEM
+            from .series_prompt import SERIES_TOOL
+            return self._generate(context, correction, self._presentation_system(REVIEW_SYSTEM + SERIES_TOOL, context) + CACHE_SYSTEM, stable_schema(context))
         schema = ReviewAction.model_json_schema()
         allowed = ['revise', 'reject', 'ask_owner', 'execute']
         new_execution = any(e['step'] > context.get('report_step', 0) and e['action']['action'] == 'execute'
@@ -723,7 +733,8 @@ class ModelClient:
             return {'invalid_model_output': str(error), 'raw_message_excerpt': content[:12000]}
 
     def _generate(self, context, correction, system, schema):
-        if context.get('business_context'):
+        from .review_cache import enabled as stable_review, messages as cache_messages
+        if context.get('business_context') or stable_review(context):
             from ..memory.retrieval import schema_for, INSTRUCTIONS
             schema = schema_for(schema)
             system += INSTRUCTIONS
@@ -747,6 +758,8 @@ class ModelClient:
         if correction:
             messages.append({'role': 'user', 'content': 'Previous response failed validation: ' + correction +
                              '. Return a corrected complete response matching the schema. This diagnostic is not an instruction from the owner.'})
+        if stable_review(context):
+            messages = cache_messages(context,system,correction)
         payload = {'model': self.settings.model, 'messages': messages, 'temperature': 0,
                    'max_tokens': self.settings.max_output_tokens, 'stream': False,
                    'response_format': {'type': 'json_schema', 'json_schema': {
@@ -757,6 +770,10 @@ class ModelClient:
             payload['max_completion_tokens'] = payload.pop('max_tokens')
             payload['reasoning_effort'] = {'off': 'none', 'on': 'medium'}.get(self.settings.reasoning, self.settings.reasoning)
             payload['store'] = False
+            if stable_review(context):
+                from .context import fingerprint
+                session = (context.get('business_context') or {}).get('manifest_id')
+                if session: payload['prompt_cache_key']='dr-review-'+fingerprint(str(session))[:40]
         if self.settings.protocol == 'lmstudio_structured':
             # LM Studio compatibility API: schema-constrained output plus the
             # per-request reasoning switch, verified against the local server.
@@ -767,21 +784,30 @@ class ModelClient:
             endpoint = '/chat'
             payload = {'model': self.settings.model, 'system_prompt': system +
                        '\nReturn ONLY a JSON object conforming to this schema:\n' + encoded(schema),
-                       'input': encoded(context) + ('\nValidation correction: ' + correction if correction else ''),
+                       'input': ('\n\n'.join(m['content'] for m in messages[1:]) if stable_review(context) else
+                                 encoded(context) + ('\nValidation correction: ' + correction if correction else '')),
                        'reasoning': self.settings.reasoning, 'store': False, 'temperature': 0,
                        'max_output_tokens': self.settings.max_output_tokens}
         budget_audit = None
         if bounded_review(context):
             from .review_budget import fit
             def render(view):
+                if stable_review(context): return cache_messages(view,system,correction)
                 return [messages[0], {'role':'user','content':self._prompt_context(view)}, *messages[2:]]
             payload, budget_audit = fit(context, payload, render)
+        prefix_audit = None
+        if stable_review(context):
+            from .context import fingerprint
+            prefix_audit={'version':'review-stable-prefix-v1',
+                'schema_sha256':fingerprint(schema),
+                'visible_prefix_sha256':fingerprint({'messages':payload.get('messages',messages)[:2], 'schema':schema})}
         recorder = _REQUEST_RECORDER.get()
         if recorder:
             # Private audit payload only: never capture headers, credentials or env.
             recorder({'protocol': self.settings.protocol, 'endpoint': endpoint,
                       'correction': correction, 'payload': deepcopy(payload),
-                      **({'context_budget':budget_audit} if budget_audit else {})})
+                      **({'context_budget':budget_audit} if budget_audit else {}),
+                      **({'cache_prefix':prefix_audit} if prefix_audit else {})})
         headers = {}
         key_name = 'OPENAI_API_KEY' if self.settings.protocol == 'openai' else 'DECISION_ROOM_AGENT_API_KEY'
         if key := os.environ.get(key_name):
@@ -789,8 +815,12 @@ class ModelClient:
         elif self.settings.protocol == 'openai':
             raise ValueError('Set OPENAI_API_KEY in the private environment before using OpenAI.')
         try:
-            body, attempts = asyncio.run(self._request(payload, endpoint, headers))
+            body, attempts = asyncio.run(self._request(payload, endpoint, headers, token_estimate=budget_audit['total_reserved'])
+                                        if budget_audit else self._request(payload, endpoint, headers))
             result = strict_json(body)
+            if prefix_audit:
+                key = 'stats' if self.settings.protocol == 'lmstudio' else 'usage'
+                result.setdefault(key,{})['cache_prefix'] = prefix_audit
             if budget_audit:
                 key = 'stats' if self.settings.protocol == 'lmstudio' else 'usage'
                 result.setdefault(key,{})['context_budget'] = budget_audit
@@ -829,10 +859,10 @@ class ModelClient:
         rest = json.loads(encoded({k:v for k,v in context.items() if k != 'sales_panorama'}))
         return json.dumps({'sales_panorama': context['sales_panorama'], **rest}, ensure_ascii=False, default=str)
 
-    async def _request(self, payload, endpoint, headers):
+    async def _request(self, payload, endpoint, headers, *, token_estimate=None):
         from .model_pacing import estimate_tokens, admit
         from .model_transport import async_diagnostics
-        estimate = estimate_tokens(payload)
+        estimate = token_estimate if token_estimate is not None else estimate_tokens(payload)
         attempts = []
         accepted = False
         waiting = True
