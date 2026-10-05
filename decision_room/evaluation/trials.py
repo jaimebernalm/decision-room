@@ -173,12 +173,15 @@ def prepare(batch, datasets, product_ref, repeats, systems, runtime_root, env_fi
 
 
 def prepare_rewrite(batch, sources, ref, runtime_root, env_file, python=None, product_env=None,
-                    reference_env=None):
+                    reference_env=None, arms=PRODUCT_ARMS, paired=()):
     """Write and review again on research that already exists, to compare presentation in pairs.
 
     sources are BATCH/JOB attempts whose research was approved. Each source database is cloned
     (PostgreSQL TEMPLATE) with a copy of its storage, so the original batch is never touched;
-    both arms run the same frozen revision and differ only in their environment."""
+    both arms run the same frozen revision and differ only in their environment. arms limits
+    which arms run for sources (e.g. only the treatment when an earlier batch of the same
+    behaviour is the control); paired sources always get both arms. Numbers follow the
+    order of sources, then paired, so pairs can be matched across batches."""
     if (batch / 'manifest.json').exists():
         raise SystemExit('Batch already prepared; inspect it or choose another folder.')
     import psycopg
@@ -202,7 +205,7 @@ def prepare_rewrite(batch, sources, ref, runtime_root, env_file, python=None, pr
     for arm, env in (('product', product_env or {}), ('reference', reference_env or {})):
         manifest['arms'][arm] = {'ref': ref, 'revision': revision, 'source': str(source), 'python': python, 'env': env}
     jobs = []
-    for item in sources:
+    for item in [*sources, *paired]:
         origin, name = Path(item).parent.resolve(), Path(item).name
         original, state = read(origin / 'manifest.json'), read(origin / 'jobs' / name / 'state.json')
         if not (state['status'] == 'completed' and state.get('research_id') and state.get('publishable')):
@@ -225,11 +228,11 @@ def prepare_rewrite(batch, sources, ref, runtime_root, env_file, python=None, pr
             manifest['clones'][clone] = {'database': database, 'storage': str(storage),
                                          'from': {'batch': str(origin), 'arm': state['system'],
                                                   'revision': arm['revision'], 'env': arm.get('env', {})}}
-        jobs.append((state, clone, f'{origin.name}/{name}'))
+        jobs.append((state, clone, f'{origin.name}/{name}', PRODUCT_ARMS if item in paired else arms))
     manifest['order'] = []
-    for number, (state, clone, origin) in enumerate(jobs, 1):
-        arms = list(PRODUCT_ARMS) if number % 2 else list(reversed(PRODUCT_ARMS))
-        for arm in arms:
+    for number, (state, clone, origin, chosen) in enumerate(jobs, 1):
+        order = list(PRODUCT_ARMS) if number % 2 else list(reversed(PRODUCT_ARMS))
+        for arm in [a for a in order if a in chosen]:
             name = f"{state['dataset']}-{arm}-{number}"
             (batch / 'jobs' / name).mkdir(parents=True)
             write(batch / 'jobs' / name / 'state.json', {
@@ -592,6 +595,8 @@ def main():
     w = commands.add_parser('prepare-rewrite')
     w.add_argument('batch', type=Path)
     w.add_argument('--source', action='append', required=True, help='BATCH/JOB with approved research')
+    w.add_argument('--arms', default=','.join(PRODUCT_ARMS), help='Arms to run for --source')
+    w.add_argument('--paired-source', action='append', default=[], help='BATCH/JOB that always gets both arms')
     w.add_argument('--ref', required=True, help='Revision that writes and reviews again')
     w.add_argument('--python', type=Path)
     w.add_argument('--product-env', action='append', default=[], help='KEY=VALUE for the product arm')
@@ -629,7 +634,8 @@ def main():
         manifest = prepare_rewrite(args.batch.resolve(), args.source, args.ref, args.runtime_root.resolve(),
                                    args.env_file, args.python,
                                    dict(item.split('=', 1) for item in args.product_env),
-                                   dict(item.split('=', 1) for item in args.reference_env))
+                                   dict(item.split('=', 1) for item in args.reference_env),
+                                   tuple(a for a in args.arms.split(',') if a), tuple(args.paired_source))
         print(json.dumps({'jobs': manifest['order'], 'clones': list(manifest['clones'])}, indent=2))
     elif args.command == 'reexport':
         print(json.dumps(reexport(args.batch.resolve(), args.job, args.ref, args.runtime_root.resolve(), args.again)))
