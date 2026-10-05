@@ -1100,6 +1100,14 @@ Ahorro y calidad pendientes del ensayo real; no se han llamado modelos.
 y guardián independiente contra demandas estructuradas que el contrato prohíbe.
 Conserva objeciones y prueba del controlador en auditoría, con integridad real aún
 bloqueante. 47 pruebas offline de esta entrega y regresiones; [alcance y activación](../technical/review-context-cache-plan.md).
+**P1b — Panorama antes de investigar, 5 de octubre:** opción independiente y
+apagada por defecto, congelada al crear planificación. Pregunta o descarte por
+señal; controlador verifica cobertura y acceso a las tablas. Planificadores e
+investigadores reciben contexto compacto al principio; profundización mediante
+los cálculos existentes. [Activación, pruebas y límites](../validation/2026-10-05-panorama-research-p1b.md).
+66 pruebas locales aprobadas, sin llamadas reales. La calidad y las opciones por
+defecto quedan pendientes de medición; no se fusionan ramas ni se cierra 3.9.7.
+
 
 **Corrección de series compactadas — 5 de octubre:** metadatos completos explícitos,
 muestra identificada y gráficos por referencia a originales. 14 pruebas offline,

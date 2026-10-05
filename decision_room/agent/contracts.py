@@ -52,7 +52,22 @@ class Investigation(Strict):
     status: Literal['ready', 'blocked', 'not_possible']
 
 
+class PanoramaInvestigation(Strict):
+    disposition: Literal['investigate']
+    investigation_key: str = Field(pattern=r'^[a-z][a-z0-9_]{0,63}$')
+    question: str = Field(min_length=20, max_length=1000, pattern=r'\S')
+    reason: str = Field(min_length=20, max_length=800, pattern=r'\S')
+
+
+class PanoramaExclusion(Strict):
+    disposition: Literal['dismissed']
+    investigation_key: None
+    question: None
+    reason: str = Field(min_length=20, max_length=800, pattern=r'\S')
+
+
 class Proposal(Strict):
+    panorama_plan: dict[str, PanoramaInvestigation | PanoramaExclusion] = Field(default_factory=dict)
     interpretations: list[Interpretation] = Field(min_length=1, max_length=24)
     investigations: list[Investigation] = Field(min_length=1, max_length=8)
     questions: list[Question] = Field(max_length=3)
@@ -79,6 +94,8 @@ def validate_action(raw, snapshot, inspected, answers, previous=None):
     if action.proposal is None or action.table_ids:
         raise ValueError('propose requires a proposal and empty table_ids.')
     proposal = action.proposal
+    from .panorama_research import validate as validate_panorama
+    validate_panorama(proposal.model_dump(), snapshot)
     answered = {a['key']: a for a in answers}
     answer_ids = {a['id']: a for a in answers}
     question_keys = [q.key for q in proposal.questions]

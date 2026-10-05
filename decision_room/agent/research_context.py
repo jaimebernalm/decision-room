@@ -52,6 +52,8 @@ def prompt_context(snapshot, observations, findings, options, turns):
               'budgets': {**options, 'model_turns_used': turns,
                           'attempts_used': {key: sum(o['investigation_key'] == key for o in observations)
                                             for key in latest}}}
+    from .panorama_research import expose
+    result = expose(result, snapshot['source'])
     limit = options.get('max_context_bytes', 200000)
     if len(encoded(result).encode()) > limit:
         raise ResearchBudgetReached(f'Research context exceeds {limit // 1000} KB; automatic compaction is not implemented yet.')

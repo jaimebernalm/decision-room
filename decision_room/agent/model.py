@@ -237,7 +237,9 @@ class ModelClient:
             schema['properties']['table_ids']['maxItems'] = 0
             if not context.get('business_context'):
                 schema['properties']['proposal'] = {'$ref': '#/$defs/Proposal'}
-        return self._generate(context, correction, SYSTEM, schema)
+        from .panorama_research import constrain, system
+        constrain(schema, context)
+        return self._generate(context, correction, system(SYSTEM, context), schema)
 
     @staticmethod
     def _planning_references(schema, context):
@@ -276,7 +278,8 @@ class ModelClient:
             schema['properties']['action']['enum'] = ['guide', 'ask_owner', 'replan']
         if not any(r['disposition']=='answered' for r in context['owner_replies']):
             schema['properties']['action']['enum'].remove('replan')
-        return self._generate(context, correction, SYSTEM, schema)
+        from .panorama_research import system
+        return self._generate(context, correction, system(SYSTEM, context), schema)
 
     def generate_research(self, context, correction=None):
         continuity = context.get('budgets', {}).get('research_continuity', False)
@@ -388,7 +391,8 @@ class ModelClient:
             from .research_continuity import system_prompt, constrain_schema
             constrain_schema(schema, context)
             system = system_prompt(system)
-        return self._generate(context, correction, role + '\n' + system, schema)
+        from .panorama_research import system as panorama_system
+        return self._generate(context, correction, panorama_system(role + '\n' + system, context), schema)
 
     def generate_analyst_review(self, context, correction=None):
         from .review_cache import enabled as stable, schema as stable_schema, SYSTEM as CACHE_SYSTEM
@@ -790,7 +794,7 @@ class ModelClient:
             payload = {'model': self.settings.model, 'system_prompt': system +
                        '\nReturn ONLY a JSON object conforming to this schema:\n' + encoded(schema),
                        'input': ('\n\n'.join(m['content'] for m in messages[1:]) if stable_review(context) else
-                                 encoded(context) + ('\nValidation correction: ' + correction if correction else '')),
+                                 self._prompt_context(context) + ('\nValidation correction: ' + correction if correction else '')),
                        'reasoning': self.settings.reasoning, 'store': False, 'temperature': 0,
                        'max_output_tokens': self.settings.max_output_tokens}
         budget_audit = None

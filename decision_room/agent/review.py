@@ -29,7 +29,7 @@ def _key(key):
 
 def _stale(config, db, session, run):
     _, _, current_key = knowledge(db, session)
-    current_source = source_snapshot(config, session['business_id'], session['analysis_id'], session['source_snapshot']['owner_context'])
+    current_source = source_snapshot(config, session['business_id'], session['analysis_id'], session['source_snapshot']['owner_context'], research_panorama=session['source_snapshot'].get('research_panorama'))
     return bool(memory_context.reason(db, session['id']) or session['superseded_by'] or run['status'] == 'stale' or run['graph_version'] != REVIEW_GRAPH_VERSION
                 or current_key != run['knowledge_sha256']
                 or fingerprint(current_source) != fingerprint(run['snapshot']['source']))

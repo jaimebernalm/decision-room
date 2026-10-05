@@ -108,6 +108,9 @@ def _model_call(db, session_id, model, context, correction, retry_uncertain, *, 
     if phase in ('analyst_review','reviewer') and context.get('budgets', {}).get('review_stable_prefix'):
         from .review_cache import VERSION
         version += '+' + VERSION
+    if phase in ('planning', 'research', 'business_planner') and context.get('sales_panorama_research'):
+        from .panorama_research import VERSION
+        version += '+' + VERSION
     identity = {'context': context, 'correction': correction, 'prompt': version}
     if phase != 'planning':
         identity.update(phase=phase, scope=scope)

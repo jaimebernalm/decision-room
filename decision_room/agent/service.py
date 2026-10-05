@@ -27,6 +27,12 @@ def _create_session(config, business_id, analysis_id, *, owner_context, request_
     from ..data_knowledge.discovery import discover
     discover(config, business_id, analysis_id, model)
     source = snapshot(config, business_id, analysis_id, owner_context)
+    if config.sales_panorama_research:
+        from ..sales_panorama_store import prepare, review_snapshot
+        from ..web.presentation_editing import catalog_labels
+        with connect(config) as db:
+            labels = catalog_labels(config, business_id, analysis_id, db)
+        source['research_panorama'] = review_snapshot(prepare(config, business_id, analysis_id), fingerprint(source), labels)
     identity = {'source': source, 'model': model.identity, 'graph': GRAPH_VERSION}
     if request_period is not None:
         identity['period'] = memory_context.period(request_period)
@@ -118,7 +124,7 @@ def _drive(config, db, session, model=None, retry_uncertain=False):
         if session['graph_version'] != GRAPH_VERSION:
             raise ValueError('Session graph version needs migration before resuming.')
         current = snapshot(config, session['business_id'], session['analysis_id'],
-                           session['source_snapshot']['owner_context'])
+                           session['source_snapshot']['owner_context'], research_panorama=session['source_snapshot'].get('research_panorama'))
         if fingerprint(current) != fingerprint(session['source_snapshot']):
             raise ValueError('Source metadata changed. Start a new session to reinterpret this batch.')
         if model is None:

@@ -104,6 +104,32 @@ propio y roles simulados: cuatro llamadas de roles, cierre en segunda objeción,
 auditoría original y reanudación sin llamadas adicionales. Las tres regresiones
 editoriales anteriores siguen pasando. No se han usado modelos reales.
 
+## Paso 4: combinación con P1b
+
+P1b (`b0f69de`) se rebasa sobre `26fcdc4` en
+`codex/feature/panorama-research-integrated`. La rama de correcciones conserva el
+punto de comparación sin P1b. Todas las opciones nuevas siguen apagadas por defecto.
+Para medirlas, crear revisiones nuevas con:
+
+```
+DECISION_ROOM_REVIEW_CONTEXT_BUDGET=true
+DECISION_ROOM_REVIEW_CONTEXT_TOKENS=70000
+DECISION_ROOM_REVIEW_STABLE_PREFIX=true
+DECISION_ROOM_PANORAMA_OBLIGATION_GUARD=true
+```
+
+Conservar las opciones previas del brazo (P3, panorama y guardián editorial).
+P1b requiere `DECISION_ROOM_SALES_PANORAMA_RESEARCH=true` **antes de planificar**;
+no añade investigación retroactivamente a una planificación congelada. Al reanudar,
+las opciones guardadas prevalecen. El ensayo combinado usa importación, Docker y
+PostgreSQL aislados con roles simulados, sin API de modelos.
+
+Verificación final de la combinación: 102 pruebas aprobadas (contexto, caché,
+transporte simulado, esquemas estrictos, guardianes, P1a, P1b e importación/exportación
+con persistencia). También `compileall` y `git diff --check`. Ninguna llamada real
+al modelo. Estos tests demuestran contratos y regresiones, no mayor calidad
+semántica ni un porcentaje de caché futuro; eso queda para el ensayo por parejas.
+
 ## Correcciones del piloto — 5 de octubre, base 26fcdc4
 
 Plan: (1) metadatos y superposición con contexto compacto; (2) clave de caché por
@@ -170,3 +196,19 @@ recuperación de investigación. Incluye más de 1.000 claves, historial grande 
 mensajes multilínea. Detectó además `ReviewIssue.required` incompleto bajo políticas
 antiguas; corregido. Las pruebas verifican tanto rechazo del lint como peticiones
 finales válidas. Referencia oficial: https://developers.openai.com/api/docs/guides/structured-outputs
+
+
+### P1b rebasado tras el piloto
+
+Las tres correcciones parten de 26fcdc4: series `9b93000`, caché `e4a4c2f` y lint/citas
+`32ae3ac`. Este último sirve para medir sin P1b. La rama
+`codex/feature/panorama-research-series-integrated` reaplica únicamente P1b sobre él;
+se conserva la rama anterior para reproducibilidad. Solo hubo conflictos documentales.
+
+112 pruebas de regresión aprobadas antes del rebase, y 44 después, incluido el
+recorrido de importación con timestamps/hueco, investigación con continuidad,
+revisión con todas las opciones activadas y reanudación sin llamadas adicionales.
+El lint de los productores incluye ahora P1b. `compileall` y `git diff --check`
+aprobados. Sin API real, sin cambios en los ensayos ni en sus bases de datos, sin push.
+La cuota de caché y la causa exacta de la omisión de `unit` descrita en el piloto
+siguen pendientes de contrastar con el lote/petición real; no se infieren de mocks.

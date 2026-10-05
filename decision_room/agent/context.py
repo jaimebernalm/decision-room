@@ -13,7 +13,7 @@ def fingerprint(value):
     return hashlib.sha256(encoded(value).encode()).hexdigest()
 
 
-def snapshot(config, business_id, analysis_id, owner_context):
+def snapshot(config, business_id, analysis_id, owner_context, *, research_panorama=None):
     if len(owner_context) > 12000:
         raise ValueError('Owner context limit: 12,000 characters.')
     report = describe(config, business_id, analysis_id, detailed=True)
@@ -35,7 +35,15 @@ def snapshot(config, business_id, analysis_id, owner_context):
         })
     if not tables:
         raise ValueError('No prepared tables available.')
-    return {'owner_context': owner_context, 'tables': sorted(tables, key=lambda t: t['id']),
+    extra = {}
+    if research_panorama is not None:
+        from ..sales_panorama_store import materialize
+        if not {t['table_id'] for t in research_panorama['tables']} <= {t['id'] for t in tables}:
+            raise ValueError('Research panorama contains tables outside this source snapshot.')
+        observations = research_panorama.get('observations', [])
+        materialize(config, business_id, research_panorama, observations[0]['knowledge_sha256'] if observations else '')
+        extra['research_panorama'] = research_panorama
+    return {**extra, 'owner_context': owner_context, 'tables': sorted(tables, key=lambda t: t['id']),
             'unavailable_sources': unavailable}
 
 
@@ -47,6 +55,8 @@ def model_context(source, inspected, answers, previous):
                'unavailable_sources': source['unavailable_sources'],
                'answers': answers, 'previous_proposal': previous,
                'uninspected_table_ids': [t['id'] for t in source['tables'] if t['id'] not in inspected]}
+    from .panorama_research import expose
+    context = expose(context, source)
     if len(encoded(context).encode()) > 200000:
         raise ValueError('Model context exceeds 200 KB. Start a smaller analysis batch.')
     return context

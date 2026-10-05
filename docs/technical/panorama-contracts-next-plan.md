@@ -27,6 +27,6 @@ trazables; formato CSV real con fecha entrecomillada y hora, y hueco detectado,
 en las pruebas. Congelación y opciones preservan la comparación por parejas.
 No diseñar aún el negocio reservado. No activar opciones por defecto ni fusionar.
 
-Pasos 1 y 2 implementados y validados; paso 3 pendiente. Véanse las notas de validación del 5 de octubre. Registrar validación y limitaciones de cada
+Pasos 1–3 implementados y validados. Transporte: 00e0e7b. P1a v2: 53efa9b y df6ce59 (hash de aprobación incluye valores no citados). P1b: véase la nota de validación del 5 de octubre; medición real pendiente. Registrar validación y limitaciones de cada
 paso en documentación antes de su commit. La utilidad real queda pendiente de
 medición del usuario.

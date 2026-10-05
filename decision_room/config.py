@@ -29,6 +29,7 @@ class Config:
     review_stable_prefix: bool = False
     review_context_budget: bool = False
     review_context_tokens: int = 70000
+    sales_panorama_research: bool = False
 
     def __post_init__(self):
         maximum = {'text-embedding-3-small': 1536, 'text-embedding-3-large': 3072}
@@ -46,6 +47,7 @@ class Config:
                    review_context_budget=os.environ.get('DECISION_ROOM_REVIEW_CONTEXT_BUDGET', 'false').lower() == 'true',
                    review_context_tokens=int(os.environ.get('DECISION_ROOM_REVIEW_CONTEXT_TOKENS', '70000')),
                    review_loop_guard=os.environ.get('DECISION_ROOM_REVIEW_LOOP_GUARD', 'false').lower() == 'true',
+                   sales_panorama_research=os.environ.get('DECISION_ROOM_SALES_PANORAMA_RESEARCH', 'false').lower() == 'true',
                    sales_panorama=os.environ.get('DECISION_ROOM_SALES_PANORAMA', 'false').lower() == 'true',
                    owner_presentation=os.environ.get('DECISION_ROOM_OWNER_PRESENTATION', 'false').lower() == 'true',
                    research_continuity=os.environ.get('DECISION_ROOM_RESEARCH_CONTINUITY', 'false').lower() == 'true',

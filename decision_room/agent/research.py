@@ -88,6 +88,9 @@ def start(config, business_id, session_id, *, request_key, max_investigations=No
             raise ValueError('Unknown investigation key for this plan.')
         if not any(i['status'] == 'ready' for i in plan['investigations']):
             raise ValueError('No investigation is ready; resolve required definitions first.')
+        if session['source_snapshot'].get('research_panorama'):
+            from .panorama_research import validate as validate_panorama
+            validate_panorama(plan, session['source_snapshot'])
         allowed = set(revision['inspected_table_ids'])
         table_catalog = [{**t, 'alias': f't{n + 1}'} for n, t in enumerate(session['source_snapshot']['tables']) if t['id'] in allowed]
         saved = {'source': session['source_snapshot'], 'proposal': plan, 'answers': owner_answers, 'tables': table_catalog}
@@ -96,6 +99,8 @@ def start(config, business_id, session_id, *, request_key, max_investigations=No
                    'max_rounds': max_rounds, 'max_executions': max_executions, 'max_seconds': max_seconds, 'max_agenda': 24}
         options.update(delivery_quality=1, business_planner=business_planner, quality_first=quality_first, max_planner_checkpoints=24,
                        max_context_bytes=512000 if quality_first else 200000)
+        if session['source_snapshot'].get('research_panorama'):
+            options['sales_panorama_research'] = True
         if research_validation_recovery:
             options['research_validation_recovery'] = True
         if research_continuity:
@@ -119,7 +124,7 @@ def _drive(config, db, session, run, *, model=None, executor=execute, retry_unce
     try:
         memory_context.ensure(db, session['id'])
         _, _, current_key = knowledge(db, session)
-        current_source = source_snapshot(config, session['business_id'], session['analysis_id'], session['source_snapshot']['owner_context'])
+        current_source = source_snapshot(config, session['business_id'], session['analysis_id'], session['source_snapshot']['owner_context'], research_panorama=session['source_snapshot'].get('research_panorama'))
         if session['superseded_by'] or current_key != run['knowledge_sha256'] or fingerprint(current_source) != fingerprint(session['source_snapshot']):
             raise StaleResearch('Knowledge or source changed. Start research from the current plan; previous results are stale.')
         if run['status'] == 'stale':
