@@ -642,6 +642,68 @@ Lección para las pruebas del producto: validar con el formato real de las
 entradas (marcas de tiempo a medianoche), no solo con fixtures construidos para
 el test.
 
+## 16. P1a (panorama determinista): medición con datos reales
+
+Revisión `d14c0ed` de Astra, que añade fechas con hora a P3c (`c8a42c5`), la
+corrección del bloqueo del revisor (`f740c0b`) y P1a (`5d0aae0`).
+
+Antes de usar el modelo, el panorama se calculó sobre las bases clonadas: 0 filas
+inválidas en los dos negocios. En Albor detecta por código dos señales plantadas:
+- S4: Marketplace sin filas del 10 al 18 de marzo de 2026. Ningún informe de
+  ningún sistema la había detectado.
+- S2: Café 1 kg en Hostelería sin filas desde el 31 de marzo de 2026.
+
+Comparación elegida: enero–agosto de 2026 frente a 2025 en Albor, y agosto frente
+a julio en Bruma.
+
+Lote `phase1a2`:
+- 9 investigaciones, cada una reescrita dos veces con `d14c0ed` y P3c: con
+  panorama y sin panorama.
+- Todos los brazos sin panorama, aprobados a la primera (9/9).
+- Brazo con panorama: 5 de 9 fallaron en el primer intento por transporte, y los
+  5 reintentos (`trials.py retry`) se aprobaron. Hay 9/9 aprobados tras el
+  reintento.
+- Diagnóstico del transporte:
+  - el panorama añade entre 20.000 y 50.000 tokens a cada llamada de revisión,
+    que en Albor llega a 100.000–160.000;
+  - la cuenta admite 200.000 tokens por minuto, así que analista y revisor
+    seguidos provocan un 429;
+  - el producto reintenta a los 13 s (`retry_after`), cuando el límite se libera
+    a los ~44 s (`reset_tokens_seconds`);
+  - el reintento acaba en `RemoteProtocolError` y la llamada se marca
+    `ModelRequestUncertain`;
+  - también hubo un `ReadTimeout` de 300 s y una llamada colgada 23 minutos.
+- Es un riesgo de escala del producto: con negocios grandes, el contexto se
+  acerca al límite de tokens por minuto.
+
+Uso del panorama en los informes aprobados (texto visible e informe estructurado):
+
+| Grupo | n | Cita alguna métrica del panorama | Menciona el hueco de Marketplace | Menciona Hostelería sin filas |
+| --- | ---: | ---: | ---: | ---: |
+| Albor con panorama | 6 | 0 | 0 | 3 |
+| Albor sin panorama | 6 | 0 | 0 | 3 |
+| Bruma con panorama | 3 | 0 | — | — |
+| Bruma sin panorama | 3 | 0 | — | — |
+
+El panorama llega al analista: está en el contexto, aunque al final (posición
+~245.000 de 272.000 bytes), y sus métricas son citables en el esquema. Las
+instrucciones mandan abrir el informe con él y citarlo. Ningún informe lo hace.
+El tratamiento no se expresa, así que no se gasta una ronda de lectores.
+
+Lección de arquitectura, coherente con las fases anteriores: el modelo cumple
+los contratos de esquema y validador, no las sugerencias de prompt.
+- La continuidad funcionó porque era estructural.
+- P3 empezó a funcionar cuando la presentación se hizo por código.
+- P1a como contexto pasivo no cambia nada.
+
+Siguiente paso pedido a Astra, P1a v2:
+- bloque de panorama renderizado por código al principio del informe;
+- disposición obligatoria y validada de cada hueco detectado (prioridad o
+  descarte con motivo);
+- justificación estructurada de cada prioridad frente al panorama;
+- panorama compacto al principio del contexto;
+- transporte que espere `reset_tokens_seconds`, con tope duro por llamada.
+
 ## 10. Límites
 
 Tres repeticiones son pocas para afirmar consistencia; sirven para detectar
