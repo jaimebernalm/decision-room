@@ -10,7 +10,15 @@ import duckdb
 
 from .csv_ingest import identifier
 
-VERSION = 'sales-panorama-v1'
+VERSION = 'sales-panorama-v2'
+# Validate the whole timestamp before extracting its date; never accept a valid
+# date prefix followed by an invalid time, timezone or arbitrary suffix.
+ISO_DATE_TIME = (r'[0-9]{4}-[0-9]{2}-[0-9]{2}'
+                 r'([ T]([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]+)?'
+                 r'(Z|[+-]([01][0-9]|2[0-3])(:?[0-5][0-9])?)?)?')
+DATE_RULE = ('Se agrupan todas las horas por el día escrito en cada fecha ISO; no se exige medianoche. '
+             'Las zonas explícitas del texto se validan sin convertir el día a otra zona. '
+             'DATE y TIMESTAMP conservan su día; TIMESTAMPTZ usa el día en UTC porque no conserva la zona original.')
 MAX_DAILY_GROUPS = 1_000_000
 MAX_DIMENSION_GROUPS = 500
 TOP = 5
@@ -145,22 +153,51 @@ def _calculate(path, columns, explicit=None):
     d, p, c, q = [identifier(selected[k]) for k in ROLES]
     with duckdb.connect(config={'threads': 2, 'memory_limit': '512MB', 'max_temp_directory_size': '0B'}) as db:
         db.read_parquet(str(path)).create_view('source')
-        db.execute(f'''CREATE TEMP VIEW parsed AS SELECT
-            CASE WHEN regexp_full_match(trim({d}), '[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}') THEN TRY_CAST(trim({d}) AS DATE) END AS day,
-            {p} AS product, {c} AS channel,
-            CASE WHEN regexp_full_match(trim({q}), '[+-]?[0-9]+([.][0-9]{{1,8}})?') THEN TRY_CAST(trim({q}) AS DECIMAL(38,8)) END AS quantity
-            FROM source''')
-        total, invalid = db.execute("SELECT count(*),count(*) FILTER (WHERE day IS NULL OR day < DATE '0002-01-01' OR day > DATE '9998-12-31' OR quantity IS NULL OR product IS NULL OR trim(product)='' OR length(product)>500 OR channel IS NULL OR trim(channel)='' OR length(channel)>500) FROM parsed").fetchone()
+        # Read typed dates/timestamps as ISO text too. Zoned text retains its
+        # written calendar day; TIMESTAMPTZ has already lost the original offset.
+        db.execute("SET TimeZone = 'UTC'")
+        db.execute(f'''CREATE TEMP VIEW lexical AS SELECT
+            trim(CAST({d} AS VARCHAR)) AS date_text,
+            CAST({p} AS VARCHAR) AS product, CAST({c} AS VARCHAR) AS channel,
+            trim(CAST({q} AS VARCHAR)) AS quantity_text FROM source''')
+        db.execute(f'''CREATE TEMP VIEW parsed AS SELECT *,
+            regexp_full_match(date_text, '{ISO_DATE_TIME}') AS date_format_valid,
+            TRY_CAST(left(date_text, 10) AS DATE) AS day,
+            CASE WHEN regexp_full_match(quantity_text, '[+-]?[0-9]+([.][0-9]{{1,8}})?')
+                THEN TRY_CAST(quantity_text AS DECIMAL(38,8)) END AS quantity
+            FROM lexical''')
+        rules = {
+            'missing_date': ("date_text IS NULL OR date_text=''", 'Fecha nula o vacía.'),
+            'invalid_date_format': ("date_text<>'' AND NOT date_format_valid", 'Se requiere fecha ISO YYYY-MM-DD, con hora opcional HH:MM:SS (00–23, 00–59, 00–59), fracción opcional y zona Z o ±HH[:MM].'),
+            'invalid_calendar_date': ("date_format_valid AND day IS NULL", 'El día o mes no existe en el calendario.'),
+            'date_out_of_range': ("date_format_valid AND (day < DATE '0002-01-01' OR day > DATE '9998-12-31')", 'Fecha fuera de los años admitidos: 2 a 9998.'),
+            'invalid_quantity': ("quantity IS NULL", 'Cantidad nula, vacía o no representable como DECIMAL(38,8); hasta 8 decimales, sin separadores de miles.'),
+            'missing_product': ("product IS NULL OR trim(product)=''", 'Producto nulo o vacío.'),
+            'product_too_long': ("length(product)>500", 'Producto de más de 500 caracteres.'),
+            'missing_channel': ("channel IS NULL OR trim(channel)=''", 'Canal nulo o vacío.'),
+            'channel_too_long': ("length(channel)>500", 'Canal de más de 500 caracteres.'),
+        }
+        checks = [f'({condition})' for condition, _ in rules.values()]
+        counts = db.execute('SELECT count(*), count(*) FILTER (WHERE ' + ' OR '.join(checks) + '), ' +
+                            ', '.join(f'count(*) FILTER (WHERE {check})' for check in checks) + ' FROM parsed').fetchone()
+        total, invalid = counts[:2]
+        diagnostics = dict(row_count=total, invalid_rows=invalid,
+            invalid_rows_by_rule={key: count for key, count in zip(rules, counts[2:])},
+            validation_rules={key: explanation for key, (_, explanation) in rules.items()},
+            counting_rule='invalid_rows cuenta filas distintas; una fila puede incumplir varias reglas.')
         if not total or invalid:
-            return dict(version=VERSION, status='unavailable', mapping=selected, row_count=total, invalid_rows=invalid,
-                        reason='Se requieren fechas ISO entre los años 2 y 9998, dimensiones presentes de hasta 500 caracteres y cantidades decimales válidas (hasta 8 decimales). No se descartan ni convierten silenciosamente filas.')
+            return dict(version=VERSION, status='unavailable', mapping=selected, **diagnostics, date_rule=DATE_RULE,
+                        reason=f'{invalid} de {total} filas incumplen las reglas del panorama.' if total else 'El archivo no contiene filas.',
+                        limitation='No se descartan filas inválidas ni se presenta un total parcial. Consultar invalid_rows_by_rule y validation_rules.')
         # Quantity is a column sum, not a claim of monetary revenue or tickets.
         rows = db.execute(f'SELECT day,product,channel,sum(quantity),count(*) FROM parsed GROUP BY ALL ORDER BY day,product,channel LIMIT {MAX_DAILY_GROUPS+1}').fetchall()
         if len(rows) > MAX_DAILY_GROUPS:
             return dict(version=VERSION, status='unavailable', mapping=selected, reason='El panorama supera 1.000.000 de grupos diarios; requiere agregación explícita. No se usa una muestra.')
     with localcontext() as ctx:
         ctx.prec = 80
-        return summarize(rows, selected, total)
+        result = summarize(rows, selected, total)
+        result['diagnostics'] = diagnostics
+        return result
 
 
 def summarize(rows, selected, row_count):
@@ -177,7 +214,7 @@ def summarize(rows, selected, row_count):
     summary = dict(version=VERSION, status='available', mapping=selected,
         measure={'column': selected['quantity'], 'definition': quantity, 'unit': 'cantidad registrada',
                  'semantic_status': 'header_mapping_not_owner_confirmation'},
-        period=[first.isoformat(), last.isoformat()], comparison=comparison,
+        period=[first.isoformat(), last.isoformat()], comparison=comparison, date_rule=DATE_RULE,
         row_count=metric('rows', row_count, 'COUNT(*) del archivo completo.'),
         total=metric('total', sum(r[3] for r in rows), quantity),
         gap_rule='Días: un día de semana con filas en al menos 6 de las 8 semanas anteriores, y al menos 3 días esperados ausentes en un tramo. Meses: actividad en al menos 4 de los 6 meses previos y ausencia durante al menos un mes completo. Solo después de aparecer el grupo; sin concluir cierre, fallo de extracción o ventas cero.',

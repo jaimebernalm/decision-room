@@ -1050,3 +1050,10 @@ instrucciones editoriales v3 para jerga y razones de comparación.
 [Validación y límites](../validation/2026-10-04-owner-presentation-p3c.md).
 51 pruebas locales con modelos simulados; sin llamadas reales. Pendiente volver
 a redactar y comparar por parejas. P2 continúa pendiente.
+
+**Corrección de P1a — Fechas con hora, 4 de octubre:** sobre `c8a42c5`, calculador
+v2 admite fechas ISO con hora, fracción y zona, y parquet con fechas tipadas.
+Agrupa todas las horas por día y detalla las filas rechazadas por regla.
+[Validación y política de zona](../validation/2026-10-04-sales-panorama-iso-dates.md).
+21 pruebas, incluida la importación real de un CSV sintético entrecomillado;
+sin llamadas reales al modelo. Pendiente repetir la medición por parejas.
