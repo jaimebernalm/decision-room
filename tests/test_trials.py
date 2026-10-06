@@ -391,13 +391,47 @@ class PairedComparisonTests(unittest.TestCase):
             key = trials.read(batch / 'kit-key-kit.json')
             code, info = next(iter(key['codes'].items()))
             engine_side = info['engine_side']
-            vote = {'choices': {code: {'choice': engine_side}}}
-            result = trial_pairs.score(batch, 'kit', [vote, vote])
-            self.assertEqual(result['groups'][0]['mean'], 1.0)
+            vote = lambda name: {'lector': name, 'choices': {code: {'choice': engine_side}}}
+            result = trial_pairs.score(batch, 'kit', [vote('ana'), vote('luis')], min_pairs=1)
+            row = next(r for r in result['groups'] if r['opponent'] == 'opencode')
+            self.assertEqual((row['mean'], row['passed']), (1.0, True))
             self.assertEqual(result['insufficient_pairs'], ['demo-product-1'])
-            self.assertFalse(result['passed'])
+            self.assertFalse(result['readers_gate_passed'])
+            with self.assertRaises(SystemExit):  # the same reader twice is not two readers
+                trial_pairs.score(batch, 'kit', [vote('ana'), vote('ana')])
+            with self.assertRaises(SystemExit):
+                trial_pairs.score(batch, 'kit', [{'choices': vote('x')['choices']}])
             page = (Path(tmp) / 'kit/comparacion.html').read_text()
             self.assertNotIn('engine', page.split('const DATA=')[1].split(', KIT=')[0])
+
+    def test_readers_gate_needs_two_readers_per_pair_and_six_pairs_per_group(self):
+        with TemporaryDirectory() as tmp:
+            batch, trial_pairs = self.batch(tmp, repeats=6)
+            trial_pairs.plan(batch, seed=3, against=('opencode',))
+            for name in trials.read(batch / 'manifest.json')['order']:
+                if '-product-' not in name:
+                    self.finish(batch, name)
+            trial_pairs.kit(batch, Path(tmp) / 'kit', 'contenido')
+            codes = trials.read(batch / 'kit-key-kit.json')['codes']
+            win = lambda name, skip=0: {'lector': name, 'choices': {
+                c: {'choice': i['engine_side']} for n, (c, i) in enumerate(codes.items()) if n >= skip}}
+            alone = trial_pairs.score(batch, 'kit', [win('ana')])
+            self.assertEqual(len(alone['underread_pairs']), 6)
+            self.assertFalse(alone['readers_gate_passed'])
+            short = trial_pairs.score(batch, 'kit', [win('ana', skip=1), win('luis', skip=1)])
+            self.assertFalse(short['groups'][0]['enough_pairs'] or short['readers_gate_passed'])
+            full = trial_pairs.score(batch, 'kit', [win('ana'), win('luis')])
+            self.assertTrue(full['readers_gate_passed'])
+            self.assertEqual((full['groups'][0]['pairs'], full['groups'][0]['mean']), (6, 1.0))
+
+    def test_empty_plan_is_refused(self):
+        with TemporaryDirectory() as tmp:
+            batch, trial_pairs = self.batch(tmp, repeats=1)
+            manifest = trials.read(batch / 'manifest.json')
+            manifest['datasets'] = {}
+            trials.write(batch / 'manifest.json', manifest)
+            with self.assertRaises(SystemExit):
+                trial_pairs.plan(batch, seed=1)
 
     def test_first_replacement_fills_a_lost_slot(self):
         with TemporaryDirectory() as tmp:

@@ -10,8 +10,11 @@ each pair side by side, left/right at random and fresh codes; the key stays in B
 each reader's vote into a score for the engine (win 1, tie 0.5, loss 0); per pair, the mean of the
 votes decides the pair (> 0.5 win 1, = 0.5 tie 0.5, < 0.5 loss 0) and the raw mean is kept; the
 gate takes the mean of pair results per dataset and opponent: >= 0.5 against the agent loop and
-> 0.5 against the pipeline, in every dataset. A lost report is replaced by its first replacement
-attempt; if that is lost too the pair is insufficient, stays planned and the gate cannot pass.
+> 0.5 against the pipeline, in every dataset. Each pair needs votes from at least two distinct
+readers and each dataset and opponent at least six pairs. A lost report is replaced by its first
+replacement attempt; if that is lost too the pair is insufficient, stays planned and the gate
+cannot pass. This is only the readers' part of the step 3 gate: signals, accuracy and lost
+reports are judged separately.
 """
 import argparse
 import base64
@@ -26,6 +29,8 @@ from .trial_kit import LABELS, debrand, neutralize
 from .trials import read, text_of
 
 ENGINE = 'engine'
+MIN_READERS = 2  # distinct readers per pair (preregistration, section 4)
+MIN_PAIRS = 6    # pairs per dataset and opponent (preregistration, section 3)
 GATE = {'opencode': ('>=', 0.5), 'product': ('>', 0.5)}  # agent loop with panorama; frozen pipeline
 MEASURES = {'contenido': 'Presentación igualada: juzga qué ayuda más a decidir.',
             'artefacto': 'Presentación real: juzga qué informe entregarías al dueño.'}
@@ -58,6 +63,8 @@ def plan(batch, seed, against=('opencode', 'product')):
             pairs += [{'id': f'{dataset}-{opponent}-{i + 1}', 'dataset': dataset, 'opponent': opponent,
                        'engine': f'{dataset}-{ENGINE}-{e}', 'other': f'{dataset}-{opponent}-{o}'}
                       for i, (e, o) in enumerate(zip(engine, other))]
+    if not pairs:
+        raise SystemExit('No pairs to plan: the batch has no engine repetitions for these datasets.')
     write(batch / 'pairs.json', {'created_at': datetime.now(timezone.utc).isoformat(), 'seed': seed,
                                  'against': list(against), 'pairs': pairs})
     return pairs
@@ -136,33 +143,45 @@ def pair_result(votes):
     return (1.0 if mean > 0.5 else 0.5 if mean == 0.5 else 0.0), mean
 
 
-def score(batch, kit_name, readers):
-    """Pair results from readers' votes, their mean per dataset and opponent, and the gate."""
+def score(batch, kit_name, readers, min_readers=MIN_READERS, min_pairs=MIN_PAIRS):
+    """Pair results from readers' votes, their mean per dataset and opponent, and the readers' gate."""
     batch = Path(batch)
     key = read(batch / f'kit-key-{kit_name}.json')
     pairs = {p['id']: p for p in read(batch / 'pairs.json')['pairs']}
+    names = [str(answers.get('lector') or '').strip() for answers in readers]
+    if not all(names) or len(set(names)) != len(names):
+        raise SystemExit('Every reader file needs its own non-empty reader name (lector).')
     per_pair = {}
-    for answers in readers:
+    for name, answers in zip(names, readers):
         for code, entry in answers['choices'].items():
             if code in key['codes'] and entry.get('choice') in CHOICES:
                 info = key['codes'][code]
-                per_pair.setdefault(info['pair'], []).append(engine_score(entry['choice'], info['engine_side']))
+                per_pair.setdefault(info['pair'], {})[name] = engine_score(entry['choice'], info['engine_side'])
+    underread = sorted(p for p, votes in per_pair.items() if len(votes) < min_readers)
     groups = {}
     for pair_id, votes in per_pair.items():
-        pair = pairs[pair_id]
-        groups.setdefault((pair['dataset'], pair['opponent']), []).append(pair_result(votes))
+        if pair_id not in underread:
+            pair = pairs[pair_id]
+            groups.setdefault((pair['dataset'], pair['opponent']), []).append(pair_result(list(votes.values())))
+    expected = sorted({(p['dataset'], p['opponent']) for p in pairs.values()})
     table = []
-    for (dataset, opponent), results in sorted(groups.items()):
-        mean = sum(r for r, _ in results) / len(results)
+    for dataset, opponent in expected:
+        results = groups.get((dataset, opponent), [])
+        mean = sum(r for r, _ in results) / len(results) if results else None
         sign, threshold = GATE[opponent]
-        passed = mean >= threshold if sign == '>=' else mean > threshold
-        table.append({'dataset': dataset, 'opponent': opponent, 'pairs': len(results), 'mean': round(mean, 4),
-                      'raw_vote_mean': round(sum(m for _, m in results) / len(results), 4),
-                      'threshold': f'{sign} {threshold}', 'passed': passed})
+        enough = len(results) >= min_pairs
+        passed = enough and mean is not None and (mean >= threshold if sign == '>=' else mean > threshold)
+        table.append({'dataset': dataset, 'opponent': opponent, 'pairs': len(results),
+                      'mean': None if mean is None else round(mean, 4),
+                      'raw_vote_mean': round(sum(m for _, m in results) / len(results), 4) if results else None,
+                      'threshold': f'{sign} {threshold}', 'enough_pairs': enough, 'passed': passed})
     unscored = sorted(set(pairs) - set(per_pair))
-    result = {'measure': key['measure'], 'readers': len(readers), 'groups': table,
-              'insufficient_pairs': key['skipped'], 'unscored_pairs': unscored,
-              'passed': not unscored and all(row['passed'] for row in table)}
+    result = {'measure': key['measure'], 'readers': names, 'groups': table,
+              'insufficient_pairs': key['skipped'], 'unscored_pairs': unscored, 'underread_pairs': underread,
+              'readers_gate_passed': bool(table) and not (unscored or underread or key['skipped'])
+                                     and all(row['passed'] for row in table),
+              'note': 'Solo la parte de lectores de la puerta del paso 3; señales, exactitud e '
+                      'informes perdidos se juzgan aparte.'}
     write(batch / f'pairs-score-{kit_name}.json', result)
     return result
 
@@ -191,14 +210,16 @@ label.q{display:block;font-weight:600;margin:12px 0 6px}textarea{width:100%;min-
 </style></head><body>
 <header><h1>Comparación de informes</h1>
 <p>__MEASURE__ Lee los dos informes de cada pareja como si fueras el dueño del negocio. No sabes qué sistema escribió cada uno ni hace falta adivinarlo. Elige el más útil o «empate», y explica por qué. Las respuestas se guardan en este navegador; al terminar, pulsa «Descargar respuestas».</p>
-<div class="row"><button class="secondary" type="button" onclick="download()">Descargar respuestas</button></div></header>
+<div class="row"><label for="lector">Tu nombre o código</label><input id="lector" autocomplete="off">
+<button class="secondary" type="button" onclick="download()">Descargar respuestas</button></div></header>
 <nav id="nav"></nav><main id="main"></main>
 <script>
 const DATA=__DATA__, KIT="__KIT__", KEY="comparacion-informes-"+KIT;
 const decode=b=>new TextDecoder().decode(Uint8Array.from(atob(b),c=>c.charCodeAt(0)));
-let state={choices:{}};
+let state={choices:{},lector:''};
 try{const s=localStorage.getItem(KEY);if(s)state=JSON.parse(s)}catch(e){}
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}};
+const who=document.getElementById('lector');who.value=state.lector||'';who.oninput=()=>{state.lector=who.value.trim();save()};
 const esc=t=>String(t||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let current=null;
 function nav(){const n=document.getElementById('nav');n.innerHTML='';
@@ -218,7 +239,8 @@ function show(code){current=code;nav();const d=DATA.find(x=>x.code===code);const
   state.choices[code]={choice:f.get('choice'),motivo:f.get('motivo'),saved_at:new Date().toISOString()};save();nav();
   document.getElementById('msg').innerHTML=f.get('choice')?'<span class="saved">Guardado.</span>':'<span class="warn">Falta elegir.</span>'};
  window.scrollTo(0,0)}
-function download(){const blob=new Blob([JSON.stringify({kit:KIT,exportado:new Date().toISOString(),...state},null,2)],{type:'application/json'});
+function download(){if(!state.lector){alert('Escribe tu nombre o código antes de descargar.');who.focus();return}
+ const blob=new Blob([JSON.stringify({kit:KIT,exportado:new Date().toISOString(),...state},null,2)],{type:'application/json'});
  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='comparacion-'+KIT+'.json';a.click()}
 nav();if(DATA.length)show(DATA[0].code);
 </script></body></html>
