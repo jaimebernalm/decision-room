@@ -19,6 +19,16 @@ echo '{"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":2}}'
 '''
 
 
+FAKE_OPENCODE = '''#!/bin/sh
+work="$1"; out="$3"; mkdir -p "$out/work"
+test -n "$OPENAI_API_KEY" || exit 7
+test -f "$work/contexto/panorama.md" || exit 8
+cp -R "$work/." "$out/work/"
+printf '<html><body><h1>Hosteleria sin registros</h1></body></html>' > "$out/work/informe.html"
+echo '{"path": "/v1/responses", "status": 200, "usage": {"input_tokens": 100, "input_tokens_details": {"cached_tokens": 90}, "output_tokens": 5}}' > "$out/proxy-llamadas.jsonl"
+'''
+
+
 class TrialDataTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -130,6 +140,30 @@ class LauncherTests(unittest.TestCase):
         self.assertNotIn('x()', text)
         self.assertIn('| a | 1', text)
         self.assertIn('Total 914', text)
+
+    def test_opencode_batch_copies_context_and_keeps_the_key_out_of_files(self):
+        with TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            source = tmp / 'dataset'
+            (source / 'datos').mkdir(parents=True)
+            (source / 'datos/x-000.csv').write_text('fecha,unidades\n2026-01-01,1\n')
+            (source / 'contexto').mkdir()
+            (source / 'contexto/panorama.md').write_text('# Panorama')
+            (source / 'prompt.txt').write_text('Mi negocio es Prueba.')
+            runner = tmp / 'run-opencode.sh'
+            runner.write_text(FAKE_OPENCODE)
+            (tmp / '.env').write_text('OPENAI_API_KEY="sk-test-not-real"\n')
+            batch = tmp / 'batch'
+            with patch.dict(os.environ, {'TRIALS_OPENCODE_RUNNER': str(runner)}):
+                trials.prepare(batch, {'demo': str(source)}, 'HEAD', 1, ['opencode'], tmp, tmp / '.env')
+                self.assertEqual(trials.run(batch), 1)
+            state = trials.read(batch / 'jobs/demo-opencode-1/state.json')
+            self.assertEqual(state['status'], 'completed')
+            self.assertTrue(state['inputs_unchanged'] and state['report_exists'])
+            self.assertEqual(trials.resources(batch / 'jobs/demo-opencode-1', state)['input_tokens'], 100)
+            self.assertIn('contexto/panorama.md', trials.read(batch / 'manifest.json')['datasets']['demo']['context'])
+            leaked = [p for p in batch.rglob('*') if p.is_file() and b'sk-test-not-real' in p.read_bytes()]
+            self.assertEqual(leaked, [])
 
     def test_hints_require_every_group(self):
         self.assertTrue(trials.hinted('La Tienda cae en domingo', [['domingo'], ['tienda']]))

@@ -35,7 +35,8 @@ from uuid import uuid4
 from ..config import ROOT
 from .runner import write
 
-SYSTEMS = ('luna', 'product', 'reference')
+SYSTEMS = ('luna', 'product', 'reference', 'opencode')
+AGENT_LOOPS = ('luna', 'opencode')  # one agent in a tool loop; inputs copied into the job
 PRODUCT_ARMS = ('product', 'reference')
 CODEX_ARGS = ['exec', '--ignore-user-config', '--ephemeral', '--skip-git-repo-check',
               '--sandbox', 'workspace-write', '--model', 'gpt-6-luna',
@@ -93,6 +94,12 @@ def copy_inputs(source, target):
     for path in sorted((source / 'datos').glob('*.csv')):
         shutil.copyfile(path, target / 'datos' / path.name)
         (target / 'datos' / path.name).chmod(0o444)
+    if (source / 'contexto').is_dir():
+        # Optional read-only material the owner hands over with the data (e.g. a computed panorama).
+        shutil.copytree(source / 'contexto', target / 'contexto')
+        for path in (target / 'contexto').rglob('*'):
+            if path.is_file():
+                path.chmod(0o444)
     shutil.copyfile(source / 'prompt.txt', target / 'prompt.txt')
     return {p.name: sha(p) for p in sorted((target / 'datos').glob('*.csv'))}
 
@@ -116,6 +123,9 @@ def prepare(batch, datasets, product_ref, repeats, systems, runtime_root, env_fi
         first = prompt.split('.', 1)[0]
         manifest['datasets'][name] = {'inputs': inputs, 'prompt_sha256': hashlib.sha256(prompt.encode()).hexdigest(),
                                       'business': re.sub(r'^Mi negocio es ', '', first)[:80]}
+        if (target / 'contexto').is_dir():
+            manifest['datasets'][name]['context'] = {str(p.relative_to(target)): sha(p)
+                                                     for p in sorted((target / 'contexto').rglob('*')) if p.is_file()}
         if (source / 'oracle.json').exists():
             raise SystemExit(f'{source} contains oracle.json; keep oracles away from agent inputs.')
     if set(systems) & set(PRODUCT_ARMS):
@@ -149,6 +159,17 @@ def prepare(batch, datasets, product_ref, repeats, systems, runtime_root, env_fi
                                      'python': python_path, 'env': env}
         if 'product' in manifest['arms']:
             manifest.update(product_ref=product_ref, revision=manifest['arms']['product']['revision'])
+    if 'opencode' in systems:
+        runner = Path(os.environ.get('TRIALS_OPENCODE_RUNNER', ROOT / '.local/engine-spike/run-opencode.sh'))
+        if not runner.exists():
+            raise SystemExit(f'OpenCode runner not found: {runner}')
+        config = runner.parent / 'config/opencode.json'
+        manifest['opencode'] = {'runner': str(runner), 'runner_sha256': sha(runner),
+                                'config_sha256': sha(config) if config.exists() else None,
+                                'image': os.environ.get('OPENCODE_IMAGE', 'decision-room-opencode:1.18.34'),
+                                'model': os.environ.get('OPENCODE_MODEL', 'openai/gpt-6-luna'),
+                                'variant': os.environ.get('OPENCODE_VARIANT', 'low'),
+                                'env_file': str(Path(env_file).resolve())}
     if 'luna' in systems:
         binary = shutil.which('codex')
         if not binary:
@@ -160,7 +181,7 @@ def prepare(batch, datasets, product_ref, repeats, systems, runtime_root, env_fi
         dataset, system, repetition = name.rsplit('-', 2)
         job = batch / 'jobs' / name
         job.mkdir(parents=True)
-        if system == 'luna':
+        if system in AGENT_LOOPS:
             copy_inputs(batch / 'inputs' / dataset, job)
         write(job / 'state.json', {'job': name, 'dataset': dataset, 'system': system,
                                    'repetition': int(repetition), 'status': 'not_run',
@@ -320,10 +341,77 @@ def run_luna(batch, job):
                      shared_tmp_commands=sum('/tmp/' in (c.get('command') or '') for c in commands),
                      outside_paths=sorted({p for c in commands for p in outside(c.get('command') or '', job)}),
                      report_exists=(job / 'informe.html').exists(),
-                     inputs_unchanged={p.name: sha(p) for p in sorted((job / 'datos').glob('*.csv'))}
-                     == read(batch / 'manifest.json')['datasets'][state['dataset']]['inputs'])
+                     inputs_unchanged=inputs_unchanged(batch, job, state))
         if state['status'] != 'timed_out':
             state['status'] = 'completed' if code == 0 and completed else 'failed'
+    except Exception as error:
+        state.update(status='failed', issue=str(error)[:2000])
+    finally:
+        state['seconds'] = round(time.monotonic() - started, 3)
+        write(job / 'state.json', state)
+
+
+def inputs_unchanged(batch, job, state):
+    dataset = read(batch / 'manifest.json')['datasets'][state['dataset']]
+    context = {str(p.relative_to(job)): sha(p) for p in sorted((job / 'contexto').rglob('*')) if p.is_file()} \
+        if (job / 'contexto').is_dir() else {}
+    return ({p.name: sha(p) for p in sorted((job / 'datos').glob('*.csv'))} == dataset['inputs']
+            and context == dataset.get('context', {}))
+
+
+def env_value(path, key):
+    """One value from a dotenv file, without loading it into this process."""
+    for line in Path(path).read_text().splitlines():
+        name, _, value = line.strip().partition('=')
+        if name.strip().removeprefix('export ').strip() == key:
+            return value.strip().strip('"').strip("'")
+    return None
+
+
+def run_opencode(batch, job):
+    """OpenCode headless in an isolated container (run-opencode.sh): no host mounts, no key in
+    the agent, a proxy that only forwards OpenAI model calls. The agent sees a clean copy of
+    datos/ and contexto/; the report and metrics come back under salida/."""
+    state = read(job / 'state.json')
+    spec = read(batch / 'manifest.json')['opencode']
+    work = job / 'trabajo'
+    if work.exists():
+        shutil.rmtree(work)
+    work.mkdir()
+    for folder in ('datos', 'contexto'):
+        if (job / folder).is_dir():
+            shutil.copytree(job / folder, work / folder)
+    env = {k: v for k, v in os.environ.items() if not k.startswith('DECISION_ROOM_')}
+    env.update(OPENAI_API_KEY=env_value(spec['env_file'], 'OPENAI_API_KEY') or '', OPENCODE_IMAGE=spec['image'],
+               OPENCODE_MODEL=spec['model'], OPENCODE_VARIANT=spec['variant'])
+    state.update(status='running', started_at=datetime.now(timezone.utc).isoformat())
+    write(job / 'state.json', state)
+    started = time.monotonic()
+    try:
+        with (job / 'runner.log').open('wb') as log:
+            process = subprocess.Popen(['bash', spec['runner'], str(work), str(job / 'prompt.txt'), str(job / 'salida')],
+                                       stdout=log, stderr=subprocess.STDOUT, env=env, start_new_session=True)
+            try:
+                code = process.wait(timeout=LUNA_TIMEOUT)
+            except subprocess.TimeoutExpired:
+                os.killpg(process.pid, signal.SIGTERM)
+                process.wait()
+                code, state['status'] = process.returncode, 'timed_out'
+        report = job / 'salida/work/informe.html'
+        if report.exists():
+            shutil.copyfile(report, job / 'informe.html')
+        calls = [json.loads(line) for line in (job / 'salida/proxy-llamadas.jsonl').read_text().splitlines()
+                 if line.startswith('{')] if (job / 'salida/proxy-llamadas.jsonl').exists() else []
+        model = [c for c in calls if c.get('path', '').startswith('/v1/responses') and c.get('usage')]
+        state.update(exit_code=code, commands=len(model), failed_commands=sum(c.get('status') != 200 for c in calls),
+                     blocked_calls=sum(bool(c.get('blocked')) for c in calls),
+                     usage=[{'input_tokens': c['usage'].get('input_tokens', 0),
+                             'cached_input_tokens': (c['usage'].get('input_tokens_details') or {}).get('cached_tokens', 0),
+                             'output_tokens': c['usage'].get('output_tokens', 0)} for c in model],
+                     report_exists=(job / 'informe.html').exists(),
+                     inputs_unchanged=inputs_unchanged(batch, job, state))
+        if state['status'] != 'timed_out':
+            state['status'] = 'completed' if code == 0 else 'failed'
     except Exception as error:
         state.update(status='failed', issue=str(error)[:2000])
     finally:
@@ -390,7 +478,7 @@ def run(batch, system=None, limit=None):
         if limit is not None and dispatched >= limit:
             break
         print(json.dumps({'dispatch': name}), flush=True)
-        (run_luna if state['system'] == 'luna' else run_product)(batch, job)
+        {'luna': run_luna, 'opencode': run_opencode}.get(state['system'], run_product)(batch, job)
         dispatched += 1
         print(json.dumps({k: read(job / 'state.json').get(k) for k in ('job', 'status', 'seconds')}), flush=True)
     return dispatched
@@ -489,7 +577,7 @@ JARGON = {
 
 
 def resources(job, state):
-    if state['system'] == 'luna':
+    if state['system'] in AGENT_LOOPS:
         usage = [u or {} for u in state.get('usage', [])]
         return {'seconds': state.get('seconds'), 'steps': state.get('commands'),
                 'failed_steps': state.get('failed_commands'),
@@ -645,7 +733,7 @@ def main():
         datasets = dict(item.split('=', 1) for item in args.dataset)
         systems = [s for s in args.systems.split(',') if s]
         if not systems or set(systems) - set(SYSTEMS):
-            raise SystemExit('Systems must be luna and/or product.')
+            raise SystemExit(f'Systems must be among {", ".join(SYSTEMS)}.')
         arms = {k: int(v) for k, v in (item.split('=', 1) for item in args.arm_repeats)}
         manifest = prepare(args.batch.resolve(), datasets, args.product_ref, args.repeats, systems,
                            args.runtime_root.resolve(), args.env_file, arms, args.python, args.reference_ref,
