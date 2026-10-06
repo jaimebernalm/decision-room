@@ -41,7 +41,7 @@ export function Composer({
   useLanguage();
   return (
     <div className="chat-composer w-full">
-      {attachments && <div className="mb-2 px-2">{attachments}</div>}
+      {attachments && <div className="composer-contexts">{attachments}</div>}
       <PromptInput
         onSubmit={async () => {
           if (!busy && !disabled) await onSend();

@@ -672,6 +672,24 @@ Comprobados negrita de coincidencias con tildes, pestañas compactas, grupos
 desplegables y `+` independiente en localhost, escritorio y móvil. Véanse
 [comprobaciones y límites](../validation/2026-10-06-chat-matches-and-data-groups.md).
 
+### 2.5.28. Contexto en burbujas y consulta junto a las tablas
+
+1. Mostrar el contexto añadido como burbujas independientes sobre el campo,
+   con una pequeña unión visual, sin ampliar la superficie del formulario.
+   Mantener retirada individual, borradores y vistas previas de adjuntos.
+2. Sustituir «Preguntar con esta versión» por «Preguntar sobre estas tablas»:
+   abrir el asistente a la derecha conservando Datos y el conjunto exacto.
+3. Mostrar el modelo directamente dentro de Relaciones; explicar la estructura
+   de los conjuntos con una sola tabla y conservar revisión y correcciones.
+4. Añadir un conjunto sintético independiente de ventas, productos y proveedores
+   con originales y dos conexiones comprobadas, repetible sin sobrescribir
+   correcciones posteriores. Comprobar interfaz, datos y escritorio/móvil.
+
+**Completado:** 236 pruebas frontend y 15 del modelo de datos pasan;
+compilación, lint y revisión de diferencias sin errores. Ejemplo cargado en el
+negocio local y comprobados burbuja independiente, panel junto a Datos y modelo
+visible desde el inicio. Véanse [comprobaciones y límites](../validation/2026-10-06-context-bubbles-and-inline-relations.md).
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Avance, 27 de septiembre de 2026:** completados **3.1** (medición inicial),

@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { Download, MessageSquare, Plus } from "lucide-react";
 import { translate as tr } from "@/lib/i18n";
 import { contextKey, store } from "@/lib/api";
+import { useAssistant } from "@/lib/assistant";
+import { useWorkspace } from "@/lib/workspace";
 import type { Dataset } from "@/lib/types";
 import {
   Accordion,
@@ -116,6 +118,8 @@ export function DossierDataGroups({
   datasets: Dataset[];
   onUpload: () => void;
 }) {
+  const assistant = useAssistant();
+  const { route } = useWorkspace();
   const prepared = datasets.filter(
     (d) => d.status === "ready" || d.status === "partial",
   );
@@ -233,11 +237,13 @@ export function DossierDataGroups({
                           analysis_id: d.id,
                           label: `${d.title} · v${d.version}`,
                         });
-                        location.hash = "ask";
+                        if (assistant)
+                          assistant.setDock({ open: true, origin: route });
+                        else location.hash = "ask";
                       }}
                     >
                       <MessageSquare />
-                      {tr("Preguntar con esta versión")}
+                      {tr("Preguntar sobre estas tablas")}
                     </Button>
                   )}
               </li>
@@ -255,7 +261,7 @@ export function DossierDataGroups({
             {prepared.map((d) => (
               <li key={d.id} className="space-y-3 py-3">
                 <DatasetHeading dataset={d} />
-                <DataModelPanel business={business} analysis={d.id} />
+                <DataModelPanel business={business} analysis={d.id} inline />
               </li>
             ))}
           </ul>

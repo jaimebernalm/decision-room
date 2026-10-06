@@ -1,0 +1,6 @@
+producto_id,nombre,categoria,proveedor_id,precio_unitario_eur
+P001,Bolígrafo azul,Escritura,PR001,2.50
+P002,Cuaderno A5,Cuadernos,PR001,4.50
+P003,Lápiz HB,Escritura,PR002,2.00
+P004,Mochila escolar,Mochilas,PR003,24.00
+P005,Goma de borrar,Escritura,PR002,1.50

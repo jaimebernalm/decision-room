@@ -114,27 +114,31 @@ const selectClass =
 export function DataModelPanel({
   business,
   analysis,
+  inline = false,
 }: {
   business: string;
   analysis: string;
+  inline?: boolean;
 }) {
   useLanguage();
   const [open, setOpen] = useState(false);
   return (
     <section className="min-w-0 max-w-full space-y-4">
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setOpen(!open)}
-        className="h-auto max-w-full whitespace-normal text-left"
-        aria-expanded={open}
-      >
-        <GitBranch />
-        {open
-          ? tr("Ocultar relaciones")
-          : tr("Ver relaciones y cómo entendemos los datos")}
-      </Button>
-      {open && (
+      {!inline && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setOpen(!open)}
+          className="h-auto max-w-full whitespace-normal text-left"
+          aria-expanded={open}
+        >
+          <GitBranch />
+          {open
+            ? tr("Ocultar relaciones")
+            : tr("Ver relaciones y cómo entendemos los datos")}
+        </Button>
+      )}
+      {(inline || open) && (
         <ModelContent
           key={`${business}/${analysis}`}
           business={business}
@@ -245,6 +249,17 @@ function ModelContent({
         </p>
       </CardHeader>
       <CardContent className="space-y-5">
+        {!relations.length && (
+          <p className="text-sm text-muted-foreground">
+            {tables.length === 1
+              ? tr(
+                  "Este conjunto tiene una sola tabla. Puedes explorar sus columnas; las conexiones aparecerán cuando añadas tablas relacionadas en el mismo conjunto.",
+                )
+              : tr(
+                  "Todavía no hay conexiones guardadas entre estas tablas. Selecciona una tabla para explorar sus columnas o añadir una relación.",
+                )}
+          </p>
+        )}
         <Notice error>{resource.error || action.error}</Notice>
         {needs_refresh && (
           <Notice>

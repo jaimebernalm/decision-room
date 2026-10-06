@@ -62,6 +62,39 @@ const response = {
   affected_reports: [],
 };
 describe("versioned ER data model", () => {
+  it("shows the model immediately inside Relations and explains a single table without invented connections", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue({
+          ok: true,
+          json: async () => ({
+            ...response,
+            model: {
+              ...response.model,
+              body: { tables: [tables[0]], relations: [], metrics: [] },
+            },
+          }),
+        }),
+    );
+    render(<DataModelPanel business="business" analysis="analysis" inline />);
+    expect(
+      await screen.findByRole("group", {
+        name: "Diagrama ER de esta revisión del modelo",
+      }),
+    ).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Ver relaciones/ })).toBeNull();
+    expect(
+      screen.getByText(/Este conjunto tiene una sola tabla/),
+    ).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Tabla Table 0" }),
+    );
+    expect(
+      screen.getByRole("button", { name: /Corregir o aclarar/ }),
+    ).toBeVisible();
+  });
   it("shows bounded graph, full selection, evidence and exact revision", async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
@@ -92,7 +125,9 @@ describe("versioned ER data model", () => {
     ).toBeInTheDocument();
     expect(screen.getAllByText(/Muchos a muchos/).length).toBeGreaterThan(0);
     expect(screen.getByText("Por confirmar")).toBeInTheDocument();
-    expect(screen.getByText(/propuesta del analista, comprobada sobre los datos/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/propuesta del analista, comprobada sobre los datos/),
+    ).toBeInTheDocument();
   });
   it("stores a revision guarded correction and disables editing history", async () => {
     const user = userEvent.setup(),

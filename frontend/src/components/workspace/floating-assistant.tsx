@@ -85,32 +85,45 @@ export function NewChatComposer({ autoFocus = true }: { autoFocus?: boolean }) {
       aria-label={tr("Asistente del negocio")}
       className="w-full"
     >
-      {(context.analysis_id || context.finding_reference) && (
-        <div className="flex items-center gap-2 px-5 pt-2 text-xs text-muted-foreground">
-          <span className="min-w-0 flex-1 truncate" title={context.label}>
-            {context.label || tr("Contexto seleccionado")}
-          </span>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8 shrink-0 rounded-full"
-            aria-label={tr("Quitar contexto")}
-            onClick={() => setContext({})}
-          >
-            <X className="size-3" />
-          </Button>
-        </div>
-      )}
       <Composer
         compact
         tools={<SelectionTool />}
         attachments={
-          assistant?.selected.length ? (
-            <ContextAttachments
-              items={assistant.selected}
-              onRemove={assistant.remove}
-            />
-          ) : undefined
+          <>
+            {(context.analysis_id || context.finding_reference) && (
+              <div
+                className="composer-context-bubble flex w-fit max-w-full items-center gap-2 px-3 py-1.5 text-xs"
+                role="group"
+                aria-label={tr("Tablas seleccionadas")}
+              >
+                <span className="min-w-0 break-words">
+                  {context.label || tr("Contexto seleccionado")}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7 shrink-0 rounded-full"
+                  aria-label={tr("Quitar contexto")}
+                  onClick={() =>
+                    setContext({
+                      ...context,
+                      analysis_id: undefined,
+                      finding_reference: undefined,
+                      label: undefined,
+                    })
+                  }
+                >
+                  <X className="size-3.5" />
+                </Button>
+              </div>
+            )}
+            {!!assistant?.selected.length && (
+              <ContextAttachments
+                items={assistant.selected}
+                onRemove={assistant.remove}
+              />
+            )}
+          </>
         }
         text={text}
         onChange={setText}

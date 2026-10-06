@@ -197,7 +197,7 @@ export function ContextAttachments({
               title: r.title || tr("Elemento seleccionado"),
             }}
             onRemove={onRemove ? () => onRemove(r) : undefined}
-            className="!h-auto !w-36 !rounded-xl bg-muted/40"
+            className="composer-context-bubble !h-auto !w-36 !rounded-xl"
           >
             <button
               type="button"

@@ -1241,5 +1241,9 @@
   "Relaciones": "Relationships",
   "No hay archivos originales disponibles.": "No original files are available.",
   "No hay tablas disponibles para analizar.": "No tables are available for analysis.",
-  "Las relaciones estarán disponibles cuando se preparen tus datos.": "Relationships will be available once your data is prepared."
+  "Las relaciones estarán disponibles cuando se preparen tus datos.": "Relationships will be available once your data is prepared.",
+  "Preguntar sobre estas tablas": "Ask about these tables",
+  "Tablas seleccionadas": "Selected tables",
+  "Este conjunto tiene una sola tabla. Puedes explorar sus columnas; las conexiones aparecerán cuando añadas tablas relacionadas en el mismo conjunto.": "This dataset has one table. You can explore its columns; connections will appear when you add related tables to the same dataset.",
+  "Todavía no hay conexiones guardadas entre estas tablas. Selecciona una tabla para explorar sus columnas o añadir una relación.": "There are no saved connections between these tables yet. Select a table to explore its columns or add a relationship."
 }

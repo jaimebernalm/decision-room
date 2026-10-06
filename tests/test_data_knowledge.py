@@ -17,6 +17,34 @@ class DataKnowledgeTests(unittest.TestCase):
     setUpClass = classmethod(test_agent.AgentTests.setUpClass.__func__)
     tearDownClass = classmethod(test_agent.AgentTests.tearDownClass.__func__)
     setUp = test_agent.AgentTests.setUp
+    def test_synthetic_demo_keeps_originals_and_reuses_owner_corrections(self):
+        from scripts.dev.add_demo_tables import add_demo_tables
+        result = add_demo_tables(self.config, self.business)
+        self.assertEqual((result['tables'], result['relations']), (3, 2))
+        with connect(self.config) as db:
+            row = knowledge.latest(db, self.business, result['analysis_id'])
+            originals = db.execute('SELECT relative_path FROM dataset_bundle_files WHERE business_id=%s AND analysis_id=%s',
+                                   (self.business, result['analysis_id'])).fetchall()
+            self.assertEqual({r['relative_path'] for r in originals}, {'ventas.csv', 'productos.csv', 'proveedores.csv'})
+            self.assertIsNotNone(knowledge.latest(db, self.business, self.analysis))
+        for relation in row['body']['relations']:
+            self.assertEqual((relation['cardinality'], relation['verification'], relation['semantic_status']),
+                             ('many-to-one', 'checked', 'confirmed'))
+            self.assertEqual(relation['evidence']['unmatched_rows'], 0)
+            self.assertEqual(relation['evidence']['extra_rows'], 0)
+        relation = row['body']['relations'][0]
+        corrected = knowledge.change(self.config, self.business, result['analysis_id'], row['revision'], 'relation',
+            {k: relation[k] for k in ('source', 'target', 'source_columns', 'target_columns')} |
+            dict(semantic_status='rejected', description='Corrección posterior de ejemplo'))
+        repeated = add_demo_tables(self.config, self.business)
+        self.assertEqual(repeated['analysis_id'], result['analysis_id'])
+        self.assertEqual(repeated['revision'], corrected['revision'])
+        with connect(self.config) as db:
+            latest = knowledge.latest(db, self.business, result['analysis_id'])
+        self.assertEqual(next(r for r in latest['body']['relations'] if r['id'] == relation['id'])['semantic_status'], 'rejected')
+        with self.assertRaisesRegex(ValueError, 'Business not found'):
+            add_demo_tables(self.config, uuid4())
+
     # Reuse database lifecycle, not the parent's full model test suite.
     def tables(self, files):
         paths=[]

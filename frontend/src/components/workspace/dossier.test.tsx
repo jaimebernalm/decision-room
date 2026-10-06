@@ -136,6 +136,16 @@ function setup(
   const writes: Record<string, unknown>[] = [];
   const refresh = vi.fn();
   const fetch = vi.fn(async (_url: string, init: RequestInit) => {
+    if (_url.startsWith("/api/business/data-model?"))
+      return {
+        ok: true,
+        json: async () => ({
+          model: null,
+          history: [],
+          editable: false,
+          affected_reports: [],
+        }),
+      };
     if (init.method === "POST") {
       const body = JSON.parse(init.body as string);
       writes.push(body);
@@ -583,19 +593,23 @@ describe("compact business dossier", () => {
     const tables = screen.getByRole("region", { name: "Tablas 0" });
     expect(
       within(tables).getAllByRole("button", {
-        name: "Preguntar con esta versión",
+        name: "Preguntar sobre estas tablas",
       }),
     ).toHaveLength(1);
     await user.click(
       within(tables).getByRole("button", {
-        name: "Preguntar con esta versión",
+        name: "Preguntar sobre estas tablas",
       }),
     );
     expect(store.get(contextKey(business.id), {})).toMatchObject({
       analysis_id: "sales",
       label: "Ventas de septiembre · v2",
     });
-    expect(location.hash).toBe("#ask");
+    expect(location.hash).not.toBe("#ask");
+    expect(store.get(`dr-dock-${business.id}`, {})).toMatchObject({
+      open: true,
+      origin: "my-business",
+    });
   });
   it("opens provenance, alternatives and exact revision from the menu", async () => {
     const { user } = setup();

@@ -6,3 +6,38 @@
   border-color: var(--input);
   --tw-ring-shadow: 0 0 #0000;
 }
+
+/* Context floats above the field; each item has its own speech bubble. */
+.composer-contexts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+  padding: 0 0.75rem 0.875rem;
+}
+.composer-contexts:empty {
+  display: none;
+}
+.composer-context-bubble {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--background);
+  box-shadow: 0 2px 8px color-mix(in oklch, var(--foreground) 6%, transparent);
+}
+.composer-contexts .composer-context-bubble {
+  overflow: visible;
+}
+.composer-contexts .composer-context-bubble::after {
+  content: "";
+  position: absolute;
+  bottom: -5px;
+  left: 1.25rem;
+  width: 8px;
+  height: 8px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--background);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
