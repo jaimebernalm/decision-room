@@ -174,14 +174,14 @@ it("applies right-panel width changes immediately, without a trailing width anim
   const panel = await screen.findByRole("complementary", {
     name: "Chat lateral",
   });
-  const shell = panel.parentElement!;
-  expect(shell).toHaveStyle({ width: "420px" });
+  const frame = panel.closest(".assistant-frame") as HTMLElement;
+  expect(frame.style.getPropertyValue("--chat-panel-width")).toBe("420px");
   const handle = screen.getByRole("separator", { name: "Anchura del chat" });
   fireEvent.keyDown(handle, { key: "ArrowLeft" });
-  expect(shell).toHaveStyle({ width: "444px" });
+  expect(frame.style.getPropertyValue("--chat-panel-width")).toBe("444px");
   expect(store.get("dr-chat-panel-width", 0)).toBe(444);
   fireEvent.keyDown(handle, { key: "ArrowRight" });
-  expect(shell).toHaveStyle({ width: "420px" });
+  expect(frame.style.getPropertyValue("--chat-panel-width")).toBe("420px");
 });
 it.each(["home", "my-business", "reports", "chats"])(
   "opens the right panel immediately from the launcher on %s, preserving a folded draft",

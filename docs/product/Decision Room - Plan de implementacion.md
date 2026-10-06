@@ -640,6 +640,20 @@ al asistente en escritorio y móvil. Véanse
 En localhost 8788, comprobados botón de 36 × 36 px, icono de 24 × 24 px y
 apertura/cierre del chat. Revisión visual y `git diff --check` sin incidencias.
 
+### 2.5.26. Apertura y cierre fluidos del panel derecho
+
+1. Animar la apertura y el cierre del chat lateral junto con el espacio ocupado
+   en escritorio, sin saltos de la página ni redistribución del contenido del chat.
+2. Mantener ajuste inmediato por arrastre/teclado, límites, borradores y cierre
+   accesible; permitir invertir la transición y respetar movimiento reducido.
+3. Comprobar apertura/cierre y ajuste en localhost, escritorio y móvil; ejecutar
+   pruebas frontend, compilación, lint y revisión de diferencias.
+
+**Completado:** 225 pruebas frontend pasan; compilación y lint sin errores.
+Comprobados el movimiento gradual de la página, ajuste inmediato, alineación del
+tirador, reapertura durante el cierre con borrador y deslizamiento móvil sin
+desbordamiento. Véanse [comprobaciones y límites](../validation/2026-10-06-smooth-assistant-panel.md).
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Avance, 27 de septiembre de 2026:** completados **3.1** (medición inicial),
