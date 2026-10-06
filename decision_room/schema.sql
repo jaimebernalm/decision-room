@@ -866,3 +866,65 @@ CREATE TABLE IF NOT EXISTS sales_panoramas (
     PRIMARY KEY(business_id,table_id,request_sha256)
 );
 INSERT INTO schema_versions(version) VALUES (31) ON CONFLICT DO NOTHING;
+
+-- Engine P2 admission foundation; legacy sessions and report FKs are unchanged.
+CREATE TABLE IF NOT EXISTS engine_runs (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    analysis_id uuid NOT NULL,
+    request_key text NOT NULL,
+    request_sha256 text NOT NULL,
+    owner_context text NOT NULL,
+    model text NOT NULL,
+    snapshot jsonb NOT NULL,
+    snapshot_sha256 text NOT NULL,
+    limits jsonb NOT NULL,
+    status text NOT NULL DEFAULT 'running'
+        CHECK(status IN ('running','pausing','waiting','delivered','failed','aborted')),
+    abort_reason text,
+    credential_sha256 text NOT NULL,
+    credential_revoked boolean NOT NULL DEFAULT false,
+    credential_expires_at timestamptz NOT NULL DEFAULT clock_timestamp()+interval '7 days',
+    active_started_at timestamptz DEFAULT clock_timestamp(),
+    active_seconds double precision NOT NULL DEFAULT 0 CHECK(active_seconds>=0),
+    calls integer NOT NULL DEFAULT 0 CHECK(calls>=0),
+    charged_input bigint NOT NULL DEFAULT 0 CHECK(charged_input>=0),
+    charged_output bigint NOT NULL DEFAULT 0 CHECK(charged_output>=0),
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    FOREIGN KEY(business_id,analysis_id) REFERENCES analyses(business_id,id),
+    UNIQUE(business_id,request_key),
+    UNIQUE(business_id,id)
+);
+CREATE TABLE IF NOT EXISTS engine_events (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    run_id uuid NOT NULL REFERENCES engine_runs(id),
+    kind text NOT NULL,
+    payload jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp()
+);
+CREATE INDEX IF NOT EXISTS engine_events_run ON engine_events(run_id,id);
+CREATE TABLE IF NOT EXISTS engine_model_calls (
+    id uuid PRIMARY KEY,
+    run_id uuid NOT NULL REFERENCES engine_runs(id),
+    request_sha256 text NOT NULL,
+    state text NOT NULL CHECK(state IN ('counting','admitted','settled','uncertain')),
+    reserved_input bigint NOT NULL DEFAULT 0 CHECK(reserved_input>=0),
+    reserved_output bigint NOT NULL DEFAULT 0 CHECK(reserved_output>=0),
+    usage jsonb,
+    issue text,
+    settlement_sha256 text,
+    count_seconds double precision,
+    started_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    admitted_at timestamptz,
+    finished_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS engine_model_calls_run ON engine_model_calls(run_id,started_at,id);
+CREATE TABLE IF NOT EXISTS engine_executions (
+    business_id uuid NOT NULL,
+    run_id uuid NOT NULL,
+    execution_id uuid NOT NULL,
+    PRIMARY KEY(run_id,execution_id),
+    FOREIGN KEY(business_id,run_id) REFERENCES engine_runs(business_id,id),
+    FOREIGN KEY(business_id,execution_id) REFERENCES executions(business_id,id)
+);
+INSERT INTO schema_versions(version) VALUES (32) ON CONFLICT DO NOTHING;

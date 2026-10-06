@@ -313,6 +313,11 @@ ciegos, lectores, juez de señales) y es dueño de
     Bruma), con la entrega persistida en bruto antes de validarse y el coste por
     trabajo registrado, incluidos título, compactación y subagentes.
 
+**Estado P2:** iniciado. El [primer tramo de admisión](engine-admission.md) incorpora
+credenciales por trabajo, reservas duraderas, proxy y consulta MCP con pruebas
+locales. El servicio completo y sus criterios de recuperación/ejecución real
+siguen pendientes; no se declara P2 terminado.
+
 ### Paso 3. Habilidad de informe (puerta)
 
 - **Qué:**
@@ -442,9 +447,10 @@ lectores por negocio, frente a 3 por brazo hasta ahora. Este plan no inicia ni
 autoriza ese gasto. Los umbrales son una puerta piloto; no afirman equivalencia
 estadística.
 
-## 5. Lo primero que hay que hacer (pasos futuros, no iniciados)
+## 5. Orden inicial y avance
 
-1. Astra: paso 0 (rama `codex/agent-engine`) y comprobar la suite.
+1. Astra: paso 0 (rama `codex/agent-engine`) y comprobar la suite. Completado; véase
+   el estado de P0.
 2. Claude: congelar el kit de `loop-panorama`; Astra hace la auditoría (paso 1).
 3. En paralelo, Astra empieza el paso 2 por el proxy con topes y reservas y por la
    pasarela con credencial por trabajo, que es lo que bloquea todo lo demás.
