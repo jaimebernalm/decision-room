@@ -763,6 +763,73 @@ Conclusión:
   ordene sobre la comparación del panorama. Los contratos de enlace no pueden
   bloquear el informe cuando la investigación no cubrió la combinación.
 
+## 18. Experimento decisivo: agente en bucle con el panorama del producto
+
+Pregunta: ¿el problema es la arquitectura en cadena? Se probó un único agente en
+bucle (Codex con `gpt-6-luna`, y OpenCode con el mismo modelo dentro de un
+contenedor aislado) con los mismos CSV y el mismo encargo, más
+`contexto/panorama.md`: el bloque de panorama que calcula el producto
+(`c6bda76`), con totales, comparación, mayores cambios y huecos. Una frase del
+encargo indica usarlo como punto de partida y comprobarlo con los datos.
+
+Ejecución:
+- Lote `loop-panorama`: 3 + 3 por negocio, 12 de 12 completados, entradas intactas.
+- Codex con panorama, Albor: ~300.000 tokens de entrada con un 82 % en caché.
+- OpenCode con panorama, Albor: ~190.000 tokens con un 88 % en caché.
+- Producto: ~970.000 tokens con un 4 % en caché.
+- Nuevo en el lanzador (`9da3985`): sistema `opencode` y carpeta `contexto/` de
+  solo lectura.
+
+Lectores independientes, sexta ronda:
+- 2 por negocio; en cada negocio, 12 informes: 3 de Codex con panorama, 3 de
+  OpenCode con panorama, 3 de Luna sin panorama de la línea base y 3 del
+  producto `c6bda76` sin panorama, elegidos al azar entre las reescrituras.
+
+| Grupo | Albor: puesto | Albor: entiende / confía | Bruma: puesto | Bruma: entiende / confía |
+| --- | ---: | ---: | ---: | ---: |
+| **Codex + panorama** | **0,18** | 4,3 / 4,0 | 0,36 | 4,0 / 3,7 |
+| **OpenCode + panorama** | 0,27 | 4,3 / 4,0 | **0,09** | 4,2 / 4,0 |
+| Luna sin panorama | 0,88 | 3,0 / 2,0 | 0,64 | 3,3 / 2,7 |
+| Producto (`c6bda76`) | 0,67 | 2,8 / 2,7 | 0,91 | 2,3 / 2,0 |
+
+- Los cuatro lectores eligen primero un informe de agente con panorama.
+- Motivos que citan:
+  - qué hacer primero, en frases normales;
+  - «no ha bajado, simplemente no hay nada apuntado desde abril»;
+  - cifras coherentes en todo el informe;
+  - qué papel pedir y qué hacer según el resultado.
+
+Juez de señales a ciegas (Albor; conoce la verdad plantada, no el sistema).
+Suma de 3 informes por grupo; cada señal S1–S5 puntúa de 0 a 2.
+
+| Grupo | S1 | S2 | S3 | S4 | S5 | Total S1–S5 | Señales reales entre las prioridades | Señuelo S6 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Codex + panorama | 0 | 6 | 0 | 5 | 2 | **13** | 5 | 0 |
+| OpenCode + panorama | 0 | 6 | 0 | 4 | 1 | 11 | 5 | 0 |
+| Producto | 0 | 5 | 0 | 0 | 1 | 6 | 3 | 0 |
+| Luna sin panorama | 1 | 3 | 0 | 0 | 0 | 4 | 3 | 0 |
+
+Conclusión:
+- La pieza ganadora es la combinación **agente en bucle + panorama
+  determinista**. El panorama multiplica la utilidad del agente: Luna pasa de
+  0,88 a 0,18 en Albor, porque le da el mapa del negocio y las señales que solas
+  no encontraba. El agente cuenta una sola historia coherente, que es lo que la
+  cadena no conseguía al pegar el panorama a una investigación con otras
+  ventanas.
+- Codex y OpenCode son equivalentes en calidad: cada uno gana en un negocio.
+  OpenCode es viable como motor (MIT, varios proveedores, contenedor aislado).
+- Nadie detecta S1 (domingos de la tienda) ni S3 (molinillo en la web): el
+  siguiente avance de detección está en ampliar el panorama determinista (patrón
+  por día de la semana, picos de producto × canal), no en el agente.
+- Limitaciones:
+  - n = 3 por grupo;
+  - los informes de Luna sin panorama son de la línea base (mismo modelo y arnés,
+    días antes);
+  - falta la exactitud de cifras (revisión técnica de Astra,
+    `kits/loop-panorama/tecnica`); Luna tuvo 4–5 errores por informe en Bruma
+    en la línea base, así que la verificación de cifras sigue siendo
+    imprescindible.
+
 ## 10. Límites
 
 Tres repeticiones son pocas para afirmar consistencia; sirven para detectar
