@@ -29,7 +29,8 @@ Los límites iniciales son hipótesis: 3 M de entrada, 64 k de salida acumulada,
 comprueba al admitir y durante la recepción de contenido. El corte estricto de
 pared durante una lectura bloqueada requiere todavía el supervisor del
 controlador; el timeout de red no sustituye ese supervisor. No hay aún pausa,
-restauración de sesión, copia SQLite ni política global de ritmo por host.
+restauración de sesión completa ni política global de ritmo por host. La primitiva
+de backup consistente de SQLite está disponible, pendiente de conectarse al controlador.
 
 ## Proxy de Responses
 
@@ -114,8 +115,17 @@ después del commit, exportación tras aborto, claves conflictivas, permisos ent
 trabajos/negocios, límites de bytes y detección de corrupción. Las 11 pruebas del ejecutor
 existente también pasan. No se hicieron llamadas facturables.
 
-Esta evidencia valida los fundamentos de admisión, no todo P2. Faltan imagen y
-red aislada del agente, supervisor y cliente OpenCode, `panorama`, `verify_numbers`,
+La imagen ARM64 fijada y el cliente HTTP de OpenCode están disponibles; véase
+[su construcción y alcance](../../engine/opencode/README.md). Nueve pruebas
+comprueban el cliente sin reintentos implícitos y el backup/restauración SQLite
+con WAL, corrupción y publicación exclusiva. Un smoke adicional usa OpenCode
+1.18.34 real sin enviar prompts: autenticación, versión, sesión con título,
+mensajes, hijos y aborto en un contenedor sin salida externa. No se hicieron
+llamadas facturables. El transporte del cliente se prueba por separado; todavía
+falta conectar el controlador al servidor dentro de la red interna.
+
+Esta evidencia valida componentes de P2, no todo el paso. Faltan la red completa
+de producto y agente, supervisor, `panorama`, `verify_numbers`,
 `preguntar_propietario`, validación/proyección y exportación completas,
 persistencia de mensajes parciales y recuperación del ciclo de vida del agente,
 y las seis ejecuciones reales. La prueba de terminación cubre el receptor de
