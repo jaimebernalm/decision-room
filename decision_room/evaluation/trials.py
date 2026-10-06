@@ -1,0 +1,767 @@
+"""Repeated report-quality trials: Luna in Codex CLI versus frozen Decision Room.
+
+  python -m decision_room.evaluation.trials prepare BATCH --dataset bruma=DIR \
+      --dataset albor=DIR --product-ref REF [--repeats 3] [--systems luna,product] \
+      [--arm-repeats albor-product=3 --arm-repeats bruma-luna=1 ...] [--python VENV_PYTHON]
+  python -m decision_room.evaluation.trials run BATCH [--system luna|product] [--limit N]
+  python -m decision_room.evaluation.trials score BATCH [--oracle NAME=PATH ...]
+  python -m decision_room.evaluation.trials summary BATCH
+
+Each DIR holds datos/*.csv and prompt.txt. Oracles are never copied into the
+batch: Luna in Codex can read any file the user can, so they are passed only at
+scoring time from a separate location, and Luna commands that reach outside
+their own folder are flagged. Product jobs use a
+`git archive` snapshot, a fresh database and storage. Every attempt keeps its
+state; an attempt that has started is never dispatched again. BATCH must live in
+an ignored folder: it holds model traces and private runtime details.
+"""
+import argparse
+from collections import Counter
+from dataclasses import asdict
+from datetime import datetime, timezone
+from html import unescape
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import signal
+import subprocess
+import sys
+import time
+from uuid import uuid4
+
+from ..config import ROOT
+from .runner import write
+
+SYSTEMS = ('luna', 'product', 'reference', 'opencode')
+AGENT_LOOPS = ('luna', 'opencode')  # one agent in a tool loop; inputs copied into the job
+PRODUCT_ARMS = ('product', 'reference')
+CODEX_ARGS = ['exec', '--ignore-user-config', '--ephemeral', '--skip-git-repo-check',
+              '--sandbox', 'workspace-write', '--model', 'gpt-6-luna',
+              '-c', 'model_reasoning_effort="low"', '-c', 'web_search="disabled"',
+              '-c', 'features.multi_agent=false', '-c', 'features.apps=false',
+              '--json', '--output-last-message', 'respuesta.md', '-']
+LUNA_TIMEOUT = 2400
+PRODUCT_TIMEOUT = 5400
+
+
+def read(path, default=None):
+    path = Path(path)
+    return json.loads(path.read_text()) if path.exists() else default
+
+
+def sha(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def plan_order(datasets, systems, repeats, arm_repeats=None):
+    """Interleave systems and datasets so drift in time affects all arms alike.
+
+    arm_repeats overrides the count for a DATASET-SYSTEM arm (0 removes it)."""
+    arm_repeats = arm_repeats or {}
+    count = lambda d, s: arm_repeats.get(f'{d}-{s}', repeats)
+    order = []
+    for repetition in range(1, max([repeats, *arm_repeats.values()], default=repeats) + 1):
+        arms = [(d, s) for d in datasets for s in systems if repetition <= count(d, s)]
+        if repetition % 2 == 0:
+            arms.reverse()
+        order += [f'{d}-{s}-{repetition}' for d, s in arms]
+    return order
+
+
+def freeze(target, ref, runtime_root):
+    """Snapshot a commit and attach it to the verified sandbox runtime."""
+    revision = subprocess.run(['git', 'rev-parse', ref + '^{commit}'], cwd=ROOT,
+                              capture_output=True, text=True, check=True).stdout.strip()
+    archive = target.with_suffix('.tar')
+    subprocess.run(['git', 'archive', '-o', str(archive), revision], cwd=ROOT, check=True)
+    target.mkdir()
+    subprocess.run(['tar', '-xf', str(archive), '-C', str(target)], check=True)
+    archive.unlink()
+    local = target / '.local'
+    local.mkdir()
+    shutil.copyfile(runtime_root / '.local/sandbox-runtime.json', local / 'sandbox-runtime.json')
+    staging = (runtime_root / '.local/sandbox-inputs').resolve() / ('trial-' + uuid4().hex)
+    staging.mkdir()
+    (local / 'sandbox-inputs').symlink_to(staging, target_is_directory=True)
+    return revision
+
+
+def copy_inputs(source, target):
+    (target / 'datos').mkdir(parents=True)
+    for path in sorted((source / 'datos').glob('*.csv')):
+        shutil.copyfile(path, target / 'datos' / path.name)
+        (target / 'datos' / path.name).chmod(0o444)
+    if (source / 'contexto').is_dir():
+        # Optional read-only material the owner hands over with the data (e.g. a computed panorama).
+        shutil.copytree(source / 'contexto', target / 'contexto')
+        for path in (target / 'contexto').rglob('*'):
+            if path.is_file():
+                path.chmod(0o444)
+    shutil.copyfile(source / 'prompt.txt', target / 'prompt.txt')
+    return {p.name: sha(p) for p in sorted((target / 'datos').glob('*.csv'))}
+
+
+def prepare(batch, datasets, product_ref, repeats, systems, runtime_root, env_file,
+            arm_repeats=None, python=None, reference_ref=None, product_env=None, reference_python=None,
+            reference_env=None):
+    if (batch / 'manifest.json').exists():
+        raise SystemExit('Batch already prepared; inspect it or choose another folder.')
+    batch.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.umask(0o077)
+    manifest = {'created_at': datetime.now(timezone.utc).isoformat(), 'systems': systems,
+                'repeats': repeats, 'arm_repeats': arm_repeats or {}, 'datasets': {},
+                'python': str(python or sys.executable), 'harness_sha256': sha(__file__),
+                'worker_sha256': sha(Path(__file__).with_name('trial_worker.py'))}
+    for name, source in datasets.items():
+        source = Path(source).resolve()
+        target = batch / 'inputs' / name
+        inputs = copy_inputs(source, target)
+        prompt = (target / 'prompt.txt').read_text()
+        first = prompt.split('.', 1)[0]
+        manifest['datasets'][name] = {'inputs': inputs, 'prompt_sha256': hashlib.sha256(prompt.encode()).hexdigest(),
+                                      'business': re.sub(r'^Mi negocio es ', '', first)[:80]}
+        if (target / 'contexto').is_dir():
+            manifest['datasets'][name]['context'] = {str(p.relative_to(target)): sha(p)
+                                                     for p in sorted((target / 'contexto').rglob('*')) if p.is_file()}
+        if (source / 'oracle.json').exists():
+            raise SystemExit(f'{source} contains oracle.json; keep oracles away from agent inputs.')
+    if set(systems) & set(PRODUCT_ARMS):
+        from ..agent.model import ModelSettings
+        from ..local_env import load_env
+        import psycopg
+        from psycopg import sql
+        from psycopg.conninfo import make_conninfo
+        load_env(env_file)
+        settings = ModelSettings.load()
+        if (settings.model, settings.reasoning) != ('gpt-6-luna', 'low'):
+            raise SystemExit('Product must use gpt-6-luna with low reasoning, as Luna in Codex does.')
+        dsn = os.environ.get('DECISION_ROOM_DATABASE_URL')
+        if not dsn:
+            raise SystemExit('Set DECISION_ROOM_DATABASE_URL to the local PostgreSQL cluster.')
+        shutil.copyfile(Path(__file__).with_name('trial_worker.py'), batch / 'worker.py')
+        manifest.update(dsn=make_conninfo(dsn, dbname='postgres'), env_file=str(Path(env_file).resolve()),
+                        model=asdict(settings), arms={})
+        refs = {'product': (product_ref, product_env or {}, manifest['python']),
+                'reference': (reference_ref, reference_env or {}, str(reference_python or manifest['python']))}
+        for arm in [a for a in PRODUCT_ARMS if a in systems]:
+            ref, env, python_path = refs[arm]
+            if not ref:
+                raise SystemExit(f'Arm {arm} needs a revision.')
+            source = batch / ('source' if arm == 'product' else 'source-reference')
+            database = 'dr_trials_' + uuid4().hex
+            with psycopg.connect(dsn, autocommit=True) as db:
+                db.execute(sql.SQL('CREATE DATABASE {}').format(sql.Identifier(database)))
+            manifest['arms'][arm] = {'ref': ref, 'revision': freeze(source, ref, runtime_root), 'source': str(source),
+                                     'database': database, 'storage': str(batch / ('storage-' + arm)),
+                                     'python': python_path, 'env': env}
+        if 'product' in manifest['arms']:
+            manifest.update(product_ref=product_ref, revision=manifest['arms']['product']['revision'])
+    if 'opencode' in systems:
+        runner = Path(os.environ.get('TRIALS_OPENCODE_RUNNER', ROOT / '.local/engine-spike/run-opencode.sh'))
+        if not runner.exists():
+            raise SystemExit(f'OpenCode runner not found: {runner}')
+        config = runner.parent / 'config/opencode.json'
+        manifest['opencode'] = {'runner': str(runner), 'runner_sha256': sha(runner),
+                                'config_sha256': sha(config) if config.exists() else None,
+                                'image': os.environ.get('OPENCODE_IMAGE', 'decision-room-opencode:1.18.34'),
+                                'model': os.environ.get('OPENCODE_MODEL', 'openai/gpt-6-luna'),
+                                'variant': os.environ.get('OPENCODE_VARIANT', 'low'),
+                                'env_file': str(Path(env_file).resolve())}
+    if 'luna' in systems:
+        binary = shutil.which('codex')
+        if not binary:
+            raise SystemExit('Codex CLI not found on PATH.')
+        manifest['codex'] = {'version': subprocess.check_output([binary, '--version'], text=True).strip(),
+                             'args': CODEX_ARGS}
+    manifest['order'] = plan_order(list(datasets), systems, repeats, arm_repeats)
+    for name in manifest['order']:
+        dataset, system, repetition = name.rsplit('-', 2)
+        job = batch / 'jobs' / name
+        job.mkdir(parents=True)
+        if system in AGENT_LOOPS:
+            copy_inputs(batch / 'inputs' / dataset, job)
+        write(job / 'state.json', {'job': name, 'dataset': dataset, 'system': system,
+                                   'repetition': int(repetition), 'status': 'not_run',
+                                   'key': 'trial-' + uuid4().hex})
+    write(batch / 'manifest.json', manifest)
+    for arm, spec in manifest.get('arms', {}).items():
+        env = {**os.environ, 'PYTHONPATH': spec['source']}
+        subprocess.run([spec['python'], '-c', PREFLIGHT, str(batch), arm], cwd=spec['source'], env=env, check=True)
+    return manifest
+
+
+def prepare_rewrite(batch, sources, ref, runtime_root, env_file, python=None, product_env=None,
+                    reference_env=None, arms=PRODUCT_ARMS, paired=()):
+    """Write and review again on research that already exists, to compare presentation in pairs.
+
+    sources are BATCH/JOB attempts whose research was approved. Each source database is cloned
+    (PostgreSQL TEMPLATE) with a copy of its storage, so the original batch is never touched;
+    both arms run the same frozen revision and differ only in their environment. arms limits
+    which arms run for sources (e.g. only the treatment when an earlier batch of the same
+    behaviour is the control); paired sources always get both arms. Numbers follow the
+    order of sources, then paired, so pairs can be matched across batches."""
+    if (batch / 'manifest.json').exists():
+        raise SystemExit('Batch already prepared; inspect it or choose another folder.')
+    import psycopg
+    from psycopg import sql
+    from psycopg.conninfo import make_conninfo
+    from ..local_env import load_env
+    load_env(env_file)
+    dsn = os.environ.get('DECISION_ROOM_DATABASE_URL')
+    if not dsn:
+        raise SystemExit('Set DECISION_ROOM_DATABASE_URL to the local PostgreSQL cluster.')
+    batch.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.umask(0o077)
+    python = str(python or sys.executable)
+    manifest = {'created_at': datetime.now(timezone.utc).isoformat(), 'kind': 'rewrite', 'systems': list(PRODUCT_ARMS),
+                'python': python, 'harness_sha256': sha(__file__), 'datasets': {}, 'clones': {}, 'arms': {},
+                'worker_sha256': sha(Path(__file__).with_name('trial_worker.py')),
+                'dsn': make_conninfo(dsn, dbname='postgres'), 'env_file': str(Path(env_file).resolve())}
+    shutil.copyfile(Path(__file__).with_name('trial_worker.py'), batch / 'worker.py')
+    source = batch / 'source'
+    revision = freeze(source, ref, runtime_root)
+    for arm, env in (('product', product_env or {}), ('reference', reference_env or {})):
+        manifest['arms'][arm] = {'ref': ref, 'revision': revision, 'source': str(source), 'python': python, 'env': env}
+    jobs = []
+    for item in [*sources, *paired]:
+        origin, name = Path(item).parent.resolve(), Path(item).name
+        original, state = read(origin / 'manifest.json'), read(origin / 'jobs' / name / 'state.json')
+        if not (state['status'] == 'completed' and state.get('research_id') and state.get('publishable')):
+            raise SystemExit(f'{item} has no approved research to write again.')
+        manifest.setdefault('model', original['model'])
+        if original['model'] != manifest['model']:
+            raise SystemExit('Sources must share the model settings.')
+        if state['dataset'] not in manifest['datasets']:
+            manifest['datasets'][state['dataset']] = original['datasets'][state['dataset']]
+            shutil.copytree(origin / 'inputs' / state['dataset'], batch / 'inputs' / state['dataset'])
+        arm = original['arms'][state['system']]
+        clone = f"{origin.name}-{state['system']}"
+        if clone not in manifest['clones']:
+            database = 'dr_trials_' + uuid4().hex
+            with psycopg.connect(dsn, autocommit=True) as db:
+                db.execute(sql.SQL('CREATE DATABASE {} TEMPLATE {}').format(sql.Identifier(database),
+                                                                            sql.Identifier(arm['database'])))
+            storage = batch / ('storage-' + clone)
+            shutil.copytree(arm['storage'], storage, symlinks=True)
+            manifest['clones'][clone] = {'database': database, 'storage': str(storage),
+                                         'from': {'batch': str(origin), 'arm': state['system'],
+                                                  'revision': arm['revision'], 'env': arm.get('env', {})}}
+        jobs.append((state, clone, f'{origin.name}/{name}', PRODUCT_ARMS if item in paired else arms))
+    manifest['order'] = []
+    for number, (state, clone, origin, chosen) in enumerate(jobs, 1):
+        order = list(PRODUCT_ARMS) if number % 2 else list(reversed(PRODUCT_ARMS))
+        for arm in [a for a in order if a in chosen]:
+            name = f"{state['dataset']}-{arm}-{number}"
+            (batch / 'jobs' / name).mkdir(parents=True)
+            write(batch / 'jobs' / name / 'state.json', {
+                'job': name, 'dataset': state['dataset'], 'system': arm, 'repetition': number,
+                'status': 'not_run', 'key': 'trial-' + uuid4().hex, 'clone': clone, 'rewrite_of': origin,
+                **{k: state[k] for k in ('business_id', 'analysis_id', 'session_id', 'research_id')}})
+            manifest['order'].append(name)
+    write(batch / 'manifest.json', manifest)
+    for clone in manifest['clones']:
+        env = {**os.environ, 'PYTHONPATH': str(source)}
+        subprocess.run([python, '-c', PREFLIGHT_CLONE, str(batch), clone], cwd=source, env=env, check=True)
+    return manifest
+
+
+PREFLIGHT_CLONE = '''import json,os,sys
+from pathlib import Path
+from decision_room.local_env import load_env
+from decision_room.database import migrate
+from decision_room.evaluation.quality_runner import configuration, preflight
+batch=Path(sys.argv[1]);manifest=json.loads((batch/"manifest.json").read_text());clone=manifest["clones"][sys.argv[2]]
+load_env(Path(manifest["env_file"]));os.environ["DECISION_ROOM_DATABASE_URL"]=manifest["dsn"]
+probe=batch/("preflight-"+sys.argv[2]);probe.mkdir(exist_ok=True)
+config=configuration(clone);migrate(config);preflight(config,probe)
+print("Clone migrated; sandbox preflight passed:",sys.argv[2])
+'''
+
+
+PREFLIGHT = '''import json,os,sys
+from pathlib import Path
+from decision_room.local_env import load_env
+from decision_room.database import migrate
+from decision_room.evaluation.quality_runner import configuration, preflight
+batch=Path(sys.argv[1]);manifest=json.loads((batch/"manifest.json").read_text());arm=manifest["arms"][sys.argv[2]]
+load_env(Path(manifest["env_file"]));os.environ["DECISION_ROOM_DATABASE_URL"]=manifest["dsn"];os.environ.update(arm["env"])
+probe=batch/("preflight-"+sys.argv[2]);probe.mkdir(exist_ok=True)
+config=configuration(arm);migrate(config);preflight(config,probe)
+print("Frozen source migrated; sandbox preflight passed:",sys.argv[2])
+'''
+
+
+def events(path):
+    result = []
+    if path.exists():
+        for line in path.read_text().splitlines():
+            try:
+                result.append(json.loads(line))
+            except ValueError:
+                pass
+    return result
+
+
+def run_luna(batch, job):
+    state = read(job / 'state.json')
+    binary = shutil.which('codex')
+    argv = [binary, *read(batch / 'manifest.json')['codex']['args']]
+    env = {k: v for k, v in os.environ.items() if k != 'OPENAI_API_KEY' and not k.startswith('DECISION_ROOM_')}
+    # Jobs run one at a time with a private TMPDIR. Commands may still hardcode
+    # /tmp, so its use is flagged below rather than assumed harmless.
+    (job / 'tmp').mkdir(exist_ok=True)
+    env['TMPDIR'] = str(job / 'tmp')
+    state.update(status='running', started_at=datetime.now(timezone.utc).isoformat())
+    write(job / 'state.json', state)
+    started = time.monotonic()
+    try:
+        with (job / 'prompt.txt').open('rb') as source, (job / 'eventos.jsonl').open('wb') as out, \
+                (job / 'errores.log').open('wb') as err:
+            process = subprocess.Popen(argv, cwd=job, stdin=source, stdout=out, stderr=err, env=env,
+                                       start_new_session=True)
+            try:
+                code = process.wait(timeout=LUNA_TIMEOUT)
+            except subprocess.TimeoutExpired:
+                os.killpg(process.pid, signal.SIGTERM)
+                try:
+                    process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    os.killpg(process.pid, signal.SIGKILL)
+                    process.wait()
+                code, state['status'] = process.returncode, 'timed_out'
+        log = events(job / 'eventos.jsonl')
+        completed = [e for e in log if e.get('type') == 'turn.completed']
+        commands = [e['item'] for e in log if e.get('type') == 'item.completed'
+                    and e.get('item', {}).get('type') == 'command_execution']
+        state.update(exit_code=code, usage=[e.get('usage') for e in completed], commands=len(commands),
+                     failed_commands=sum(c.get('exit_code') not in (0, None) for c in commands),
+                     shared_tmp_commands=sum('/tmp/' in (c.get('command') or '') for c in commands),
+                     outside_paths=sorted({p for c in commands for p in outside(c.get('command') or '', job)}),
+                     report_exists=(job / 'informe.html').exists(),
+                     inputs_unchanged=inputs_unchanged(batch, job, state))
+        if state['status'] != 'timed_out':
+            state['status'] = 'completed' if code == 0 and completed else 'failed'
+    except Exception as error:
+        state.update(status='failed', issue=str(error)[:2000])
+    finally:
+        state['seconds'] = round(time.monotonic() - started, 3)
+        write(job / 'state.json', state)
+
+
+def inputs_unchanged(batch, job, state):
+    dataset = read(batch / 'manifest.json')['datasets'][state['dataset']]
+    context = {str(p.relative_to(job)): sha(p) for p in sorted((job / 'contexto').rglob('*')) if p.is_file()} \
+        if (job / 'contexto').is_dir() else {}
+    return ({p.name: sha(p) for p in sorted((job / 'datos').glob('*.csv'))} == dataset['inputs']
+            and context == dataset.get('context', {}))
+
+
+def env_value(path, key):
+    """One value from a dotenv file, without loading it into this process."""
+    for line in Path(path).read_text().splitlines():
+        name, _, value = line.strip().partition('=')
+        if name.strip().removeprefix('export ').strip() == key:
+            return value.strip().strip('"').strip("'")
+    return None
+
+
+def run_opencode(batch, job):
+    """OpenCode headless in an isolated container (run-opencode.sh): no host mounts, no key in
+    the agent, a proxy that only forwards OpenAI model calls. The agent sees a clean copy of
+    datos/ and contexto/; the report and metrics come back under salida/."""
+    state = read(job / 'state.json')
+    spec = read(batch / 'manifest.json')['opencode']
+    work = job / 'trabajo'
+    if work.exists():
+        shutil.rmtree(work)
+    work.mkdir()
+    for folder in ('datos', 'contexto'):
+        if (job / folder).is_dir():
+            shutil.copytree(job / folder, work / folder)
+    env = {k: v for k, v in os.environ.items() if not k.startswith('DECISION_ROOM_')}
+    env.update(OPENAI_API_KEY=env_value(spec['env_file'], 'OPENAI_API_KEY') or '', OPENCODE_IMAGE=spec['image'],
+               OPENCODE_MODEL=spec['model'], OPENCODE_VARIANT=spec['variant'])
+    state.update(status='running', started_at=datetime.now(timezone.utc).isoformat())
+    write(job / 'state.json', state)
+    started = time.monotonic()
+    try:
+        with (job / 'runner.log').open('wb') as log:
+            process = subprocess.Popen(['bash', spec['runner'], str(work), str(job / 'prompt.txt'), str(job / 'salida')],
+                                       stdout=log, stderr=subprocess.STDOUT, env=env, start_new_session=True)
+            try:
+                code = process.wait(timeout=LUNA_TIMEOUT)
+            except subprocess.TimeoutExpired:
+                os.killpg(process.pid, signal.SIGTERM)
+                process.wait()
+                code, state['status'] = process.returncode, 'timed_out'
+        report = job / 'salida/work/informe.html'
+        if report.exists():
+            shutil.copyfile(report, job / 'informe.html')
+        calls = [json.loads(line) for line in (job / 'salida/proxy-llamadas.jsonl').read_text().splitlines()
+                 if line.startswith('{')] if (job / 'salida/proxy-llamadas.jsonl').exists() else []
+        model = [c for c in calls if c.get('path', '').startswith('/v1/responses') and c.get('usage')]
+        state.update(exit_code=code, commands=len(model), failed_commands=sum(c.get('status') != 200 for c in calls),
+                     blocked_calls=sum(bool(c.get('blocked')) for c in calls),
+                     usage=[{'input_tokens': c['usage'].get('input_tokens', 0),
+                             'cached_input_tokens': (c['usage'].get('input_tokens_details') or {}).get('cached_tokens', 0),
+                             'output_tokens': c['usage'].get('output_tokens', 0)} for c in model],
+                     report_exists=(job / 'informe.html').exists(),
+                     inputs_unchanged=inputs_unchanged(batch, job, state))
+        if state['status'] != 'timed_out':
+            state['status'] = 'completed' if code == 0 else 'failed'
+    except Exception as error:
+        state.update(status='failed', issue=str(error)[:2000])
+    finally:
+        state['seconds'] = round(time.monotonic() - started, 3)
+        write(job / 'state.json', state)
+
+
+SYSTEM_PREFIXES = ('/bin/', '/usr/', '/opt/homebrew/', '/tmp/', '/dev/', '/System/', '/Library/', '/private/var/folders/')
+
+
+def outside(command, job):
+    """Paths a Luna command names outside its job folder (reads are not sandboxed)."""
+    found = set(re.findall(r'(?:\.\./[^\s\'";|)]*)', command))
+    # Only filesystem roots, so HTML closing tags or divisions in code are ignored.
+    roots = r'(?:Users|Volumes|private|home|etc|var|opt|Library|System|tmp|usr|bin)'
+    for path in re.findall(r'(?<![\w.<])(/' + roots + r'/[^\s\'";|)<>]*)', command):
+        # A path cut at an escaped space ('decision\\ room') is the job folder only
+        # if the job path continues from that exact prefix.
+        inside = (any(path.startswith(v) for v in (str(job), str(job).replace(' ', '\\ ')))
+                  or (path.endswith('\\') and str(job).startswith(path.rstrip('\\') + ' ')))
+        if not inside and not path.startswith(SYSTEM_PREFIXES):
+            found.add(path)
+    found |= set(re.findall(r'[^\s;\'"|<>]*oracle[^\s;\'"|<>]*', command, flags=re.I))
+    return found
+
+
+def luna_outside(job):
+    """Recomputed from the events so detector fixes apply to earlier jobs too."""
+    commands = [e['item'].get('command') or '' for e in events(job / 'eventos.jsonl')
+                if e.get('type') == 'item.completed' and e.get('item', {}).get('type') == 'command_execution']
+    return sorted({p for c in commands for p in outside(c, job)})
+
+
+def run_product(batch, job):
+    spec = read(batch / 'manifest.json')['arms'][read(job / 'state.json')['system']]
+    env = {**os.environ, 'PYTHONPATH': spec['source']}
+    try:
+        subprocess.run([spec['python'], str(batch / 'worker.py'), str(job)],
+                       cwd=spec['source'],
+                       env=env, timeout=PRODUCT_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        state = read(job / 'state.json')
+        state.update(status='timed_out', issue=f'Exceeded {PRODUCT_TIMEOUT} seconds.')
+        write(job / 'state.json', state)
+
+
+def run(batch, system=None, limit=None):
+    manifest = read(batch / 'manifest.json')
+    for arm, spec in manifest.get('arms', {}).items():
+        frozen = subprocess.run([spec['python'], '-c',
+                                 'from decision_room.evaluation.quality_runner import source_version;print(source_version())'],
+                                cwd=spec['source'], env={**os.environ, 'PYTHONPATH': spec['source']},
+                                capture_output=True, text=True, check=True).stdout.strip()
+        spec.setdefault('source_sha256', frozen)
+        if frozen != spec['source_sha256']:
+            raise SystemExit(f'Frozen source of {arm} changed; start a separate batch.')
+    write(batch / 'manifest.json', manifest)
+    dispatched = 0
+    for name in manifest['order']:
+        job = batch / 'jobs' / name
+        state = read(job / 'state.json')
+        if state['status'] != 'not_run' or (system and state['system'] != system):
+            continue
+        if limit is not None and dispatched >= limit:
+            break
+        print(json.dumps({'dispatch': name}), flush=True)
+        {'luna': run_luna, 'opencode': run_opencode}.get(state['system'], run_product)(batch, job)
+        dispatched += 1
+        print(json.dumps({k: read(job / 'state.json').get(k) for k in ('job', 'status', 'seconds')}), flush=True)
+    return dispatched
+
+
+def abandon(batch, name, reason, replace=True):
+    """Keep an interrupted or withdrawn attempt as evidence; optionally queue a replacement.
+
+    Without replacement it suits attempts that would fail deterministically, e.g.
+    a schema the provider rejects; the fix belongs in a new batch."""
+    manifest = read(batch / 'manifest.json')
+    job = batch / 'jobs' / name
+    state = read(job / 'state.json')
+    if state['status'] not in ('running', 'not_run'):
+        raise SystemExit(f'{name} finished as {state["status"]}; keep it.')
+    state.update(status='abandoned', issue=reason, abandoned_at=datetime.now(timezone.utc).isoformat())
+    write(job / 'state.json', state)
+    if not replace:
+        return None
+    return queue_replacement(batch, manifest, name, state)
+
+
+# A rewrite job reuses research stored in its clone; the replacement must point at the same one.
+REWRITE_KEYS = ('clone', 'rewrite_of', 'business_id', 'analysis_id', 'session_id', 'research_id')
+
+
+def queue_replacement(batch, manifest, name, state):
+    replacement = f"{name}r{sum(n.startswith(name + 'r') for n in manifest['order']) + 1}"
+    target = batch / 'jobs' / replacement
+    target.mkdir()
+    if state['system'] == 'luna':
+        copy_inputs(batch / 'inputs' / state['dataset'], target)
+    kept = ('dataset', 'system', 'repetition', *(REWRITE_KEYS if state.get('clone') else ()))
+    write(target / 'state.json', {**{k: state[k] for k in kept},
+                                  'job': replacement, 'status': 'not_run', 'replaces': name,
+                                  'key': 'trial-' + uuid4().hex})
+    manifest['order'].insert(manifest['order'].index(name) + 1, replacement)
+    write(batch / 'manifest.json', manifest)
+    return replacement
+
+
+def retry(batch, name, reason):
+    """Queue a fresh attempt after an infrastructure failure (network, provider outage).
+
+    The failed attempt stays as it ended, with the operator's reason; product failures
+    (validation, budget, schema) are results and must not be retried this way."""
+    manifest = read(batch / 'manifest.json')
+    job = batch / 'jobs' / name
+    state = read(job / 'state.json')
+    if state['status'] != 'failed':
+        raise SystemExit(f'{name} finished as {state["status"]}; only failed attempts are retried.')
+    if any(read(batch / 'jobs' / n / 'state.json').get('replaces') == name for n in manifest['order'] if n != name):
+        raise SystemExit(f'{name} already has a replacement.')
+    state['retry_reason'] = reason
+    write(job / 'state.json', state)
+    return queue_replacement(batch, manifest, name, state)
+
+
+def reexport(batch, name, ref, runtime_root=ROOT, again=False):
+    """Export an approved attempt again when only its exporter failed, or, with
+    again, so that every attempt of an arm shares one exporter revision.
+
+    Research and review stay as they were; each export revision is recorded."""
+    job = batch / 'jobs' / name
+    state = read(job / 'state.json')
+    failed_export = state['status'] == 'failed' and state.get('failed_phase') == 'export'
+    if not (state.get('publishable') and (failed_export or (again and state['status'] == 'completed'))):
+        raise SystemExit(f'{name} is not an approved attempt that failed only on export.')
+    spec = read(batch / 'manifest.json')['arms'][state['system']]
+    revision = subprocess.run(['git', 'rev-parse', ref + '^{commit}'], cwd=ROOT,
+                              capture_output=True, text=True, check=True).stdout.strip()
+    source = batch / f'source-export-{revision[:8]}'
+    if not source.exists():
+        freeze(source, revision, runtime_root)
+    shutil.copyfile(Path(__file__).with_name('trial_worker.py'), batch / 'export-worker.py')
+    subprocess.run([spec['python'], str(batch / 'export-worker.py'), str(job), '--reexport', revision],
+                   cwd=source, env={**os.environ, 'PYTHONPATH': str(source)}, check=True)
+    return read(job / 'state.json')['reexports'][-1]
+
+
+def text_of(html):
+    html = re.sub(r'<(script|style)[^>]*>.*?</\1>', ' ', html, flags=re.S | re.I)
+    return re.sub(r'\s+', ' ', unescape(re.sub(r'<[^>]+>', ' ', html))).strip()
+
+
+def hinted(text, groups):
+    lower = text.lower()
+    return all(any(term.lower() in lower for term in group) for group in groups)
+
+
+JARGON = {
+    'internal_ids': r'\b[A-Z]{1,3}\d{2}\s*[×x|]\s*[A-Z]{2}\b|\[[A-Z]\d{2}×[A-Z]{2}\]',
+    'raw_decimals': r'\b\d+\.\d{4,}\b',
+    'causal_disclaimers': r'no (?:demuestra|prueba|identifica|establece)[^.]{0,40}caus|sin atribuir|no equivale a causa',
+}
+
+
+def resources(job, state):
+    if state['system'] in AGENT_LOOPS:
+        usage = [u or {} for u in state.get('usage', [])]
+        return {'seconds': state.get('seconds'), 'steps': state.get('commands'),
+                'failed_steps': state.get('failed_commands'),
+                'input_tokens': sum(u.get('input_tokens', 0) for u in usage),
+                'output_tokens': sum(u.get('output_tokens', 0) for u in usage)}
+    data = read(job / 'resources.json', {'calls': [], 'executions': []})
+    usage = [c.get('usage') or {} for c in data['calls']]
+    return {'seconds': state.get('seconds'), 'steps': len(data['calls']),
+            'failed_steps': sum(e.get('status') != 'completed' for e in data['executions']),
+            'executions': len(data['executions']),
+            'input_tokens': sum(u.get('prompt_tokens', u.get('input_tokens', 0)) or 0 for u in usage),
+            'output_tokens': sum(u.get('completion_tokens', u.get('output_tokens', 0)) or 0 for u in usage)}
+
+
+def score(batch, oracles=None):
+    """Automatic indicators only. Signal hints are NOT a verdict; humans score separately."""
+    manifest = read(batch / 'manifest.json')
+    oracles = {name: read(path) for name, path in (oracles or {}).items()}
+    rows = []
+    for name in manifest['order']:
+        job = batch / 'jobs' / name
+        state = read(job / 'state.json')
+        report = job / 'informe.html'
+        text = text_of(report.read_text(errors='replace')) if report.exists() else ''
+        oracle = oracles.get(state['dataset'], {'signals': []})
+        rows.append({'job': name, 'dataset': state['dataset'], 'system': state['system'],
+                     'status': state['status'], 'publishable': state.get('publishable'),
+                     'report': report.exists(), 'words': len(text.split()), **resources(job, state),
+                     'outside_paths': luna_outside(job) if state['system'] == 'luna' else [],
+                     'signal_hints': {s['key']: hinted(text, s['hints']) for s in oracle['signals']} if text else {},
+                     'jargon': {k: len(re.findall(v, text, flags=re.I)) for k, v in JARGON.items()}})
+    write(batch / 'scores.json', rows)
+    blind(batch, rows)
+    template = batch / 'evaluation.json'
+    if not template.exists():
+        write(template, {'instructions': 'Human scoring after reading each report. Per signal: detected, prioritized '
+                         '(rank given), numbers_correct, reading_correct; null until scored. rubric_39: 12 criteria 0/1/2.',
+                         'jobs': {r['job']: {'signals': {k: {'detected': None, 'rank': None, 'numbers_correct': None,
+                                                             'reading_correct': None} for k in r['signal_hints']},
+                                             'rubric_39': None, 'notes': ''} for r in rows if r['report']}})
+    return rows
+
+
+BRANDING = re.compile(r'Decision Room[^.\n]{0,40}|Generado: \S+', re.I)
+
+
+def blind(batch, rows):
+    """Shuffled, de-branded text copies for scoring without knowing the system.
+
+    Layout and style can still reveal the origin; this reduces, not removes, bias.
+    The key stays in BATCH; give evaluators only the blind folder."""
+    folder = batch / 'blind'
+    key = read(batch / 'blind-key.json', {})
+    folder.mkdir(exist_ok=True)
+    for row in rows:
+        report = batch / 'jobs' / row['job'] / 'informe.html'
+        if not report.exists() or row['job'] in key.values():
+            continue
+        code = uuid4().hex[:8]
+        key[code] = row['job']
+        text = BRANDING.sub('', text_of(report.read_text(errors='replace')))
+        (folder / f"{row['dataset']}-{code}.txt").write_text(text + '\n')
+    write(batch / 'blind-key.json', key)
+
+
+def median(values):
+    values = sorted(v for v in values if v is not None)
+    if not values:
+        return None
+    middle = len(values) // 2
+    return values[middle] if len(values) % 2 else (values[middle - 1] + values[middle]) / 2
+
+
+def summary(batch):
+    rows = read(batch / 'scores.json') or score(batch)
+    human = (read(batch / 'evaluation.json') or {}).get('jobs', {})
+    lines = ['| Conjunto | Sistema | Completadas | Con informe | Mediana s | Mediana entrada | Mediana salida | Indicios de señal | IDs internos | Detección humana |',
+             '| --- | --- | ---: | ---: | ---: | ---: | ---: | --- | ---: | --- |']
+    groups = {}
+    for row in rows:
+        if row['status'] != 'abandoned':  # operator interruptions are kept, not scored
+            groups.setdefault((row['dataset'], row['system']), []).append(row)
+    for (dataset, system), items in sorted(groups.items()):
+        hints = Counter(k for r in items for k, v in r['signal_hints'].items() if v)
+        detected = Counter(k for r in items for k, v in human.get(r['job'], {}).get('signals', {}).items()
+                           if v.get('detected'))
+        lines.append('| {} | {} | {}/{} | {} | {} | {} | {} | {} | {} | {} |'.format(
+            dataset, system, sum(r['status'] == 'completed' for r in items), len(items),
+            sum(r['report'] for r in items), median([r['seconds'] for r in items]),
+            median([r['input_tokens'] for r in items]), median([r['output_tokens'] for r in items]),
+            ', '.join(f'{k} {v}/{len(items)}' for k, v in sorted(hints.items())) or '—',
+            sum(r['jargon']['internal_ids'] for r in items),
+            ', '.join(f'{k} {v}/{len(items)}' for k, v in sorted(detected.items())) or 'pendiente'))
+    table = '\n'.join(lines) + '\n'
+    (batch / 'summary.md').write_text(table)
+    return table
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    commands = parser.add_subparsers(dest='command', required=True)
+    p = commands.add_parser('prepare')
+    p.add_argument('batch', type=Path)
+    p.add_argument('--dataset', action='append', required=True, help='NAME=DIR with datos/ and prompt.txt')
+    p.add_argument('--product-ref', default='HEAD')
+    p.add_argument('--repeats', type=int, default=3)
+    p.add_argument('--arm-repeats', action='append', default=[], help='DATASET-SYSTEM=N, e.g. bruma-product=1')
+    p.add_argument('--python', type=Path, help='Interpreter whose packages match the frozen revision')
+    p.add_argument('--reference-ref', help='Frozen product revision for the reference arm')
+    p.add_argument('--reference-python', type=Path)
+    p.add_argument('--product-env', action='append', default=[], help='KEY=VALUE set only for the product arm')
+    p.add_argument('--reference-env', action='append', default=[], help='KEY=VALUE set only for the reference arm')
+    p.add_argument('--systems', default='luna,product')
+    p.add_argument('--runtime-root', type=Path, default=ROOT,
+                   help='Checkout whose .local holds sandbox-runtime.json and the mounted sandbox-inputs')
+    p.add_argument('--env-file', type=Path, default=ROOT / '.env')
+    r = commands.add_parser('run')
+    r.add_argument('batch', type=Path)
+    r.add_argument('--system', choices=SYSTEMS)
+    r.add_argument('--limit', type=int)
+    a = commands.add_parser('abandon')
+    a.add_argument('batch', type=Path)
+    a.add_argument('job')
+    a.add_argument('--reason', required=True)
+    a.add_argument('--no-replacement', action='store_true')
+    rt = commands.add_parser('retry')
+    rt.add_argument('batch', type=Path)
+    rt.add_argument('job')
+    rt.add_argument('--reason', required=True)
+    s = commands.add_parser('score')
+    s.add_argument('batch', type=Path)
+    s.add_argument('--oracle', action='append', default=[], help='NAME=PATH, kept outside the batch')
+    w = commands.add_parser('prepare-rewrite')
+    w.add_argument('batch', type=Path)
+    w.add_argument('--source', action='append', required=True, help='BATCH/JOB with approved research')
+    w.add_argument('--arms', default=','.join(PRODUCT_ARMS), help='Arms to run for --source')
+    w.add_argument('--paired-source', action='append', default=[], help='BATCH/JOB that always gets both arms')
+    w.add_argument('--ref', required=True, help='Revision that writes and reviews again')
+    w.add_argument('--python', type=Path)
+    w.add_argument('--product-env', action='append', default=[], help='KEY=VALUE for the product arm')
+    w.add_argument('--reference-env', action='append', default=[], help='KEY=VALUE for the reference arm')
+    w.add_argument('--runtime-root', type=Path, default=ROOT)
+    w.add_argument('--env-file', type=Path, default=ROOT / '.env')
+    e = commands.add_parser('reexport')
+    e.add_argument('batch', type=Path)
+    e.add_argument('job')
+    e.add_argument('--ref', required=True, help='Revision whose exporter renders the approved review')
+    e.add_argument('--runtime-root', type=Path, default=ROOT)
+    e.add_argument('--again', action='store_true', help='Also re-render completed approved attempts')
+    commands.add_parser('summary').add_argument('batch', type=Path)
+    args = parser.parse_args()
+    if args.command == 'prepare':
+        datasets = dict(item.split('=', 1) for item in args.dataset)
+        systems = [s for s in args.systems.split(',') if s]
+        if not systems or set(systems) - set(SYSTEMS):
+            raise SystemExit(f'Systems must be among {", ".join(SYSTEMS)}.')
+        arms = {k: int(v) for k, v in (item.split('=', 1) for item in args.arm_repeats)}
+        manifest = prepare(args.batch.resolve(), datasets, args.product_ref, args.repeats, systems,
+                           args.runtime_root.resolve(), args.env_file, arms, args.python, args.reference_ref,
+                           dict(item.split('=', 1) for item in args.product_env), args.reference_python,
+                           dict(item.split('=', 1) for item in args.reference_env))
+        print(json.dumps({'jobs': manifest['order'], 'revision': manifest.get('revision')}, indent=2))
+    elif args.command == 'run':
+        print(json.dumps({'dispatched': run(args.batch.resolve(), args.system, args.limit)}))
+    elif args.command == 'abandon':
+        print(json.dumps({'replacement': abandon(args.batch.resolve(), args.job, args.reason,
+                                                 replace=not args.no_replacement)}))
+    elif args.command == 'retry':
+        print(json.dumps({'replacement': retry(args.batch.resolve(), args.job, args.reason)}))
+    elif args.command == 'score':
+        oracles = dict(item.split('=', 1) for item in args.oracle)
+        print(json.dumps(score(args.batch.resolve(), oracles), ensure_ascii=False, indent=2))
+    elif args.command == 'prepare-rewrite':
+        manifest = prepare_rewrite(args.batch.resolve(), args.source, args.ref, args.runtime_root.resolve(),
+                                   args.env_file, args.python,
+                                   dict(item.split('=', 1) for item in args.product_env),
+                                   dict(item.split('=', 1) for item in args.reference_env),
+                                   tuple(a for a in args.arms.split(',') if a), tuple(args.paired_source))
+        print(json.dumps({'jobs': manifest['order'], 'clones': list(manifest['clones'])}, indent=2))
+    elif args.command == 'reexport':
+        print(json.dumps(reexport(args.batch.resolve(), args.job, args.ref, args.runtime_root.resolve(), args.again)))
+    else:
+        print(summary(args.batch.resolve()))
+
+
+if __name__ == '__main__':
+    main()
