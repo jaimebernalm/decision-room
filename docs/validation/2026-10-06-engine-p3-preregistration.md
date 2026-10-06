@@ -1,9 +1,10 @@
 # Preregistro de la medida del paso 3 del motor de agentes
 
 Fecha de registro: 2026-10-06, antes de cualquier ejecución del motor nuevo.
-Versión 2, del mismo día y también antes de medir: incorpora la revisión de Astra
-(agregación de lectores, flags y presupuestos congelados, presupuestos iguales y
-reemplazos). Los cambios respecto a la versión 1 se listan al final.
+Versión 3, del mismo día y también antes de medir. La versión 2 incorporó la
+revisión de Astra (agregación de lectores, flags y presupuestos congelados,
+presupuestos iguales y reemplazos); la 3 define qué cifras «sostienen
+prioridades», a partir de la auditoría del paso 1. Los cambios se listan al final.
 Plan de referencia: plan de implementación del motor, v3, paso 3 (acordado entre
 Claude y Astra). Este documento fija cómo se mide la puerta del paso 3. Lo que aquí
 se fija no se cambia después de ver resultados. Si hay que cambiar algo antes de
@@ -90,7 +91,14 @@ El brazo `engine` pasa si se cumplen **todas**:
 3. Exactitud, con un auditor independiente que recalcula desde los CSV y clasifica
    las cifras (el denominador no lo decide el agente):
    - 100 % de las cifras calculables que sostienen prioridades, verificadas y
-     correctas;
+     correctas. **Sostiene una prioridad** (campo `sostiene_prioridad_v3` del
+     registro del auditor) toda cifra citada en cualquier recomendación explícita
+     del informe o en su justificación frente a alternativas, incluidos sus
+     denominadores y las cifras enlazadas como soporte, esté en el puesto que
+     esté. Quedan fuera las cifras descriptivas o históricas sin ese vínculo. El
+     auditor anota la cita de la prioridad y el criterio, para que la
+     clasificación se pueda revisar. Como diagnóstico se informa además
+     `sostiene_prioridad_principal` (solo las tres primeras prioridades);
    - ≥ 95 % de las demás cifras calculables, verificadas;
    - 0 cifras erróneas presentadas como verificadas.
    Se informan todos los errores, también los de cifras marcadas como no
@@ -141,3 +149,11 @@ este registro.
 2. Brazo `legacy`: valores explícitos de flags y presupuestos en el manifiesto.
 3. Presupuestos: equivalentes entre brazos o desviación registrada.
 4. Reemplazos: un reemplazo perdido deja la pareja insuficiente y bloquea la puerta.
+
+## Cambios respecto a la versión 2
+
+1. Definición de «cifra que sostiene una prioridad»: en la auditoría del paso 1 el
+   auditor marcó así el 93 % de las cifras, lo que hacía equivalentes el umbral del
+   100 % y el total. Ahora cuenta toda recomendación explícita con su justificación
+   y sus cifras enlazadas, en cualquier puesto (para que no se pueda eludir
+   moviéndola al cuarto lugar o a una tabla), y no los descriptivos sin vínculo.
