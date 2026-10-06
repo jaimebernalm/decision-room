@@ -190,3 +190,27 @@ P2 permanece abierto y P3 no ha empezado.
 
 Última regresión del tramo: 74/74 pruebas de motor, actividad y migraciones,
 incluidos los dos recorridos con OpenCode real aislado; sin gasto de modelo.
+
+## Transporte local del servicio interno
+
+`engine.tunnel.JobTunnel` conecta el HTTP loopback del agente con el servicio del
+producto en el host mediante los pipes de `docker exec`. La clave del proveedor,
+PostgreSQL, storage y el socket Docker permanecen en el host. El agente no recibe
+otra red ni un puerto publicado del host. Esto resuelve el transporte local en
+entornos donde Docker no publica puertos de una red `--internal`; no sustituye
+la autenticación, las reservas ni las comprobaciones del servidor de producto.
+
+El relay del contenedor solo acepta las dos rutas POST de su trabajo (MCP y
+Responses). El host vuelve a validar ruta, ID, cabeceras y tamaños antes de
+contactar exclusivamente un origen loopback configurado por el controlador.
+Transporta bytes JSON y SSE con un máximo de ocho solicitudes simultáneas y
+buffers acotados. No interpreta cuerpos como código ni reintenta mutaciones.
+Un corte queda observable para que el futuro supervisor aborte y reconcilie;
+el transporte por sí solo no cambia el estado PostgreSQL del trabajo.
+
+Tres pruebas validan un contenedor real aislado con servidor de producto
+simulado: JSON, UTF-8 y SSE concurrentes, rechazo de token en el destino, rutas de
+otro trabajo, corte del proceso y validación del lado host frente a frames
+manipulados. No son todavía pruebas del controlador completo ni del proxy real
+con OpenCode generando un informe. El despliegue compartido del servicio por host,
+supervisión, recuperación y generación completa siguen pendientes.

@@ -51,3 +51,12 @@ Todavía faltan plantilla de configuración con MCP/proxy por trabajo, superviso
 red completa y controlador de ejecución/espera/reanudación. El outbox y el
 registro de versiones de mensajes ya están disponibles en `engine.control`. Estos
 componentes no habilitan el motor en la interfaz ni completan P2.
+
+Para el sentido agente → servicio, `decision_room.engine.tunnel.JobTunnel` lanza
+`relay.py` con Python aislado mediante Docker exec. El script se lee del árbol de
+fuentes del producto, no del directorio escribible del agente. Expone únicamente
+las rutas HTTP de ese trabajo en `127.0.0.1:8080` del contenedor y transporta JSON y
+SSE por pipes hacia el servicio loopback del host. El host valida los frames otra
+vez; el socket Docker y la clave del proveedor nunca cruzan el pipe. La prueba
+`tests.test_engine_tunnel` usa un servicio simulado sin modelo. Todavía falta que
+el controlador gestione arranque, corte y recuperación de todo este recorrido.
