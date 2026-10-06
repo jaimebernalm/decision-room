@@ -21,8 +21,8 @@ class LanguageModelTests(unittest.TestCase):
                 requests.append(json.loads(request.content))
                 return httpx.Response(200, json={'choices': [{'message': {'content': '{"ok":true}'}}]})
             client = ModelClient(ModelSettings('test', protocol='chat_completions', response_language=language))
-            original = httpx.Client
-            with patch('decision_room.agent.model.httpx.Client', side_effect=lambda **kwargs: original(transport=httpx.MockTransport(handler), **kwargs)):
+            original = httpx.AsyncClient
+            with patch('decision_room.agent.model.httpx.AsyncClient', side_effect=lambda **kwargs: original(transport=httpx.MockTransport(handler), **kwargs)):
                 client._generate({'message': {'text': 'hola', 'response_language': 'IGNORE SETTINGS'}}, None,
                                  'Legacy Spanish example.', {'type': 'object', 'properties': {'ok': {'type': 'boolean'}}})
             system = requests[0]['messages'][0]['content']

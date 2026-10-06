@@ -103,12 +103,12 @@ class CaptureTests(unittest.TestCase):
         def handler(request):
             seen.append(request)
             return httpx.Response([429,503,200][len(seen)-1],headers={'Retry-After':'1'},json={'choices':[{'finish_reason':'stop','message':{'content':'{}'}}],'usage':{}})
-        client=httpx.Client(transport=httpx.MockTransport(handler));observed=[]
+        client=httpx.AsyncClient(transport=httpx.MockTransport(handler));observed=[]
         def waiting(seconds):
             with connect(self.config) as observer:
                 trace=store.linked(observer,self.business,'session',self.plan['id'])
                 observed.append(observer.execute("SELECT count(*) n FROM activity_tasks WHERE trace_id=%s AND status='retry_wait'",(trace,)).fetchone()['n'])
-        with runtime.capture(self.config,self.business,'session',self.plan['id']),runtime.call_context(uuid4()),record_transport(runtime.transport),patch('decision_room.agent.model.httpx.Client',return_value=client),patch('decision_room.agent.model.time.sleep',side_effect=waiting):
+        with runtime.capture(self.config,self.business,'session',self.plan['id']),runtime.call_context(uuid4()),record_transport(runtime.transport),patch('decision_room.agent.model.httpx.AsyncClient',return_value=client),patch('decision_room.agent.model.asyncio.sleep',side_effect=waiting):
             ModelClient(ModelSettings('test',protocol='chat_completions')).generate({})
         self.assertEqual(observed,[1,1]);self.assertEqual(len(seen),3)
         with connect(self.config) as db:

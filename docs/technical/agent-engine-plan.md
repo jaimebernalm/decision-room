@@ -249,6 +249,9 @@ ciegos, lectores, juez de señales) y es dueño de
 - **Hecho cuando:** la suite completa y `tests/test_trials.py` pasan, y hay un
   commit de merge con hash reportado.
 
+**Estado P0:** completo; merge `c503129`, reparación de pruebas heredadas y
+[validación completa](../validation/2026-10-06-engine-p0.md).
+
 ### Paso 1. Auditoría técnica de exactitud de `loop-panorama`
 
 - **Qué:** recalcular los 12 informes: todas las cifras comparativas con sus

@@ -250,8 +250,8 @@ from decision_room.config import Config
                                                     'stats': {'total_output_tokens': 100}})
                 return httpx.Response(200, json={'choices': [{'finish_reason': 'stop', 'message': {'content': json.dumps(output)}}],
                                                 'usage': {'total_tokens': 100}})
-            client = httpx.Client(transport=httpx.MockTransport(handler))
-            with patch('decision_room.agent.model.httpx.Client', return_value=client):
+            client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+            with patch('decision_room.agent.model.httpx.AsyncClient', return_value=client):
                 actual, usage = ModelClient(ModelSettings('test', protocol=protocol)).generate(context)
             self.assertEqual(actual, output)
             self.assertTrue(usage)
@@ -265,8 +265,8 @@ from decision_room.config import Config
                 else:
                     self.assertNotIn('reasoning_effort', captured[0])
         for status in (400, 401, 503):
-            client = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(status, text='do not echo server secrets')))
-            with patch('decision_room.agent.model.httpx.Client', return_value=client):
+            client = httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(status, text='do not echo server secrets')))
+            with patch('decision_room.agent.model.httpx.AsyncClient', return_value=client):
                 with self.assertRaisesRegex(ModelAPIError, f'HTTP {status}') as error:
                     ModelClient(ModelSettings('test')).generate(context)
                 self.assertEqual(error.exception.status_code, status)
