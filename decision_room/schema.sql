@@ -928,3 +928,28 @@ CREATE TABLE IF NOT EXISTS engine_executions (
     FOREIGN KEY(business_id,execution_id) REFERENCES executions(business_id,id)
 );
 INSERT INTO schema_versions(version) VALUES (32) ON CONFLICT DO NOTHING;
+
+-- Engine drafts are independent of legacy approvals and retain exact raw bytes.
+CREATE TABLE IF NOT EXISTS engine_documents (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    run_id uuid NOT NULL UNIQUE,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    FOREIGN KEY(business_id,run_id) REFERENCES engine_runs(business_id,id),
+    UNIQUE(business_id,id)
+);
+CREATE TABLE IF NOT EXISTS engine_document_revisions (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    document_id uuid NOT NULL,
+    ordinal integer NOT NULL CHECK(ordinal>0),
+    request_key text NOT NULL,
+    raw bytea NOT NULL CHECK(octet_length(raw)<=262144),
+    raw_sha256 text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    FOREIGN KEY(business_id,document_id) REFERENCES engine_documents(business_id,id),
+    UNIQUE(document_id,request_key),
+    UNIQUE(document_id,ordinal),
+    UNIQUE(business_id,id)
+);
+INSERT INTO schema_versions(version) VALUES (33) ON CONFLICT DO NOTHING;

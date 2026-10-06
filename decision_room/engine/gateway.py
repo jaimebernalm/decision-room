@@ -3,10 +3,14 @@ from uuid import UUID
 
 from .. import execution
 from ..database import connect
-from . import admission
+from . import admission, store
 
 VERSIONS = {'2025-03-26', '2025-06-18'}
 TOOLS = [
+    {'name': 'entregar_informe', 'description': 'Persist exact draft JSON text before validation. Malformed or empty text is retained. The receipt is pending verification, not approval or completion. Repeat the same key and bytes to retrieve the same revision.',
+     'inputSchema': {'type': 'object', 'properties': {
+         'request_key': {'type': 'string'}, 'draft_json': {'type': 'string'}},
+         'required': ['request_key', 'draft_json'], 'additionalProperties': False}},
     {'name': 'consulta', 'description': 'Run Python over permitted prepared tables. Results are candidates, not analytically verified. Write result.json using the existing execution contract; use resultado to page through the full result.',
      'inputSchema': {'type': 'object', 'properties': {
          'code': {'type': 'string'}, 'tables': {'type': 'object', 'additionalProperties': {'type': 'string'}},
@@ -119,7 +123,11 @@ def dispatch(config, run_id, token, message, *, backend=None):
         if not isinstance(args, dict):
             raise ValueError('Invalid tool arguments.')
         try:
-            if params.get('name') == 'consulta':
+            if params.get('name') == 'entregar_informe':
+                if set(args) != {'request_key', 'draft_json'} or not isinstance(args['draft_json'], str):
+                    raise ValueError('Invalid delivery arguments.')
+                value = store.receive_document(config, run_id, token, **args)
+            elif params.get('name') == 'consulta':
                 value = consulta(config, job, token, args, backend=backend)
             elif params.get('name') == 'resultado':
                 value = resultado(config, job, args)

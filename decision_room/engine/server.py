@@ -69,7 +69,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get('Transfer-Encoding') or len(self.headers.get_all('Content-Length', [])) != 1:
             raise ValueError('A single Content-Length is required.')
         length = int(self.headers['Content-Length'])
-        maximum = proxy.MAX_REQUEST_BYTES if endpoint == 'v1/responses' else 256 * 1024
+        maximum = proxy.MAX_REQUEST_BYTES if endpoint == 'v1/responses' else 2 * 1024 * 1024
         if not 0 < length <= maximum:
             self.send(413)
             return
