@@ -1237,5 +1237,9 @@
   "Buscando chats…": "Searching chats…",
   "No hay chats que coincidan con tu búsqueda.": "No chats match your search.",
   "Tú": "You",
-  "Revisa la búsqueda: admite hasta 300 caracteres.": "Keep your search within 300 characters."
+  "Revisa la búsqueda: admite hasta 300 caracteres.": "Keep your search within 300 characters.",
+  "Relaciones": "Relationships",
+  "No hay archivos originales disponibles.": "No original files are available.",
+  "No hay tablas disponibles para analizar.": "No tables are available for analysis.",
+  "Las relaciones estarán disponibles cuando se preparen tus datos.": "Relationships will be available once your data is prepared."
 }

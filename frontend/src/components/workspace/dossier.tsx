@@ -2,9 +2,6 @@ import { translate as tr, useLanguage } from "@/lib/i18n";
 import { useEffect, useRef, useState } from "react";
 import {
   Plus,
-  Upload,
-  Download,
-  MessageSquare,
   Pencil,
   Check,
   Archive,
@@ -18,13 +15,7 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-  CardDescription,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Accordion,
@@ -61,7 +52,7 @@ import {
   TooltipProvider,
 } from "@/components/ui/tooltip";
 import { useResource, useAction } from "@/lib/hooks";
-import { api, contextKey, store, date } from "@/lib/api";
+import { api, date } from "@/lib/api";
 import { useWorkspace } from "@/lib/workspace";
 import type {
   Dossier as DossierData,
@@ -82,7 +73,7 @@ import {
 } from "./shared";
 import { Selectable } from "./context-selection";
 import { UploadForm } from "./business";
-import { DataModelPanel } from "./data-model";
+import { DossierDataGroups } from "./dossier-data";
 import { GroupEditor } from "./dossier-groups";
 import { defaultDossierLayout } from "@/lib/dossier-layout";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -284,22 +275,22 @@ export function Dossier({ files = false }: { files?: boolean }) {
       )}
       <Tabs defaultValue={files ? "data" : "info"} className="min-w-0 w-full">
         <div className="mt-4 mb-6 flex flex-wrap items-center gap-2">
-          <TabsList className="rounded-xl group-data-horizontal/tabs:h-14 p-1 sm:group-data-horizontal/tabs:h-16">
+          <TabsList className="rounded-lg group-data-horizontal/tabs:h-10 p-1">
             <TabsTrigger
               value="info"
-              className="rounded-xl px-3 text-base font-semibold sm:px-5"
+              className="rounded-md px-3 text-sm font-medium"
             >
               {tr("Información")}
             </TabsTrigger>
             <TabsTrigger
               value="data"
-              className="rounded-xl px-3 text-base font-semibold sm:px-5"
+              className="rounded-md px-3 text-sm font-medium"
             >
               {tr("Datos")}
             </TabsTrigger>
             <TabsTrigger
               value="history"
-              className="rounded-xl px-3 text-base font-semibold sm:px-5"
+              className="rounded-md px-3 text-sm font-medium"
             >
               {tr("Historial")}
             </TabsTrigger>
@@ -736,128 +727,12 @@ export function Dossier({ files = false }: { files?: boolean }) {
             </Button>
           </Disclosure>
         </TabsContent>
-        <TabsContent value="data" className="space-y-5">
-          <div className="flex justify-end">
-            <Button size="sm" onClick={() => setUpload(true)}>
-              <Upload />
-              {tr("Subir datos")}
-            </Button>
-          </div>
-          {data.datasets.length ? (
-            data.datasets.map((d) => (
-              <Card key={d.id} className="shadow-none">
-                <CardHeader>
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <CardTitle>{d.title}</CardTitle>
-                    <Badge variant={d.corrected ? "destructive" : "secondary"}>
-                      v{d.version}
-                      {d.corrected
-                        ? tr(" · corregida")
-                        : d.superseded_by
-                          ? tr(" · anterior")
-                          : ""}
-                      {d.status === "partial"
-                        ? tr(" · algunos archivos fallaron")
-                        : ""}
-                      {d.status === "failed"
-                        ? tr(" · sin tablas disponibles")
-                        : ""}
-                    </Badge>
-                  </div>
-                  <CardDescription>
-                    {d.period_from || tr("Inicio no indicado")} —{" "}
-                    {d.period_until || tr("Fin no indicado")}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {(d.status === "ready" || d.status === "partial") && (
-                    <DataModelPanel business={b.id} analysis={d.id} />
-                  )}
-                  {!!d.original_files?.length && (
-                    <div className="space-y-2">
-                      <p className="text-xs font-medium text-muted-foreground">
-                        {tr("Archivos originales de la entrega")}
-                      </p>
-                      {d.original_files.map((file) => (
-                        <div
-                          key={file.path}
-                          className="flex items-center gap-2 text-sm"
-                        >
-                          <span className="min-w-0 flex-1 break-all">
-                            {file.path} · {(file.size / 1_000_000).toFixed(1)}{" "}
-                            MB
-                          </span>
-                          <Button asChild size="icon" variant="ghost">
-                            <a
-                              href={`/api/datasets/original/${d.id}?path=${encodeURIComponent(file.path)}`}
-                              download
-                              aria-label={tr("Descargar {0}", {
-                                "0": file.path,
-                              })}
-                            >
-                              <Download />
-                            </a>
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {!!d.original_files?.length && (
-                    <p className="text-xs font-medium text-muted-foreground">
-                      {tr("Tablas disponibles para analizar")}
-                    </p>
-                  )}
-                  {d.files?.map((f) => (
-                    <div key={f.id} className="flex items-center gap-3 text-sm">
-                      <span className="min-w-0 flex-1 break-all">
-                        {f.name}
-                        <span className="ml-2 text-xs text-muted-foreground">
-                          {f.status === "failed"
-                            ? tr("No se pudo preparar")
-                            : tr("{0} filas", { "0": f.rows ?? "—" })}
-                        </span>
-                      </span>
-                      {f.status !== "failed" && (
-                        <Button asChild size="icon" variant="ghost">
-                          <a
-                            href={`/api/datasets/file/${f.id}`}
-                            download
-                            aria-label={tr("Descargar {0}", { "0": f.name })}
-                          >
-                            <Download />
-                          </a>
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                  {(d.status === "ready" || d.status === "partial") &&
-                    !d.corrected && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          store.set(contextKey(b.id), {
-                            analysis_id: d.id,
-                            label: `${d.title} · v${d.version}`,
-                          });
-                          location.hash = "ask";
-                        }}
-                      >
-                        <MessageSquare />
-                        {tr("Preguntar con esta versión")}
-                      </Button>
-                    )}
-                </CardContent>
-              </Card>
-            ))
-          ) : (
-            <Empty
-              title={tr("Tus datos empiezan aquí")}
-              description={tr(
-                "Guarda archivos CSV o Excel, juntos o como carpeta, para reutilizarlos en los chats. Cada actualización conserva su versión.",
-              )}
-            />
-          )}
+        <TabsContent value="data" className="min-w-0">
+          <DossierDataGroups
+            business={b.id}
+            datasets={data.datasets}
+            onUpload={() => setUpload(true)}
+          />
         </TabsContent>
         <TabsContent value="history" className="space-y-3">
           {data.history.length ? (

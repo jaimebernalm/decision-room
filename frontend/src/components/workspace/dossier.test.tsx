@@ -495,7 +495,11 @@ describe("compact business dossier", () => {
     ).toHaveAttribute("href", "#business");
     await user.click(screen.getByRole("tab", { name: "Datos" }));
     expect(screen.queryByText(business.description)).not.toBeInTheDocument();
-    expect(screen.getByText("Ventas de septiembre")).toBeVisible();
+    expect(
+      within(screen.getByRole("region", { name: /^Archivos/ })).getByText(
+        "Ventas de septiembre",
+      ),
+    ).toBeVisible();
     await user.click(screen.getByRole("tab", { name: "Historial" }));
     expect(screen.queryByText(business.description)).not.toBeInTheDocument();
     expect(screen.getByText(retired.content.statement)).toBeVisible();
@@ -525,6 +529,73 @@ describe("compact business dossier", () => {
     expect(
       screen.queryByRole("button", { name: /^Acciones:/ }),
     ).not.toBeInTheDocument();
+  });
+  it("groups data into independent disclosures, preserves downloads and uploads from the header without opening a folded group", async () => {
+    const data = dossier();
+    data.datasets[0].original_files = [
+      { path: "carpeta/ventas.csv", size: 1200 },
+    ];
+    data.datasets[0].files = [
+      { id: "table", name: "ventas.csv", rows: 12, status: "ready" },
+      { id: "failed", name: "fallido.csv", status: "failed" },
+    ];
+    const { user } = setup(data, { files: true });
+    await ready();
+    const files = screen.getByRole("region", { name: "Archivos 1" });
+    const tables = screen.getByRole("region", { name: "Tablas 2" });
+    expect(
+      within(files).getByRole("link", { name: "Descargar carpeta/ventas.csv" }),
+    ).toHaveAttribute(
+      "href",
+      "/api/datasets/original/sales?path=carpeta%2Fventas.csv",
+    );
+    expect(
+      within(tables).getByRole("link", { name: "Descargar ventas.csv" }),
+    ).toHaveAttribute("href", "/api/datasets/file/table");
+    expect(
+      within(tables).queryByRole("link", { name: "Descargar fallido.csv" }),
+    ).toBeNull();
+    expect(within(tables).getByText("No se pudo preparar")).toBeVisible();
+    expect(screen.getByRole("region", { name: "Relaciones" })).toBeVisible();
+    const filesTrigger = screen.getByRole("button", { name: "Archivos 1" });
+    await user.click(filesTrigger);
+    expect(filesTrigger).toHaveAttribute("aria-expanded", "false");
+    expect(tables).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Subir datos" }));
+    expect(
+      await screen.findByRole("dialog", { name: "Añadir datos al negocio" }),
+    ).toBeVisible();
+    expect(filesTrigger).toHaveAttribute("aria-expanded", "false");
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Archivos 1" }));
+    expect(screen.getByRole("region", { name: "Archivos 1" })).toBeVisible();
+  });
+  it("uses the exact data version from Tables and prevents questions from corrected versions", async () => {
+    const data = dossier();
+    data.datasets.push({
+      ...data.datasets[0],
+      id: "corrected",
+      title: "Datos corregidos",
+      corrected: true,
+    });
+    const { user } = setup(data, { files: true });
+    await ready();
+    const tables = screen.getByRole("region", { name: "Tablas 0" });
+    expect(
+      within(tables).getAllByRole("button", {
+        name: "Preguntar con esta versión",
+      }),
+    ).toHaveLength(1);
+    await user.click(
+      within(tables).getByRole("button", {
+        name: "Preguntar con esta versión",
+      }),
+    );
+    expect(store.get(contextKey(business.id), {})).toMatchObject({
+      analysis_id: "sales",
+      label: "Ventas de septiembre · v2",
+    });
+    expect(location.hash).toBe("#ask");
   });
   it("opens provenance, alternatives and exact revision from the menu", async () => {
     const { user } = setup();
@@ -1019,7 +1090,11 @@ describe("compact business dossier", () => {
       "aria-selected",
       "true",
     );
-    expect(screen.getByText("Ventas de septiembre")).toBeVisible();
+    expect(
+      within(screen.getByRole("region", { name: /^Archivos/ })).getByText(
+        "Ventas de septiembre",
+      ),
+    ).toBeVisible();
     expect(
       screen.queryByRole("button", { name: "Ver presentación original" }),
     ).not.toBeInTheDocument();

@@ -30,6 +30,7 @@ import { NewChatComposer } from "./floating-assistant";
 import { Selectable } from "./context-selection";
 import { useAssistant } from "@/lib/assistant";
 import { useChatSearch } from "@/lib/chat-search";
+import { SearchHighlight } from "./search-highlight";
 export function StartChat() {
   useLanguage();
   return (
@@ -99,7 +100,9 @@ export function Chats() {
                     className="min-w-0 flex-1 after:absolute after:inset-0 after:rounded-2xl focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring"
                     href={`#chat/${c.id}`}
                   >
-                    <p className="truncate text-sm font-medium">{c.title}</p>
+                    <p className="truncate text-sm font-medium">
+                      <SearchHighlight text={c.title} query={search} />
+                    </p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {date(c.last_message_at || c.created_at)}
                     </p>
@@ -108,7 +111,11 @@ export function Chats() {
                         {c.search_match.role === "user"
                           ? tr("Tú")
                           : tr("Asistente")}
-                        : {c.search_match.text}
+                        :{" "}
+                        <SearchHighlight
+                          text={c.search_match.text}
+                          query={search}
+                        />
                       </p>
                     )}
                   </a>

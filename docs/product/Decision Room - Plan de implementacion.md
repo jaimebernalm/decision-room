@@ -654,6 +654,24 @@ Comprobados el movimiento gradual de la página, ajuste inmediato, alineación d
 tirador, reapertura durante el cierre con borrador y deslizamiento móvil sin
 desbordamiento. Véanse [comprobaciones y límites](../validation/2026-10-06-smooth-assistant-panel.md).
 
+### 2.5.27. Coincidencias visibles y datos organizados en la ficha
+
+1. Resaltar en negrita las coincidencias literales en títulos y fragmentos de
+   Chats, conservando texto original, mayúsculas/tildes, caracteres especiales
+   y escape de HTML.
+2. Reducir altura y relleno de Información, Datos e Historial en Mi negocio.
+3. Separar Datos en Archivos, Tablas y Relaciones, según la preferencia explícita
+   del propietario: grupos desplegables como Información y subida desde un `+`
+   independiente en la cabecera de Archivos. Conservar versiones, descargas,
+   errores de preparación, relaciones y selección de la versión para preguntar.
+4. Comprobar escritorio/móvil y controles, ejecutar pruebas frontend,
+   compilación, lint y revisión de diferencias.
+
+**Completado:** 233 pruebas frontend pasan; compilación y lint sin errores.
+Comprobados negrita de coincidencias con tildes, pestañas compactas, grupos
+desplegables y `+` independiente en localhost, escritorio y móvil. Véanse
+[comprobaciones y límites](../validation/2026-10-06-chat-matches-and-data-groups.md).
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Avance, 27 de septiembre de 2026:** completados **3.1** (medición inicial),
