@@ -3,10 +3,24 @@ from uuid import UUID
 
 from .. import execution
 from ..database import connect
-from . import admission, store
+from . import admission, store, panorama, numbers
 
 VERSIONS = {'2025-03-26', '2025-06-18'}
 TOOLS = [
+    {'name': 'verify_numbers', 'description': 'Resolve 1–32 metric references within this job. Recalculate deterministic panorama scopes; agent calculations remain unverified without a server recipe. Does not verify prose attribution, owner units, causes or priority. Results and corrections are durable and paged; repeat unchanged input with cursor.',
+     'inputSchema': {'type': 'object', 'properties': {
+         'request_key': {'type': 'string'}, 'cursor': {'type': 'integer', 'minimum': 0},
+         'numbers': {'type': 'array', 'minItems': 1, 'maxItems': 32, 'items': {
+             'type': 'object', 'properties': {k: {'type': 'string'} for k in ('key', 'execution_id', 'metric')},
+             'required': ['key', 'execution_id', 'metric'], 'additionalProperties': False}}},
+         'required': ['request_key', 'numbers'], 'additionalProperties': False}},
+    {'name': 'panorama', 'description': 'Calculate the deterministic sales overview for one permitted table. The summary is paged by JSON pointer; follow cursor without changing input. Observation IDs work with resultado. Describes recorded quantities and missing rows, not revenue, causes or approved priorities. Keep tables separate.',
+     'inputSchema': {'type': 'object', 'properties': {
+         'table_id': {'type': 'string'}, 'request_key': {'type': 'string'},
+         'mapping': {'type': 'object', 'properties': {k: {'type': 'string'} for k in ('date', 'product', 'channel', 'quantity')},
+                     'required': ['date', 'product', 'channel', 'quantity'], 'additionalProperties': False},
+         'cursor': {'type': 'integer', 'minimum': 0}},
+         'required': ['table_id', 'request_key'], 'additionalProperties': False}},
     {'name': 'entregar_informe', 'description': 'Persist exact draft JSON text before validation. Malformed or empty text is retained. The receipt is pending verification, not approval or completion. Repeat the same key and bytes to retrieve the same revision.',
      'inputSchema': {'type': 'object', 'properties': {
          'request_key': {'type': 'string'}, 'draft_json': {'type': 'string'}},
@@ -95,6 +109,10 @@ def resultado(config, job, args):
             WHERE business_id=%s AND run_id=%s AND execution_id=%s''',
                             (job['business_id'], job['id'], execution_id)).fetchone()
     if not linked:
+        frozen = panorama.observation(config, job['business_id'], job['id'], execution_id)
+        if frozen:
+            return {**page_result({'id': execution_id, 'status': frozen['status'], 'result': frozen['result']}, args.get('cursor', 0)),
+                    'origin': 'deterministic_panorama', 'table_ids': [t['id'] for t in frozen['inputs'].values()]}
         raise admission.Denied('Execution is outside this job.')
     return page_result(execution.get_execution(config, job['business_id'], execution_id), args.get('cursor', 0))
 
@@ -123,7 +141,21 @@ def dispatch(config, run_id, token, message, *, backend=None):
         if not isinstance(args, dict):
             raise ValueError('Invalid tool arguments.')
         try:
-            if params.get('name') == 'entregar_informe':
+            if params.get('name') == 'verify_numbers':
+                if set(args) - {'request_key', 'numbers', 'cursor'} or not {'request_key', 'numbers'} <= set(args):
+                    raise ValueError('Invalid verification arguments.')
+                row = numbers.verify(config, run_id, token, request_key=args['request_key'], numbers=args['numbers'])
+                value = page_result({'id': row['id'], 'status': 'completed', 'result': row['body']}, args.get('cursor', 0))
+                value['verification_id'] = value.pop('execution_id')
+            elif params.get('name') == 'panorama':
+                if set(args) - {'table_id', 'request_key', 'mapping', 'cursor'} or not {'table_id', 'request_key'} <= set(args):
+                    raise ValueError('Invalid panorama arguments.')
+                row = panorama.calculate(config, run_id, token, **{k: v for k, v in args.items() if k != 'cursor'})
+                page = page_result({'id': row['id'], 'status': 'completed', 'result': {'tables': row['body']['tables']}}, args.get('cursor', 0))
+                page['panorama_id'] = page.pop('execution_id')
+                value = {**page, 'origin': 'deterministic_panorama',
+                         'observation_ids': [o['execution_id'] for o in row['body']['observations']]}
+            elif params.get('name') == 'entregar_informe':
                 if set(args) != {'request_key', 'draft_json'} or not isinstance(args['draft_json'], str):
                     raise ValueError('Invalid delivery arguments.')
                 value = store.receive_document(config, run_id, token, **args)

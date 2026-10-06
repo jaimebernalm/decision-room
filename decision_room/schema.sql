@@ -997,3 +997,30 @@ CREATE TABLE IF NOT EXISTS engine_message_versions (
     UNIQUE(run_id,message_id,content_sha256)
 );
 INSERT INTO schema_versions(version) VALUES (34) ON CONFLICT DO NOTHING;
+
+-- Frozen deterministic panorama observations belong to one engine job.
+CREATE TABLE IF NOT EXISTS engine_panoramas (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    run_id uuid NOT NULL,
+    request_key text NOT NULL,
+    request_sha256 text NOT NULL,
+    body jsonb NOT NULL,
+    body_sha256 text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    FOREIGN KEY(business_id,run_id) REFERENCES engine_runs(business_id,id),
+    UNIQUE(run_id,request_key)
+);
+CREATE TABLE IF NOT EXISTS engine_number_checks (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    run_id uuid NOT NULL,
+    request_key text NOT NULL,
+    request_sha256 text NOT NULL,
+    body jsonb NOT NULL,
+    body_sha256 text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    FOREIGN KEY(business_id,run_id) REFERENCES engine_runs(business_id,id),
+    UNIQUE(run_id,request_key)
+);
+INSERT INTO schema_versions(version) VALUES (35) ON CONFLICT DO NOTHING;

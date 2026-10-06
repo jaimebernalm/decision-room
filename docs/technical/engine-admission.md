@@ -1,7 +1,7 @@
 # Admisión del motor: primer tramo de P2
 
 El servicio interno admite llamadas únicamente con una credencial ligada a un
-trabajo, su negocio, análisis y snapshot de tablas. Las migraciones 32–34 y el paquete
+trabajo, su negocio, análisis y snapshot de tablas. Las migraciones 32–35 y el paquete
 `decision_room.engine` son optativos: todavía no existe el controlador OpenCode
 ni la API pública `run_report` / `resume_report` / `export_run`.
 
@@ -63,22 +63,48 @@ MCP implementa initialize, ping, tools/list y tools/call con respuestas JSON y
 notificación de inicialización 202; sigue el [transporte MCP](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports).
 No está montado en la aplicación web ni constituye un despliegue listo para uso.
 
-Por ahora hay tres herramientas:
+Por ahora hay cinco herramientas:
 
+- `panorama` reutiliza el cálculo determinista existente para una tabla autorizada,
+  sin activar contratos legacy. Congela resumen, código y observaciones por trabajo;
+  pagina el resumen y expone referencias que `resultado` puede resolver. Un catálogo
+  no compatible queda como no disponible, sin cifras cero fabricadas.
+- `verify_numbers` resuelve métricas del trabajo y recalcula desde Parquet las del
+  panorama, sin usar su caché de resultados. Conserva el antes, después, operación,
+  mapeo, periodos y hashes. Un cambio de alcance impide corregir automáticamente;
+  el cálculo Python del agente continúa no verificado, aunque sea trazable.
 - `consulta` ejecuta Python en el sandbox Docker existente, exclusivamente sobre
   las tablas permitidas. La clave de ejecución incluye el trabajo; repetir clave
   y contenido devuelve la ejecución anterior, y cambiar contenido la rechaza.
 - `entregar_informe` conserva bytes y hash en una revisión antes de parsear el
   texto. Su recibo significa recepción pendiente, no aprobación ni fin del trabajo.
-- `resultado` pagina únicamente ejecuciones vinculadas al trabajo. Los valores
+- `resultado` pagina únicamente ejecuciones u observaciones del panorama vinculadas al trabajo. Los valores
   son candidatos pendientes de verificación, nunca cifras aprobadas.
 
 Las páginas contienen como máximo 100 filas y tres columnas (puntero JSON,
 número de fragmento, valor). Dividen cadenas en fragmentos de hasta 512 caracteres,
 con cursor, total de filas, marca de truncado y hash del resultado completo. Cada
 respuesta MCP queda bajo 64 KiB, incluyendo escapes. El resultado privado completo
-continúa en el almacén de ejecuciones. Las rutas de campo mayores de 512 caracteres
+continúa en el almacén de ejecuciones o en el snapshot del panorama. Las referencias
+del panorama son observaciones deterministas congeladas, no filas ficticias de
+`executions`; su origen se devuelve explícitamente. Las rutas de campo mayores de 512 caracteres
 se rechazan; la presentación final de tablas y artefactos sigue pendiente.
+
+La primera versión de `verify_numbers` admite referencias escalares de métrica;
+las series y las recetas independientes para Python arbitrario siguen pendientes.
+`verified_in_scope` significa que valor y operación del panorama se recalcularon
+con la misma tabla y mapeo. Se vuelve a ejecutar la receta del producto: no es
+una auditoría con un algoritmo independiente del calculador. No certifica cómo se atribuye la cifra en la prosa ni
+las unidades confirmadas por el propietario. `corrected_in_scope` conserva ambos
+valores y solo procede si la operación coincide. Una referencia ajena o ausente no
+revela valores. Los resultados, límites e incidencias se guardan en un registro
+idempotente con hash y se devuelven paginados; el verificador final de documentos
+aún debe consumirlos y marcar visiblemente los bloques sin comprobación.
+
+Ocho pruebas usan fixtures públicos pequeños, PostgreSQL y el sandbox Docker:
+comprueban sumas y periodos conocidos, paginación, aislamiento, copia corrupta,
+finalización tardía durante pausa, recálculo real sin caché, corrección inequívoca,
+rechazo de un alcance distinto y un cálculo inventado que nunca se certifica.
 
 ## Entrega duradera antes de validar
 
@@ -153,10 +179,14 @@ llamadas facturables. El cliente también se comprueba contra el servidor real u
 a través de Docker exec, sin publicar puertos ni dar salida de red al agente.
 
 Esta evidencia valida componentes de P2, no todo el paso. Faltan la red completa
-de producto y agente, supervisor, `panorama`, `verify_numbers`,
-`preguntar_propietario`, validación/proyección y exportación completas,
-persistencia de mensajes parciales y recuperación del ciclo de vida del agente,
+de producto y agente, supervisor, `preguntar_propietario`,
+verificación final de documentos, proyección y exportación completas,
+captura de todos los hijos/archivos y recuperación completa del ciclo de vida,
 y las seis ejecuciones reales. La prueba de terminación cubre el receptor de
-borradores; todavía no cubre el controlador OpenCode ni la caída durante la
+borradores y el marcador del outbox; todavía no cubre la restauración completa
+del controlador ni la caída durante la
 verificación o el render.
 P2 permanece abierto y P3 no ha empezado.
+
+Última regresión del tramo: 74/74 pruebas de motor, actividad y migraciones,
+incluidos los dos recorridos con OpenCode real aislado; sin gasto de modelo.
