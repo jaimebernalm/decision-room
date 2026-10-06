@@ -15,7 +15,7 @@ from decision_room.local_env import load_env
 
 class OpenAITests(unittest.TestCase):
     def test_openai_payload_credentials_and_usage(self):
-        settings = ModelSettings('gpt-6-luna', protocol='openai', base_url='https://api.openai.com/v1', reasoning='low')
+        settings = ModelSettings('gpt-6-luna', protocol='openai', base_url='https://api.openai.com/v1', reasoning='low', tokens_per_minute=0)
         def handler(request):
             self.assertEqual(str(request.url), 'https://api.openai.com/v1/chat/completions')
             self.assertEqual(request.headers['Authorization'], 'Bearer openai-test-only')
@@ -28,8 +28,8 @@ class OpenAITests(unittest.TestCase):
             self.assertTrue(payload['response_format']['json_schema']['strict'])
             return httpx.Response(200, json={'choices': [{'finish_reason': 'stop', 'message': {'content': '{"action":"inspect"}'}}],
                                             'usage': {'completion_tokens': 100, 'completion_tokens_details': {'reasoning_tokens': 50}}})
-        client = httpx.Client(transport=httpx.MockTransport(handler))
-        with patch.dict(os.environ, {'OPENAI_API_KEY': 'openai-test-only', 'DECISION_ROOM_AGENT_API_KEY': 'local-test-only'}), patch('decision_room.agent.model.httpx.Client', return_value=client):
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'openai-test-only', 'DECISION_ROOM_AGENT_API_KEY': 'local-test-only'}), patch('decision_room.agent.model.httpx.AsyncClient', return_value=client):
             action, usage = ModelClient(settings).generate({})
         self.assertEqual(action['action'], 'inspect')
         self.assertEqual(usage['completion_tokens_details']['reasoning_tokens'], 50)
@@ -39,14 +39,14 @@ class OpenAITests(unittest.TestCase):
         def handler(request):
             self.assertNotIn('Authorization', request.headers)
             return httpx.Response(200, json={'choices': [{'finish_reason': 'stop', 'message': {'content': '{}'}}]})
-        client = httpx.Client(transport=httpx.MockTransport(handler))
-        with patch.dict(os.environ, {'OPENAI_API_KEY': 'openai-test-only'}, clear=True), patch('decision_room.agent.model.httpx.Client', return_value=client):
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'openai-test-only'}, clear=True), patch('decision_room.agent.model.httpx.AsyncClient', return_value=client):
             ModelClient(ModelSettings('local', protocol='lmstudio_structured')).generate({})
 
     def test_missing_key_and_wrong_destination_fail_before_request(self):
         with self.assertRaises(ValueError):
             ModelSettings('remote', protocol='openai', base_url='https://example.com/v1')
-        with patch.dict(os.environ, {'DECISION_ROOM_AGENT_PROTOCOL': 'openai', 'DECISION_ROOM_AGENT_MODEL': 'gpt-6-luna'}, clear=True), patch('decision_room.agent.model.httpx.Client') as client:
+        with patch.dict(os.environ, {'DECISION_ROOM_AGENT_PROTOCOL': 'openai', 'DECISION_ROOM_AGENT_MODEL': 'gpt-6-luna'}, clear=True), patch('decision_room.agent.model.httpx.AsyncClient') as client:
             settings = ModelSettings.load()
             self.assertEqual(settings.base_url, 'https://api.openai.com/v1')
             with self.assertRaisesRegex(ValueError, 'OPENAI_API_KEY'):

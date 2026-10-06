@@ -47,7 +47,7 @@ class SchemaLimitTests(unittest.TestCase):
         schema = {'type': 'object', 'properties': {'n': {'type': 'integer', 'enum': list(range(1001))}},
                   'required': ['n'], 'additionalProperties': False}
         client = ModelClient(ModelSettings('test', protocol='openai', base_url='https://api.openai.com/v1'))
-        with patch('decision_room.agent.model.httpx.Client') as http:
+        with patch('decision_room.agent.model.httpx.AsyncClient') as http:
             with self.assertRaisesRegex(ValueError, '1001 enum values'):
                 client._generate({}, None, 'test', schema)
             http.assert_not_called()
