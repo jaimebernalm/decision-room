@@ -1,7 +1,7 @@
 # Admisión del motor: primer tramo de P2
 
 El servicio interno admite llamadas únicamente con una credencial ligada a un
-trabajo, su negocio, análisis y snapshot de tablas. Las migraciones 32–33 y el paquete
+trabajo, su negocio, análisis y snapshot de tablas. Las migraciones 32–34 y el paquete
 `decision_room.engine` son optativos: todavía no existe el controlador OpenCode
 ni la API pública `run_report` / `resume_report` / `export_run`.
 
@@ -102,6 +102,34 @@ borrador tras aborto, caducidad o revocación. Comprueban el hash y escriben
 entrega tardía en pausing/waiting/aborted sigue denegada. El controlador todavía
 no persiste los mensajes intermedios ni genera una proyección verificada.
 
+## Outbox y conservación de mensajes
+
+`engine.control` vincula un trabajo a una sesión una sola vez. Cada prompt lleva
+una clave y un ID de mensaje duraderos; cambiar el texto bajo la misma clave se
+rechaza. Se permite un solo prompt pendiente. Antes de llamar a OpenCode se
+confirman en PostgreSQL el texto y el estado `dispatching`, tras comprobar ámbito,
+estado, caducidad, tiempo activo y snapshot. Un bloqueo cooperativo por trabajo
+impide que dos controladores conduzcan simultáneamente la sesión.
+
+Un 204 de `prompt_async` no confirma persistencia. Se consulta el ID y se contrasta
+sesión, rol, partes y texto exacto antes de marcar `confirmed`. Tras timeout,
+respuesta rota o caída del controlador, repetir la operación solo reconcilia: un
+404 no autoriza otro envío. Si la caída fue entre el marcador y la petición, queda
+pendiente; todavía falta la prueba de quiescencia/restauración que permitiría
+recuperar ese caso con seguridad. No se declara reanudación completa.
+
+Cada versión distinta observada de los mensajes se conserva con hash, incluidas
+las parciales. Una observación más corta o un aborto no borra versiones anteriores.
+Estas son operaciones internas con ámbito de negocio, no herramientas del agente.
+Los hijos de la sesión y los archivos de trabajo aún requieren integración.
+
+Las nueve pruebas del control usan PostgreSQL real e incluyen proceso terminado
+tras el marcador, concurrencia, texto/identidades incorrectas, caducidad y lectura
+después del aborto. Una de ellas usa además OpenCode real con un proveedor
+inexistente en loopback: confirma un único mensaje duradero mediante el mismo
+cliente y conserva su sesión, sin conexión a un proveedor ni gasto. Esto comprueba
+recepción y recuperación de mensajes; no generación satisfactoria de informes.
+
 ## Comprobaciones y alcance restante
 
 Se ejecutaron 47 pruebas: 29 del motor y 18 de actividad/migración, con PostgreSQL,
@@ -121,8 +149,8 @@ comprueban el cliente sin reintentos implícitos y el backup/restauración SQLit
 con WAL, corrupción y publicación exclusiva. Un smoke adicional usa OpenCode
 1.18.34 real sin enviar prompts: autenticación, versión, sesión con título,
 mensajes, hijos y aborto en un contenedor sin salida externa. No se hicieron
-llamadas facturables. El transporte del cliente se prueba por separado; todavía
-falta conectar el controlador al servidor dentro de la red interna.
+llamadas facturables. El cliente también se comprueba contra el servidor real usando HTTP loopback
+a través de Docker exec, sin publicar puertos ni dar salida de red al agente.
 
 Esta evidencia valida componentes de P2, no todo el paso. Faltan la red completa
 de producto y agente, supervisor, `panorama`, `verify_numbers`,

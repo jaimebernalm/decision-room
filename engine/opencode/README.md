@@ -20,15 +20,19 @@ lectura, capacidades eliminadas, recursos acotados, tmpfs privados y una red
 interna con DNS externo deshabilitado. Comprueba rechazo sin contraseña, versión,
 creación de sesión con título explícito, lectura de mensajes/hijos y aborto,
 además de ausencia de clave de proveedor, rutas del host y resolución DNS externa.
-No pretende probar todavía toda la red de producto, proxy y pasarela. Usa HTTP
-local dentro del contenedor: Docker no publica su puerto en esta red interna.
+No pretende probar todavía toda la red de producto, proxy y pasarela. El cliente
+Python usa HTTP local dentro del contenedor mediante `DockerHTTPTransport`: Docker
+no publica su puerto en esta red interna. El transporte emplea el ID inmutable,
+`docker exec` sin shell y Python aislado; no monta el socket Docker en el agente.
+Solo admite HTTP finito a loopback. Este controlador local reconcilia mensajes
+por polling; SSE queda disponible en el cliente HTTP ordinario.
 
 El cliente `decision_room.engine.client` corresponde al OpenAPI de la etiqueta
 1.18.34: crea sesiones con título, envía `prompt_async` con messageID persistido
-por el futuro controlador, consulta mensajes/hijos/estado y aborta. No reintenta
+en el outbox duradero, consulta mensajes/hijos/estado y aborta. No reintenta
 mutaciones y trata un timeout de envío como recepción incierta. SSE terminado
-obliga a reconciliar la sesión. Sus pruebas de transporte usan un servidor
-simulado; el smoke comprueba los endpoints reales con la biblioteca estándar.
+obliga a reconciliar la sesión. Sus pruebas de transporte usan también un servidor
+simulado; el smoke ejercita el mismo cliente contra los endpoints reales.
 
 La comprobación de título en `session/prompt.ts:193–200` de OpenCode omite la
 llamada de título si la sesión ya tiene uno explícito. Esto es evidencia de código;
@@ -44,5 +48,6 @@ falta incorporar los archivos de trabajo, registrar el puntero duradero en
 PostgreSQL y probar reanudación de la sesión en otro contenedor.
 
 Todavía faltan plantilla de configuración con MCP/proxy por trabajo, supervisor,
-red completa, outbox y controlador de ejecución/espera/reanudación. Estos
+red completa y controlador de ejecución/espera/reanudación. El outbox y el
+registro de versiones de mensajes ya están disponibles en `engine.control`. Estos
 componentes no habilitan el motor en la interfaz ni completan P2.
