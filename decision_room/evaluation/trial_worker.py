@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import sys
 import time
@@ -84,11 +85,19 @@ def research_new(config, state, job, model, phase, batch, dataset):
 ENGINE_QUESTIONS = 6
 
 
+def readable(html):
+    """Visible text left after dropping scripts, styles and tags. Local on purpose: this file
+    runs against frozen revisions that may not contain the launcher's helpers."""
+    html = re.sub(r'(?is)<(script|style)\b.*?</\1\s*>', ' ', html)
+    return ' '.join(re.sub(r'<[^>]+>', ' ', html).split())
+
+
 def engine_new(config, state, job, phase, batch, dataset):
     """Engine arm: same import and owner answers as the pipeline, then engine.run_report.
 
-    Whatever the outcome, export_run writes what the run produced, so a lost report can
-    be told apart from a partial one. Only a delivered run with informe.html counts."""
+    Whatever the outcome, export_run writes what the run produced and returns its final
+    snapshot, so a lost report can be told apart from a partial one. Only a delivered run
+    whose informe.html has readable text counts."""
     from decision_room import engine
     inputs = sorted((batch / 'inputs' / state['dataset'] / 'datos').glob('*.csv'))
     prompt = (batch / 'inputs' / state['dataset'] / 'prompt.txt').read_text()
@@ -104,6 +113,7 @@ def engine_new(config, state, job, phase, batch, dataset):
     state['engine_run_id'] = str(result['engine_run_id'])
     write(job / 'state.json', state)
     answered = 0
+    final = result
     try:
         while result['status'] == 'waiting' and answered < ENGINE_QUESTIONS:
             question = result['question']
@@ -115,12 +125,16 @@ def engine_new(config, state, job, phase, batch, dataset):
                         'request_key': f"{state['key']}-answer-{question['id']}"})
             answered += 1
     finally:
-        state.update(engine_status=result['status'], engine_questions=answered,
-                     engine_usage=result.get('usage'), contract_version=result.get('contract_version'),
-                     engine_issues=result.get('issues', []))
+        state['engine_questions'] = answered
         phase('export')
-        engine.export_run(config, state['business_id'], state['engine_run_id'], job / 'engine')
-    delivered = result['status'] == 'delivered' and (job / 'engine' / 'informe.html').exists()
+        # export_run returns the run's final snapshot (same contract), so usage and status stay
+        # right even when resume_report raised after spending tokens.
+        final = engine.export_run(config, state['business_id'], state['engine_run_id'], job / 'engine') or result
+        state.update(engine_status=final['status'], engine_usage=final.get('usage'),
+                     contract_version=final.get('contract_version'), engine_issues=final.get('issues', []))
+    result = final
+    html = job / 'engine' / 'informe.html'
+    delivered = result['status'] == 'delivered' and html.exists() and bool(readable(html.read_text(errors='replace')))
     state['publishable'] = delivered
     if delivered:
         shutil.copyfile(job / 'engine' / 'informe.html', job / 'informe.html')

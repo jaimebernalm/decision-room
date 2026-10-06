@@ -231,8 +231,9 @@ class LauncherTests(unittest.TestCase):
 class FakeEngine:
     """Stand-in for decision_room.engine with the agreed run/resume/export signatures."""
 
-    def __init__(self, outcomes, deliver=True):
-        self.outcomes, self.deliver, self.calls = list(outcomes), deliver, []
+    def __init__(self, outcomes, deliver=True, html='<html><body><h1>Informe</h1></body></html>', fail_resume=False):
+        self.outcomes, self.deliver, self.html, self.fail_resume, self.calls = list(outcomes), deliver, html, fail_resume, []
+        self.final = None
 
     def result(self, status):
         question = {'id': f'q{len(self.calls)}', 'text': '¿Qué periodo?'} if status == 'waiting' else None
@@ -242,18 +243,24 @@ class FakeEngine:
 
     def run_report(self, config, business_id, analysis_id, *, owner_context, request_key):
         self.calls.append(('run', business_id, analysis_id, owner_context, request_key))
-        return self.result(self.outcomes.pop(0))
+        self.final = self.result(self.outcomes.pop(0))
+        return self.final
 
     def resume_report(self, config, business_id, engine_run_id, *, answer):
         self.calls.append(('resume', business_id, engine_run_id, answer))
-        return self.result(self.outcomes.pop(0))
+        if self.fail_resume:  # tokens spent, then the call breaks
+            self.final = {**self.result('failed'), 'usage': {'input': 5000, 'calls': 9}}
+            raise RuntimeError('transport broke after spending tokens')
+        self.final = self.result(self.outcomes.pop(0))
+        return self.final
 
     def export_run(self, config, business_id, engine_run_id, dest):
         self.calls.append(('export', business_id, engine_run_id))
         dest.mkdir(parents=True)
         (dest / 'draft.raw').write_bytes(b'{}')
         if self.deliver:
-            (dest / 'informe.html').write_text('<html><body><h1>Informe</h1></body></html>')
+            (dest / 'informe.html').write_text(self.html)
+        return self.final
 
 
 class EngineArmTests(unittest.TestCase):
@@ -285,7 +292,7 @@ class EngineArmTests(unittest.TestCase):
             try:
                 trial_worker.engine_new(object(), state, job, lambda name: None, batch, dataset)
                 error = None
-            except ValueError as raised:
+            except (ValueError, RuntimeError) as raised:
                 error = raised
         return state, job, error
 
@@ -315,6 +322,98 @@ class EngineArmTests(unittest.TestCase):
         state, job, error = self.run_engine(FakeEngine(['delivered'], deliver=False))
         self.assertIn('delivered', str(error))
         self.assertFalse(state['publishable'])
+
+    def test_empty_report_is_not_a_delivered_report(self):
+        html = '<html><head><style>h1{}</style></head><body><script>x()</script> </body></html>'
+        state, job, error = self.run_engine(FakeEngine(['delivered'], html=html))
+        self.assertIsNotNone(error)
+        self.assertFalse((job / 'informe.html').exists() or state['publishable'])
+
+    def test_usage_comes_from_the_final_export_when_resume_breaks(self):
+        state, job, error = self.run_engine(FakeEngine(['waiting'], fail_resume=True))
+        self.assertIn('transport broke', str(error))
+        self.assertEqual(state['engine_usage']['input'], 5000)
+        self.assertEqual(state['engine_status'], 'failed')
+        self.assertTrue((job / 'engine/draft.raw').exists())
+
+
+class PairedComparisonTests(unittest.TestCase):
+    def batch(self, tmp, repeats=2):
+        from decision_room.evaluation import trial_pairs
+        batch = Path(tmp) / 'batch'
+        order = [f'demo-{s}-{r}' for r in range(1, repeats + 1) for s in ('engine', 'opencode', 'product')]
+        for name in order:
+            dataset, system, repetition = name.rsplit('-', 2)
+            (batch / 'jobs' / name).mkdir(parents=True)
+            trials.write(batch / 'jobs' / name / 'state.json',
+                         {'job': name, 'dataset': dataset, 'system': system, 'repetition': int(repetition),
+                          'status': 'not_run'})
+        trials.write(batch / 'manifest.json', {'systems': ['engine', 'opencode', 'product'],
+                                               'datasets': {'demo': {}}, 'order': order})
+        return batch, trial_pairs
+
+    def finish(self, batch, name, text='Informe con texto'):
+        state = trials.read(batch / 'jobs' / name / 'state.json')
+        state['status'] = 'completed'
+        trials.write(batch / 'jobs' / name / 'state.json', state)
+        (batch / 'jobs' / name / 'informe.html').write_text(f'<html><body><p>{text}</p></body></html>')
+
+    def test_pairs_are_planned_before_running_and_fixed_by_the_seed(self):
+        with TemporaryDirectory() as tmp:
+            batch, trial_pairs = self.batch(tmp)
+            pairs = trial_pairs.plan(batch, seed=7)
+            self.assertEqual(len(pairs), 4)
+            self.assertEqual({p['opponent'] for p in pairs}, {'opencode', 'product'})
+            with self.assertRaises(SystemExit):
+                trial_pairs.plan(batch, seed=7)
+        with TemporaryDirectory() as tmp:
+            batch, trial_pairs = self.batch(tmp)
+            self.assertEqual(trial_pairs.plan(batch, seed=7), pairs)
+        with TemporaryDirectory() as tmp:
+            batch, trial_pairs = self.batch(tmp)
+            self.finish(batch, 'demo-engine-1')
+            with self.assertRaises(SystemExit):
+                trial_pairs.plan(batch, seed=7)
+
+    def test_readers_vote_per_pair_and_a_lost_replacement_blocks_the_gate(self):
+        from decision_room.evaluation.trial_pairs import pair_result
+        self.assertEqual(pair_result([1.0, 0.5]), (1.0, 0.75))  # one vote plus a tie is a win
+        self.assertEqual(pair_result([1.0, 0.0]), (0.5, 0.5))
+        self.assertEqual(pair_result([0.0, 0.5]), (0.0, 0.25))
+        with TemporaryDirectory() as tmp:
+            batch, trial_pairs = self.batch(tmp, repeats=1)
+            trial_pairs.plan(batch, seed=1)
+            for name in ('demo-engine-1', 'demo-opencode-1'):
+                self.finish(batch, name)
+            self.finish(batch, 'demo-product-1', text=' ')  # empty report: lost, and no replacement
+            built = trial_pairs.kit(batch, Path(tmp) / 'kit', 'contenido')
+            self.assertEqual((built['pairs'], built['skipped']), (1, ['demo-product-1']))
+            key = trials.read(batch / 'kit-key-kit.json')
+            code, info = next(iter(key['codes'].items()))
+            engine_side = info['engine_side']
+            vote = {'choices': {code: {'choice': engine_side}}}
+            result = trial_pairs.score(batch, 'kit', [vote, vote])
+            self.assertEqual(result['groups'][0]['mean'], 1.0)
+            self.assertEqual(result['insufficient_pairs'], ['demo-product-1'])
+            self.assertFalse(result['passed'])
+            page = (Path(tmp) / 'kit/comparacion.html').read_text()
+            self.assertNotIn('engine', page.split('const DATA=')[1].split(', KIT=')[0])
+
+    def test_first_replacement_fills_a_lost_slot(self):
+        with TemporaryDirectory() as tmp:
+            batch, trial_pairs = self.batch(tmp, repeats=1)
+            trial_pairs.plan(batch, seed=1)
+            for name in ('demo-engine-1', 'demo-opencode-1'):
+                self.finish(batch, name)
+            (batch / 'jobs/demo-product-1r1').mkdir()
+            trials.write(batch / 'jobs/demo-product-1r1/state.json',
+                         {'job': 'demo-product-1r1', 'dataset': 'demo', 'system': 'product', 'repetition': 1,
+                          'status': 'not_run', 'replaces': 'demo-product-1'})
+            self.finish(batch, 'demo-product-1r1')
+            built = trial_pairs.kit(batch, Path(tmp) / 'kit', 'artefacto')
+            self.assertEqual((built['pairs'], built['skipped']), (2, []))
+            jobs = [v['jobs'] for v in trials.read(batch / 'kit-key-kit.json')['codes'].values()]
+            self.assertIn(['demo-engine-1', 'demo-product-1r1'], jobs)
 
 
 if __name__ == '__main__':
