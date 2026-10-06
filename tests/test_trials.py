@@ -165,6 +165,13 @@ class LauncherTests(unittest.TestCase):
             leaked = [p for p in batch.rglob('*') if p.is_file() and b'sk-test-not-real' in p.read_bytes()]
             self.assertEqual(leaked, [])
 
+    def test_arm_flags_are_explicit_and_never_carry_credentials(self):
+        environ = {'DECISION_ROOM_SALES_PANORAMA': 'false', 'DECISION_ROOM_AGENT_TPM': '200000',
+                   'DECISION_ROOM_DATABASE_URL': 'postgresql://u:p@h/db', 'DECISION_ROOM_API_KEY': 'x',
+                   'OPENAI_API_KEY': 'sk-test-not-real', 'PATH': '/bin'}
+        flags = trials.effective_flags({'DECISION_ROOM_SALES_PANORAMA': 'true'}, environ)
+        self.assertEqual(flags, {'DECISION_ROOM_AGENT_TPM': '200000', 'DECISION_ROOM_SALES_PANORAMA': 'true'})
+
     def test_hints_require_every_group(self):
         self.assertTrue(trials.hinted('La Tienda cae en domingo', [['domingo'], ['tienda']]))
         self.assertFalse(trials.hinted('La tienda cae', [['domingo'], ['tienda']]))

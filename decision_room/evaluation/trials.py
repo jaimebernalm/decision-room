@@ -59,6 +59,18 @@ def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+SECRET_HINTS = ('KEY', 'SECRET', 'TOKEN', 'PASSWORD', 'DATABASE_URL', 'DSN')
+
+
+def effective_flags(overrides, environ=None):
+    """Every DECISION_ROOM_* setting an arm runs with (environment plus its own overrides), so the
+    manifest states flags and budgets explicitly instead of pointing at a past batch. Values that
+    could carry credentials are left out by name."""
+    merged = {**(os.environ if environ is None else environ), **overrides}
+    return {k: v for k, v in sorted(merged.items())
+            if k.startswith('DECISION_ROOM_') and not any(h in k for h in SECRET_HINTS)}
+
+
 def plan_order(datasets, systems, repeats, arm_repeats=None):
     """Interleave systems and datasets so drift in time affects all arms alike.
 
@@ -160,7 +172,7 @@ def prepare(batch, datasets, product_ref, repeats, systems, runtime_root, env_fi
                 db.execute(sql.SQL('CREATE DATABASE {}').format(sql.Identifier(database)))
             manifest['arms'][arm] = {'ref': ref, 'revision': freeze(source, ref, runtime_root), 'source': str(source),
                                      'database': database, 'storage': str(batch / ('storage-' + arm)),
-                                     'python': python_path, 'env': env}
+                                     'python': python_path, 'env': env, 'flags': effective_flags(env)}
         if 'product' in manifest['arms']:
             manifest.update(product_ref=product_ref, revision=manifest['arms']['product']['revision'])
     if 'opencode' in systems:
