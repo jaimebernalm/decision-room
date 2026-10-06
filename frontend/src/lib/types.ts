@@ -50,6 +50,8 @@ export type Chat = {
   title: string;
   created_at: string;
   last_message_at?: string;
+  pinned_at?: string | null;
+  search_match?: { role: "user" | "assistant"; text: string };
   context_reference?: ContextAttachment;
 };
 export type ChatListing = {

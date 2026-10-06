@@ -362,6 +362,60 @@ def greeting_reply(manifest, owner_text=''):
     return dict(kind='greeting', text=text.replace('¡Hola!', salutation(owner_text), 1))
 
 
+def library_prose(value):
+    """Search visible response fields, never snapshots, prompts or tool logs."""
+    if not isinstance(value, dict):
+        return ''
+    text_fields = ('text', 'paragraphs', 'title', 'statement', 'interpretation',
+                   'method', 'recommendation', 'next_step', 'reason', 'description',
+                   'names', 'columns', 'limitations', 'label', 'value', 'unit', 'period', 'coverage')
+    child_fields = ('claims', 'questions', 'items', 'content', 'evidence', 'scope', 'highlights', 'sources')
+    parts = []
+    for key in text_fields:
+        item = value.get(key)
+        items = item if isinstance(item, list) else [item]
+        parts.extend(str(part) for part in items if isinstance(part, (str, int, float)))
+    for key in child_fields:
+        item = value.get(key)
+        parts.extend(library_prose(part) for part in (item if isinstance(item, list) else [item]))
+    return '\n'.join(part for part in parts if part)
+
+
+def library_query(text):
+    return ''.join(c for c in unicodedata.normalize('NFKD', text.casefold()) if not unicodedata.combining(c))
+
+
+def search_library(db, business, chats, query):
+    needle = library_query(query)
+    matches = {chat['id'] for chat in chats if needle in library_query(chat['title'])}
+    by_id = {chat['id']: chat for chat in chats}
+    # Server-side batches bound memory; only a short matching excerpt reaches the UI.
+    with db.transaction(), db.cursor(name='chat_library_search') as cursor:
+        cursor.execute('''SELECT t.conversation_id,t.payload->>'text' AS owner_text,t.response
+            FROM chat_turns t JOIN chat_conversations c ON c.id=t.conversation_id AND c.business_id=t.business_id
+            WHERE t.business_id=%s AND c.deleted_at IS NULL
+            ORDER BY t.created_at DESC,t.ordinal DESC,t.id DESC''', (business,))
+        while len(matches) < len(chats):
+            rows = cursor.fetchmany(50)
+            if not rows:
+                break
+            for row in rows:
+                chat_id = row['conversation_id']
+                if chat_id in matches or chat_id not in by_id:
+                    continue
+                for role, text in (('user', row['owner_text'] or ''), ('assistant', library_prose(row['response']))):
+                    position = library_query(text).find(needle)
+                    if position < 0:
+                        continue
+                    start = max(0, position - 40)
+                    end = start + max(160, len(query) + 80)
+                    excerpt = ('…' if start else '') + text[start:end].strip() + ('…' if end < len(text) else '')
+                    by_id[chat_id]['search_match'] = dict(role=role, text=excerpt)
+                    matches.add(chat_id)
+                    break
+    return [chat for chat in chats if chat['id'] in matches]
+
+
 class Conversations:
     def __init__(self, workspace):
         self.ws = workspace
@@ -392,7 +446,8 @@ class Conversations:
             raise WebError('Mensaje no encontrado.', 404)
         return row
 
-    def listing(self):
+    def listing(self, query=''):
+        query = bounded(query, 'la búsqueda', 300, required=False)
         with connect(self.config) as db:
             result = dict(
                 business_id=self.business,
@@ -401,15 +456,32 @@ class Conversations:
                     LEFT JOIN LATERAL (SELECT created_at FROM chat_turns t
                         WHERE t.conversation_id=c.id ORDER BY created_at DESC,id DESC LIMIT 1) last_turn ON true
                     WHERE c.business_id=%s AND c.deleted_at IS NULL
-                    ORDER BY COALESCE(last_turn.created_at,c.created_at) DESC,c.created_at DESC,c.id DESC''',
+                    ORDER BY c.pinned_at DESC NULLS LAST,
+                        COALESCE(last_turn.created_at,c.created_at) DESC,c.created_at DESC,c.id DESC''',
                     (self.business,),
                 ).fetchall(),
                 datasets=ctx.datasets(db, self.business) if self.business else {'items': [], 'more': False},
             )
 
+            if query:
+                result['conversations'] = search_library(db, self.business, result['conversations'], query)
             for chat in result['conversations']:
                 chat['context_reference'] = conversation_context.listing_reference(db, self.business, chat['id'])
             return result
+
+    def pin(self, chat_id, data):
+        self.guard(data)
+        if type(data.get('pinned')) is not bool:
+            raise WebError('Indica si quieres fijar o desfijar el chat.', 400)
+        with connect(self.config) as db, db.transaction():
+            self.conversation(db, chat_id, lock=True)
+            row = db.execute(
+                '''UPDATE chat_conversations SET pinned_at=
+                    CASE WHEN %s THEN COALESCE(pinned_at,clock_timestamp()) ELSE NULL END
+                    WHERE id=%s AND business_id=%s RETURNING pinned_at''',
+                (data['pinned'], identifier(chat_id), self.business),
+            ).fetchone()
+        return {'saved': True, 'pinned_at': row['pinned_at']}
 
     def delete(self, chat_id, data):
         self.guard(data)

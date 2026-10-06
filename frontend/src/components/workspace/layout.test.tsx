@@ -1,8 +1,9 @@
 import { it, expect, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { Layout } from "./layout";
 import { WorkspaceState, type WorkspaceContext } from "@/lib/workspace";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { store } from "@/lib/api";
 
 const business = {
   id: "b",
@@ -53,17 +54,25 @@ it("groups direct chats and reports once, with library access in the heading", (
   mount();
   const chats = within(screen.getByRole("region", { name: "Chats" }));
   const reports = within(screen.getByRole("region", { name: "Informes" }));
-  expect(
-    screen.queryByRole("link", { name: "Conversaciones" }),
-  ).toBeNull();
+  expect(screen.queryByRole("link", { name: "Conversaciones" })).toBeNull();
   expect(screen.queryByText("Chats recientes")).toBeNull();
   expect(screen.queryByText("Informes recientes")).toBeNull();
-  expect(
-    chats.getByRole("link", { name: "Chats" }),
-  ).toHaveAttribute("href", "#chats");
-  expect(
-    reports.getByRole("link", { name: "Informes" }),
-  ).toHaveAttribute("href", "#reports");
+  expect(chats.getByRole("link", { name: "Chats" })).toHaveAttribute(
+    "href",
+    "#chats",
+  );
+  expect(reports.getByRole("link", { name: "Informes" })).toHaveAttribute(
+    "href",
+    "#reports",
+  );
+  expect(reports.getByRole("link", { name: "Crear informe" })).toHaveAttribute(
+    "href",
+    "#new",
+  );
+  expect(reports.getByRole("link", { name: "Crear informe" })).toHaveAttribute(
+    "title",
+    "Crear informe",
+  );
   expect(chats.getByRole("link", { name: "Conversación 0" })).toHaveAttribute(
     "href",
     "#chat/c0",
@@ -96,16 +105,50 @@ it("keeps an older active report visible and identifies empty groups without hid
   );
   expect(screen.queryByRole("link", { name: "Informe 5" })).toBeNull();
   expect(screen.getByText("Todavía no hay chats")).toBeVisible();
-  expect(
-    screen.getByRole("link", { name: "Chats" }),
-  ).toHaveAttribute("href", "#chats");
+  expect(screen.getByRole("link", { name: "Chats" })).toHaveAttribute(
+    "href",
+    "#chats",
+  );
 });
 
 it("places the single new-chat action beside Chats, with no prominent header button", () => {
   const { container } = mount();
-  const action = within(screen.getByRole("region", { name: "Chats" })).getByRole("link", { name: "Nuevo chat" });
+  const action = within(
+    screen.getByRole("region", { name: "Chats" }),
+  ).getByRole("link", { name: "Nuevo chat" });
   expect(action).toHaveAttribute("href", "#ask");
   expect(action).toHaveAttribute("title", "Nuevo chat");
   expect(screen.getAllByRole("link", { name: "Nuevo chat" })).toHaveLength(1);
-  expect(container.querySelector('[data-slot="sidebar-header"] a[href="#ask"]')).toBeNull();
+  expect(
+    container.querySelector('[data-slot="sidebar-header"] a[href="#ask"]'),
+  ).toBeNull();
+});
+
+it.each([
+  ["chats", "Chats"],
+  ["reports", "Informes"],
+])("marks the %s library heading as the current page", (route, label) => {
+  mount(route);
+  expect(screen.getByRole("link", { name: label })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  const other = label === "Chats" ? "Informes" : "Chats";
+  expect(screen.getByRole("link", { name: other })).not.toHaveAttribute(
+    "aria-current",
+  );
+});
+
+it("persists a resized navigation width and restores it on remount", () => {
+  const view = mount();
+  fireEvent.keyDown(
+    screen.getByRole("separator", { name: "Anchura de la barra lateral" }),
+    { key: "ArrowRight" },
+  );
+  expect(store.get("dr-sidebar-width", 0)).toBe(272);
+  view.unmount();
+  mount();
+  expect(
+    screen.getByRole("separator", { name: "Anchura de la barra lateral" }),
+  ).toHaveAttribute("aria-valuenow", "272");
 });

@@ -564,6 +564,82 @@ propietario; la elección de conflicto mantiene su identidad al cambiar de idiom
 Véanse [comprobaciones de integración](../validation/2026-10-01-ui-integration.md).
 La rama de calidad de informes no forma parte de esta integración.
 
+### 2.5.21. Accesos de biblioteca, chats fijados e informes coherentes
+
+**Alcance solicitado, 2 de octubre de 2026:** hacer reconocibles los enlaces
+Chats e Informes en la barra lateral, permitir fijar/desfijar chats desde sus
+tres puntos y adaptar las filas de Informes a la estética de Chats.
+
+1. Enlaces de biblioteca con superficie amplia, flecha, hover, foco y página
+   activa, conservando la acción independiente de nuevo chat.
+2. Fijación persistente por negocio en PostgreSQL (migración 29). Los chats
+   fijados aparecen primero en navegación y biblioteca; desfijar recupera el
+   orden por último mensaje. Validar acceso, aislamiento, reintentos y recarga.
+3. Informes en filas redondeadas separadas, icono circular de borde fino y
+   cabeceras Estado/Creado conservadas. Mantener búsqueda, selección de contexto,
+   acceso según estado, papelera y restauración; revisar escritorio y móvil.
+
+**Completado:** 215 pruebas frontend y 21 pruebas backend dirigidas pasan;
+compilación y lint sin errores, revisión en localhost de fijación/recarga y
+desfijación, navegación y filas de informes en escritorio y móvil. Véanse
+[comprobaciones y límites](../validation/2026-10-02-ui-ux-refinements.md).
+
+### 2.5.22. Búsqueda de chats por contenido
+
+1. Añadir lupa al buscador de la biblioteca de Chats y retirar el halo azul de
+   foco, conservando un borde neutro para reconocer el campo activo.
+2. Buscar por título, mensajes del propietario y respuestas visibles del
+   asistente dentro del negocio activo; conservar fijados y excluir eliminados.
+   Mostrar un fragmento de la coincidencia sin cargar historiales completos en
+   el navegador ni consultar modelos.
+3. Comprobar aislamiento, caracteres literales, solicitudes obsoletas, errores,
+   ausencia de coincidencias, idiomas y comportamiento visual en localhost.
+
+**Completado:** 219 pruebas frontend y 6 backend dirigidas pasan, compilación
+y lint sin errores. Búsqueda por contenido y campo enfocado sin halo azul
+comprobados en localhost, en escritorio y móvil. Véanse
+[comprobaciones y límites](../validation/2026-10-02-chat-search.md).
+
+### 2.5.23. Creación de informes y tiradores de anchura
+
+1. Añadir una acción independiente `+` junto a Informes, después del enlace y
+   su flecha, igual que Chats; usar el mismo gris de hover en ambas acciones.
+2. Centrar los tiradores de navegación y chat sobre el borde real de la página,
+   con una marca corta central y una zona transparente de arrastre más amplia.
+   Conservar teclado, límites y persistencia; evitar saltos al comenzar a arrastrar.
+3. Comprobar creación, posición y arrastre de ambos lados en localhost,
+   navegación compacta y móvil, pruebas frontend, compilación y lint.
+
+**Completado:** 224 pruebas frontend pasan, compilación y lint sin errores;
+acción de creación, gris común, alineación y arrastre en ambos bordes revisados
+en localhost, escritorio y móvil. Véanse
+[comprobaciones y límites](../validation/2026-10-02-sidebar-controls.md), incluida
+la limitación observada al recargar preferencias en el navegador integrado.
+
+### 2.5.24. Anchura inmediata del chat y acceso visible al asistente
+
+1. Retirar la interpolación de anchura del panel derecho para que página,
+   borde y tirador respondan juntos al arrastre y al teclado, sin movimiento
+   posterior al ajuste. Conservar apertura/cierre, límites y borradores.
+2. Sustituir el icono de abrir panel por una cabeza de agente con bocadillo,
+   en un botón azul del tema, conservando nombre accesible y continuación.
+3. Comprobar ausencia de animación de anchura, alineación y botón en localhost,
+   escritorio y móvil; ejecutar pruebas frontend, compilación y lint.
+
+**Completado:** 225 pruebas frontend pasan; compilación y lint sin errores.
+Comprobados ajuste inmediato, coincidencia de borde y tirador, y acceso azul
+al asistente en escritorio y móvil. Véanse
+[comprobaciones y límites](../validation/2026-10-02-assistant-resize.md).
+
+### 2.5.25. Tamaño del acceso al asistente
+
+1. Aumentar ligeramente el botón azul de 32 a 36 px y su icono de 20 a 24 px.
+2. Compilar y comprobar dimensiones, alineación y apertura en localhost.
+
+**Completado:** TypeScript y Vite pasan (avisos existentes de tamaño de paquetes).
+En localhost 8788, comprobados botón de 36 × 36 px, icono de 24 × 24 px y
+apertura/cierre del chat. Revisión visual y `git diff --check` sin incidencias.
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Avance, 27 de septiembre de 2026:** completados **3.1** (medición inicial),

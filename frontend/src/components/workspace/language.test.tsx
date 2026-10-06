@@ -97,17 +97,16 @@ it("keeps the chat library and search vocabulary consistent when switching langu
   setLanguage("es");
   mount(<Chats />, "chats");
   expect(screen.getByRole("heading", { name: "Chats" })).toBeVisible();
-  expect(screen.getByRole("textbox", { name: "Buscar chats" })).toHaveAttribute(
-    "placeholder",
-    "Buscar chats…",
-  );
+  expect(
+    screen.getByRole("searchbox", { name: "Buscar chats" }),
+  ).toHaveAttribute("placeholder", "Buscar por título o mensaje…");
   expect(
     screen.getByText("Tus chats se guardan dentro de cada negocio."),
   ).toBeVisible();
   setLanguage("en");
   expect(
-    await screen.findByRole("textbox", { name: "Search chats" }),
-  ).toHaveAttribute("placeholder", "Search chats…");
+    await screen.findByRole("searchbox", { name: "Search chats" }),
+  ).toHaveAttribute("placeholder", "Search titles or messages…");
   expect(screen.getByRole("heading", { name: "Chats" })).toBeVisible();
   expect(
     screen.getByText("Your chats are saved within each business."),
