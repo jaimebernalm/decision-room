@@ -26,6 +26,13 @@ existente queda congelada en `c6bda76`; la aceptación analítica de 3.9 y 3.9.7
 permanece abierta hasta las puertas de evaluación. Los resultados históricos
 que siguen no se reinterpretan como aceptación del motor nuevo.
 
+**P1 del motor — auditoría cerrada, 6 de octubre:** registro privado revisado de
+1.087 cifras/afirmaciones de 12 informes; 12 errores y una ambigüedad, separados
+por sistema y por vínculo con prioridades. [Resumen público y línea base de
+P3](../validation/2026-10-06-engine-p1-audit.md). Esto cierra la auditoría del
+motor, no los criterios históricos de aceptación de la cadena. P2 está iniciado;
+P3 aún no se ha medido.
+
 ## 2. Orden general
 
 | Orden | Entrega | Resultado comprobable | Motivo |

@@ -1,14 +1,16 @@
 """One Decision Room trial attempt against a FROZEN source tree.
 
 The launcher copies this file into the batch and runs it with PYTHONPATH set to
-the frozen revision, so it must only use product APIs present in that revision.
-It never receives the oracle. Owner questions get the exact prompt once, then
+the frozen revision, so it must only use product APIs present in that revision
+(the engine arm imports decision_room.engine only when it runs). It never
+receives the oracle. Owner questions get the exact prompt once, then
 'unknown': no invented operational context.
 """
 import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import sys
 import time
@@ -80,6 +82,69 @@ def research_new(config, state, job, model, phase, batch, dataset):
         raise ValueError('Research requires additional owner facts.')
 
 
+ENGINE_QUESTIONS = 6
+
+
+def readable(html):
+    """Visible text left after dropping scripts, styles and tags. Local on purpose: this file
+    runs against frozen revisions that may not contain the launcher's helpers."""
+    html = re.sub(r'(?is)<(script|style)\b.*?</\1\s*>', ' ', html)
+    return ' '.join(re.sub(r'<[^>]+>', ' ', html).split())
+
+
+def engine_new(config, state, job, phase, batch, dataset):
+    """Engine arm: same import and owner answers as the pipeline, then engine.run_report.
+
+    Whatever the outcome, export_run writes what the run produced and returns its final
+    snapshot, so a lost report can be told apart from a partial one. Only a delivered run
+    whose informe.html has readable text counts."""
+    from decision_room import engine
+    inputs = sorted((batch / 'inputs' / state['dataset'] / 'datos').glob('*.csv'))
+    prompt = (batch / 'inputs' / state['dataset'] / 'prompt.txt').read_text()
+    assert {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs} == dataset['inputs']
+    assert hashlib.sha256(prompt.encode()).hexdigest() == dataset['prompt_sha256']
+    phase('import')
+    state['business_id'] = str(create_business(config, f"{dataset['business']} · {job.name}")['id'])
+    write(job / 'state.json', state)
+    state['analysis_id'] = str(import_batch(config, state['business_id'], inputs)['analysis']['id'])
+    phase('engine')
+    result = engine.run_report(config, state['business_id'], state['analysis_id'], owner_context=prompt,
+                               request_key=state['key'] + '-engine')
+    state['engine_run_id'] = str(result['engine_run_id'])
+    write(job / 'state.json', state)
+    answered = 0
+    final = result
+    try:
+        while result['status'] == 'waiting' and answered < ENGINE_QUESTIONS:
+            question = result['question']
+            first = answered == 0
+            result = engine.resume_report(
+                config, state['business_id'], state['engine_run_id'],
+                answer={'question_id': question['id'], 'disposition': 'answered' if first else 'unknown',
+                        'text': prompt if first else '',
+                        'request_key': f"{state['key']}-answer-{question['id']}"})
+            answered += 1
+    finally:
+        state['engine_questions'] = answered
+        phase('export')
+        # export_run returns the run's final snapshot (same contract), so usage and status stay
+        # right even when resume_report raised after spending tokens.
+        final = engine.export_run(config, state['business_id'], state['engine_run_id'], job / 'engine') or result
+        state.update(engine_status=final['status'], engine_usage=final.get('usage'),
+                     contract_version=final.get('contract_version'), engine_issues=final.get('issues', []))
+    result = final
+    html = job / 'engine' / 'informe.html'
+    delivered = result['status'] == 'delivered' and html.exists() and bool(readable(html.read_text(errors='replace')))
+    state['publishable'] = delivered
+    if delivered:
+        shutil.copyfile(job / 'engine' / 'informe.html', job / 'informe.html')
+        state.update(status='completed', phase='done')
+    elif result['status'] == 'waiting':
+        raise ValueError(f'Engine still waiting after {answered} owner answers; no invented context.')
+    else:
+        raise ValueError(f"Engine run ended {result['status']} without a delivered report.")
+
+
 def review_and_export(config, state, job, model, phase):
     phase('review')
     result = review.start(config, state['business_id'], state['research_id'], request_key=state['key'] + '-review',
@@ -128,10 +193,13 @@ def main(job):
         print(json.dumps({'job': job.name, 'phase': name, 'seconds': round(time.monotonic() - started)}), flush=True)
 
     try:
-        if not state.get('clone'):
-            # A rewrite reuses research already stored in its cloned database.
-            research_new(config, state, job, model, phase, batch, dataset)
-        review_and_export(config, state, job, model, phase)
+        if state['system'] == 'engine':
+            engine_new(config, state, job, phase, batch, dataset)
+        else:
+            if not state.get('clone'):
+                # A rewrite reuses research already stored in its cloned database.
+                research_new(config, state, job, model, phase, batch, dataset)
+            review_and_export(config, state, job, model, phase)
     except Exception as error:
         state.update(status='failed', issue=str(error)[:2000], failed_phase=state.get('phase'))
     finally:

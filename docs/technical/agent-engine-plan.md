@@ -268,6 +268,14 @@ ciegos, lectores, juez de señales) y es dueño de
     1.2.
 - Los oráculos solo se usan en la evaluación.
 
+**Estado P1:** completo. Registro privado de 1.087 cifras/afirmaciones, revisado
+por el evaluador y descifrado por sistema. El [resumen público y línea base de
+P3](../validation/2026-10-06-engine-p1-audit.md) separa errores, redondeos y
+ambigüedades. La clasificación de prioridades tiene cita y criterio y conserva
+el registro anterior. Los topes siguen siendo hipótesis hasta medir consumo en
+P2; la auditoría no lo mide. Las limitaciones de cobertura, ceguera y render
+siguen explícitas en el resumen.
+
 ### Paso 2. Servicio de motor
 
 - **Qué:**
