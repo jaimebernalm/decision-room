@@ -35,9 +35,12 @@ from uuid import uuid4
 from ..config import ROOT
 from .runner import write
 
-SYSTEMS = ('luna', 'product', 'reference', 'opencode')
+SYSTEMS = ('luna', 'product', 'reference', 'opencode', 'engine')
 AGENT_LOOPS = ('luna', 'opencode')  # one agent in a tool loop; inputs copied into the job
 PRODUCT_ARMS = ('product', 'reference')
+# Arms that run a frozen product revision against its own database; engine = engine.run_report.
+DATABASE_ARMS = PRODUCT_ARMS + ('engine',)
+SOURCE_DIRS = {'product': 'source', 'reference': 'source-reference', 'engine': 'source-engine'}
 CODEX_ARGS = ['exec', '--ignore-user-config', '--ephemeral', '--skip-git-repo-check',
               '--sandbox', 'workspace-write', '--model', 'gpt-6-luna',
               '-c', 'model_reasoning_effort="low"', '-c', 'web_search="disabled"',
@@ -106,7 +109,7 @@ def copy_inputs(source, target):
 
 def prepare(batch, datasets, product_ref, repeats, systems, runtime_root, env_file,
             arm_repeats=None, python=None, reference_ref=None, product_env=None, reference_python=None,
-            reference_env=None):
+            reference_env=None, engine_ref=None, engine_env=None, engine_python=None):
     if (batch / 'manifest.json').exists():
         raise SystemExit('Batch already prepared; inspect it or choose another folder.')
     batch.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -128,7 +131,7 @@ def prepare(batch, datasets, product_ref, repeats, systems, runtime_root, env_fi
                                                      for p in sorted((target / 'contexto').rglob('*')) if p.is_file()}
         if (source / 'oracle.json').exists():
             raise SystemExit(f'{source} contains oracle.json; keep oracles away from agent inputs.')
-    if set(systems) & set(PRODUCT_ARMS):
+    if set(systems) & set(DATABASE_ARMS):
         from ..agent.model import ModelSettings
         from ..local_env import load_env
         import psycopg
@@ -145,12 +148,13 @@ def prepare(batch, datasets, product_ref, repeats, systems, runtime_root, env_fi
         manifest.update(dsn=make_conninfo(dsn, dbname='postgres'), env_file=str(Path(env_file).resolve()),
                         model=asdict(settings), arms={})
         refs = {'product': (product_ref, product_env or {}, manifest['python']),
-                'reference': (reference_ref, reference_env or {}, str(reference_python or manifest['python']))}
-        for arm in [a for a in PRODUCT_ARMS if a in systems]:
+                'reference': (reference_ref, reference_env or {}, str(reference_python or manifest['python'])),
+                'engine': (engine_ref, engine_env or {}, str(engine_python or manifest['python']))}
+        for arm in [a for a in DATABASE_ARMS if a in systems]:
             ref, env, python_path = refs[arm]
             if not ref:
                 raise SystemExit(f'Arm {arm} needs a revision.')
-            source = batch / ('source' if arm == 'product' else 'source-reference')
+            source = batch / SOURCE_DIRS[arm]
             database = 'dr_trials_' + uuid4().hex
             with psycopg.connect(dsn, autocommit=True) as db:
                 db.execute(sql.SQL('CREATE DATABASE {}').format(sql.Identifier(database)))
@@ -577,6 +581,12 @@ JARGON = {
 
 
 def resources(job, state):
+    if state['system'] == 'engine':
+        usage = state.get('engine_usage') or {}
+        return {'seconds': state.get('seconds'), 'steps': usage.get('calls'),
+                'failed_steps': None, 'input_tokens': usage.get('input'),
+                'cached_tokens': usage.get('cached'), 'output_tokens': usage.get('output'),
+                'cost_catalog': usage.get('cost_catalog')}
     if state['system'] in AGENT_LOOPS:
         usage = [u or {} for u in state.get('usage', [])]
         return {'seconds': state.get('seconds'), 'steps': state.get('commands'),
@@ -690,6 +700,9 @@ def main():
     p.add_argument('--reference-python', type=Path)
     p.add_argument('--product-env', action='append', default=[], help='KEY=VALUE set only for the product arm')
     p.add_argument('--reference-env', action='append', default=[], help='KEY=VALUE set only for the reference arm')
+    p.add_argument('--engine-ref', help='Frozen revision whose decision_room.engine runs the engine arm')
+    p.add_argument('--engine-python', type=Path)
+    p.add_argument('--engine-env', action='append', default=[], help='KEY=VALUE set only for the engine arm')
     p.add_argument('--systems', default='luna,product')
     p.add_argument('--runtime-root', type=Path, default=ROOT,
                    help='Checkout whose .local holds sandbox-runtime.json and the mounted sandbox-inputs')
@@ -738,7 +751,8 @@ def main():
         manifest = prepare(args.batch.resolve(), datasets, args.product_ref, args.repeats, systems,
                            args.runtime_root.resolve(), args.env_file, arms, args.python, args.reference_ref,
                            dict(item.split('=', 1) for item in args.product_env), args.reference_python,
-                           dict(item.split('=', 1) for item in args.reference_env))
+                           dict(item.split('=', 1) for item in args.reference_env), args.engine_ref,
+                           dict(item.split('=', 1) for item in args.engine_env), args.engine_python)
         print(json.dumps({'jobs': manifest['order'], 'revision': manifest.get('revision')}, indent=2))
     elif args.command == 'run':
         print(json.dumps({'dispatched': run(args.batch.resolve(), args.system, args.limit)}))

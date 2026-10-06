@@ -228,5 +228,94 @@ class LauncherTests(unittest.TestCase):
                 trial_kit.build(batch, tmp / 'kit')
 
 
+class FakeEngine:
+    """Stand-in for decision_room.engine with the agreed run/resume/export signatures."""
+
+    def __init__(self, outcomes, deliver=True):
+        self.outcomes, self.deliver, self.calls = list(outcomes), deliver, []
+
+    def result(self, status):
+        question = {'id': f'q{len(self.calls)}', 'text': '¿Qué periodo?'} if status == 'waiting' else None
+        return {'engine_run_id': 'run-1', 'status': status, 'question': question, 'contract_version': 1,
+                'usage': {'input': 1000, 'cached': 900, 'output': 50, 'calls': 4, 'seconds': 3.0,
+                          'cost_catalog': 0.01}, 'issues': []}
+
+    def run_report(self, config, business_id, analysis_id, *, owner_context, request_key):
+        self.calls.append(('run', business_id, analysis_id, owner_context, request_key))
+        return self.result(self.outcomes.pop(0))
+
+    def resume_report(self, config, business_id, engine_run_id, *, answer):
+        self.calls.append(('resume', business_id, engine_run_id, answer))
+        return self.result(self.outcomes.pop(0))
+
+    def export_run(self, config, business_id, engine_run_id, dest):
+        self.calls.append(('export', business_id, engine_run_id))
+        dest.mkdir(parents=True)
+        (dest / 'draft.raw').write_bytes(b'{}')
+        if self.deliver:
+            (dest / 'informe.html').write_text('<html><body><h1>Informe</h1></body></html>')
+
+
+class EngineArmTests(unittest.TestCase):
+    def run_engine(self, fake):
+        import hashlib
+        import types
+        from decision_room.evaluation import trial_worker
+        tmp = TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        batch = Path(tmp.name) / 'batch'
+        data = batch / 'inputs/demo/datos'
+        data.mkdir(parents=True)
+        (data / 'x-000.csv').write_text('fecha,unidades\n2026-01-01,1\n')
+        (batch / 'inputs/demo/prompt.txt').write_text('Mi negocio es Prueba. ¿Qué reviso?')
+        dataset = {'inputs': {'x-000.csv': hashlib.sha256((data / 'x-000.csv').read_bytes()).hexdigest()},
+                   'prompt_sha256': hashlib.sha256('Mi negocio es Prueba. ¿Qué reviso?'.encode()).hexdigest(),
+                   'business': 'Prueba'}
+        job = batch / 'jobs/demo-engine-1'
+        job.mkdir(parents=True)
+        state = {'job': job.name, 'dataset': 'demo', 'system': 'engine', 'key': 'trial-k'}
+        module = types.ModuleType('decision_room.engine')
+        for name in ('run_report', 'resume_report', 'export_run'):
+            setattr(module, name, getattr(fake, name))
+        import decision_room
+        with patch.dict('sys.modules', {'decision_room.engine': module}), \
+                patch.object(decision_room, 'engine', module, create=True), \
+                patch.object(trial_worker, 'create_business', return_value={'id': 'biz-1'}), \
+                patch.object(trial_worker, 'import_batch', return_value={'analysis': {'id': 'an-1'}}):
+            try:
+                trial_worker.engine_new(object(), state, job, lambda name: None, batch, dataset)
+                error = None
+            except ValueError as raised:
+                error = raised
+        return state, job, error
+
+    def test_engine_answers_like_the_pipeline_and_counts_only_delivered_reports(self):
+        fake = FakeEngine(['waiting', 'waiting', 'delivered'])
+        state, job, error = self.run_engine(fake)
+        self.assertIsNone(error)
+        run, first, second, export = fake.calls
+        self.assertEqual(run[1:3], ('biz-1', 'an-1'))
+        self.assertEqual((first[3]['disposition'], first[3]['text']), ('answered', 'Mi negocio es Prueba. ¿Qué reviso?'))
+        self.assertEqual((second[3]['disposition'], second[3]['text']), ('unknown', ''))
+        self.assertNotEqual(first[3]['request_key'], second[3]['request_key'])
+        self.assertTrue(all(call[1] == 'biz-1' for call in fake.calls))  # every call is business-scoped
+        self.assertEqual((state['status'], state['engine_status'], state['engine_questions']), ('completed', 'delivered', 2))
+        self.assertTrue((job / 'informe.html').exists() and state['publishable'])
+        self.assertEqual(trials.resources(job, state)['cached_tokens'], 900)
+
+    def test_failed_engine_run_is_exported_but_not_counted_as_a_report(self):
+        fake = FakeEngine(['aborted'], deliver=False)
+        state, job, error = self.run_engine(fake)
+        self.assertIn('aborted', str(error))
+        self.assertEqual(fake.calls[-1][0], 'export')
+        self.assertTrue((job / 'engine/draft.raw').exists())
+        self.assertFalse((job / 'informe.html').exists() or state['publishable'])
+
+    def test_delivered_status_without_a_report_file_is_not_a_report(self):
+        state, job, error = self.run_engine(FakeEngine(['delivered'], deliver=False))
+        self.assertIn('delivered', str(error))
+        self.assertFalse(state['publishable'])
+
+
 if __name__ == '__main__':
     unittest.main()
