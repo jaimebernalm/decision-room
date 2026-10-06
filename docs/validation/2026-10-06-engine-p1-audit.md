@@ -12,18 +12,23 @@ Git, porque contiene citas de los informes y datos de los negocios de prueba.
 - Los 12 informes del lote `loop-panorama` (sección 18 del documento de ensayos):
   3 de Codex con panorama y 3 de OpenCode con panorama, en cada uno de los dos
   negocios de prueba.
-- Todas las cifras comparativas (variaciones, diferencias, cuotas, rankings,
-  medias, cocientes), con su denominador y su periodo, y las cifras y afirmaciones
-  que sostienen prioridades. 1.087 registros en total.
+- Las cifras comparativas registradas (variaciones, diferencias, cuotas,
+  rankings, medias, cocientes), con su denominador y su periodo, y las cifras y
+  afirmaciones que sostienen prioridades: 1.087 registros en total. No es un censo
+  de cada repetición tipográfica (ver límites).
 - Recalculado desde los CSV de entrada con scripts propios del auditor, sobre un
   kit congelado (48 archivos con hash, verificados antes de empezar).
 
 ## Resultados por sistema
 
-| Sistema (con panorama) | Informes | Cifras revisadas | Errores | Materiales | Errores por informe | Informes con algún error |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Codex | 6 | 514 | 7 | 6 | 1,17 | 4 |
-| OpenCode | 6 | 573 | 5 | 2 | 0,83 | 3 |
+| Sistema (con panorama) | Informes | Cifras revisadas | Correctas | Errores | Materiales | Ambiguas | Errores por informe | Informes con algún error |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Codex | 6 | 514 | 506 | 7 | 6 | 1 | 1,17 | 4 |
+| OpenCode | 6 | 573 | 568 | 5 | 2 | 0 | 0,83 | 3 |
+
+**Correctas** incluye las que solo difieren por el redondeo mostrado. Las
+**ambiguas** (la frase admite más de un cálculo y el informe no dice cuál usó) se
+cuentan aparte: ni correctas ni errores.
 
 Un error es **material** si cambiaría lo que el dueño entiende o decide. Los
 errores encontrados son de tres tipos: porcentajes intercambiados entre dos
@@ -38,10 +43,14 @@ denominadores y cifras enlazadas, en cualquier puesto; no cuentan los
 descriptivos sin ese vínculo. El auditor la aplicó después de las tasas
 agregadas, sin conocer la identidad de cada informe.
 
-| Sistema (con panorama) | Cifras que sostienen prioridades | Errores | Materiales | Correctas | Informes con algún error en ellas |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Codex | 313 | 6 | 5 | 98,1 % | 4 de 6 |
-| OpenCode | 347 | 4 | 2 | 98,8 % | 3 de 6 |
+| Sistema (con panorama) | Cifras que sostienen prioridades | Correctas | Errores | Materiales | Ambiguas | Correctas sobre el total | Informes con algún error en ellas |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Codex | 313 | 306 | 6 | 5 | 1 | 97,8 % | 4 de 6 |
+| OpenCode | 347 | 343 | 4 | 2 | 0 | 98,8 % | 3 de 6 |
+
+El porcentaje se calcula sobre todas las cifras que sostienen prioridades,
+incluidas las ambiguas, porque la puerta del paso 3 exige el 100 % verificadas y
+correctas: una cifra ambigua tampoco la cumple.
 
 En estos informes las prioridades sustantivas son dos o tres, así que la versión
 limitada a las tres primeras da el mismo resultado.
