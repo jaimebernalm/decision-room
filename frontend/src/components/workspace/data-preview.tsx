@@ -1,5 +1,6 @@
 import { translate as tr, useLanguage } from "@/lib/i18n";
 import { useState } from "react";
+import { TableBrowser } from "./table-browser";
 import { Button } from "@/components/ui/button";
 import { useResource } from "@/lib/hooks";
 import type { Question } from "@/lib/types";
@@ -22,7 +23,15 @@ type Preview = {
   cell_characters: number;
 };
 
-export function DataPreview({
+export function DataPreview(props: Parameters<typeof PagedDataPreview>[0]) {
+  return props.compact && props.endpoint ? (
+    <TableBrowser endpoint={props.endpoint} />
+  ) : (
+    <PagedDataPreview {...props} />
+  );
+}
+
+function PagedDataPreview({
   jobId,
   questions = [],
   endpoint,

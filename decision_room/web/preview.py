@@ -1,5 +1,7 @@
 """Bounded, read-only views of the prepared data belonging to one web job."""
 import duckdb
+from collections import OrderedDict
+from threading import RLock
 
 from ..database import connect
 from ..storage import Storage, digest
@@ -9,6 +11,67 @@ from .errors import WebError, identifier
 PAGE_ROWS = 50
 PAGE_COLUMNS = 12
 CELL_CHARACTERS = 500
+# Prepared files are immutable. Cache successful checks only, by identity and
+# nanosecond modification/change times; replacements and DB hash changes miss.
+_VERIFIED = OrderedDict()
+_VERIFY_LOCK = RLock()
+_VERIFY_LIMIT = 128
+
+
+def fingerprint(path):
+    info = path.stat()
+    return (str(path), info.st_dev, info.st_ino, info.st_size,
+            info.st_mtime_ns, info.st_ctime_ns)
+
+
+def verified_file(path, expected):
+    try:
+        stamp = fingerprint(path)
+        key = (*stamp, expected)
+        with _VERIFY_LOCK:
+            if key in _VERIFIED:
+                _VERIFIED.move_to_end(key)
+                return stamp
+        if digest(path) != expected or fingerprint(path) != stamp:
+            raise ValueError('changed')
+        with _VERIFY_LOCK:
+            _VERIFIED[key] = True
+            while len(_VERIFIED) > _VERIFY_LIMIT:
+                _VERIFIED.popitem(last=False)
+        return stamp
+    except (OSError, ValueError):
+        raise WebError('Los datos guardados no coinciden con la versión del informe.', 409) from None
+
+
+def predicates(query, names):
+    search = query.get('q', [''])[0]
+    name = query.get('filter_column', [''])[0]
+    operation = query.get('filter_op', ['contains'])[0]
+    value = query.get('filter_value', [''])[0]
+    if len(search) > 200 or len(value) > 200 or operation not in ('contains', 'equals', 'empty', 'not_empty'):
+        raise WebError('El filtro de datos no es válido.')
+    conditions, values = [], []
+    if search:
+        conditions.append('(' + ' OR '.join(
+            f"contains(lower(coalesce({column_identifier(n)}, '')), lower(?))" for n in names) + ')')
+        values.extend([search] * len(names))
+    if name:
+        if name not in names:
+            raise WebError('La columna del filtro no pertenece a esta tabla.')
+        col = column_identifier(name)
+        if operation == 'contains':
+            conditions.append(f"contains(lower(coalesce({col}, '')), lower(?))")
+            values.append(value)
+        elif operation == 'equals':
+            conditions.append(f'{col} = ?')
+            values.append(value)
+        elif operation == 'empty':
+            conditions.append(f"({col} IS NULL OR {col} = '')")
+        else:
+            conditions.append(f"({col} IS NOT NULL AND {col} <> '')")
+    elif 'filter_column' in query or 'filter_value' in query or 'filter_op' in query:
+        raise WebError('Elige una columna para filtrar.')
+    return conditions, values
 
 
 def page(ws, job_id, query):
@@ -55,20 +118,48 @@ def dataset_page(ws, analysis_id, query):
         raise WebError('La página de datos no es válida.') from None
     if not 0 <= offset < max(1, selected['row_count']) or not 0 <= column_offset < len(selected['columns']):
         raise WebError('La página de datos no es válida.')
+    names = [c['name'] for c in selected['columns']]
+    conditions, values = predicates(query, names)
+    filtered = bool(conditions)
+    try:
+        after = int(query.get('after', ['0'])[0])
+    except (ValueError, TypeError):
+        raise WebError('La página de datos no es válida.') from None
+    if not 0 <= after <= selected['row_count'] or (filtered and offset):
+        raise WebError('La página de datos no es válida.')
     path = Storage(ws.config.storage).path(ws.business_id(), selected['parquet_key'])
-    if not path.is_file() or digest(path) != selected['parquet_sha256']:
-        raise WebError('Los datos guardados no coinciden con la versión del informe.', 409)
-    columns = [c['name'] for c in selected['columns'][column_offset:column_offset + PAGE_COLUMNS]]
-    expressions = [column_identifier(selected['lineage_column'])] + [
-        f'left({column_identifier(c)}, {CELL_CHARACTERS + 1})' for c in columns]
-    with duckdb.connect(config={'threads': 1, 'memory_limit': '256MB'}) as db:
+    stamp = verified_file(path, selected['parquet_sha256'])
+    columns = names[column_offset:column_offset + PAGE_COLUMNS]
+    ordinal = column_identifier(selected['lineage_column'])
+    expressions = [ordinal] + [f'left({column_identifier(c)}, {CELL_CHARACTERS + 1})' for c in columns]
+    if filtered:
+        conditions.insert(0, f'{ordinal} > ?')
+        values.insert(0, after)
+        limit = PAGE_ROWS + 1
+    else:
+        # Source ordinals are dense and ordered at import. Parquet row-group
+        # statistics skip preceding groups; only this block is sorted.
+        conditions = [f'{ordinal} > ? AND {ordinal} <= ?']
+        values = [offset, offset + PAGE_ROWS]
+        limit = PAGE_ROWS
+    with duckdb.connect(config={'threads': 1, 'memory_limit': '256MB',
+                               'max_temp_directory_size': '256MB'}) as db:
         db.read_parquet(str(path)).create_view('preview_data')
-        rows = db.execute('SELECT ' + ','.join(expressions) + ' FROM preview_data ORDER BY ' +
-                          column_identifier(selected['lineage_column']) + ' LIMIT ? OFFSET ?',
-                          [PAGE_ROWS, offset]).fetchall()
+        rows = db.execute('SELECT ' + ','.join(expressions) + ' FROM preview_data WHERE ' +
+                          ' AND '.join(conditions) + ' ORDER BY ' + ordinal + ' LIMIT ?',
+                          [*values, limit]).fetchall()
+    try:
+        unchanged = fingerprint(path) == stamp
+    except OSError:
+        unchanged = False
+    if not unchanged:
+        raise WebError('Los datos guardados no coinciden con la versión del informe.', 409)
+    has_more = len(rows) > PAGE_ROWS if filtered else offset + len(rows) < selected['row_count']
+    rows = rows[:PAGE_ROWS]
     return dict(tables=[dict(id=str(t['id']), name=' · '.join(t['original_names']),
                             row_count=t['row_count'], column_count=len(t['columns'])) for t in tables],
-                table_id=str(table_id), columns=columns,
+                table_id=str(table_id), columns=columns, column_names=names,
                 rows=[dict(number=r[0], values=[v[:CELL_CHARACTERS] + '…' if v is not None and len(v) > CELL_CHARACTERS else v for v in r[1:]]) for r in rows],
                 offset=offset, column_offset=column_offset, page_rows=PAGE_ROWS, page_columns=PAGE_COLUMNS,
-                cell_characters=CELL_CHARACTERS)
+                cell_characters=CELL_CHARACTERS, filtered=filtered, has_more=has_more,
+                next_after=rows[-1][0] if rows else after)

@@ -108,12 +108,17 @@ it("opens the clicked table with actual columns and rows without reopening the m
       ],
       table_id: "products-table",
       columns: ["producto_id", "nombre"],
-      rows: [
-        {
-          number: url.includes("offset=50") ? 51 : 1,
-          values: [url.includes("offset=50") ? "51" : "1", "Cuaderno"],
-        },
-      ],
+      column_names: ["producto_id", "nombre"],
+      rows: Array.from(
+        { length: url.includes("offset=50") ? 5 : 50 },
+        (_, i) => ({
+          number: (url.includes("offset=50") ? 51 : 1) + i,
+          values: [
+            String((url.includes("offset=50") ? 51 : 1) + i),
+            "Cuaderno",
+          ],
+        }),
+      ),
       offset: url.includes("offset=50") ? 50 : 0,
       column_offset: 0,
       page_rows: 50,
@@ -138,16 +143,18 @@ it("opens the clicked table with actual columns and rows without reopening the m
   expect(
     await within(dialog).findByRole("columnheader", { name: "nombre" }),
   ).toBeVisible();
-  expect(within(dialog).getByText("Cuaderno")).toBeVisible();
+  expect(within(dialog).getAllByText("Cuaderno")[0]).toBeVisible();
   expect(within(dialog).queryByText("Datos para responder")).toBeNull();
   expect(within(dialog).queryByText("Archivo o tabla")).toBeNull();
   expect(fetch).toHaveBeenCalledWith(
-    "/api/datasets/table/sheet-source?offset=0",
+    "/api/datasets/table/sheet-source?column_offset=0&offset=0",
     expect.anything(),
   );
-  await user.click(
-    within(dialog).getByRole("button", { name: "Filas siguientes" }),
+  await user.type(
+    within(dialog).getByRole("spinbutton", { name: "Ir a fila" }),
+    "51",
   );
+  await user.click(within(dialog).getByRole("button", { name: "Ir a fila" }));
   expect(await within(dialog).findByRole("cell", { name: "51" })).toBeVisible();
   expect(store.get(contextKey("business"), {})).toEqual({
     analysis_id: "unchanged",

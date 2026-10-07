@@ -783,6 +783,25 @@ sin errores. Comprobados tres archivos/tablas actuales, apertura de Productos
 y Ventas, móvil contenido y retorno del foco. Véanse
 [validación y límites](../validation/2026-10-07-current-library-and-table-dialog.md).
 
+### 2.5.34. Consulta fluida de tablas grandes
+
+1. Consultar bloques de 50 filas por intervalo de origen, sin recorrer páginas
+   anteriores; cachear verificaciones de archivos inmutables con invalidación
+   por identidad, tamaño, tiempos de modificación/cambio y hash esperado.
+2. Añadir búsqueda literal y filtros por columna con parámetros validados;
+   continuar resultados por ordinal, sin contar todos los resultados por página.
+3. Virtualizar filas visibles, mantener una caché limitada y permitir saltos
+   directos sin superar los límites de altura del navegador. Conservar teclado,
+   errores/reintento, columnas paginadas y cambio seguro de consulta.
+4. Medir una importación real de un millón de filas; comprobar búsquedas,
+   continuidad, integridad, aislamiento, escritorio/móvil, pruebas, build y lint.
+
+**Completado:** 267 pruebas frontend y 60 backend distintas pasan; build y lint
+sin errores. Importación real de un millón de filas: bloques de primera, mitad
+y última página en 24,48–46,36 ms; filtro y búsqueda con continuidad comprobados.
+Verificados escritorio/móvil y cachés acotadas con invalidación. Véanse
+[medición, contrato y límites](../validation/2026-10-07-large-table-browser.md).
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Avance, 27 de septiembre de 2026:** completados **3.1** (medición inicial),
