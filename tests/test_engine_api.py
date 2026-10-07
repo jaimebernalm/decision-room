@@ -3,6 +3,7 @@ import json
 import threading
 import httpx
 import os
+import re
 from pathlib import Path
 import sqlite3
 from types import SimpleNamespace
@@ -175,16 +176,38 @@ class RealApiTests(unittest.TestCase):
     def test_real_opencode_waits_and_restores_same_session_with_mock_provider(self):
         self.real_roundtrip(wait=True)
 
-    def real_roundtrip(self, wait=False):
-        calls = []; actions = []
+    def test_real_opencode_reads_scoped_inputs_and_discovers_table_for_mcp(self):
+        self.real_roundtrip(discover=True)
+
+    def real_roundtrip(self, wait=False, discover=False):
+        calls = []; actions = []; discovered = {}
+        discovery = ['read_manifest', 'read_csv', 'read_outside', 'panorama']
         def provider(request):
             self.assertEqual(request.url.host, 'api.openai.com')
             body = json.loads(request.content)
             if request.url.path.endswith('input_tokens'):
                 return httpx.Response(200, json={'input_tokens': 10})
             calls.append(body)
-            action = 'preguntar_propietario' if wait and not actions else 'entregar_informe'
-            tools = [t for t in body.get('tools', []) if t['name'].endswith(action)]
+            action = (discovery[len(actions)] if discover and len(actions) < len(discovery)
+                      else 'preguntar_propietario' if wait and not actions else 'entregar_informe')
+            tool_name = 'read' if action.startswith('read_') else action
+            tools = [t for t in body.get('tools', []) if t['name'].endswith(tool_name)]
+            if discover and actions and actions[-1] in discovery:
+                outputs = [x.get('output', '') for x in body.get('input', []) if isinstance(x, dict) and x.get('type') == 'function_call_output']
+                output = str(outputs[-1]) if outputs else ''
+                if actions[-1] == 'read_manifest':
+                    matched = re.search(r'"id"\s*:\s*"([0-9a-f-]{36})"', output)
+                    self.assertIsNotNone(matched, output)
+                    discovered['table'] = matched[1]
+                    self.assertIn('quantity', output)
+                elif actions[-1] == 'read_csv':
+                    self.assertIn('quantity', output)
+                    self.assertNotIn('permission', output)
+                elif actions[-1] == 'read_outside':
+                    self.assertIn('external_directory', output)
+                elif actions[-1] == 'panorama':
+                    self.assertIn('deterministic_panorama', output)
+                    self.assertNotIn('Invalid or unsuccessful', output)
             already = action in actions
             events = []
             def event(kind, **fields): events.append({'type': kind, **fields})
@@ -195,6 +218,10 @@ class RealApiTests(unittest.TestCase):
                 arguments = ({'request_key': 'fixture-question', 'text': 'What unit?', 'reason': 'Missing unit', 'options': []}
                     if action == 'preguntar_propietario' else {'request_key': 'fixture-final', 'draft_json': json.dumps({
                         'schema_version': 1, 'title': 'Fixture', 'summary': 'Total 5 unidades.', 'findings': []})})
+                if action == 'read_manifest': arguments = {'filePath': '/inputs/manifest.json'}
+                elif action == 'read_csv': arguments = {'filePath': '/inputs/' + discovered['table'] + '.csv'}
+                elif action == 'read_outside': arguments = {'filePath': '/etc/hostname'}
+                elif action == 'panorama': arguments = {'table_id': discovered['table'], 'request_key': 'discovered-table'}
                 actions.append(action)
                 args = json.dumps(arguments)
                 item = {'type': 'function_call', 'id': 'fc_fixture_' + str(len(calls)), 'call_id': 'call_fixture_' + str(len(calls)),
@@ -224,7 +251,7 @@ class RealApiTests(unittest.TestCase):
         analysis = api._row(self.config, self.business, self.run)['analysis_id']
         with patch.object(api, '_service', return_value=server):
             result = engine.run_report(self.config, self.business, analysis, owner_context='Count fixture units',
-                request_key='real-mock-provider', limits={'active_seconds': 45})
+                request_key='real-mock-provider', limits={'active_seconds': 90 if discover else 45})
         if wait:
             self.assertEqual(result['status'], 'waiting', result)
             run = result['engine_run_id']
@@ -240,6 +267,8 @@ class RealApiTests(unittest.TestCase):
         self.addCleanup(runtime.remove)
         self.assertEqual(result['status'], 'delivered', result)
         self.assertGreaterEqual(len(calls), 2)
+        if discover:
+            self.assertEqual(actions, [*discovery, 'entregar_informe'])
         self.assertTrue((path/'export/informe.contenido.html').exists())
         self.assertEqual(result['usage']['cost_catalog']['status'], 'estimated')
         self.assertFalse(runtime._inspect()['State']['Running'])
