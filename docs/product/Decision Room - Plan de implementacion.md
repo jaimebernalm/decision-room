@@ -42,6 +42,13 @@ abierto hasta las pruebas reales 3+3, calibración y criterios del plan del moto
 Véanse el [contrato de exportación](../technical/engine-export-contract.md) y las
 limitaciones operativas en `engine/opencode/README.md`.
 
+**A2 del motor — evidencia acotada, 7 de octubre:** bloques de hechos con etiqueta,
+unidad y ámbito generados a partir del panorama recalculado; prosa libre sin
+certificación automática y gráficos por referencias con tabla completa. La
+[interfaz de exportación](../technical/engine-export-contract.md) conserva paths y
+spans por ocurrencia. Es un tramo parcial: faltan recetas más generales y la medida
+preregistrada; P3 no está cerrado ni congelado para medir.
+
 ## 2. Orden general
 
 | Orden | Entrega | Resultado comprobable | Motivo |

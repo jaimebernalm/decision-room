@@ -14,10 +14,11 @@ from psycopg.types.json import Jsonb
 from .. import execution, sales_panorama
 from ..database import connect
 from ..series import numeric
+from ..reports import panorama_facts
 from ..storage import Storage, digest
 from . import admission, panorama
 
-VERSION = 'engine-number-checks-v1'
+VERSION = 'engine-number-checks-v2'
 
 
 def _references(numbers):
@@ -110,6 +111,7 @@ def _check(config, job, ref, cache):
     summary = actual['summary']
     return {**result, 'status': 'corrected_in_scope' if changed else 'verified_in_scope',
             'value': str(expected), 'reason': 'server_recipe_recalculated',
+            'display': panorama_facts.describe(summary, ref['metric']),
             'scope': {'table_id': candidate['specification']['table_id'],
                       'parquet_sha256': candidate['specification']['parquet_sha256'],
                       'code_sha256': candidate['specification']['code_sha256'],
@@ -124,7 +126,8 @@ def verify(config, run_id, token, *, request_key, numbers):
         raise ValueError('Invalid verification request key.')
     job = admission.authenticate(config, run_id, token)
     fingerprint = admission.sha(admission.canonical([VERSION, admission.sha(Path(__file__).read_bytes()),
-        admission.sha(Path(sales_panorama.__file__).read_bytes()), duckdb.__version__, job['snapshot_sha256'], numbers]))
+        admission.sha(Path(sales_panorama.__file__).read_bytes()), admission.sha(Path(panorama_facts.__file__).read_bytes()),
+        duckdb.__version__, job['snapshot_sha256'], numbers]))
     with connect(config) as db:
         previous = db.execute('SELECT * FROM engine_number_checks WHERE run_id=%s AND request_key=%s',
                               (run_id, request_key)).fetchone()
