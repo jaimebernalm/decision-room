@@ -93,6 +93,15 @@ def report(batch, job):
     return None, None
 
 
+CONTENT = 'informe.contenido.html'  # engine export: render(project(doc), marks=False)
+
+
+def content(batch, job):
+    """The engine's rendering without verification marks, for the content measure; None if absent."""
+    path = Path(batch) / 'jobs' / job / 'engine' / CONTENT
+    return debrand(path.read_text(errors='replace')) if path.exists() else None
+
+
 def kit(batch, out, measure):
     batch, out = Path(batch).resolve(), Path(out).resolve()
     if measure not in MEASURES:
@@ -103,7 +112,7 @@ def kit(batch, out, measure):
     if out.is_relative_to(batch):
         raise SystemExit('Build the kit outside the batch, so readers never browse attempts or keys.')
     rng = random.Random(uuid4().int)
-    items, key, skipped = [], {}, []
+    items, key, skipped, marked = [], {}, [], []
     for pair in read(batch / 'pairs.json')['pairs']:
         (engine, engine_job), (other, other_job) = report(batch, pair['engine']), report(batch, pair['other'])
         if engine is None or other is None:
@@ -112,6 +121,11 @@ def kit(batch, out, measure):
         engine_left = rng.random() < 0.5
         left, right = (engine, other) if engine_left else (other, engine)
         if measure == 'contenido':
+            unmarked = content(batch, engine_job)
+            if unmarked is None:  # the engine's labels would reveal it to readers
+                marked.append(engine_job)
+            else:
+                left, right = (unmarked, other) if engine_left else (other, unmarked)
             left, right = neutralize(left), neutralize(right)
         code = uuid4().hex[:6]
         key[code] = {'pair': pair['id'], 'engine_side': 'A' if engine_left else 'B',
@@ -123,12 +137,59 @@ def kit(batch, out, measure):
     rng.shuffle(items)
     items.sort(key=lambda i: i['dataset'])
     write(key_path, {'created_at': datetime.now(timezone.utc).isoformat(), 'measure': measure,
-                     'out': str(out), 'codes': key, 'skipped': skipped})
+                     'out': str(out), 'codes': key, 'skipped': skipped, 'marks_not_removed': marked})
     out.mkdir(parents=True)
+    files(out, items, measure)
     page = PAGE.replace('__DATA__', json.dumps(items)).replace('__KIT__', uuid4().hex[:8]) \
                .replace('__MEASURE__', MEASURES[measure])
     (out / 'comparacion.html').write_text(page, encoding='utf-8')
-    return {'pairs': len(items), 'skipped': skipped}
+    return {'pairs': len(items), 'skipped': skipped, 'marks_not_removed': marked}
+
+
+READER = {
+    'contenido': 'Los dos informes de cada pareja tienen la misma presentación sencilla. Elige el que más te '
+                 'ayuda a entender tu negocio y a decidir qué hacer.',
+    'artefacto': 'Cada informe se ve tal como te llegaría. Elige el que preferirías recibir tal como está. '
+                 'Si puedes, abre los .html en un navegador; si no, lee el .html y el .txt.'}
+
+BRIEF = """# Lectura de informes
+
+Eres el dueño o la dueña del negocio que describe cada informe. No eres técnico: no
+sabes de estadística ni de programación. Quieres entender mejor tus datos y encontrar
+análisis útiles para decidir qué hacer en tu negocio.
+
+Hay {count} parejas en `parejas/`. Cada carpeta tiene dos informes sobre el mismo
+negocio y los mismos datos: `A` y `B` (en .html y en .txt); `negocio.txt` dice de qué
+negocio se trata. {measure}
+
+Para cada pareja, en `respuestas.json`:
+
+- `choice`: "A", "B" o "empate";
+- `motivo`: una o dos frases, con tus palabras, de por qué.
+
+Escribe también tu nombre o código en `lector`.
+
+Reglas:
+
+- No sabes quién ni qué escribió cada informe, y no intentes adivinarlo.
+- Lee solo lo que hay en esta carpeta. No abras otros archivos ni busques fuera.
+- Juzga cada pareja por sí misma; no hace falta que seas coherente con otras.
+"""
+
+
+def files(out, items, measure):
+    """The same pairs as plain files, for readers that cannot use the interactive page."""
+    for item in items:
+        folder = out / 'parejas' / item['code']  # same code as in respuestas.json
+        folder.mkdir(parents=True)
+        (folder / 'negocio.txt').write_text(item['label'] + '\n', encoding='utf-8')
+        for side in ('a', 'b'):
+            html = base64.b64decode(item[side]).decode()
+            (folder / f'{side.upper()}.html').write_text(html, encoding='utf-8')
+            (folder / f'{side.upper()}.txt').write_text(text_of(html) + '\n', encoding='utf-8')
+    write(out / 'respuestas.json', {'lector': '', 'choices': {
+        item['code']: {'choice': None, 'motivo': ''} for item in items}})
+    (out / 'LECTOR.md').write_text(BRIEF.format(count=len(items), measure=READER[measure]), encoding='utf-8')
 
 
 def engine_score(choice, engine_side):

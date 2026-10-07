@@ -73,6 +73,45 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(order[:4], ['bruma-luna-1', 'bruma-product-1', 'albor-luna-1', 'albor-product-1'])
         self.assertEqual(order[4:], ['albor-product-2', 'albor-luna-2', 'bruma-product-2', 'bruma-luna-2'])
 
+    def test_seeded_order_is_reproducible_and_keeps_rounds(self):
+        order = trials.plan_order(['albor', 'bruma'], ['engine', 'opencode', 'product'], 6, seed=7)
+        self.assertEqual(order, trials.plan_order(['albor', 'bruma'], ['engine', 'opencode', 'product'], 6, seed=7))
+        self.assertNotEqual(order, trials.plan_order(['albor', 'bruma'], ['engine', 'opencode', 'product'], 6))
+        for round_ in range(6):
+            self.assertTrue(all(name.endswith(f'-{round_ + 1}') for name in order[6 * round_:6 * round_ + 6]))
+
+    def test_variant_brief_reaches_only_its_system_with_identical_data(self):
+        def inputs(root, prompt, context=False, rows='a\n1\n'):
+            (root / 'datos').mkdir(parents=True)
+            (root / 'datos/v.csv').write_text(rows)
+            (root / 'prompt.txt').write_text(prompt)
+            if context:
+                (root / 'contexto').mkdir()
+                (root / 'contexto/panorama.md').write_text('mapa')
+            return root
+        with TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            runner = tmp / 'run-opencode.sh'
+            runner.write_text('')
+            base, loop = inputs(tmp / 'base', 'Mi negocio es Demo. Plano.'), inputs(tmp / 'loop', 'Mi negocio es Demo. Mapa.', True)
+            other = inputs(tmp / 'other', 'x', rows='a\n2\n')
+            with patch.dict(os.environ, {'TRIALS_OPENCODE_RUNNER': str(runner)}):
+                with self.assertRaises(SystemExit):
+                    trials.prepare(tmp / 'bad', {'demo': base}, None, 1, ['opencode'], tmp, tmp / '.env',
+                                   variants={'opencode': {'demo': other}})
+                manifest = trials.prepare(tmp / 'batch', {'demo': base}, None, 1, ['opencode'], tmp, tmp / '.env',
+                                          variants={'opencode': {'demo': loop}}, order_seed=3)
+            job = tmp / 'batch/jobs/demo-opencode-1'
+            self.assertEqual((job / 'prompt.txt').read_text(), 'Mi negocio es Demo. Mapa.')
+            self.assertEqual((tmp / 'batch/inputs/demo/prompt.txt').read_text(), 'Mi negocio es Demo. Plano.')
+            self.assertEqual(manifest['order_seed'], 3)
+            self.assertIn('contexto/panorama.md', manifest['datasets']['demo']['variants']['opencode']['context'])
+            self.assertTrue(trials.inputs_unchanged(tmp / 'batch', job, trials.read(job / 'state.json')))
+            replacement = trials.abandon(tmp / 'batch', 'demo-opencode-1', 'operator stop')
+            again = tmp / 'batch/jobs' / replacement
+            self.assertEqual((again / 'prompt.txt').read_text(), 'Mi negocio es Demo. Mapa.')
+            self.assertTrue(trials.inputs_unchanged(tmp / 'batch', again, trials.read(again / 'state.json')))
+
     def test_abandoned_attempt_is_kept_and_replaced_in_place(self):
         with TemporaryDirectory() as tmp:
             batch = Path(tmp)
@@ -165,6 +204,13 @@ class LauncherTests(unittest.TestCase):
             leaked = [p for p in batch.rglob('*') if p.is_file() and b'sk-test-not-real' in p.read_bytes()]
             self.assertEqual(leaked, [])
 
+    def test_arm_flags_are_explicit_and_never_carry_credentials(self):
+        environ = {'DECISION_ROOM_SALES_PANORAMA': 'false', 'DECISION_ROOM_AGENT_TPM': '200000',
+                   'DECISION_ROOM_DATABASE_URL': 'postgresql://u:p@h/db', 'DECISION_ROOM_API_KEY': 'x',
+                   'OPENAI_API_KEY': 'sk-test-not-real', 'PATH': '/bin'}
+        flags = trials.effective_flags({'DECISION_ROOM_SALES_PANORAMA': 'true'}, environ)
+        self.assertEqual(flags, {'DECISION_ROOM_AGENT_TPM': '200000', 'DECISION_ROOM_SALES_PANORAMA': 'true'})
+
     def test_hints_require_every_group(self):
         self.assertTrue(trials.hinted('La Tienda cae en domingo', [['domingo'], ['tienda']]))
         self.assertFalse(trials.hinted('La tienda cae', [['domingo'], ['tienda']]))
@@ -236,10 +282,11 @@ class FakeEngine:
         self.final = None
 
     def result(self, status):
-        question = {'id': f'q{len(self.calls)}', 'text': '¿Qué periodo?'} if status == 'waiting' else None
+        question = {'question_id': f'q{len(self.calls)}', 'text': '¿Qué periodo?'} if status == 'waiting' else None
         return {'engine_run_id': 'run-1', 'status': status, 'question': question, 'contract_version': 1,
                 'usage': {'input': 1000, 'cached': 900, 'output': 50, 'calls': 4, 'seconds': 3.0,
-                          'cost_catalog': 0.01}, 'issues': []}
+                          'cost_catalog': 0.01}, 'issues': [],
+                'diagnostics': [{'stage': 'require_mcp', 'reason': 'fixture'}] if status in ('failed', 'aborted') else []}
 
     def run_report(self, config, business_id, analysis_id, *, owner_context, request_key):
         self.calls.append(('run', business_id, analysis_id, owner_context, request_key))
@@ -317,6 +364,7 @@ class EngineArmTests(unittest.TestCase):
         self.assertEqual(fake.calls[-1][0], 'export')
         self.assertTrue((job / 'engine/draft.raw').exists())
         self.assertFalse((job / 'informe.html').exists() or state['publishable'])
+        self.assertEqual(state['engine_diagnostics'], [{'stage': 'require_mcp', 'reason': 'fixture'}])
 
     def test_delivered_status_without_a_report_file_is_not_a_report(self):
         state, job, error = self.run_engine(FakeEngine(['delivered'], deliver=False))
@@ -449,6 +497,44 @@ class PairedComparisonTests(unittest.TestCase):
             jobs = [v['jobs'] for v in trials.read(batch / 'kit-key-kit.json')['codes'].values()]
             self.assertIn(['demo-engine-1', 'demo-product-1r1'], jobs)
 
+
+    def test_content_measure_shows_the_engine_without_its_verification_marks(self):
+        import base64
+        with TemporaryDirectory() as tmp:
+            batch, trial_pairs = self.batch(tmp, repeats=1)
+            trial_pairs.plan(batch, seed=1, against=('opencode',))
+            self.finish(batch, 'demo-engine-1', 'Cae un 42 % <em>verificada</em>')
+            self.finish(batch, 'demo-opencode-1')
+            (batch / 'jobs/demo-engine-1/engine').mkdir()
+            (batch / 'jobs/demo-engine-1/engine' / trial_pairs.CONTENT).write_text('<p>Cae un 42 %</p>')
+            built = trial_pairs.kit(batch, Path(tmp) / 'contenido', 'contenido')
+            self.assertEqual(built['marks_not_removed'], [])
+            page = (Path(tmp) / 'contenido/comparacion.html').read_text()
+            data = json.loads(page.split('const DATA=', 1)[1].split(', KIT=', 1)[0])
+            shown = ''.join(base64.b64decode(i[side]).decode() for i in data for side in ('a', 'b'))
+            self.assertIn('Cae un 42 %', shown)
+            self.assertNotIn('verificada', shown)
+
+    def test_file_kit_lets_model_readers_answer_without_the_page(self):
+        with TemporaryDirectory() as tmp:
+            batch, trial_pairs = self.batch(tmp, repeats=1)
+            trial_pairs.plan(batch, seed=2, against=('opencode',))
+            self.finish(batch, 'demo-engine-1', 'Informe del motor')
+            self.finish(batch, 'demo-opencode-1', 'Informe del bucle')
+            out = Path(tmp) / 'contenido'
+            trial_pairs.kit(batch, out, 'contenido')
+            brief = (out / 'LECTOR.md').read_text()
+            self.assertIn('No eres técnico', brief)
+            self.assertNotIn('motor', brief.lower())
+            template = json.loads((out / 'respuestas.json').read_text())
+            (code,) = template['choices']
+            texts = {(out / 'parejas' / code / f'{s}.txt').read_text().strip() for s in 'AB'}
+            self.assertEqual(texts, {'Informe del motor', 'Informe del bucle'})
+            side = trials.read(batch / 'kit-key-contenido.json')['codes'][code]['engine_side']
+            answers = [{**template, 'lector': name, 'choices': {code: {'choice': side, 'motivo': 'claro'}}}
+                       for name in ('opus', 'codex')]
+            result = trial_pairs.score(batch, 'contenido', answers, min_pairs=1)
+            self.assertEqual(result['groups'][0]['mean'], 1.0)
 
 if __name__ == '__main__':
     unittest.main()

@@ -117,12 +117,14 @@ def engine_new(config, state, job, phase, batch, dataset):
     try:
         while result['status'] == 'waiting' and answered < ENGINE_QUESTIONS:
             question = result['question']
+            # engine.questions receipts name it question_id; accept id too until the snapshot is fixed
+            question_id = question.get('question_id') or question['id']
             first = answered == 0
             result = engine.resume_report(
                 config, state['business_id'], state['engine_run_id'],
-                answer={'question_id': question['id'], 'disposition': 'answered' if first else 'unknown',
+                answer={'question_id': question_id, 'disposition': 'answered' if first else 'unknown',
                         'text': prompt if first else '',
-                        'request_key': f"{state['key']}-answer-{question['id']}"})
+                        'request_key': f"{state['key']}-answer-{question_id}"})
             answered += 1
     finally:
         state['engine_questions'] = answered
@@ -131,7 +133,8 @@ def engine_new(config, state, job, phase, batch, dataset):
         # right even when resume_report raised after spending tokens.
         final = engine.export_run(config, state['business_id'], state['engine_run_id'], job / 'engine') or result
         state.update(engine_status=final['status'], engine_usage=final.get('usage'),
-                     contract_version=final.get('contract_version'), engine_issues=final.get('issues', []))
+                     contract_version=final.get('contract_version'), engine_issues=final.get('issues', []),
+                     engine_diagnostics=final.get('diagnostics', []))
     result = final
     html = job / 'engine' / 'informe.html'
     delivered = result['status'] == 'delivered' and html.exists() and bool(readable(html.read_text(errors='replace')))
