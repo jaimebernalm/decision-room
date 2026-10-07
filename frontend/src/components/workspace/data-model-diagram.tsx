@@ -471,7 +471,7 @@ export function ERDiagram({
           </p>
         );
       })}
-      <p className="border-t px-3 py-2 text-[11px] leading-4 text-muted-foreground">
+      <p className="sr-only">
         {tr(
           "Arrastra para moverte por el mapa. Pasa por una conexión para entenderla; selecciona una tabla para ver sus columnas.",
         )}

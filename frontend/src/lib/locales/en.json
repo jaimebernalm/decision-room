@@ -1287,5 +1287,13 @@
   "Por ejemplo, qué gastos incluyes al calcular el beneficio.": "For example, which expenses you include when calculating profit.",
   "Aclarar esta tabla": "Clarify this table",
   "Nombre del resultado": "Result name",
-  "Cerrar detalles": "Close details"
+  "Cerrar detalles": "Close details",
+  "Sube un CSV o Excel con el botón +.": "Upload a CSV or Excel file using +.",
+  "No hay conexiones entre tablas todavía.": "No connections between tables yet.",
+  "Datos corregidos": "Corrected data",
+  "Detalles de {0}": "Details for {0}",
+  "Tablas al crearlo": "Tables when created",
+  "Tablas añadidas después": "Tables added since",
+  "Las tablas aparecerán cuando empiece la preparación.": "Tables will appear when preparation starts.",
+  "Abrir": "Open"
 }

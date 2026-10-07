@@ -8,7 +8,16 @@ import {
   Check,
   MousePointer2,
   FileText,
+  Info,
 } from "lucide-react";
+import { tableName } from "@/lib/table-name";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -73,7 +82,7 @@ function ReportsList({
             ? tr(
                 "Puedes restaurarlos para que vuelvan a aparecer en el listado.",
               )
-            : tr("Resultados, contexto y evidencia en un mismo lugar.")
+            : undefined
         }
       >
         <div
@@ -192,51 +201,148 @@ type TableProps = {
 };
 function ReportTable({ items, search, ...actions }: TableProps) {
   useLanguage();
+  const [details, setDetails] = useState<Analysis | null>(null);
   const filtered = items.filter((a) =>
     `${a.title} ${a.filename}`
       .toLocaleLowerCase()
       .includes(search.toLocaleLowerCase()),
   );
-  return filtered.length ? (
-    <Table className="report-library border-separate border-spacing-y-2 [&_th]:px-4 [&_td]:px-4">
-      <TableHeader>
-        <TableRow className="border-0 hover:bg-transparent">
-          <TableHead>{tr("Informe")}</TableHead>
-          <TableHead>
-            <Badge
-              variant="outline"
-              className="font-normal text-muted-foreground"
-            >
-              {tr("Estado")}
-            </Badge>
-          </TableHead>
-          <TableHead className="hidden sm:table-cell">
-            <Badge
-              variant="outline"
-              className="font-normal text-muted-foreground"
-            >
-              {tr("Creado")}
-            </Badge>
-          </TableHead>
-          <TableHead>
-            <span className="sr-only">{tr("Acciones")}</span>
-          </TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {filtered.map((a) => (
-          <ReportRow key={a.id} item={a} {...actions} />
-        ))}
-      </TableBody>
-    </Table>
-  ) : (
-    <p className="py-10 text-center text-sm text-muted-foreground">
-      {search
-        ? tr("No hay informes que coincidan con tu búsqueda.")
-        : actions.trash
-          ? tr("La papelera está vacía.")
-          : tr("Todavía no hay informes. Crea uno para empezar.")}
-    </p>
+  return (
+    <>
+      {filtered.length ? (
+        <Table className="report-library block border-separate border-spacing-y-2 [&_th]:px-4 [&_td]:px-4 [&_tbody]:block [&_tbody]:space-y-3 sm:table sm:[&_tbody]:table-row-group sm:[&_tbody]:space-y-0">
+          <TableHeader className="hidden sm:table-header-group">
+            <TableRow className="border-0 hover:bg-transparent">
+              <TableHead>{tr("Informe")}</TableHead>
+              <TableHead>
+                <Badge
+                  variant="outline"
+                  className="font-normal text-muted-foreground"
+                >
+                  {tr("Estado")}
+                </Badge>
+              </TableHead>
+              <TableHead className="hidden sm:table-cell">
+                <Badge
+                  variant="outline"
+                  className="font-normal text-muted-foreground"
+                >
+                  {tr("Creado")}
+                </Badge>
+              </TableHead>
+              <TableHead>
+                <span className="sr-only">{tr("Acciones")}</span>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filtered.map((a) => (
+              <ReportRow
+                key={a.id}
+                item={a}
+                onDetails={setDetails}
+                {...actions}
+              />
+            ))}
+          </TableBody>
+        </Table>
+      ) : (
+        <p className="py-10 text-center text-sm text-muted-foreground">
+          {search
+            ? tr("No hay informes que coincidan con tu búsqueda.")
+            : actions.trash
+              ? tr("La papelera está vacía.")
+              : tr("Todavía no hay informes. Crea uno para empezar.")}
+        </p>
+      )}
+      <Dialog
+        open={!!details}
+        onOpenChange={(open) => {
+          if (!open) setDetails(null);
+        }}
+      >
+        {details && <ReportDetails key={details.id} item={details} />}
+      </Dialog>
+    </>
+  );
+}
+function ReportDetails({ item }: { item: Analysis }) {
+  const resource = useResource<{
+    tables: { id: string; name: string }[] | null;
+    added_tables: { id: string; name: string }[];
+  }>(`/api/jobs/${item.id}/sources`);
+  return (
+    <DialogContent
+      className="max-h-[85dvh] overflow-y-auto sm:max-w-md"
+      aria-describedby={undefined}
+    >
+      <DialogHeader>
+        <DialogTitle className="pr-6 break-words">{item.title}</DialogTitle>
+      </DialogHeader>
+      <p className="text-sm text-muted-foreground">
+        {tr("Creado")}: {date(item.created_at)}
+      </p>
+      <Notice error>{resource.error}</Notice>
+      {!resource.data && !resource.error && <Loading />}
+      {resource.data && (
+        <>
+          {resource.data.tables ? (
+            <section className="space-y-2">
+              <h3 className="text-sm font-medium">
+                {tr("Tablas al crearlo")}{" "}
+                <span className="text-muted-foreground">
+                  ({resource.data.tables.length})
+                </span>
+              </h3>
+              <ul className="flex flex-wrap gap-2">
+                {resource.data.tables.map((t) => (
+                  <li
+                    key={t.id}
+                    className="rounded-full bg-muted px-3 py-1 text-sm"
+                    title={t.name}
+                  >
+                    {tableName(t.name)}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {tr("Las tablas aparecerán cuando empiece la preparación.")}
+            </p>
+          )}
+          {!!resource.data.added_tables.length && (
+            <section className="space-y-2 border-t pt-4">
+              <h3 className="text-sm font-medium">
+                {tr("Tablas añadidas después")}{" "}
+                <span className="text-muted-foreground">
+                  ({resource.data.added_tables.length})
+                </span>
+              </h3>
+              <ul className="flex flex-wrap gap-2">
+                {resource.data.added_tables.map((t) => (
+                  <li
+                    key={t.id}
+                    className="rounded-full bg-muted px-3 py-1 text-sm"
+                    title={t.name}
+                  >
+                    {tableName(t.name)}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </>
+      )}
+      <DialogFooter>
+        <Button asChild>
+          <a href={analysisHref(item)}>
+            <ArrowUpRight />
+            {tr("Abrir informe")}
+          </a>
+        </Button>
+      </DialogFooter>
+    </DialogContent>
   );
 }
 function ReportRow({
@@ -245,7 +351,11 @@ function ReportRow({
   busy,
   onDelete,
   onRestore,
-}: Omit<TableProps, "items" | "search"> & { item: Analysis }) {
+  onDetails,
+}: Omit<TableProps, "items" | "search"> & {
+  item: Analysis;
+  onDetails: (item: Analysis) => void;
+}) {
   useLanguage();
   const reference = trash ? undefined : a.context_reference;
   const { assistant, active, selected } = useBlockSelection(reference);
@@ -274,13 +384,13 @@ function ReportRow({
   return (
     <TableRow
       id={reference ? blockId(reference) : undefined}
-      className={`report-pick-row border-0 bg-muted/70 transition-colors hover:bg-foreground/[0.08] focus-within:bg-foreground/[0.08] dark:hover:bg-muted dark:focus-within:bg-muted [&>td:first-child]:rounded-l-2xl [&>td:last-child]:rounded-r-2xl [&>td]:py-3 ${selecting && !active ? "report-unselectable" : "cursor-pointer"} ${selected ? "context-picked" : ""}`}
+      className={`report-pick-row grid grid-cols-[minmax(0,1fr)_auto] rounded-2xl sm:table-row border-0 bg-muted/70 transition-colors hover:bg-foreground/[0.08] focus-within:bg-foreground/[0.08] dark:hover:bg-muted dark:focus-within:bg-muted [&>td:first-child]:rounded-l-2xl [&>td:last-child]:rounded-r-2xl [&>td]:py-3 ${selecting && !active ? "report-unselectable" : "cursor-pointer"} ${selected ? "context-picked" : ""}`}
       onClick={(event) => {
         if (!selecting && !(event.target as HTMLElement).closest("a, button"))
-          location.hash = analysisHref(a);
+          onDetails(a);
       }}
     >
-      <TableCell className="whitespace-normal">
+      <TableCell className="col-start-1 row-start-1 min-w-0 whitespace-normal">
         <div inert={selecting || undefined} className="flex items-center gap-3">
           <span
             aria-hidden="true"
@@ -295,16 +405,13 @@ function ReportRow({
             >
               {a.title}
             </a>
-            <p className="mt-1 break-all text-xs text-muted-foreground">
-              {a.filename}
-            </p>
             <p className="mt-1 text-xs text-muted-foreground sm:hidden">
               {tr("Creado")}: {date(a.created_at)}
             </p>
           </div>
         </div>
       </TableCell>
-      <TableCell>
+      <TableCell className="col-start-1 row-start-2 !pt-0 !pl-16 sm:!px-4 sm:!pt-3">
         <Badge variant="outline" className={`font-normal ${color}`}>
           {label}
         </Badge>
@@ -317,21 +424,35 @@ function ReportRow({
       <TableCell className="hidden text-muted-foreground sm:table-cell">
         {date(a.created_at)}
       </TableCell>
-      <TableCell className="w-14 sm:w-24">
+      <TableCell className="col-start-2 row-span-2 row-start-1 w-24 self-center sm:w-40">
         <div
           inert={selecting || undefined}
-          className={selecting ? "invisible flex" : "flex justify-end"}
+          className={
+            selecting
+              ? "invisible flex"
+              : "flex max-w-24 flex-wrap justify-end gap-1 sm:max-w-none sm:flex-nowrap"
+          }
         >
           <Button
-            asChild
             variant="ghost"
             size="icon"
-            className="hidden sm:inline-flex"
+            className="order-2 sm:order-none"
+            aria-label={tr("Detalles de {0}", { 0: a.title })}
+            onClick={() => onDetails(a)}
+          >
+            <Info />
+          </Button>
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="order-1 sm:order-none"
           >
             <a
               href={analysisHref(a)}
               aria-label={tr("Abrir {0}", { "0": a.title })}
             >
+              {tr("Abrir")}
               <ArrowUpRight />
             </a>
           </Button>
@@ -340,6 +461,7 @@ function ReportRow({
               variant="ghost"
               size="icon"
               disabled={busy}
+              className="order-3 sm:order-none"
               aria-label={tr("Restaurar {0}", { "0": a.title })}
               title={tr("Restaurar informe")}
               onClick={() => onRestore?.(a)}
@@ -351,6 +473,7 @@ function ReportRow({
               variant="ghost"
               size="icon"
               disabled={["queued", "running", "waiting"].includes(a.status)}
+              className="order-3 sm:order-none"
               aria-label={tr("Eliminar {0}", { "0": a.title })}
               title={tr("Eliminar informe")}
               onClick={() => onDelete?.(a)}

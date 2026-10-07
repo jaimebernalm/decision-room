@@ -11,7 +11,7 @@ import {
   AccordionTrigger,
   AccordionContent,
 } from "@/components/ui/accordion";
-import { Badge } from "@/components/ui/badge";
+import { tableName } from "@/lib/table-name";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -77,38 +77,6 @@ function DataGroup({
   );
 }
 
-function DatasetHeading({
-  dataset: d,
-  period = false,
-}: {
-  dataset: Dataset;
-  period?: boolean;
-}) {
-  return (
-    <div className="space-y-1">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="min-w-0 break-words text-sm font-medium">{d.title}</h3>
-        <Badge variant={d.corrected ? "destructive" : "secondary"}>
-          v{d.version}
-          {d.corrected
-            ? tr(" · corregida")
-            : d.superseded_by
-              ? tr(" · anterior")
-              : ""}
-          {d.status === "partial" ? tr(" · algunos archivos fallaron") : ""}
-          {d.status === "failed" ? tr(" · sin tablas disponibles") : ""}
-        </Badge>
-      </div>
-      {period && (
-        <p className="text-xs text-muted-foreground">
-          {d.period_from || tr("Inicio no indicado")} —{" "}
-          {d.period_until || tr("Fin no indicado")}
-        </p>
-      )}
-    </div>
-  );
-}
-
 export function DossierDataGroups({
   business,
   datasets,
@@ -121,7 +89,10 @@ export function DossierDataGroups({
   const assistant = useAssistant();
   const { route } = useWorkspace();
   const prepared = datasets.filter(
-    (d) => d.status === "ready" || d.status === "partial",
+    (d) =>
+      (d.status === "ready" || d.status === "partial") &&
+      !d.corrected &&
+      (d.files?.filter((f) => f.status !== "failed").length || 0) > 1,
   );
   return (
     <Accordion
@@ -142,7 +113,6 @@ export function DossierDataGroups({
           <ul className="divide-y divide-border/70">
             {datasets.map((d) => (
               <li key={d.id} className="space-y-3 py-3">
-                <DatasetHeading dataset={d} period />
                 {d.original_files?.length ? (
                   d.original_files.map((file) => (
                     <div
@@ -177,9 +147,7 @@ export function DossierDataGroups({
               {tr("Tus datos empiezan aquí")}
             </p>
             <p className="text-sm text-muted-foreground">
-              {tr(
-                "Guarda archivos CSV o Excel, juntos o como carpeta, para reutilizarlos en los chats. Cada actualización conserva su versión.",
-              )}
+              {tr("Sube un CSV o Excel con el botón +.")}
             </p>
           </div>
         )}
@@ -193,19 +161,23 @@ export function DossierDataGroups({
           <ul className="divide-y divide-border/70">
             {datasets.map((d) => (
               <li key={d.id} className="space-y-3 py-3">
-                <DatasetHeading dataset={d} />
                 {d.files?.length ? (
                   d.files.map((file) => (
                     <div
                       key={file.id}
                       className="flex items-center gap-3 text-sm"
                     >
-                      <span className="min-w-0 flex-1 break-all">
-                        {file.name}
+                      <span
+                        className="min-w-0 flex-1 break-all"
+                        title={file.name}
+                      >
+                        {tableName(file.name)}
                         <span className="ml-2 text-xs text-muted-foreground">
-                          {file.status === "failed"
-                            ? tr("No se pudo preparar")
-                            : tr("{0} filas", { 0: file.rows ?? "—" })}
+                          {d.corrected
+                            ? tr("Datos corregidos")
+                            : file.status === "failed"
+                              ? tr("No se pudo preparar")
+                              : tr("{0} filas", { 0: file.rows ?? "—" })}
                         </span>
                       </span>
                       {file.status !== "failed" && (
@@ -213,7 +185,9 @@ export function DossierDataGroups({
                           <a
                             href={`/api/datasets/file/${file.id}`}
                             download
-                            aria-label={tr("Descargar {0}", { 0: file.name })}
+                            aria-label={tr("Descargar {0}", {
+                              0: tableName(file.name),
+                            })}
                           >
                             <Download />
                           </a>
@@ -227,7 +201,8 @@ export function DossierDataGroups({
                   </p>
                 )}
                 {(d.status === "ready" || d.status === "partial") &&
-                  !d.corrected && (
+                  !d.corrected &&
+                  d.files?.some((file) => file.status !== "failed") && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -235,7 +210,9 @@ export function DossierDataGroups({
                       onClick={() => {
                         store.set(contextKey(business), {
                           analysis_id: d.id,
-                          label: `${d.title} · v${d.version}`,
+                          label: (d.files || [])
+                            .map((file) => tableName(file.name))
+                            .join(", "),
                         });
                         if (assistant)
                           assistant.setDock({ open: true, origin: route });
@@ -260,16 +237,13 @@ export function DossierDataGroups({
           <ul className="divide-y divide-border/70">
             {prepared.map((d) => (
               <li key={d.id} className="space-y-3 py-3">
-                <DatasetHeading dataset={d} />
                 <DataModelPanel business={business} analysis={d.id} inline />
               </li>
             ))}
           </ul>
         ) : (
           <p className="py-4 text-sm text-muted-foreground">
-            {tr(
-              "Las relaciones estarán disponibles cuando se preparen tus datos.",
-            )}
+            {tr("No hay conexiones entre tablas todavía.")}
           </p>
         )}
       </DataGroup>

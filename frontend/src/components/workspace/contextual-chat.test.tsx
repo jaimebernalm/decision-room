@@ -200,7 +200,7 @@ it("opens data questions alongside Tables, preserves the draft and uses the exac
   const bubble = within(panel).getByRole("group", {
     name: "Tablas seleccionadas",
   });
-  expect(bubble).toHaveTextContent("Ventas de septiembre · v2");
+  expect(bubble).toHaveTextContent("Ventas");
   expect(bubble.closest("[data-slot=input-group]")).toBeNull();
   expect(calls.some((c) => c.url === "/api/chats")).toBe(false);
   await user.click(

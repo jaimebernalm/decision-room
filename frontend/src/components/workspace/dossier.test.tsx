@@ -507,7 +507,7 @@ describe("compact business dossier", () => {
     expect(screen.queryByText(business.description)).not.toBeInTheDocument();
     expect(
       within(screen.getByRole("region", { name: /^Archivos/ })).getByText(
-        "Ventas de septiembre",
+        "No hay archivos originales disponibles.",
       ),
     ).toBeVisible();
     await user.click(screen.getByRole("tab", { name: "Historial" }));
@@ -560,10 +560,10 @@ describe("compact business dossier", () => {
       "/api/datasets/original/sales?path=carpeta%2Fventas.csv",
     );
     expect(
-      within(tables).getByRole("link", { name: "Descargar ventas.csv" }),
+      within(tables).getByRole("link", { name: "Descargar Ventas" }),
     ).toHaveAttribute("href", "/api/datasets/file/table");
     expect(
-      within(tables).queryByRole("link", { name: "Descargar fallido.csv" }),
+      within(tables).queryByRole("link", { name: "Descargar Fallido" }),
     ).toBeNull();
     expect(within(tables).getByText("No se pudo preparar")).toBeVisible();
     expect(screen.getByRole("region", { name: "Relaciones" })).toBeVisible();
@@ -582,6 +582,9 @@ describe("compact business dossier", () => {
   });
   it("uses the exact data version from Tables and prevents questions from corrected versions", async () => {
     const data = dossier();
+    data.datasets[0].files = [
+      { id: "sales-table", name: "ventas.csv", rows: 12, status: "ready" },
+    ];
     data.datasets.push({
       ...data.datasets[0],
       id: "corrected",
@@ -590,7 +593,7 @@ describe("compact business dossier", () => {
     });
     const { user } = setup(data, { files: true });
     await ready();
-    const tables = screen.getByRole("region", { name: "Tablas 0" });
+    const tables = screen.getByRole("region", { name: "Tablas 2" });
     expect(
       within(tables).getAllByRole("button", {
         name: "Preguntar sobre estas tablas",
@@ -603,7 +606,7 @@ describe("compact business dossier", () => {
     );
     expect(store.get(contextKey(business.id), {})).toMatchObject({
       analysis_id: "sales",
-      label: "Ventas de septiembre · v2",
+      label: "Ventas",
     });
     expect(location.hash).not.toBe("#ask");
     expect(store.get(`dr-dock-${business.id}`, {})).toMatchObject({
@@ -1106,7 +1109,7 @@ describe("compact business dossier", () => {
     );
     expect(
       within(screen.getByRole("region", { name: /^Archivos/ })).getByText(
-        "Ventas de septiembre",
+        "No hay archivos originales disponibles.",
       ),
     ).toBeVisible();
     expect(

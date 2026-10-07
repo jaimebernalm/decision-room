@@ -170,6 +170,34 @@ class WebTests(unittest.TestCase):
         self.assertEqual(client.post(f'/api/jobs/{job}/restore', json=body).status_code, 409)
         self.assertEqual(client.post(f'/api/jobs/{job}/restore', json={'business_id': str(other['id'])}).status_code, 404)
 
+    def test_report_sources_keep_snapshot_and_count_only_later_current_tables(self):
+        from decision_room.web import dossier
+        job = self.complete()
+        client, server = self.http()
+        path = f'/api/jobs/{job}/sources'
+        self.assertEqual(client.get(path).status_code, 401)
+        client.post('/api/login', json={'token': server.token})
+        initial = client.get(path).json()
+        self.assertEqual(len(initial['tables']), 1)
+        self.assertEqual(initial['tables'][0]['name'], 'sales.csv')
+        self.assertEqual(initial['added_tables'], [])
+        upload = dossier.upload(self.ws, dict(business_id=str(self.business['id']),
+            request_key=str(uuid4()), title='New products', mode='separate'),
+            'products.csv', b'product_id,name\n1,Paper\n2,Pen\n')
+        later = client.get(path).json()
+        self.assertEqual(later['tables'], initial['tables'])
+        self.assertEqual([t['name'] for t in later['added_tables']], ['products.csv'])
+        # Updating the same logical table is not a second added table.
+        dossier.upload(self.ws, dict(business_id=str(self.business['id']),
+            request_key=str(uuid4()), title='New products', mode='update', previous_id=upload['analysis_id']),
+            'products.csv', b'product_id,name\n1,Paper\n2,Pen\n3,Book\n')
+        self.assertEqual(len(client.get(path).json()['added_tables']), 1)
+        queued = self.create(request_key=str(uuid4()))
+        self.assertIsNone(client.get(f'/api/jobs/{queued}/sources').json()['tables'])
+        self.ws.save_business(dict(request_key=str(uuid4()), name='Other', description='Other shop',
+                                  expected_active_id=str(self.business['id'])))
+        self.assertEqual(client.get(path).status_code, 404)
+
     def test_question_references_preview_pagination_and_scope(self):
         from decision_room.web.preview import page
         self.csv = ('quantity,amount\n' + ''.join(f'{i},{i * 10}\n' for i in range(1, 56))).encode()

@@ -416,6 +416,10 @@ class Handler(BaseHTTPRequestHandler):
                 if not mutation and not action:
                     self.send(200, ws.detail(job_id))
                     return
+                if not mutation and action == 'sources':
+                    from . import report_sources
+                    self.send(200, report_sources.view(ws, job_id))
+                    return
                 if not mutation and action == 'activity':
                     from . import activity
                     self.send(200, activity.read(ws, 'job', job_id, parse_qs(urlsplit(self.path).query)))

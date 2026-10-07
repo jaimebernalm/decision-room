@@ -85,9 +85,7 @@ describe("versioned ER data model", () => {
       }),
     );
     render(<DataModelPanel business="business" analysis="analysis" inline />);
-    expect(
-      await screen.findByText(/Este conjunto contiene una sola tabla/),
-    ).toBeVisible();
+    await screen.findByRole("button", { name: "Ver tabla Table 0" });
     expect(screen.queryByRole("button", { name: /Ver relaciones/ })).toBeNull();
     expect(
       screen.queryByRole("group", {
@@ -95,9 +93,7 @@ describe("versioned ER data model", () => {
       }),
     ).toBeNull();
     expect(screen.queryByText("Conexiones entre tablas")).toBeNull();
-    expect(
-      screen.queryByRole("button", { name: "Conexiones y comprobaciones" }),
-    ).toBeNull();
+
     await userEvent.click(
       screen.getByRole("button", { name: "Ver tabla Table 0" }),
     );
@@ -121,15 +117,11 @@ describe("versioned ER data model", () => {
     );
     render(<DataModelPanel business="business" analysis="analysis" />);
     await user.click(screen.getByRole("button", { name: /Ver relaciones/ }));
-    await user.click(
-      await screen.findByRole("button", { name: "Buscar y revisar versiones" }),
-    );
-    expect(await screen.findByText("Modelo · revisión 3")).toBeInTheDocument();
+    await screen.findByLabelText("Buscar tabla");
+    expect(screen.queryByText("Buscar y revisar versiones")).toBeNull();
+    expect(screen.queryByLabelText("Historial del modelo")).toBeNull();
     expect(screen.getByText(/12 de 15 tablas/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Table 14" }));
-    await user.click(
-      screen.getByRole("button", { name: /Centrar en esta tabla/ }),
-    );
     expect(
       await screen.findByRole("button", { name: "Tabla Table 14" }),
     ).toBeInTheDocument();
@@ -156,7 +148,7 @@ describe("versioned ER data model", () => {
       screen.getByText(/propuesta del analista, comprobada sobre los datos/),
     ).toBeInTheDocument();
   });
-  it("stores a revision guarded correction and disables editing history", async () => {
+  it("stores a revision guarded correction without exposing version controls", async () => {
     const user = userEvent.setup(),
       fetch = vi
         .fn()
@@ -191,18 +183,7 @@ describe("versioned ER data model", () => {
       action: "table",
       payload: { id: "table-0", grain: "Una factura" },
     });
-    await user.click(
-      screen.getByRole("button", { name: "Buscar y revisar versiones" }),
-    );
-    await user.selectOptions(
-      screen.getByLabelText("Historial del modelo"),
-      "3",
-    );
-    await waitFor(() =>
-      expect(
-        screen.queryByRole("button", { name: /Corregir o aclarar/ }),
-      ).not.toBeInTheDocument(),
-    );
+    expect(screen.queryByLabelText("Historial del modelo")).toBeNull();
   });
   it("keeps optional setup out of the default view and saves a clearly labelled calculation against the exact revision", async () => {
     const user = userEvent.setup(),
@@ -211,8 +192,7 @@ describe("versioned ER data model", () => {
         .mockResolvedValue({ ok: true, json: async () => response });
     vi.stubGlobal("fetch", fetch);
     render(<DataModelPanel business="business" analysis="analysis" inline />);
-    await screen.findByText("Conexiones entre tablas");
-    expect(screen.queryByRole("button", { name: "Table 0" })).toBeNull();
+    await screen.findByRole("button", { name: "Conexiones y comprobaciones" });
     expect(screen.queryByText("Cómo entendemos las métricas")).toBeNull();
     expect(
       screen.queryByRole("button", { name: "Conectar dos tablas" }),
@@ -221,11 +201,11 @@ describe("versioned ER data model", () => {
       screen.queryByRole("button", { name: "Aclarar un cálculo" }),
     ).toBeNull();
     await user.click(
+      screen.getByRole("button", { name: "Conexiones y comprobaciones" }),
+    );
+    await user.click(
       screen.getByRole("button", { name: "Ajustar cómo usamos estos datos" }),
     );
-    expect(
-      screen.getByText(/qué gastos incluyes al calcular el beneficio/),
-    ).toBeVisible();
     await user.click(
       screen.getByRole("button", { name: "Conectar dos tablas" }),
     );
@@ -260,6 +240,51 @@ describe("versioned ER data model", () => {
       },
     });
   });
+  it("shows clean table names and only actionable warnings in the connection dialog", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          ...response,
+          model: {
+            ...response.model,
+            body: {
+              ...response.model.body,
+              tables: [
+                { ...tables[0], name: "ventas.csv" },
+                { ...tables[1], name: "catalog.xlsx [Productos].csv" },
+              ],
+              relations: [
+                {
+                  ...response.model.body.relations[0],
+                  semantic_status: "confirmed",
+                  verification: "checked",
+                },
+              ],
+            },
+          },
+        }),
+      }),
+    );
+    render(<DataModelPanel business="business" analysis="analysis" inline />);
+    await screen.findByRole("button", { name: "Conexiones y comprobaciones" });
+    expect(screen.queryByText("Buscar y revisar versiones")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Ajustar cómo usamos estos datos" }),
+    ).toBeNull();
+    expect(screen.queryByLabelText("Buscar tabla")).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Conexiones y comprobaciones" }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Ventas → Productos" }),
+    ).toBeVisible();
+    expect(screen.queryByText("Significado confirmado")).toBeNull();
+    expect(screen.queryByText("Datos comparados")).toBeNull();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
   it("retains saved calculations in read-only history while hiding creation actions", async () => {
     vi.stubGlobal(
       "fetch",
@@ -290,8 +315,11 @@ describe("versioned ER data model", () => {
     render(<DataModelPanel business="business" analysis="analysis" inline />);
     await userEvent.click(
       await screen.findByRole("button", {
-        name: "Ajustar cómo usamos estos datos",
+        name: "Conexiones y comprobaciones",
       }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Ajustar cómo usamos estos datos" }),
     );
     expect(screen.getByText("Ventas menos gastos")).toBeVisible();
     expect(

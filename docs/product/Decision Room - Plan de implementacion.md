@@ -744,6 +744,28 @@ Verificados mapa único, conjunto de una sola tabla sin mapa redundante,
 aclaraciones con ejemplos, detalles cerrables y móvil sin desbordamiento.
 Véanse [comprobaciones y límites](../validation/2026-10-07-minimal-data-model.md).
 
+### 2.5.32. Datos y detalles de informes sin ruido visual
+
+1. Mostrar únicamente archivos reales y nombres de tablas, sin títulos de lotes,
+   versiones ni extensiones en las tablas; reconocer hojas de Excel y conservar
+   las descargas y el conjunto exacto al preguntar.
+2. Retirar búsqueda/historial del mapa habitual y mantener búsqueda solo en
+   catálogos grandes. Abrir Conexiones y comprobaciones con un botón compacto,
+   sin cajas anidadas ni confirmaciones redundantes; conservar avisos reales,
+   comprobaciones, aclaraciones y control de revisión al guardar.
+3. Abrir detalles al pulsar la fila de un informe o su botón de información;
+   conservar apertura desde título y Abrir. Mostrar fecha, catálogo original
+   y tablas añadidas después a partir de procedencia guardada, sin afirmar que
+   todas las tablas participaron en los cálculos. Respetar negocio, selección,
+   informes retirados, papelera y acceso a la evidencia.
+4. Comprobar interfaz en escritorio y móvil, nombres CSV/hojas Excel, contexto,
+   procedencia inmutable, autenticación/aislamiento, pruebas, build y lint.
+
+**Completado:** 253 pruebas frontend y 12 backend dirigidas pasan; build y lint
+sin errores. Comprobados archivos/tablas limpios, conexiones bajo petición y
+detalles históricos de informes en escritorio/móvil. Véanse
+[alcance y validación](../validation/2026-10-07-client-data-and-report-details.md).
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Avance, 27 de septiembre de 2026:** completados **3.1** (medición inicial),
