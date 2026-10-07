@@ -4,6 +4,7 @@ Run next to the private state database (inside the trusted container/controller)
 The orchestrator must also checkpoint work files and publish its PostgreSQL
 pointer only after this function returns. Never restore into a running server.
 """
+from contextlib import closing
 import hashlib
 import json
 import os
@@ -28,7 +29,9 @@ def _sync_dir(path):
 
 
 def _check(path):
-    with sqlite3.connect(path.as_uri() + '?mode=ro', uri=True) as db:
+    # Published backups are complete standalone databases. Immutable inspection
+    # must not create WAL/SHM sidecars or mutate a runtime file manifest.
+    with closing(sqlite3.connect(path.as_uri() + '?mode=ro&immutable=1', uri=True)) as db:
         if db.execute('PRAGMA quick_check').fetchall() != [('ok',)]:
             raise ValueError('SQLite integrity check failed.')
 
@@ -47,8 +50,8 @@ def capture(source, destination, *, timeout=30):
         def progress(status, remaining, total):
             if time.monotonic() >= deadline:
                 raise TimeoutError('SQLite backup deadline exceeded.')
-        with sqlite3.connect(source.as_uri() + '?mode=ro', uri=True) as incoming:
-            with sqlite3.connect(target) as outgoing:
+        with closing(sqlite3.connect(source.as_uri() + '?mode=ro', uri=True)) as incoming:
+            with closing(sqlite3.connect(target)) as outgoing:
                 incoming.backup(outgoing, pages=128, progress=progress, sleep=0.01)
         # The backup API includes committed WAL content; copying the main file does not.
         _check(target)

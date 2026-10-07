@@ -9,7 +9,7 @@ import time
 import httpx
 
 from ..database import connect
-from . import admission
+from . import admission, costs
 
 UPSTREAM = 'https://api.openai.com/v1'
 SERVICE_TIER = 'default'  # Trusted Standard policy; never inherit project auto/Fast.
@@ -84,6 +84,7 @@ class EventUsage:
         self.data = []
         self.usage = None
         self.status = None
+        self.response = None
 
     def feed(self, chunk):
         self.pending += chunk
@@ -101,6 +102,7 @@ class EventUsage:
                     self.data = []
                     if value.get('type') in {'response.completed', 'response.incomplete', 'response.failed'}:
                         response = value.get('response') or {}
+                        self.response = response
                         self.usage = usage_from(response.get('usage'))
                         self.status = response.get('status')
             elif line.startswith(b'data:'):
@@ -117,8 +119,15 @@ def forward(config, run_id, token, raw, *, api_key, send_headers, write, transpo
     request, count_request = prepare(raw, job)
     if not api_key:
         raise admission.Denied('Provider service is not configured.')
-    call_id = admission.begin_call(config, run_id, token, admission.sha(admission.canonical(request)))
+    call_id = admission.begin_call(config, run_id, token, admission.sha(admission.canonical(request)),
+                                   requested_model=job['model'], requested_tier=SERVICE_TIER)
     usage, reason, settled = None, None, False
+    measured = None
+    parser = None
+    body = bytearray()
+    def billing():
+        return costs.capture(measured or (parser.response if parser else None),
+                             requested_model=job['model'], requested_tier=SERVICE_TIER)
     started = time.monotonic()
     try:
         with httpx.Client(transport=transport, trust_env=False, follow_redirects=False,
@@ -163,17 +172,28 @@ def forward(config, run_id, token, raw, *, api_key, send_headers, write, transpo
                 if is_sse:
                     parser.feed(b'\n\n')
                     usage, status = parser.usage, parser.status
+                    measured = parser.response
                 else:
                     result = json.loads(body)
+                    measured = result
                     usage, status = usage_from(result.get('usage')), result.get('status')
                 if status != 'completed':
                     reason = 'provider_response_incomplete'
-        reason = admission.settle(config, run_id, call_id, usage=usage, reason=reason)
+        reason = admission.settle(config, run_id, call_id, usage=usage, reason=reason, billing=billing())
         settled = True
         if usage is None or reason:
             raise admission.Aborted('Provider response ended without confirmed completion.')
     except BaseException:
         if not settled:
-            admission.settle(config, run_id, call_id, usage=usage, reason=reason or 'provider_usage_unknown')
+            # A terminal SSE receipt remains billable evidence even when writing
+            # that chunk to a disconnected downstream client fails.
+            if measured is None and body:
+                try:
+                    measured = json.loads(body)
+                    usage = usage or usage_from(measured.get('usage'))
+                except (ValueError, AttributeError):
+                    measured = None
+            usage = usage or (parser.usage if parser else None)
+            admission.settle(config, run_id, call_id, usage=usage, reason=reason or 'provider_usage_unknown', billing=billing())
         raise
     return call_id

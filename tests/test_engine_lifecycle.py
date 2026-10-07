@@ -17,6 +17,17 @@ class ClientTests(unittest.TestCase):
         self.addCleanup(client.close)
         return client
 
+    def test_mcp_is_reconnected_and_confirmed_before_prompting(self):
+        paths = []
+        def handler(request):
+            paths.append((request.method, request.url.path))
+            if request.method == 'POST': return httpx.Response(200, json=True)
+            return httpx.Response(200, json={'decision_room': {'status': 'connected' if len(paths) > 1 else 'failed'}})
+        self.client(handler).require_mcp()
+        self.assertEqual(paths, [('GET', '/mcp'), ('POST', '/mcp/decision_room/connect'), ('GET', '/mcp')])
+        with self.assertRaises(ProtocolError):
+            self.client(lambda _: httpx.Response(200, json={'decision_room': {'status': 'failed'}})).require_mcp()
+
     def test_fixed_version_password_and_explicit_title(self):
         seen = []
         def handle(request):
@@ -129,6 +140,15 @@ class CheckpointTests(unittest.TestCase):
             self.assertEqual(db.execute('SELECT * FROM message').fetchall(), [('msg_1', 'committed in WAL')])
             db.execute("INSERT INTO message VALUES ('msg_3','resumed')")
         self.assertEqual(self.db.execute('SELECT count(*) FROM message').fetchone()[0], 1)
+
+    def test_inspection_of_wal_mode_backup_never_creates_or_changes_files(self):
+        snapshot = self.root / 'snapshot'
+        checkpoint.capture(self.source, snapshot)
+        before = {p.name: p.read_bytes() for p in snapshot.iterdir()}
+        for _ in range(3):
+            checkpoint.inspect(snapshot)
+        self.assertEqual({p.name: p.read_bytes() for p in snapshot.iterdir()}, before)
+        self.assertEqual(set(before), {'manifest.json', 'opencode.db'})
 
     def test_two_checkpoints_preserve_both_revisions_and_reject_overwrite(self):
         first = self.root / 'first'; second = self.root / 'second'

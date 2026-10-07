@@ -107,6 +107,15 @@ class Client:
             error = DeliveryUncertain if method != 'GET' else ProtocolError
             raise error('OpenCode transport failed; reconcile persisted state before retrying.') from None
 
+    def require_mcp(self):
+        """The relay starts after serve; ensure tools are ready before prompting."""
+        status = self._request('GET', '/mcp')
+        if not isinstance(status, dict) or status.get('decision_room', {}).get('status') != 'connected':
+            self._request('POST', '/mcp/decision_room/connect')
+            status = self._request('GET', '/mcp')
+        if not isinstance(status, dict) or status.get('decision_room', {}).get('status') != 'connected':
+            raise ProtocolError('The job tool connection is not ready.')
+
     def health(self):
         value = self._request('GET', '/global/health')
         if not isinstance(value, dict) or value.get('healthy') is not True or value.get('version') != VERSION:

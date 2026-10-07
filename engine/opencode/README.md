@@ -47,10 +47,10 @@ corruptelas y enlaces simbólicos. No es aún un checkpoint completo de OpenCode
 falta incorporar los archivos de trabajo, registrar el puntero duradero en
 PostgreSQL y probar reanudación de la sesión en otro contenedor.
 
-Todavía faltan plantilla de configuración con MCP/proxy por trabajo, supervisor,
-red completa y controlador de ejecución/espera/reanudación. El outbox y el
-registro de versiones de mensajes ya están disponibles en `engine.control`. Estos
-componentes no habilitan el motor en la interfaz ni completan P2.
+La configuración por trabajo, el supervisor y la API de ejecución/espera/reanudación
+están disponibles en `engine.container` y `engine.api`, junto con el outbox de
+`engine.control`. Estos componentes no habilitan el motor en la interfaz ni
+completan P2: siguen pendientes sus ensayos reales y la calibración.
 
 Para el sentido agente → servicio, `decision_room.engine.tunnel.JobTunnel` lanza
 `relay.py` con Python aislado mediante Docker exec. El script se lee del árbol de
@@ -58,5 +58,61 @@ fuentes del producto, no del directorio escribible del agente. Expone únicament
 las rutas HTTP de ese trabajo en `127.0.0.1:8080` del contenedor y transporta JSON y
 SSE por pipes hacia el servicio loopback del host. El host valida los frames otra
 vez; el socket Docker y la clave del proveedor nunca cruzan el pipe. La prueba
-`tests.test_engine_tunnel` usa un servicio simulado sin modelo. Todavía falta que
-el controlador gestione arranque, corte y recuperación de todo este recorrido.
+`tests.test_engine_tunnel` usa un servicio simulado sin modelo. El controlador gestiona arranque, corte y recuperación de este recorrido.
+
+## Runtime de trabajo
+
+`engine.container.Runtime` crea una generación identificada por UUID, con tres
+volúmenes exclusivos (`state`, `work` e `inputs`) y red `none`. `inputs` está
+montado en solo lectura para el agente; un cargador sin red lo prepara antes del
+primer arranque. El controlador debe guardar
+esa identidad antes de crearla. Reconcilia un contenedor existente por nombre,
+labels e imagen inmutable; no adopta recursos ajenos. La configuración MCP y
+Responses apunta al relay loopback del trabajo y solo contiene su credencial,
+nunca la del proveedor.
+
+El checkpoint detiene todo el contenedor, copia los tres volúmenes mediante tar
+acotado, rechaza enlaces/dispositivos/traversal y hace backup SQLite desde la copia
+con WAL. Publica hashes de cada archivo, del modelo de imagen y del trabajo. La
+restauración valida todo antes de crear una generación y volúmenes nuevos. No
+sobrescribe un servidor activo ni una restauración parcial. Conserva el SQLite
+completo (incluidas las sesiones hijas que existan) y los archivos de trabajo;
+la exportación legible de esas sesiones corresponde al supervisor.
+
+Prueba real sin modelo: sesión y sesión hija creadas con título explícito y archivos CSV/texto,
+parada, checkpoint, restauración en otro contenedor, lectura de la misma sesión
+y archivos; rechaza corrupción y restauración sobre una instancia existente.
+Las pruebas de archivo rechazan enlaces simbólicos/duros, dispositivos, duplicados
+y rutas externas. No son todavía el recorrido integrado de `run_report` ni la
+prueba de todas las ventanas de caída del supervisor. Un checkpoint que falla
+conserva los volúmenes originales; su retirada es una operación separada.
+
+
+La API requiere `DECISION_ROOM_ENGINE_IMAGE_ID` con el ID SHA-256 de la imagen
+local fijada; usa el backend Docker configurado por el producto. El servicio de
+pasarela es compartido por configuración dentro de cada proceso del host. El
+modelo se fija desde configuración confiable (`DECISION_ROOM_ENGINE_MODEL`, por
+defecto `gpt-6-luna`). Solo el servicio del host recibe `OPENAI_API_KEY`.
+
+El runtime inicial entrega los CSV originales en `/inputs`, tras comprobar sus
+hashes, junto con un manifiesto de tablas. Esta primera API no acepta aún fuentes
+Excel. La pausa detiene todo el contenedor y captura estado/work/inputs; la respuesta
+restaura en otra generación, conserva la sesión y encola un único mensaje con
+credencial rotada. Una caída con petición al proveedor pendiente aborta conservando
+la reserva, sin reenvío. Una restauración incompleta conserva sus archivos y exige
+recuperación; no se sobreescribe. Los volúmenes detenidos se conservan para diagnóstico;
+no hay todavía política automática de caducidad ni cuota de disco por volumen.
+
+El controlador observa hasta 64 sesiones y 64 páginas por sesión. Sobrepasar esos
+límites no afirma una exportación completa; registra un fallo y conserva los datos
+ya persistidos. Los límites de checkpoint son independientes de los del modelo.
+
+
+La prueba integrada `tests.test_engine_api.RealApiTests` usa OpenCode, MCP,
+PostgreSQL y Docker reales con un transporte Responses simulado sin red externa.
+Cubre entrega, pregunta, parada/restauración en la misma sesión y entrega posterior,
+así como proveedor deshabilitado. El controlador confirma MCP antes del prompt y
+no interpreta un paso `tool-calls`/`unknown` como fin del turno. Otras pruebas cubren
+reservas inciertas tras caída, idempotencia de respuesta, aislamiento por negocio y
+fallo del render con raw recuperable. Esto no sustituye los ensayos con modelo de P2
+ni certifica calidad analítica de P3.

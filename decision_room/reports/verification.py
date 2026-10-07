@@ -1,0 +1,79 @@
+"""Minimum final verifier: resolve supported references, mark semantic uncertainty.
+
+An arithmetic check alone never certifies attribution in prose. Literal digits
+and resolved references stay visibly unverified in this minimum version. The P3
+quality gate is not claimed to pass because a ledger can be exported.
+"""
+import hashlib
+import re
+
+from ..series import numeric
+from . import contract
+from .verification_contract import canonical, figure_id, validate
+
+VERSION = 'report-minimum-v1'
+TOKEN = re.compile(r'\{\{n:([^{}]+)\}\}')
+DIGITS = re.compile(r'(?<!\w)[+−-]?\d+(?:[.,\u00a0 ]\d+)*(?:\s*%)?')
+
+
+def build(raw, *, resolver=None):
+    document, references, issues = contract.load(raw)
+    definitions = {}
+    ambiguous = set()
+    for ref in references:
+        if not isinstance(ref, dict) or any(not isinstance(ref.get(k), str) or not ref[k] for k in ('key', 'execution_id', 'metric')):
+            issues.append('invalid_number_reference'); continue
+        key = ref['key']
+        if key in definitions:
+            ambiguous.add(key)
+        definitions[key] = ref
+    figures = []
+    for path, original, recommendation in list(contract.texts(document)):
+        output = ''; end = 0; refs = []
+        for match in TOKEN.finditer(original):
+            output += original[end:match.start()]
+            start = len(output); visible = match.group(); check = None; ref = definitions.get(match[1])
+            if ref and match[1] not in ambiguous and resolver:
+                try:
+                    check = resolver(ref)
+                    if check and check.get('value') is not None:
+                        value = numeric(check['value'])
+                        decimals = ref.get('decimals', 2)
+                        if not value.is_finite() or type(decimals) is not int or not 0 <= decimals <= 8:
+                            raise ValueError('Invalid display precision.')
+                        visible = format(value, f'.{decimals}f')
+                except Exception:
+                    check = None
+            output += visible; end = match.end()
+            corrected = check and check.get('status') == 'corrected_in_scope'
+            evidence = []
+            if check and check.get('value') is not None:
+                evidence = [{'kind': 'observation' if check.get('origin') == 'deterministic_panorama' else 'execution',
+                             'id': str(ref['execution_id']), 'metric': ref['metric']}]
+            refs.append({'path': path, 'span': {'start': start, 'end': len(output)}, 'text': visible,
+                         'value': visible if check and check.get('value') is not None else None,
+                         'unit': ref.get('unit') if ref and isinstance(ref.get('unit'), str) else None,
+                         'status': 'corrected' if corrected else 'unverified' if evidence else 'uncertain',
+                         'verified': False, 'corrected_from': str(check['original_value']) if corrected else None,
+                         'evidence': evidence, 'recommendation_id': recommendation})
+        output += original[end:]
+        contract.set_text(document, path, output)
+        for match in DIGITS.finditer(output):
+            if any(match.start() < f['span']['end'] and f['span']['start'] < match.end() for f in refs):
+                continue
+            # Locale separators, dates and units are ambiguous without a recipe.
+            refs.append({'path': path, 'span': {'start': match.start(), 'end': match.end()}, 'text': match.group(),
+                         'value': None, 'unit': None, 'status': 'unverified', 'verified': False,
+                         'corrected_from': None, 'evidence': [], 'recommendation_id': recommendation})
+        figures.extend(sorted(refs, key=lambda f: f['span']['start']))
+    document['verification_annotations'] = [{k: f[k] for k in ('path', 'span', 'text', 'status')} for f in figures]
+    digest = hashlib.sha256(canonical(document)).hexdigest()
+    counts = dict.fromkeys(('verified', 'unverified', 'uncertain', 'corrected'), 0)
+    for figure in figures:
+        figure['id'] = figure_id(digest, figure['path'], figure['span']['start'], figure['span']['end'])
+        counts[figure['status']] += 1
+    ledger = {'contract_version': 1, 'draft_sha256': hashlib.sha256(raw).hexdigest(), 'verified_sha256': digest,
+              'renderer_version': VERSION, 'figures': figures, 'summary': counts,
+              'issues': list(dict.fromkeys([*issues, 'semantic_verification_not_available']))}
+    validate(ledger, document, raw)
+    return document, ledger
