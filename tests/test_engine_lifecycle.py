@@ -17,6 +17,17 @@ class ClientTests(unittest.TestCase):
         self.addCleanup(client.close)
         return client
 
+    def test_mcp_is_reconnected_and_confirmed_before_prompting(self):
+        paths = []
+        def handler(request):
+            paths.append((request.method, request.url.path))
+            if request.method == 'POST': return httpx.Response(200, json=True)
+            return httpx.Response(200, json={'decision_room': {'status': 'connected' if len(paths) > 1 else 'failed'}})
+        self.client(handler).require_mcp()
+        self.assertEqual(paths, [('GET', '/mcp'), ('POST', '/mcp/decision_room/connect'), ('GET', '/mcp')])
+        with self.assertRaises(ProtocolError):
+            self.client(lambda _: httpx.Response(200, json={'decision_room': {'status': 'failed'}})).require_mcp()
+
     def test_fixed_version_password_and_explicit_title(self):
         seen = []
         def handle(request):

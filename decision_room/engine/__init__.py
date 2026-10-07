@@ -1,5 +1,16 @@
-"""Durable admission for the report engine.
+"""Opt-in report engine API. Legacy report generation remains independent."""
 
-The OpenCode controller and public run_report/resume_report/export_run API are
-not implemented yet. Legacy report generation does not import this package.
-"""
+
+def run_report(config, business_id, analysis_id, *, owner_context, request_key, limits=None):
+    from .api import run_report as run
+    return run(config, business_id, analysis_id, owner_context=owner_context, request_key=request_key, limits=limits)
+
+
+def resume_report(config, business_id, engine_run_id, *, answer=None):
+    from .api import resume_report as resume
+    return resume(config, business_id, engine_run_id, answer=answer)
+
+
+def export_run(config, business_id, engine_run_id, dest):
+    from .export import export_run as export
+    return export(config, business_id, engine_run_id, dest)

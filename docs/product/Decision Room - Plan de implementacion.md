@@ -33,6 +33,15 @@ P3](../validation/2026-10-06-engine-p1-audit.md). Esto cierra la auditoría del
 motor, no los criterios históricos de aceptación de la cadena. P2 está iniciado;
 P3 aún no se ha medido.
 
+**A1 del motor — integración mínima, 7 de octubre:** supervisor de contenedor con
+restauración de SQLite, hijos y archivos; API `run_report`/`resume_report`/`export_run`,
+espera/reanudación, exportaciones con y sin marcas y recibos de coste por llamada.
+Validación sin proveedor facturable con PostgreSQL y OpenCode aislado. El verificador
+mínimo marca incertidumbre; todavía no certifica semántica ni completa P3. P2 sigue
+abierto hasta las pruebas reales 3+3, calibración y criterios del plan del motor.
+Véanse el [contrato de exportación](../technical/engine-export-contract.md) y las
+limitaciones operativas en `engine/opencode/README.md`.
+
 ## 2. Orden general
 
 | Orden | Entrega | Resultado comprobable | Motivo |
