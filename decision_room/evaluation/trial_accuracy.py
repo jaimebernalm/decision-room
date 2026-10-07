@@ -45,16 +45,21 @@ def pointer(document, path):
     return value
 
 
-def strings(value):
-    """Every text field of the verified document."""
+HIDDEN = {'verification_annotations', 'numbers', 'key', 'number_key', 'execution_id', 'metric', 'id',
+          'schema_version'}  # fields of draft.verified.json the renderer does not show as text
+
+
+def visible(value, path=''):
+    """(JSON Pointer, text) for every text field the reader sees."""
     if isinstance(value, str):
-        yield value
+        yield path, value
     elif isinstance(value, dict):
-        for item in value.values():
-            yield from strings(item)
+        for name, item in value.items():
+            if name not in HIDDEN:
+                yield from visible(item, f"{path}/{name.replace('~', '~0').replace('/', '~1')}")
     elif isinstance(value, list):
-        for item in value:
-            yield from strings(item)
+        for index, item in enumerate(value):
+            yield from visible(item, f'{path}/{index}')
 
 
 def quoted(cita, field):
@@ -66,22 +71,32 @@ def quoted(cita, field):
     return [m.span() for m in re.finditer(pattern, field.translate(SAME_LENGTH), flags=re.I)]
 
 
+def occurrences(part, text):
+    return len(re.findall(r'(?<![\w.,])' + re.escape(part) + r'(?![\w]|[.,]\d)', text)) if part else 0
+
+
 def label(entry, figures, document=None):
     """Engine state of one auditor entry: 'verified', the status of an unverified occurrence,
-    'unmarked' (no occurrence) or 'ambiguous' (several and no way to tell them apart)."""
+    'unmarked' (no occurrence) or 'ambiguous' (several visible places it could be).
+
+    The quote is located among the visible text fields. Found in exactly one place, only the
+    figures inside that range count; found in several places (also twice in one field), the entry
+    is ambiguous whatever the labels, since the auditor did not say which one. Not found anywhere,
+    the value must appear exactly once in the visible text and match exactly one figure."""
     cita, value = normal(entry.get('cita')), normal(entry.get('valor_informe'))
     shown = lambda f: within(value, normal(f.get('text'))) if value else within(normal(f.get('text')), cita)
-    found, located = [], document is not None and any(quoted(entry.get('cita'), field) for field in strings(document))
-    if document is not None:
-        for f in figures:
-            try:
-                ranges = quoted(entry.get('cita'), pointer(document, f['path']))
-            except (KeyError, IndexError, ValueError, TypeError):
-                continue
-            if shown(f) and any(a <= f['span']['start'] and f['span']['end'] <= b for a, b in ranges):
-                found.append(f)
-    if not found and not located:  # the quote spans several fields or was not found: visible text only
+    fields = list(visible(document)) if document is not None else []
+    places = [(path, a, b) for path, text in fields for a, b in quoted(entry.get('cita'), text)]
+    if len(places) > 1:
+        return 'ambiguous'
+    if places:
+        path, a, b = places[0]
+        found = [f for f in figures if f.get('path') == path and shown(f)
+                 and a <= f['span']['start'] and f['span']['end'] <= b]
+    else:
         found = [f for f in figures if within(normal(f.get('text')), cita) and shown(f)]
+        if fields and value and sum(occurrences(value, normal(text)) for _, text in fields) > 1:
+            return 'ambiguous'
     if not found:
         return 'unmarked'
     if len(found) > 1:

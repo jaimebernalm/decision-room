@@ -72,8 +72,10 @@ shasum -a 256 -c MANIFIESTO.sha256
   Anota en `prioridad_citada` la recomendación que sostiene.
 - **sostiene_prioridad_principal:** lo mismo, solo para las tres primeras
   prioridades del informe (diagnóstico).
-- **cita:** copia la frase tal como se lee, de modo que contenga la cifra; si la
-  misma cifra aparece varias veces en la frase, indica en `limites` cuál es.
+- **cita:** copia la frase tal como se lee, de modo que contenga la cifra y sea
+  única en el informe; si la misma frase aparece en varios lugares, amplía la cita
+  con el texto vecino hasta que solo aparezca una vez. Si la misma cifra aparece
+  varias veces en la frase, indica en `limites` cuál es.
 - **error:** el valor no coincide con ningún cálculo razonable de lo que la frase dice.
 - **redondeo:** coincide salvo por el redondeo mostrado.
 - **ambigua:** la frase admite más de un cálculo y el informe no dice cuál usó;

@@ -51,5 +51,21 @@ class FactJoinTests(unittest.TestCase):
         self.assertFalse(result['conditions']['priority_all_verified_correct'])
 
 
+    def test_a_quote_shown_in_two_places_is_ambiguous_whatever_the_labels(self):
+        # Astra's reproduction: the same sentence as prose and as a verified fact.
+        document = {'summary': 'El total es 42.', 'facts': [{'number_key': 'total', 'text': 'El total es 42.'}],
+                    'verification_annotations': [{'path': '/facts/0/text', 'text': 'El total es 42.'}]}
+        figures = [{'id': 'f', 'path': '/facts/0/text', 'span': {'start': 12, 'end': 14}, 'text': '42',
+                    'status': 'verified', 'verified': True}]
+        entry = {'cita': 'El total es 42.', 'valor_informe': '42', 'clase': 'correcta', 'sostiene_prioridad_v3': True}
+        self.assertEqual(trial_accuracy.label(entry, figures, document), 'ambiguous')
+        document['summary'] = 'Resumen sin cifras.'
+        self.assertEqual(trial_accuracy.label(entry, figures, document), 'verified')
+        twice = {'summary': 'Sube 42 y luego otros 42.', 'facts': []}
+        self.assertEqual(trial_accuracy.label({**entry, 'cita': 'Sube 42'}, [], twice), 'unmarked')
+        paraphrase = {**entry, 'cita': 'subida de 42'}  # not located: the value appears twice, so ambiguous
+        self.assertEqual(trial_accuracy.label(paraphrase, [{**figures[0], 'path': '/summary', 'span': {'start': 5, 'end': 7}}],
+                                              twice), 'ambiguous')
+
 if __name__ == '__main__':
     unittest.main()
