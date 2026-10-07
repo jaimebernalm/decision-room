@@ -67,6 +67,49 @@ class DataKnowledgeTests(unittest.TestCase):
                     source_columns=['CustomerID'],target_columns=['CustomerID'],description='Proposed customer link')]),{}
         return discover(self.config,self.business,analysis,Proposer())
 
+    def test_relationship_context_is_exact_scoped_and_rejects_obsolete_models(self):
+        from decision_room.context_references import normalize, resolve_source
+        from decision_room.web.errors import WebError
+        analysis, row = self.tables({'Customers.csv': 'CustomerID,name\n01,A\n02,B\n',
+                                    'Invoices.csv': 'InvoiceID,CustomerID,amount\n1,01,10\n2,02,20\n',
+                                    'Unrelated.csv': 'code,value\nx,4\n'})
+        row = self.propose_customer_relation(analysis, row)
+        relation = row['body']['relations'][0]
+        ref = dict(kind='data_model', source_id=str(analysis), source_version=str(row['revision']),
+                   element_key='relation:' + relation['id'])
+        self.assertEqual(normalize([ref]), [ref])
+        with connect(self.config) as db:
+            item = resolve_source(ref, db, self.business)
+            self.assertEqual(item['content']['relations'], [relation])
+            self.assertEqual(len(item['content']['tables']), 2)
+            self.assertEqual(item['content']['relations'][0]['semantic_status'], 'proposed')
+            self.assertEqual(item['authority'], 'data_model')
+            self.assertEqual(item['selection_scope'], 'relationship')
+            whole = resolve_source(ref | {'element_key': 'model'}, db, self.business)
+            self.assertEqual(whole['content']['tables'], row['body']['tables'])
+            self.assertEqual(whole['content']['relations'], row['body']['relations'])
+            self.assertEqual(whole['selection_scope'], 'whole_data_model')
+            for invalid in (ref | {'source_version': '0'}, ref | {'element_key': 'relation:invented'},
+                            ref | {'element_key': 'invented'}, ref | {'source_id': str(uuid4())}):
+                with self.subTest(invalid=invalid), self.assertRaises(WebError):
+                    resolve_source(invalid, db, self.business)
+            with self.assertRaises(WebError):
+                resolve_source(ref, db, uuid4())
+        with self.assertRaises(WebError):
+            normalize([ref | {'content': 'injected'}])
+        changed = knowledge.change(self.config, self.business, analysis, row['revision'], 'relation',
+            {k: relation[k] for k in ('source', 'target', 'source_columns', 'target_columns')} |
+            dict(semantic_status='rejected', description='Owner rejects this relationship'))
+        with connect(self.config) as db:
+            with self.assertRaises(WebError):
+                resolve_source(ref, db, self.business)
+            current = ref | {'source_version': str(changed['revision'])}
+            self.assertEqual(resolve_source(current, db, self.business)['content']['relations'][0]['semantic_status'], 'rejected')
+            db.execute("UPDATE analyses SET status='failed' WHERE business_id=%s AND id=%s",
+                       (self.business, analysis))
+            with self.assertRaises(WebError):
+                resolve_source(current, db, self.business)
+
     def test_agent_discovery_arbitrary_names_composite_cache_owner_and_dates(self):
         from decision_room.data_knowledge.discovery import discover
         analysis,row=self.tables({'Workbook.xlsx [Movimientos].csv':'ref,area,fecha,valor\n01,a,2026-06-01 00:00:00,2\n01,a,2026-08-31 12:30:00,3\n',

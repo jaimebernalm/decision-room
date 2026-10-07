@@ -77,6 +77,12 @@ export function DossierDataGroups({
     (d) => !d.library_hidden && !d.corrected && !d.superseded_by,
   );
   const assistant = useAssistant();
+  const contextBlock = assistant?.dock?.block;
+  const [returnedBlock, setReturnedBlock] = useState<string | undefined>();
+  if (contextBlock !== returnedBlock) {
+    setReturnedBlock(contextBlock);
+    if (contextBlock?.includes("-data_model-")) setSelectedGroup("relations");
+  }
   const { route } = useWorkspace();
   const prepared = current.filter(
     (d) =>

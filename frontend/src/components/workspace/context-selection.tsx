@@ -235,9 +235,11 @@ export function ContextAttachments({
                       ? tr("Chat")
                       : r.kind === "report"
                         ? tr("Informe")
-                        : r.kind === "business" || r.kind === "memory"
-                          ? tr("Mi negocio")
-                          : tr("Fragmento de informe")}
+                        : r.kind === "data_model"
+                          ? tr("Relaciones")
+                          : r.kind === "business" || r.kind === "memory"
+                            ? tr("Mi negocio")
+                            : tr("Fragmento de informe")}
                   </div>
                   <div className="mb-1 flex h-12 items-center overflow-hidden">
                     {r.status === "withdrawn" ? (

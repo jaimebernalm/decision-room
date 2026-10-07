@@ -66,6 +66,7 @@ import {
   Empty,
 } from "./shared";
 import { Selectable } from "./context-selection";
+import { useAssistant } from "@/lib/assistant";
 import { UploadForm } from "./business";
 import { DossierDataGroups } from "./dossier-data";
 import { GroupEditor } from "./dossier-groups";
@@ -147,6 +148,14 @@ export function Dossier({ files = false }: { files?: boolean }) {
     [upload, setUpload] = useState(false);
   const [customize, setCustomize] = useState(false),
     [selectedGroup, setSelectedGroup] = useState("");
+  const assistant = useAssistant();
+  const [tab, setTab] = useState(files ? "data" : "info");
+  const contextBlock = assistant?.dock?.block;
+  const [returnedBlock, setReturnedBlock] = useState<string | undefined>();
+  if (contextBlock !== returnedBlock) {
+    setReturnedBlock(contextBlock);
+    if (contextBlock?.includes("-data_model-")) setTab("data");
+  }
   const [newGroup, setNewGroup] = useState<{
     id: string;
     title: string;
@@ -267,7 +276,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
           )}
         </Notice>
       )}
-      <Tabs defaultValue={files ? "data" : "info"} className="min-w-0 w-full">
+      <Tabs value={tab} onValueChange={setTab} className="min-w-0 w-full">
         <div className="mt-4 mb-6 flex flex-wrap items-center gap-2">
           <TabsList className="rounded-lg group-data-horizontal/tabs:h-10 p-1">
             <TabsTrigger
@@ -295,20 +304,6 @@ export function Dossier({ files = false }: { files?: boolean }) {
           </Button>
         </div>
         <TabsContent value="info" className="min-w-0 space-y-5">
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              ref={customizeGroups}
-              onClick={(event) => {
-                actionFocus.current = event.currentTarget;
-                setCustomize(true);
-              }}
-            >
-              <Settings2 />
-              {tr("Personalizar grupos")}
-            </Button>
-          </div>
           {!facts.length && data.business.description && (
             <section aria-label={tr("Presentación del negocio")}>
               <h2 className="mb-2 text-sm font-medium">
@@ -319,370 +314,373 @@ export function Dossier({ files = false }: { files?: boolean }) {
               </p>
             </section>
           )}
-          {facts.length || layout.groups.length > 0 ? (
-            <DossierExplorer
-              label={tr("Información")}
-              value={selectedGroup}
-              onValueChange={setSelectedGroup}
-              groups={factGroups.flatMap((group) => {
-                const count = facts.filter(
-                  (fact) => factGroup(fact, layout) === group.key,
-                ).length;
-                return !count && ["review", "ungrouped"].includes(group.key)
-                  ? []
-                  : [{ id: group.key, title: group.title, count }];
-              })}
-            >
-              {factGroups.map((group) => {
-                const items = facts.filter(
-                  (fact) => factGroup(fact, layout) === group.key,
-                );
-                if (
-                  !items.length &&
-                  ["review", "ungrouped"].includes(group.key)
-                )
-                  return null;
-                return (
-                  <DossierExplorerPanel key={group.key} id={group.key}>
-                    <div className="mb-3 flex min-w-0 items-center justify-between gap-3 border-b border-border pb-3">
-                      <h2 className="min-w-0 text-base font-medium [overflow-wrap:anywhere]">
-                        {group.title}
-                      </h2>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              size="icon"
-                              className="size-9 shrink-0 rounded-full shadow-none [@media(pointer:coarse)]:size-11"
-                              aria-label={tr("Añadir información a {0}", {
-                                0: group.title,
-                              })}
-                              onClick={(event) => {
-                                actionFocus.current = event.currentTarget;
-                                setNewGroup({
-                                  id: group.key,
-                                  title: group.title,
-                                });
-                                setEdit(null);
-                              }}
-                            >
-                              <Plus className="size-5" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {tr("Añadir información")}
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-                    <div className="min-w-0 [&_p:not(:last-child)]:mb-0">
-                      {layout.groups.find((g) => g.id === group.key)
-                        ?.description && (
-                        <p className="px-3 py-2 text-sm text-muted-foreground whitespace-pre-wrap break-words">
-                          {
-                            layout.groups.find((g) => g.id === group.key)
-                              ?.description
-                          }
-                        </p>
-                      )}
-                      {!items.length && (
-                        <p className="px-3 py-4 text-sm text-muted-foreground">
-                          {tr(
-                            "Añade información desde el botón + de este grupo.",
-                          )}
-                        </p>
-                      )}
-                      <ul className="divide-y divide-border/70">
-                        {items.map((f) => (
-                          <li key={f.fact_id}>
-                            <Selectable
-                              item={{
-                                kind: "memory",
-                                source_id: f.fact_id,
-                                source_version: String(f.revision),
-                                element_key: "fact",
-                                title: f.content.statement.slice(0, 100),
-                                href: "#my-business",
-                                report_title: tr("Mi negocio"),
-                                content: {
-                                  key: "fact",
-                                  title: tr(
-                                    factKinds[f.content.kind] || "Información",
-                                  ),
-                                  statement: f.content.statement,
-                                },
-                              }}
-                            >
-                              <div className="group/fact flex items-start gap-3 rounded-lg px-2 py-2 text-sm transition-[background-color,box-shadow] hover:bg-sidebar-accent hover:shadow-sm focus-within:bg-sidebar-accent focus-within:shadow-sm motion-reduce:transition-none sm:px-3">
-                                <div className="min-w-0 flex-1 py-2">
-                                  <button
-                                    type="button"
-                                    ref={(node) => {
-                                      if (node)
-                                        factButtons.current.set(
-                                          f.fact_id,
-                                          node,
-                                        );
-                                      else
-                                        factButtons.current.delete(f.fact_id);
-                                    }}
-                                    className="block w-full min-w-0 rounded-sm text-left leading-6 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                                    aria-label={tr("Ver información: {0}", {
-                                      0: f.content.statement,
-                                    })}
-                                    aria-haspopup="dialog"
-                                    onClick={(event) => {
-                                      actionFocus.current = event.currentTarget;
-                                      openDetail(f);
-                                    }}
-                                  >
-                                    <span className="block truncate">
-                                      {f.content.statement}
-                                    </span>
-                                  </button>
-                                  {needsReview(f) && (
-                                    <div className="mt-1 flex flex-wrap items-center gap-2">
-                                      <Badge
-                                        variant={
-                                          f.status === "conflicted"
-                                            ? "destructive"
-                                            : "secondary"
-                                        }
-                                      >
-                                        {tr(
-                                          f.status === "conflicted"
-                                            ? factStatus[f.status]
-                                            : f.content.temporal_scope ===
-                                                "unresolved"
-                                              ? "Fechas por aclarar"
-                                              : f.content.kind ===
-                                                  "open_question"
-                                                ? "Pregunta abierta"
-                                                : factStatus[f.status] ||
-                                                  "Por revisar",
-                                        )}
-                                      </Badge>
-                                      {canConfirm(f) && (
-                                        <TooltipProvider>
-                                          <span className="inline-flex gap-1 transition-opacity group-hover/fact:opacity-100 group-focus-within/fact:opacity-100 motion-reduce:transition-none sm:[@media(hover:hover)]:opacity-0">
-                                            <Tooltip>
-                                              <TooltipTrigger asChild>
-                                                <Button
-                                                  variant="outline"
-                                                  size="icon"
-                                                  className="size-9"
-                                                  aria-label={tr(
-                                                    "Confirmar: {0}",
-                                                    { 0: f.content.statement },
-                                                  )}
-                                                  disabled={action.busy}
-                                                  onClick={() =>
-                                                    void mutation(f, "confirm")
-                                                  }
-                                                >
-                                                  <Check />
-                                                </Button>
-                                              </TooltipTrigger>
-                                              <TooltipContent>
-                                                {tr("Confirmar información")}
-                                              </TooltipContent>
-                                            </Tooltip>
-                                            <Tooltip>
-                                              <TooltipTrigger asChild>
-                                                <Button
-                                                  variant="destructive"
-                                                  size="icon"
-                                                  className="size-9"
-                                                  aria-label={tr(
-                                                    "Descartar: {0}",
-                                                    { 0: f.content.statement },
-                                                  )}
-                                                  disabled={action.busy}
-                                                  onClick={() =>
-                                                    void mutation(f, "withdraw")
-                                                  }
-                                                >
-                                                  <X />
-                                                </Button>
-                                              </TooltipTrigger>
-                                              <TooltipContent>
-                                                {tr(
-                                                  "Descartar y conservar en el historial",
-                                                )}
-                                              </TooltipContent>
-                                            </Tooltip>
-                                          </span>
-                                        </TooltipProvider>
+          <DossierExplorer
+            label={tr("Información")}
+            value={selectedGroup}
+            onValueChange={setSelectedGroup}
+            navigationFooter={
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-auto min-h-11 w-full justify-start whitespace-normal text-left text-muted-foreground"
+                ref={customizeGroups}
+                onClick={(event) => {
+                  actionFocus.current = event.currentTarget;
+                  setCustomize(true);
+                }}
+              >
+                <Settings2 className="shrink-0" />
+                {tr("Personalizar grupos")}
+              </Button>
+            }
+            groups={factGroups.flatMap((group) => {
+              const count = facts.filter(
+                (fact) => factGroup(fact, layout) === group.key,
+              ).length;
+              return !count && ["review", "ungrouped"].includes(group.key)
+                ? []
+                : [{ id: group.key, title: group.title, count }];
+            })}
+          >
+            {factGroups.map((group) => {
+              const items = facts.filter(
+                (fact) => factGroup(fact, layout) === group.key,
+              );
+              if (!items.length && ["review", "ungrouped"].includes(group.key))
+                return null;
+              return (
+                <DossierExplorerPanel key={group.key} id={group.key}>
+                  <div className="mb-3 flex min-w-0 items-center justify-between gap-3 border-b border-border pb-3">
+                    <h2 className="min-w-0 text-base font-medium [overflow-wrap:anywhere]">
+                      {group.title}
+                    </h2>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size="icon"
+                            className="size-9 shrink-0 rounded-full shadow-none [@media(pointer:coarse)]:size-11"
+                            aria-label={tr("Añadir información a {0}", {
+                              0: group.title,
+                            })}
+                            onClick={(event) => {
+                              actionFocus.current = event.currentTarget;
+                              setNewGroup({
+                                id: group.key,
+                                title: group.title,
+                              });
+                              setEdit(null);
+                            }}
+                          >
+                            <Plus className="size-5" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {tr("Añadir información")}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <div className="min-w-0 [&_p:not(:last-child)]:mb-0">
+                    {layout.groups.find((g) => g.id === group.key)
+                      ?.description && (
+                      <p className="px-3 py-2 text-sm text-muted-foreground whitespace-pre-wrap break-words">
+                        {
+                          layout.groups.find((g) => g.id === group.key)
+                            ?.description
+                        }
+                      </p>
+                    )}
+                    {!items.length && (
+                      <p className="px-3 py-4 text-sm text-muted-foreground">
+                        {tr(
+                          "Añade información desde el botón + de este grupo.",
+                        )}
+                      </p>
+                    )}
+                    <ul className="divide-y divide-border/70">
+                      {items.map((f) => (
+                        <li key={f.fact_id}>
+                          <Selectable
+                            item={{
+                              kind: "memory",
+                              source_id: f.fact_id,
+                              source_version: String(f.revision),
+                              element_key: "fact",
+                              title: f.content.statement.slice(0, 100),
+                              href: "#my-business",
+                              report_title: tr("Mi negocio"),
+                              content: {
+                                key: "fact",
+                                title: tr(
+                                  factKinds[f.content.kind] || "Información",
+                                ),
+                                statement: f.content.statement,
+                              },
+                            }}
+                          >
+                            <div className="group/fact flex items-start gap-3 rounded-lg px-2 py-2 text-sm transition-[background-color,box-shadow] hover:bg-sidebar-accent hover:shadow-sm focus-within:bg-sidebar-accent focus-within:shadow-sm motion-reduce:transition-none sm:px-3">
+                              <div className="min-w-0 flex-1 py-2">
+                                <button
+                                  type="button"
+                                  ref={(node) => {
+                                    if (node)
+                                      factButtons.current.set(f.fact_id, node);
+                                    else factButtons.current.delete(f.fact_id);
+                                  }}
+                                  className="block w-full min-w-0 rounded-sm text-left leading-6 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                  aria-label={tr("Ver información: {0}", {
+                                    0: f.content.statement,
+                                  })}
+                                  aria-haspopup="dialog"
+                                  onClick={(event) => {
+                                    actionFocus.current = event.currentTarget;
+                                    openDetail(f);
+                                  }}
+                                >
+                                  <span className="block truncate">
+                                    {f.content.statement}
+                                  </span>
+                                </button>
+                                {needsReview(f) && (
+                                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                                    <Badge
+                                      variant={
+                                        f.status === "conflicted"
+                                          ? "destructive"
+                                          : "secondary"
+                                      }
+                                    >
+                                      {tr(
+                                        f.status === "conflicted"
+                                          ? factStatus[f.status]
+                                          : f.content.temporal_scope ===
+                                              "unresolved"
+                                            ? "Fechas por aclarar"
+                                            : f.content.kind === "open_question"
+                                              ? "Pregunta abierta"
+                                              : factStatus[f.status] ||
+                                                "Por revisar",
                                       )}
-                                      {f.status === "conflicted" && (
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          className="min-h-9 whitespace-normal text-left"
-                                          disabled={action.busy}
-                                          onClick={(event) => {
-                                            actionFocus.current =
-                                              event.currentTarget;
-                                            setEdit(f);
-                                          }}
-                                        >
-                                          <Pencil />
-                                          {tr("Resolver conflicto")}
-                                        </Button>
-                                      )}
-                                    </div>
-                                  )}
-                                  {(f.content.scope !== "business" ||
-                                    f.content.valid_from ||
-                                    f.content.valid_until) && (
-                                    <p className="mt-1 break-words text-xs text-muted-foreground">
-                                      {scopeLabel(f.content, data.datasets)}
-                                    </p>
-                                  )}
-                                </div>
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="size-10 shrink-0 transition-opacity group-hover/fact:opacity-100 group-focus-within/fact:opacity-100 data-[state=open]:opacity-100 motion-reduce:transition-none [@media(hover:hover)_and_(pointer:fine)]:opacity-0"
-                                      aria-label={tr("Acciones: {0}", {
-                                        0: f.content.statement,
-                                      })}
-                                      onFocus={(event) => {
-                                        actionFocus.current =
-                                          event.currentTarget;
-                                      }}
-                                      onPointerDown={(event) => {
-                                        actionFocus.current =
-                                          event.currentTarget;
-                                      }}
-                                    >
-                                      <MoreHorizontal />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent
-                                    align="end"
-                                    className="min-w-44"
-                                  >
-                                    <DropdownMenuItem
-                                      disabled={action.busy}
-                                      onSelect={() => setEdit(f)}
-                                    >
-                                      <Pencil />
-                                      {tr("Editar")}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                      onSelect={() => openDetail(f)}
-                                    >
-                                      <Info />
-                                      {tr("Ver detalles")}
-                                    </DropdownMenuItem>
+                                    </Badge>
                                     {canConfirm(f) && (
-                                      <DropdownMenuItem
+                                      <TooltipProvider>
+                                        <span className="inline-flex gap-1 transition-opacity group-hover/fact:opacity-100 group-focus-within/fact:opacity-100 motion-reduce:transition-none sm:[@media(hover:hover)]:opacity-0">
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Button
+                                                variant="outline"
+                                                size="icon"
+                                                className="size-9"
+                                                aria-label={tr(
+                                                  "Confirmar: {0}",
+                                                  { 0: f.content.statement },
+                                                )}
+                                                disabled={action.busy}
+                                                onClick={() =>
+                                                  void mutation(f, "confirm")
+                                                }
+                                              >
+                                                <Check />
+                                              </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                              {tr("Confirmar información")}
+                                            </TooltipContent>
+                                          </Tooltip>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Button
+                                                variant="destructive"
+                                                size="icon"
+                                                className="size-9"
+                                                aria-label={tr(
+                                                  "Descartar: {0}",
+                                                  { 0: f.content.statement },
+                                                )}
+                                                disabled={action.busy}
+                                                onClick={() =>
+                                                  void mutation(f, "withdraw")
+                                                }
+                                              >
+                                                <X />
+                                              </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                              {tr(
+                                                "Descartar y conservar en el historial",
+                                              )}
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        </span>
+                                      </TooltipProvider>
+                                    )}
+                                    {f.status === "conflicted" && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="min-h-9 whitespace-normal text-left"
                                         disabled={action.busy}
-                                        onSelect={() => {
-                                          void mutation(f, "confirm");
+                                        onClick={(event) => {
+                                          actionFocus.current =
+                                            event.currentTarget;
+                                          setEdit(f);
                                         }}
                                       >
-                                        <Check />
-                                        {tr("Confirmar")}
-                                      </DropdownMenuItem>
+                                        <Pencil />
+                                        {tr("Resolver conflicto")}
+                                      </Button>
                                     )}
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuSub>
-                                      <DropdownMenuSubTrigger>
-                                        <FolderInput />
-                                        {tr("Mover a grupo")}
-                                      </DropdownMenuSubTrigger>
-                                      <DropdownMenuSubContent className="max-w-64">
-                                        <DropdownMenuRadioGroup
-                                          value={
-                                            layout.assignments[f.fact_id] ||
-                                            "auto"
-                                          }
-                                          onValueChange={(group) => {
-                                            void action.run(async () => {
-                                              const assignments = {
-                                                ...layout.assignments,
-                                              };
-                                              if (group === "auto")
-                                                delete assignments[f.fact_id];
-                                              else
-                                                assignments[f.fact_id] = group;
-                                              await api(
-                                                "/api/business/dossier-layout",
-                                                {
-                                                  business_id: b.id,
-                                                  ...layout,
-                                                  assignments,
-                                                },
-                                              );
-                                              pendingDetailFocus.current = {
-                                                id: f.fact_id,
-                                                data: resource.data,
-                                              };
-                                              resource.refresh();
-                                            });
-                                          }}
-                                        >
-                                          <DropdownMenuRadioItem
-                                            value="auto"
-                                            disabled={action.busy}
-                                          >
-                                            {tr("Clasificación automática")}
-                                          </DropdownMenuRadioItem>
-                                          <DropdownMenuRadioItem
-                                            value="ungrouped"
-                                            disabled={action.busy}
-                                          >
-                                            {tr("Sin grupo")}
-                                          </DropdownMenuRadioItem>
-                                          {layout.groups.map((group) => (
-                                            <DropdownMenuRadioItem
-                                              key={group.id}
-                                              value={group.id}
-                                              disabled={action.busy}
-                                              className="whitespace-normal break-words"
-                                            >
-                                              {group.name}
-                                            </DropdownMenuRadioItem>
-                                          ))}
-                                        </DropdownMenuRadioGroup>
-                                      </DropdownMenuSubContent>
-                                    </DropdownMenuSub>
-                                    <DropdownMenuSeparator />
+                                  </div>
+                                )}
+                                {(f.content.scope !== "business" ||
+                                  f.content.valid_from ||
+                                  f.content.valid_until) && (
+                                  <p className="mt-1 break-words text-xs text-muted-foreground">
+                                    {scopeLabel(f.content, data.datasets)}
+                                  </p>
+                                )}
+                              </div>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-10 shrink-0 transition-opacity group-hover/fact:opacity-100 group-focus-within/fact:opacity-100 data-[state=open]:opacity-100 motion-reduce:transition-none [@media(hover:hover)_and_(pointer:fine)]:opacity-0"
+                                    aria-label={tr("Acciones: {0}", {
+                                      0: f.content.statement,
+                                    })}
+                                    onFocus={(event) => {
+                                      actionFocus.current = event.currentTarget;
+                                    }}
+                                    onPointerDown={(event) => {
+                                      actionFocus.current = event.currentTarget;
+                                    }}
+                                  >
+                                    <MoreHorizontal />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent
+                                  align="end"
+                                  className="min-w-44"
+                                >
+                                  <DropdownMenuItem
+                                    disabled={action.busy}
+                                    onSelect={() => setEdit(f)}
+                                  >
+                                    <Pencil />
+                                    {tr("Editar")}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onSelect={() => openDetail(f)}
+                                  >
+                                    <Info />
+                                    {tr("Ver detalles")}
+                                  </DropdownMenuItem>
+                                  {canConfirm(f) && (
                                     <DropdownMenuItem
-                                      variant="destructive"
                                       disabled={action.busy}
                                       onSelect={() => {
-                                        void mutation(f, "withdraw");
+                                        void mutation(f, "confirm");
                                       }}
                                     >
-                                      <Archive />
-                                      {tr("Retirar")}
+                                      <Check />
+                                      {tr("Confirmar")}
                                     </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </div>
-                            </Selectable>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </DossierExplorerPanel>
-                );
-              })}
-            </DossierExplorer>
-          ) : (
-            <Empty
-              title={tr("Un contexto que crece contigo")}
-              description={tr(
-                "Personaliza los grupos para empezar a añadir información que el asistente debería recordar.",
-              )}
-            />
-          )}
-          <Disclosure title={tr("Ver presentación original")}>
+                                  )}
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuSub>
+                                    <DropdownMenuSubTrigger>
+                                      <FolderInput />
+                                      {tr("Mover a grupo")}
+                                    </DropdownMenuSubTrigger>
+                                    <DropdownMenuSubContent className="max-w-64">
+                                      <DropdownMenuRadioGroup
+                                        value={
+                                          layout.assignments[f.fact_id] ||
+                                          "auto"
+                                        }
+                                        onValueChange={(group) => {
+                                          void action.run(async () => {
+                                            const assignments = {
+                                              ...layout.assignments,
+                                            };
+                                            if (group === "auto")
+                                              delete assignments[f.fact_id];
+                                            else assignments[f.fact_id] = group;
+                                            await api(
+                                              "/api/business/dossier-layout",
+                                              {
+                                                business_id: b.id,
+                                                ...layout,
+                                                assignments,
+                                              },
+                                            );
+                                            pendingDetailFocus.current = {
+                                              id: f.fact_id,
+                                              data: resource.data,
+                                            };
+                                            resource.refresh();
+                                          });
+                                        }}
+                                      >
+                                        <DropdownMenuRadioItem
+                                          value="auto"
+                                          disabled={action.busy}
+                                        >
+                                          {tr("Clasificación automática")}
+                                        </DropdownMenuRadioItem>
+                                        <DropdownMenuRadioItem
+                                          value="ungrouped"
+                                          disabled={action.busy}
+                                        >
+                                          {tr("Sin grupo")}
+                                        </DropdownMenuRadioItem>
+                                        {layout.groups.map((group) => (
+                                          <DropdownMenuRadioItem
+                                            key={group.id}
+                                            value={group.id}
+                                            disabled={action.busy}
+                                            className="whitespace-normal break-words"
+                                          >
+                                            {group.name}
+                                          </DropdownMenuRadioItem>
+                                        ))}
+                                      </DropdownMenuRadioGroup>
+                                    </DropdownMenuSubContent>
+                                  </DropdownMenuSub>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    variant="destructive"
+                                    disabled={action.busy}
+                                    onSelect={() => {
+                                      void mutation(f, "withdraw");
+                                    }}
+                                  >
+                                    <Archive />
+                                    {tr("Retirar")}
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </Selectable>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </DossierExplorerPanel>
+              );
+            })}
+            {!facts.length && !layout.groups.length && (
+              <Empty
+                title={tr("Un contexto que crece contigo")}
+                description={tr(
+                  "Personaliza los grupos para empezar a añadir información que el asistente debería recordar.",
+                )}
+              />
+            )}
+          </DossierExplorer>
+          <Disclosure subtle title={tr("Ver presentación original")}>
             <Selectable
               item={{
                 kind: "business",

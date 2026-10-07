@@ -191,3 +191,19 @@ Estado: implementado y comprobado el 2 de octubre de 2026; véase la
 
 Estado: implementado y comprobado el 7 de octubre de 2026. Véanse las
 [comprobaciones y límites](../validation/2026-10-07-dossier-explorer.md).
+
+## Acciones discretas y selección de relaciones (refinamiento de 2.5.5)
+
+1. Colocar Personalizar grupos debajo de la navegación de Información y reducir
+   la presentación original a una acción desplegable discreta. Mantener edición,
+   acceso con teclado y adaptación al espacio disponible.
+2. Permitir adjuntar una relación concreta o todo el mapa desde Seleccionar.
+   Resolver el contexto en el servidor por negocio, conjunto y revisión vigente;
+   conservar estados semánticos, comprobaciones y límites, sin elevar propuestas
+   a resultados revisados. Mantener apertura de detalles fuera de la selección.
+3. Comprobar selección, deselección, envío, restauración, revisiones obsoletas y
+   aislamiento; ejecutar regresión, compilación, lint y revisión visual adaptable.
+   Revisar el diff público y crear un commit local del incremento terminado.
+
+Estado: implementado y comprobado el 7 de octubre de 2026. Véanse las
+[comprobaciones de acciones y contexto](../validation/2026-10-07-dossier-controls-context.md).

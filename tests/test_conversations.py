@@ -501,6 +501,37 @@ class ConversationTests(unittest.TestCase):
         with self.assertRaises(WebError):
             self.send(chat, 'Explain this', context_references=[ref])
 
+    def test_data_model_selection_reaches_chat_and_survives_reload(self):
+        from decision_room.data_knowledge import service as knowledge
+        from scripts.dev.add_demo_tables import add_demo_tables
+        result = add_demo_tables(self.config, self.b)
+        with connect(self.config) as db:
+            row = knowledge.latest(db, self.b, result['analysis_id'])
+        relation = row['body']['relations'][0]
+        base = dict(kind='data_model', source_id=str(result['analysis_id']), source_version=str(row['revision']))
+        refs = [base | dict(element_key='relation:' + relation['id']), base | dict(element_key='model')]
+        seen = []
+        def answer_selected(model, context, correction=None):
+            seen.append(context)
+            return action('answer', text='The selected saved relationships describe these table connections.',
+                          sources=['selection/0', 'selection/1']), {}
+        chat = self.chat()
+        with patch.object(ChatModel, 'generate_chat', answer_selected):
+            turn = self.send(chat, 'Explain these connections', context_references=refs)
+        self.assertEqual(turn['status'], 'completed', turn)
+        self.assertEqual(seen[-1]['available_sources']['selection/0']['content']['content']['relations'], [relation])
+        self.assertEqual(seen[-1]['available_sources']['selection/1']['content']['selection_scope'], 'whole_data_model')
+        self.assertEqual(seen[-1]['retrievals'], [])
+        restored = Conversations(self.ws.scoped(self.b)).detail(chat)['turns'][-1]['attachments']
+        self.assertEqual(restored, turn['attachments'])
+        knowledge.change(self.config, self.b, result['analysis_id'], row['revision'], 'relation',
+            {k: relation[k] for k in ('source', 'target', 'source_columns', 'target_columns')} |
+            dict(semantic_status='rejected', description='Synthetic owner correction'))
+        updated = self.chats.detail(chat)['turns'][-1]['attachments']
+        self.assertTrue(all(item['status'] == 'withdrawn' and 'content' not in item for item in updated))
+        with self.assertRaises(WebError):
+            self.send(chat, 'Explain the old selection', context_references=refs)
+
     def test_selected_memory_can_change_before_routing_without_reviving_old_content(self):
         saved = memory.change(self.config, self.b, action='declare', request_key=str(uuid4()), content=content())
         with connect(self.config) as db:

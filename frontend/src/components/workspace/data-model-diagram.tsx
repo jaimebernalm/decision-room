@@ -72,6 +72,7 @@ export function ERDiagram({
   edge,
   chooseTable,
   chooseEdge,
+  pickedEdges,
 }: {
   tables: Table[];
   relations: Relation[];
@@ -79,6 +80,7 @@ export function ERDiagram({
   edge: string;
   chooseTable: (id: string) => void;
   chooseEdge: (id: string) => void;
+  pickedEdges?: string[];
 }) {
   const { language } = useLanguage();
   const id = `data-map-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
@@ -227,12 +229,15 @@ export function ERDiagram({
       .forEach((node) => {
         const active =
           node.getAttribute("data-table-id") === selected ||
-          node.getAttribute("data-relation-id") === edge;
+          node.getAttribute("data-relation-id") === edge ||
+          Boolean(
+            pickedEdges?.includes(node.getAttribute("data-relation-id") || ""),
+          );
         node.setAttribute("data-selected", String(active));
         if (node.getAttribute("role") === "button")
           node.setAttribute("aria-pressed", String(active));
       });
-  }, [rendered, selected, edge]);
+  }, [rendered, selected, edge, pickedEdges]);
   const activate = (target: EventTarget | null) => {
     if (!(target instanceof Element)) return;
     const node = target.closest("[data-table-id], [data-relation-id]");

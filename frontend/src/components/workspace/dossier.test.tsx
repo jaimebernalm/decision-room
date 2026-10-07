@@ -254,6 +254,18 @@ async function menu(user: ReturnType<typeof userEvent.setup>, f: Fact) {
 }
 
 describe("compact business dossier", () => {
+  it("keeps group customization reachable with no groups or facts and returns focus after closing", async () => {
+    const data = dossier([]);
+    data.layout = { revision: 1, groups: [], assignments: {} };
+    const { user } = setup(data);
+    await ready();
+    expect(screen.getByText("Un contexto que crece contigo")).toBeVisible();
+    const trigger = within(screen.getByRole("navigation", { name: "Información" })).getByRole("button", { name: "Personalizar grupos" });
+    await user.click(trigger);
+    expect(screen.getByRole("dialog")).toBeVisible();
+    await user.keyboard("{Escape}");
+    expect(trigger).toHaveFocus();
+  });
   it.each(["Confirmar", "Descartar"])(
     "decides a proposal from its reading dialog with %s",
     async (decision) => {

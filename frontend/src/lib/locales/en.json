@@ -1314,5 +1314,13 @@
   "El filtro de datos no es válido.": "The data filter is invalid.",
   "La columna del filtro no pertenece a esta tabla.": "The filter column does not belong to this table.",
   "Elige una columna para filtrar.": "Choose a column to filter.",
-  "{0} resultados": "{0} results"
+  "{0} resultados": "{0} results",
+  "Relación: {0} → {1}": "Relationship: {0} → {1}",
+  "Mapa de relaciones": "Relationship map",
+  "{0} tablas · {1} relaciones": "{0} tables · {1} relationships",
+  "Todo el mapa": "Entire map",
+  "Selecciona una conexión o todo el mapa.": "Select a connection or the entire map.",
+  "El modelo de datos ha cambiado o ya no está disponible. Vuelve a seleccionarlo.": "The data model has changed or is no longer available. Select it again.",
+  "La relación seleccionada no pertenece a este modelo.": "The selected relationship does not belong to this model.",
+  "El elemento seleccionado no pertenece a este modelo.": "The selected element does not belong to this model."
 }

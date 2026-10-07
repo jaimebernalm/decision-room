@@ -176,7 +176,7 @@ export type ContextReference =
   | {
       source_id: string;
       source_version: string;
-      kind: "business" | "memory" | "conversation";
+      kind: "business" | "memory" | "conversation" | "data_model";
       element_key: string;
     };
 export type ContextAttachment = ContextReference & {

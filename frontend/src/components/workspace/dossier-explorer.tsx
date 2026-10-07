@@ -10,12 +10,14 @@ export function DossierExplorer({
   value,
   onValueChange,
   label,
+  navigationFooter,
   children,
 }: {
   groups: { id: string; title: string; count?: number }[];
   value: string;
   onValueChange: (id: string) => void;
   label: string;
+  navigationFooter?: ReactNode;
   children: ReactNode;
 }) {
   const prefix = useId();
@@ -52,6 +54,9 @@ export function DossierExplorer({
                 )}
               </Button>
             ))}
+            {navigationFooter && (
+              <div className="dossier-explorer-footer">{navigationFooter}</div>
+            )}
           </nav>
           <div className="min-w-0">{children}</div>
         </div>

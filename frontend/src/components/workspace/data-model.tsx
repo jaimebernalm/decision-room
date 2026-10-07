@@ -16,6 +16,7 @@ import { useResource, useAction } from "@/lib/hooks";
 import { api } from "@/lib/api";
 import { Notice, Loading, Disclosure } from "./shared";
 import { ERDiagram } from "./data-model-diagram";
+import { DataModelSelection } from "./data-model-selection";
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -384,18 +385,30 @@ function ModelContent({
         </Button>
       )}
       {!singleTable && (
-        <ERDiagram
-          tables={visible}
-          relations={relations}
-          selected={selected}
-          edge={edge}
-          chooseTable={chooseTable}
-          chooseEdge={(id) => {
-            setEdge(id);
-            setForm("");
-            setChecksOpen(true);
-          }}
-        />
+        <DataModelSelection
+          model={{ ...model, body: { ...model.body, tables } }}
+          disabled={Boolean(needs_refresh)}
+        >
+          {({ selecting, pickedEdges, pick }) => (
+            <ERDiagram
+              tables={visible}
+              relations={relations}
+              selected={selected}
+              edge={selecting ? "" : edge}
+              pickedEdges={pickedEdges}
+              chooseTable={chooseTable}
+              chooseEdge={(id) => {
+                if (selecting) {
+                  pick(id);
+                  return;
+                }
+                setEdge(id);
+                setForm("");
+                setChecksOpen(true);
+              }}
+            />
+          )}
+        </DataModelSelection>
       )}
       {matching.length > 12 && (
         <p className="text-sm text-muted-foreground">
