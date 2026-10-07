@@ -30,7 +30,19 @@ TOOLS = [
      'inputSchema': {'type': 'object', 'properties': {
          'request_key': {'type': 'string'}, 'draft_json': {'type': 'string'}},
          'required': ['request_key', 'draft_json'], 'additionalProperties': False}},
-    {'name': 'consulta', 'description': 'Run Python over permitted prepared tables. Results are candidates, not analytically verified. Write result.json using the existing execution contract; use resultado to page through the full result.',
+    {'name': 'consulta', 'description': (
+        'Run Python in an isolated calculation sandbox. The tables ARGUMENT maps aliases to prepared-table UUIDs from /inputs/manifest.json; '
+        'there is NO implicit Python variable named tables. Import from dr_runtime: connect() returns a DuckDB connection with one read-only Parquet view per alias; '
+        'table_path(alias) returns the Parquet path if you need pandas.read_parquet; TABLES is alias -> metadata, not dataframes, and DEFINITIONS holds the supplied definitions. '
+        'Use write_result(metrics, evidence=[{metric, tables:[aliases], operation}], notes=[strings]) to write /output/result.json. '
+        'Every metric needs matching evidence; convert Decimal values to strings. Printing or assigning result alone does not deliver a result. '
+        'Example with tables={"data":"UUID_FROM_MANIFEST"}:\n'
+        'from dr_runtime import connect, write_result\n'
+        'with connect() as db:\n    rows = db.execute("SELECT COUNT(*) FROM data").fetchone()[0]\n'
+        'write_result({"rows": rows}, evidence=[{"metric":"rows","tables":["data"],"operation":"COUNT(*) FROM data"}])\n'
+        'Returns execution_id, status, and paged result leaves (path, part, value). Follow cursor with resultado(execution_id,cursor) until cursor is null. '
+        'An identical request_key and program retrieves the same execution; a changed/fixed program needs a new request_key. '
+        'Results are candidates, not analytically verified.'),
      'inputSchema': {'type': 'object', 'properties': {
          'code': {'type': 'string'}, 'tables': {'type': 'object', 'additionalProperties': {'type': 'string'}},
          'definitions': {'type': 'object'}, 'request_key': {'type': 'string'},

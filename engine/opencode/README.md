@@ -125,3 +125,13 @@ manifiesto y CSV, extrae un UUID de tabla, lo usa en MCP y comprueba que
 `/etc/hostname` siga denegado; el test de restauración comprueba además que escribir
 en inputs falla. Esta excepción corrige el primer canario real, que conservó su
 salida parcial pero no pudo descubrir tablas por la denegación global anterior.
+
+
+`consulta` describe su API Python completa en el propio catálogo MCP: el argumento
+`tables` solo asigna alias a UUID; no existe una variable Python implícita con ese
+nombre. `dr_runtime.connect()` crea vistas DuckDB por alias, `table_path(alias)`
+da el Parquet, y `write_result(metrics, evidence=...)` persiste el resultado.
+La prueba integrada ejecuta literalmente el ejemplo publicado por la herramienta
+sobre una tabla descubierta en el manifiesto y exige estado `completed`. Esto
+corrige los errores `NameError` observados en el segundo canario, sin cambiar el
+contrato ni el aislamiento del sandbox de cálculo.
