@@ -117,12 +117,14 @@ def engine_new(config, state, job, phase, batch, dataset):
     try:
         while result['status'] == 'waiting' and answered < ENGINE_QUESTIONS:
             question = result['question']
+            # engine.questions receipts name it question_id; accept id too until the snapshot is fixed
+            question_id = question.get('question_id') or question['id']
             first = answered == 0
             result = engine.resume_report(
                 config, state['business_id'], state['engine_run_id'],
-                answer={'question_id': question['id'], 'disposition': 'answered' if first else 'unknown',
+                answer={'question_id': question_id, 'disposition': 'answered' if first else 'unknown',
                         'text': prompt if first else '',
-                        'request_key': f"{state['key']}-answer-{question['id']}"})
+                        'request_key': f"{state['key']}-answer-{question_id}"})
             answered += 1
     finally:
         state['engine_questions'] = answered

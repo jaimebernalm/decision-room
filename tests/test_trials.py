@@ -278,7 +278,7 @@ class FakeEngine:
         self.final = None
 
     def result(self, status):
-        question = {'id': f'q{len(self.calls)}', 'text': '¿Qué periodo?'} if status == 'waiting' else None
+        question = {'question_id': f'q{len(self.calls)}', 'text': '¿Qué periodo?'} if status == 'waiting' else None
         return {'engine_run_id': 'run-1', 'status': status, 'question': question, 'contract_version': 1,
                 'usage': {'input': 1000, 'cached': 900, 'output': 50, 'calls': 4, 'seconds': 3.0,
                           'cost_catalog': 0.01}, 'issues': []}
