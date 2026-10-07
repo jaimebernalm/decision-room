@@ -97,8 +97,17 @@ function Navigation({
       : recentReports;
   return (
     <Sidebar variant="inset" collapsible="icon">
-      <SidebarHeader className="p-3">
-        <BusinessSwitcher />
+      <SidebarHeader className="flex-row items-center gap-1 p-3">
+        <div className="min-w-0 flex-1">
+          <BusinessSwitcher />
+        </div>
+        {(isMobile || state === "expanded") && (
+          <SidebarTrigger
+            className="shrink-0"
+            aria-label={tr("Contraer barra lateral")}
+            title={tr("Contraer barra lateral")}
+          />
+        )}
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
@@ -339,6 +348,8 @@ function Navigation({
 function Topbar() {
   useLanguage();
   const { route } = useWorkspace();
+  const { isMobile, openMobile, state } = useSidebar();
+  const navigationOpen = isMobile ? openMobile : state === "expanded";
   const assistant = useAssistant();
   const back = route.startsWith("chat-report/")
     ? {
@@ -352,7 +363,12 @@ function Topbar() {
         : null;
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 px-4 sm:px-6">
-      <SidebarTrigger aria-label={tr("Abrir o cerrar navegación")} />
+      {!navigationOpen && (
+        <SidebarTrigger
+          aria-label={tr("Expandir barra lateral")}
+          title={tr("Expandir barra lateral")}
+        />
+      )}
       {back && (
         <Button asChild variant="ghost" size="icon" className="rounded-full">
           <a href={back.href} aria-label={back.label} title={back.label}>

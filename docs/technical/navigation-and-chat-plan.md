@@ -55,6 +55,12 @@ identifica el espacio real, sin nombres, correos ni acciones de cuenta ficticios
 Cada paso se prueba, se revisa y se guarda en un commit local separado. No se
 publica en GitHub salvo petición explícita del usuario.
 
+7. **2.5.19.7 — Control de navegación dentro de su barra.** Con la barra abierta,
+   colocar el botón de contraer en el extremo derecho de su cabecera, junto al
+   selector de negocio. Cuando esté contraída, mantener el botón de expandir en
+   la cabecera del contenido. Comprobar escritorio, móvil, teclado y continuidad
+   del panel del chat, con etiquetas de acción en español e inglés.
+
 ## Estado
 
 - 2.5.19.1 completado: bibliotecas sin duplicación, límites y selección conservados.
@@ -76,3 +82,12 @@ publica en GitHub salvo petición explícita del usuario.
 
 Los seis pasos están completos. Véase la
 [validación y sus límites](../validation/2026-09-30-navigation-and-chat.md).
+
+- 2.5.19.7 completado, 7 de octubre de 2026: un solo control visible según el
+  estado de la barra; contraer en su cabecera y expandir en el contenido. Pasan
+  las nuevas pruebas de ubicación, ida/vuelta, atajo y móvil, junto a selector
+  de negocios y continuidad del chat. En los cuatro archivos de pruebas
+  seleccionados pasan 58 casos; uno falla por los cambios locales simultáneos de
+  nombres de tablas (espera «Ventas de septiembre · v2», recibe «Ventas»), ajenos
+  a este ajuste. Build y lint pasan con avisos existentes. Verificados en navegador
+  escritorio y móvil de 390 × 844; la captura se conserva localmente, fuera de Git.

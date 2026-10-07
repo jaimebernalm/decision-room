@@ -358,7 +358,7 @@ it("switches business from the header without leaking chats or drafts between sp
   await user.click(screen.getByRole("button", { name: "Cerrar chat lateral" }));
   await waitFor(() => expect(screen.queryByRole("complementary")).toBeNull());
   await user.click(
-    screen.getByRole("button", { name: "Abrir o cerrar navegación" }),
+    screen.getByRole("button", { name: "Expandir barra lateral" }),
   );
   await user.click(screen.getByRole("button", { name: other.name }));
   await user.click(screen.getByRole("menuitem", { name: business.name }));

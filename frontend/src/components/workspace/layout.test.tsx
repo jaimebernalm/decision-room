@@ -152,3 +152,50 @@ it("persists a resized navigation width and restores it on remount", () => {
     screen.getByRole("separator", { name: "Anchura de la barra lateral" }),
   ).toHaveAttribute("aria-valuenow", "272");
 });
+
+it("moves the navigation control between the sidebar header and content as it collapses", () => {
+  const { container } = mount();
+  const collapse = screen.getByRole("button", {
+    name: "Contraer barra lateral",
+  });
+  expect(collapse.closest('[data-slot="sidebar-header"]')).not.toBeNull();
+  expect(
+    screen.queryByRole("button", { name: "Expandir barra lateral" }),
+  ).toBeNull();
+  fireEvent.click(collapse);
+  const expand = screen.getByRole("button", { name: "Expandir barra lateral" });
+  expect(expand.closest("header")).not.toBeNull();
+  expect(
+    container.querySelector(
+      '[data-slot="sidebar-header"] [data-slot="sidebar-trigger"]',
+    ),
+  ).toBeNull();
+  fireEvent.click(expand);
+  expect(
+    screen
+      .getByRole("button", { name: "Contraer barra lateral" })
+      .closest('[data-slot="sidebar-header"]'),
+  ).not.toBeNull();
+  fireEvent.keyDown(window, { key: "b", ctrlKey: true });
+  expect(
+    screen.getByRole("button", { name: "Expandir barra lateral" }),
+  ).toBeInTheDocument();
+});
+
+it("opens mobile navigation from the content and closes it from its own header", () => {
+  vi.stubGlobal("innerWidth", 390);
+  mount();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Expandir barra lateral" }),
+  );
+  const dialog = screen.getByRole("dialog", { name: "Navegación" });
+  const collapse = within(dialog).getByRole("button", {
+    name: "Contraer barra lateral",
+  });
+  expect(collapse.closest('[data-slot="sidebar-header"]')).not.toBeNull();
+  fireEvent.click(collapse);
+  expect(screen.queryByRole("dialog", { name: "Navegación" })).toBeNull();
+  expect(
+    screen.getByRole("button", { name: "Expandir barra lateral" }),
+  ).toBeInTheDocument();
+});

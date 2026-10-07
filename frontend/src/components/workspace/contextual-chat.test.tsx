@@ -475,7 +475,7 @@ it("opens navigation by folding the chat and can resume it", async () => {
   render(<Harness />);
   await screen.findByRole("textbox");
   await user.click(
-    screen.getByRole("button", { name: "Abrir o cerrar navegación" }),
+    screen.getByRole("button", { name: "Expandir barra lateral" }),
   );
   await waitFor(() =>
     expect(screen.queryByRole("complementary")).not.toBeInTheDocument(),
@@ -592,7 +592,7 @@ it("switches chats from navigation without leaving the report or losing the prev
   render(<Harness initialRoute="report/sales" conversations={existingChats} />);
   await user.type(await screen.findByRole("textbox"), "Conservar borrador");
   await user.click(
-    screen.getByRole("button", { name: "Abrir o cerrar navegación" }),
+    screen.getByRole("button", { name: "Expandir barra lateral" }),
   );
   await user.click(
     screen.getByRole("button", { name: "Opciones de Ya guardada" }),
