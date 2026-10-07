@@ -953,3 +953,74 @@ CREATE TABLE IF NOT EXISTS engine_document_revisions (
     UNIQUE(business_id,id)
 );
 INSERT INTO schema_versions(version) VALUES (33) ON CONFLICT DO NOTHING;
+
+-- Engine control-plane state. Outbox admission precedes every prompt submission.
+CREATE TABLE IF NOT EXISTS engine_sessions (
+    run_id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    session_id text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    FOREIGN KEY(business_id,run_id) REFERENCES engine_runs(business_id,id),
+    UNIQUE(run_id,session_id)
+);
+CREATE TABLE IF NOT EXISTS engine_prompt_outbox (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    run_id uuid NOT NULL,
+    session_id text NOT NULL,
+    request_key text NOT NULL,
+    request_sha256 text NOT NULL,
+    message_id text NOT NULL,
+    prompt text NOT NULL CHECK(octet_length(prompt)<=262144),
+    state text NOT NULL DEFAULT 'queued' CHECK(state IN ('queued','dispatching','confirmed')),
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    dispatched_at timestamptz,
+    confirmed_at timestamptz,
+    FOREIGN KEY(business_id,run_id) REFERENCES engine_runs(business_id,id),
+    FOREIGN KEY(run_id,session_id) REFERENCES engine_sessions(run_id,session_id),
+    UNIQUE(run_id,request_key),
+    UNIQUE(run_id,message_id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS engine_prompt_outbox_pending
+    ON engine_prompt_outbox(run_id) WHERE state<>'confirmed';
+CREATE TABLE IF NOT EXISTS engine_message_versions (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    business_id uuid NOT NULL,
+    run_id uuid NOT NULL,
+    session_id text NOT NULL,
+    message_id text NOT NULL,
+    content jsonb NOT NULL,
+    content_sha256 text NOT NULL,
+    observed_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    FOREIGN KEY(business_id,run_id) REFERENCES engine_runs(business_id,id),
+    FOREIGN KEY(run_id,session_id) REFERENCES engine_sessions(run_id,session_id),
+    UNIQUE(run_id,message_id,content_sha256)
+);
+INSERT INTO schema_versions(version) VALUES (34) ON CONFLICT DO NOTHING;
+
+-- Frozen deterministic panorama observations belong to one engine job.
+CREATE TABLE IF NOT EXISTS engine_panoramas (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    run_id uuid NOT NULL,
+    request_key text NOT NULL,
+    request_sha256 text NOT NULL,
+    body jsonb NOT NULL,
+    body_sha256 text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    FOREIGN KEY(business_id,run_id) REFERENCES engine_runs(business_id,id),
+    UNIQUE(run_id,request_key)
+);
+CREATE TABLE IF NOT EXISTS engine_number_checks (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    run_id uuid NOT NULL,
+    request_key text NOT NULL,
+    request_sha256 text NOT NULL,
+    body jsonb NOT NULL,
+    body_sha256 text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    FOREIGN KEY(business_id,run_id) REFERENCES engine_runs(business_id,id),
+    UNIQUE(run_id,request_key)
+);
+INSERT INTO schema_versions(version) VALUES (35) ON CONFLICT DO NOTHING;

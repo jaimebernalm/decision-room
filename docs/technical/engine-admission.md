@@ -1,7 +1,7 @@
 # Admisión del motor: primer tramo de P2
 
 El servicio interno admite llamadas únicamente con una credencial ligada a un
-trabajo, su negocio, análisis y snapshot de tablas. Las migraciones 32–33 y el paquete
+trabajo, su negocio, análisis y snapshot de tablas. Las migraciones 32–35 y el paquete
 `decision_room.engine` son optativos: todavía no existe el controlador OpenCode
 ni la API pública `run_report` / `resume_report` / `export_run`.
 
@@ -29,7 +29,8 @@ Los límites iniciales son hipótesis: 3 M de entrada, 64 k de salida acumulada,
 comprueba al admitir y durante la recepción de contenido. El corte estricto de
 pared durante una lectura bloqueada requiere todavía el supervisor del
 controlador; el timeout de red no sustituye ese supervisor. No hay aún pausa,
-restauración de sesión, copia SQLite ni política global de ritmo por host.
+restauración de sesión completa ni política global de ritmo por host. La primitiva
+de backup consistente de SQLite está disponible, pendiente de conectarse al controlador.
 
 ## Proxy de Responses
 
@@ -62,22 +63,48 @@ MCP implementa initialize, ping, tools/list y tools/call con respuestas JSON y
 notificación de inicialización 202; sigue el [transporte MCP](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports).
 No está montado en la aplicación web ni constituye un despliegue listo para uso.
 
-Por ahora hay tres herramientas:
+Por ahora hay cinco herramientas:
 
+- `panorama` reutiliza el cálculo determinista existente para una tabla autorizada,
+  sin activar contratos legacy. Congela resumen, código y observaciones por trabajo;
+  pagina el resumen y expone referencias que `resultado` puede resolver. Un catálogo
+  no compatible queda como no disponible, sin cifras cero fabricadas.
+- `verify_numbers` resuelve métricas del trabajo y recalcula desde Parquet las del
+  panorama, sin usar su caché de resultados. Conserva el antes, después, operación,
+  mapeo, periodos y hashes. Un cambio de alcance impide corregir automáticamente;
+  el cálculo Python del agente continúa no verificado, aunque sea trazable.
 - `consulta` ejecuta Python en el sandbox Docker existente, exclusivamente sobre
   las tablas permitidas. La clave de ejecución incluye el trabajo; repetir clave
   y contenido devuelve la ejecución anterior, y cambiar contenido la rechaza.
 - `entregar_informe` conserva bytes y hash en una revisión antes de parsear el
   texto. Su recibo significa recepción pendiente, no aprobación ni fin del trabajo.
-- `resultado` pagina únicamente ejecuciones vinculadas al trabajo. Los valores
+- `resultado` pagina únicamente ejecuciones u observaciones del panorama vinculadas al trabajo. Los valores
   son candidatos pendientes de verificación, nunca cifras aprobadas.
 
 Las páginas contienen como máximo 100 filas y tres columnas (puntero JSON,
 número de fragmento, valor). Dividen cadenas en fragmentos de hasta 512 caracteres,
 con cursor, total de filas, marca de truncado y hash del resultado completo. Cada
 respuesta MCP queda bajo 64 KiB, incluyendo escapes. El resultado privado completo
-continúa en el almacén de ejecuciones. Las rutas de campo mayores de 512 caracteres
+continúa en el almacén de ejecuciones o en el snapshot del panorama. Las referencias
+del panorama son observaciones deterministas congeladas, no filas ficticias de
+`executions`; su origen se devuelve explícitamente. Las rutas de campo mayores de 512 caracteres
 se rechazan; la presentación final de tablas y artefactos sigue pendiente.
+
+La primera versión de `verify_numbers` admite referencias escalares de métrica;
+las series y las recetas independientes para Python arbitrario siguen pendientes.
+`verified_in_scope` significa que valor y operación del panorama se recalcularon
+con la misma tabla y mapeo. Se vuelve a ejecutar la receta del producto: no es
+una auditoría con un algoritmo independiente del calculador. No certifica cómo se atribuye la cifra en la prosa ni
+las unidades confirmadas por el propietario. `corrected_in_scope` conserva ambos
+valores y solo procede si la operación coincide. Una referencia ajena o ausente no
+revela valores. Los resultados, límites e incidencias se guardan en un registro
+idempotente con hash y se devuelven paginados; el verificador final de documentos
+aún debe consumirlos y marcar visiblemente los bloques sin comprobación.
+
+Ocho pruebas usan fixtures públicos pequeños, PostgreSQL y el sandbox Docker:
+comprueban sumas y periodos conocidos, paginación, aislamiento, copia corrupta,
+finalización tardía durante pausa, recálculo real sin caché, corrección inequívoca,
+rechazo de un alcance distinto y un cálculo inventado que nunca se certifica.
 
 ## Entrega duradera antes de validar
 
@@ -101,6 +128,34 @@ borrador tras aborto, caducidad o revocación. Comprueban el hash y escriben
 entrega tardía en pausing/waiting/aborted sigue denegada. El controlador todavía
 no persiste los mensajes intermedios ni genera una proyección verificada.
 
+## Outbox y conservación de mensajes
+
+`engine.control` vincula un trabajo a una sesión una sola vez. Cada prompt lleva
+una clave y un ID de mensaje duraderos; cambiar el texto bajo la misma clave se
+rechaza. Se permite un solo prompt pendiente. Antes de llamar a OpenCode se
+confirman en PostgreSQL el texto y el estado `dispatching`, tras comprobar ámbito,
+estado, caducidad, tiempo activo y snapshot. Un bloqueo cooperativo por trabajo
+impide que dos controladores conduzcan simultáneamente la sesión.
+
+Un 204 de `prompt_async` no confirma persistencia. Se consulta el ID y se contrasta
+sesión, rol, partes y texto exacto antes de marcar `confirmed`. Tras timeout,
+respuesta rota o caída del controlador, repetir la operación solo reconcilia: un
+404 no autoriza otro envío. Si la caída fue entre el marcador y la petición, queda
+pendiente; todavía falta la prueba de quiescencia/restauración que permitiría
+recuperar ese caso con seguridad. No se declara reanudación completa.
+
+Cada versión distinta observada de los mensajes se conserva con hash, incluidas
+las parciales. Una observación más corta o un aborto no borra versiones anteriores.
+Estas son operaciones internas con ámbito de negocio, no herramientas del agente.
+Los hijos de la sesión y los archivos de trabajo aún requieren integración.
+
+Las nueve pruebas del control usan PostgreSQL real e incluyen proceso terminado
+tras el marcador, concurrencia, texto/identidades incorrectas, caducidad y lectura
+después del aborto. Una de ellas usa además OpenCode real con un proveedor
+inexistente en loopback: confirma un único mensaje duradero mediante el mismo
+cliente y conserva su sesión, sin conexión a un proveedor ni gasto. Esto comprueba
+recepción y recuperación de mensajes; no generación satisfactoria de informes.
+
 ## Comprobaciones y alcance restante
 
 Se ejecutaron 47 pruebas: 29 del motor y 18 de actividad/migración, con PostgreSQL,
@@ -114,11 +169,48 @@ después del commit, exportación tras aborto, claves conflictivas, permisos ent
 trabajos/negocios, límites de bytes y detección de corrupción. Las 11 pruebas del ejecutor
 existente también pasan. No se hicieron llamadas facturables.
 
-Esta evidencia valida los fundamentos de admisión, no todo P2. Faltan imagen y
-red aislada del agente, supervisor y cliente OpenCode, `panorama`, `verify_numbers`,
-`preguntar_propietario`, validación/proyección y exportación completas,
-persistencia de mensajes parciales y recuperación del ciclo de vida del agente,
+La imagen ARM64 fijada y el cliente HTTP de OpenCode están disponibles; véase
+[su construcción y alcance](../../engine/opencode/README.md). Nueve pruebas
+comprueban el cliente sin reintentos implícitos y el backup/restauración SQLite
+con WAL, corrupción y publicación exclusiva. Un smoke adicional usa OpenCode
+1.18.34 real sin enviar prompts: autenticación, versión, sesión con título,
+mensajes, hijos y aborto en un contenedor sin salida externa. No se hicieron
+llamadas facturables. El cliente también se comprueba contra el servidor real usando HTTP loopback
+a través de Docker exec, sin publicar puertos ni dar salida de red al agente.
+
+Esta evidencia valida componentes de P2, no todo el paso. Faltan la red completa
+de producto y agente, supervisor, `preguntar_propietario`,
+verificación final de documentos, proyección y exportación completas,
+captura de todos los hijos/archivos y recuperación completa del ciclo de vida,
 y las seis ejecuciones reales. La prueba de terminación cubre el receptor de
-borradores; todavía no cubre el controlador OpenCode ni la caída durante la
+borradores y el marcador del outbox; todavía no cubre la restauración completa
+del controlador ni la caída durante la
 verificación o el render.
 P2 permanece abierto y P3 no ha empezado.
+
+Última regresión del tramo: 74/74 pruebas de motor, actividad y migraciones,
+incluidos los dos recorridos con OpenCode real aislado; sin gasto de modelo.
+
+## Transporte local del servicio interno
+
+`engine.tunnel.JobTunnel` conecta el HTTP loopback del agente con el servicio del
+producto en el host mediante los pipes de `docker exec`. La clave del proveedor,
+PostgreSQL, storage y el socket Docker permanecen en el host. El agente no recibe
+otra red ni un puerto publicado del host. Esto resuelve el transporte local en
+entornos donde Docker no publica puertos de una red `--internal`; no sustituye
+la autenticación, las reservas ni las comprobaciones del servidor de producto.
+
+El relay del contenedor solo acepta las dos rutas POST de su trabajo (MCP y
+Responses). El host vuelve a validar ruta, ID, cabeceras y tamaños antes de
+contactar exclusivamente un origen loopback configurado por el controlador.
+Transporta bytes JSON y SSE con un máximo de ocho solicitudes simultáneas y
+buffers acotados. No interpreta cuerpos como código ni reintenta mutaciones.
+Un corte queda observable para que el futuro supervisor aborte y reconcilie;
+el transporte por sí solo no cambia el estado PostgreSQL del trabajo.
+
+Tres pruebas validan un contenedor real aislado con servidor de producto
+simulado: JSON, UTF-8 y SSE concurrentes, rechazo de token en el destino, rutas de
+otro trabajo, corte del proceso y validación del lado host frente a frames
+manipulados. No son todavía pruebas del controlador completo ni del proxy real
+con OpenCode generando un informe. El despliegue compartido del servicio por host,
+supervisión, recuperación y generación completa siguen pendientes.
