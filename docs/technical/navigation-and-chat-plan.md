@@ -73,6 +73,10 @@ publica en GitHub salvo petición explícita del usuario.
    barra compacta. Abrir al superar el umbral y continuar ajustando la anchura sin
    perder la captura del puntero. Mantener botones, teclado y navegación móvil.
 
+10. **2.5.19.10 — Iconos de cierre simétricos.** Usar `PanelLeftClose` para cerrar
+    la navegación izquierda, como reflejo del `PanelRightClose` del chat derecho.
+    Comprobar su aspecto y conservar las acciones de apertura, cierre y arrastre.
+
 ## Estado
 
 - 2.5.19.1 completado: bibliotecas sin duplicación, límites y selección conservados.
@@ -122,3 +126,9 @@ Los seis pasos están completos. Véase la
   build y lint con avisos existentes. Verificado en navegador el cierre mediante
   arrastre seguido de reapertura desde el borde compacto y ajuste hasta 254 px.
   El gesto se incorpora al separador de escritorio; móvil conserva sus controles.
+
+- 2.5.19.10 completado, 7 de octubre de 2026: el botón de contraer usa el panel
+  con flecha hacia la izquierda, simétrico al cierre del chat derecho, también
+  al abrir la navegación móvil. Pasan 51 pruebas de layout y chat contextual,
+  build y lint con avisos existentes. Icono verificado en navegador y página
+  actualizada; captura local fuera de Git.
