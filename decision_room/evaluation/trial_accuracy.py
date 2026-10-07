@@ -9,8 +9,11 @@ joins the two and computes, per report and per arm:
 - at least 95 % of the other calculable figures are verified;
 - no erroneous figure is labelled verified.
 
-A figure the auditor found but the engine did not label, or that matches several labels that
-disagree, counts as not verified: the join never helps the engine.
+Engine labels follow the export contract (reports/verification_contract.py): a figure is an
+occurrence (JSON Pointer path + Unicode span) in draft.verified.json with a boolean `verified`;
+`corrected` alone does not mean verified. An auditor entry joins one occurrence: the one whose
+span lies inside the auditor's quote, located in that field. No match, or more than one match,
+counts as not verified; the join never picks a duplicate by value nor spreads a label to several.
 """
 import argparse
 import json
@@ -20,12 +23,12 @@ from pathlib import Path
 
 CORRECT = ('correcta', 'redondeo')
 CALCULABLE = ('correcta', 'redondeo', 'error', 'ambigua')
-VERIFIED = ('verified', 'corrected')  # 'corrected': the engine replaced the value with its calculation
 OTHERS_THRESHOLD = 0.95
+SAME_LENGTH = str.maketrans({'\u00a0': ' ', '\u202f': ' ', '\u2009': ' ', '\u2212': '-', '\u2013': '-'})
 
 
 def normal(text):
-    text = unicodedata.normalize('NFKC', str(text or '')).replace('−', '-').lower()
+    text = unicodedata.normalize('NFKC', str(text or '')).translate(SAME_LENGTH).lower()
     return re.sub(r'\s+', ' ', text).strip()
 
 
@@ -34,26 +37,52 @@ def within(part, text):
     return bool(part) and re.search(r'(?<![\w.,])' + re.escape(part) + r'(?![\w]|[.,]\d)', text) is not None
 
 
-def label(entry, figures):
-    """Engine status of one auditor entry: the status of the single matching figure, else a reason."""
+def pointer(document, path):
+    value = document
+    for part in path[1:].split('/') if path else []:
+        part = part.replace('~1', '/').replace('~0', '~')
+        value = value[int(part)] if isinstance(value, list) else value[part]
+    return value
+
+
+def quoted(cita, field):
+    """Character ranges of field where the auditor's quote appears, ignoring case and spacing."""
+    words = str(cita or '').translate(SAME_LENGTH).split()
+    if not words or not isinstance(field, str):
+        return []
+    pattern = r'\s+'.join(re.escape(w) for w in words)
+    return [m.span() for m in re.finditer(pattern, field.translate(SAME_LENGTH), flags=re.I)]
+
+
+def label(entry, figures, document=None):
+    """Engine state of one auditor entry: 'verified', the status of an unverified occurrence,
+    'unmarked' (no occurrence) or 'ambiguous' (several and no way to tell them apart)."""
     cita, value = normal(entry.get('cita')), normal(entry.get('valor_informe'))
-    found = [f for f in figures if within(normal(f.get('text')), cita)]
-    if value:
-        found = [f for f in found if within(value, normal(f.get('text')))] or found
-    statuses = {f.get('status') for f in found}
+    shown = lambda f: within(value, normal(f.get('text'))) if value else within(normal(f.get('text')), cita)
+    found = []
+    if document is not None:
+        for f in figures:
+            try:
+                ranges = quoted(entry.get('cita'), pointer(document, f['path']))
+            except (KeyError, IndexError, ValueError, TypeError):
+                continue
+            if shown(f) and any(a <= f['span']['start'] and f['span']['end'] <= b for a, b in ranges):
+                found.append(f)
+    if not found:  # the quote spans several fields or was not located: fall back to visible text
+        found = [f for f in figures if within(normal(f.get('text')), cita) and shown(f)]
     if not found:
         return 'unmarked'
-    if len(statuses) > 1:
-        return 'conflicting'
-    return statuses.pop()
+    if len(found) > 1:
+        return 'ambiguous'
+    return 'verified' if found[0].get('verified') is True else found[0].get('status') or 'unverified'
 
 
-def report(entries, figures):
-    rows = [{**e, 'estado_motor': label(e, figures)} for e in entries]
+def report(entries, figures, document=None):
+    rows = [{**e, 'estado_motor': label(e, figures, document)} for e in entries]
     calculable = [r for r in rows if r.get('clase') in CALCULABLE]
     priority = [r for r in calculable if r.get('sostiene_prioridad_v3')]
     others = [r for r in calculable if not r.get('sostiene_prioridad_v3')]
-    verified = lambda r: r['estado_motor'] in VERIFIED
+    verified = lambda r: r['estado_motor'] == 'verified'
     priority_ok = [r for r in priority if verified(r) and r['clase'] in CORRECT]
     others_verified = [r for r in others if verified(r)]
     errors = [r for r in rows if r.get('clase') == 'error']
@@ -65,7 +94,7 @@ def report(entries, figures):
         'errors': len(errors), 'errors_labelled_verified': sum(verified(r) for r in errors),
         'uncertain': sum(r['estado_motor'] == 'uncertain' for r in rows),
         'unmarked': sum(r['estado_motor'] == 'unmarked' for r in rows),
-        'conflicting': sum(r['estado_motor'] == 'conflicting' for r in rows),
+        'ambiguous': sum(r['estado_motor'] == 'ambiguous' for r in rows),
         'not_calculable': sum(r.get('clase') == 'no_calculable' for r in rows),
         'by_status': {s: sum(r['estado_motor'] == s for r in rows) for s in sorted({r['estado_motor'] for r in rows})},
         'error_rows': [{k: r.get(k) for k in ('cita', 'valor_informe', 'valor_esperado', 'severidad', 'estado_motor')}
@@ -81,11 +110,11 @@ def report(entries, figures):
 
 
 def arm(reports):
-    """reports: {job: (auditor entries, engine figures)}. The arm passes only if every report does
-    and every report was audited; totals are informative."""
-    per = {job: report(entries, figures) for job, (entries, figures) in sorted(reports.items())}
+    """reports: {job: (auditor entries, engine figures, verified document)}. The arm passes only if
+    every report does and every report was audited; totals are informative."""
+    per = {job: report(*parts) for job, parts in sorted(reports.items())}
     keys = ('figures', 'calculable', 'priority', 'priority_verified_correct', 'others', 'others_verified',
-            'errors', 'errors_labelled_verified', 'uncertain', 'unmarked', 'conflicting')
+            'errors', 'errors_labelled_verified', 'uncertain', 'unmarked', 'ambiguous')
     totals = {k: sum(r[k] for r in per.values()) for k in keys}
     totals['others_share'] = totals['others_verified'] / totals['others'] if totals['others'] else None
     return {'reports': per, 'totals': totals, 'audited': len(per),
@@ -95,15 +124,17 @@ def arm(reports):
 
 def load(audit_path, batch, jobs=None):
     """audit_path: the auditor's JSON, {job: {'registro_cifras': [...]}} after unblinding.
-    Each job's engine labels come from jobs/<job>/engine/verification.json."""
+    Each job's engine labels come from jobs/<job>/engine/verification.json and its verified
+    document from draft.verified.json beside it; a missing export leaves every figure unmarked."""
     audit = json.loads(Path(audit_path).read_text())
     reports = {}
     for job, body in audit.items():
         if jobs and job not in jobs:
             continue
-        verification = Path(batch) / 'jobs' / job / 'engine' / 'verification.json'
-        figures = json.loads(verification.read_text()).get('figures', []) if verification.exists() else []
-        reports[job] = (body['registro_cifras'], figures)
+        export = Path(batch) / 'jobs' / job / 'engine'
+        read = lambda name, default: json.loads((export / name).read_text()) if (export / name).exists() else default
+        reports[job] = (body['registro_cifras'], read('verification.json', {}).get('figures', []),
+                        read('draft.verified.json', None))
     return reports
 
 
