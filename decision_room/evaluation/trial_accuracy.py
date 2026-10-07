@@ -12,8 +12,8 @@ joins the two and computes, per report and per arm:
 Engine labels follow the export contract (reports/verification_contract.py): a figure is an
 occurrence (JSON Pointer path + Unicode span) in draft.verified.json with a boolean `verified`;
 `corrected` alone does not mean verified. An auditor entry joins one occurrence: the one whose
-span lies inside the auditor's quote, located in that field. No match, or more than one match,
-counts as not verified; the join never picks a duplicate by value nor spreads a label to several.
+span lies inside the auditor's quote, located in that field. A quote found in a field never borrows
+a label from another field. No match, or more than one match, counts as not verified; the join never picks a duplicate by value nor spreads a label to several.
 """
 import argparse
 import json
@@ -45,6 +45,18 @@ def pointer(document, path):
     return value
 
 
+def strings(value):
+    """Every text field of the verified document."""
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for item in value.values():
+            yield from strings(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from strings(item)
+
+
 def quoted(cita, field):
     """Character ranges of field where the auditor's quote appears, ignoring case and spacing."""
     words = str(cita or '').translate(SAME_LENGTH).split()
@@ -59,7 +71,7 @@ def label(entry, figures, document=None):
     'unmarked' (no occurrence) or 'ambiguous' (several and no way to tell them apart)."""
     cita, value = normal(entry.get('cita')), normal(entry.get('valor_informe'))
     shown = lambda f: within(value, normal(f.get('text'))) if value else within(normal(f.get('text')), cita)
-    found = []
+    found, located = [], document is not None and any(quoted(entry.get('cita'), field) for field in strings(document))
     if document is not None:
         for f in figures:
             try:
@@ -68,7 +80,7 @@ def label(entry, figures, document=None):
                 continue
             if shown(f) and any(a <= f['span']['start'] and f['span']['end'] <= b for a, b in ranges):
                 found.append(f)
-    if not found:  # the quote spans several fields or was not located: fall back to visible text
+    if not found and not located:  # the quote spans several fields or was not found: visible text only
         found = [f for f in figures if within(normal(f.get('text')), cita) and shown(f)]
     if not found:
         return 'unmarked'
