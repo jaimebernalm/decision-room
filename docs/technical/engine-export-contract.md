@@ -124,7 +124,7 @@ formas desconocidas se conservan en una salida textual escapada. No implica inte
 
 ## Evidencia acotada y gráficos (tramo A2)
 
-El renderizador `report-evidence-v2` conserva el ledger versión 1. Un borrador puede
+El renderizador `report-evidence-v3` conserva el ledger versión 1. Un borrador puede
 incluir `facts: [number_key, ...]` en la raíz o en cada hallazgo (hasta 32 por lista).
 Cada clave apunta a `numbers`. El documento verificado sustituye la lista por
 objetos `{number_key, text}`; `text` contiene una frase completa con etiqueta,
@@ -160,8 +160,24 @@ limitación. Las barras y líneas comparten escala con origen cero, admiten nega
 y escapan texto. No hay scripts ni dependencias de red. No implica integración con
 la edición o PDF del producto; eso pertenece a P4.
 
-**A2 sigue incompleto:** no hay recetas independientes para consultas arbitrarias,
-porcentajes ni selectores de series. Tampoco se ha demostrado la cobertura exigida
+La extensión de panorama del motor añade variaciones porcentuales entre las
+ventanas ya seleccionadas, variaciones de los grupos comparables devueltos y
+porcentajes de producto/canal sobre el total. No cambia el calculador ni la cadena
+legacy. Su versión y hash se guardan en la especificación de las observaciones,
+la huella idempotente y las comprobaciones; una versión distinta no se recertifica.
+El recálculo usa el mismo Parquet, mapeo, periodo y reglas de selección.
+
+La sección `ratios` devuelve referencias normales de `numbers` para resultado y
+operandos. Una base cero o negativa no produce porcentaje. Una parte negativa o
+mayor que el total tampoco se interpreta como cuota. La fórmula usa decimales y
+se almacena con doce decimales como máximo antes del formato de presentación.
+Los bloques facts muestran ambos operandos y su unidad, además del porcentaje,
+fechas y fórmula; cada número generado tiene un span y evidencia propios dentro
+del mismo campo. Esos operandos son recalculados, no texto aportado por el agente.
+No hay ajuste automático por duración desigual, cobertura o estacionalidad.
+
+**A2 sigue incompleto:** no hay recetas independientes para consultas arbitrarias
+ni selectores de series. Tampoco se ha demostrado la cobertura exigida
 por el auditor ni la utilidad ante lectores. Este tramo no congela el motor para
 P3 ni da por cumplida su puerta.
 

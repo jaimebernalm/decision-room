@@ -19,7 +19,7 @@ TOOLS = [
              'type': 'object', 'properties': {k: {'type': 'string'} for k in ('key', 'execution_id', 'metric')},
              'required': ['key', 'execution_id', 'metric'], 'additionalProperties': False}}},
          'required': ['request_key', 'numbers'], 'additionalProperties': False}},
-    {'name': 'panorama', 'description': 'Calculate the deterministic sales overview for one permitted table. The summary is paged by JSON pointer; follow cursor without changing input. Observation IDs work with resultado. Describes recorded quantities and missing rows, not revenue, causes or approved priorities. Keep tables separate.',
+    {'name': 'panorama', 'description': 'Calculate the deterministic sales overview for one permitted table. The summary is paged by JSON pointer; follow cursor without changing input. Observation IDs work with resultado. Describes recorded quantities and missing rows, not revenue, causes or approved priorities. Keep tables separate. The summary ratios section includes server-derived percentage changes and group shares with bound metric references and explicit zero/negative-base limits. Use those references rather than inventing metric names.',
      'inputSchema': {'type': 'object', 'properties': {
          'table_id': {'type': 'string'}, 'request_key': {'type': 'string'},
          'mapping': {'type': 'object', 'properties': {k: {'type': 'string'} for k in ('date', 'product', 'channel', 'quantity')},

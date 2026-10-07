@@ -41,3 +41,12 @@ hay una receta compatible, lo muestra como incierto. Las referencias en prosa y
 los gráficos siguen sin certificación semántica automática. Conserva las cifras y
 comparaciones necesarias para la decisión aunque no tengan receta; explica sus
 límites, sin omitirlas para mejorar una tasa de verificación.
+
+La sección ratios de panorama aporta variación porcentual actual frente a anterior
+y porcentaje de un grupo sobre el total, con referencias a métricas y a sus bases.
+Usa las referencias devueltas, no inventes nombres. Los facts de esas métricas
+muestran también los dos valores usados, el periodo y la fórmula. Una base cero o
+negativa queda sin porcentaje; ventanas desiguales no se convierten en tasas diarias
+ni se ajustan por estacionalidad. Vincula al hallazgo sus facts relevantes y explica
+la decisión en lenguaje natural. Las comprobaciones no justifican una causa ni una
+prioridad por sí solas.

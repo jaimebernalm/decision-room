@@ -11,7 +11,7 @@ from ..series import numeric
 from . import contract
 from .verification_contract import canonical, figure_id, validate
 
-VERSION = 'report-evidence-v2'
+VERSION = 'report-evidence-v3'
 TOKEN = re.compile(r'\{\{n:([^{}]+)\}\}')
 DIGITS = re.compile(r'(?<!\w)[+−-]?\d+(?:[.,\u00a0 ]\d+)*(?:\s*%)?')
 
@@ -32,7 +32,7 @@ def build(raw, *, resolver=None):
         if ref['key'] not in resolved:
             resolved[ref['key']] = resolver(ref) if resolver else None
         return resolved[ref['key']]
-    certified = {}; fact_slots = {}
+    certified = {}; fact_slots = {}; fact_operands = {}
     for path, fact, recommendation in contract.fact_entries(document):
         ref = definitions.get(fact['number_key'])
         try:
@@ -53,6 +53,18 @@ def build(raw, *, resolver=None):
         prefix = label + ': '
         fact['text'] = prefix + '{{n:' + fact['number_key'] + '}}' + (' '+unit if unit else '') + '. ' + scope + ' ' + limitation
         fact_slots[path+'/text'] = len(prefix)
+        if supported and display.get('operands'):
+            operands = []
+            for operand in display['operands']:
+                amount = format(numeric(operand['value']), 'f')
+                if '.' in amount:
+                    amount = amount.rstrip('0').rstrip('.')
+                fact['text'] += ' ' + operand['label'] + ': '
+                start = len(fact['text'])
+                fact['text'] += amount + ' ' + operand['unit'] + '.'
+                operands.append({'span': {'start': start, 'end': start+len(amount)}, 'text': amount,
+                                 'value': amount, 'unit': operand['unit']})
+            fact_operands[path+'/text'] = operands
     figures = []
     for path, original, recommendation in list(contract.texts(document)):
         output = ''; end = 0; refs = []
@@ -89,6 +101,15 @@ def build(raw, *, resolver=None):
                          'evidence': evidence, 'recommendation_id': recommendation})
         output += original[end:]
         contract.set_text(document, path, output)
+        if path in fact_operands and refs and refs[0]['verified']:
+            # Only the server's value slot was substituted in a fact. Operand
+            # offsets move by that one replacement; metadata remains literal.
+            offset = len(output)-len(original)
+            for operand in fact_operands[path]:
+                refs.append({**operand, 'path': path,
+                    'span': {k: v+offset for k,v in operand['span'].items()},
+                    'status': 'verified', 'verified': True, 'corrected_from': None,
+                    'evidence': refs[0]['evidence'], 'recommendation_id': recommendation})
         for match in DIGITS.finditer(output):
             if any(match.start() < f['span']['end'] and f['span']['start'] < match.end() for f in refs):
                 continue

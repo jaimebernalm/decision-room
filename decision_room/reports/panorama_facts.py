@@ -5,7 +5,7 @@ owner-confirmed unit, completeness of extraction, or an adjacent recommendation.
 """
 
 
-def describe(summary, metric):
+def describe(summary, metric, metrics=None):
     def matches(ref): return isinstance(ref, dict) and ref.get('metric') == metric
     column = summary['mapping']['quantity']
     period = summary['period']
@@ -68,4 +68,14 @@ def describe(summary, metric):
     for dimension in ('channel','product_channel'):
         if matches(summary.get(dimension+'_gap_count')):
             return result('Tramos sin registros detectados', 'Agrupación por '+('canal' if dimension=='channel' else 'producto y canal')+'. '+summary['gap_rule'], 'tramos')
+    for item in summary.get('ratios', []):
+        if matches(item.get('value')) and metrics is not None:
+            change = item['kind'] == 'change'
+            display = result('Variación porcentual de cantidad registrada' if change else 'Porcentaje de cantidad registrada sobre el total',
+                item['scope'] + (' Fórmula: actual menos anterior, dividido entre anterior y expresado en porcentaje.' if change
+                                  else ' Fórmula: parte dividida entre total, expresada en porcentaje.'), '%')
+            display['operands'] = [
+                {'label': 'Actual' if change else 'Parte', 'value': metrics[item['left']['metric']], 'unit': 'cantidad registrada'},
+                {'label': 'Anterior (base)' if change else 'Total (base)', 'value': metrics[item['right']['metric']], 'unit': 'cantidad registrada'}]
+            return display
     return None

@@ -12,7 +12,7 @@ from psycopg.types.json import Jsonb
 
 from .. import sales_panorama, sales_panorama_store
 from ..database import connect
-from . import admission
+from . import admission, ratios
 
 
 def _checked(row):
@@ -33,7 +33,7 @@ def calculate(config, run_id, token, *, table_id, request_key, mapping=None):
         raise ValueError('Invalid explicit panorama column mapping.')
     fingerprint = admission.sha(admission.canonical({
         'table_id': table_id, 'mapping': mapping, 'snapshot': job['snapshot_sha256'],
-        'code': admission.sha(Path(sales_panorama.__file__).read_bytes()), 'duckdb': duckdb.__version__}))
+        'code': admission.sha(Path(sales_panorama.__file__).read_bytes()), 'duckdb': duckdb.__version__, 'ratios': ratios.identity()}))
     with connect(config) as db:
         row = db.execute('SELECT * FROM engine_panoramas WHERE run_id=%s AND request_key=%s',
                          (run_id, request_key)).fetchone()
@@ -43,6 +43,10 @@ def calculate(config, run_id, token, *, table_id, request_key, mapping=None):
         return _checked(row)
     prepared = sales_panorama_store.prepare(config, job['business_id'], job['analysis_id'],
         mappings={} if mapping is None else {table_id: mapping}, table_ids=[table_id])
+    for item in prepared:
+        item['body'] = ratios.extend(item['body'])
+        item['body']['specification']['ratios'] = ratios.identity()
+        item['body_sha256'] = admission.sha(admission.canonical(item['body']))
     frozen = sales_panorama_store.review_snapshot(prepared, job['snapshot_sha256'])
     # The calculator runs without holding the run row; late completions cannot
     # admit new evidence into a paused job or a changed snapshot.

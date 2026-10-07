@@ -16,9 +16,9 @@ from ..database import connect
 from ..series import numeric
 from ..reports import panorama_facts
 from ..storage import Storage, digest
-from . import admission, panorama
+from . import admission, panorama, ratios
 
-VERSION = 'engine-number-checks-v2'
+VERSION = 'engine-number-checks-v3'
 
 
 def _references(numbers):
@@ -57,6 +57,8 @@ def _recalculate(config, job, frozen, cache):
     if (spec['code_sha256'] != current_hash or spec['version'] != sales_panorama.VERSION
             or spec['engine_version'] != duckdb.__version__):
         return None
+    if 'ratios' in spec and spec['ratios'] != ratios.identity():
+        return None
     table_id = spec['table_id']
     expected = next((t['parquet_sha256'] for t in job['snapshot'] if t['id'] == table_id), None)
     if expected is None or spec['parquet_sha256'] != expected:
@@ -77,7 +79,7 @@ def _recalculate(config, job, frozen, cache):
         result = sales_panorama.calculate(path, [c['name'] for c in table['columns']], spec.get('mapping'))
         if digest(path) != expected:
             return None
-        cache[key] = result
+        cache[key] = ratios.extend(result) if 'ratios' in spec else result
     return cache[key]
 
 
@@ -111,7 +113,7 @@ def _check(config, job, ref, cache):
     summary = actual['summary']
     return {**result, 'status': 'corrected_in_scope' if changed else 'verified_in_scope',
             'value': str(expected), 'reason': 'server_recipe_recalculated',
-            'display': panorama_facts.describe(summary, ref['metric']),
+            'display': panorama_facts.describe(summary, ref['metric'], actual['result']['metrics']),
             'scope': {'table_id': candidate['specification']['table_id'],
                       'parquet_sha256': candidate['specification']['parquet_sha256'],
                       'code_sha256': candidate['specification']['code_sha256'],
@@ -127,7 +129,7 @@ def verify(config, run_id, token, *, request_key, numbers):
     job = admission.authenticate(config, run_id, token)
     fingerprint = admission.sha(admission.canonical([VERSION, admission.sha(Path(__file__).read_bytes()),
         admission.sha(Path(sales_panorama.__file__).read_bytes()), admission.sha(Path(panorama_facts.__file__).read_bytes()),
-        duckdb.__version__, job['snapshot_sha256'], numbers]))
+        ratios.identity(), duckdb.__version__, job['snapshot_sha256'], numbers]))
     with connect(config) as db:
         previous = db.execute('SELECT * FROM engine_number_checks WHERE run_id=%s AND request_key=%s',
                               (run_id, request_key)).fetchone()
