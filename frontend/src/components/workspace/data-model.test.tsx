@@ -70,7 +70,7 @@ const response = {
   affected_reports: [],
 };
 describe("versioned ER data model", () => {
-  it("shows the model immediately inside Relations and explains a single table without invented connections", async () => {
+  it("explains a single table without a redundant connection map and still opens its columns", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -86,20 +86,32 @@ describe("versioned ER data model", () => {
     );
     render(<DataModelPanel business="business" analysis="analysis" inline />);
     expect(
-      await screen.findByRole("group", {
-        name: "Diagrama ER de esta revisión del modelo",
-      }),
+      await screen.findByText(/Este conjunto contiene una sola tabla/),
     ).toBeVisible();
     expect(screen.queryByRole("button", { name: /Ver relaciones/ })).toBeNull();
     expect(
-      screen.getByText(/Este conjunto tiene una sola tabla/),
-    ).toBeVisible();
+      screen.queryByRole("group", {
+        name: "Diagrama ER de esta revisión del modelo",
+      }),
+    ).toBeNull();
+    expect(screen.queryByText("Conexiones entre tablas")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Conexiones y comprobaciones" }),
+    ).toBeNull();
     await userEvent.click(
-      await screen.findByRole("button", { name: "Tabla Table 0" }),
+      screen.getByRole("button", { name: "Ver tabla Table 0" }),
     );
     expect(
       screen.getByRole("button", { name: /Corregir o aclarar/ }),
     ).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Ver columnas y detalles" }),
+    );
+    expect(screen.getByRole("columnheader", { name: "Columna" })).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Cerrar detalles" }),
+    );
+    expect(screen.queryByRole("columnheader", { name: "Columna" })).toBeNull();
   });
   it("shows bounded graph, full selection, evidence and exact revision", async () => {
     const user = userEvent.setup();
@@ -109,6 +121,9 @@ describe("versioned ER data model", () => {
     );
     render(<DataModelPanel business="business" analysis="analysis" />);
     await user.click(screen.getByRole("button", { name: /Ver relaciones/ }));
+    await user.click(
+      await screen.findByRole("button", { name: "Buscar y revisar versiones" }),
+    );
     expect(await screen.findByText("Modelo · revisión 3")).toBeInTheDocument();
     expect(screen.getByText(/12 de 15 tablas/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Table 14" }));
@@ -127,6 +142,12 @@ describe("versioned ER data model", () => {
     );
     await user.click(screen.getByRole("button", { name: /Table 0 → Table 1/ }));
     expect(
+      screen.queryByText("Filas adicionales por multiplicación"),
+    ).toBeNull();
+    await user.click(
+      screen.getByRole("button", { name: "Ver comprobaciones" }),
+    );
+    expect(
       screen.getByText("Filas adicionales por multiplicación"),
     ).toBeInTheDocument();
     expect(screen.getAllByText(/Muchos a muchos/).length).toBeGreaterThan(0);
@@ -143,7 +164,9 @@ describe("versioned ER data model", () => {
     vi.stubGlobal("fetch", fetch);
     render(<DataModelPanel business="business" analysis="analysis" />);
     await user.click(screen.getByRole("button", { name: /Ver relaciones/ }));
-    await user.click(await screen.findByRole("button", { name: "Table 0" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Tabla Table 0" }),
+    );
     await user.click(
       screen.getByRole("button", { name: /Corregir o aclarar/ }),
     );
@@ -180,5 +203,105 @@ describe("versioned ER data model", () => {
         screen.queryByRole("button", { name: /Corregir o aclarar/ }),
       ).not.toBeInTheDocument(),
     );
+  });
+  it("keeps optional setup out of the default view and saves a clearly labelled calculation against the exact revision", async () => {
+    const user = userEvent.setup(),
+      fetch = vi
+        .fn()
+        .mockResolvedValue({ ok: true, json: async () => response });
+    vi.stubGlobal("fetch", fetch);
+    render(<DataModelPanel business="business" analysis="analysis" inline />);
+    await screen.findByText("Conexiones entre tablas");
+    expect(screen.queryByRole("button", { name: "Table 0" })).toBeNull();
+    expect(screen.queryByText("Cómo entendemos las métricas")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Conectar dos tablas" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Aclarar un cálculo" }),
+    ).toBeNull();
+    await user.click(
+      screen.getByRole("button", { name: "Ajustar cómo usamos estos datos" }),
+    );
+    expect(
+      screen.getByText(/qué gastos incluyes al calcular el beneficio/),
+    ).toBeVisible();
+    await user.click(
+      screen.getByRole("button", { name: "Conectar dos tablas" }),
+    );
+    expect(screen.getByLabelText("Tabla de origen")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+    await user.click(
+      screen.getByRole("button", { name: "Aclarar un cálculo" }),
+    );
+    await user.type(screen.getByLabelText("Nombre del resultado"), "Beneficio");
+    await user.type(
+      screen.getByLabelText("Cómo se define y calcula"),
+      "Ventas menos coste de los productos",
+    );
+    expect(
+      screen.getByRole("button", { name: "Guardar definición" }),
+    ).toBeDisabled();
+    await user.click(screen.getByLabelText("Table 0"));
+    await user.click(
+      screen.getByRole("button", { name: "Guardar definición" }),
+    );
+    await waitFor(() =>
+      expect(fetch.mock.calls.some((c) => c[1]?.method === "POST")).toBe(true),
+    );
+    const call = fetch.mock.calls.find((c) => c[1]?.method === "POST")!;
+    expect(JSON.parse(call[1].body)).toMatchObject({
+      expected_revision: 3,
+      action: "metric",
+      payload: {
+        name: "Beneficio",
+        definition: "Ventas menos coste de los productos",
+        table_ids: ["table-0"],
+      },
+    });
+  });
+  it("retains saved calculations in read-only history while hiding creation actions", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          ...response,
+          editable: false,
+          model: {
+            ...response.model,
+            body: {
+              ...response.model.body,
+              metrics: [
+                {
+                  key: "profit",
+                  name: "Beneficio",
+                  definition: "Ventas menos gastos",
+                  unit: "EUR",
+                  period: { from: null, until: null },
+                  table_ids: ["table-0"],
+                },
+              ],
+            },
+          },
+        }),
+      }),
+    );
+    render(<DataModelPanel business="business" analysis="analysis" inline />);
+    await userEvent.click(
+      await screen.findByRole("button", {
+        name: "Ajustar cómo usamos estos datos",
+      }),
+    );
+    expect(screen.getByText("Ventas menos gastos")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Conectar dos tablas" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Aclarar un cálculo" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Corregir definición" }),
+    ).toBeNull();
   });
 });

@@ -727,6 +727,23 @@ Comprobados retirada de «dato», arrastre libre, zoom, ajuste, explicación por
 puntero y teclado, y móvil sin desbordamiento. Véanse
 [comprobaciones y límites](../validation/2026-10-06-map-canvas-and-explanations.md).
 
+### 2.5.31. Relaciones mínimas y comprensibles para usuarios no técnicos
+
+1. Dar protagonismo al mapa y conservar Conexiones y comprobaciones; trasladar
+   la lista repetida de tablas y los datos de revisión a búsqueda e historial.
+2. Retirar las secciones vacías y agrupar las aclaraciones opcionales con
+   lenguaje cotidiano y ejemplos: conectar dos tablas y aclarar un cálculo.
+3. Mostrar los conjuntos de una sola tabla como explicación breve con acceso
+   a columnas, sin otro diagrama ni título de conexiones. Permitir cerrar
+   detalles y desplegar las comprobaciones técnicas cuando se necesiten.
+4. Conservar definiciones, revisiones, edición y avisos; comprobar escritorio,
+   móvil, pruebas frontend, compilación, lint y contenido público del commit.
+
+**Completado:** 246 pruebas frontend pasan; compilación y lint sin errores.
+Verificados mapa único, conjunto de una sola tabla sin mapa redundante,
+aclaraciones con ejemplos, detalles cerrables y móvil sin desbordamiento.
+Véanse [comprobaciones y límites](../validation/2026-10-07-minimal-data-model.md).
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Avance, 27 de septiembre de 2026:** completados **3.1** (medición inicial),
