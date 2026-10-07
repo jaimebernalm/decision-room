@@ -1262,8 +1262,8 @@ describe("compact business dossier", () => {
       "Características generales de la empresa.",
     );
     await user.click(screen.getByRole("button", { name: "Añadir grupo" }));
-    await user.click(screen.getByRole("button", {name: "Editar grupo 4"}));
-    await user.click(screen.getByRole("button", { name: "Subir grupo 4" }));
+    screen.getByRole("button", { name: "Arrastrar grupo Clientes" }).focus();
+    await user.keyboard("{ArrowUp}");
     await user.click(screen.getByRole("button", { name: "Guardar grupos" }));
     await waitFor(() =>
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
@@ -1541,4 +1541,31 @@ it("keeps review first and Other available at zero, with protected system groups
   await user.keyboard("{Escape}");
   expect(screen.queryByRole("form", {name: "Personalizar grupos"})).toBeNull();
   expect(writes).toEqual([]);
+});
+
+
+it("closes group fields preserving edits and cancels a new group without discarding other changes", async () => {
+  const {user, writes} = setup();
+  await ready();
+  await user.click(screen.getByRole("button", {name: "Personalizar grupos"}));
+  await user.click(screen.getByRole("button", {name: "Editar grupo 1"}));
+  const name = screen.getByRole("textbox", {name: "Nombre del grupo 1"});
+  await user.clear(name);
+  await user.type(name, "Mi empresa");
+  await user.click(screen.getByRole("button", {name: "Cerrar edición del grupo 1"}));
+  expect(screen.queryByRole("textbox", {name: "Nombre del grupo 1"})).toBeNull();
+  expect(screen.getByRole("button", {name: "Editar grupo 1"})).toHaveFocus();
+  await user.click(screen.getByRole("button", {name: "Editar grupo 1"}));
+  expect(screen.getByRole("textbox", {name: "Nombre del grupo 1"})).toHaveValue("Mi empresa");
+  expect(screen.queryByRole("button", {name: /^Subir grupo|^Bajar grupo/})).toBeNull();
+  await user.click(screen.getByRole("button", {name: "Nuevo grupo"}));
+  await user.type(screen.getByRole("textbox", {name: "Nombre del nuevo grupo"}), "Borrador");
+  await user.click(screen.getByRole("button", {name: "Cancelar nuevo grupo"}));
+  expect(screen.queryByRole("textbox", {name: "Nombre del nuevo grupo"})).toBeNull();
+  await waitFor(() => expect(screen.getByRole("button", {name: "Nuevo grupo"})).toHaveFocus());
+  expect(screen.getByRole("button", {name: "Guardar grupos"})).toBeEnabled();
+  expect(writes).toEqual([]);
+  await user.click(screen.getByRole("button", {name: "Guardar grupos"}));
+  await waitFor(() => expect(writes).toHaveLength(1));
+  expect(writes[0]).toMatchObject({groups: [expect.objectContaining({name: "Mi empresa"}), expect.anything(), expect.anything()]});
 });

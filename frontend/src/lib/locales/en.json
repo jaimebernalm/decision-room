@@ -1330,5 +1330,8 @@
   "Propuestas y conflictos pendientes de revisar.": "Proposals and conflicts awaiting review.",
   "Información que no encaja en los demás grupos.": "Information that does not fit in the other groups.",
   "Eliminar un grupo conserva su información.": "Deleting a group keeps its information.",
-  "La tabla seleccionada no pertenece a este modelo.": "The selected table does not belong to this model."
+  "La tabla seleccionada no pertenece a este modelo.": "The selected table does not belong to this model.",
+  "Cerrar edición del grupo {0}": "Close group {0} editor",
+  "Cancelar nuevo grupo": "Cancel new group",
+  "Arrastra el asa para ordenar los grupos. También puedes usar las teclas ↑ y ↓ sobre el asa. Guarda para aplicar el orden.": "Drag the handle to reorder groups. You can also use the ↑ and ↓ keys on the handle. Save to apply the order."
 }

@@ -222,3 +222,16 @@ Estado: implementado y comprobado el 7 de octubre de 2026. Véanse las
 
 Estado: implementado y comprobado el 7 de octubre de 2026. Véanse las
 [comprobaciones de selección y edición](../validation/2026-10-07-dossier-inline-selection.md).
+
+
+## Cierre de campos y alta consistente (refinamiento de 2.5.5)
+
+1. Añadir cierre visible para los campos de un grupo, conservar sus cambios en el
+   borrador y permitir cancelar el alta de un grupo sin abandonar la personalización.
+   Dar al alta el mismo fondo gris y forma de los grupos en edición.
+2. Retirar las flechas de ordenación de los campos; conservar arrastre y teclado
+   desde el asa. Comprobar cierre, foco, borrador, guardado y diseño adaptable;
+   revisar el contenido público y guardar un commit local.
+
+Estado: implementado y comprobado el 7 de octubre de 2026. Véanse las
+[comprobaciones de cierre y alta](../validation/2026-10-07-dossier-group-close.md).

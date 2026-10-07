@@ -1,13 +1,6 @@
 import { translate as tr, useLanguage } from "@/lib/i18n";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
-import {
-  ArrowUp,
-  ArrowDown,
-  GripVertical,
-  Plus,
-  X,
-  Pencil,
-} from "lucide-react";
+import { GripVertical, Plus, X, Pencil } from "lucide-react";
 import { MotionConfig, Reorder, motion, useDragControls } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -121,7 +114,7 @@ export function GroupEditor({
           ))}
         <p id={dragHelp} className="sr-only">
           {tr(
-            "Arrastra el asa para ordenar los grupos. También puedes usar las flechas o las teclas ↑ y ↓ sobre el asa. Guarda para aplicar el orden.",
+            "Arrastra el asa para ordenar los grupos. También puedes usar las teclas ↑ y ↓ sobre el asa. Guarda para aplicar el orden.",
           )}
         </p>
         <p role="status" aria-live="polite" className="sr-only">
@@ -187,6 +180,7 @@ export function GroupEditor({
                     onClick={() =>
                       setEditing(editing === group.id ? null : group.id)
                     }
+                    data-edit-group
                   >
                     <Pencil className="size-3.5" />
                   </Button>
@@ -233,28 +227,6 @@ export function GroupEditor({
                         })
                       }
                     />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-label={tr("Subir grupo {0}", { 0: index + 1 })}
-                      disabled={action.busy || index === 0}
-                      onClick={() => move(index, -1)}
-                    >
-                      <ArrowUp />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-label={tr("Bajar grupo {0}", { 0: index + 1 })}
-                      disabled={
-                        action.busy || index === draft.groups.length - 1
-                      }
-                      onClick={() => move(index, 1)}
-                    >
-                      <ArrowDown />
-                    </Button>
                     <Textarea
                       aria-label={tr("Descripción del grupo {0}", {
                         0: index + 1,
@@ -277,6 +249,27 @@ export function GroupEditor({
                         })
                       }
                     />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="ml-auto min-h-9 [@media(pointer:coarse)]:min-h-11"
+                      aria-label={tr("Cerrar edición del grupo {0}", {
+                        0: index + 1,
+                      })}
+                      disabled={action.busy}
+                      onClick={(event) => {
+                        const trigger = event.currentTarget
+                          .closest("li")
+                          ?.querySelector<HTMLButtonElement>(
+                            "[data-edit-group]",
+                          );
+                        setEditing(null);
+                        trigger?.focus();
+                      }}
+                    >
+                      {tr("Cerrar")}
+                    </Button>
                   </>
                 )}
               </SortableGroup>
@@ -298,6 +291,7 @@ export function GroupEditor({
             variant="ghost"
             className="w-full justify-start text-muted-foreground"
             disabled={action.busy || draft.groups.length >= 20}
+            data-add-group
             onClick={() => setAdding(true)}
           >
             <Plus />
@@ -305,7 +299,30 @@ export function GroupEditor({
           </Button>
         )}
         {adding && (
-          <div className="space-y-2 rounded-lg border p-3">
+          <div className="space-y-2 rounded-lg bg-foreground/10 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-medium">{tr("Nuevo grupo")}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-7 shrink-0 [@media(pointer:coarse)]:size-11"
+                aria-label={tr("Cancelar nuevo grupo")}
+                disabled={action.busy}
+                onClick={() => {
+                  setNewName("");
+                  setNewDescription("");
+                  setAdding(false);
+                  requestAnimationFrame(() =>
+                    form.current
+                      ?.querySelector<HTMLButtonElement>("[data-add-group]")
+                      ?.focus(),
+                  );
+                }}
+              >
+                <X className="size-3.5" />
+              </Button>
+            </div>
             <Input
               aria-label={tr("Nombre del nuevo grupo")}
               placeholder={tr("Nombre del nuevo grupo")}
