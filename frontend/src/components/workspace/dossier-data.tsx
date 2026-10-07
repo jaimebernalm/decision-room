@@ -5,12 +5,7 @@ import { contextKey, store } from "@/lib/api";
 import { useAssistant } from "@/lib/assistant";
 import { useWorkspace } from "@/lib/workspace";
 import type { Dataset } from "@/lib/types";
-import {
-  Accordion,
-  AccordionItem,
-  AccordionTrigger,
-  AccordionContent,
-} from "@/components/ui/accordion";
+import { DossierExplorer, DossierExplorerPanel } from "./dossier-explorer";
 import { tableName } from "@/lib/table-name";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,41 +26,25 @@ import {
 function DataGroup({
   id,
   title,
-  count,
   onUpload,
   children,
 }: {
   id: string;
   title: string;
-  count?: number;
   onUpload?: () => void;
   children: ReactNode;
 }) {
   return (
-    <AccordionItem
-      value={id}
-      className="rounded-xl border border-border bg-card shadow-sm"
-    >
-      <div className="relative rounded-xl bg-muted/50 transition-colors hover:bg-sidebar-accent focus-within:bg-sidebar-accent motion-reduce:transition-none">
-        <AccordionTrigger className="items-center gap-3 rounded-xl px-4 py-4 text-base font-semibold text-foreground hover:no-underline">
-          <span
-            className={`flex min-w-0 items-center gap-3 ${onUpload ? "pr-14" : ""}`}
-          >
-            {title}{" "}
-            {count !== undefined && (
-              <span className="inline-flex min-w-6 items-center justify-center rounded-full border border-border bg-background px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
-                {count}
-              </span>
-            )}
-          </span>
-        </AccordionTrigger>
+    <DossierExplorerPanel id={id}>
+      <div className="mb-3 flex min-w-0 items-center justify-between gap-3 border-b border-border pb-3">
+        <h2 className="min-w-0 text-base font-medium break-words">{title}</h2>
         {onUpload && (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   size="icon"
-                  className="absolute top-1/2 right-10 size-9 -translate-y-1/2 rounded-full shadow-none [@media(pointer:coarse)]:size-11"
+                  className="size-9 shrink-0 rounded-full shadow-none [@media(pointer:coarse)]:size-11"
                   aria-label={tr("Subir datos")}
                   onClick={onUpload}
                 >
@@ -77,10 +56,8 @@ function DataGroup({
           </TooltipProvider>
         )}
       </div>
-      <AccordionContent className="h-auto px-4 pt-1 pb-2 [&_p:not(:last-child)]:mb-0">
-        {children}
-      </AccordionContent>
-    </AccordionItem>
+      <div className="min-w-0 [&_p:not(:last-child)]:mb-0">{children}</div>
+    </DossierExplorerPanel>
   );
 }
 
@@ -93,6 +70,7 @@ export function DossierDataGroups({
   datasets: Dataset[];
   onUpload: () => void;
 }) {
+  const [selectedGroup, setSelectedGroup] = useState("files");
   const tableTrigger = useRef<HTMLButtonElement | null>(null);
   const [table, setTable] = useState<{ id: string; name: string } | null>(null);
   const current = datasets.filter(
@@ -108,20 +86,28 @@ export function DossierDataGroups({
   );
   return (
     <>
-      <Accordion
-        type="multiple"
-        defaultValue={["files", "tables", "relations"]}
-        className="gap-4 min-w-0"
+      <DossierExplorer
+        label={tr("Datos")}
+        value={selectedGroup}
+        onValueChange={setSelectedGroup}
+        groups={[
+          {
+            id: "files",
+            title: tr("Archivos"),
+            count: current.reduce(
+              (n, d) => n + (d.original_files?.length || 0),
+              0,
+            ),
+          },
+          {
+            id: "tables",
+            title: tr("Tablas"),
+            count: current.reduce((n, d) => n + (d.files?.length || 0), 0),
+          },
+          { id: "relations", title: tr("Relaciones") },
+        ]}
       >
-        <DataGroup
-          id="files"
-          title={tr("Archivos")}
-          count={current.reduce(
-            (n, d) => n + (d.original_files?.length || 0),
-            0,
-          )}
-          onUpload={onUpload}
-        >
+        <DataGroup id="files" title={tr("Archivos")} onUpload={onUpload}>
           {current.length ? (
             <ul className="space-y-2">
               {current.map((d) => (
@@ -165,11 +151,7 @@ export function DossierDataGroups({
             </div>
           )}
         </DataGroup>
-        <DataGroup
-          id="tables"
-          title={tr("Tablas")}
-          count={current.reduce((n, d) => n + (d.files?.length || 0), 0)}
-        >
+        <DataGroup id="tables" title={tr("Tablas")}>
           {current.length ? (
             <ul className="space-y-2">
               {current.map((d) => (
@@ -275,7 +257,7 @@ export function DossierDataGroups({
             </p>
           )}
         </DataGroup>
-      </Accordion>
+      </DossierExplorer>
       <Dialog
         open={!!table}
         onOpenChange={(open) => {

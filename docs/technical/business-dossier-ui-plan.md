@@ -174,3 +174,20 @@ Estado: implementado y comprobado el 2 de octubre de 2026; véase la
 
 Estado: implementado y comprobado el 2 de octubre de 2026; véase la
 [validación de avisos](../validation/2026-10-02-error-notices.md).
+
+## Explorador y línea temporal (refinamiento de 2.5.5)
+
+1. Presentar los grupos de Información y Datos mediante una navegación de grupos
+   y un área de lectura. Conservar clasificación, grupos personalizados, orden,
+   cantidades, formularios, acciones y selección de contexto. Adaptar el diseño
+   al ancho disponible, también con el chat lateral abierto.
+2. Presentar Historial como una lista cronológica con línea temporal, manteniendo
+   el orden recibido, fecha, revisión, estado, texto completo y procedencia de
+   cada revisión. No añadir cambios calculados ni modificar contratos del servidor.
+3. Comprobar navegación, grupos vacíos, edición, confirmación, retirada, conflictos,
+   descargas, tablas, relaciones, errores, contexto y retorno del foco. Ejecutar
+   regresión frontend, compilación, lint y revisión visual en escritorio/móvil;
+   revisar el diff público y guardar un commit local del incremento completo.
+
+Estado: implementado y comprobado el 7 de octubre de 2026. Véanse las
+[comprobaciones y límites](../validation/2026-10-07-dossier-explorer.md).

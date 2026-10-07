@@ -183,6 +183,7 @@ it("opens data questions alongside Tables, preserves the draft and uses the exac
   const user = userEvent.setup();
   render(<Harness initialRoute="my-business" />);
   await user.click(await screen.findByRole("tab", { name: "Datos" }));
+  await user.click(screen.getByRole("button", { name: "Tablas 1" }));
   await user.click(
     screen.getByRole("button", { name: "Preguntar sobre estas tablas" }),
   );

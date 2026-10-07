@@ -43,14 +43,15 @@ it("lists actual files and worksheet tables without batch headings or versions",
   expect(
     screen.getByRole("link", { name: "Descargar catalog.xlsx" }),
   ).toHaveAttribute("href", "/api/datasets/original/batch?path=catalog.xlsx");
+  await user.click(screen.getByRole("button", { name: "Subir datos" }));
+  expect(upload).toHaveBeenCalledOnce();
+  await user.click(screen.getByRole("button", { name: /^Tablas/ }));
   expect(screen.getByText("Sales")).toBeVisible();
   expect(screen.getByText("Products")).toBeVisible();
   expect(screen.queryByText("catalog.xlsx [Products].csv")).toBeNull();
   expect(
     screen.getByRole("link", { name: "Descargar Products" }),
   ).toHaveAttribute("href", "/api/datasets/file/sheet-source");
-  await user.click(screen.getByRole("button", { name: "Subir datos" }));
-  expect(upload).toHaveBeenCalledOnce();
   await user.click(
     screen.getByRole("button", { name: "Preguntar sobre estas tablas" }),
   );
@@ -60,7 +61,8 @@ it("lists actual files and worksheet tables without batch headings or versions",
   });
   expect(dock).toHaveBeenCalledWith({ open: true, origin: "my-business" });
 });
-it("hides archived and superseded data from the library without hiding current independent uploads", () => {
+it("hides archived and superseded data from the library without hiding current independent uploads", async () => {
+  const user = userEvent.setup();
   render(
     <DossierDataGroups
       business="business"
@@ -73,11 +75,13 @@ it("hides archived and superseded data from the library without hiding current i
       onUpload={vi.fn()}
     />,
   );
+  await user.click(screen.getByRole("button", { name: "Relaciones" }));
   expect(screen.queryByTestId("model")).toBeNull();
   expect(
     screen.getByText("No hay conexiones entre tablas todavía."),
   ).toBeVisible();
   expect(screen.queryByText("Datos corregidos")).toBeNull();
+  await user.click(screen.getByRole("button", { name: /^Tablas/ }));
   expect(screen.getAllByRole("link", { name: "Descargar Sales" })).toHaveLength(
     1,
   );
@@ -138,6 +142,7 @@ it("opens the clicked table with actual columns and rows without reopening the m
       onUpload={vi.fn()}
     />,
   );
+  await user.click(screen.getByRole("button", { name: /^Tablas/ }));
   await user.click(screen.getByRole("button", { name: "Ver tabla Products" }));
   const dialog = await screen.findByRole("dialog", { name: "Products" });
   expect(
@@ -191,6 +196,7 @@ it("keeps failed tables visibly unavailable and lets a failed preview retry", as
       onUpload={vi.fn()}
     />,
   );
+  await user.click(screen.getByRole("button", { name: /^Tablas/ }));
   expect(
     screen.getByRole("button", { name: "Ver tabla Failed" }),
   ).toBeDisabled();

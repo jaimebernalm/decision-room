@@ -15,14 +15,8 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import {
-  Accordion,
-  AccordionItem,
-  AccordionTrigger,
-  AccordionContent,
-} from "@/components/ui/accordion";
+import { DossierExplorer, DossierExplorerPanel } from "./dossier-explorer";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -152,7 +146,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
     [detailEditing, setDetailEditing] = useState(false),
     [upload, setUpload] = useState(false);
   const [customize, setCustomize] = useState(false),
-    [collapsedGroups, setCollapsedGroups] = useState<string[]>([]);
+    [selectedGroup, setSelectedGroup] = useState("");
   const [newGroup, setNewGroup] = useState<{
     id: string;
     title: string;
@@ -178,8 +172,8 @@ export function Dossier({ files = false }: { files?: boolean }) {
         saved,
         resource.data.layout || defaultDossierLayout,
       );
-      if (collapsedGroups.includes(group)) {
-        setCollapsedGroups((groups) => groups.filter((id) => id !== group));
+      if (selectedGroup !== group) {
+        setSelectedGroup(group);
         return;
       }
     }
@@ -191,7 +185,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
       target.focus();
     }
     pendingDetailFocus.current = null;
-  }, [detail, resource.data, collapsedGroups]);
+  }, [detail, resource.data, selectedGroup]);
   const restoreDialogFocus = (event: Event) => {
     const target = actionFocus.current?.isConnected
       ? actionFocus.current
@@ -326,19 +320,18 @@ export function Dossier({ files = false }: { files?: boolean }) {
             </section>
           )}
           {facts.length || layout.groups.length > 0 ? (
-            <Accordion
-              type="multiple"
-              value={factGroups
-                .filter((group) => !collapsedGroups.includes(group.key))
-                .map((group) => group.key)}
-              onValueChange={(open) =>
-                setCollapsedGroups(
-                  factGroups
-                    .filter((group) => !open.includes(group.key))
-                    .map((group) => group.key),
-                )
-              }
-              className="gap-4"
+            <DossierExplorer
+              label={tr("Información")}
+              value={selectedGroup}
+              onValueChange={setSelectedGroup}
+              groups={factGroups.flatMap((group) => {
+                const count = facts.filter(
+                  (fact) => factGroup(fact, layout) === group.key,
+                ).length;
+                return !count && ["review", "ungrouped"].includes(group.key)
+                  ? []
+                  : [{ id: group.key, title: group.title, count }];
+              })}
             >
               {factGroups.map((group) => {
                 const items = facts.filter(
@@ -350,30 +343,17 @@ export function Dossier({ files = false }: { files?: boolean }) {
                 )
                   return null;
                 return (
-                  <AccordionItem
-                    key={group.key}
-                    value={group.key}
-                    className="rounded-xl border border-border bg-card shadow-sm"
-                  >
-                    <div className="relative rounded-xl bg-muted/50 transition-colors hover:bg-sidebar-accent focus-within:bg-sidebar-accent motion-reduce:transition-none">
-                      <div className="min-w-0">
-                        <AccordionTrigger className="items-center gap-3 rounded-xl px-4 py-4 text-base font-semibold text-foreground hover:no-underline motion-reduce:transition-none">
-                          <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 pr-14">
-                            <span className="min-w-0 [overflow-wrap:anywhere]">
-                              {group.title}
-                            </span>{" "}
-                            <span className="inline-flex min-w-6 items-center justify-center rounded-full border border-border bg-background px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
-                              {items.length}
-                            </span>
-                          </span>
-                        </AccordionTrigger>
-                      </div>
+                  <DossierExplorerPanel key={group.key} id={group.key}>
+                    <div className="mb-3 flex min-w-0 items-center justify-between gap-3 border-b border-border pb-3">
+                      <h2 className="min-w-0 text-base font-medium [overflow-wrap:anywhere]">
+                        {group.title}
+                      </h2>
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
                               size="icon"
-                              className="absolute top-1/2 right-10 size-9 -translate-y-1/2 rounded-full shadow-none hover:shadow-sm [@media(pointer:coarse)]:size-11"
+                              className="size-9 shrink-0 rounded-full shadow-none [@media(pointer:coarse)]:size-11"
                               aria-label={tr("Añadir información a {0}", {
                                 0: group.title,
                               })}
@@ -395,7 +375,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
                         </Tooltip>
                       </TooltipProvider>
                     </div>
-                    <AccordionContent className="h-auto px-2 pt-1 pb-2 [&_p:not(:last-child)]:mb-0">
+                    <div className="min-w-0 [&_p:not(:last-child)]:mb-0">
                       {layout.groups.find((g) => g.id === group.key)
                         ?.description && (
                         <p className="px-3 py-2 text-sm text-muted-foreground whitespace-pre-wrap break-words">
@@ -638,6 +618,10 @@ export function Dossier({ files = false }: { files?: boolean }) {
                                                   assignments,
                                                 },
                                               );
+                                              pendingDetailFocus.current = {
+                                                id: f.fact_id,
+                                                data: resource.data,
+                                              };
                                               resource.refresh();
                                             });
                                           }}
@@ -685,11 +669,11 @@ export function Dossier({ files = false }: { files?: boolean }) {
                           </li>
                         ))}
                       </ul>
-                    </AccordionContent>
-                  </AccordionItem>
+                    </div>
+                  </DossierExplorerPanel>
                 );
               })}
-            </Accordion>
+            </DossierExplorer>
           ) : (
             <Empty
               title={tr("Un contexto que crece contigo")}
@@ -736,13 +720,20 @@ export function Dossier({ files = false }: { files?: boolean }) {
         </TabsContent>
         <TabsContent value="history" className="space-y-3">
           {data.history.length ? (
-            data.history.map((f, i) => (
-              <Card
-                key={`${f.fact_id}-${f.revision}-${i}`}
-                className="shadow-none"
-              >
-                <CardContent className="space-y-3">
-                  <div className="flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
+            <ol
+              aria-label={tr("Historial")}
+              className="ml-2 border-l border-border"
+            >
+              {data.history.map((f, i) => (
+                <li
+                  key={`${f.fact_id}-${f.revision}-${i}`}
+                  className="relative space-y-3 pb-8 pl-6 last:pb-0"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="absolute -left-[5px] top-1.5 size-[9px] rounded-full bg-primary ring-4 ring-background"
+                  />
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                     <span>
                       {date(f.created_at)}
                       {tr(" · revisión ")}
@@ -752,11 +743,15 @@ export function Dossier({ files = false }: { files?: boolean }) {
                       {tr(factStatus[f.status] || f.status)}
                     </Badge>
                   </div>
-                  <p className="text-sm">{f.content.statement}</p>
-                  <FactOrigin fact={f} />
-                </CardContent>
-              </Card>
-            ))
+                  <p className="whitespace-pre-wrap break-words text-sm leading-6">
+                    {f.content.statement}
+                  </p>
+                  <div className="[@media(pointer:coarse)]:[&_button]:min-h-11">
+                    <FactOrigin fact={f} subtle />
+                  </div>
+                </li>
+              ))}
+            </ol>
           ) : (
             <p className="py-10 text-center text-sm text-muted-foreground">
               {tr("El historial aparecerá cuando guardes información.")}
@@ -988,9 +983,11 @@ function scopeLabel(content: FactContent, datasets: Dataset[]) {
 function FactOrigin({
   fact,
   expanded = false,
+  subtle = false,
 }: {
   fact: Fact;
   expanded?: boolean;
+  subtle?: boolean;
 }) {
   const content = (
     <div className="space-y-3 whitespace-pre-wrap break-words">
@@ -1022,7 +1019,9 @@ function FactOrigin({
   return expanded ? (
     content
   ) : (
-    <Disclosure title={tr("Origen y vigencia")}>{content}</Disclosure>
+    <Disclosure title={tr("Origen y vigencia")} subtle={subtle}>
+      {content}
+    </Disclosure>
   );
 }
 function FactEditor({
