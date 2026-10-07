@@ -593,7 +593,7 @@ describe("compact business dossier", () => {
     });
     const { user } = setup(data, { files: true });
     await ready();
-    const tables = screen.getByRole("region", { name: "Tablas 2" });
+    const tables = screen.getByRole("region", { name: "Tablas 1" });
     expect(
       within(tables).getAllByRole("button", {
         name: "Preguntar sobre estas tablas",

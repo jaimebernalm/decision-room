@@ -60,12 +60,14 @@ it("lists actual files and worksheet tables without batch headings or versions",
   });
   expect(dock).toHaveBeenCalledWith({ open: true, origin: "my-business" });
 });
-it("does not put corrected or single-table batches in the connections map", () => {
+it("hides archived and superseded data from the library without hiding current independent uploads", () => {
   render(
     <DossierDataGroups
       business="business"
       datasets={[
         { ...dataset, corrected: true },
+        { ...dataset, id: "history", library_hidden: true },
+        { ...dataset, id: "previous", superseded_by: "single" },
         { ...dataset, id: "single", files: [dataset.files[0]] },
       ]}
       onUpload={vi.fn()}
@@ -75,9 +77,12 @@ it("does not put corrected or single-table batches in the connections map", () =
   expect(
     screen.getByText("No hay conexiones entre tablas todavía."),
   ).toBeVisible();
-  expect(screen.getAllByText("Datos corregidos")).toHaveLength(2);
+  expect(screen.queryByText("Datos corregidos")).toBeNull();
+  expect(screen.getAllByRole("link", { name: "Descargar Sales" })).toHaveLength(
+    1,
+  );
   expect(
-    within(screen.getByRole("button", { name: /Tablas/ })).getByText("3"),
+    within(screen.getByRole("button", { name: /Tablas/ })).getByText("1"),
   ).toBeVisible();
 });
 it("preserves dotted table names and separates Excel worksheet names from source filenames", () => {
@@ -86,4 +91,105 @@ it("preserves dotted table names and separates Excel worksheet names from source
     "Ventas 2026",
   );
   expect(tableName("Saldo diario")).toBe("Saldo diario");
+});
+
+it("opens the clicked table with actual columns and rows without reopening the map or changing context", async () => {
+  const user = userEvent.setup();
+  const fetch = vi.fn(async (url: string) => ({
+    ok: true,
+    json: async () => ({
+      tables: [
+        {
+          id: "products-table",
+          name: "catalog.xlsx [Products].csv",
+          row_count: 55,
+          column_count: 2,
+        },
+      ],
+      table_id: "products-table",
+      columns: ["producto_id", "nombre"],
+      rows: [
+        {
+          number: url.includes("offset=50") ? 51 : 1,
+          values: [url.includes("offset=50") ? "51" : "1", "Cuaderno"],
+        },
+      ],
+      offset: url.includes("offset=50") ? 50 : 0,
+      column_offset: 0,
+      page_rows: 50,
+      page_columns: 12,
+      cell_characters: 500,
+    }),
+  }));
+  vi.stubGlobal("fetch", fetch);
+  store.set(contextKey("business"), {
+    analysis_id: "unchanged",
+    label: "Previous selection",
+  });
+  render(
+    <DossierDataGroups
+      business="business"
+      datasets={[dataset]}
+      onUpload={vi.fn()}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "Ver tabla Products" }));
+  const dialog = await screen.findByRole("dialog", { name: "Products" });
+  expect(
+    await within(dialog).findByRole("columnheader", { name: "nombre" }),
+  ).toBeVisible();
+  expect(within(dialog).getByText("Cuaderno")).toBeVisible();
+  expect(within(dialog).queryByText("Datos para responder")).toBeNull();
+  expect(within(dialog).queryByText("Archivo o tabla")).toBeNull();
+  expect(fetch).toHaveBeenCalledWith(
+    "/api/datasets/table/sheet-source?offset=0",
+    expect.anything(),
+  );
+  await user.click(
+    within(dialog).getByRole("button", { name: "Filas siguientes" }),
+  );
+  expect(await within(dialog).findByRole("cell", { name: "51" })).toBeVisible();
+  expect(store.get(contextKey("business"), {})).toEqual({
+    analysis_id: "unchanged",
+    label: "Previous selection",
+  });
+  await user.keyboard("{Escape}");
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(
+    screen.getByRole("button", { name: "Ver tabla Products" }),
+  ).toHaveFocus();
+});
+it("keeps failed tables visibly unavailable and lets a failed preview retry", async () => {
+  const user = userEvent.setup();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: async () => ({ error: "Datos no disponibles" }),
+    }),
+  );
+  render(
+    <DossierDataGroups
+      business="business"
+      datasets={[
+        {
+          ...dataset,
+          files: [
+            ...dataset.files,
+            { id: "bad", name: "failed.csv", status: "failed" },
+          ],
+        },
+      ]}
+      onUpload={vi.fn()}
+    />,
+  );
+  expect(
+    screen.getByRole("button", { name: "Ver tabla Failed" }),
+  ).toBeDisabled();
+  await user.click(screen.getByRole("button", { name: "Ver tabla Products" }));
+  expect(await screen.findByText("Datos no disponibles")).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "Reintentar vista de datos" }),
+  ).toBeVisible();
 });

@@ -19,6 +19,7 @@ export type Dataset = {
   version: number;
   status: string;
   corrected?: boolean;
+  library_hidden?: boolean;
   superseded_by?: string;
   period_from?: string;
   period_until?: string;

@@ -41,6 +41,7 @@ def listing(ws):
         datasets = db.execute('''SELECT a.id,a.title,a.status,a.created_at,
             coalesce(v.dataset_id,a.id) AS dataset_id,coalesce(v.version,1) AS version,
             v.period_from,v.period_until,v.superseded_by,coalesce(v.corrected,false) AS corrected,
+            a.library_hidden,
             (SELECT jsonb_agg(jsonb_build_object('id',s.id,'name',s.original_names->>0,
                 'status',s.status,'rows',p.row_count)) FROM sources s
                 LEFT JOIN prepared_tables p ON p.source_id=s.id WHERE s.analysis_id=a.id) AS files
@@ -66,6 +67,18 @@ def change(ws, data):
         raise WebError(str(error), error.status) from None
     except ValidationError:
         raise WebError('Revisa la información, el ámbito y las fechas del recuerdo.') from None
+
+
+def library_visibility(ws, analysis_id, data):
+    business = guard(ws, data)
+    if set(data) != {'business_id', 'hidden'} or type(data['hidden']) is not bool:
+        raise WebError('Indica si los datos deben aparecer en la biblioteca.')
+    with connect(ws.config) as db:
+        saved = db.execute('''UPDATE analyses SET library_hidden=%s WHERE id=%s AND business_id=%s RETURNING id''',
+                           (data['hidden'], identifier(analysis_id), business)).fetchone()
+    if not saved:
+        raise WebError('No encontramos estos datos en tu negocio.', 404)
+    return {'saved': True}
 
 
 def available(db, business, analysis):
@@ -170,6 +183,8 @@ def upload_paths(ws, data, paths, *, names=None, original_signature=None):
                 'Datos disponibles. Los informes anteriores no se han recalculado.' if result['status'] == 'ready' else
                 'Algunos archivos no se han podido preparar. Los datos anteriores se conservan.' if result['status'] == 'partial' else
                 'No se han podido preparar los archivos. Corrígelos y vuelve a subirlos. Se conservan los datos anteriores.')
+            # An explicit upload puts this input back in the library; history stays intact.
+            db.execute('UPDATE analyses SET library_hidden=false WHERE id=%s AND business_id=%s', (analysis, business))
             db.execute('UPDATE dataset_uploads SET result=%s WHERE business_id=%s AND request_key=%s',
                        (Jsonb(result), business, key))
         return result

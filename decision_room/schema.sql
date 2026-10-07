@@ -841,3 +841,7 @@ INSERT INTO schema_versions(version) VALUES (28) ON CONFLICT DO NOTHING;
 -- 2.5.21: owner-pinned chats stay ahead of recent conversations.
 ALTER TABLE chat_conversations ADD COLUMN IF NOT EXISTS pinned_at timestamptz;
 INSERT INTO schema_versions(version) VALUES (29) ON CONFLICT DO NOTHING;
+
+-- Historical inputs remain available to reports while leaving the everyday library.
+ALTER TABLE analyses ADD COLUMN IF NOT EXISTS library_hidden boolean NOT NULL DEFAULT false;
+INSERT INTO schema_versions(version) VALUES (30) ON CONFLICT DO NOTHING;

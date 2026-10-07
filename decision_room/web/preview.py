@@ -16,6 +16,18 @@ def page(ws, job_id, query):
     return dataset_page(ws, job['analysis_id'], query)
 
 
+def source_page(ws, source_id, query):
+    """Resolve the clicked source to its exact prepared table, within this business."""
+    with connect(ws.config) as db:
+        table = db.execute('''SELECT p.id,p.analysis_id FROM prepared_tables p
+            JOIN sources s ON s.id=p.source_id AND s.business_id=p.business_id
+            WHERE s.id=%s AND s.business_id=%s AND s.status='ready' ''',
+            (identifier(source_id), ws.business_id())).fetchone()
+    if not table:
+        raise WebError('Esta tabla no está disponible en tu negocio.', 404)
+    return dataset_page(ws, table['analysis_id'], {**query, 'table': [str(table['id'])]})
+
+
 def dataset_page(ws, analysis_id, query):
     from .dossier import available
     with connect(ws.config) as db:

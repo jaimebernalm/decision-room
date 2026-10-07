@@ -766,6 +766,23 @@ sin errores. Comprobados archivos/tablas limpios, conexiones bajo petición y
 detalles históricos de informes en escritorio/móvil. Véanse
 [alcance y validación](../validation/2026-10-07-client-data-and-report-details.md).
 
+### 2.5.33. Biblioteca actual y apertura de tablas
+
+1. Retirar de Datos las copias históricas indicadas por el propietario, sin
+   eliminar originales, evidencias ni procedencia de informes. Conservar una
+   preferencia reversible y excluir versiones corregidas/sustituidas del listado.
+2. Convertir las filas de Tablas en botones que abren una ventana con columnas
+   y valores reales; mantener descargas independientes, teclado y retorno del foco.
+3. Reutilizar lectura paginada y controles de integridad, vinculando la fuente
+   exacta y el negocio activo, con estados de error/reintento y sin texto extra.
+4. Comprobar archivo/recuperación y continuidad histórica, tabla seleccionada,
+   paginación, autenticación/aislamiento, escritorio/móvil, pruebas, build y lint.
+
+**Completado:** 259 pruebas frontend y 14 backend dirigidas pasan; build y lint
+sin errores. Comprobados tres archivos/tablas actuales, apertura de Productos
+y Ventas, móvil contenido y retorno del foco. Véanse
+[validación y límites](../validation/2026-10-07-current-library-and-table-dialog.md).
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Avance, 27 de septiembre de 2026:** completados **3.1** (medición inicial),

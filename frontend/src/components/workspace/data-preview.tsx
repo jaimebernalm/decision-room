@@ -28,12 +28,14 @@ export function DataPreview({
   endpoint,
   references,
   activity = false,
+  compact = false,
 }: {
   jobId?: string;
   endpoint?: string;
   questions?: Question[];
   references?: Question["references"];
   activity?: boolean;
+  compact?: boolean;
 }) {
   useLanguage();
   const refs = references || questions.flatMap((q) => q.references || []);
@@ -58,20 +60,19 @@ export function DataPreview({
       .filter((ref) => ref.id === data?.table_id && ref.kind === "column")
       .map((ref) => ref.column),
   );
-  return (
-    <Disclosure
-      title={activity ? tr("Datos relacionados") : tr("Datos para responder")}
-      defaultOpen
-    >
-      <p className="text-xs text-muted-foreground">
-        {activity
-          ? tr(
-              "Consulta las filas utilizadas en esta comprobación. Las columnas relacionadas aparecen destacadas.",
-            )
-          : tr(
-              "Consulta las filas del archivo mientras respondes. Las columnas mencionadas en la pregunta aparecen destacadas.",
-            )}
-      </p>
+  const content = (
+    <>
+      {!compact && (
+        <p className="text-xs text-muted-foreground">
+          {activity
+            ? tr(
+                "Consulta las filas utilizadas en esta comprobación. Las columnas relacionadas aparecen destacadas.",
+              )
+            : tr(
+                "Consulta las filas del archivo mientras respondes. Las columnas mencionadas en la pregunta aparecen destacadas.",
+              )}
+        </p>
+      )}
       <Notice error>{resource.error}</Notice>
       {resource.error && (
         <Button
@@ -86,27 +87,35 @@ export function DataPreview({
       {!data && !resource.error && <Loading />}
       {data && selected && (
         <>
-          <ChoiceSelect
-            label={tr("Archivo o tabla")}
-            value={data.table_id}
-            options={data.tables.map((item) => ({
-              value: item.id,
-              label: item.name,
-            }))}
-            onChange={(value) => {
-              setTable(value);
-              setOffset(0);
-              setColumnOffset(0);
-            }}
-          />
+          {!compact && (
+            <ChoiceSelect
+              label={tr("Archivo o tabla")}
+              value={data.table_id}
+              options={data.tables.map((item) => ({
+                value: item.id,
+                label: item.name,
+              }))}
+              onChange={(value) => {
+                setTable(value);
+                setOffset(0);
+                setColumnOffset(0);
+              }}
+            />
+          )}
           <p className="text-xs text-muted-foreground">
             {selected.row_count}
             {tr(" filas · ")}
             {selected.column_count}
-            {tr(" columnas · Vista del archivo, sin cálculos")}
+            {compact
+              ? tr(" columnas")
+              : tr(" columnas · Vista del archivo, sin cálculos")}
           </p>
           <div
-            className="max-h-72 min-w-0 overflow-auto rounded-lg border"
+            className={
+              compact
+                ? "max-h-[55dvh] min-w-0 overflow-auto rounded-lg border"
+                : "max-h-72 min-w-0 overflow-auto rounded-lg border"
+            }
             tabIndex={0}
             role="region"
             aria-label={tr("Filas del archivo")}
@@ -179,35 +188,37 @@ export function DataPreview({
               </tbody>
             </table>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={!data.offset}
-              onClick={() =>
-                setOffset(Math.max(0, data.offset - data.page_rows))
-              }
-            >
-              {tr("Filas anteriores")}
-            </Button>
-            <span className="text-xs">
-              {tr("Filas ")}
-              {data.rows.length ? data.offset + 1 : 0}–
-              {data.offset + data.rows.length}
-              {tr(" de ")}
-              {selected.row_count}
-            </span>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={data.offset + data.rows.length >= selected.row_count}
-              onClick={() => setOffset(data.offset + data.page_rows)}
-            >
-              {tr("Filas siguientes")}
-            </Button>
-          </div>
+          {(!compact || selected.row_count > data.page_rows) && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={!data.offset}
+                onClick={() =>
+                  setOffset(Math.max(0, data.offset - data.page_rows))
+                }
+              >
+                {tr("Filas anteriores")}
+              </Button>
+              <span className="text-xs">
+                {tr("Filas ")}
+                {data.rows.length ? data.offset + 1 : 0}–
+                {data.offset + data.rows.length}
+                {tr(" de ")}
+                {selected.row_count}
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={data.offset + data.rows.length >= selected.row_count}
+                onClick={() => setOffset(data.offset + data.page_rows)}
+              >
+                {tr("Filas siguientes")}
+              </Button>
+            </div>
+          )}
           {selected.column_count > data.page_columns && (
             <div className="flex flex-wrap items-center gap-2">
               <Button
@@ -245,15 +256,27 @@ export function DataPreview({
               </Button>
             </div>
           )}
-          <p className="text-xs text-muted-foreground">
-            {tr("Se muestran hasta ")}
-            {data.page_rows}
-            {tr(" filas por página. Las celdas de más de ")}
-            {data.cell_characters}
-            {tr(" caracteres se acortan con «…».")}
-          </p>
+          {!compact && (
+            <p className="text-xs text-muted-foreground">
+              {tr("Se muestran hasta ")}
+              {data.page_rows}
+              {tr(" filas por página. Las celdas de más de ")}
+              {data.cell_characters}
+              {tr(" caracteres se acortan con «…».")}
+            </p>
+          )}
         </>
       )}
+    </>
+  );
+  return compact ? (
+    <div className="min-h-0 min-w-0 space-y-3 overflow-y-auto">{content}</div>
+  ) : (
+    <Disclosure
+      title={activity ? tr("Datos relacionados") : tr("Datos para responder")}
+      defaultOpen
+    >
+      {content}
     </Disclosure>
   );
 }

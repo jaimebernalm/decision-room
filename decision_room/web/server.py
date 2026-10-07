@@ -346,6 +346,14 @@ class Handler(BaseHTTPRequestHandler):
                         raise WebError('Indica el archivo y la posición de la carga.') from None
                     self.send(200, bundles.chunk(ws, upload_id, index, offset, self.body(bundles.CHUNK_BYTES)))
                     return
+            table_parts = path.strip('/').split('/')
+            if len(table_parts) == 4 and table_parts[:2] == ['api', 'datasets'] and table_parts[3] == 'library' and mutation:
+                self.send(200, dossier.library_visibility(ws, table_parts[2], self.json_body()))
+                return
+            if len(table_parts) == 4 and table_parts[:3] == ['api', 'datasets', 'table'] and not mutation:
+                from .preview import source_page
+                self.send(200, source_page(ws, table_parts[3], parse_qs(urlsplit(self.path).query)))
+                return
             if path.startswith('/api/datasets/file/') and not mutation:
                 name, location = dossier.download_location(ws, path.rsplit('/', 1)[-1])
                 self.send_file(location, name)
