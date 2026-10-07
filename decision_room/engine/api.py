@@ -11,7 +11,7 @@ from uuid import UUID, uuid4
 from ..database import connect
 from ..docker_backend import DockerBackend
 from ..storage import Storage, digest
-from . import admission, control, questions, store
+from . import admission, control, questions, store, diagnostics
 from .container import Runtime
 from .export import export_run, folder, snapshot
 from .server import Server
@@ -44,9 +44,10 @@ def _row(config, business, run):
         return control._run(db, business, run)
 
 
-def _issue(config, run, code):
+def _issue(config, run, code, *, error=None, stage=None):
+    detail = diagnostics.describe(error, stage) if error is not None else {}
     with connect(config) as db:
-        admission._event(db, run, 'controller_issue', {'code': code})
+        admission._event(db, run, 'controller_issue', {'code': code, **detail})
 
 
 def _finish(config, business, run, status, reason=None):
@@ -146,13 +147,14 @@ def _drive(config, business, run, *, new_token=None, answer=None):
                     if meta['run_id'] != str(run):
                         raise ValueError('Runtime metadata differs.')
                     Runtime(DockerBackend(), **{k: meta[k] for k in ('run_id', 'instance_id', 'image', 'password', 'token', 'model')}).stop()
-                except Exception:
-                    _issue(config, run, 'runtime_stop_unconfirmed')
+                except Exception as error:
+                    _issue(config, run, 'runtime_stop_unconfirmed', error=error, stage='terminal_cleanup')
             return
         if row['status'] == 'waiting' and answer is None:
             return
         root_folder = folder(config, business, run); meta_path = root_folder / 'control.json'
         runtime = client = tunnel = None
+        stage = 'initialize_runtime'
         try:
             backend = DockerBackend()
             if meta_path.exists():
@@ -182,6 +184,7 @@ def _drive(config, business, run, *, new_token=None, answer=None):
                 meta = {'run_id': str(run), 'instance_id': str(uuid4()), 'image': os.environ.get('DECISION_ROOM_ENGINE_IMAGE_ID', ''),
                         'password': secrets.token_urlsafe(32), 'token': new_token, 'model': row['model'], 'initialized': False}
                 _save(meta_path, meta)
+            stage = 'restore_or_create_runtime'
             if row['status'] == 'waiting':
                 if not isinstance(answer, dict) or set(answer) != {'question_id', 'disposition', 'text', 'request_key'}:
                     raise ValueError('A complete explicit owner answer is required.')
@@ -202,16 +205,22 @@ def _drive(config, business, run, *, new_token=None, answer=None):
                 runtime = Runtime(backend, **{k: meta[k] for k in ('run_id', 'instance_id', 'image', 'password', 'token', 'model')})
                 runtime.create()
                 if not meta['initialized']:
+                    stage = 'install_inputs'
                     runtime.install_files('inputs', _inputs(config, row))
                     meta['initialized'] = True; _save(meta_path, meta)
+            stage = 'start_service'
             server = _service(config, backend)
+            stage = 'start_runtime'
             client = runtime.start()
+            stage = 'start_tunnel'
             tunnel = JobTunnel(backend, runtime.container_id, run, server.origin).start()
+            stage = 'read_session_state'
             state = control.read_state(config, business, run)
             root = state['session_id']
             if root is None:
                 # Stop/restart clears an uncertain, unbound session creation;
                 # no prompt is submitted before the binding transaction.
+                stage = 'reconcile_root_session'
                 runtime.stop(); client.close(); tunnel.close()
                 client = runtime.start(); tunnel = JobTunnel(backend, runtime.container_id, run, server.origin).start()
                 existing = client._request('GET', '/session')
@@ -219,32 +228,44 @@ def _drive(config, business, run, *, new_token=None, answer=None):
                 if len(roots) > 1:
                     raise ValueError('Root session identity is ambiguous.')
                 session = roots[0] if roots else client.create_session(title='Informe del negocio', model=row['model'])
+                stage = 'bind_session'
                 root = control.bind_session(config, business, run, session['id'])
+            stage = 'require_mcp'
             client.require_mcp()
+            stage = 'read_prompt_state'
             state = control.read_state(config, business, run)
             if not state['outbox']:
+                stage = 'load_prompt'
                 prompt = (Path(__file__).resolve().parents[2] / 'engine/opencode/prompts/informe.md').read_text()
+                stage = 'enqueue_prompt'
                 control.enqueue_prompt(config, business, run, request_key='initial', text=prompt + '\n\nEncargo del propietario:\n' + row['owner_context'])
             uncertain_since = None
             while True:
+                stage = 'poll_run'
                 row = _row(config, business, run)
                 if row['status'] in ('aborted', 'failed', 'delivered'):
                     break
                 if row['elapsed'] >= row['limits']['active_seconds']:
                     _finish(config, business, run, 'aborted', 'active_time_limit'); break
+                stage = 'check_tunnel'
                 tunnel.check()
                 state = control.read_state(config, business, run)
                 pending = [p for p in state['outbox'] if p['state'] != 'confirmed']
                 for pending_prompt in pending:
+                    stage = 'dispatch_prompt'
                     control.dispatch_prompt(config, business, run, pending_prompt['message_id'], client)
+                stage = 'observe_sessions'
                 observed = _observe(config, business, run, client, root)
                 row = _row(config, business, run)
                 if row['status'] in ('aborted', 'failed', 'delivered'):
                     break
                 if row['status'] == 'pausing':
+                    stage = 'pause_abort'
                     client.abort(root)
+                    stage = 'pause_checkpoint'
                     key = _checkpoint(config, business, run, runtime, meta, meta_path)
                     q = questions.read(config, business, run)
+                    stage = 'confirm_waiting'
                     questions.confirm_waiting(config, business, run, q['question_id'], checkpoint_key=key)
                     break
                 state = control.read_state(config, business, run)
@@ -255,6 +276,7 @@ def _drive(config, business, run, *, new_token=None, answer=None):
                         _finish(config, business, run, 'aborted', 'prompt_delivery_unresolved'); break
                 else:
                     uncertain_since = None
+                    stage = 'read_turn_status'
                     statuses = client.statuses()
                     busy = any(statuses.get(session, {}).get('type', 'idle') != 'idle' for session in observed)
                     messages = observed[root]
@@ -267,21 +289,29 @@ def _drive(config, business, run, *, new_token=None, answer=None):
                         break
                 time.sleep(0.1)
             if _row(config, business, run)['status'] != 'waiting':
+                stage = 'final_observation'
                 _observe(config, business, run, client, root)
+                stage = 'final_checkpoint'
                 _checkpoint(config, business, run, runtime, meta, meta_path)
-        except Exception:
-            _issue(config, run, 'controller_failure')
+        except Exception as error:
+            _issue(config, run, 'controller_failure', error=error, stage=stage)
             _finish(config, business, run, 'failed', 'controller_failure')
         finally:
-            if tunnel:
-                tunnel.close()
-            if client:
-                client.close()
-            if runtime:
-                try:
-                    runtime.stop()
-                except Exception:
-                    _issue(config, run, 'runtime_stop_unconfirmed')
+            cleanup_errors = []
+            for resource, action, code, cleanup_stage in (
+                (tunnel, 'close', 'tunnel_close_unconfirmed', 'close_tunnel'),
+                (client, 'close', 'client_close_unconfirmed', 'close_client'),
+                (runtime, 'stop', 'runtime_stop_unconfirmed', 'stop_runtime'),
+            ):
+                if resource is not None:
+                    try:
+                        getattr(resource, action)()
+                    except Exception as error:
+                        cleanup_errors.append((code, error, cleanup_stage))
+            # Attempt every cleanup before writing diagnostics: a database outage
+            # must not prevent the final runtime stop.
+            for code, error, cleanup_stage in cleanup_errors:
+                _issue(config, run, code, error=error, stage=cleanup_stage)
 
 
 def run_report(config, business_id, analysis_id, *, owner_context, request_key, limits=None):

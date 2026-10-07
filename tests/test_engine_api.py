@@ -12,6 +12,8 @@ from unittest.mock import patch
 from uuid import uuid4
 
 from decision_room import engine
+from decision_room.database import connect
+from decision_room.engine.client import ProtocolError
 from decision_room.engine import api, admission, checkpoint, questions, store
 from decision_room.reports.verification_contract import validate
 from tests import test_engine_questions as fixtures
@@ -150,6 +152,50 @@ class ApiTests(unittest.TestCase):
             again = engine.resume_report(self.config, self.business, result['engine_run_id'])
             stopped.assert_called_once(); submitted.assert_not_called()
         self.assertEqual(again['status'], 'delivered')
+
+    def test_failure_after_binding_records_safe_stage_before_any_prompt(self):
+        with patch.object(FakeClient, 'require_mcp', side_effect=ProtocolError('The job tool connection is not ready.')):
+            result = self.run_report('mcp-not-ready')
+        self.assertEqual(result['status'], 'failed')
+        self.assertEqual(result['usage']['calls'], 0)
+        diagnostic = result['diagnostics'][0]
+        self.assertEqual((diagnostic['stage'], diagnostic['exception_type'], diagnostic['reason']),
+                         ('require_mcp', 'ProtocolError', 'mcp_not_ready'))
+        with connect(self.config) as db:
+            self.assertEqual(db.execute("SELECT count(*) n FROM engine_events WHERE run_id=%s AND kind='session_bound'",
+                                        (result['engine_run_id'],)).fetchone()['n'], 1)
+            events = db.execute("SELECT payload FROM engine_events WHERE run_id=%s AND kind='controller_issue'",
+                                (result['engine_run_id'],)).fetchall()
+        self.assertEqual(events[0]['payload'], diagnostic)
+        state = api.control.read_state(self.config, self.business, result['engine_run_id'])
+        self.assertEqual(state['outbox'], [])
+        dest = self.root/'diagnostic-export'
+        engine.export_run(self.config, self.business, result['engine_run_id'], dest)
+        self.assertEqual(json.loads((dest/'run.json').read_text())['diagnostics'], [diagnostic])
+
+    def test_failure_keeps_delivered_raw_and_withholds_arbitrary_exception_text(self):
+        secret = 'private credential and filesystem location'
+        with patch.object(FakeClient, 'statuses', side_effect=RuntimeError(secret)):
+            result = self.run_report('safe-failure')
+        self.assertEqual(result['status'], 'failed')
+        self.assertEqual(result['diagnostics'][0]['stage'], 'read_turn_status')
+        self.assertEqual(result['diagnostics'][0]['exception_type'], 'RuntimeError')
+        self.assertNotIn(secret, str(result))
+        received = store.read_document(self.config, self.business, result['engine_run_id'])
+        self.assertTrue(received['raw'])
+        dest = self.root/'partial'; engine.export_run(self.config,self.business,result['engine_run_id'],dest)
+        self.assertEqual((dest/'draft.raw').read_bytes(), received['raw'])
+
+    def test_cleanup_failures_do_not_hide_primary_diagnostic_or_skip_runtime_stop(self):
+        with patch.object(FakeClient, 'require_mcp', side_effect=ProtocolError('The job tool connection is not ready.')), \
+             patch.object(FakeTunnel, 'close', side_effect=[None, RuntimeError('private tunnel detail')]), \
+             patch.object(FakeClient, 'close', side_effect=[None, RuntimeError('private client detail')]), \
+             patch.object(FakeRuntime, 'stop') as stopped:
+            result = self.run_report('cleanup-failures')
+        self.assertGreaterEqual(stopped.call_count, 2)
+        self.assertEqual([d['stage'] for d in result['diagnostics']], ['require_mcp','close_tunnel','close_client'])
+        self.assertNotIn('private', str(result))
+        self.assertEqual(result['status'], 'failed')
 
     def test_failed_render_keeps_raw_and_removes_stale_render(self):
         result = self.run_report(); dest = self.root/'export'

@@ -37,7 +37,9 @@ def snapshot(config, business_id, run_id):
               'document_id': received['document_id'] if received else None,
               'revision_id': received['revision_id'] if received else None,
               'usage': {k: sum(u[k] for u in known) for k in ('input', 'cached', 'output')},
-              'issues': [r['payload']['code'] for r in issues]}
+              'issues': [r['payload']['code'] for r in issues],
+              'diagnostics': [{k: r['payload'][k] for k in ('code', 'stage', 'exception_type', 'reason', 'message', 'http_status')
+                               if k in r['payload']} for r in issues if 'exception_type' in r['payload']]}
     if row['abort_reason']:
         result['issues'].append(row['abort_reason'])
     result['usage'].update(calls=row['calls'], seconds=float(row['elapsed']),
