@@ -1,5 +1,6 @@
 """Stateless MCP boundary for a fixed job snapshot and its own executions."""
 from uuid import UUID
+import re
 
 from .. import execution
 from ..database import connect
@@ -32,10 +33,22 @@ TOOLS = [
          'required': ['request_key', 'draft_json'], 'additionalProperties': False}},
     {'name': 'consulta', 'description': (
         'Run Python in an isolated calculation sandbox. The tables ARGUMENT maps aliases to prepared-table UUIDs from /inputs/manifest.json; '
-        'there is NO implicit Python variable named tables. Import from dr_runtime: connect() returns a DuckDB connection with one read-only Parquet view per alias; '
+        'Check column types from the manifest: a numeric-looking CSV field may be text and need validated explicit casting before SUM/arithmetic. '
+        'There is NO implicit Python variable named tables. Import from dr_runtime: connect() returns a DuckDB connection with one read-only Parquet view per alias; '
         'table_path(alias) returns the Parquet path if you need pandas.read_parquet; TABLES is alias -> metadata, not dataframes, and DEFINITIONS holds the supplied definitions. '
         'Use write_result(metrics, evidence=[{metric, tables:[aliases], operation}], notes=[strings]) to write /output/result.json. '
+        'metrics is a dict of 1–256 named scalars: keys 1–100 characters, values string/int/float/bool/null; '
+        'strings at most 1000 characters and numeric values finite. Lists, dicts, DataFrames and JSON-encoded tables are not metrics. '
         'Every metric needs matching evidence; convert Decimal values to strings. Printing or assigning result alone does not deliver a result. '
+        'For grouped results use named scalar metrics per group (within limits) or series, not a nested table in metrics. '
+        'series is a dict of up to 4 named series; each has unit, grain="category", points:[{label:string,value:number}], '
+        'evidence:{tables:[aliases],operation:string}. Category labels are 1–100 characters. Use 2–366 uniquely labelled points per series, at most 800 points total. '
+        'Keep at least one scalar metric (e.g. group_count) with evidence when using series. A one-point result is a scalar. '
+        'notes contains at most 100 strings of at most 4000 characters. Write additional CSV/Parquet tables under /output '
+        'only as retained artifacts; resultado currently pages result.json, not those artifact contents. '
+        'For an explicit top-N, include full group count and the selection/ordering rule; do not pass a truncated subset as a total. '
+        'On failed/invalid_output read diagnostic and submit corrected code with a NEW request_key. '
+
         'Example with tables={"data":"UUID_FROM_MANIFEST"}:\n'
         'from dr_runtime import connect, write_result\n'
         'with connect() as db:\n    rows = db.execute("SELECT COUNT(*) FROM data").fetchone()[0]\n'
@@ -73,6 +86,52 @@ def _leaves(value, path=''):
             yield {'path': path, 'part': i, 'value': part}
 
 
+# Expose only known contract diagnostics, never raw exceptions, logs or paths.
+_RESULT_ERRORS = {
+    'Missing result.json.': ('missing_result', 'Call dr_runtime.write_result(metrics, evidence=...) before the program exits.'),
+    'Metrics must contain named scalar values.': ('non_scalar_metric', 'Use a dict of named scalar values; move grouped numeric points to series. Lists, dicts and DataFrames are not scalar metrics.'),
+    'Metric text too long.': ('metric_text_too_long', 'Each metric string is at most 1000 characters. Do not encode a table as one metric; use named scalars or series.'),
+    'Provide between 1 and 256 metrics.': ('metric_count', 'Provide 1–256 named scalar metrics, including when using series.'),
+    'Invalid result schema.': ('result_schema', 'Use write_result(metrics, evidence=..., notes=..., series=...) to produce schema_version 1.'),
+    'Metric is not finite.': ('nonfinite_metric', 'Remove NaN/Infinity; represent unavailable values as null with an explicit limitation.'),
+    'Missing or excessive evidence.': ('evidence_count', 'Provide 1–512 evidence entries and cover every metric.'),
+    'Invalid evidence schema.': ('evidence_schema', 'Each evidence entry needs metric, tables (aliases) and operation.'),
+    'Evidence refers to an unknown metric.': ('evidence_metric', 'Match each evidence.metric to a key in metrics.'),
+    'Evidence refers to an unauthorized table.': ('evidence_table', 'Use only the aliases in this consulta tables argument.'),
+    'Invalid notes.': ('notes_shape', 'Use at most 100 note strings, each at most 4000 characters.'),
+    'At most four saved series per execution.': ('series_count', 'Use at most four series per execution.'),
+    'Series require unit, grain, points and evidence.': ('series_shape', 'Each series needs unit, grain, points and evidence; arbitrary table columns are not series.'),
+    'Invalid series unit or grain.': ('series_unit_grain', 'Use a nonempty unit of at most 80 characters and a supported grain, such as category.'),
+    'Series points need label and value.': ('series_point_shape', 'Each point has exactly label and value.'),
+    'Series labels must be unique; dates must be ordered.': ('series_labels', 'Use unique category labels, or ordered dates for calendar grains.'),
+}
+
+
+def diagnostic(record):
+    if record['status'] not in {'failed', 'invalid_output', 'timed_out', 'interrupted'}:
+        return None
+    issue = record.get('issue')
+    known = _RESULT_ERRORS.get(issue) if isinstance(issue, str) else None
+    if known is None and isinstance(issue, str) and issue.startswith('Every metric must have evidence. Missing: '):
+        known = ('metric_without_evidence', 'Add matching evidence for every metric key; the list must cover all metrics.')
+    if known is None and record['status'] == 'failed':
+        hints = {
+            'NameError': 'Import the dr_runtime helpers explicitly. There is no implicit tables variable; use connect() or table_path(alias). Check other variable definitions.',
+            'BinderException': 'Check prepared column types and SQL signatures. Numeric-looking CSV columns may still be text; validate values and cast explicitly before arithmetic.',
+            'ConversionException': 'Check input formats before casting; report invalid values rather than replacing them silently with zero.',
+            'SyntaxError': 'Correct the Python syntax and submit the changed program with a new request_key.',
+            'ModuleNotFoundError': 'Use libraries available in the isolated sandbox, such as duckdb and pandas; runtime package downloads are not supported.',
+        }
+        stderr = (record.get('logs') or {}).get('stderr', '')
+        names = re.findall(r'(?m)^(?:[a-zA-Z_]\w*\.)?('+'|'.join(hints)+r'):', stderr) if isinstance(stderr,str) else []
+        if names:
+            known = ('python_'+names[-1].lower(), hints[names[-1]])
+    if known is None:
+        known = ('calculation_'+record['status'], 'Check the Python program, sandbox API and output contract. The result is unavailable; do not treat missing output as zero.')
+    return {'code': known[0], 'message': known[1],
+            'retry': 'Identical input and request_key retrieve this execution. Use a new request_key for corrected code or arguments.'}
+
+
 def page_result(record, cursor=0):
     if type(cursor) is not int or cursor < 0:
         raise ValueError('Invalid result cursor.')
@@ -83,6 +142,9 @@ def page_result(record, cursor=0):
             'verification': 'pending', 'result_sha256': admission.sha(admission.canonical(record.get('result'))),
             'columns': ['path', 'part', 'value'], 'rows': [], 'total_rows': len(rows),
             'truncated': False, 'cursor': None}
+    problem = diagnostic(record)
+    if problem:
+        page['diagnostic'] = problem
     for row in rows[cursor:cursor+100]:
         candidate = {**page, 'rows': page['rows'] + [row]}
         # Leave space for MCP/JSON-RPC framing, including escaped string content.
@@ -194,7 +256,7 @@ def dispatch(config, run_id, token, message, *, backend=None):
             raise
         except (ValueError, KeyError, TypeError):
             # Execution errors may contain private storage paths; never echo them.
-            result = {'isError': True, 'content': [{'type': 'text', 'text': 'Invalid or unsuccessful calculation. Check the arguments and retry with the same request key.'}]}
+            result = {'isError': True, 'content': [{'type': 'text', 'text': 'Invalid or unsuccessful calculation. Check the arguments. Identical input may reuse its request key; changed code or arguments require a new request key.'}]}
     else:
         return {**response, 'error': {'code': -32601, 'message': 'Method not found.'}}
     encoded = admission.canonical({**response, 'result': result})
