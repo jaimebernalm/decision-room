@@ -196,3 +196,20 @@ La fórmula separa entrada ordinaria, lectura y escritura de caché, según la
 [documentación de caché](https://developers.openai.com/api/docs/guides/prompt-caching).
 Los precios de referencia son los del [modelo](https://developers.openai.com/api/docs/models/gpt-6-luna)
 y la [tabla pública](https://developers.openai.com/api/docs/pricing).
+
+## Diagnóstico del controlador
+
+Los eventos `controller_issue` conservan el código existente y, cuando hay una
+excepción, añaden `stage`, `exception_type`, `reason`, `message` y opcionalmente
+`http_status`. El snapshot y `run.json` los exponen en la lista aditiva
+`diagnostics`; `issues` sigue siendo una lista de códigos. Las etapas distinguen
+la conexión MCP, lectura de estado, carga/encolado del prompt, observación y
+checkpoint. La etapa identifica la operación que estaba activa, no prueba por sí
+sola su causa externa.
+
+Los mensajes conocidos se traducen mediante un catálogo de constantes; un mensaje
+arbitrario se sustituye por una explicación genérica. No se serializan traceback,
+rutas, URL, argumentos o cadenas de causas. Los errores de cierre se registran
+separados y no impiden intentar detener el resto de recursos. Un fallo previo al
+primer prompt queda registrado como fallo sin contenido; nunca se fabrica un
+informe para satisfacer una métrica ni se oculta con el éxito de otro intento.
