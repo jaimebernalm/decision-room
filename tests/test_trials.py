@@ -285,7 +285,8 @@ class FakeEngine:
         question = {'question_id': f'q{len(self.calls)}', 'text': '¿Qué periodo?'} if status == 'waiting' else None
         return {'engine_run_id': 'run-1', 'status': status, 'question': question, 'contract_version': 1,
                 'usage': {'input': 1000, 'cached': 900, 'output': 50, 'calls': 4, 'seconds': 3.0,
-                          'cost_catalog': 0.01}, 'issues': []}
+                          'cost_catalog': 0.01}, 'issues': [],
+                'diagnostics': [{'stage': 'require_mcp', 'reason': 'fixture'}] if status in ('failed', 'aborted') else []}
 
     def run_report(self, config, business_id, analysis_id, *, owner_context, request_key):
         self.calls.append(('run', business_id, analysis_id, owner_context, request_key))
@@ -363,6 +364,7 @@ class EngineArmTests(unittest.TestCase):
         self.assertEqual(fake.calls[-1][0], 'export')
         self.assertTrue((job / 'engine/draft.raw').exists())
         self.assertFalse((job / 'informe.html').exists() or state['publishable'])
+        self.assertEqual(state['engine_diagnostics'], [{'stage': 'require_mcp', 'reason': 'fixture'}])
 
     def test_delivered_status_without_a_report_file_is_not_a_report(self):
         state, job, error = self.run_engine(FakeEngine(['delivered'], deliver=False))

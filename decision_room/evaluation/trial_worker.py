@@ -133,7 +133,8 @@ def engine_new(config, state, job, phase, batch, dataset):
         # right even when resume_report raised after spending tokens.
         final = engine.export_run(config, state['business_id'], state['engine_run_id'], job / 'engine') or result
         state.update(engine_status=final['status'], engine_usage=final.get('usage'),
-                     contract_version=final.get('contract_version'), engine_issues=final.get('issues', []))
+                     contract_version=final.get('contract_version'), engine_issues=final.get('issues', []),
+                     engine_diagnostics=final.get('diagnostics', []))
     result = final
     html = job / 'engine' / 'informe.html'
     delivered = result['status'] == 'delivered' and html.exists() and bool(readable(html.read_text(errors='replace')))
