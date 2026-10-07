@@ -1255,5 +1255,14 @@
   "Ajustar mapa": "Fit map",
   "Ajustar": "Fit",
   "Selecciona una tabla para ver sus columnas. Las líneas discontinuas indican conexiones por confirmar o descartadas.": "Select a table to see its columns. Dashed lines indicate connections that are pending confirmation or rejected.",
-  "El mapa muestra hasta ocho columnas por tabla; los detalles incluyen todas.": "The map shows up to eight columns per table; details include all columns."
+  "El mapa muestra hasta ocho columnas por tabla; los detalles incluyen todas.": "The map shows up to eight columns per table; details include all columns.",
+  "Varias filas de «{0}» pueden corresponder a una misma fila de «{1}».": "Several rows in “{0}” can correspond to the same row in “{1}”.",
+  "Una fila de «{0}» puede corresponder a varias filas de «{1}».": "One row in “{0}” can correspond to several rows in “{1}”.",
+  "Una fila de «{0}» puede corresponder a una fila de «{1}».": "One row in “{0}” can correspond to one row in “{1}”.",
+  "Varias filas de «{0}» pueden corresponder a varias filas de «{1}».": "Several rows in “{0}” can correspond to several rows in “{1}”.",
+  "Esta conexión permite combinar información de «{0}» y «{1}».": "This connection lets you combine information from “{0}” and “{1}”.",
+  "Se conectan comparando «{0}» con «{1}».": "They connect by matching “{0}” with “{1}”.",
+  "Conexión propuesta: su significado aún está por confirmar.": "Proposed connection: its meaning still needs confirmation.",
+  "Esta conexión está descartada.": "This connection has been rejected.",
+  "Arrastra para moverte por el mapa. Pasa por una conexión para entenderla; selecciona una tabla para ver sus columnas.": "Drag to move around the map. Hover over a connection to understand it; select a table to see its columns."
 }

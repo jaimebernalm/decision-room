@@ -19,6 +19,8 @@ function getRenderer() {
       look: "classic",
       layout: "dagre",
       htmlLabels: false,
+      // ER syntax needs a type token; keep that implementation detail out of the map.
+      themeCSS: ".attribute-type { display: none; }",
       themeVariables: {
         fontFamily: "Geist Variable, sans-serif",
         fontSize: "13px",
@@ -31,6 +33,36 @@ function getRenderer() {
     });
     return mermaid;
   }));
+}
+
+function relationExplanation(relation: Relation, from: Table, to: Table) {
+  const cardinalities: Record<string, string> = {
+    "many-to-one":
+      "Varias filas de «{0}» pueden corresponder a una misma fila de «{1}».",
+    "one-to-many":
+      "Una fila de «{0}» puede corresponder a varias filas de «{1}».",
+    "one-to-one": "Una fila de «{0}» puede corresponder a una fila de «{1}».",
+    "many-to-many":
+      "Varias filas de «{0}» pueden corresponder a varias filas de «{1}».",
+  };
+  const summary =
+    relation.description ||
+    tr(
+      cardinalities[relation.cardinality] ||
+        "Esta conexión permite combinar información de «{0}» y «{1}».",
+      { 0: from.name, 1: to.name },
+    );
+  const keys = tr("Se conectan comparando «{0}» con «{1}».", {
+    0: relation.source_columns.join(" + "),
+    1: relation.target_columns.join(" + "),
+  });
+  const status =
+    relation.semantic_status === "proposed"
+      ? tr("Conexión propuesta: su significado aún está por confirmar.")
+      : relation.semantic_status === "rejected"
+        ? tr("Esta conexión está descartada.")
+        : "";
+  return { summary, keys, status };
 }
 
 export function ERDiagram({
@@ -52,11 +84,30 @@ export function ERDiagram({
   const id = `data-map-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const container = useRef<HTMLDivElement>(null);
   const drawing = useRef<HTMLDivElement>(null);
+  const viewport = useRef<HTMLDivElement>(null);
+  const drag = useRef<{
+    id: number;
+    x: number;
+    y: number;
+    panX: number;
+    panY: number;
+    moved: boolean;
+  } | null>(null);
+  const suppressClick = useRef(false);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const [size, setSize] = useState({ width: 640, height: 400 });
+  const [hover, setHover] = useState<{
+    id: string;
+    x: number;
+    y: number;
+  } | null>(null);
   const [direction, setDirection] = useState<"LR" | "TB">("TB");
   const [rendered, setRendered] = useState<{
     source: string;
     svg: string;
     width: number;
+    height: number;
   } | null>(null);
   const [error, setError] = useState("");
   const [zoom, setZoom] = useState(1);
@@ -65,11 +116,18 @@ export function ERDiagram({
   useEffect(() => {
     const element = container.current;
     if (!element) return;
-    const measure = () =>
+    const measure = () => {
       setDirection(element.clientWidth >= 650 ? "LR" : "TB");
+      if (viewport.current)
+        setSize({
+          width: viewport.current.clientWidth,
+          height: viewport.current.clientHeight,
+        });
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(element);
+    if (viewport.current) observer.observe(viewport.current);
     return () => observer.disconnect();
   }, []);
   useEffect(() => {
@@ -82,6 +140,10 @@ export function ERDiagram({
         const root = doc.documentElement;
         root.setAttribute("role", "presentation");
         root.removeAttribute("aria-roledescription");
+        // Remove the generic type column and its separator; retain row borders and declared keys.
+        root
+          .querySelectorAll(".attribute-type, .divider")
+          .forEach((node) => node.remove());
         for (const { table, svgId } of graph.nodes) {
           const node =
             doc.getElementById(`${id}-${svgId}`) || doc.getElementById(svgId);
@@ -91,12 +153,10 @@ export function ERDiagram({
           node.setAttribute("aria-label", tr("Tabla {0}", { 0: table.name }));
           node.setAttribute("data-table-id", table.id);
         }
-        for (const {
-          relation,
-          source: from,
-          target: to,
-          svgId,
-        } of graph.edges) {
+        for (const [
+          index,
+          { relation, source: from, target: to, svgId },
+        ] of graph.edges.entries()) {
           const path = doc.querySelector(`[data-edge][data-id="${svgId}"]`);
           if (!path) continue;
           const connection = doc.createElementNS(
@@ -113,6 +173,14 @@ export function ERDiagram({
             }),
           );
           connection.setAttribute("data-relation-id", relation.id);
+          connection.setAttribute(
+            "aria-describedby",
+            `${id}-relation-${index}`,
+          );
+          const label = doc.querySelector(
+            `.edgeLabel [data-id="${svgId}"]`,
+          )?.parentElement;
+          label?.setAttribute("data-relation-id", relation.id);
           path.setAttribute("data-status", relation.semantic_status);
           const hit = path.cloneNode(true) as Element;
           hit.removeAttribute("id");
@@ -127,11 +195,16 @@ export function ERDiagram({
         }
         const width =
           Number(root.getAttribute("viewBox")?.split(/\s+/)[2]) || 640;
+        const height =
+          Number(root.getAttribute("viewBox")?.split(/\s+/)[3]) || 400;
         setRendered({
           source,
           svg: new XMLSerializer().serializeToString(root),
           width,
+          height,
         });
+        setPan({ x: 0, y: 0 });
+        setHover(null);
         setError("");
       })
       .catch(() => {
@@ -168,6 +241,37 @@ export function ERDiagram({
     else if (node?.getAttribute("data-relation-id"))
       chooseEdge(node.getAttribute("data-relation-id")!);
   };
+  const hoveredEdge = graph.edges.find(
+    ({ relation }) => relation.id === hover?.id,
+  );
+  const explanation =
+    hoveredEdge &&
+    relationExplanation(
+      hoveredEdge.relation,
+      hoveredEdge.source.table,
+      hoveredEdge.target.table,
+    );
+  const fit = rendered
+    ? Math.max(
+        0.05,
+        Math.min(
+          (size.width - 48) / rendered.width,
+          (size.height - 48) / rendered.height,
+          1,
+        ),
+      )
+    : 1;
+  const showExplanation = (
+    target: EventTarget | null,
+    x: number,
+    y: number,
+  ) => {
+    const relationId =
+      target instanceof Element
+        ? target.closest("[data-relation-id]")?.getAttribute("data-relation-id")
+        : null;
+    setHover(relationId ? { id: relationId, x, y } : null);
+  };
   return (
     <div
       ref={container}
@@ -193,7 +297,11 @@ export function ERDiagram({
             size="sm"
             className="h-7 px-2 text-xs"
             aria-label={tr("Ajustar mapa")}
-            onClick={() => setZoom(1)}
+            onClick={() => {
+              setZoom(1);
+              setPan({ x: 0, y: 0 });
+              setHover(null);
+            }}
           >
             <Maximize2 className="size-3.5" />
             {tr("Ajustar")}
@@ -203,33 +311,118 @@ export function ERDiagram({
             size="icon"
             className="size-7"
             aria-label={tr("Acercar mapa")}
-            disabled={zoom >= 2}
-            onClick={() => setZoom((z) => Math.min(2, z + 0.25))}
+            disabled={zoom >= 4}
+            onClick={() => setZoom((z) => Math.min(4, z + 0.25))}
           >
             <Plus className="size-3.5" />
           </Button>
         </div>
       </div>
       <Notice error>{error}</Notice>
-      {!error && rendered?.source !== source && <Loading />}
-      {rendered?.source === source && (
-        <div
-          className="data-map-scroll"
-          role="group"
-          aria-label={tr("Diagrama ER de esta revisión del modelo")}
-        >
+      <div
+        ref={viewport}
+        className="data-map-viewport"
+        data-dragging={dragging}
+        role="group"
+        tabIndex={0}
+        aria-label={tr("Diagrama ER de esta revisión del modelo")}
+        onPointerDown={(e) => {
+          if (e.button !== 0 || drag.current) return;
+          suppressClick.current = false;
+          drag.current = {
+            id: e.pointerId,
+            x: e.clientX,
+            y: e.clientY,
+            panX: pan.x,
+            panY: pan.y,
+            moved: false,
+          };
+        }}
+        onPointerMove={(e) => {
+          const active = drag.current;
+          if (active && active.id === e.pointerId) {
+            const dx = e.clientX - active.x,
+              dy = e.clientY - active.y;
+            if (!active.moved && Math.hypot(dx, dy) <= 4) return;
+            if (!active.moved) {
+              active.moved = true;
+              e.currentTarget.setPointerCapture(e.pointerId);
+              setDragging(true);
+            }
+            suppressClick.current = true;
+            setHover(null);
+            setPan({ x: active.panX + dx, y: active.panY + dy });
+          } else {
+            const bounds = e.currentTarget.getBoundingClientRect();
+            showExplanation(
+              e.target,
+              e.clientX - bounds.left,
+              e.clientY - bounds.top,
+            );
+          }
+        }}
+        onPointerUp={(e) => {
+          if (drag.current?.id !== e.pointerId) return;
+          drag.current = null;
+          setDragging(false);
+          if (e.currentTarget.hasPointerCapture(e.pointerId))
+            e.currentTarget.releasePointerCapture(e.pointerId);
+        }}
+        onPointerCancel={() => {
+          drag.current = null;
+          setDragging(false);
+          setHover(null);
+        }}
+        onLostPointerCapture={() => {
+          drag.current = null;
+          setDragging(false);
+        }}
+        onPointerLeave={() => {
+          setHover(null);
+          if (!drag.current?.moved) drag.current = null;
+        }}
+        onClickCapture={(e) => {
+          if (suppressClick.current) {
+            e.stopPropagation();
+            suppressClick.current = false;
+          }
+        }}
+        onFocusCapture={(e) => {
+          if (!(e.target instanceof Element)) return;
+          const node = e.target.getBoundingClientRect(),
+            bounds = e.currentTarget.getBoundingClientRect();
+          showExplanation(
+            e.target,
+            node.x + node.width / 2 - bounds.x,
+            node.y + node.height / 2 - bounds.y,
+          );
+        }}
+        onBlurCapture={() => setHover(null)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") setHover(null);
+          if (e.target !== e.currentTarget) return;
+          const offsets: Record<string, [number, number]> = {
+            ArrowLeft: [48, 0],
+            ArrowRight: [-48, 0],
+            ArrowUp: [0, 48],
+            ArrowDown: [0, -48],
+          };
+          if (offsets[e.key]) {
+            e.preventDefault();
+            setHover(null);
+            const [x, y] = offsets[e.key];
+            setPan((p) => ({ x: p.x + x, y: p.y + y }));
+          }
+        }}
+      >
+        {!error && rendered?.source !== source && <Loading />}
+        {rendered?.source === source && (
           <div
             ref={drawing}
             className="data-map-drawing"
             style={{
-              width:
-                zoom === 1
-                  ? `min(100%, ${rendered.width}px)`
-                  : rendered.width * zoom,
-              minWidth:
-                zoom === 1
-                  ? Math.min(rendered.width, 300)
-                  : rendered.width * zoom,
+              width: rendered.width,
+              transform: `translate(-50%, -50%) translate(${pan.x}px, ${pan.y}px) scale(${fit * zoom})`,
             }}
             onClick={(e) => activate(e.target)}
             onKeyDown={(e) => {
@@ -244,11 +437,43 @@ export function ERDiagram({
             }}
             dangerouslySetInnerHTML={{ __html: rendered.svg }}
           />
-        </div>
-      )}
+        )}
+        {hover && explanation && (
+          <div
+            role="tooltip"
+            className="data-map-tooltip"
+            style={{
+              left: Math.max(12, Math.min(hover.x - 130, size.width - 272)),
+              top: Math.max(12, Math.min(hover.y + 16, size.height - 176)),
+            }}
+          >
+            <p className="line-clamp-3">{explanation.summary}</p>
+            <p className="mt-1 line-clamp-2 text-muted-foreground">
+              {explanation.keys}
+            </p>
+            {explanation.status && (
+              <p className="mt-1 line-clamp-2 font-medium">
+                {explanation.status}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+      {graph.edges.map(({ relation, source: from, target: to }, index) => {
+        const text = relationExplanation(relation, from.table, to.table);
+        return (
+          <p
+            key={relation.id}
+            id={`${id}-relation-${index}`}
+            className="sr-only"
+          >
+            {text.summary} {text.keys} {text.status}
+          </p>
+        );
+      })}
       <p className="border-t px-3 py-2 text-[11px] leading-4 text-muted-foreground">
         {tr(
-          "Selecciona una tabla para ver sus columnas. Las líneas discontinuas indican conexiones por confirmar o descartadas.",
+          "Arrastra para moverte por el mapa. Pasa por una conexión para entenderla; selecciona una tabla para ver sus columnas.",
         )}
         {tables.some((t) => t.columns.length > 8) &&
           " " +

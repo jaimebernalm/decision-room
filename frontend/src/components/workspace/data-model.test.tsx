@@ -95,7 +95,7 @@ describe("versioned ER data model", () => {
       screen.getByText(/Este conjunto tiene una sola tabla/),
     ).toBeVisible();
     await userEvent.click(
-      screen.getByRole("button", { name: "Tabla Table 0" }),
+      await screen.findByRole("button", { name: "Tabla Table 0" }),
     );
     expect(
       screen.getByRole("button", { name: /Corregir o aclarar/ }),

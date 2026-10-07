@@ -1,15 +1,32 @@
 .data-model-map {
   contain: inline-size;
 }
-.data-map-scroll {
-  max-height: 34rem;
-  overflow: auto;
-  padding: 1rem;
+.data-map-viewport {
+  position: relative;
+  height: clamp(20rem, 45vh, 34rem);
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+  background-image: radial-gradient(var(--border) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+.data-map-viewport[data-dragging="true"],
+.data-map-viewport[data-dragging="true"] * {
+  cursor: grabbing !important;
+}
+.data-map-viewport:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
 }
 .data-map-drawing {
-  margin: auto;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform-origin: center;
 }
 .data-map-drawing > svg {
+  display: block;
   width: 100%;
   height: auto;
   max-width: none !important;
@@ -42,8 +59,9 @@
 .data-map-drawing .edgeLabel rect {
   fill: var(--background) !important;
 }
-.data-map-drawing .edgeLabels {
-  pointer-events: none;
+.data-map-drawing .edgeLabel {
+  pointer-events: auto;
+  cursor: pointer;
 }
 .data-map-drawing [data-status="proposed"],
 .data-map-drawing [data-status="rejected"] {
@@ -70,4 +88,20 @@
 }
 .data-map-drawing [role="button"]:focus-visible {
   outline: none;
+}
+.data-map-tooltip {
+  position: absolute;
+  z-index: 1;
+  width: 260px;
+  max-width: calc(100% - 24px);
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: 0 4px 16px #00000012;
+  font-size: 12px;
+  line-height: 1.5;
+  pointer-events: none;
+  overflow-wrap: anywhere;
 }

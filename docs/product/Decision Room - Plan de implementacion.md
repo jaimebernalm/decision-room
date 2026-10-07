@@ -706,6 +706,23 @@ Comprobados cápsulas de 30 px, separación de 3 px, Mermaid real con tres tabla
 selección de conexiones mediante ratón y teclado, zoom y móvil sin desbordamiento.
 Véanse [comprobaciones y límites](../validation/2026-10-06-compact-bubbles-and-mermaid.md).
 
+### 2.5.30. Navegación por el mapa y conexiones comprensibles
+
+1. Retirar el tipo genérico «dato» y su separador del dibujo; conservar nombres
+   de columnas, bordes de filas y claves declaradas.
+2. Convertir el mapa en un lienzo contenido que permita arrastrar con ratón o
+   puntero táctil, ampliar y volver a ajustar. Separar clic de arrastre.
+3. Explicar brevemente cada conexión al pasar por su línea o etiqueta, y al
+   enfocarla con teclado: significado, columnas comparadas y estado pendiente
+   o descartado. Conservar acceso a detalles y comprobaciones.
+4. Comprobar escritorio/móvil, pruebas frontend, compilación, lint y revisión
+   pública de los archivos antes de guardar el commit local.
+
+**Completado:** 244 pruebas frontend pasan; compilación y lint sin errores.
+Comprobados retirada de «dato», arrastre libre, zoom, ajuste, explicación por
+puntero y teclado, y móvil sin desbordamiento. Véanse
+[comprobaciones y límites](../validation/2026-10-06-map-canvas-and-explanations.md).
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Avance, 27 de septiembre de 2026:** completados **3.1** (medición inicial),
