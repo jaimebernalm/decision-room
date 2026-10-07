@@ -253,3 +253,15 @@ actividad y migraciones. Dos comprobaciones posteriores añaden el recorrido
 HTTP y corrupción de la respuesta (14/14 de preguntas). Esas pruebas usan PostgreSQL y SQLite
 reales; verifican concurrencia, aislamiento, repetición, corrupción, caducidad,
 reservas inciertas y presupuestos conservados. No se facturó ninguna llamada.
+
+
+## Tier de procesamiento
+
+El proxy fija `service_tier="default"` como política Standard del servicio y lo
+incluye en la petición efectiva cuyo hash se registra. Rechaza `auto`, Fast,
+Priority, Flex, null y tipos inválidos antes de reservar o llamar al proveedor.
+Omitirlo tampoco permite heredar el tier configurado en el proyecto. El conteo de
+entrada recibe solo los campos admitidos por su endpoint. Las 21 pruebas de
+admisión pasan, incluido el transporte simulado al proveedor que comprueba el
+valor efectivo enviado y cero llamadas ante un intento de cambiarlo. Esto no
+implementa todavía el catálogo ni demuestra el tier facturado por el proveedor.

@@ -247,10 +247,30 @@ class EngineTests(unittest.TestCase):
         self.forward(run, token, handler, request)
         self.assertEqual(seen[0], {k: v for k, v in seen[1].items() if k in proxy.COUNT_FIELDS})
         self.assertEqual((seen[1]['max_output_tokens'], seen[1]['store']), (8000, False))
+        self.assertEqual(seen[1]['service_tier'], 'default')
+        self.assertNotIn('service_tier', seen[0])
         state = self.inspect(run)
         self.assertEqual((state['charged_input'], state['charged_output'], state['calls']), (7, 5, 1))
         self.assertIsNotNone(state['model_calls'][0]['admitted_at'])
         self.assertGreaterEqual(state['model_calls'][0]['count_seconds'], 0)
+
+    def test_processing_tier_cannot_be_upgraded_or_inherited_from_project(self):
+        run, token = self.create()
+        seen = []
+        def provider(request):
+            seen.append(request)
+            self.fail('Tier rejected before any provider call or quota reservation')
+        for tier in ['auto', 'fast', 'priority', 'flex', None, 1, {}, ['default']]:
+            with self.subTest(tier=tier), self.assertRaises(admission.Denied):
+                self.forward(run, token, provider,
+                             {'model': 'test-model', 'input': 'Compute.', 'service_tier': tier})
+        self.assertEqual(seen, [])
+        self.assertEqual(self.inspect(run)['calls'], 0)
+        job = admission.authenticate(self.config, run, token)
+        request, count = proxy.prepare(admission.canonical(
+            {'model': 'test-model', 'input': 'Compute.', 'service_tier': 'default'}), job)
+        self.assertEqual(request['service_tier'], 'default')
+        self.assertNotIn('service_tier', count)
 
     def test_count_failure_aborts_without_generation(self):
         run, token = self.create()
