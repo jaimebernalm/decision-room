@@ -8,6 +8,9 @@ a `8b683d6`, no a una ejecución retrospectiva del código posterior.
 
 `python -m unittest discover -s tests -p 'test_engine_*.py' -v`: **117/117**,
 113,456 s, con la imagen fijada de OpenCode habilitada; ninguna prueba omitida.
+Tras integrar `af34a9e` en `e5a758a`, **73/73** pruebas del lanzador, unión de
+exactitud, representación y contrato pasan en 25,392 s, incluido el brazo con motor
+real y proveedor simulado.
 El subconjunto nuevo de fallos y contenedor pasó **9/9** antes de la regresión.
 Incluye PostgreSQL real, cálculo Docker real y los cuatro recorridos integrados
 de API con proveedor simulado. No se realizaron llamadas facturables.

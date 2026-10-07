@@ -42,6 +42,13 @@ abierto hasta las pruebas reales 3+3, calibración y criterios del plan del moto
 Véanse el [contrato de exportación](../technical/engine-export-contract.md) y las
 limitaciones operativas en `engine/opencode/README.md`.
 
+**P2 del motor — servicio cerrado en alcance local, 7 de octubre:**
+[criterios y límites de recuperación](../technical/engine-p2-recovery.md), 117
+pruebas del motor y 73 de integración de medición/representación aprobadas. El
+[lote real](../validation/2026-10-07-engine-p2-runs.md) entrega seis informes de
+siete intentos y conserva el intento perdido; no prueba todavía calidad analítica.
+Topes de P2 sin cambio. La puerta de P3 y la integración web siguen abiertas.
+
 **A2 del motor — evidencia acotada, 7 de octubre:** bloques de hechos con etiqueta,
 unidad y ámbito generados a partir del panorama recalculado; prosa libre sin
 certificación automática y gráficos por referencias con tabla completa. La

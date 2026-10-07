@@ -321,11 +321,17 @@ siguen explícitas en el resumen.
     Bruma), con la entrega persistida en bruto antes de validarse y el coste por
     trabajo registrado, incluidos título, compactación y subagentes.
 
-**Estado P2:** iniciado. El [primer tramo de admisión](engine-admission.md) incorpora
-credenciales por trabajo, reservas duraderas, proxy, consulta MCP y transiciones
-duraderas de pregunta/espera/respuesta con pruebas locales. Estas últimas aún
-necesitan la conexión con el supervisor del contenedor. El servicio completo y sus criterios de recuperación/ejecución real
-siguen pendientes; no se declara P2 terminado.
+**Estado P2:** completo dentro del alcance local, 7 de octubre. La
+[matriz criterio → prueba → resultado](engine-p2-recovery.md) registra 117 pruebas
+del motor, incluidos SIGKILL de procesos y contenedor, PostgreSQL real, reservas
+concurrentes y recuperación conservadora. Tras integrar la medición local, otras
+73 pruebas del lanzador, unión de exactitud, representación y contrato pasan,
+incluido su recorrido con motor real y proveedor simulado. El [lote real
+3+3](../validation/2026-10-07-engine-p2-runs.md) entregó seis informes en siete
+intentos; el perdido se conserva y su causa original no está identificada. Coste
+de catálogo del lote ≈0,155 USD. Se mantienen 3M/64k/8k/60/1200 s para P2.
+El cierre no acredita calidad de P3 ni operación desatendida en producción; la
+matriz explicita los límites de recuperación y las cuotas de disco pendientes.
 
 ### Paso 3. Habilidad de informe (puerta)
 
