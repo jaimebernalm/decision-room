@@ -71,6 +71,13 @@ los gráficos en ambas exportaciones; el cambio no certifica nombres del agente.
 Véase el [registro del candidato](../technical/engine-p3-candidate.md). Topes y
 puerta sin cambios; el ensayo preliminar no cuenta como medición de P3.
 
+**A2 del motor — continuación tras el canario, 7 de octubre:** se retira el
+candidato `ff36234` antes de la medida formal por una entrega provisional sin
+prioridades. Paginación con desplazamientos y continuación explícitos; instrucciones
+para investigar tras guardar un avance y acotar las limitaciones de catálogos.
+[Registro y límites de la revisión](../technical/engine-p3-candidate.md).
+Topes y puerta sin cambios. El canario se conserva como evidencia de desarrollo.
+
 ## 2. Orden general
 
 | Orden | Entrega | Resultado comprobable | Motivo |

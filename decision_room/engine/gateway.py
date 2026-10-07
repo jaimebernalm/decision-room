@@ -15,7 +15,7 @@ TOOLS = [
         'No joins, deduplication, locale parsing, inferred units or imputation. Null filter values are excluded; numeric nulls are excluded and their count is visible. '
         'Empty numeric selections and malformed dates/numbers are unavailable, not zero. Mean uses the non-null record count, not calendar days. '
         'Bounded to 200000 input rows, 128 MiB Parquet and 30 s; no truncated result is certified. Values rounded to 12 decimal places. '
-        'Follow cursor or resultado for all metrics, generated display scopes and issues. Use consulta for unsupported analysis and retain its uncertainty. '
+        'Follow next_call for all result pages, generated display scopes and issues. Use consulta for unsupported analysis and retain its uncertainty. '
         'Example recipe: {"key":"units","operation":"sum","column":"quantity","filters":[{"column":"channel","operator":"in","values":["Local"]}]}. '
         'A retry requires identical input; changed recipes require a new request_key.'),
      'inputSchema': {'type':'object','properties': {
@@ -33,21 +33,21 @@ TOOLS = [
          'request_key': {'type': 'string'}, 'text': {'type': 'string'}, 'reason': {'type': 'string'},
          'options': {'type': 'array', 'maxItems': 8, 'items': {'type': 'string'}}},
          'required': ['request_key', 'text', 'reason'], 'additionalProperties': False}},
-    {'name': 'verify_numbers', 'description': 'Resolve 1–32 metric references within this job. Recalculate deterministic panorama and calculo scopes; agent calculations remain unverified without a server recipe. Does not verify prose attribution, owner units, causes or priority. Results and corrections are durable and paged; repeat unchanged input with cursor.',
+    {'name': 'verify_numbers', 'description': 'Resolve 1–32 metric references within this job. Recalculate deterministic panorama and calculo scopes; agent calculations remain unverified without a server recipe. Does not verify prose attribution, owner units, causes or priority. Results and corrections are durable and paged. Follow next_call: reuse previous arguments and replace cursor with next_cursor; do not reset it to zero.',
      'inputSchema': {'type': 'object', 'properties': {
          'request_key': {'type': 'string'}, 'cursor': {'type': 'integer', 'minimum': 0},
          'numbers': {'type': 'array', 'minItems': 1, 'maxItems': 32, 'items': {
              'type': 'object', 'properties': {k: {'type': 'string'} for k in ('key', 'execution_id', 'metric')},
              'required': ['key', 'execution_id', 'metric'], 'additionalProperties': False}}},
          'required': ['request_key', 'numbers'], 'additionalProperties': False}},
-    {'name': 'panorama', 'description': 'Calculate the deterministic sales overview for one permitted table. The summary is paged by JSON pointer; follow cursor without changing input. Observation IDs work with resultado. Describes recorded quantities and missing rows, not revenue, causes or approved priorities. Keep tables separate. The summary ratios section includes server-derived percentage changes and group shares with bound metric references and explicit zero/negative-base limits. Use those references rather than inventing metric names.',
+    {'name': 'panorama', 'description': 'Calculate the deterministic sales overview for one permitted table. The summary is paged by JSON pointer. requested_cursor is the current offset; next_cursor is the NEXT offset. Follow next_call by reusing previous arguments and replacing cursor. For example, next_cursor=100 means call panorama with cursor=100, not 0. Keep table_id, mapping and request_key unchanged; null means no more pages. Observation IDs work with resultado. Describes recorded quantities and missing rows, not revenue, causes or approved priorities. Keep tables separate. The summary ratios section includes server-derived percentage changes and group shares with bound metric references and explicit zero/negative-base limits. Use those references rather than inventing metric names.',
      'inputSchema': {'type': 'object', 'properties': {
          'table_id': {'type': 'string'}, 'request_key': {'type': 'string'},
          'mapping': {'type': 'object', 'properties': {k: {'type': 'string'} for k in ('date', 'product', 'channel', 'quantity')},
                      'required': ['date', 'product', 'channel', 'quantity'], 'additionalProperties': False},
          'cursor': {'type': 'integer', 'minimum': 0}},
          'required': ['table_id', 'request_key'], 'additionalProperties': False}},
-    {'name': 'entregar_informe', 'description': 'Persist exact draft JSON text before validation. Malformed or empty text is retained. The receipt is pending verification, not approval or completion. Repeat the same key and bytes to retrieve the same revision.',
+    {'name': 'entregar_informe', 'description': 'Persist exact draft JSON text before validation. Malformed or empty text is retained. The receipt is pending verification, not approval or completion. Continue investigation after a checkpoint draft; deliver a revised final report before ending your turn. Repeat the same key and bytes to retrieve the same revision.',
      'inputSchema': {'type': 'object', 'properties': {
          'request_key': {'type': 'string'}, 'draft_json': {'type': 'string'}},
          'required': ['request_key', 'draft_json'], 'additionalProperties': False}},
@@ -73,7 +73,7 @@ TOOLS = [
         'from dr_runtime import connect, write_result\n'
         'with connect() as db:\n    rows = db.execute("SELECT COUNT(*) FROM data").fetchone()[0]\n'
         'write_result({"rows": rows}, evidence=[{"metric":"rows","tables":["data"],"operation":"COUNT(*) FROM data"}])\n'
-        'Returns execution_id, status, and paged result leaves (path, part, value). Follow cursor with resultado(execution_id,cursor) until cursor is null. '
+        'Returns execution_id, status, and paged result leaves (path, part, value). Follow the returned next_call with resultado; next_cursor is the NEXT offset, null only at the end. '
         'An identical request_key and program retrieves the same execution; a changed/fixed program needs a new request_key. '
         'Results are candidates, not analytically verified.'),
      'inputSchema': {'type': 'object', 'properties': {
@@ -81,7 +81,7 @@ TOOLS = [
          'definitions': {'type': 'object'}, 'request_key': {'type': 'string'},
          'timeout': {'type': 'integer', 'minimum': 1, 'maximum': 120}},
          'required': ['code', 'tables', 'request_key'], 'additionalProperties': False}},
-    {'name': 'resultado', 'description': 'Read candidate result leaves as JSON pointer, part number and value. Long strings have consecutive parts of at most 512 characters; cursor is the next row offset. Only executions of this job are readable.',
+    {'name': 'resultado', 'description': 'Read candidate result leaves as JSON pointer, part number and value. Long strings have consecutive parts of at most 512 characters; requested_cursor is the current row offset and next_cursor is the NEXT offset. Follow next_call until null, without restarting at zero. Only executions of this job are readable.',
      'inputSchema': {'type': 'object', 'properties': {
          'execution_id': {'type': 'string'}, 'cursor': {'type': 'integer', 'minimum': 0}},
          'required': ['execution_id'], 'additionalProperties': False}},
@@ -152,7 +152,7 @@ def diagnostic(record):
             'retry': 'Identical input and request_key retrieve this execution. Use a new request_key for corrected code or arguments.'}
 
 
-def page_result(record, cursor=0):
+def page_result(record, cursor=0, *, repeat_tool=None):
     if type(cursor) is not int or cursor < 0:
         raise ValueError('Invalid result cursor.')
     rows = list(_leaves(record.get('result')))
@@ -161,18 +161,29 @@ def page_result(record, cursor=0):
     page = {'execution_id': str(record['id']), 'status': record['status'],
             'verification': 'pending', 'result_sha256': admission.sha(admission.canonical(record.get('result'))),
             'columns': ['path', 'part', 'value'], 'rows': [], 'total_rows': len(rows),
-            'truncated': False, 'cursor': None}
+            'truncated': False, 'requested_cursor': cursor, 'cursor': None,
+            'next_cursor': None, 'next_call': None}
     problem = diagnostic(record)
     if problem:
         page['diagnostic'] = problem
     for row in rows[cursor:cursor+100]:
         candidate = {**page, 'rows': page['rows'] + [row]}
         # Leave space for MCP/JSON-RPC framing, including escaped string content.
-        if len(admission.canonical(candidate)) > 24 * 1024:
+        if len(admission.canonical(candidate)) > 23 * 1024:
             break
         page['rows'].append(row)
     next_cursor = cursor + len(page['rows'])
-    page.update(truncated=next_cursor < len(rows), cursor=next_cursor if next_cursor < len(rows) else None)
+    more = next_cursor < len(rows)
+    page.update(truncated=more, cursor=next_cursor if more else None,
+                next_cursor=next_cursor if more else None)
+    if more:
+        # Recipe inputs can be large. Refer to the preceding call instead of
+        # echoing them and consuming the bounded output budget on every page.
+        page['next_call'] = ({'name': repeat_tool, 'arguments': {'cursor': next_cursor},
+                              'reuse_previous_arguments': True} if repeat_tool else
+                             {'name': 'resultado', 'arguments': {
+                                 'execution_id': str(record['id']), 'cursor': next_cursor},
+                              'reuse_previous_arguments': False})
     return page
 
 
@@ -255,7 +266,7 @@ def dispatch(config, run_id, token, message, *, backend=None):
                 if set(args) - {'request_key', 'numbers', 'cursor'} or not {'request_key', 'numbers'} <= set(args):
                     raise ValueError('Invalid verification arguments.')
                 row = numbers.verify(config, run_id, token, request_key=args['request_key'], numbers=args['numbers'])
-                value = page_result({'id': row['id'], 'status': 'completed', 'result': row['body']}, args.get('cursor', 0))
+                value = page_result({'id': row['id'], 'status': 'completed', 'result': row['body']}, args.get('cursor', 0), repeat_tool='verify_numbers')
                 value['verification_id'] = value.pop('execution_id')
             elif params.get('name') == 'calculo':
                 if set(args) - {'table_id', 'request_key', 'recipes', 'cursor'} or not {'table_id', 'request_key', 'recipes'} <= set(args):
@@ -267,7 +278,7 @@ def dispatch(config, run_id, token, message, *, backend=None):
                 if set(args) - {'table_id', 'request_key', 'mapping', 'cursor'} or not {'table_id', 'request_key'} <= set(args):
                     raise ValueError('Invalid panorama arguments.')
                 row = panorama.calculate(config, run_id, token, **{k: v for k, v in args.items() if k != 'cursor'})
-                page = page_result({'id': row['id'], 'status': 'completed', 'result': {'tables': row['body']['tables']}}, args.get('cursor', 0))
+                page = page_result({'id': row['id'], 'status': 'completed', 'result': {'tables': row['body']['tables']}}, args.get('cursor', 0), repeat_tool='panorama')
                 page['panorama_id'] = page.pop('execution_id')
                 value = {**page, 'origin': 'deterministic_panorama',
                          'observation_ids': [o['execution_id'] for o in row['body']['observations']]}

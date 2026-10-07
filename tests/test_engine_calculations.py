@@ -131,6 +131,23 @@ class CalculationIntegrationTests(unittest.TestCase):
         self.assertIn('sales.csv', (target/'informe.contenido.html').read_text())
         self.assertEqual((target/'draft.raw').read_bytes(),raw)
 
+    def test_calculation_continuation_reads_same_scoped_result_without_repeating_recipes(self):
+        first = self.tool('calculo', {'table_id': str(self.table), 'request_key': 'many-recipes',
+                                     'recipes': [recipe(key=f'total_{i}', column='quantity') for i in range(16)]})
+        page = first; rows = list(page['rows'])
+        self.assertIsNotNone(page['next_call'])
+        while page['next_call']:
+            call = page['next_call']
+            self.assertEqual(call['name'], 'resultado')
+            self.assertFalse(call['reuse_previous_arguments'])
+            self.assertEqual(call['arguments']['execution_id'], first['execution_id'])
+            page = self.tool(call['name'], call['arguments'])
+            self.assertEqual(page['result_sha256'], first['result_sha256'])
+            rows.extend(page['rows'])
+        self.assertEqual(len(rows), first['total_rows'])
+        self.assertEqual(len({(r['path'], r['part']) for r in rows}), len(rows))
+        self.assertEqual(len([r for r in rows if r['path'].startswith('/metrics/')]), 16)
+
     def test_concurrent_idempotency_evaluates_once_and_changed_recipe_rejects(self):
         barrier=threading.Barrier(2);actual=calculations.evaluate
         def submit(_):barrier.wait();return self.calc()

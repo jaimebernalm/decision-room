@@ -353,7 +353,14 @@ class EngineTests(unittest.TestCase):
             if page['cursor'] is None:
                 break
             self.assertGreater(page['cursor'], cursor)
-            cursor = page['cursor']
+            call = page['next_call']
+            self.assertFalse(call['reuse_previous_arguments'])
+            self.assertEqual(call['name'], 'resultado')
+            self.assertEqual(call['arguments']['execution_id'], str(record['id']))
+            self.assertEqual(call['arguments']['cursor'], page['next_cursor'])
+            self.assertEqual(page['requested_cursor'], cursor)
+            cursor = call['arguments']['cursor']
+        self.assertIsNone(page['next_call'])
         self.assertEqual(''.join(r['value'] for r in rows if r['path'] == '/metrics/0'), value)
         self.assertEqual(len(rows), page['total_rows'])
 

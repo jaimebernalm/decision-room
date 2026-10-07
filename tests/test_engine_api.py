@@ -13,6 +13,7 @@ from uuid import uuid4
 
 from decision_room import engine
 from decision_room.database import connect
+from decision_room.service import import_batch
 from decision_room.engine.client import ProtocolError
 from decision_room.engine import api, admission, checkpoint, questions, store
 from decision_room.reports.verification_contract import validate
@@ -226,8 +227,13 @@ class RealApiTests(unittest.TestCase):
         self.real_roundtrip(discover=True)
 
     def real_roundtrip(self, wait=False, discover=False):
-        calls = []; actions = []; discovered = {}
-        discovery = ['read_manifest', 'read_csv', 'read_outside', 'panorama', 'consulta', 'calculo']
+        calls = []; actions = []; discovered = {}; provider_errors = []
+        analysis = api._row(self.config, self.business, self.run)['analysis_id']
+        if discover:
+            source = self.root / 'periods.csv'
+            source.write_text('date,product,channel,quantity\n2025-01-01,Item,Local,2\n2025-01-31,Item,Local,0\n2025-02-01,Item,Local,3\n2025-02-28,Item,Local,0\n')
+            analysis = import_batch(self.config, self.business, [source])['analysis']['id']
+        discovery = ['read_manifest', 'read_csv', 'read_outside', 'panorama', 'checkpoint_draft', 'panorama_next', 'consulta', 'calculo']
         def provider(request):
             self.assertEqual(request.url.host, 'api.openai.com')
             body = json.loads(request.content)
@@ -236,7 +242,8 @@ class RealApiTests(unittest.TestCase):
             calls.append(body)
             action = (discovery[len(actions)] if discover and len(actions) < len(discovery)
                       else 'preguntar_propietario' if wait and not actions else 'entregar_informe')
-            tool_name = 'read' if action.startswith('read_') else action
+            tool_name = ('read' if action.startswith('read_') else 'panorama' if action == 'panorama_next'
+                         else 'entregar_informe' if action == 'checkpoint_draft' else action)
             tools = [t for t in body.get('tools', []) if t['name'].endswith(tool_name)]
             if discover and actions and actions[-1] in discovery:
                 outputs = [x.get('output', '') for x in body.get('input', []) if isinstance(x, dict) and x.get('type') == 'function_call_output']
@@ -253,6 +260,21 @@ class RealApiTests(unittest.TestCase):
                     self.assertIn('external_directory', output)
                 elif actions[-1] == 'panorama':
                     self.assertIn('deterministic_panorama', output)
+                    self.assertNotIn('Invalid or unsuccessful', output)
+                    for match in re.finditer(r'\{', output):
+                        try:
+                            data, _ = json.JSONDecoder().raw_decode(output[match.start():])
+                        except ValueError:
+                            continue
+                        if isinstance(data, dict) and 'next_call' in data:
+                            discovered['next_call'] = data['next_call']; break
+                    self.assertEqual(discovered['next_call']['name'], 'panorama')
+                    self.assertTrue(discovered['next_call']['reuse_previous_arguments'])
+                    self.assertGreater(discovered['next_call']['arguments']['cursor'], 0)
+                elif actions[-1] == 'checkpoint_draft':
+                    self.assertIn('pending', output)
+                elif actions[-1] == 'panorama_next':
+                    self.assertIn('"requested_cursor":' + str(discovered['next_call']['arguments']['cursor']), output)
                     self.assertNotIn('Invalid or unsuccessful', output)
                 elif actions[-1] == 'consulta':
                     self.assertIn('"status":"completed"', output)
@@ -277,6 +299,12 @@ class RealApiTests(unittest.TestCase):
                 elif action == 'read_csv': arguments = {'filePath': '/inputs/' + discovered['table'] + '.csv'}
                 elif action == 'read_outside': arguments = {'filePath': '/etc/hostname'}
                 elif action == 'panorama': arguments = {'table_id': discovered['table'], 'request_key': 'discovered-table'}
+                elif action == 'panorama_next':
+                    arguments = {'table_id': discovered['table'], 'request_key': 'discovered-table',
+                                 **discovered['next_call']['arguments']}
+                elif action == 'checkpoint_draft':
+                    arguments = {'request_key': 'checkpoint-before-next-page', 'draft_json': json.dumps({
+                        'schema_version': 1, 'title': 'Avance', 'summary': 'Comparación pendiente.', 'findings': []})}
                 elif action == 'consulta':
                     description = tools[0]['description']
                     self.assertIn('NO implicit Python variable named tables', description)
@@ -316,10 +344,15 @@ class RealApiTests(unittest.TestCase):
             event('response.completed', response=response)
             return httpx.Response(200, headers={'content-type': 'text/event-stream'},
                 content=b''.join(('data: '+json.dumps(e)+'\n\n').encode() for e in events))
-        server = api.Server(self.config, api_key='offline-fixture', backend=api.DockerBackend(), transport=httpx.MockTransport(provider))
+        def checked_provider(request):
+            try:
+                return provider(request)
+            except Exception as error:
+                provider_errors.append(error)
+                raise
+        server = api.Server(self.config, api_key='offline-fixture', backend=api.DockerBackend(), transport=httpx.MockTransport(checked_provider))
         thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
         self.addCleanup(server.server_close); self.addCleanup(server.shutdown)
-        analysis = api._row(self.config, self.business, self.run)['analysis_id']
         with patch.object(api, '_service', return_value=server):
             result = engine.run_report(self.config, self.business, analysis, owner_context='Count fixture units',
                 request_key='real-mock-provider', limits={'active_seconds': 90 if discover else 45})
@@ -336,12 +369,18 @@ class RealApiTests(unittest.TestCase):
         meta = json.loads((path/'control.json').read_text())
         runtime = api.Runtime(api.DockerBackend(), **{k: meta[k] for k in ('run_id','instance_id','image','password','token','model')})
         self.addCleanup(runtime.remove)
+        if provider_errors:
+            raise provider_errors[0]
         self.assertEqual(result['status'], 'delivered', result)
         self.assertGreaterEqual(len(calls), 2)
         if discover:
             self.assertEqual(actions, [*discovery, 'entregar_informe'])
+            with connect(self.config) as db:
+                self.assertEqual(db.execute('SELECT count(*) n FROM engine_panoramas WHERE run_id=%s',
+                                            (result['engine_run_id'],)).fetchone()['n'], 1)
+            self.assertNotIn('Comparación pendiente', (path/'export/draft.raw').read_text())
             ledger = json.loads((path/'export/verification.json').read_text())
-            self.assertEqual([f['value'] for f in ledger['figures'] if f['verified']], ['5.00', '2', '2'])
+            self.assertEqual([f['value'] for f in ledger['figures'] if f['verified']], ['5.00', '4', '4'])
             self.assertFalse(next(f for f in ledger['figures'] if f['path'] == '/summary')['verified'])
         self.assertTrue((path/'export/informe.contenido.html').exists())
         self.assertEqual(result['usage']['cost_catalog']['status'], 'estimated')

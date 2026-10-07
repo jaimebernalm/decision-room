@@ -49,8 +49,8 @@ para la comparación inicial; no se amplían después de ver resultados evaluado
 
 Antes del lote de 36, Claude comprueba el brazo sin modelo y un canario de
 comportamiento/consumo con el presupuesto que gestione el propietario. Si hay un
-fallo técnico o de topes, el candidato se retira, se documenta y se propone una
-revisión nueva antes de la medición formal. No se incluye ese canario como una
+fallo técnico, de topes o de comportamiento que justifique revisarlo, el candidato
+se retira, se documenta y se propone una revisión nueva antes de la medición formal. No se incluye ese canario como una
 pareja evaluada ni se lanza el lote a partir de una declaración de éxito local.
 Si la puerta falla por cobertura o calidad, se conserva el fallo; las recetas no
 cambian el significado de «verificado y correcto» del auditor.
@@ -100,3 +100,45 @@ Validación de este ajuste: 21 pruebas existentes de charts, proyección y facts
 aprobadas (`tests.test_report_charts`, `tests.test_report_projection`,
 `tests.test_report_facts`). Sin llamadas facturables. Estas pruebas no acreditan
 que el modelo siga las instrucciones nuevas; eso corresponde al canario.
+
+
+## Retirada del candidato y continuación de la investigación
+
+El canario de desarrollo de `ff36234` produjo dos entregas: una incluyó facts
+verificados; la otra terminó con un informe provisional sin prioridades después
+de repetir la primera página del panorama. Se retira esa revisión antes del lote
+formal. El canario conserva su condición de evidencia de desarrollo y no cuenta
+como pareja de P3. La paginación confusa y la cautela del prompt son hipótesis
+sobre el comportamiento observado, no causas demostradas por una comparación.
+
+La revisión siguiente distingue `requested_cursor` y `next_cursor`, conserva
+`cursor` como alias del siguiente desplazamiento y devuelve `next_call`. Para
+`panorama` y `verify_numbers`, `reuse_previous_arguments=true` indica conservar
+los argumentos de esa herramienta y aplicar `arguments` (solo el nuevo cursor).
+Para `consulta`, `calculo` y `resultado`, devuelve los argumentos completos de
+`resultado` con `reuse_previous_arguments=false`. Así no se repiten recetas
+potencialmente grandes dentro de cada respuesta. `next_call=null` marca el final.
+Se mantienen cien filas por página y el límite de 64 KiB de la respuesta MCP;
+el presupuesto del contenido reserva espacio para los metadatos de continuación.
+
+El prompt aclara que una página truncada tiene continuación, que se pueden hacer
+consultas acotadas sin leer páginas irrelevantes, y que una correspondencia de
+catálogo incierta limita ese nombre, no todo cálculo sobre la tabla. Tras guardar
+un avance debe continuar investigando antes de entregar la revisión final. No se
+obliga a inventar prioridades ni a ocultar incertidumbres. El controlador conserva
+su comportamiento: un recibo guarda el borrador; finaliza cuando el turno raíz ha
+terminado y las sesiones observadas están inactivas. `delivered` no prueba calidad.
+
+Esta revisión no cambia recetas, renderer, ledger, topes ni condiciones de P3.
+El manifiesto debe fijar el nuevo commit y registrar las descripciones MCP y el
+prompt nuevos antes de otro canario y de la posterior congelación formal.
+
+Validación: 55 pruebas de `test_engine_panorama`, `test_engine_admission`,
+`test_engine_api` y `test_engine_calculations` aprobadas. Incluyen recorrer todas
+las páginas del panorama y de 32 comprobaciones sin duplicar hojas ni ejecuciones,
+continuar agregaciones por `resultado`, conservar celdas Unicode largas y acotar
+la respuesta MCP completa. El recorrido con OpenCode real y proveedor simulado
+lee el manifiesto, guarda un avance, sigue la página anunciada, consulta, calcula
+y reemplaza el avance por la revisión final. La fixture cubre dos meses completos.
+Sin llamadas facturables. Esto prueba el protocolo y la persistencia, no que el
+modelo adopte la conducta nueva; esa comprobación sigue en el canario.

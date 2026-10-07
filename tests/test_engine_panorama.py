@@ -82,8 +82,23 @@ class PanoramaTests(unittest.TestCase):
     def test_mcp_summary_pagination_and_observations_use_same_job(self):
         args = {'table_id': str(self.table), 'request_key': 'pages'}
         page = self.tool('panorama', args); rows = page['rows']; ids = page['observation_ids']
-        while page['cursor'] is not None:
-            page = self.tool('panorama', {**args, 'cursor': page['cursor']}); rows.extend(page['rows'])
+        self.assertEqual(page['requested_cursor'], 0)
+        self.assertIsNotNone(page['next_call'])
+        digest = page['result_sha256']
+        while page['next_call'] is not None:
+            call = page['next_call']
+            self.assertTrue(call['reuse_previous_arguments'])
+            self.assertEqual(call['arguments']['cursor'], page['next_cursor'])
+            self.assertEqual(page['cursor'], page['next_cursor'])
+            self.assertGreater(page['next_cursor'], page['requested_cursor'])
+            args = {**args, **call['arguments']}
+            page = self.tool(call['name'], args); rows.extend(page['rows'])
+            self.assertEqual(page['requested_cursor'], args['cursor'])
+            self.assertEqual(page['result_sha256'], digest)
+        self.assertIsNone(page['next_cursor'])
+        self.assertEqual(len({(r['path'], r['part']) for r in rows}), len(rows))
+        with connect(self.config) as db:
+            self.assertEqual(db.execute('SELECT count(*) n FROM engine_panoramas WHERE run_id=%s', (self.run,)).fetchone()['n'], 1)
         self.assertEqual(len(rows), page['total_rows'])
         self.assertTrue(ids)
         self.assertTrue(any(r['path'].endswith('/period/0') and r['value'] == '2025-01-01' for r in rows))
@@ -95,9 +110,32 @@ class PanoramaTests(unittest.TestCase):
         with self.assertRaises(admission.Denied):
             self.tool('resultado', {'execution_id': ids[0]}, run=other, token=token)
         with self.assertRaises(admission.Denied):
-            panorama.calculate(self.config, other, self.token, **args)
+            panorama.calculate(self.config, other, self.token, **{k: v for k, v in args.items() if k != 'cursor'})
         with self.assertRaises(admission.Denied):
             panorama.calculate(self.config, self.run, self.token, table_id=uuid4(), request_key='outside')
+
+    def test_verification_continuation_keeps_references_without_echoing_large_input(self):
+        overview = self.calculate()
+        observation = overview['body']['observations'][0]
+        metric = next(iter(observation['result']['metrics']))
+        args = {'request_key': 'paged-check', 'numbers': [
+            {'key': f'copy-{i}', 'execution_id': observation['execution_id'], 'metric': metric}
+            for i in range(32)]}
+        page = self.tool('verify_numbers', args)
+        rows = list(page['rows']); ident = page['verification_id']
+        self.assertIsNotNone(page['next_call'])
+        while page['next_call']:
+            call = page['next_call']
+            self.assertEqual(call['name'], 'verify_numbers')
+            self.assertTrue(call['reuse_previous_arguments'])
+            self.assertEqual(set(call['arguments']), {'cursor'})
+            args = {**args, **call['arguments']}
+            page = self.tool(call['name'], args)
+            self.assertEqual(page['verification_id'], ident)
+            rows.extend(page['rows'])
+        self.assertEqual(len(rows), page['total_rows'])
+        self.assertEqual(len({(r['path'], r['part']) for r in rows}), len(rows))
+        self.assertEqual(len([r for r in rows if r['path'].startswith('/checks/') and r['path'].endswith('/status') and len(r['path'].split('/')) == 4]), 32)
 
     def test_unsupported_catalog_is_unavailable_without_fake_zero_or_observation(self):
         row = panorama.calculate(self.config, self.run, self.token, table_id=self.aux, request_key='auxiliary')
