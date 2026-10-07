@@ -1,9 +1,9 @@
-# Propuesta de interfaz de exportación del motor, versión 1
+# Contrato de interfaz de exportación del motor, versión 1
 
-Propuesta de Astra del 7 de octubre de 2026 para desbloquear implementación y
-medición. La respuesta A–E no llegó a Claude: el puente la rechazó por un cambio
-del checkout principal. No se presenta como acuerdo recibido ni como API completa.
-El validador puro `reports.verification_contract` fija y prueba esta propuesta;
+Interfaz propuesta por Astra y aceptada por Claude el 7 de octubre de 2026 para
+coordinar implementación y medición. Claude declaró la adaptación de su
+calculadora en `8394755`; esa declaración no sustituye una revisión de su código.
+El validador puro `reports.verification_contract` fija y prueba el contrato;
 no verifica cifras ni aprueba informes. El controlador, verificador documental,
 proyección y exportación completos siguen pendientes.
 
@@ -52,12 +52,14 @@ raw ni autoriza descartarlo si falla.
 
 ## Proyección y dos medidas
 
-Firmas propuestas en `decision_room.web.report_projection`:
+Firmas acordadas, pendientes de implementar, en `decision_room.web.report_projection`:
 
 - `project(draft_verified: dict) -> dict`, pura;
 - `render(projection: dict, *, marks=True) -> str`, HTML autocontenido sin red.
 
-`export_run` usa `marks=True`. `marks=False` solo quita decoración y etiquetas
+`export_run` escribirá `informe.html` con `marks=True` e
+`informe.contenido.html` con `marks=False`, ambos desde la misma proyección y
+con la misma `renderer_version`. `marks=False` solo quita decoración y etiquetas
 automáticas de verificación. Conserva cifras corregidas, texto y limitaciones
 analíticas; no genera otra interpretación del informe. La medida de contenido
 normaliza los tres brazos por igual. La medida de artefacto conserva las marcas y
@@ -81,6 +83,18 @@ regional añade 10 % donde corresponde. Véase también la [ficha del modelo](ht
 
 La estimación debe distinguir esos componentes por llamada y registrar fuente,
 fecha, contexto y tier. Con componentes ausentes se comunica un intervalo con
-supuestos, nunca coste cero ni exactitud ficticia. Antes de presupuestar en USD,
-el tier debe fijarse en configuración confiable: el proxy actual todavía admite
-`service_tier` procedente del cliente. No se ha ejecutado ninguna llamada facturable.
+supuestos, nunca coste cero ni exactitud ficticia. El proxy fija ahora
+`service_tier="default"` (Standard) como política del servicio. Rechaza otros
+valores antes del conteo y la generación; omitir el campo no hereda el tier del
+proyecto. El [parámetro del proveedor](https://developers.openai.com/api/docs/guides/fast-mode)
+distingue tier solicitado y efectivo; la captura de este último para el catálogo
+sigue pendiente. No se ha ejecutado ninguna llamada facturable.
+
+Con los topes de 3 M de entrada y 64 k de salida, 0,332 USD es el escenario de
+contexto corto sin lecturas ni escrituras de caché, no el peor caso. A tarifa larga,
+el escenario sin caché es 0,648 USD; si toda la entrada se cobra como escritura
+larga, es 0,798 USD por trabajo (4,788 para seis; 9,576 para doce). Son escenarios
+bajo esos supuestos de tarifas, no costes medidos ni límites absolutos de factura.
+Los controles que no imponen topes tampoco tienen un máximo demostrado por su
+consumo histórico. La autorización de ensayos debe usar un presupuesto explícito
+con esas limitaciones.

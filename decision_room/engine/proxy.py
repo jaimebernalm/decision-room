@@ -12,6 +12,7 @@ from ..database import connect
 from . import admission
 
 UPSTREAM = 'https://api.openai.com/v1'
+SERVICE_TIER = 'default'  # Trusted Standard policy; never inherit project auto/Fast.
 MAX_REQUEST_BYTES = 4 * 1024 * 1024
 MAX_EVENT_BYTES = 8 * 1024 * 1024
 COUNT_FIELDS = {'model', 'input', 'instructions', 'tools', 'tool_choice', 'text',
@@ -54,6 +55,9 @@ def prepare(raw, job):
     if type(output) is not int or output <= 0:
         raise admission.Denied('Invalid output limit.')
     request['max_output_tokens'] = min(output, job['limits']['output_per_call'])
+    if request.get('service_tier', SERVICE_TIER) != SERVICE_TIER:
+        raise admission.Denied('The engine requires Standard processing.')
+    request['service_tier'] = SERVICE_TIER
     request['store'] = False
     # Count the exact same supported input representation, including schemas.
     count = {k: v for k, v in request.items() if k in COUNT_FIELDS}
