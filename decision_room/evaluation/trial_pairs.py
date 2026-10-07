@@ -93,6 +93,15 @@ def report(batch, job):
     return None, None
 
 
+CONTENT = 'informe.contenido.html'  # engine export: render(project(doc), marks=False)
+
+
+def content(batch, job):
+    """The engine's rendering without verification marks, for the content measure; None if absent."""
+    path = Path(batch) / 'jobs' / job / 'engine' / CONTENT
+    return debrand(path.read_text(errors='replace')) if path.exists() else None
+
+
 def kit(batch, out, measure):
     batch, out = Path(batch).resolve(), Path(out).resolve()
     if measure not in MEASURES:
@@ -103,7 +112,7 @@ def kit(batch, out, measure):
     if out.is_relative_to(batch):
         raise SystemExit('Build the kit outside the batch, so readers never browse attempts or keys.')
     rng = random.Random(uuid4().int)
-    items, key, skipped = [], {}, []
+    items, key, skipped, marked = [], {}, [], []
     for pair in read(batch / 'pairs.json')['pairs']:
         (engine, engine_job), (other, other_job) = report(batch, pair['engine']), report(batch, pair['other'])
         if engine is None or other is None:
@@ -112,6 +121,11 @@ def kit(batch, out, measure):
         engine_left = rng.random() < 0.5
         left, right = (engine, other) if engine_left else (other, engine)
         if measure == 'contenido':
+            unmarked = content(batch, engine_job)
+            if unmarked is None:  # the engine's labels would reveal it to readers
+                marked.append(engine_job)
+            else:
+                left, right = (unmarked, other) if engine_left else (other, unmarked)
             left, right = neutralize(left), neutralize(right)
         code = uuid4().hex[:6]
         key[code] = {'pair': pair['id'], 'engine_side': 'A' if engine_left else 'B',
@@ -123,12 +137,12 @@ def kit(batch, out, measure):
     rng.shuffle(items)
     items.sort(key=lambda i: i['dataset'])
     write(key_path, {'created_at': datetime.now(timezone.utc).isoformat(), 'measure': measure,
-                     'out': str(out), 'codes': key, 'skipped': skipped})
+                     'out': str(out), 'codes': key, 'skipped': skipped, 'marks_not_removed': marked})
     out.mkdir(parents=True)
     page = PAGE.replace('__DATA__', json.dumps(items)).replace('__KIT__', uuid4().hex[:8]) \
                .replace('__MEASURE__', MEASURES[measure])
     (out / 'comparacion.html').write_text(page, encoding='utf-8')
-    return {'pairs': len(items), 'skipped': skipped}
+    return {'pairs': len(items), 'skipped': skipped, 'marks_not_removed': marked}
 
 
 def engine_score(choice, engine_side):

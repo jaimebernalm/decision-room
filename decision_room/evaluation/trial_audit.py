@@ -17,11 +17,9 @@ import random
 import shutil
 from uuid import uuid4
 
-from .trial_kit import debrand, neutralize
-from .trial_pairs import delivered
+from .trial_kit import neutralize
+from .trial_pairs import CONTENT, content, delivered
 from .trials import read, text_of, write
-
-CONTENT = 'informe.contenido.html'  # export_run: render(project(doc), marks=False)
 
 INSTRUCTIONS = '''# Auditoría de exactitud (paso 3 del motor)
 
@@ -107,10 +105,8 @@ def kit(batch, out, system='engine'):
     codes, marked = {}, []
     for job in jobs:
         dataset = read(batch / 'jobs' / job / 'state.json')['dataset']
-        content = batch / 'jobs' / job / 'engine' / CONTENT
-        if content.exists():
-            html = debrand(content.read_text(errors='replace'))
-        else:  # without the unmarked rendering the auditor would see the engine's own labels
+        html = content(batch, job)
+        if html is None:  # without the unmarked rendering the auditor would see the engine's own labels
             html, _ = delivered(batch, job), marked.append(job)
         code = f'{dataset}-{uuid4().hex[:6]}'
         codes[code] = job

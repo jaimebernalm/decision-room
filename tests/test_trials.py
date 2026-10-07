@@ -492,5 +492,22 @@ class PairedComparisonTests(unittest.TestCase):
             self.assertIn(['demo-engine-1', 'demo-product-1r1'], jobs)
 
 
+    def test_content_measure_shows_the_engine_without_its_verification_marks(self):
+        import base64
+        with TemporaryDirectory() as tmp:
+            batch, trial_pairs = self.batch(tmp, repeats=1)
+            trial_pairs.plan(batch, seed=1, against=('opencode',))
+            self.finish(batch, 'demo-engine-1', 'Cae un 42 % <em>verificada</em>')
+            self.finish(batch, 'demo-opencode-1')
+            (batch / 'jobs/demo-engine-1/engine').mkdir()
+            (batch / 'jobs/demo-engine-1/engine' / trial_pairs.CONTENT).write_text('<p>Cae un 42 %</p>')
+            built = trial_pairs.kit(batch, Path(tmp) / 'contenido', 'contenido')
+            self.assertEqual(built['marks_not_removed'], [])
+            page = (Path(tmp) / 'contenido/comparacion.html').read_text()
+            data = json.loads(page.split('const DATA=', 1)[1].split(', KIT=', 1)[0])
+            shown = ''.join(base64.b64decode(i[side]).decode() for i in data for side in ('a', 'b'))
+            self.assertIn('Cae un 42 %', shown)
+            self.assertNotIn('verificada', shown)
+
 if __name__ == '__main__':
     unittest.main()
