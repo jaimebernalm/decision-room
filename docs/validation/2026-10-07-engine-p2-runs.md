@@ -16,16 +16,17 @@ por el propietario: hasta 5 USD.
 - Verificación mínima del paso 2: corrige referencias aritméticas, pero marca todas
   las cifras como no verificadas. La verificación semántica es del paso 3.
 
-## Canarios: tres fallos encontrados antes del lote
+## Canarios: dos fallos encontrados antes del lote
 
-Cada canario fue un único trabajo real en Albor. Cada uno destapó un fallo que las
-pruebas con proveedor simulado no veían, y se corrigió antes de seguir.
+Cada canario fue un único trabajo real en Albor. Los dos primeros destaparon un
+fallo que las pruebas con proveedor simulado no veían, y se corrigió antes de
+seguir; el tercero salió bien y es el primer trabajo del lote.
 
 | Revisión | Resultado | Causa | Arreglo |
 | --- | --- | --- | --- |
 | `fcf6b9c` | Sin informe; el agente lo dice y no inventa cifras | OpenCode bloqueaba la lectura del manifiesto de tablas (`external_directory`) | `93f366a`: excepción solo para `/inputs/*`, el resto sigue denegado |
 | `93f366a` | Informe, pero 4 de 5 cálculos fallidos | La herramienta `consulta` no explicaba cómo leer las tablas | `8b683d6`: contrato del sandbox y ejemplo ejecutable en la descripción |
-| `8b683d6` | Informe con cálculos | — | Se lanza el lote |
+| `8b683d6` | Informe con cálculos | — | Es `albor-1` del lote; se lanzan los otros cinco |
 
 Coste de los dos primeros canarios: 0,012 USD.
 
@@ -39,24 +40,26 @@ Coste de los dos primeros canarios: 0,012 USD.
 | albor-2 | entregado | 419 | 41 | 1.952.976 (1.843.774) | 44.302 | 0,0542 |
 | albor-3 | entregado | 208 | 32 | 1.004.247 (944.490) | 14.712 | 0,0243 |
 | bruma-3 | **perdido** | 14 | 0 | 0 | 0 | 0 |
-| bruma-3r1 | entregado | 170 | 26 | 710.820 | 16.324 | 0,0213 |
+| bruma-3r1 | entregado | 170 | 26 | 710.820 (658.394) | 16.324 | 0,0213 |
 
 - 6 informes entregados de 7 intentos. El intento perdido se conserva y cuenta como
   perdido; el reintento no lo convierte en entrega original.
 - Coste estimado del lote: 0,155 USD, sin llamadas sin precio. Con los canarios,
   unos 0,17 USD de los 5 aprobados. Es una estimación de catálogo, no una factura.
 - Ninguna pregunta al propietario.
-- Cada exportación conserva borrador en bruto, documento verificado, registro de
-  verificación, informe con y sin marcas, sesión y llamadas al proxy.
+- Cada uno de los seis entregados conserva borrador en bruto, documento verificado,
+  registro de verificación, informe con y sin marcas, sesión y llamadas al proxy.
+  El intento perdido no generó contenido: su exportación solo tiene el estado de la
+  ejecución, la sesión y un registro de llamadas vacío.
 
 ## Qué falló y qué queda pendiente
 
 - **bruma-3:** fallo del controlador 0,4 s después de crear la sesión, antes del
   primer mensaje (sin llamadas al modelo). El motor no registraba qué excepción;
   Astra añade etapa, tipo y motivo de catálogo al diagnóstico. El reintento con la
-  misma revisión entregó: fue transitorio.
-- **Formato de los resultados del sandbox:** en el lote, 28 cálculos completados, 19
-  con resultado inválido y 6 fallidos. El agente tropieza con las reglas de forma del
+  misma revisión entregó, pero la causa original no está identificada.
+- **Formato de los resultados del sandbox:** en todo el lote, incluido el reintento,
+  30 cálculos completados, 22 con resultado inválido y 6 fallidos. El agente tropieza con las reglas de forma del
   resultado. El diagnóstico que lo corrige (`9012876`) es posterior a la revisión del
   lote y entrará en el paso 3.
 
