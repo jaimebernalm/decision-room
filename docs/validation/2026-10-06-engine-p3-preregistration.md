@@ -214,3 +214,11 @@ este registro.
    papel de dueño no técnico, elegidos por el propietario. **Límite:** la puerta
    mide la preferencia de lectores modelo con ese papel, no la de dueños reales; los
    dos lectores pertenecen a familias de modelos distintas para no depender de una.
+2. Juez de señales y auditor de exactitud, elegidos por el propietario: cada uno una
+   conversación nueva de Claude Opus 5.5, distinta de las de los lectores, abierta
+   solo sobre su kit. El juez recibe el oráculo aparte, al puntuar.
+3. Las conversaciones de lectores, juez y auditor las abre Claude (el que mide), a
+   petición del propietario, con una sola instrucción: leer las instrucciones del kit
+   y rellenar su plantilla. No reciben otro contexto. **Límite:** una conversación
+   abierta sobre una carpeta no está aislada técnicamente del resto del disco; la
+   ceguera depende de que el kit esté fuera del repositorio y de las reglas del kit.

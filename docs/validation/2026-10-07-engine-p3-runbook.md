@@ -100,7 +100,9 @@ paso 3.
 
 - Claude: preparar, ejecutar, construir kits, desciegar y puntuar.
 - Propietario: presupuesto aprobado; lectores elegidos (Claude Opus 5.5 y Codex en
-  conversaciones nuevas, con el papel de `LECTOR.md`); abre esas conversaciones solo
-  sobre la carpeta de cada kit, fuera del repositorio. Juez y auditor: pendientes.
+  conversaciones nuevas, con el papel de `LECTOR.md`); juez y auditor, cada uno una
+  conversación nueva de Claude Opus 5.5. Claude abre esas conversaciones solo sobre la
+  carpeta de cada kit, fuera del repositorio; la de Codex necesita que el
+  propietario autorice su creación en el panel del puente.
 - Auditor: nuevo, elegido por el propietario, sin acceso a código, claves ni oráculos.
 - Astra: el motor congelado y su exportador; no ve kits ni claves.
