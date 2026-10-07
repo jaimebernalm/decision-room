@@ -135,3 +135,13 @@ La prueba integrada ejecuta literalmente el ejemplo publicado por la herramienta
 sobre una tabla descubierta en el manifiesto y exige estado `completed`. Esto
 corrige los errores `NameError` observados en el segundo canario, sin cambiar el
 contrato ni el aislamiento del sandbox de cálculo.
+
+La descripción detalla también métricas escalares, límites de texto y series para
+resultados por grupos. `consulta` y `resultado` devuelven `diagnostic` en ejecuciones
+fallidas o con salida inválida: código estable, explicación y regla de reintento.
+Los errores conocidos del contrato y clases admitidas de excepción Python reciben
+orientación concreta; no se devuelven excepciones, rutas ni logs crudos. Repetir
+una clave recupera el mismo fallo; corregir el programa exige una clave nueva.
+Una prueba Docker real provoca falta de result.json, métricas anidadas y texto
+excesivo, recupera el diagnóstico y termina con una consulta corregida. Las
+columnas CSV pueden ser texto: hay que validar y convertir antes de sumar.

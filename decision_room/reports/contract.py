@@ -1,6 +1,8 @@
 """Tolerant report loading after raw persistence; malformed drafts stay readable."""
 import json
 
+from . import charts
+
 TEXT_FIELDS = ('title', 'summary', 'scope', 'limitations')
 FINDING_FIELDS = ('title', 'statement', 'scope', 'interpretation', 'next_step')
 
@@ -22,16 +24,23 @@ def load(raw):
         if any(k in f and not isinstance(f[k], str) for f in findings for k in FINDING_FIELDS):
             raise ValueError('Finding text has another shape.')
         # Unknown fields remain visible in the fallback, not silently discarded.
-        if set(value) - {'schema_version', *TEXT_FIELDS, 'findings', 'numbers', 'charts'}:
+        if set(value) - {'schema_version', *TEXT_FIELDS, 'findings', 'numbers', 'charts', 'facts'}:
             raise ValueError('Unsupported report content.')
-        if any(set(f) - {'key', *FINDING_FIELDS} for f in findings):
+        if any(set(f) - {'key', *FINDING_FIELDS, 'facts'} for f in findings):
             raise ValueError('Unsupported finding content.')
         doc = {'schema_version': 1, **{k: value.get(k, '') for k in TEXT_FIELDS},
                'findings': [{'key': f['key'], **{k: f.get(k, '') for k in FINDING_FIELDS}} for f in findings]}
-        # Chart geometry belongs to P3. Keep its data visible until that renderer
-        # exists rather than silently hiding an unsupported analytical artifact.
-        if value.get('charts'):
-            raise ValueError('Chart presentation is not implemented yet.')
+        def facts(value):
+            if not isinstance(value, list) or len(value) > 32 or any(not isinstance(k, str) or not 1 <= len(k) <= 100 or any(c in k for c in '{}') for k in value):
+                raise ValueError('Facts must reference number keys.')
+            return [{'number_key': k, 'text': ''} for k in value]
+        if 'facts' in value:
+            doc['facts'] = facts(value['facts'])
+        for source, finding in zip(findings, doc['findings']):
+            if 'facts' in source:
+                finding['facts'] = facts(source['facts'])
+        if value.get('charts') is not None:
+            doc['charts'] = charts.normalize(value['charts'], set(keys))
         refs = value.get('numbers', [])
         if not isinstance(refs, list):
             raise ValueError('Number references have another shape.')
@@ -46,11 +55,23 @@ def texts(document):
     for index, finding in enumerate(document['findings']):
         for key in FINDING_FIELDS:
             yield f'/findings/{index}/{key}', finding[key], finding['key']
+    for path, fact, recommendation in fact_entries(document):
+        for key in ('text',):
+            yield path+'/'+key, fact[key], recommendation
+    yield from charts.texts(document.get('charts', []))
 
 
 def set_text(document, path, value):
     parts = path.split('/')[1:]
-    if len(parts) == 1:
-        document[parts[0]] = value
-    else:
-        document['findings'][int(parts[1])][parts[2]] = value
+    parent = document
+    for part in parts[:-1]:
+        parent = parent[int(part)] if isinstance(parent, list) else parent[part]
+    parent[parts[-1]] = value
+
+
+def fact_entries(document):
+    for i, fact in enumerate(document.get('facts', [])):
+        yield f'/facts/{i}', fact, None
+    for i, finding in enumerate(document['findings']):
+        for j, fact in enumerate(finding.get('facts', [])):
+            yield f'/findings/{i}/facts/{j}', fact, finding['key']

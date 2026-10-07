@@ -64,7 +64,7 @@ automáticas de verificación. Conserva cifras corregidas, texto y limitaciones
 analíticas; no genera otra interpretación del informe. La medida de contenido
 normaliza los tres brazos por igual. La medida de artefacto conserva las marcas y
 reconoce que pueden revelar el brazo. El contrato de proyección debe reutilizarse
-en P4; la implementación mínima actual solo presenta texto.
+en P4; el renderizador presenta texto, bloques de evidencia y gráficos acotados.
 
 ## Auditor y coste
 
@@ -73,8 +73,8 @@ instrucciones congeladas, sin código, claves de los brazos ni oráculos. Astra
 implementa el motor y ya conoce la auditoría previa; Claude conoce las claves.
 Este documento no crea otra conversación ni autoriza ensayos.
 
-El proxy todavía no implementa `cost_catalog`: conserva uso y reservas, pero
-faltan escritura de caché y tier efectivo. Según la [tarifa oficial consultada el
+El proxy implementa `cost_catalog` y conserva los componentes observados de uso y
+modalidad efectiva; los ausentes quedan como null (detalle al final). Según la [tarifa oficial consultada el
 7 de octubre de 2026](https://developers.openai.com/api/docs/pricing), GPT-6 Luna
 Standard cuesta, en USD por millón de tokens: entrada 0,10; lectura de caché 0,01;
 escritura de caché 0,125; salida 0,50. Para solicitudes de más de 272.000 tokens de
@@ -87,8 +87,8 @@ supuestos, nunca coste cero ni exactitud ficticia. El proxy fija ahora
 `service_tier="default"` (Standard) como política del servicio. Rechaza otros
 valores antes del conteo y la generación; omitir el campo no hereda el tier del
 proyecto. El [parámetro del proveedor](https://developers.openai.com/api/docs/guides/fast-mode)
-distingue tier solicitado y efectivo; la captura de este último para el catálogo
-sigue pendiente. No se ha ejecutado ninguna llamada facturable.
+distingue tier solicitado y efectivo; el catálogo conserva ambos sin inferir el efectivo del solicitado. Las pruebas
+locales de esta implementación usan un proveedor simulado.
 
 Con los topes de 3 M de entrada y 64 k de salida, 0,332 USD es el escenario de
 contexto corto sin lecturas ni escrituras de caché, no el peor caso. A tarifa larga,
@@ -119,15 +119,67 @@ persistido es la fuente de recuperación, incluso si falla la escritura del dest
 
 Sin entrega formal, los textos de asistente ya observados se recuperan como raw,
 con `draft_recovered_from_message_text`; no se fabrican IDs de documento/revisión.
-Sin contenido generado no se promete un informe. El documento mínimo acepta texto
-y hallazgos; formas desconocidas y gráficos aún no soportados se conservan en una
-salida textual escapada. No implica integración con edición, PDF ni aprobación legacy.
+Sin contenido generado no se promete un informe. El documento acepta texto, hallazgos y las extensiones acotadas descritas abajo;
+formas desconocidas se conservan en una salida textual escapada. No implica integración con edición, PDF ni aprobación legacy.
 
-El verificador mínimo resuelve referencias numéricas trazables y guarda correcciones,
-pero **ninguna cifra recibe `verified=true` todavía**: interpretar correctamente su
-unidad, atribución y denominador requiere la siguiente pieza de P3. Cifras literales
-permanecen no verificadas y referencias rotas, inciertas. Este mínimo sirve para el
-humo de A1; no está congelado ni listo para medir la puerta de P3.
+## Evidencia acotada y gráficos (tramo A2)
+
+El renderizador `report-evidence-v3` conserva el ledger versión 1. Un borrador puede
+incluir `facts: [number_key, ...]` en la raíz o en cada hallazgo (hasta 32 por lista).
+Cada clave apunta a `numbers`. El documento verificado sustituye la lista por
+objetos `{number_key, text}`; `text` contiene una frase completa con etiqueta,
+valor, unidad, grupo, fechas y límites. El servidor genera esos campos a partir
+del panorama recién recalculado y del snapshot autorizado; el agente no puede
+proporcionar ni reemplazar la etiqueta, el ámbito o la unidad del bloque.
+
+La cifra principal de ese bloque puede tener `verified=true` solamente con una
+receta compatible recalculada. El path es `/facts/N/text` o
+`/findings/N/facts/M/text`, y el span identifica exclusivamente la cifra mostrada.
+La atribución se limita a registros de esa tabla y columna: no certifica cobertura,
+causas, unidad comercial confirmada ni la recomendación adyacente. Las correcciones
+guardan el valor anterior. Nombres de origen que parezcan plantillas se conservan
+literalmente. Otras cifras del texto, incluidas fechas, conservan sus marcas de
+no verificación; el auditor decide cuáles son calculables.
+
+La misma referencia usada en prosa libre sigue sin certificar su atribución.
+Los cálculos Python del agente son trazables, pero no reciben certificación
+independiente por haber terminado con éxito. Una receta ausente conserva la cifra
+y señala el ámbito no comprobado. `marks=False` conserva toda la frase y sus
+límites, quitando solo las marcas. Los hechos se sitúan junto a su hallazgo.
+
+`charts` acepta hasta ocho gráficos `bar`, `line` o `table`, con título, leyenda de
+serie y puntos `{label, number_key}`. Cada gráfico tiene de una a seis series, de
+uno a cien puntos por serie, y el total del informe no supera 800 puntos. Se
+resuelven los valores desde `numbers`; el agente no proporciona SVG ni geometría.
+El path de una cifra es `/charts/N/series/M/points/K/value_text`. Las etiquetas
+escritas por el agente no se certifican por asociarlas a una cifra recalculada.
+
+La representación incluye siempre la tabla completa. Referencias sin resolver,
+unidades distintas o categorías incompatibles conservan solo la tabla y su
+limitación. Las barras y líneas comparten escala con origen cero, admiten negativos
+y escapan texto. No hay scripts ni dependencias de red. No implica integración con
+la edición o PDF del producto; eso pertenece a P4.
+
+La extensión de panorama del motor añade variaciones porcentuales entre las
+ventanas ya seleccionadas, variaciones de los grupos comparables devueltos y
+porcentajes de producto/canal sobre el total. No cambia el calculador ni la cadena
+legacy. Su versión y hash se guardan en la especificación de las observaciones,
+la huella idempotente y las comprobaciones; una versión distinta no se recertifica.
+El recálculo usa el mismo Parquet, mapeo, periodo y reglas de selección.
+
+La sección `ratios` devuelve referencias normales de `numbers` para resultado y
+operandos. Una base cero o negativa no produce porcentaje. Una parte negativa o
+mayor que el total tampoco se interpreta como cuota. La fórmula usa decimales y
+se almacena con doce decimales como máximo antes del formato de presentación.
+Los bloques facts muestran ambos operandos y su unidad, además del porcentaje,
+fechas y fórmula; cada número generado tiene un span y evidencia propios dentro
+del mismo campo. Esos operandos son recalculados, no texto aportado por el agente.
+No hay ajuste automático por duración desigual, cobertura o estacionalidad.
+
+**A2 sigue incompleto:** no hay recetas independientes para consultas arbitrarias
+ni selectores de series. Tampoco se ha demostrado la cobertura exigida
+por el auditor ni la utilidad ante lectores. Este tramo no congela el motor para
+P3 ni da por cumplida su puerta.
 
 `proxy-calls.jsonl` incluye por llamada `billing` (modelo/modalidad solicitados y
 observados, entrada, salida, caché leída/escrita) y `cost_catalog`. Los recibos SSE
