@@ -153,7 +153,7 @@ class Runtime:
                                                     'apiKey': self.token}}},
                   'mcp': {'decision_room': {'type': 'remote', 'url': f'http://127.0.0.1:8080/jobs/{self.run_id}/mcp',
                                            'headers': {'Authorization': 'Bearer ' + self.token}, 'oauth': False}},
-                  'permission': {'*': 'allow', 'external_directory': 'deny', 'webfetch': 'deny',
+                  'permission': {'*': 'allow', 'external_directory': {'*': 'deny', '/inputs/*': 'allow'}, 'webfetch': 'deny',
                                  'websearch': 'deny', 'question': 'deny'}}
         env = {'OPENCODE_SERVER_PASSWORD': self.password, 'OPENCODE_CONFIG_CONTENT': json.dumps(config)}
         result = self._docker('create', '--pull=never', '--name', self.name,

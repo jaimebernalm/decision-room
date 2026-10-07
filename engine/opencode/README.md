@@ -116,3 +116,12 @@ no interpreta un paso `tool-calls`/`unknown` como fin del turno. Otras pruebas c
 reservas inciertas tras caída, idempotencia de respuesta, aislamiento por negocio y
 fallo del render con raw recuperable. Esto no sustituye los ensayos con modelo de P2
 ni certifica calidad analítica de P3.
+
+
+El acceso de OpenCode a directorios externos permanece denegado salvo `/inputs/*`,
+para que sus herramientas nativas puedan descubrir el manifiesto y leer los CSV.
+Docker monta ese volumen en solo lectura. La prueba real de descubrimiento lee
+manifiesto y CSV, extrae un UUID de tabla, lo usa en MCP y comprueba que
+`/etc/hostname` siga denegado; el test de restauración comprueba además que escribir
+en inputs falla. Esta excepción corrige el primer canario real, que conservó su
+salida parcial pero no pudo descubrir tablas por la denegación global anterior.
