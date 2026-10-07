@@ -46,7 +46,7 @@ def pointer(document, path):
 
 
 HIDDEN = {'verification_annotations', 'numbers', 'key', 'number_key', 'execution_id', 'metric', 'id',
-          'schema_version'}  # fields of draft.verified.json the renderer does not show as text
+          'schema_version', 'kind', 'recommendation_id'}  # fields of draft.verified.json the renderer does not show as text
 
 
 def visible(value, path=''):
@@ -71,8 +71,17 @@ def quoted(cita, field):
     return [m.span() for m in re.finditer(pattern, field.translate(SAME_LENGTH), flags=re.I)]
 
 
+def spans(part, text):
+    """Where part appears in text as whole tokens, ignoring case and spacing, with text offsets."""
+    words = part.split()
+    if not words:
+        return []
+    pattern = r'(?<![\w.,])' + r'\s+'.join(re.escape(w) for w in words) + r'(?![\w]|[.,]\d)'
+    return [m.span() for m in re.finditer(pattern, text.translate(SAME_LENGTH), flags=re.I)]
+
+
 def occurrences(part, text):
-    return len(re.findall(r'(?<![\w.,])' + re.escape(part) + r'(?![\w]|[.,]\d)', text)) if part else 0
+    return len(spans(part, text))
 
 
 def label(entry, figures, document=None):
@@ -91,8 +100,17 @@ def label(entry, figures, document=None):
         return 'ambiguous'
     if places:
         path, a, b = places[0]
-        found = [f for f in figures if f.get('path') == path and shown(f)
-                 and a <= f['span']['start'] and f['span']['end'] <= b]
+        text = dict(fields)[path]
+        if value:  # the value itself must appear once inside the quote, whatever the ledger holds
+            hits = [(x, y) for x, y in spans(value, text) if a <= x and y <= b]
+            if len(hits) != 1:
+                return 'ambiguous' if hits else 'unmarked'
+            a, b = hits[0]
+            found = [f for f in figures if f.get('path') == path and shown(f)
+                     and f['span']['start'] < b and a < f['span']['end']]
+        else:
+            found = [f for f in figures if f.get('path') == path and shown(f)
+                     and a <= f['span']['start'] and f['span']['end'] <= b]
     else:
         found = [f for f in figures if within(normal(f.get('text')), cita) and shown(f)]
         if fields and value and sum(occurrences(value, normal(text)) for _, text in fields) > 1:

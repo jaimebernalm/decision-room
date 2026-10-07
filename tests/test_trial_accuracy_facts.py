@@ -67,5 +67,20 @@ class FactJoinTests(unittest.TestCase):
         self.assertEqual(trial_accuracy.label(paraphrase, [{**figures[0], 'path': '/summary', 'span': {'start': 5, 'end': 7}}],
                                               twice), 'ambiguous')
 
+    def test_the_value_must_appear_once_inside_the_quote(self):
+        # Astra's reproduction: two 42s in one quote, only one labelled.
+        document = {'summary': 'El total es 42 frente a 42.'}
+        figures = [{'id': 'f', 'path': '/summary', 'span': {'start': 12, 'end': 14}, 'text': '42',
+                    'status': 'verified', 'verified': True}]
+        entry = {'cita': 'El total es 42 frente a 42.', 'valor_informe': '42', 'clase': 'correcta',
+                 'sostiene_prioridad_v3': True}
+        self.assertEqual(trial_accuracy.label(entry, figures, document), 'ambiguous')
+        self.assertEqual(trial_accuracy.label({**entry, 'cita': 'El total es 42'}, figures, document), 'verified')
+        self.assertEqual(trial_accuracy.label({**entry, 'cita': 'frente a 42'}, figures, document), 'unmarked')
+        charted = {'summary': 'Sube 7.', 'charts': [{'kind': 'Sube 7.', 'recommendation_id': 'Sube 7.'}]}
+        seven = [{**figures[0], 'span': {'start': 5, 'end': 6}, 'text': '7'}]
+        self.assertEqual(trial_accuracy.label({**entry, 'cita': 'Sube 7.', 'valor_informe': '7'}, seven, charted),
+                         'verified')
+
 if __name__ == '__main__':
     unittest.main()
