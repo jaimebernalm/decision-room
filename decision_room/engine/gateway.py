@@ -3,10 +3,15 @@ from uuid import UUID
 
 from .. import execution
 from ..database import connect
-from . import admission, store, panorama, numbers
+from . import admission, store, panorama, numbers, questions
 
 VERSIONS = {'2025-03-26', '2025-06-18'}
 TOOLS = [
+    {'name': 'preguntar_propietario', 'description': 'Persist a question and pause the job without keeping an HTTP request open. Wait for an explicit owner answer before further work. An identical retry retrieves the same question.',
+     'inputSchema': {'type': 'object', 'properties': {
+         'request_key': {'type': 'string'}, 'text': {'type': 'string'}, 'reason': {'type': 'string'},
+         'options': {'type': 'array', 'maxItems': 8, 'items': {'type': 'string'}}},
+         'required': ['request_key', 'text', 'reason'], 'additionalProperties': False}},
     {'name': 'verify_numbers', 'description': 'Resolve 1–32 metric references within this job. Recalculate deterministic panorama scopes; agent calculations remain unverified without a server recipe. Does not verify prose attribution, owner units, causes or priority. Results and corrections are durable and paged; repeat unchanged input with cursor.',
      'inputSchema': {'type': 'object', 'properties': {
          'request_key': {'type': 'string'}, 'cursor': {'type': 'integer', 'minimum': 0},
@@ -118,7 +123,7 @@ def resultado(config, job, args):
 
 
 def dispatch(config, run_id, token, message, *, backend=None):
-    job = admission.authenticate(config, run_id, token)
+    admission.check_credential(config, run_id, token)
     if not isinstance(message, dict) or message.get('jsonrpc') != '2.0':
         raise ValueError('Expected one JSON-RPC message.')
     method, params = message.get('method'), message.get('params', {})
@@ -129,6 +134,9 @@ def dispatch(config, run_id, token, message, *, backend=None):
     if type(message['id']) not in (str, int) or not isinstance(params, dict):
         raise ValueError('Invalid JSON-RPC request.')
     response = {'jsonrpc': '2.0', 'id': message['id']}
+    # Only an identical owner-question receipt may be replayed while paused.
+    question_call = method == 'tools/call' and params.get('name') == 'preguntar_propietario'
+    job = None if question_call else admission.authenticate(config, run_id, token)
     if method == 'initialize':
         result = {'protocolVersion': params.get('protocolVersion') if params.get('protocolVersion') in VERSIONS else '2025-06-18',
                   'capabilities': {'tools': {}}, 'serverInfo': {'name': 'decision-room-engine', 'version': '0.1'}}
@@ -141,7 +149,11 @@ def dispatch(config, run_id, token, message, *, backend=None):
         if not isinstance(args, dict):
             raise ValueError('Invalid tool arguments.')
         try:
-            if params.get('name') == 'verify_numbers':
+            if params.get('name') == 'preguntar_propietario':
+                if set(args) - {'request_key', 'text', 'reason', 'options'} or not {'request_key', 'text', 'reason'} <= set(args):
+                    raise ValueError('Invalid owner question arguments.')
+                value = questions.request(config, run_id, token, **args)
+            elif params.get('name') == 'verify_numbers':
                 if set(args) - {'request_key', 'numbers', 'cursor'} or not {'request_key', 'numbers'} <= set(args):
                     raise ValueError('Invalid verification arguments.')
                 row = numbers.verify(config, run_id, token, request_key=args['request_key'], numbers=args['numbers'])

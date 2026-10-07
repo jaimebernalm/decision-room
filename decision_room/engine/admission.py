@@ -142,6 +142,12 @@ def _active(db, row):
     return None
 
 
+def check_credential(config, run_id, token):
+    """HTTP precheck only; each operation still enforces its allowed job state."""
+    with connect(config) as db, db.transaction():
+        _locked(db, run_id, token)
+
+
 def authenticate(config, run_id, token, *, check_snapshot=True):
     """Validate every operation. Never allow a caller-supplied business override."""
     with connect(config) as db, db.transaction():

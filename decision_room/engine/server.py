@@ -62,7 +62,7 @@ class Handler(BaseHTTPRequestHandler):
             raise admission.Denied('Invalid job endpoint or credential.')
         run_id, endpoint = match.groups()
         token = auth[7:]
-        admission.authenticate(self.server.config, run_id, token)
+        admission.check_credential(self.server.config, run_id, token)
         if self.command != 'POST':
             self.send(405)
             return

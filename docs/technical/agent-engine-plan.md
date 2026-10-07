@@ -322,8 +322,9 @@ siguen explícitas en el resumen.
     trabajo registrado, incluidos título, compactación y subagentes.
 
 **Estado P2:** iniciado. El [primer tramo de admisión](engine-admission.md) incorpora
-credenciales por trabajo, reservas duraderas, proxy y consulta MCP con pruebas
-locales. El servicio completo y sus criterios de recuperación/ejecución real
+credenciales por trabajo, reservas duraderas, proxy, consulta MCP y transiciones
+duraderas de pregunta/espera/respuesta con pruebas locales. Estas últimas aún
+necesitan la conexión con el supervisor del contenedor. El servicio completo y sus criterios de recuperación/ejecución real
 siguen pendientes; no se declara P2 terminado.
 
 ### Paso 3. Habilidad de informe (puerta)
