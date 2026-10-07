@@ -690,6 +690,22 @@ compilación, lint y revisión de diferencias sin errores. Ejemplo cargado en el
 negocio local y comprobados burbuja independiente, panel junto a Datos y modelo
 visible desde el inicio. Véanse [comprobaciones y límites](../validation/2026-10-06-context-bubbles-and-inline-relations.md).
 
+### 2.5.29. Burbujas compactas y mapa de relaciones con Mermaid
+
+1. Reducir el contexto pendiente a cápsulas pequeñas, redondas y pegadas al
+   compositor; conservar retirada y apertura de la vista previa completa.
+2. Dibujar las tablas y conexiones con Mermaid, mostrando columnas y claves
+   declaradas válidas, con selección, teclado, zoom y disposición adaptable.
+3. Plegar búsqueda e historial inicialmente, manteniendo revisión exacta,
+   comprobaciones y correcciones. Escapar nombres subidos como texto literal.
+4. Comprobar escritorio/móvil, ejecutar pruebas frontend, compilación, lint
+   y revisión del contenido antes del commit local.
+
+**Completado:** 242 pruebas frontend pasan; compilación y lint sin errores.
+Comprobados cápsulas de 30 px, separación de 3 px, Mermaid real con tres tablas,
+selección de conexiones mediante ratón y teclado, zoom y móvil sin desbordamiento.
+Véanse [comprobaciones y límites](../validation/2026-10-06-compact-bubbles-and-mermaid.md).
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Avance, 27 de septiembre de 2026:** completados **3.1** (medición inicial),

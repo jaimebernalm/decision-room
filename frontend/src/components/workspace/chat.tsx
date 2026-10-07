@@ -640,6 +640,7 @@ export function ChatPage({
             attachments={
               assistant?.selected.length ? (
                 <ContextAttachments
+                  compact
                   items={assistant.selected}
                   onRemove={assistant.remove}
                 />

@@ -1,5 +1,5 @@
 import { translate as tr, useLanguage, locale } from "@/lib/i18n";
-import { useId, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { GitBranch, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useResource, useAction } from "@/lib/hooks";
 import { api } from "@/lib/api";
 import { Notice, Loading, Disclosure } from "./shared";
+import { ERDiagram } from "./data-model-diagram";
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -32,7 +33,7 @@ type Column = {
   unit: string;
   conversion: string;
 };
-type Table = {
+export type Table = {
   id: string;
   name: string;
   row_count: number;
@@ -50,7 +51,7 @@ type Counts = {
   duplicate_keys: number;
   duplicate_rows: number;
 };
-type Relation = {
+export type Relation = {
   id: string;
   source: string;
   target: string;
@@ -244,7 +245,7 @@ function ModelContent({
           {tr(" tablas · ")}
           {relations.length}
           {tr(
-            " relaciones propuestas o comprobadas. Las comprobaciones técnicas y el significado de negocio se revisan por separado.",
+            " conexiones · Selecciona una tabla o una conexión para ver sus detalles.",
           )}
         </p>
       </CardHeader>
@@ -295,34 +296,36 @@ function ModelContent({
             </ul>
           </Disclosure>
         )}
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label={tr("Buscar tabla")}>
-            <Input
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              placeholder={tr("Nombre de la tabla")}
-            />
-          </Field>
-          <Field label={tr("Historial del modelo")}>
-            <select
-              className={selectClass}
-              value={revision}
-              onChange={(e) => {
-                setRevision(e.target.value);
-                setForm("");
-              }}
-            >
-              <option value="">{tr("Revisión vigente")}</option>
-              {history.map((h) => (
-                <option key={h.revision} value={h.revision}>
-                  {tr("Revisión ")}
-                  {h.revision} ·{" "}
-                  {new Date(h.created_at).toLocaleDateString(locale())}
-                </option>
-              ))}
-            </select>
-          </Field>
-        </div>
+        <Disclosure title={tr("Buscar y revisar versiones")} subtle>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label={tr("Buscar tabla")}>
+              <Input
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                placeholder={tr("Nombre de la tabla")}
+              />
+            </Field>
+            <Field label={tr("Historial del modelo")}>
+              <select
+                className={selectClass}
+                value={revision}
+                onChange={(e) => {
+                  setRevision(e.target.value);
+                  setForm("");
+                }}
+              >
+                <option value="">{tr("Revisión vigente")}</option>
+                {history.map((h) => (
+                  <option key={h.revision} value={h.revision}>
+                    {tr("Revisión ")}
+                    {h.revision} ·{" "}
+                    {new Date(h.created_at).toLocaleDateString(locale())}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+        </Disclosure>
         {table && (
           <Button
             size="sm"
@@ -655,175 +658,6 @@ function ModelContent({
         )}
       </CardContent>
     </Card>
-  );
-}
-
-export function ERDiagram({
-  tables,
-  relations,
-  selected,
-  edge,
-  chooseTable,
-  chooseEdge,
-}: {
-  tables: Table[];
-  relations: Relation[];
-  selected: string;
-  edge: string;
-  chooseTable: (id: string) => void;
-  chooseEdge: (id: string) => void;
-}) {
-  useLanguage();
-  const marker = useId();
-  const positions = new Map(
-    tables.map((t, i) => [
-      t.id,
-      { x: 30 + (i % 3) * 310, y: 40 + Math.floor(i / 3) * 150 },
-    ]),
-  );
-  const links = relations.filter(
-    (r) => positions.has(r.source) && positions.has(r.target),
-  );
-  return (
-    <div
-      className="min-w-0 w-full overflow-x-auto rounded-xl border bg-muted/20"
-      style={{ contain: "inline-size" }}
-    >
-      <svg
-        role="group"
-        aria-label={tr("Diagrama ER de esta revisión del modelo")}
-        viewBox={`0 0 960 ${Math.max(210, Math.ceil(tables.length / 3) * 150 + 60)}`}
-        className="min-w-[640px] w-full"
-      >
-        <defs>
-          <marker
-            id={marker}
-            viewBox="0 0 10 10"
-            refX="9"
-            refY="5"
-            markerWidth="7"
-            markerHeight="7"
-            orient="auto-start-reverse"
-          >
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
-          </marker>
-        </defs>
-        {links.map((r, i) => {
-          const a = positions.get(r.source)!,
-            b = positions.get(r.target)!,
-            y = 15 + (i % 4) * 5;
-          return (
-            <g
-              key={r.id}
-              role="button"
-              tabIndex={0}
-              aria-label={tr("Relación {0} con {1}", {
-                "0": tables.find((t) => t.id === r.source)!.name,
-                "1": tables.find((t) => t.id === r.target)!.name,
-              })}
-              onClick={() => chooseEdge(r.id)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  chooseEdge(r.id);
-                }
-              }}
-              className="cursor-pointer text-primary"
-            >
-              <title>
-                {tr(cardinalities[r.cardinality])} ·{" "}
-                {tr(labels[r.semantic_status])}
-              </title>
-              <path
-                d={`M ${a.x + 120} ${a.y} C ${a.x + 120} ${a.y - y - 25}, ${b.x + 120} ${b.y - y - 25}, ${b.x + 120} ${b.y}`}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={edge === r.id ? 4 : 2}
-                strokeDasharray={
-                  r.semantic_status === "confirmed" ? undefined : "6 4"
-                }
-                opacity={r.semantic_status === "rejected" ? 0.3 : 0.75}
-                markerEnd={`url(#${marker})`}
-              />
-              <path
-                d={`M ${a.x + 120} ${a.y} C ${a.x + 120} ${a.y - y - 25}, ${b.x + 120} ${b.y - y - 25}, ${b.x + 120} ${b.y}`}
-                fill="none"
-                stroke="transparent"
-                strokeWidth="14"
-              />
-            </g>
-          );
-        })}
-        {tables.map((t) => {
-          const p = positions.get(t.id)!;
-          return (
-            <g
-              key={t.id}
-              role="button"
-              tabIndex={0}
-              aria-label={tr("Tabla {0}", { "0": t.name })}
-              onClick={() => chooseTable(t.id)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  chooseTable(t.id);
-                }
-              }}
-              className="cursor-pointer"
-            >
-              <rect
-                x={p.x}
-                y={p.y}
-                width="270"
-                height="94"
-                rx="12"
-                className="fill-background stroke-border"
-                style={{
-                  stroke: selected === t.id ? "var(--primary)" : undefined,
-                  strokeWidth: selected === t.id ? 3 : 1,
-                }}
-              />
-              <text
-                x={p.x + 14}
-                y={p.y + 30}
-                className="fill-foreground"
-                fontSize="13"
-                fontWeight="600"
-              >
-                {t.name.length > 32 ? t.name.slice(0, 29) + "…" : t.name}
-              </text>
-              <text
-                x={p.x + 14}
-                y={p.y + 52}
-                className="fill-muted-foreground"
-                fontSize="12"
-              >
-                {t.row_count.toLocaleString(locale())}
-                {tr(" filas · ")}
-                {t.columns.length} {tr("columnas")}
-              </text>
-              <text
-                x={p.x + 14}
-                y={p.y + 75}
-                className="fill-muted-foreground"
-                fontSize="11"
-              >
-                {t.grain
-                  ? t.semantic_status === "inferred"
-                    ? tr("Granularidad propuesta")
-                    : tr("Granularidad declarada")
-                  : tr("Granularidad por confirmar")}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-      <p className="p-3 text-xs text-muted-foreground">
-        {tr(
-          "Flecha: origen → destino. Línea discontinua: significado pendiente o descartado. Selecciona una conexión para ver su cardinalidad y comprobaciones.",
-        )}
-      </p>
-    </div>
   );
 }
 

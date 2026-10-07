@@ -92,17 +92,17 @@ export function NewChatComposer({ autoFocus = true }: { autoFocus?: boolean }) {
           <>
             {(context.analysis_id || context.finding_reference) && (
               <div
-                className="composer-context-bubble flex w-fit max-w-full items-center gap-2 px-3 py-1.5 text-xs"
+                className="composer-context-bubble flex w-fit max-w-[min(100%,16rem)] items-center gap-1 pl-2.5 pr-1 py-0.5 text-[11px] leading-4"
                 role="group"
                 aria-label={tr("Tablas seleccionadas")}
               >
-                <span className="min-w-0 break-words">
+                <span className="min-w-0 truncate" title={context.label}>
                   {context.label || tr("Contexto seleccionado")}
                 </span>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-7 shrink-0 rounded-full"
+                  className="size-6 shrink-0 rounded-full"
                   aria-label={tr("Quitar contexto")}
                   onClick={() =>
                     setContext({
@@ -113,12 +113,13 @@ export function NewChatComposer({ autoFocus = true }: { autoFocus?: boolean }) {
                     })
                   }
                 >
-                  <X className="size-3.5" />
+                  <X className="size-3" />
                 </Button>
               </div>
             )}
             {!!assistant?.selected.length && (
               <ContextAttachments
+                compact
                 items={assistant.selected}
                 onRemove={assistant.remove}
               />

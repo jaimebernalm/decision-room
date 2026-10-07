@@ -2,6 +2,14 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DataModelPanel } from "./data-model";
+vi.mock("mermaid", () => ({
+  default: {
+    initialize: vi.fn(),
+    render: vi.fn(async (_id: string, source: string) => ({
+      svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 300">${[...source.matchAll(/table(\d+)\["/g)].map((match) => `<g id="entity-table${match[1]}-${match[1]}"><rect width="100" height="40" /></g>`).join("")}</svg>`,
+    })),
+  },
+}));
 const columns = [
   {
     name: "id",
@@ -65,18 +73,16 @@ describe("versioned ER data model", () => {
   it("shows the model immediately inside Relations and explains a single table without invented connections", async () => {
     vi.stubGlobal(
       "fetch",
-      vi
-        .fn()
-        .mockResolvedValue({
-          ok: true,
-          json: async () => ({
-            ...response,
-            model: {
-              ...response.model,
-              body: { tables: [tables[0]], relations: [], metrics: [] },
-            },
-          }),
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          ...response,
+          model: {
+            ...response.model,
+            body: { tables: [tables[0]], relations: [], metrics: [] },
+          },
         }),
+      }),
     );
     render(<DataModelPanel business="business" analysis="analysis" inline />);
     expect(
@@ -110,7 +116,7 @@ describe("versioned ER data model", () => {
       screen.getByRole("button", { name: /Centrar en esta tabla/ }),
     );
     expect(
-      screen.getByRole("button", { name: "Tabla Table 14" }),
+      await screen.findByRole("button", { name: "Tabla Table 14" }),
     ).toBeInTheDocument();
     await user.click(
       screen.getByRole("button", { name: "Ver todas las tablas" }),
@@ -162,6 +168,9 @@ describe("versioned ER data model", () => {
       action: "table",
       payload: { id: "table-0", grain: "Una factura" },
     });
+    await user.click(
+      screen.getByRole("button", { name: "Buscar y revisar versiones" }),
+    );
     await user.selectOptions(
       screen.getByLabelText("Historial del modelo"),
       "3",
