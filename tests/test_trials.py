@@ -73,6 +73,41 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(order[:4], ['bruma-luna-1', 'bruma-product-1', 'albor-luna-1', 'albor-product-1'])
         self.assertEqual(order[4:], ['albor-product-2', 'albor-luna-2', 'bruma-product-2', 'bruma-luna-2'])
 
+    def test_seeded_order_is_reproducible_and_keeps_rounds(self):
+        order = trials.plan_order(['albor', 'bruma'], ['engine', 'opencode', 'product'], 6, seed=7)
+        self.assertEqual(order, trials.plan_order(['albor', 'bruma'], ['engine', 'opencode', 'product'], 6, seed=7))
+        self.assertNotEqual(order, trials.plan_order(['albor', 'bruma'], ['engine', 'opencode', 'product'], 6))
+        for round_ in range(6):
+            self.assertTrue(all(name.endswith(f'-{round_ + 1}') for name in order[6 * round_:6 * round_ + 6]))
+
+    def test_variant_brief_reaches_only_its_system_with_identical_data(self):
+        def inputs(root, prompt, context=False, rows='a\n1\n'):
+            (root / 'datos').mkdir(parents=True)
+            (root / 'datos/v.csv').write_text(rows)
+            (root / 'prompt.txt').write_text(prompt)
+            if context:
+                (root / 'contexto').mkdir()
+                (root / 'contexto/panorama.md').write_text('mapa')
+            return root
+        with TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            runner = tmp / 'run-opencode.sh'
+            runner.write_text('')
+            base, loop = inputs(tmp / 'base', 'Mi negocio es Demo. Plano.'), inputs(tmp / 'loop', 'Mi negocio es Demo. Mapa.', True)
+            other = inputs(tmp / 'other', 'x', rows='a\n2\n')
+            with patch.dict(os.environ, {'TRIALS_OPENCODE_RUNNER': str(runner)}):
+                with self.assertRaises(SystemExit):
+                    trials.prepare(tmp / 'bad', {'demo': base}, None, 1, ['opencode'], tmp, tmp / '.env',
+                                   variants={'opencode': {'demo': other}})
+                manifest = trials.prepare(tmp / 'batch', {'demo': base}, None, 1, ['opencode'], tmp, tmp / '.env',
+                                          variants={'opencode': {'demo': loop}}, order_seed=3)
+            job = tmp / 'batch/jobs/demo-opencode-1'
+            self.assertEqual((job / 'prompt.txt').read_text(), 'Mi negocio es Demo. Mapa.')
+            self.assertEqual((tmp / 'batch/inputs/demo/prompt.txt').read_text(), 'Mi negocio es Demo. Plano.')
+            self.assertEqual(manifest['order_seed'], 3)
+            self.assertIn('contexto/panorama.md', manifest['datasets']['demo']['variants']['opencode']['context'])
+            self.assertTrue(trials.inputs_unchanged(tmp / 'batch', job, trials.read(job / 'state.json')))
+
     def test_abandoned_attempt_is_kept_and_replaced_in_place(self):
         with TemporaryDirectory() as tmp:
             batch = Path(tmp)

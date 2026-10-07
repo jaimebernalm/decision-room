@@ -24,6 +24,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import random
 import re
 import shutil
 import signal
@@ -71,16 +72,20 @@ def effective_flags(overrides, environ=None):
             if k.startswith('DECISION_ROOM_') and not any(h in k for h in SECRET_HINTS)}
 
 
-def plan_order(datasets, systems, repeats, arm_repeats=None):
+def plan_order(datasets, systems, repeats, arm_repeats=None, seed=None):
     """Interleave systems and datasets so drift in time affects all arms alike.
 
-    arm_repeats overrides the count for a DATASET-SYSTEM arm (0 removes it)."""
+    arm_repeats overrides the count for a DATASET-SYSTEM arm (0 removes it). With a seed, the
+    arms of each repetition round run in a seeded random order instead of alternating."""
     arm_repeats = arm_repeats or {}
     count = lambda d, s: arm_repeats.get(f'{d}-{s}', repeats)
+    rng = random.Random(seed)
     order = []
     for repetition in range(1, max([repeats, *arm_repeats.values()], default=repeats) + 1):
         arms = [(d, s) for d in datasets for s in systems if repetition <= count(d, s)]
-        if repetition % 2 == 0:
+        if seed is not None:
+            rng.shuffle(arms)
+        elif repetition % 2 == 0:
             arms.reverse()
         order += [f'{d}-{s}-{repetition}' for d, s in arms]
     return order
@@ -121,7 +126,10 @@ def copy_inputs(source, target):
 
 def prepare(batch, datasets, product_ref, repeats, systems, runtime_root, env_file,
             arm_repeats=None, python=None, reference_ref=None, product_env=None, reference_python=None,
-            reference_env=None, engine_ref=None, engine_env=None, engine_python=None):
+            reference_env=None, engine_ref=None, engine_env=None, engine_python=None, variants=None,
+            order_seed=None):
+    """variants maps SYSTEM -> {DATASET: DIR}: that system gets another brief or context for the
+    same data (e.g. the loop agent's brief names contexto/panorama.md). The CSVs must be identical."""
     if (batch / 'manifest.json').exists():
         raise SystemExit('Batch already prepared; inspect it or choose another folder.')
     batch.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -143,6 +151,22 @@ def prepare(batch, datasets, product_ref, repeats, systems, runtime_root, env_fi
                                                      for p in sorted((target / 'contexto').rglob('*')) if p.is_file()}
         if (source / 'oracle.json').exists():
             raise SystemExit(f'{source} contains oracle.json; keep oracles away from agent inputs.')
+    for system, by_dataset in (variants or {}).items():
+        if system not in systems or set(by_dataset) - set(datasets):
+            raise SystemExit(f'Variant for {system} names an unknown system or dataset.')
+        for name, source in by_dataset.items():
+            source = Path(source).resolve()
+            if (source / 'oracle.json').exists():
+                raise SystemExit(f'{source} contains oracle.json; keep oracles away from agent inputs.')
+            target = batch / 'inputs' / f'{name}@{system}'
+            if copy_inputs(source, target) != manifest['datasets'][name]['inputs']:
+                raise SystemExit(f'Variant {name}@{system} must carry the same CSV files as {name}.')
+            prompt = (target / 'prompt.txt').read_text()
+            variant = {'prompt_sha256': hashlib.sha256(prompt.encode()).hexdigest()}
+            if (target / 'contexto').is_dir():
+                variant['context'] = {str(p.relative_to(target)): sha(p)
+                                      for p in sorted((target / 'contexto').rglob('*')) if p.is_file()}
+            manifest['datasets'][name].setdefault('variants', {})[system] = variant
     if set(systems) & set(DATABASE_ARMS):
         from ..agent.model import ModelSettings
         from ..local_env import load_env
@@ -192,13 +216,15 @@ def prepare(batch, datasets, product_ref, repeats, systems, runtime_root, env_fi
             raise SystemExit('Codex CLI not found on PATH.')
         manifest['codex'] = {'version': subprocess.check_output([binary, '--version'], text=True).strip(),
                              'args': CODEX_ARGS}
-    manifest['order'] = plan_order(list(datasets), systems, repeats, arm_repeats)
+    manifest['order'] = plan_order(list(datasets), systems, repeats, arm_repeats, order_seed)
+    manifest['order_seed'] = order_seed
     for name in manifest['order']:
         dataset, system, repetition = name.rsplit('-', 2)
         job = batch / 'jobs' / name
         job.mkdir(parents=True)
         if system in AGENT_LOOPS:
-            copy_inputs(batch / 'inputs' / dataset, job)
+            variant = f'{dataset}@{system}' if dataset in (variants or {}).get(system, {}) else dataset
+            copy_inputs(batch / 'inputs' / variant, job)
         write(job / 'state.json', {'job': name, 'dataset': dataset, 'system': system,
                                    'repetition': int(repetition), 'status': 'not_run',
                                    'key': 'trial-' + uuid4().hex})
@@ -372,7 +398,7 @@ def inputs_unchanged(batch, job, state):
     context = {str(p.relative_to(job)): sha(p) for p in sorted((job / 'contexto').rglob('*')) if p.is_file()} \
         if (job / 'contexto').is_dir() else {}
     return ({p.name: sha(p) for p in sorted((job / 'datos').glob('*.csv'))} == dataset['inputs']
-            and context == dataset.get('context', {}))
+            and context == dataset.get('variants', {}).get(state['system'], dataset).get('context', {}))
 
 
 def env_value(path, key):
@@ -715,6 +741,9 @@ def main():
     p.add_argument('--engine-ref', help='Frozen revision whose decision_room.engine runs the engine arm')
     p.add_argument('--engine-python', type=Path)
     p.add_argument('--engine-env', action='append', default=[], help='KEY=VALUE set only for the engine arm')
+    p.add_argument('--variant', action='append', default=[],
+                   help='SYSTEM:DATASET=DIR, same CSVs with another brief or context for that system')
+    p.add_argument('--order-seed', type=int, help='Seeded random order within each repetition round')
     p.add_argument('--systems', default='luna,product')
     p.add_argument('--runtime-root', type=Path, default=ROOT,
                    help='Checkout whose .local holds sandbox-runtime.json and the mounted sandbox-inputs')
@@ -760,11 +789,17 @@ def main():
         if not systems or set(systems) - set(SYSTEMS):
             raise SystemExit(f'Systems must be among {", ".join(SYSTEMS)}.')
         arms = {k: int(v) for k, v in (item.split('=', 1) for item in args.arm_repeats)}
+        variants = {}
+        for item in args.variant:
+            key, path = item.split('=', 1)
+            system, dataset = key.split(':', 1)
+            variants.setdefault(system, {})[dataset] = path
         manifest = prepare(args.batch.resolve(), datasets, args.product_ref, args.repeats, systems,
                            args.runtime_root.resolve(), args.env_file, arms, args.python, args.reference_ref,
                            dict(item.split('=', 1) for item in args.product_env), args.reference_python,
                            dict(item.split('=', 1) for item in args.reference_env), args.engine_ref,
-                           dict(item.split('=', 1) for item in args.engine_env), args.engine_python)
+                           dict(item.split('=', 1) for item in args.engine_env), args.engine_python,
+                           variants, args.order_seed)
         print(json.dumps({'jobs': manifest['order'], 'revision': manifest.get('revision')}, indent=2))
     elif args.command == 'run':
         print(json.dumps({'dispatched': run(args.batch.resolve(), args.system, args.limit)}))

@@ -1,10 +1,11 @@
 # Preregistro de la medida del paso 3 del motor de agentes
 
 Fecha de registro: 2026-10-06, antes de cualquier ejecución del motor nuevo.
-Versión 3, del mismo día y también antes de medir. La versión 2 incorporó la
+Versión 4, del 2026-10-07 y también antes de medir. La versión 2 incorporó la
 revisión de Astra (agregación de lectores, flags y presupuestos congelados,
 presupuestos iguales y reemplazos); la 3 define qué cifras «sostienen
-prioridades», a partir de la auditoría del paso 1. Los cambios se listan al final.
+prioridades», a partir de la auditoría del paso 1; la 4 fija el encargo de cada
+brazo, el orden aleatorio y los presupuestos. Los cambios se listan al final.
 Plan de referencia: plan de implementación del motor, v3, paso 3 (acordado entre
 Claude y Astra). Este documento fija cómo se mide la puerta del paso 3. Lo que aquí
 se fija no se cambia después de ver resultados. Si hay que cambiar algo antes de
@@ -23,12 +24,22 @@ cifras erróneas como verificadas ni perder informes?
 | --- | --- | --- |
 | `engine` | Motor nuevo, invocado con `engine.run_report` desde el lanzador. | La de `codex/agent-engine` en el momento de la medida, registrada en el manifiesto. |
 | `loop` | Agente en bucle (OpenCode) con `contexto/panorama.md`, como el lote `loop-panorama`. Control congelado y reejecutado. | Lanzador y configuración del lote `loop-panorama` (`9da3985`), con la imagen `decision-room-opencode:1.18.34`. |
-| `legacy` | Cadena LangGraph congelada. | `c6bda76`, con la configuración del brazo «producto» del experimento decisivo (sección 18 del documento de ensayos: sin panorama). Los valores explícitos de cada flag `DECISION_ROOM_*` y de cada presupuesto se copian al manifiesto antes de ejecutar; la referencia a la sección 18 no basta. |
+| `legacy` | Cadena LangGraph congelada. | `c6bda76`, con la configuración del brazo «producto» del experimento decisivo (sección 18 del documento de ensayos: sin panorama, la del brazo de referencia de `phase1av4`). Flags: `AGENT_TPM=1800000`, `OWNER_PRESENTATION=true`, `PANORAMA_OBLIGATION_GUARD=true`, `RESEARCH_CONTINUITY=true`, `RESEARCH_VALIDATION_RECOVERY=true`, `REVIEW_LOOP_GUARD=true`, `REVIEW_CONTEXT_BUDGET=false`, `REVIEW_EXPLICIT_CACHE=false`, `REVIEW_STABLE_PREFIX=false`, `SALES_PANORAMA=false` (todas con prefijo `DECISION_ROOM_`). El lanzador copia además al manifiesto los valores efectivos de cada flag `DECISION_ROOM_*`. |
 | `afc37fe` | Solo como referencia de regresión técnica; no entra en lectores. | `afc37fe`. |
 
-Los tres primeros reciben el mismo encargo y los mismos snapshots de datos:
-`inputs/albor-panorama` y `inputs/bruma-panorama`, con hashes en el manifiesto.
-El modelo es `gpt-6-luna` con esfuerzo `low` en todos los brazos.
+Los tres primeros reciben los mismos CSV (hashes idénticos, comprobados por el
+lanzador) y el mismo encargo, salvo una frase:
+
+- `loop` usa `inputs/<negocio>-panorama`: su encargo añade la frase que señala
+  `contexto/panorama.md`, porque es el único brazo que recibe el panorama como
+  archivo (como en el lote `loop-panorama`);
+- `engine` y `legacy` usan `inputs/<negocio>`, sin esa frase: el motor obtiene el
+  panorama con su herramienta `panorama`, y la cadena no lo recibe (como en la
+  sección 18). Darles la frase les haría buscar un archivo que no existe.
+
+El lanzador registra el hash del encargo de cada brazo (`--variant
+opencode:<negocio>=inputs/<negocio>-panorama`). El modelo es `gpt-6-luna` con
+esfuerzo `low` en todos los brazos.
 
 Presupuestos: antes de ejecutar se fijan y se copian al manifiesto los límites de
 cada brazo (tokens de entrada y salida, llamadas, tiempo). Deben ser equivalentes
@@ -37,11 +48,27 @@ no tiene tope de llamadas), se registra como **desviación** y no se puede afirm
 que se cumplió la condición «mismos presupuestos» del plan. El consumo real de
 cada ejecución se informa siempre.
 
+| Brazo | Entrada | Salida | Llamadas | Tiempo |
+| --- | --- | --- | --- | --- |
+| `engine` | 3.000.000 acumulados | 64.000 acumulados, 8.000 por petición | 60 | 20 min |
+| `loop` | sin tope | sin tope | sin tope | 40 min (lanzador) |
+| `legacy` | sin tope (ritmo de 1.800.000 tokens por minuto) | sin tope | sin tope | 90 min (lanzador) |
+
+**Desviación registrada:** `loop` y `legacy` son controles congelados y no pueden
+imponer los topes del motor sin cambiarlos. En el lote `loop-panorama`, el agente
+en bucle consumió como máximo 22 llamadas, 1.182.331 tokens de entrada, 13.665 de
+salida y unos 3 minutos: dentro de los topes del motor, así que esos topes no
+ponen al motor en desventaja frente a ese control. Se informa qué ejecuciones de
+control superan algún tope del motor; si alguna lo hace, se dice en el resultado.
+
 ## 3. Tamaño
 
 - 6 ejecuciones independientes por brazo y negocio: 36 ejecuciones (3 brazos × 2
   negocios × 6).
-- El orden de ejecución se aleatoriza con una semilla registrada en el manifiesto.
+- El orden de ejecución se aleatoriza con una semilla registrada en el manifiesto
+  (`--order-seed`): en cada ronda de repetición se ejecuta una vez cada brazo y
+  negocio, en orden aleatorio, para que la deriva en el tiempo afecte igual a
+  todos. Ningún brazo se ejecuta antes que los demás.
 - Un intento que no entrega informe (incluido un HTML sin texto legible) cuenta
   como **perdido** para la puerta y no se sustituye en el cómputo de informes
   perdidos. Para la comparación con lectores se sustituye por una ejecución nueva,
@@ -157,3 +184,15 @@ este registro.
    100 % y el total. Ahora cuenta toda recomendación explícita con su justificación
    y sus cifras enlazadas, en cualquier puesto (para que no se pueda eludir
    moviéndola al cuarto lugar o a una tabla), y no los descriptivos sin vínculo.
+
+## Cambios respecto a la versión 3
+
+1. Encargo por brazo: solo `loop` recibe la frase sobre `contexto/panorama.md`,
+   porque es el único que recibe ese archivo; los CSV son idénticos y el lanzador
+   lo comprueba. La versión 3 daba a los tres brazos `inputs/<negocio>-panorama`,
+   lo que habría pedido a `engine` y `legacy` un archivo que no tienen, y se
+   apartaba de la configuración de la sección 18 para `legacy`.
+2. Flags explícitos de `legacy`, copiados del brazo de referencia de `phase1av4`.
+3. Orden aleatorio por rondas con semilla, implementado en el lanzador.
+4. Tabla de presupuestos y desviación registrada, con el consumo observado del
+   control `loop`.
