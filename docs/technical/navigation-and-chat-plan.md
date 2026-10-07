@@ -61,6 +61,13 @@ publica en GitHub salvo petición explícita del usuario.
    la cabecera del contenido. Comprobar escritorio, móvil, teclado y continuidad
    del panel del chat, con etiquetas de acción en español e inglés.
 
+8. **2.5.19.8 — Nombre del negocio, acciones al borde y cierre por arrastre.**
+   Dar al selector de negocio su fila completa y colocar el botón de contraer
+   justo debajo, alineado a la derecha con los +. Acercar las acciones de Chats
+   e Informes al borde. Contraer la barra al arrastrarla más allá de la anchura
+   mínima; conservar una anchura utilizable para reabrir y los límites del teclado.
+   Comprobar nombre visible, arrastre, reapertura, móvil y continuidad del chat.
+
 ## Estado
 
 - 2.5.19.1 completado: bibliotecas sin duplicación, límites y selección conservados.
@@ -91,3 +98,13 @@ Los seis pasos están completos. Véase la
   nombres de tablas (espera «Ventas de septiembre · v2», recibe «Ventas»), ajenos
   a este ajuste. Build y lint pasan con avisos existentes. Verificados en navegador
   escritorio y móvil de 390 × 844; la captura se conserva localmente, fuera de Git.
+
+- 2.5.19.8 completado, 7 de octubre de 2026: título en su fila completa y botón
+  de contraer debajo, con el mismo eje derecho que los +. Las cabeceras y listas
+  de Chats e Informes aprovechan el espacio derecho antes reservado a padding.
+  El arrastre contrae al llegar a una anchura propuesta de 144 px o menos,
+  conservando el mínimo legible de 216 px al reabrir; el teclado mantiene sus
+  límites anteriores. Pasan 65 pruebas de layout, redimensionado, selector,
+  chat contextual y aplicación, build y lint con avisos existentes. Verificados
+  arrastre y reapertura reales, nombre completo a 256 px, controles alineados
+  y móvil de 390 × 844. Captura guardada localmente fuera de Git.

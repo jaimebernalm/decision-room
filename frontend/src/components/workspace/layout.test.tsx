@@ -199,3 +199,49 @@ it("opens mobile navigation from the content and closes it from its own header",
     screen.getByRole("button", { name: "Expandir barra lateral" }),
   ).toBeInTheDocument();
 });
+
+it("collapses when dragged past the minimum width and restores a usable width", () => {
+  mount();
+  const handle = screen.getByRole("separator", {
+    name: "Anchura de la barra lateral",
+  });
+  handle.hasPointerCapture = () => true;
+  const pointer = (type: string, x: number) =>
+    fireEvent(
+      handle,
+      new MouseEvent(type, { bubbles: true, clientX: x, button: 0 }),
+    );
+  pointer("pointerdown", 256);
+  pointer("pointermove", 200);
+  expect(
+    screen.getByRole("button", { name: "Contraer barra lateral" }),
+  ).toBeInTheDocument();
+  expect(handle).toHaveAttribute("aria-valuenow", "216");
+  pointer("pointermove", 140);
+  expect(
+    screen.getByRole("button", { name: "Expandir barra lateral" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByRole("separator", { name: "Anchura de la barra lateral" }),
+  ).toBeNull();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Expandir barra lateral" }),
+  );
+  expect(
+    screen.getByRole("separator", { name: "Anchura de la barra lateral" }),
+  ).toHaveAttribute("aria-valuenow", "216");
+  expect(store.get("dr-sidebar-width", 0)).toBe(216);
+});
+
+it("keeps the sidebar open when keyboard resizing reaches its minimum", () => {
+  mount();
+  const handle = screen.getByRole("separator", {
+    name: "Anchura de la barra lateral",
+  });
+  fireEvent.keyDown(handle, { key: "Home" });
+  fireEvent.keyDown(handle, { key: "ArrowLeft" });
+  expect(handle).toHaveAttribute("aria-valuenow", "216");
+  expect(
+    screen.getByRole("button", { name: "Contraer barra lateral" }),
+  ).toBeInTheDocument();
+});

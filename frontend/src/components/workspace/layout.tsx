@@ -74,7 +74,7 @@ function Navigation({
 }) {
   useLanguage();
   const { workspace, listing, route } = useWorkspace(),
-    { isMobile, setOpenMobile, state } = useSidebar();
+    { isMobile, setOpenMobile, setOpen, state } = useSidebar();
   const assistant = useAssistant();
   const close = () => {
     if (isMobile) setOpenMobile(false);
@@ -97,16 +97,18 @@ function Navigation({
       : recentReports;
   return (
     <Sidebar variant="inset" collapsible="icon">
-      <SidebarHeader className="flex-row items-center gap-1 p-3">
-        <div className="min-w-0 flex-1">
+      <SidebarHeader className="gap-0 pb-0 pl-3 pr-0 pt-3 group-data-[collapsible=icon]:p-3">
+        <div className="min-w-0 w-full">
           <BusinessSwitcher />
         </div>
         {(isMobile || state === "expanded") && (
-          <SidebarTrigger
-            className="shrink-0"
-            aria-label={tr("Contraer barra lateral")}
-            title={tr("Contraer barra lateral")}
-          />
+          <div className="flex w-full justify-end">
+            <SidebarTrigger
+              className="shrink-0"
+              aria-label={tr("Contraer barra lateral")}
+              title={tr("Contraer barra lateral")}
+            />
+          </div>
         )}
       </SidebarHeader>
       <SidebarContent>
@@ -137,9 +139,9 @@ function Navigation({
             ))}
           </SidebarMenu>
         </SidebarGroup>
-        <SidebarGroup role="region" aria-label={tr("Chats")}>
+        <SidebarGroup role="region" aria-label={tr("Chats")} className="pr-0">
           <SidebarGroupLabel
-            className="workspace-section-label workspace-chat-heading"
+            className="workspace-section-label workspace-chat-heading pr-0"
             aria-label={tr("Chats")}
           >
             <a
@@ -235,9 +237,13 @@ function Navigation({
             </p>
           )}
         </SidebarGroup>
-        <SidebarGroup role="region" aria-label={tr("Informes")}>
+        <SidebarGroup
+          role="region"
+          aria-label={tr("Informes")}
+          className="pr-0"
+        >
           <SidebarGroupLabel
-            className="workspace-section-label workspace-report-heading"
+            className="workspace-section-label workspace-report-heading pr-0"
             aria-label={tr("Informes")}
           >
             <a
@@ -336,6 +342,12 @@ function Navigation({
           direction={1}
           step={16}
           onResize={(next) => {
+            // Drag beyond the minimum readable width to collapse; keyboard
+            // resizing stays bounded by ResizeHandle's normal width limits.
+            if (next <= 144) {
+              setOpen(false);
+              return;
+            }
             const value = Math.max(216, Math.min(next, 420, innerWidth * 0.4));
             setWidth(value);
             store.set("dr-sidebar-width", value);
