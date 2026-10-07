@@ -332,22 +332,23 @@ function Navigation({
       <SidebarFooter className="p-3">
         <SpaceMenu />
       </SidebarFooter>
-      {!isMobile && state === "expanded" && (
+      {!isMobile && (
         <ResizeHandle
           label={tr("Anchura de la barra lateral")}
           className="navigation-resize"
-          min={216}
+          min={state === "collapsed" ? 64 : 216}
           max={420}
-          width={width}
+          width={state === "collapsed" ? 64 : width}
           direction={1}
-          step={16}
+          step={state === "collapsed" ? 152 : 16}
           onResize={(next) => {
-            // Drag beyond the minimum readable width to collapse; keyboard
-            // resizing stays bounded by ResizeHandle's normal width limits.
+            // Keep the same handle and pointer capture across both states.
+            // A drag past the threshold expands to a readable width.
             if (next <= 144) {
               setOpen(false);
               return;
             }
+            setOpen(true);
             const value = Math.max(216, Math.min(next, 420, innerWidth * 0.4));
             setWidth(value);
             store.set("dr-sidebar-width", value);

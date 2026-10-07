@@ -221,9 +221,8 @@ it("collapses when dragged past the minimum width and restores a usable width", 
   expect(
     screen.getByRole("button", { name: "Expandir barra lateral" }),
   ).toBeInTheDocument();
-  expect(
-    screen.queryByRole("separator", { name: "Anchura de la barra lateral" }),
-  ).toBeNull();
+  expect(handle).toHaveAttribute("aria-valuenow", "64");
+  pointer("pointerup", 140);
   fireEvent.click(
     screen.getByRole("button", { name: "Expandir barra lateral" }),
   );
@@ -244,4 +243,59 @@ it("keeps the sidebar open when keyboard resizing reaches its minimum", () => {
   expect(
     screen.getByRole("button", { name: "Contraer barra lateral" }),
   ).toBeInTheDocument();
+});
+
+it("expands by dragging the collapsed edge and continues resizing with the same handle", () => {
+  mount();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Contraer barra lateral" }),
+  );
+  const handle = screen.getByRole("separator", {
+    name: "Anchura de la barra lateral",
+  });
+  handle.hasPointerCapture = () => true;
+  const pointer = (type: string, x: number) =>
+    fireEvent(
+      handle,
+      new MouseEvent(type, { bubbles: true, clientX: x, button: 0 }),
+    );
+  pointer("pointerdown", 74);
+  pointer("pointermove", 90);
+  expect(
+    screen.getByRole("button", { name: "Expandir barra lateral" }),
+  ).toBeInTheDocument();
+  pointer("pointermove", 174);
+  expect(
+    screen.getByRole("button", { name: "Contraer barra lateral" }),
+  ).toBeInTheDocument();
+  expect(handle).toHaveAttribute("aria-valuenow", "216");
+  expect(
+    screen.getByRole("separator", { name: "Anchura de la barra lateral" }),
+  ).toBe(handle);
+  pointer("pointermove", 304);
+  expect(handle).toHaveAttribute("aria-valuenow", "294");
+  pointer("pointerup", 304);
+  pointer("pointermove", 350);
+  expect(handle).toHaveAttribute("aria-valuenow", "294");
+  expect(store.get("dr-sidebar-width", 0)).toBe(294);
+});
+
+it("reopens the collapsed edge with the right arrow and skips edge dragging on mobile", () => {
+  const view = mount();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Contraer barra lateral" }),
+  );
+  fireEvent.keyDown(
+    screen.getByRole("separator", { name: "Anchura de la barra lateral" }),
+    { key: "ArrowRight" },
+  );
+  expect(
+    screen.getByRole("button", { name: "Contraer barra lateral" }),
+  ).toBeInTheDocument();
+  view.unmount();
+  vi.stubGlobal("innerWidth", 390);
+  mount();
+  expect(
+    screen.queryByRole("separator", { name: "Anchura de la barra lateral" }),
+  ).toBeNull();
 });

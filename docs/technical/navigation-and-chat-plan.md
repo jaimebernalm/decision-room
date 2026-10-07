@@ -68,6 +68,11 @@ publica en GitHub salvo petición explícita del usuario.
    mínima; conservar una anchura utilizable para reabrir y los límites del teclado.
    Comprobar nombre visible, arrastre, reapertura, móvil y continuidad del chat.
 
+9. **2.5.19.9 — Reabrir arrastrando el borde contraído.** Mantener el separador
+   de escritorio en ambos estados y comenzar el arrastre desde la anchura de la
+   barra compacta. Abrir al superar el umbral y continuar ajustando la anchura sin
+   perder la captura del puntero. Mantener botones, teclado y navegación móvil.
+
 ## Estado
 
 - 2.5.19.1 completado: bibliotecas sin duplicación, límites y selección conservados.
@@ -108,3 +113,12 @@ Los seis pasos están completos. Véase la
   chat contextual y aplicación, build y lint con avisos existentes. Verificados
   arrastre y reapertura reales, nombre completo a 256 px, controles alineados
   y móvil de 390 × 844. Captura guardada localmente fuera de Git.
+
+- 2.5.19.9 completado, 7 de octubre de 2026: el borde de la barra contraída
+  permanece interactivo. Arrastrar hacia la derecha más allá del umbral de 144 px
+  abre la barra con un mínimo de 216 px y permite seguir ajustándola en el mismo
+  gesto; la flecha derecha del teclado también la abre desde el separador.
+  Pasan 65 pruebas de layout, redimensionado, chat contextual y aplicación,
+  build y lint con avisos existentes. Verificado en navegador el cierre mediante
+  arrastre seguido de reapertura desde el borde compacto y ajuste hasta 254 px.
+  El gesto se incorpora al separador de escritorio; móvil conserva sus controles.
