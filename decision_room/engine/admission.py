@@ -179,7 +179,7 @@ def revoke(config, business_id, run_id):
         _event(db, run_id, 'credential_revoked', {})
 
 
-def begin_call(config, run_id, token, request_sha256):
+def begin_call(config, run_id, token, request_sha256, *, requested_model=None, requested_tier=None):
     """Persist a counted attempt before token-count preflight; never auto-replay."""
     authenticate(config, run_id, token)
     call_id = uuid4()
@@ -193,7 +193,7 @@ def begin_call(config, run_id, token, request_sha256):
             db.execute('UPDATE engine_runs SET calls=calls+1 WHERE id=%s', (run_id,))
             db.execute('''INSERT INTO engine_model_calls(id,run_id,request_sha256,state)
                 VALUES (%s,%s,%s,'counting')''', (call_id, run_id, request_sha256))
-            _event(db, run_id, 'model_call_started', {'call_id': str(call_id)})
+            _event(db, run_id, 'model_call_started', {'call_id': str(call_id), 'requested_model': requested_model, 'requested_tier': requested_tier})
     if error:
         raise Aborted(error)
     return call_id
@@ -228,7 +228,7 @@ def reserve(config, run_id, token, call_id, input_tokens, output_tokens):
         raise Aborted(error)
 
 
-def settle(config, run_id, call_id, *, usage=None, reason=None):
+def settle(config, run_id, call_id, *, usage=None, reason=None, billing=None):
     """Trusted proxy completion, including after expiry/revocation/abort.
 
     Missing usage is never treated as zero. A retry with identical settlement is
@@ -237,7 +237,7 @@ def settle(config, run_id, call_id, *, usage=None, reason=None):
     if usage is not None:
         if set(usage) != {'input', 'cached', 'output'} or any(type(v) is not int or v < 0 for v in usage.values()) or usage['cached'] > usage['input']:
             raise ValueError('Invalid provider usage.')
-    fingerprint = sha(canonical([usage, reason]))
+    fingerprint = sha(canonical([usage, reason] if billing is None else [usage, reason, billing]))
     with connect(config) as db, db.transaction():
         row = db.execute('SELECT * FROM engine_runs WHERE id=%s FOR UPDATE', (run_id,)).fetchone()
         call = db.execute('SELECT * FROM engine_model_calls WHERE run_id=%s AND id=%s FOR UPDATE', (run_id, call_id)).fetchone()
@@ -262,7 +262,7 @@ def settle(config, run_id, call_id, *, usage=None, reason=None):
                    ('settled' if usage is not None else 'uncertain', Jsonb(usage), reason, fingerprint, call_id))
         if reason:
             _abort(db, run_id, reason)
-        _event(db, run_id, 'model_call_finished', {'call_id': str(call_id), 'usage': usage, 'issue': reason})
+        _event(db, run_id, 'model_call_finished', {'call_id': str(call_id), 'usage': usage, 'issue': reason, 'billing': billing})
         return reason or row['abort_reason']
 
 
@@ -277,4 +277,16 @@ def inspect_run(config, business_id, run_id):
         row['model_calls'] = db.execute('''SELECT id,state,reserved_input,reserved_output,
             usage,issue,count_seconds,started_at,admitted_at,finished_at FROM engine_model_calls
             WHERE run_id=%s ORDER BY started_at,id''', (run_id,)).fetchall()
+        from . import costs
+        events = db.execute("SELECT kind,payload FROM engine_events WHERE run_id=%s AND kind IN ('model_call_started','model_call_finished') ORDER BY id", (run_id,)).fetchall()
+        metadata = {}
+        for event in events:
+            data = event['payload']; call = metadata.setdefault(data['call_id'], {})
+            if event['kind'] == 'model_call_started':
+                call.update(requested_model=data.get('requested_model'), requested_tier=data.get('requested_tier'))
+            elif data.get('billing') is not None:
+                call.update(data['billing'])
+        for call in row['model_calls']:
+            call['billing'] = metadata.get(str(call['id']))
+            call['cost_catalog'] = costs.estimate(call['billing'])
         return row
