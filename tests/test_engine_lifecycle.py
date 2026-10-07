@@ -130,6 +130,15 @@ class CheckpointTests(unittest.TestCase):
             db.execute("INSERT INTO message VALUES ('msg_3','resumed')")
         self.assertEqual(self.db.execute('SELECT count(*) FROM message').fetchone()[0], 1)
 
+    def test_inspection_of_wal_mode_backup_never_creates_or_changes_files(self):
+        snapshot = self.root / 'snapshot'
+        checkpoint.capture(self.source, snapshot)
+        before = {p.name: p.read_bytes() for p in snapshot.iterdir()}
+        for _ in range(3):
+            checkpoint.inspect(snapshot)
+        self.assertEqual({p.name: p.read_bytes() for p in snapshot.iterdir()}, before)
+        self.assertEqual(set(before), {'manifest.json', 'opencode.db'})
+
     def test_two_checkpoints_preserve_both_revisions_and_reject_overwrite(self):
         first = self.root / 'first'; second = self.root / 'second'
         a = checkpoint.capture(self.source, first)
