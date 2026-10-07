@@ -551,8 +551,10 @@ def queue_replacement(batch, manifest, name, state):
     replacement = f"{name}r{sum(n.startswith(name + 'r') for n in manifest['order']) + 1}"
     target = batch / 'jobs' / replacement
     target.mkdir()
-    if state['system'] == 'luna':
-        copy_inputs(batch / 'inputs' / state['dataset'], target)
+    if state['system'] in AGENT_LOOPS:  # same inputs as the first attempt, including its brief variant
+        variants = manifest.get('datasets', {}).get(state['dataset'], {}).get('variants', {})
+        source = f"{state['dataset']}@{state['system']}" if state['system'] in variants else state['dataset']
+        copy_inputs(batch / 'inputs' / source, target)
     kept = ('dataset', 'system', 'repetition', *(REWRITE_KEYS if state.get('clone') else ()))
     write(target / 'state.json', {**{k: state[k] for k in kept},
                                   'job': replacement, 'status': 'not_run', 'replaces': name,

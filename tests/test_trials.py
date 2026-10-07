@@ -107,6 +107,10 @@ class LauncherTests(unittest.TestCase):
             self.assertEqual(manifest['order_seed'], 3)
             self.assertIn('contexto/panorama.md', manifest['datasets']['demo']['variants']['opencode']['context'])
             self.assertTrue(trials.inputs_unchanged(tmp / 'batch', job, trials.read(job / 'state.json')))
+            replacement = trials.abandon(tmp / 'batch', 'demo-opencode-1', 'operator stop')
+            again = tmp / 'batch/jobs' / replacement
+            self.assertEqual((again / 'prompt.txt').read_text(), 'Mi negocio es Demo. Mapa.')
+            self.assertTrue(trials.inputs_unchanged(tmp / 'batch', again, trials.read(again / 'state.json')))
 
     def test_abandoned_attempt_is_kept_and_replaced_in_place(self):
         with TemporaryDirectory() as tmp:
