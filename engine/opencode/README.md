@@ -43,14 +43,16 @@ Fuente: [OpenCode 1.18.34](https://github.com/anomalyco/opencode/tree/v1.18.34).
 confirmado sin copiar una base a medio escribir. Comprueba integridad, hash y
 publicación exclusiva. La restauración exige un destino nuevo y un servidor
 parado. Las pruebas cubren WAL, transacciones no confirmadas, revisiones de copia,
-corruptelas y enlaces simbólicos. No es aún un checkpoint completo de OpenCode:
-falta incorporar los archivos de trabajo, registrar el puntero duradero en
-PostgreSQL y probar reanudación de la sesión en otro contenedor.
+corruptelas y enlaces simbólicos. `engine.container` incorpora además los archivos
+de trabajo, entradas y estado; el controlador registra la copia y restaura la
+sesión con sus hijos en otro contenedor. La pregunta en PostgreSQL referencia el
+checkpoint confirmado antes de activar una respuesta.
 
 La configuración por trabajo, el supervisor y la API de ejecución/espera/reanudación
 están disponibles en `engine.container` y `engine.api`, junto con el outbox de
-`engine.control`. Estos componentes no habilitan el motor en la interfaz ni
-completan P2: siguen pendientes sus ensayos reales y la calibración.
+`engine.control`. Estos componentes no habilitan el motor en la interfaz. La
+[matriz de P2](../../docs/technical/engine-p2-recovery.md) relaciona aislamiento,
+recuperación abrupta, cuotas y el lote real con sus pruebas y límites.
 
 Para el sentido agente → servicio, `decision_room.engine.tunnel.JobTunnel` lanza
 `relay.py` con Python aislado mediante Docker exec. El script se lee del árbol de

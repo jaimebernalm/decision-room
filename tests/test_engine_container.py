@@ -6,6 +6,7 @@ import secrets
 import tarfile
 import tempfile
 import unittest
+from unittest.mock import patch
 from uuid import uuid4
 
 from decision_room.docker_backend import DockerBackend
@@ -31,6 +32,46 @@ class ArchiveTests(unittest.TestCase):
 
 @unittest.skipUnless(os.environ.get('DECISION_ROOM_ENGINE_IMAGE_ID'), 'Build the pinned engine image.')
 class RuntimeTests(unittest.TestCase):
+    def test_sigkill_retains_sessions_and_files_without_exposing_host_or_provider_key(self):
+        backend = DockerBackend(); image = os.environ['DECISION_ROOM_ENGINE_IMAGE_ID']; run = uuid4()
+        def runtime():
+            result = Runtime(backend, run_id=run, instance_id=uuid4(), image=image,
+                             password=secrets.token_urlsafe(32), token=secrets.token_urlsafe(32), model='gpt-6-luna')
+            self.addCleanup(result.remove)
+            return result
+        with tempfile.TemporaryDirectory() as directory:
+            host_canary = Path(directory)/'host-only-canary'
+            host_canary.write_text('synthetic host data')
+            first = runtime()
+            with patch.dict(os.environ, {'OPENAI_API_KEY': 'synthetic-provider-secret'}):
+                first.create()
+            first.install_files('work', {'notes.txt': b'committed work before kill'})
+            first.install_files('inputs', {'fixture.csv': b'units\n2\n3\n'})
+            with first.start() as client:
+                session = client.create_session(title='Abrupt recovery fixture', model='gpt-6-luna')
+                child = client._request('POST', '/session', body={'title': 'Child', 'parentID': session['id']})
+                probe = f'''import os,socket
+from pathlib import Path
+assert not Path({str(host_canary)!r}).exists()
+assert 'OPENAI_API_KEY' not in os.environ
+assert 'synthetic-provider-secret' not in str(os.environ)
+socket.setdefaulttimeout(2)
+try: socket.getaddrinfo('example.com',443)
+except OSError: pass
+else: raise AssertionError('External DNS available')
+'''
+                first._docker('exec', first.container_id, 'python', '-I', '-S', '-c', probe)
+                first._docker('kill', '--signal', 'KILL', first.container_id)
+            self.assertEqual(first._inspect()['State']['ExitCode'], 137)
+            snapshot = Path(directory)/'checkpoint'; first.capture(snapshot)
+            second = runtime(); second.restore(snapshot)
+            with second.start() as client:
+                self.assertEqual(client.session(session['id'])['title'], session['title'])
+                self.assertIn(child['id'], [s['id'] for s in client.children(session['id'])])
+                self.assertEqual(client.messages(session['id']), [])
+                second._docker('exec', second.container_id, 'python', '-I', '-S', '-c',
+                    "from pathlib import Path; assert Path('/work/notes.txt').read_bytes() == b'committed work before kill'")
+
     def test_stop_checkpoint_restore_session_and_work_in_new_container(self):
         backend = DockerBackend(); image = os.environ['DECISION_ROOM_ENGINE_IMAGE_ID']; run = uuid4()
         def runtime():
