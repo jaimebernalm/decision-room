@@ -555,6 +555,10 @@ y 128 backend seleccionadas, compilación y lint sin errores; comprobación visu
 en escritorio/móvil y ambos temas. Se conserva el historial en su idioma original.
 La prueba real del proveedor recibe HTTP 429; véanse [validación y límites](../validation/2026-09-30-language-and-composer.md).
 
+**2.5.20.7 completado, 7 de octubre de 2026:** campo de mensaje sin borde visible,
+incluido el foco. Pasan 44 pruebas frontend seleccionadas, build y lint; comprobado
+en navegador. Véase el [ajuste del compositor](../technical/language-and-composer-plan.md).
+
 **Integración de UI1 y UI2, 1 de octubre de 2026:** se unen navegación,
 idioma y compositor (2.5.18–2.5.20) con la ficha y sus grupos (2.5.5) en una rama
 local de integración. Se conservan ambas migraciones de datos (presentación 27,
