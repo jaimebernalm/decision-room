@@ -60,3 +60,30 @@ SSE por pipes hacia el servicio loopback del host. El host valida los frames otr
 vez; el socket Docker y la clave del proveedor nunca cruzan el pipe. La prueba
 `tests.test_engine_tunnel` usa un servicio simulado sin modelo. Todavía falta que
 el controlador gestione arranque, corte y recuperación de todo este recorrido.
+
+## Runtime de trabajo
+
+`engine.container.Runtime` crea una generación identificada por UUID, con tres
+volúmenes exclusivos (`state`, `work` e `inputs`) y red `none`. `inputs` está
+montado en solo lectura para el agente; un cargador sin red lo prepara antes del
+primer arranque. El controlador debe guardar
+esa identidad antes de crearla. Reconcilia un contenedor existente por nombre,
+labels e imagen inmutable; no adopta recursos ajenos. La configuración MCP y
+Responses apunta al relay loopback del trabajo y solo contiene su credencial,
+nunca la del proveedor.
+
+El checkpoint detiene todo el contenedor, copia los tres volúmenes mediante tar
+acotado, rechaza enlaces/dispositivos/traversal y hace backup SQLite desde la copia
+con WAL. Publica hashes de cada archivo, del modelo de imagen y del trabajo. La
+restauración valida todo antes de crear una generación y volúmenes nuevos. No
+sobrescribe un servidor activo ni una restauración parcial. Conserva el SQLite
+completo (incluidas las sesiones hijas que existan) y los archivos de trabajo;
+la exportación legible de esas sesiones corresponde al supervisor.
+
+Prueba real sin modelo: sesión creada con título explícito y archivos CSV/texto,
+parada, checkpoint, restauración en otro contenedor, lectura de la misma sesión
+y archivos; rechaza corrupción y restauración sobre una instancia existente.
+Las pruebas de archivo rechazan enlaces simbólicos/duros, dispositivos, duplicados
+y rutas externas. No son todavía el recorrido integrado de `run_report` ni la
+prueba de todas las ventanas de caída del supervisor. Un checkpoint que falla
+conserva los volúmenes originales; su retirada es una operación separada.
