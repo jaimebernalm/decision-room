@@ -236,7 +236,11 @@ export function ContextAttachments({
                       : r.kind === "report"
                         ? tr("Informe")
                         : r.kind === "data_model"
-                          ? tr("Relaciones")
+                          ? tr(
+                              r.element_key.startsWith("table:")
+                                ? "Tablas"
+                                : "Relaciones",
+                            )
                           : r.kind === "business" || r.kind === "memory"
                             ? tr("Mi negocio")
                             : tr("Fragmento de informe")}

@@ -73,6 +73,7 @@ export function ERDiagram({
   chooseTable,
   chooseEdge,
   pickedEdges,
+  selecting = false,
 }: {
   tables: Table[];
   relations: Relation[];
@@ -81,6 +82,7 @@ export function ERDiagram({
   chooseTable: (id: string) => void;
   chooseEdge: (id: string) => void;
   pickedEdges?: string[];
+  selecting?: boolean;
 }) {
   const { language } = useLanguage();
   const id = `data-map-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
@@ -234,10 +236,16 @@ export function ERDiagram({
             pickedEdges?.includes(node.getAttribute("data-relation-id") || ""),
           );
         node.setAttribute("data-selected", String(active));
+        node.setAttribute(
+          "data-hovered",
+          String(
+            selecting && node.getAttribute("data-relation-id") === hover?.id,
+          ),
+        );
         if (node.getAttribute("role") === "button")
           node.setAttribute("aria-pressed", String(active));
       });
-  }, [rendered, selected, edge, pickedEdges]);
+  }, [rendered, selected, edge, pickedEdges, selecting, hover?.id]);
   const activate = (target: EventTarget | null) => {
     if (!(target instanceof Element)) return;
     const node = target.closest("[data-table-id], [data-relation-id]");
@@ -281,6 +289,7 @@ export function ERDiagram({
     <div
       ref={container}
       className="data-model-map min-w-0 rounded-xl border bg-muted/10"
+      data-selecting={selecting}
     >
       <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
         <span className="text-xs text-muted-foreground">

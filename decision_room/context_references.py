@@ -114,6 +114,12 @@ def resolve_data_model(reference, db, business):
     if key == 'model':
         relations, tables = body['relations'], body['tables']
         title, scope = 'Mapa de relaciones', 'whole_data_model'
+    elif key.startswith('table:'):
+        table = next((t for t in body['tables'] if t['id'] == key.removeprefix('table:')), None)
+        if not table:
+            raise WebError('La tabla seleccionada no pertenece a este modelo.', 409)
+        tables, relations = [table], []
+        title, scope = f"Tabla: {table['name']}", 'table'
     elif key.startswith('relation:'):
         relation = next((r for r in body['relations'] if r['id'] == key.removeprefix('relation:')), None)
         if not relation:
@@ -126,6 +132,9 @@ def resolve_data_model(reference, db, business):
     else:
         raise WebError('El elemento seleccionado no pertenece a este modelo.', 409)
     statements = [f"{len(tables)} tablas · {len(relations)} relaciones"]
+    if scope == 'table':
+        statements = [title, f"{table['row_count']} filas",
+                      'Columnas: ' + ', '.join(c['name'] for c in table['columns'])]
     names = {t['id']: t['name'] for t in tables}
     for relation in relations:
         statements.append(f"{names[relation['source']]} ({', '.join(relation['source_columns'])}) → "

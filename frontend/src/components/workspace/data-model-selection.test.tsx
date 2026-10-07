@@ -5,6 +5,7 @@ import { AssistantProvider, useAssistant } from "@/lib/assistant";
 import { contextKey, store } from "@/lib/api";
 import { WorkspaceState, type WorkspaceContext } from "@/lib/workspace";
 import { ContextAttachments, SelectionTool } from "./context-selection";
+import { DossierDataGroups } from "./dossier-data";
 import { DataModelPanel } from "./data-model";
 
 vi.mock("mermaid", () => ({
@@ -17,6 +18,7 @@ vi.mock("mermaid", () => ({
 }));
 const tables = ["Ventas", "Productos"].map((name, index) => ({
   id: `table-${index}`,
+  source_id: `file-${index}`,
   name,
   row_count: 2,
   duplicate_rows: 0,
@@ -84,7 +86,13 @@ function Attachments() {
     />
   );
 }
-function Harness({ stale = false }: { stale?: boolean }) {
+function Harness({
+  stale = false,
+  library = false,
+}: {
+  stale?: boolean;
+  library?: boolean;
+}) {
   vi.stubGlobal(
     "fetch",
     vi.fn().mockResolvedValue({
@@ -102,7 +110,27 @@ function Harness({ stale = false }: { stale?: boolean }) {
     <WorkspaceState.Provider value={workspace}>
       <AssistantProvider>
         <SelectionTool />
-        <DataModelPanel business="business" analysis="analysis" inline />
+        {library ? (
+          <DossierDataGroups
+            business="business"
+            onUpload={vi.fn()}
+            datasets={[
+              {
+                id: "analysis",
+                title: "Example",
+                status: "ready",
+                version: 1,
+                files: tables.map((table) => ({
+                  id: table.source_id,
+                  name: table.name,
+                  rows: table.row_count,
+                })),
+              },
+            ]}
+          />
+        ) : (
+          <DataModelPanel business="business" analysis="analysis" inline />
+        )}
         <Attachments />
       </AssistantProvider>
     </WorkspaceState.Provider>
@@ -215,4 +243,83 @@ it("keeps stale models readable without offering them as fresh selectable contex
   expect(screen.getByRole("dialog")).toHaveTextContent(
     "Conexiones y comprobaciones",
   );
+});
+
+it("selects the exact prepared table from the library and returns to its source without opening a preview", async () => {
+  const user = userEvent.setup();
+  render(<Harness library />);
+  await user.click(screen.getByRole("button", { name: "Tablas 2" }));
+  expect(
+    screen.getByRole("button", { name: "Ver tabla Ventas" }),
+  ).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Seleccionar" }));
+  const choice = await screen.findByRole("button", {
+    name: "Seleccionar: Tabla: Ventas",
+  });
+  await user.click(choice);
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(
+    store.get(contextKey("business"), { context_references: [] })
+      .context_references,
+  ).toEqual([
+    expect.objectContaining({
+      kind: "data_model",
+      source_id: "analysis",
+      source_version: "3",
+      element_key: "table:table-0",
+    }),
+  ]);
+  const remove = screen.getByRole("button", { name: "Quitar: Tabla: Ventas" });
+  remove.focus();
+  await user.keyboard("{Enter}");
+  expect(
+    screen.getByRole("button", { name: "Seleccionar: Tabla: Ventas" }),
+  ).toHaveAttribute("aria-pressed", "false");
+  await user.click(
+    screen.getByRole("button", { name: "Seleccionar: Tabla: Ventas" }),
+  );
+  await user.click(screen.getByRole("button", { name: "Listo" }));
+  await user.click(screen.getByRole("button", { name: "Relaciones" }));
+  await user.click(
+    screen.getByRole("button", { name: "Ver adjunto: Tabla: Ventas" }),
+  );
+  await user.click(screen.getByRole("button", { name: "Ver en Mi negocio" }));
+  expect(screen.getByRole("button", { name: "Tablas 2" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  expect(
+    screen.getByRole("button", { name: "Ver tabla Ventas" }),
+  ).toBeVisible();
+});
+
+it("highlights a prospective connection during selection without choosing it", async () => {
+  const user = userEvent.setup();
+  const { container } = render(<Harness />);
+  const connection = await screen.findByRole("button", {
+    name: "Relación Ventas con Productos",
+  });
+  await user.click(screen.getByRole("button", { name: "Seleccionar" }));
+  fireEvent.pointerMove(connection, { clientX: 100, clientY: 100 });
+  await waitFor(() =>
+    expect(connection).toHaveAttribute("data-hovered", "true"),
+  );
+  expect(connection).toHaveAttribute("aria-pressed", "false");
+  fireEvent.pointerLeave(container.querySelector(".data-map-viewport")!);
+  await waitFor(() =>
+    expect(connection).toHaveAttribute("data-hovered", "false"),
+  );
+});
+
+it("keeps stale table previews readable without offering obsolete tables for selection", async () => {
+  const user = userEvent.setup();
+  render(<Harness library stale />);
+  await user.click(screen.getByRole("button", { name: "Tablas 2" }));
+  expect(
+    screen.getByRole("button", { name: "Ver tabla Ventas" }),
+  ).toBeEnabled();
+  await user.click(screen.getByRole("button", { name: "Seleccionar" }));
+  expect(
+    screen.queryByRole("button", { name: "Seleccionar: Tabla: Ventas" }),
+  ).toBeNull();
 });

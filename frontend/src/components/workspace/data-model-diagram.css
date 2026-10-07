@@ -105,3 +105,22 @@
   pointer-events: none;
   overflow-wrap: anywhere;
 }
+
+.data-model-context:has([data-select-map]:hover),
+.data-model-context:has([data-select-map]:focus-visible) {
+  border-radius: 0.75rem;
+  outline: 2px solid var(--primary);
+  outline-offset: 4px;
+  background: color-mix(in srgb, var(--primary) 5%, transparent);
+}
+.data-model-map[data-selecting="true"]
+  [data-relation-id][data-hovered="true"]
+  .relationshipLine {
+  stroke-width: 4px !important;
+}
+.data-model-map[data-selecting="true"]
+  [data-relation-id][data-hovered="true"]
+  rect,
+.data-model-map[data-selecting="true"] [data-relation-id]:focus-visible rect {
+  fill: color-mix(in srgb, var(--primary) 16%, var(--background)) !important;
+}

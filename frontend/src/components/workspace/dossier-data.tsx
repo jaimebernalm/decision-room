@@ -15,6 +15,8 @@ import {
   TooltipProvider,
 } from "@/components/ui/tooltip";
 import { DataModelPanel } from "./data-model";
+import { DragScroll } from "./drag-scroll";
+import { DataTableContext, TableSelection } from "./data-table-selection";
 import { DataPreview } from "./data-preview";
 import {
   Dialog,
@@ -81,7 +83,10 @@ export function DossierDataGroups({
   const [returnedBlock, setReturnedBlock] = useState<string | undefined>();
   if (contextBlock !== returnedBlock) {
     setReturnedBlock(contextBlock);
-    if (contextBlock?.includes("-data_model-")) setSelectedGroup("relations");
+    if (contextBlock?.includes("-data_model-"))
+      setSelectedGroup(
+        contextBlock.includes("-table:") ? "tables" : "relations",
+      );
   }
   const { route } = useWorkspace();
   const prepared = current.filter(
@@ -92,178 +97,193 @@ export function DossierDataGroups({
   );
   return (
     <>
-      <DossierExplorer
-        label={tr("Datos")}
-        value={selectedGroup}
-        onValueChange={setSelectedGroup}
-        groups={[
-          {
-            id: "files",
-            title: tr("Archivos"),
-            count: current.reduce(
-              (n, d) => n + (d.original_files?.length || 0),
-              0,
-            ),
-          },
-          {
-            id: "tables",
-            title: tr("Tablas"),
-            count: current.reduce((n, d) => n + (d.files?.length || 0), 0),
-          },
-          { id: "relations", title: tr("Relaciones") },
-        ]}
-      >
-        <DataGroup id="files" title={tr("Archivos")} onUpload={onUpload}>
-          {current.length ? (
-            <ul className="space-y-2">
-              {current.map((d) => (
-                <li key={d.id} className="space-y-3 py-3">
-                  {d.original_files?.length ? (
-                    d.original_files.map((file) => (
-                      <div
-                        key={file.path}
-                        className="flex items-center gap-2 text-sm"
-                      >
-                        <span className="min-w-0 flex-1 break-all">
-                          {file.path} · {(file.size / 1_000_000).toFixed(1)} MB
-                        </span>
-                        <Button asChild size="icon" variant="ghost">
-                          <a
-                            href={`/api/datasets/original/${d.id}?path=${encodeURIComponent(file.path)}`}
-                            download
-                            aria-label={tr("Descargar {0}", { 0: file.path })}
-                          >
-                            <Download />
-                          </a>
-                        </Button>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      {tr("No hay archivos originales disponibles.")}
-                    </p>
-                  )}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="space-y-2 py-4">
-              <p className="text-sm font-medium">
-                {tr("Tus datos empiezan aquí")}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {tr("Sube un CSV o Excel con el botón +.")}
-              </p>
-            </div>
-          )}
-        </DataGroup>
-        <DataGroup id="tables" title={tr("Tablas")}>
-          {current.length ? (
-            <ul className="space-y-2">
-              {current.map((d) => (
-                <li key={d.id} className="space-y-3 py-3">
-                  {d.files?.length ? (
-                    d.files.map((file) => (
-                      <div
-                        key={file.id}
-                        className="flex items-center gap-3 text-sm"
-                      >
-                        <button
-                          type="button"
-                          className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-xl bg-muted/40 p-3 text-left transition-colors hover:bg-foreground/10 focus-visible:bg-foreground/10 disabled:cursor-default disabled:opacity-60"
-                          title={file.name}
-                          aria-label={tr("Ver tabla {0}", {
-                            0: tableName(file.name),
-                          })}
-                          disabled={
-                            file.status === "failed" ||
-                            !["ready", "partial"].includes(d.status)
-                          }
-                          onClick={(event) => {
-                            tableTrigger.current = event.currentTarget;
-                            setTable({
-                              id: file.id,
-                              name: tableName(file.name),
-                            });
-                          }}
+      <DragScroll>
+        <DossierExplorer
+          label={tr("Datos")}
+          value={selectedGroup}
+          onValueChange={setSelectedGroup}
+          groups={[
+            {
+              id: "files",
+              title: tr("Archivos"),
+              count: current.reduce(
+                (n, d) => n + (d.original_files?.length || 0),
+                0,
+              ),
+            },
+            {
+              id: "tables",
+              title: tr("Tablas"),
+              count: current.reduce((n, d) => n + (d.files?.length || 0), 0),
+            },
+            { id: "relations", title: tr("Relaciones") },
+          ]}
+        >
+          <DataGroup id="files" title={tr("Archivos")} onUpload={onUpload}>
+            {current.length ? (
+              <ul className="space-y-2">
+                {current.map((d) => (
+                  <li key={d.id} className="space-y-3 py-3">
+                    {d.original_files?.length ? (
+                      d.original_files.map((file) => (
+                        <div
+                          key={file.path}
+                          className="flex items-center gap-2 text-sm"
                         >
-                          <span className="min-w-0 break-words font-medium">
-                            {tableName(file.name)}
+                          <span className="min-w-0 flex-1 break-all">
+                            {file.path} · {(file.size / 1_000_000).toFixed(1)}{" "}
+                            MB
                           </span>
-                          <span className="shrink-0 text-xs text-muted-foreground">
-                            {file.status === "failed"
-                              ? tr("No se pudo preparar")
-                              : tr("{0} filas", { 0: file.rows ?? "—" })}
-                          </span>
-                        </button>
-                        {file.status !== "failed" && (
                           <Button asChild size="icon" variant="ghost">
                             <a
-                              href={`/api/datasets/file/${file.id}`}
+                              href={`/api/datasets/original/${d.id}?path=${encodeURIComponent(file.path)}`}
                               download
-                              aria-label={tr("Descargar {0}", {
-                                0: tableName(file.name),
-                              })}
+                              aria-label={tr("Descargar {0}", { 0: file.path })}
                             >
                               <Download />
                             </a>
                           </Button>
-                        )}
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      {tr("No hay tablas disponibles para analizar.")}
-                    </p>
-                  )}
-                  {(d.status === "ready" || d.status === "partial") &&
-                    !d.corrected &&
-                    d.files?.some((file) => file.status !== "failed") && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-auto max-w-full whitespace-normal text-left"
-                        onClick={() => {
-                          store.set(contextKey(business), {
-                            analysis_id: d.id,
-                            label: (d.files || [])
-                              .map((file) => tableName(file.name))
-                              .join(", "),
-                          });
-                          if (assistant)
-                            assistant.setDock({ open: true, origin: route });
-                          else location.hash = "ask";
-                        }}
-                      >
-                        <MessageSquare />
-                        {tr("Preguntar sobre estas tablas")}
-                      </Button>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        {tr("No hay archivos originales disponibles.")}
+                      </p>
                     )}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="py-4 text-sm text-muted-foreground">
-              {tr("No hay tablas disponibles para analizar.")}
-            </p>
-          )}
-        </DataGroup>
-        <DataGroup id="relations" title={tr("Relaciones")}>
-          {prepared.length ? (
-            <ul className="space-y-2">
-              {prepared.map((d) => (
-                <li key={d.id} className="space-y-3 py-3">
-                  <DataModelPanel business={business} analysis={d.id} inline />
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="py-4 text-sm text-muted-foreground">
-              {tr("No hay conexiones entre tablas todavía.")}
-            </p>
-          )}
-        </DataGroup>
-      </DossierExplorer>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="space-y-2 py-4">
+                <p className="text-sm font-medium">
+                  {tr("Tus datos empiezan aquí")}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {tr("Sube un CSV o Excel con el botón +.")}
+                </p>
+              </div>
+            )}
+          </DataGroup>
+          <DataGroup id="tables" title={tr("Tablas")}>
+            {current.length ? (
+              <ul className="space-y-2">
+                {current.map((d) => (
+                  <li key={d.id} className="space-y-3 py-3">
+                    <DataTableContext business={business} analysis={d.id}>
+                      {d.files?.length ? (
+                        d.files.map((file) => (
+                          <div
+                            key={file.id}
+                            className="flex items-center gap-3 text-sm"
+                          >
+                            <TableSelection source={file.id}>
+                              <button
+                                type="button"
+                                className="flex w-full min-w-0 flex-1 items-center justify-between gap-3 rounded-xl bg-muted/40 p-3 text-left transition-colors hover:bg-foreground/10 focus-visible:bg-foreground/10 disabled:cursor-default disabled:opacity-60"
+                                data-table-row
+                                title={file.name}
+                                aria-label={tr("Ver tabla {0}", {
+                                  0: tableName(file.name),
+                                })}
+                                disabled={
+                                  file.status === "failed" ||
+                                  !["ready", "partial"].includes(d.status)
+                                }
+                                onClick={(event) => {
+                                  tableTrigger.current = event.currentTarget;
+                                  setTable({
+                                    id: file.id,
+                                    name: tableName(file.name),
+                                  });
+                                }}
+                              >
+                                <span className="min-w-0 break-words font-medium">
+                                  {tableName(file.name)}
+                                </span>
+                                <span className="shrink-0 text-xs text-muted-foreground">
+                                  {file.status === "failed"
+                                    ? tr("No se pudo preparar")
+                                    : tr("{0} filas", { 0: file.rows ?? "—" })}
+                                </span>
+                              </button>
+                            </TableSelection>
+                            {file.status !== "failed" && (
+                              <Button asChild size="icon" variant="ghost">
+                                <a
+                                  href={`/api/datasets/file/${file.id}`}
+                                  download
+                                  aria-label={tr("Descargar {0}", {
+                                    0: tableName(file.name),
+                                  })}
+                                >
+                                  <Download />
+                                </a>
+                              </Button>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          {tr("No hay tablas disponibles para analizar.")}
+                        </p>
+                      )}
+                      {(d.status === "ready" || d.status === "partial") &&
+                        !d.corrected &&
+                        d.files?.some((file) => file.status !== "failed") && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-auto max-w-full whitespace-normal text-left"
+                            onClick={() => {
+                              store.set(contextKey(business), {
+                                analysis_id: d.id,
+                                label: (d.files || [])
+                                  .map((file) => tableName(file.name))
+                                  .join(", "),
+                              });
+                              if (assistant)
+                                assistant.setDock({
+                                  open: true,
+                                  origin: route,
+                                });
+                              else location.hash = "ask";
+                            }}
+                          >
+                            <MessageSquare />
+                            {tr("Preguntar sobre estas tablas")}
+                          </Button>
+                        )}
+                    </DataTableContext>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="py-4 text-sm text-muted-foreground">
+                {tr("No hay tablas disponibles para analizar.")}
+              </p>
+            )}
+          </DataGroup>
+          <DataGroup id="relations" title={tr("Relaciones")}>
+            {prepared.length ? (
+              <ul className="space-y-2">
+                {prepared.map((d) => (
+                  <li key={d.id} className="space-y-3 py-3">
+                    <DataModelPanel
+                      business={business}
+                      analysis={d.id}
+                      inline
+                    />
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="py-4 text-sm text-muted-foreground">
+                {tr("No hay conexiones entre tablas todavía.")}
+              </p>
+            )}
+          </DataGroup>
+        </DossierExplorer>
+      </DragScroll>
       <Dialog
         open={!!table}
         onOpenChange={(open) => {

@@ -509,18 +509,21 @@ class ConversationTests(unittest.TestCase):
             row = knowledge.latest(db, self.b, result['analysis_id'])
         relation = row['body']['relations'][0]
         base = dict(kind='data_model', source_id=str(result['analysis_id']), source_version=str(row['revision']))
-        refs = [base | dict(element_key='relation:' + relation['id']), base | dict(element_key='model')]
+        refs = [base | dict(element_key='relation:' + relation['id']), base | dict(element_key='model'),
+                base | dict(element_key='table:' + row['body']['tables'][0]['id'])]
         seen = []
         def answer_selected(model, context, correction=None):
             seen.append(context)
             return action('answer', text='The selected saved relationships describe these table connections.',
-                          sources=['selection/0', 'selection/1']), {}
+                          sources=['selection/0', 'selection/1', 'selection/2']), {}
         chat = self.chat()
         with patch.object(ChatModel, 'generate_chat', answer_selected):
             turn = self.send(chat, 'Explain these connections', context_references=refs)
         self.assertEqual(turn['status'], 'completed', turn)
         self.assertEqual(seen[-1]['available_sources']['selection/0']['content']['content']['relations'], [relation])
         self.assertEqual(seen[-1]['available_sources']['selection/1']['content']['selection_scope'], 'whole_data_model')
+        self.assertEqual(seen[-1]['available_sources']['selection/2']['content']['selection_scope'], 'table')
+        self.assertEqual(seen[-1]['available_sources']['selection/2']['content']['content']['tables'], [row['body']['tables'][0]])
         self.assertEqual(seen[-1]['retrievals'], [])
         restored = Conversations(self.ws.scoped(self.b)).detail(chat)['turns'][-1]['attachments']
         self.assertEqual(restored, turn['attachments'])

@@ -42,6 +42,7 @@ type Column = {
 };
 export type Table = {
   id: string;
+  source_id?: string;
   name: string;
   row_count: number;
   duplicate_rows: number;
@@ -396,6 +397,7 @@ function ModelContent({
               selected={selected}
               edge={selecting ? "" : edge}
               pickedEdges={pickedEdges}
+              selecting={selecting}
               chooseTable={chooseTable}
               chooseEdge={(id) => {
                 if (selecting) {

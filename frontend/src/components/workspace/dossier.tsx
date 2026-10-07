@@ -69,6 +69,7 @@ import { Selectable } from "./context-selection";
 import { useAssistant } from "@/lib/assistant";
 import { UploadForm } from "./business";
 import { DossierDataGroups } from "./dossier-data";
+import { DragScroll } from "./drag-scroll";
 import { GroupEditor } from "./dossier-groups";
 import { defaultDossierLayout } from "@/lib/dossier-layout";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -249,8 +250,20 @@ export function Dossier({ files = false }: { files?: boolean }) {
       key: group.id,
       title: data.layout ? group.name : tr(group.name),
     })),
-    { key: "ungrouped", title: tr("Sin grupo") },
+    { key: "ungrouped", title: tr("Otros") },
   ];
+  const explorerGroups = factGroups.map((group) => ({
+    id: group.key,
+    title: group.title,
+    count: facts.filter((fact) => factGroup(fact, layout) === group.key).length,
+    attention: group.key === "review",
+    description:
+      group.key === "review"
+        ? tr("Propuestas y conflictos pendientes de revisar.")
+        : group.key === "ungrouped"
+          ? tr("Información que no encaja en los demás grupos.")
+          : layout.groups.find((g) => g.id === group.key)?.description,
+  }));
   return (
     <>
       <Heading title={b.name} />
@@ -318,36 +331,53 @@ export function Dossier({ files = false }: { files?: boolean }) {
             label={tr("Información")}
             value={selectedGroup}
             onValueChange={setSelectedGroup}
+            navigation={
+              customize ? (
+                <GroupEditor
+                  business={b.id}
+                  layout={layout}
+                  groups={explorerGroups}
+                  active={
+                    selectedGroup ||
+                    explorerGroups.find((group) => group.count > 0)?.id ||
+                    layout.groups[0]?.id ||
+                    "review"
+                  }
+                  onSelect={setSelectedGroup}
+                  onCancel={() => {
+                    setCustomize(false);
+                    customizeGroups.current?.focus();
+                  }}
+                  onDone={() => {
+                    resource.refresh();
+                    setCustomize(false);
+                    customizeGroups.current?.focus();
+                  }}
+                />
+              ) : undefined
+            }
             navigationFooter={
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-auto min-h-11 w-full justify-start whitespace-normal text-left text-muted-foreground"
                 ref={customizeGroups}
+                aria-expanded={customize}
                 onClick={(event) => {
                   actionFocus.current = event.currentTarget;
-                  setCustomize(true);
+                  setCustomize(!customize);
                 }}
               >
                 <Settings2 className="shrink-0" />
                 {tr("Personalizar grupos")}
               </Button>
             }
-            groups={factGroups.flatMap((group) => {
-              const count = facts.filter(
-                (fact) => factGroup(fact, layout) === group.key,
-              ).length;
-              return !count && ["review", "ungrouped"].includes(group.key)
-                ? []
-                : [{ id: group.key, title: group.title, count }];
-            })}
+            groups={explorerGroups}
           >
             {factGroups.map((group) => {
               const items = facts.filter(
                 (fact) => factGroup(fact, layout) === group.key,
               );
-              if (!items.length && ["review", "ungrouped"].includes(group.key))
-                return null;
               return (
                 <DossierExplorerPanel key={group.key} id={group.key}>
                   <div className="mb-3 flex min-w-0 items-center justify-between gap-3 border-b border-border pb-3">
@@ -634,7 +664,7 @@ export function Dossier({ files = false }: { files?: boolean }) {
                                           value="ungrouped"
                                           disabled={action.busy}
                                         >
-                                          {tr("Sin grupo")}
+                                          {tr("Otros")}
                                         </DropdownMenuRadioItem>
                                         {layout.groups.map((group) => (
                                           <DropdownMenuRadioItem
@@ -718,38 +748,40 @@ export function Dossier({ files = false }: { files?: boolean }) {
         </TabsContent>
         <TabsContent value="history" className="space-y-3">
           {data.history.length ? (
-            <ol
-              aria-label={tr("Historial")}
-              className="ml-2 border-l border-border"
-            >
-              {data.history.map((f, i) => (
-                <li
-                  key={`${f.fact_id}-${f.revision}-${i}`}
-                  className="relative space-y-3 pb-8 pl-6 last:pb-0"
-                >
-                  <span
-                    aria-hidden="true"
-                    className="absolute -left-[5px] top-1.5 size-[9px] rounded-full bg-primary ring-4 ring-background"
-                  />
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                    <span>
-                      {date(f.created_at)}
-                      {tr(" · revisión ")}
-                      {f.revision}
-                    </span>
-                    <Badge variant="outline">
-                      {tr(factStatus[f.status] || f.status)}
-                    </Badge>
-                  </div>
-                  <p className="whitespace-pre-wrap break-words text-sm leading-6">
-                    {f.content.statement}
-                  </p>
-                  <div className="[@media(pointer:coarse)]:[&_button]:min-h-11">
-                    <FactOrigin fact={f} subtle />
-                  </div>
-                </li>
-              ))}
-            </ol>
+            <DragScroll>
+              <ol
+                aria-label={tr("Historial")}
+                className="ml-2 border-l border-border"
+              >
+                {data.history.map((f, i) => (
+                  <li
+                    key={`${f.fact_id}-${f.revision}-${i}`}
+                    className="relative space-y-3 pb-8 pl-6 last:pb-0"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="absolute -left-[5px] top-1.5 size-[9px] rounded-full bg-primary ring-4 ring-background"
+                    />
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                      <span>
+                        {date(f.created_at)}
+                        {tr(" · revisión ")}
+                        {f.revision}
+                      </span>
+                      <Badge variant="outline">
+                        {tr(factStatus[f.status] || f.status)}
+                      </Badge>
+                    </div>
+                    <p className="whitespace-pre-wrap break-words text-sm leading-6">
+                      {f.content.statement}
+                    </p>
+                    <div className="[@media(pointer:coarse)]:[&_button]:min-h-11">
+                      <FactOrigin fact={f} subtle />
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </DragScroll>
           ) : (
             <p className="py-10 text-center text-sm text-muted-foreground">
               {tr("El historial aparecerá cuando guardes información.")}
@@ -923,31 +955,6 @@ export function Dossier({ files = false }: { files?: boolean }) {
               group={edit ? null : newGroup}
               datasets={data.datasets}
               onDone={done}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-      <Dialog open={customize} onOpenChange={setCustomize}>
-        <DialogContent
-          className="flex max-h-[90svh] flex-col overflow-hidden sm:max-w-xl"
-          onCloseAutoFocus={restoreDialogFocus}
-        >
-          <DialogHeader>
-            <DialogTitle>{tr("Personalizar grupos")}</DialogTitle>
-            <DialogDescription>
-              {tr(
-                "Organiza la información de este negocio con tus propios nombres y categorías.",
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          {customize && (
-            <GroupEditor
-              business={b.id}
-              layout={layout}
-              onDone={() => {
-                resource.refresh();
-                setCustomize(false);
-              }}
             />
           )}
         </DialogContent>

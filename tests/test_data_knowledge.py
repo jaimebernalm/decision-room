@@ -89,12 +89,21 @@ class DataKnowledgeTests(unittest.TestCase):
             self.assertEqual(whole['content']['tables'], row['body']['tables'])
             self.assertEqual(whole['content']['relations'], row['body']['relations'])
             self.assertEqual(whole['selection_scope'], 'whole_data_model')
-            for invalid in (ref | {'source_version': '0'}, ref | {'element_key': 'relation:invented'},
+            chosen = row['body']['tables'][0]
+            table_ref = ref | {'element_key': 'table:' + chosen['id']}
+            table_item = resolve_source(table_ref, db, self.business)
+            self.assertEqual(table_item['selection_scope'], 'table')
+            self.assertEqual(table_item['content']['tables'], [chosen])
+            self.assertEqual(table_item['content']['relations'], [])
+            self.assertIn(chosen['columns'][0]['name'], table_item['content']['statement'])
+            for invalid in (ref | {'element_key': 'table:invented'}, table_ref | {'source_version': '0'}, ref | {'source_version': '0'}, ref | {'element_key': 'relation:invented'},
                             ref | {'element_key': 'invented'}, ref | {'source_id': str(uuid4())}):
                 with self.subTest(invalid=invalid), self.assertRaises(WebError):
                     resolve_source(invalid, db, self.business)
             with self.assertRaises(WebError):
                 resolve_source(ref, db, uuid4())
+            with self.assertRaises(WebError):
+                resolve_source(table_ref, db, uuid4())
         with self.assertRaises(WebError):
             normalize([ref | {'content': 'injected'}])
         changed = knowledge.change(self.config, self.business, analysis, row['revision'], 'relation',
@@ -103,6 +112,8 @@ class DataKnowledgeTests(unittest.TestCase):
         with connect(self.config) as db:
             with self.assertRaises(WebError):
                 resolve_source(ref, db, self.business)
+            with self.assertRaises(WebError):
+                resolve_source(table_ref, db, self.business)
             current = ref | {'source_version': str(changed['revision'])}
             self.assertEqual(resolve_source(current, db, self.business)['content']['relations'][0]['semantic_status'], 'rejected')
             db.execute("UPDATE analyses SET status='failed' WHERE business_id=%s AND id=%s",

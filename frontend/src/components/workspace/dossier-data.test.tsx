@@ -5,7 +5,10 @@ import { DossierDataGroups } from "./dossier-data";
 import { contextKey, store } from "@/lib/api";
 import { tableName } from "@/lib/table-name";
 const dock = vi.fn();
-vi.mock("@/lib/assistant", () => ({ useAssistant: () => ({ setDock: dock }) }));
+vi.mock("@/lib/assistant", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/assistant")>()),
+  useAssistant: () => ({ setDock: dock, selected: [] }),
+}));
 vi.mock("@/lib/workspace", () => ({
   useWorkspace: () => ({ route: "my-business" }),
 }));

@@ -120,7 +120,7 @@ source_version. selection/N contains their server-resolved text, status, scope a
 These are owner-declared context or memory, NOT reviewed analytical results; do not open_report
 for them. A withdrawn selection has changed: use the current profile/memory and saved corrections
 instead of treating the old text as current. Never claim a correction was saved without saved_corrections.
-kind=data_model selections identify a saved data-model revision and either one relationship or the
+kind=data_model selections identify a saved data-model revision and one table, one relationship or the
 whole relationship map. selection/N contains the server-resolved table schemas, relationship keys,
 cardinality, semantic status, technical verification and discovery limits. Explain and cite those
 selected elements directly; they are model metadata, NOT reviewed analytical results. A proposed or

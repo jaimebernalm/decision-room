@@ -262,7 +262,8 @@ describe("compact business dossier", () => {
     expect(screen.getByText("Un contexto que crece contigo")).toBeVisible();
     const trigger = within(screen.getByRole("navigation", { name: "Información" })).getByRole("button", { name: "Personalizar grupos" });
     await user.click(trigger);
-    expect(screen.getByRole("dialog")).toBeVisible();
+    expect(screen.getByRole("form", {name: "Personalizar grupos"})).toBeVisible();
+    expect(screen.queryByRole("dialog")).toBeNull();
     await user.keyboard("{Escape}");
     expect(trigger).toHaveFocus();
   });
@@ -415,19 +416,19 @@ describe("compact business dossier", () => {
     handle.focus();
     await user.keyboard("{ArrowUp}");
     expect(
-      screen.getByRole("textbox", { name: "Nombre del grupo 1" }),
-    ).toHaveValue("Sobre el negocio");
+      screen.getByRole("button", { name: "Sobre el negocio 1" }),
+    ).toHaveTextContent("Sobre el negocio");
     await user.keyboard("{ArrowDown}");
     expect(
-      screen.getByRole("textbox", { name: "Nombre del grupo 2" }),
-    ).toHaveValue("Sobre el negocio");
+      screen.getByRole("button", { name: "Sobre el negocio 1" }),
+    ).toHaveTextContent("Sobre el negocio");
     expect(screen.getByRole("status")).toHaveTextContent(
       "Sobre el negocio: posición 2 de 3.",
     );
     expect(writes).toEqual([]);
     await user.click(screen.getByRole("button", { name: "Guardar grupos" }));
     await waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+      expect(screen.queryByRole("form", {name: "Personalizar grupos"})).not.toBeInTheDocument(),
     );
     expect(writes[0]).toMatchObject({
       revision: 7,
@@ -895,9 +896,9 @@ describe("compact business dossier", () => {
     expect(writes[0]).toMatchObject({ action: "propose" });
     expect(writes[0]).not.toHaveProperty("group_id");
     expect(screen.getByRole("button", { name: "Por revisar 2" })).toBeVisible();
-    await selectGroup(user, "Sin grupo");
+    await selectGroup(user, "Otros");
     await user.click(
-      screen.getByRole("button", { name: "Añadir información a Sin grupo" }),
+      screen.getByRole("button", { name: "Añadir información a Otros" }),
     );
     await user.type(
       screen.getByRole("textbox", { name: "Información" }),
@@ -912,7 +913,7 @@ describe("compact business dossier", () => {
       group_id: "ungrouped",
     });
     expect(
-      await screen.findByRole("button", { name: "Sin grupo 2" }),
+      await screen.findByRole("button", { name: "Otros 2" }),
     ).toBeVisible();
   });
   it("retains the fixed-group draft after a failed save and returns focus on cancel", async () => {
@@ -1239,9 +1240,11 @@ describe("compact business dossier", () => {
     await user.click(
       screen.getByRole("button", { name: "Personalizar grupos" }),
     );
+    await user.click(screen.getByRole("button", {name: "Editar grupo 1"}));
     const first = screen.getByRole("textbox", { name: "Nombre del grupo 1" });
     await user.clear(first);
     await user.type(first, "Mi empresa");
+    await user.click(screen.getByRole("button", {name: "Nuevo grupo"}));
     await user.type(
       screen.getByRole("textbox", { name: "Nombre del nuevo grupo" }),
       "Clientes",
@@ -1259,6 +1262,7 @@ describe("compact business dossier", () => {
       "Características generales de la empresa.",
     );
     await user.click(screen.getByRole("button", { name: "Añadir grupo" }));
+    await user.click(screen.getByRole("button", {name: "Editar grupo 4"}));
     await user.click(screen.getByRole("button", { name: "Subir grupo 4" }));
     await user.click(screen.getByRole("button", { name: "Guardar grupos" }));
     await waitFor(() =>
@@ -1340,8 +1344,8 @@ describe("compact business dossier", () => {
       groups: [],
       assignments: {},
     });
-    expect(screen.getByRole("button", { name: "Sin grupo 1" })).toBeVisible();
-    await selectGroup(user, "Sin grupo");
+    expect(screen.getByRole("button", { name: "Otros 1" })).toBeVisible();
+    await selectGroup(user, "Otros");
     expect(screen.getByText(shop.content.statement)).toBeVisible();
     await selectGroup(user, "Por revisar");
     expect(screen.getByText(proposed.content.statement)).toBeVisible();
@@ -1352,6 +1356,7 @@ describe("compact business dossier", () => {
     await user.click(
       screen.getByRole("button", { name: "Personalizar grupos" }),
     );
+    await user.click(screen.getByRole("button", {name: "Editar grupo 1"}));
     const name = screen.getByRole("textbox", { name: "Nombre del grupo 1" });
     await user.clear(name);
     await user.type(name, "Operativa");
@@ -1369,6 +1374,7 @@ describe("compact business dossier", () => {
     await ready();
     const trigger = screen.getByRole("button", { name: "Personalizar grupos" });
     await user.click(trigger);
+    await user.click(screen.getByRole("button", {name: "Nuevo grupo"}));
     await user.type(
       screen.getByRole("textbox", { name: "Nombre del nuevo grupo" }),
       "Draft",
@@ -1389,7 +1395,7 @@ describe("compact business dossier", () => {
     await ready();
     expect(screen.getByRole("button", { name: "Clientes 0" })).toBeVisible();
     expect(
-      screen.getByText("Añade información desde el botón + de este grupo."),
+      screen.getAllByText("Añade información desde el botón + de este grupo.").find((node) => !node.closest("section[hidden]")),
     ).toBeVisible();
   });
   it("adds a description to an existing group without losing its manual assignments", async () => {
@@ -1405,6 +1411,7 @@ describe("compact business dossier", () => {
     await user.click(
       screen.getByRole("button", { name: "Personalizar grupos" }),
     );
+    await user.click(screen.getByRole("button", {name: "Editar grupo 1"}));
     const description = screen.getByRole("textbox", {
       name: "Descripción del grupo 1",
     });
@@ -1486,6 +1493,7 @@ it("localizes group actions without translating customer groups or resetting dra
   ).toHaveValue("Borrador original");
   await user.keyboard("{Escape}");
   await user.click(screen.getByRole("button", { name: "Personalizar grupos" }));
+  await user.click(screen.getByRole("button", {name: "Editar grupo 1"}));
   const description = screen.getByRole("textbox", {
     name: "Descripción del grupo 1",
   });
@@ -1509,4 +1517,28 @@ it("localizes group actions without translating customer groups or resetting dra
     ],
     assignments: { [shop.fact_id]: "clients" },
   });
+});
+
+
+it("keeps review first and Other available at zero, with protected system groups in the inline editor", async () => {
+  const {user, writes} = setup(dossier([]));
+  await ready();
+  const nav = screen.getByRole("navigation", {name: "Información"});
+  expect(within(nav).getAllByRole("button")[0]).toHaveAccessibleName("Por revisar 0");
+  expect(within(nav).getByRole("button", {name: "Otros 0"})).toBeVisible();
+  await user.click(within(nav).getByRole("button", {name: "Personalizar grupos"}));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(screen.getAllByRole("button", {name: /^Eliminar grupo/})).toHaveLength(3);
+  await user.click(screen.getByRole("button", {name: "Sobre el negocio 0"}));
+  await user.click(screen.getByRole("button", {name: "Por revisar 0"}));
+  await user.click(screen.getByRole("button", {name: "Otros 0"}));
+  expect(screen.getByRole("form", {name: "Personalizar grupos"})).toBeVisible();
+  expect(writes).toEqual([]);
+  expect(screen.queryByRole("textbox", {name: "Nombre del nuevo grupo"})).toBeNull();
+  await user.click(screen.getByRole("button", {name: "Nuevo grupo"}));
+  const name = screen.getByRole("textbox", {name: "Nombre del nuevo grupo"});
+  await user.type(name, "Borrador");
+  await user.keyboard("{Escape}");
+  expect(screen.queryByRole("form", {name: "Personalizar grupos"})).toBeNull();
+  expect(writes).toEqual([]);
 });

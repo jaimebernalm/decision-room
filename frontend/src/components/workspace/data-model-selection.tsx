@@ -112,7 +112,7 @@ export function DataModelSelection({
   return (
     <div
       id={blockId(item)}
-      className={`min-w-0 space-y-3 ${selected ? "rounded-xl ring-2 ring-primary/40 ring-offset-4" : ""}`}
+      className={`data-model-context min-w-0 space-y-3 ${selected ? "rounded-xl ring-2 ring-primary/40 ring-offset-4" : ""}`}
     >
       {active && (
         <div className="flex flex-wrap items-center gap-2">
@@ -120,6 +120,7 @@ export function DataModelSelection({
             variant={selected ? "secondary" : "outline"}
             size="sm"
             className="min-h-9 [@media(pointer:coarse)]:min-h-11"
+            data-select-map
             aria-pressed={Boolean(selected)}
             aria-label={`${selected ? tr("Quitar") : tr("Seleccionar")}: ${item.title}`}
             onClick={() => assistant!.toggle(item)}

@@ -1322,5 +1322,13 @@
   "Selecciona una conexión o todo el mapa.": "Select a connection or the entire map.",
   "El modelo de datos ha cambiado o ya no está disponible. Vuelve a seleccionarlo.": "The data model has changed or is no longer available. Select it again.",
   "La relación seleccionada no pertenece a este modelo.": "The selected relationship does not belong to this model.",
-  "El elemento seleccionado no pertenece a este modelo.": "The selected element does not belong to this model."
+  "El elemento seleccionado no pertenece a este modelo.": "The selected element does not belong to this model.",
+  "Otros": "Other",
+  "Nuevo grupo": "New group",
+  "Editar grupo {0}": "Edit group {0}",
+  "Tabla: {0}": "Table: {0}",
+  "Propuestas y conflictos pendientes de revisar.": "Proposals and conflicts awaiting review.",
+  "Información que no encaja en los demás grupos.": "Information that does not fit in the other groups.",
+  "Eliminar un grupo conserva su información.": "Deleting a group keeps its information.",
+  "La tabla seleccionada no pertenece a este modelo.": "The selected table does not belong to this model."
 }

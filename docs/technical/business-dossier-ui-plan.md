@@ -207,3 +207,18 @@ Estado: implementado y comprobado el 7 de octubre de 2026. Véanse las
 
 Estado: implementado y comprobado el 7 de octubre de 2026. Véanse las
 [comprobaciones de acciones y contexto](../validation/2026-10-07-dossier-controls-context.md).
+
+
+## Selección visible y personalización en la columna (refinamiento de 2.5.5)
+
+1. Resaltar conexiones y mapa al preseleccionar con ratón o teclado, y permitir
+   adjuntar tablas por identidad y revisión verificadas en el servidor.
+2. Editar los grupos en la navegación: añadir, renombrar, describir, eliminar,
+   ordenar y guardar o cancelar. Mantener Por revisar primero y Otros visible;
+   mostrar los pendientes en rojo y respetar movimiento reducido.
+3. Aplicar el arrastre solicitado a Datos e Historial sin perder acciones ni
+   contexto; comprobar regresión, aislamiento, teclado y diseño adaptable.
+   Revisar el diff público y guardar un commit local del incremento completo.
+
+Estado: implementado y comprobado el 7 de octubre de 2026. Véanse las
+[comprobaciones de selección y edición](../validation/2026-10-07-dossier-inline-selection.md).
