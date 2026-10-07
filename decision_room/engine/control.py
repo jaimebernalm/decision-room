@@ -79,24 +79,29 @@ def enqueue_prompt(config, business_id, run_id, *, request_key, text):
     fingerprint = admission.sha(admission.canonical(text))
     with connect(config) as db, db.transaction():
         run = _run(db, business_id, run_id)
-        previous = db.execute('SELECT * FROM engine_prompt_outbox WHERE run_id=%s AND request_key=%s',
-                              (run_id, request_key)).fetchone()
-        if previous:
-            if previous['request_sha256'] != fingerprint or previous['prompt'] != text:
-                raise ValueError('Prompt key already used with different content.')
-            return previous
-        _running(run)
-        session = db.execute('SELECT session_id FROM engine_sessions WHERE run_id=%s', (run_id,)).fetchone()
-        if not session:
-            raise admission.Denied('Bind a session before queuing a prompt.')
-        if db.execute("SELECT id FROM engine_prompt_outbox WHERE run_id=%s AND state<>'confirmed'", (run_id,)).fetchone():
-            raise admission.Denied('Reconcile the pending prompt before queuing another.')
-        row = db.execute('''INSERT INTO engine_prompt_outbox
-            (id,business_id,run_id,session_id,request_key,request_sha256,message_id,prompt)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *''',
-                         (uuid4(), business_id, run_id, session['session_id'], request_key,
-                          fingerprint, 'msg_' + uuid4().hex, text)).fetchone()
-        admission._event(db, run_id, 'prompt_queued', {'message_id': row['message_id']})
+        return _enqueue_prompt(db, run, request_key=request_key, text=text, fingerprint=fingerprint)
+
+
+def _enqueue_prompt(db, run, *, request_key, text, fingerprint):
+    business_id, run_id = run['business_id'], run['id']
+    previous = db.execute('SELECT * FROM engine_prompt_outbox WHERE run_id=%s AND request_key=%s',
+                          (run_id, request_key)).fetchone()
+    if previous:
+        if previous['request_sha256'] != fingerprint or previous['prompt'] != text:
+            raise ValueError('Prompt key already used with different content.')
+        return previous
+    _running(run)
+    session = db.execute('SELECT session_id FROM engine_sessions WHERE run_id=%s', (run_id,)).fetchone()
+    if not session:
+        raise admission.Denied('Bind a session before queuing a prompt.')
+    if db.execute("SELECT id FROM engine_prompt_outbox WHERE run_id=%s AND state<>'confirmed'", (run_id,)).fetchone():
+        raise admission.Denied('Reconcile the pending prompt before queuing another.')
+    row = db.execute('''INSERT INTO engine_prompt_outbox
+        (id,business_id,run_id,session_id,request_key,request_sha256,message_id,prompt)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *''',
+                     (uuid4(), business_id, run_id, session['session_id'], request_key,
+                      fingerprint, 'msg_' + uuid4().hex, text)).fetchone()
+    admission._event(db, run_id, 'prompt_queued', {'message_id': row['message_id']})
     return row
 
 

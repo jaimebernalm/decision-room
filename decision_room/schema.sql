@@ -1024,3 +1024,40 @@ CREATE TABLE IF NOT EXISTS engine_number_checks (
     UNIQUE(run_id,request_key)
 );
 INSERT INTO schema_versions(version) VALUES (35) ON CONFLICT DO NOTHING;
+
+
+-- Durable owner questions; pausing and receipt of an answer do not run a model.
+CREATE TABLE IF NOT EXISTS engine_owner_questions (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    run_id uuid NOT NULL,
+    request_key text NOT NULL,
+    request_sha256 text NOT NULL,
+    body jsonb NOT NULL,
+    state text NOT NULL DEFAULT 'pausing' CHECK(state IN ('pausing','waiting','resumed')),
+    checkpoint_key text,
+    checkpoint_sha256 text,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    waiting_at timestamptz,
+    expires_at timestamptz,
+    resumed_at timestamptz,
+    FOREIGN KEY(business_id,run_id) REFERENCES engine_runs(business_id,id),
+    UNIQUE(run_id,request_key),
+    UNIQUE(run_id,id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS engine_owner_question_pending
+    ON engine_owner_questions(run_id) WHERE state<>'resumed';
+CREATE TABLE IF NOT EXISTS engine_owner_answers (
+    question_id uuid PRIMARY KEY,
+    run_id uuid NOT NULL,
+    request_key text NOT NULL,
+    request_sha256 text NOT NULL,
+    body jsonb NOT NULL,
+    message_id text,
+    resumed_credential_sha256 text,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    FOREIGN KEY(run_id,question_id) REFERENCES engine_owner_questions(run_id,id),
+    FOREIGN KEY(run_id,message_id) REFERENCES engine_prompt_outbox(run_id,message_id),
+    UNIQUE(run_id,request_key)
+);
+INSERT INTO schema_versions(version) VALUES (36) ON CONFLICT DO NOTHING;

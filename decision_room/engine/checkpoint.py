@@ -75,11 +75,9 @@ def capture(source, destination, *, timeout=30):
         shutil.rmtree(temporary)
 
 
-def restore(snapshot, destination):
-    """Validate before exclusive publication; caller guarantees the server is stopped."""
-    snapshot, destination = Path(snapshot).resolve(), Path(destination).absolute()
-    if destination.exists() or destination.is_symlink():
-        raise ValueError('Restore destination must be new; never overwrite live SQLite.')
+def inspect(snapshot):
+    """Validate a published SQLite checkpoint without restoring or changing it."""
+    snapshot = Path(snapshot).resolve()
     try:
         manifest = json.loads((snapshot / 'manifest.json').read_text())
         if (not isinstance(manifest, dict) or manifest.get('format_version') != 1 or manifest.get('database') != 'opencode.db'
@@ -91,6 +89,16 @@ def restore(snapshot, destination):
         _check(source)
     except (OSError, KeyError, TypeError, sqlite3.DatabaseError, json.JSONDecodeError):
         raise ValueError('Checkpoint is missing, corrupt or incomplete.') from None
+    return manifest
+
+
+def restore(snapshot, destination):
+    """Validate before exclusive publication; caller guarantees the server is stopped."""
+    snapshot, destination = Path(snapshot).resolve(), Path(destination).absolute()
+    if destination.exists() or destination.is_symlink():
+        raise ValueError('Restore destination must be new; never overwrite live SQLite.')
+    manifest = inspect(snapshot)
+    source = snapshot / 'opencode.db'
     destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     fd, name = tempfile.mkstemp(prefix='.restore-', dir=destination.parent)
     temporary = Path(name)

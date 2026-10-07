@@ -179,7 +179,7 @@ llamadas facturables. El cliente también se comprueba contra el servidor real u
 a través de Docker exec, sin publicar puertos ni dar salida de red al agente.
 
 Esta evidencia valida componentes de P2, no todo el paso. Faltan la red completa
-de producto y agente, supervisor, `preguntar_propietario`,
+de producto y agente, supervisor y conexión de `preguntar_propietario` al runtime,
 verificación final de documentos, proyección y exportación completas,
 captura de todos los hijos/archivos y recuperación completa del ciclo de vida,
 y las seis ejecuciones reales. La prueba de terminación cubre el receptor de
@@ -214,3 +214,42 @@ otro trabajo, corte del proceso y validación del lado host frente a frames
 manipulados. No son todavía pruebas del controlador completo ni del proxy real
 con OpenCode generando un informe. El despliegue compartido del servicio por host,
 supervisión, recuperación y generación completa siguen pendientes.
+
+## Preguntas y respuestas duraderas (schema 36)
+
+`preguntar_propietario` guarda la pregunta y cambia el trabajo a `pausing` en una
+transacción. Devuelve un recibo breve; no mantiene HTTP abierto. El mismo contenido
+con la misma clave recupera el recibo durante la pausa. El resto de herramientas,
+nuevas llamadas y entregas tardías siguen bloqueadas. Una credencial revocada no
+puede recuperar siquiera ese recibo.
+
+El plano de control `engine.questions` separa tres operaciones:
+
+1. `confirm_waiting`: después de que el supervisor detenga el runtime, verifica y
+   fija la copia SQLite de ese trabajo. Exige prompts reconciliados y ninguna
+   llamada con uso pendiente o incierto. Congela el tiempo activo y fija siete
+   días de espera; repetir no cambia ni la copia ni el vencimiento.
+2. `answer`: guarda una respuesta explícita e idempotente (`answered`, `unknown`
+   o `declined`), también si la espera ya venció. No ejecuta nada automáticamente.
+3. `activate_answer`: después de restaurar el runtime, comprueba la copia y el
+   snapshot, rota la credencial y encola una sola respuesta en la misma
+   transacción. Conserva consumo, reservas y segundos activos. El outbox existente
+   confirma después el mensaje exacto en OpenCode; no reenvía una entrega incierta.
+
+El supervisor debe persistir la nueva credencial privada antes de activar y
+reutilizarla si no conoce el resultado de la transacción. La credencial anterior
+no sirve en el turno reanudado. Los hashes guardados no permiten recuperarla.
+
+**Límite de este tramo:** estas son transiciones del plano de control, no la API
+`resume_report` ni una prueba de restauración completa del contenedor. El llamador
+confiable todavía debe garantizar parada, preservación de los archivos de trabajo
+y restauración antes de las transiciones correspondientes. La copia SQLite por sí
+sola no demuestra esas condiciones. Falta conectar el supervisor, la captura de
+archivos/hijos, las API públicas y el exportador. P2 permanece abierto.
+
+Validación sin modelo: 75 pruebas de regresión del motor (incluidas imagen,
+transporte y outbox con OpenCode real aislado), y posteriormente 30 de preguntas,
+actividad y migraciones. Dos comprobaciones posteriores añaden el recorrido
+HTTP y corrupción de la respuesta (14/14 de preguntas). Esas pruebas usan PostgreSQL y SQLite
+reales; verifican concurrencia, aislamiento, repetición, corrupción, caducidad,
+reservas inciertas y presupuestos conservados. No se facturó ninguna llamada.
