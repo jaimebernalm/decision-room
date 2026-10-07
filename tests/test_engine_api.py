@@ -181,7 +181,7 @@ class RealApiTests(unittest.TestCase):
 
     def real_roundtrip(self, wait=False, discover=False):
         calls = []; actions = []; discovered = {}
-        discovery = ['read_manifest', 'read_csv', 'read_outside', 'panorama']
+        discovery = ['read_manifest', 'read_csv', 'read_outside', 'panorama', 'consulta']
         def provider(request):
             self.assertEqual(request.url.host, 'api.openai.com')
             body = json.loads(request.content)
@@ -208,6 +208,9 @@ class RealApiTests(unittest.TestCase):
                 elif actions[-1] == 'panorama':
                     self.assertIn('deterministic_panorama', output)
                     self.assertNotIn('Invalid or unsuccessful', output)
+                elif actions[-1] == 'consulta':
+                    self.assertIn('"status":"completed"', output)
+                    self.assertIn('/metrics/rows', output)
             already = action in actions
             events = []
             def event(kind, **fields): events.append({'type': kind, **fields})
@@ -222,6 +225,15 @@ class RealApiTests(unittest.TestCase):
                 elif action == 'read_csv': arguments = {'filePath': '/inputs/' + discovered['table'] + '.csv'}
                 elif action == 'read_outside': arguments = {'filePath': '/etc/hostname'}
                 elif action == 'panorama': arguments = {'table_id': discovered['table'], 'request_key': 'discovered-table'}
+                elif action == 'consulta':
+                    description = tools[0]['description']
+                    self.assertIn('NO implicit Python variable named tables', description)
+                    # Execute the advertised example verbatim, using the UUID
+                    # discovered by the real native read of the job manifest.
+                    program = description.split('from dr_runtime import connect, write_result', 1)[1].split('Returns execution_id', 1)[0]
+                    program = 'from dr_runtime import connect, write_result' + program
+                    arguments = {'tables': {'data': discovered['table']}, 'request_key': 'documented-example', 'code': program}
+
                 actions.append(action)
                 args = json.dumps(arguments)
                 item = {'type': 'function_call', 'id': 'fc_fixture_' + str(len(calls)), 'call_id': 'call_fixture_' + str(len(calls)),
