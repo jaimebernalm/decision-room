@@ -11,8 +11,10 @@ esto se lanza sin la aprobación del presupuesto por el propietario.
   `run_report` → `resume_report` → `export_run`, y el export pasa
   `reports.verification_contract.validate` e incluye `informe.contenido.html`.
 - El proxy fija `service_tier=default` y registra los componentes de coste por llamada.
-- Presupuesto aprobado por el propietario (propuesta: 5 USD para el paso 2 y 15
-  USD para el paso 3, con los escenarios y supuestos del documento de contrato).
+- Presupuesto aprobado por el propietario el 2026-10-07: hasta 5 USD para el paso 2
+  y hasta 15 USD para el paso 3, con los escenarios y supuestos del documento de
+  contrato. No son topes automáticos de factura: si el consumo acumulado se acerca
+  al límite, se para y se consulta.
 - Entorno, igual que en los lotes anteriores:
   - `DECISION_ROOM_DATABASE_URL`: el clúster local de ensayos;
   - `--runtime-root`: el checkout cuyo `.local` tiene `sandbox-runtime.json`
@@ -97,6 +99,8 @@ paso 3.
 ## Quién hace qué
 
 - Claude: preparar, ejecutar, construir kits, desciegar y puntuar.
-- Propietario: aprobar el presupuesto y elegir lectores, juez y auditor.
+- Propietario: presupuesto aprobado; lectores elegidos (Claude Opus 5.5 y Codex en
+  conversaciones nuevas, con el papel de `LECTOR.md`); abre esas conversaciones solo
+  sobre la carpeta de cada kit, fuera del repositorio. Juez y auditor: pendientes.
 - Auditor: nuevo, elegido por el propietario, sin acceso a código, claves ni oráculos.
 - Astra: el motor congelado y su exportador; no ve kits ni claves.

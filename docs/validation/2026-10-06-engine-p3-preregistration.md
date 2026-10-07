@@ -1,11 +1,11 @@
 # Preregistro de la medida del paso 3 del motor de agentes
 
 Fecha de registro: 2026-10-06, antes de cualquier ejecución del motor nuevo.
-Versión 4, del 2026-10-07 y también antes de medir. La versión 2 incorporó la
+Versión 5, del 2026-10-07 y también antes de medir. La versión 2 incorporó la
 revisión de Astra (agregación de lectores, flags y presupuestos congelados,
 presupuestos iguales y reemplazos); la 3 define qué cifras «sostienen
 prioridades», a partir de la auditoría del paso 1; la 4 fija el encargo de cada
-brazo, el orden aleatorio y los presupuestos. Los cambios se listan al final.
+brazo, el orden aleatorio y los presupuestos; la 5, quiénes son los lectores. Los cambios se listan al final.
 Plan de referencia: plan de implementación del motor, v3, paso 3 (acordado entre
 Claude y Astra). Este documento fija cómo se mide la puerta del paso 3. Lo que aquí
 se fija no se cambia después de ver resultados. Si hay que cambiar algo antes de
@@ -84,6 +84,17 @@ control superan algún tope del motor; si alguna lo hace, se dice en el resultad
 - Al menos 2 lectores ciegos por negocio. Cada lector ve cada pareja con orden
   izquierda/derecha aleatorio y códigos aleatorios, sin saber qué sistema es cada
   informe.
+- Lectores, elegidos por el propietario: dos modelos, cada uno en una conversación
+  nueva abierta solo sobre la carpeta del kit, sin acceso al código, a los lotes, a
+  las claves ni a los oráculos:
+  - una conversación nueva de Claude Opus 5.5;
+  - una conversación nueva de Codex. No es Astra, que implementa el motor: un
+    lector que lo ha escrito no es ciego.
+  Los dos reciben el mismo papel, fijado en `LECTOR.md` del kit: el dueño o la dueña
+  del negocio, no técnico, que quiere entender mejor sus datos y encontrar análisis
+  útiles para decidir. Leen los mismos informes en archivos (`parejas/<código>/A` y
+  `B`) y responden en `respuestas.json`. Cada medida se hace en conversaciones
+  nuevas (cuatro en total), empezando por contenido.
 - Para cada pareja, cada lector elige «A mejor», «B mejor» o «empate», con un
   motivo breve.
 - Cada voto se convierte en puntuación de `engine`: 1 si elige su informe, 0,5 si
@@ -196,3 +207,10 @@ este registro.
 3. Orden aleatorio por rondas con semilla, implementado en el lanzador.
 4. Tabla de presupuestos y desviación registrada, con el consumo observado del
    control `loop`.
+
+## Cambios respecto a la versión 4
+
+1. Lectores: dos modelos en conversaciones nuevas (Claude Opus 5.5 y Codex), con el
+   papel de dueño no técnico, elegidos por el propietario. **Límite:** la puerta
+   mide la preferencia de lectores modelo con ese papel, no la de dueños reales; los
+   dos lectores pertenecen a familias de modelos distintas para no depender de una.

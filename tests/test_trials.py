@@ -509,5 +509,26 @@ class PairedComparisonTests(unittest.TestCase):
             self.assertIn('Cae un 42 %', shown)
             self.assertNotIn('verificada', shown)
 
+    def test_file_kit_lets_model_readers_answer_without_the_page(self):
+        with TemporaryDirectory() as tmp:
+            batch, trial_pairs = self.batch(tmp, repeats=1)
+            trial_pairs.plan(batch, seed=2, against=('opencode',))
+            self.finish(batch, 'demo-engine-1', 'Informe del motor')
+            self.finish(batch, 'demo-opencode-1', 'Informe del bucle')
+            out = Path(tmp) / 'contenido'
+            trial_pairs.kit(batch, out, 'contenido')
+            brief = (out / 'LECTOR.md').read_text()
+            self.assertIn('No eres técnico', brief)
+            self.assertNotIn('motor', brief.lower())
+            template = json.loads((out / 'respuestas.json').read_text())
+            (code,) = template['choices']
+            texts = {(out / 'parejas' / code / f'{s}.txt').read_text().strip() for s in 'AB'}
+            self.assertEqual(texts, {'Informe del motor', 'Informe del bucle'})
+            side = trials.read(batch / 'kit-key-contenido.json')['codes'][code]['engine_side']
+            answers = [{**template, 'lector': name, 'choices': {code: {'choice': side, 'motivo': 'claro'}}}
+                       for name in ('opus', 'codex')]
+            result = trial_pairs.score(batch, 'contenido', answers, min_pairs=1)
+            self.assertEqual(result['groups'][0]['mean'], 1.0)
+
 if __name__ == '__main__':
     unittest.main()

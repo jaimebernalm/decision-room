@@ -139,10 +139,57 @@ def kit(batch, out, measure):
     write(key_path, {'created_at': datetime.now(timezone.utc).isoformat(), 'measure': measure,
                      'out': str(out), 'codes': key, 'skipped': skipped, 'marks_not_removed': marked})
     out.mkdir(parents=True)
+    files(out, items, measure)
     page = PAGE.replace('__DATA__', json.dumps(items)).replace('__KIT__', uuid4().hex[:8]) \
                .replace('__MEASURE__', MEASURES[measure])
     (out / 'comparacion.html').write_text(page, encoding='utf-8')
     return {'pairs': len(items), 'skipped': skipped, 'marks_not_removed': marked}
+
+
+READER = {
+    'contenido': 'Los dos informes de cada pareja tienen la misma presentación sencilla. Elige el que más te '
+                 'ayuda a entender tu negocio y a decidir qué hacer.',
+    'artefacto': 'Cada informe se ve tal como te llegaría. Elige el que preferirías recibir tal como está. '
+                 'Si puedes, abre los .html en un navegador; si no, lee el .html y el .txt.'}
+
+BRIEF = """# Lectura de informes
+
+Eres el dueño o la dueña del negocio que describe cada informe. No eres técnico: no
+sabes de estadística ni de programación. Quieres entender mejor tus datos y encontrar
+análisis útiles para decidir qué hacer en tu negocio.
+
+Hay {count} parejas en `parejas/`. Cada carpeta tiene dos informes sobre el mismo
+negocio y los mismos datos: `A` y `B` (en .html y en .txt); `negocio.txt` dice de qué
+negocio se trata. {measure}
+
+Para cada pareja, en `respuestas.json`:
+
+- `choice`: "A", "B" o "empate";
+- `motivo`: una o dos frases, con tus palabras, de por qué.
+
+Escribe también tu nombre o código en `lector`.
+
+Reglas:
+
+- No sabes quién ni qué escribió cada informe, y no intentes adivinarlo.
+- Lee solo lo que hay en esta carpeta. No abras otros archivos ni busques fuera.
+- Juzga cada pareja por sí misma; no hace falta que seas coherente con otras.
+"""
+
+
+def files(out, items, measure):
+    """The same pairs as plain files, for readers that cannot use the interactive page."""
+    for item in items:
+        folder = out / 'parejas' / item['code']  # same code as in respuestas.json
+        folder.mkdir(parents=True)
+        (folder / 'negocio.txt').write_text(item['label'] + '\n', encoding='utf-8')
+        for side in ('a', 'b'):
+            html = base64.b64decode(item[side]).decode()
+            (folder / f'{side.upper()}.html').write_text(html, encoding='utf-8')
+            (folder / f'{side.upper()}.txt').write_text(text_of(html) + '\n', encoding='utf-8')
+    write(out / 'respuestas.json', {'lector': '', 'choices': {
+        item['code']: {'choice': None, 'motivo': ''} for item in items}})
+    (out / 'LECTOR.md').write_text(BRIEF.format(count=len(items), measure=READER[measure]), encoding='utf-8')
 
 
 def engine_score(choice, engine_side):
