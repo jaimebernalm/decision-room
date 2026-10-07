@@ -64,6 +64,13 @@ recalculadas y prompt que vincula evidencia con cada recomendación. Se propone
 El contrato de exportación permanece v1. Esto no cierra P3 ni autoriza avanzar a
 la integración web antes de su puerta.
 
+**A2 del motor — preparación de lectura previa al canario, 7 de octubre:**
+prompt ampliado para resolver catálogos sin multiplicar filas, usar gráficos y
+tablas útiles y contrastar atribuciones entre secciones. El renderer ya conserva
+los gráficos en ambas exportaciones; el cambio no certifica nombres del agente.
+Véase el [registro del candidato](../technical/engine-p3-candidate.md). Topes y
+puerta sin cambios; el ensayo preliminar no cuenta como medición de P3.
+
 ## 2. Orden general
 
 | Orden | Entrega | Resultado comprobable | Motivo |

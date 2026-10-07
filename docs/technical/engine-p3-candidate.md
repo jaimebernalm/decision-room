@@ -1,8 +1,8 @@
 # Candidato A2 para el piloto de P3
 
 Fecha: 2026-10-07. Este documento propone congelar un candidato para comprobarlo;
-no declara superada la puerta de P3. La revisión exacta es el commit que incorpora
-este documento y las recetas descritas. Claude registra el hash en el manifiesto
+no declara superada la puerta de P3. La revisión exacta es el último commit candidato que incorpora
+este documento y su prompt, con las recetas descritas en su historia. Claude registra el hash en el manifiesto
 y el preregistro antes de las ejecuciones evaluadas.
 
 ## Cobertura que ofrece el candidato
@@ -71,3 +71,32 @@ cambian el significado de «verificado y correcto» del auditor.
 P2 está cerrado en alcance local. P3 sigue pendiente de canario, congelación del
 manifiesto y puerta completa; la integración web, edición y PDF del producto siguen
 en P4. No se atribuye mejora de calidad a las pruebas de implementación.
+
+
+## Ajuste previo al canario: nombres, presentación y coherencia
+
+Un ensayo preparatorio de lectura sobre informes de P2, anterior a este candidato,
+señaló códigos sin resolver, atribuciones contradictorias y falta de gráficos. Es
+información para preparar el candidato, no resultado de la puerta de P3. Antes del
+canario se ajusta únicamente el prompt:
+
+- Resolver nombres con los catálogos disponibles mediante `consulta`, comprobando
+  unicidad de claves, cardinalidad de la unión y conservación de totales. Conservar
+  códigos sin correspondencia o ambiguos sin adivinar nombres. Vincular nombre y
+  código cuando haga falta interpretar el fact, cuyo ámbito original se conserva.
+- Usar gráficos o tablas útiles para comparaciones, evoluciones y repartos que
+  sostengan decisiones, sin una cuota fija. El renderizador ya ofrece SVG de barras
+  y líneas y tablas completas en ambos HTML; `marks=False` no elimina gráficos.
+- Revisar atribución entre todas las secciones y distinguir niveles, diferencias y
+  ausencia de registros antes de la revisión final. Una referencia no certifica una
+  afirmación distinta en prosa ni un nombre de catálogo elegido por el agente.
+
+No cambian herramientas, recetas, ledger, renderer, topes ni fórmulas de la puerta.
+La revisión anterior se sustituye antes de gastar en el canario. El efecto del
+prompt sobre nombres, coherencia y gráficos deberá medirse; las pruebas locales
+solo comprueban la capacidad del renderer y las fronteras de verificación.
+
+Validación de este ajuste: 21 pruebas existentes de charts, proyección y facts
+aprobadas (`tests.test_report_charts`, `tests.test_report_projection`,
+`tests.test_report_facts`). Sin llamadas facturables. Estas pruebas no acreditan
+que el modelo siga las instrucciones nuevas; eso corresponde al canario.
