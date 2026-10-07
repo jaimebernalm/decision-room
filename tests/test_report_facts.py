@@ -70,6 +70,14 @@ class FactTests(unittest.TestCase):
         self.assertIn('Canal «{{n:q}}»',doc['findings'][0]['facts'][0]['text'])
         self.assertEqual(sum(f['verified'] for f in ledger['figures']),1)
 
+    def test_excess_generated_facts_preserves_raw_without_expanding(self):
+        raw=json.dumps({'schema_version':1,'title':'Many facts','summary':'Keep this',
+            'findings':[{'key':str(i),'facts':['q']*32} for i in range(9)]}).encode()
+        doc,ledger=build(raw,resolver=self.check)
+        self.assertEqual(doc['summary'],raw.decode())
+        self.assertIn('report_format_fallback',ledger['issues'])
+        self.assertFalse(any(f['verified'] for f in ledger['figures']))
+
     def test_agent_cannot_override_generated_fact_label_scope_or_value(self):
         raw=self.raw(facts=[{'number_key':'q','scope':'Producto Norte','value':999}])
         doc,ledger=build(raw,resolver=self.check)

@@ -227,7 +227,7 @@ class RealApiTests(unittest.TestCase):
 
     def real_roundtrip(self, wait=False, discover=False):
         calls = []; actions = []; discovered = {}
-        discovery = ['read_manifest', 'read_csv', 'read_outside', 'panorama', 'consulta']
+        discovery = ['read_manifest', 'read_csv', 'read_outside', 'panorama', 'consulta', 'calculo']
         def provider(request):
             self.assertEqual(request.url.host, 'api.openai.com')
             body = json.loads(request.content)
@@ -257,6 +257,12 @@ class RealApiTests(unittest.TestCase):
                 elif actions[-1] == 'consulta':
                     self.assertIn('"status":"completed"', output)
                     self.assertIn('/metrics/rows', output)
+                elif actions[-1] == 'calculo':
+                    self.assertIn('deterministic_calculation', output)
+                    self.assertIn('/metrics/units', output)
+                    matched = re.search(r'"execution_id"\s*:\s*"([0-9a-f-]{36})"', output)
+                    self.assertIsNotNone(matched, output)
+                    discovered['calculation'] = matched[1]
             already = action in actions
             events = []
             def event(kind, **fields): events.append({'type': kind, **fields})
@@ -279,6 +285,13 @@ class RealApiTests(unittest.TestCase):
                     program = description.split('from dr_runtime import connect, write_result', 1)[1].split('Returns execution_id', 1)[0]
                     program = 'from dr_runtime import connect, write_result' + program
                     arguments = {'tables': {'data': discovered['table']}, 'request_key': 'documented-example', 'code': program}
+                elif action == 'calculo':
+                    arguments = {'table_id': discovered['table'], 'request_key': 'scoped-units', 'recipes': [
+                        {'key': 'units', 'operation': 'sum', 'column': 'quantity', 'filters': []}]}
+                elif action == 'entregar_informe' and discover:
+                    arguments['draft_json'] = json.dumps({'schema_version': 1, 'title': 'Fixture',
+                        'summary': 'Total 5 unidades.', 'findings': [], 'facts': ['units'],
+                        'numbers': [{'key': 'units', 'metric': 'units', 'execution_id': discovered['calculation']}]})
 
                 actions.append(action)
                 args = json.dumps(arguments)
@@ -327,6 +340,9 @@ class RealApiTests(unittest.TestCase):
         self.assertGreaterEqual(len(calls), 2)
         if discover:
             self.assertEqual(actions, [*discovery, 'entregar_informe'])
+            ledger = json.loads((path/'export/verification.json').read_text())
+            self.assertEqual([f['value'] for f in ledger['figures'] if f['verified']], ['5.00', '2', '2'])
+            self.assertFalse(next(f for f in ledger['figures'] if f['path'] == '/summary')['verified'])
         self.assertTrue((path/'export/informe.contenido.html').exists())
         self.assertEqual(result['usage']['cost_catalog']['status'], 'estimated')
         self.assertFalse(runtime._inspect()['State']['Running'])

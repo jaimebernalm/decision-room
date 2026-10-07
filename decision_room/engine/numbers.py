@@ -1,6 +1,6 @@
 """Resolve job evidence and recalculate supported server-owned numerical scopes.
 
-Only the deterministic panorama has a server-owned recipe in this first slice.
+The panorama and bounded scalar aggregates have server-owned recipes.
 Arbitrary Python results remain traced/unverified even if they are numeric.
 These checks do not certify how a writer attributes a figure in prose, units
 confirmed by the owner, causality, business priorities or completeness of data.
@@ -16,9 +16,9 @@ from ..database import connect
 from ..series import numeric
 from ..reports import panorama_facts
 from ..storage import Storage, digest
-from . import admission, panorama, ratios
+from . import admission, panorama, ratios, calculations
 
-VERSION = 'engine-number-checks-v3'
+VERSION = 'engine-number-checks-v4'
 
 
 def _references(numbers):
@@ -86,6 +86,10 @@ def _recalculate(config, job, frozen, cache):
 def _check(config, job, ref, cache):
     result = {**ref, 'status': 'unavailable', 'value': None, 'original_value': None,
               'reason': 'reference_unavailable', 'scope': None}
+    scoped = calculations.observation(config, job['business_id'], job['id'], ref['execution_id'])
+    if scoped:
+        checked = calculations.verify(config, job, scoped, ref['metric'], cache)
+        return {**result, **checked} if checked else {**result, 'reason': 'recipe_unavailable'}
     candidate, origin = _candidate(config, job, ref)
     if not candidate or candidate['status'] != 'completed':
         return result
@@ -129,7 +133,7 @@ def verify(config, run_id, token, *, request_key, numbers):
     job = admission.authenticate(config, run_id, token)
     fingerprint = admission.sha(admission.canonical([VERSION, admission.sha(Path(__file__).read_bytes()),
         admission.sha(Path(sales_panorama.__file__).read_bytes()), admission.sha(Path(panorama_facts.__file__).read_bytes()),
-        ratios.identity(), duckdb.__version__, job['snapshot_sha256'], numbers]))
+        ratios.identity(), calculations.identity(), duckdb.__version__, job['snapshot_sha256'], numbers]))
     with connect(config) as db:
         previous = db.execute('SELECT * FROM engine_number_checks WHERE run_id=%s AND request_key=%s',
                               (run_id, request_key)).fetchone()

@@ -11,7 +11,7 @@ from ..series import numeric
 from . import contract
 from .verification_contract import canonical, figure_id, validate
 
-VERSION = 'report-evidence-v3'
+VERSION = 'report-evidence-v4'
 TOKEN = re.compile(r'\{\{n:([^{}]+)\}\}')
 DIGITS = re.compile(r'(?<!\w)[+−-]?\d+(?:[.,\u00a0 ]\d+)*(?:\s*%)?')
 
@@ -38,7 +38,7 @@ def build(raw, *, resolver=None):
         try:
             check = resolve(ref) if ref and ref['key'] not in ambiguous else None
             display = check.get('display') if check else None
-            supported = (check and check.get('origin') == 'deterministic_panorama'
+            supported = (check and check.get('origin') in ('deterministic_panorama', 'deterministic_calculation')
                          and check.get('status') in ('verified_in_scope', 'corrected_in_scope')
                          and isinstance(display, dict) and all(isinstance(display.get(k), str) and display[k]
                              for k in ('label', 'scope', 'unit', 'limitation')))
@@ -90,7 +90,7 @@ def build(raw, *, resolver=None):
             corrected = check and check.get('status') == 'corrected_in_scope'
             evidence = []
             if check and check.get('value') is not None:
-                evidence = [{'kind': 'observation' if check.get('origin') == 'deterministic_panorama' else 'execution',
+                evidence = [{'kind': 'observation' if check.get('origin') in ('deterministic_panorama', 'deterministic_calculation') else 'execution',
                              'id': str(ref['execution_id']), 'metric': ref['metric']}]
             verified = bool(path in certified and evidence and check and check.get('status') in ('verified_in_scope', 'corrected_in_scope'))
             refs.append({'path': path, 'span': {'start': start, 'end': len(output)}, 'text': visible,

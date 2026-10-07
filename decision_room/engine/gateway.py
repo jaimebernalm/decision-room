@@ -4,16 +4,36 @@ import re
 
 from .. import execution
 from ..database import connect
-from . import admission, store, panorama, numbers, questions
+from . import admission, store, panorama, numbers, questions, calculations
 
 VERSIONS = {'2025-03-26', '2025-06-18'}
 TOOLS = [
+    {'name': 'calculo', 'description': (
+        'Server-owned scalar recipes on one permitted table; usable as numbers/facts with the returned execution_id and recipe key as metric. '
+        'No SQL or agent code. Up to 32 recipes: count rows (column=null), sum, mean, min or max of one existing numeric column. '
+        'Each recipe fits in 4 KiB; up to 8 AND filters per recipe: in uses exact strings; date_between uses two inclusive canonical YYYY-MM-DD dates. '
+        'No joins, deduplication, locale parsing, inferred units or imputation. Null filter values are excluded; numeric nulls are excluded and their count is visible. '
+        'Empty numeric selections and malformed dates/numbers are unavailable, not zero. Mean uses the non-null record count, not calendar days. '
+        'Bounded to 200000 input rows, 128 MiB Parquet and 30 s; no truncated result is certified. Values rounded to 12 decimal places. '
+        'Follow cursor or resultado for all metrics, generated display scopes and issues. Use consulta for unsupported analysis and retain its uncertainty. '
+        'Example recipe: {"key":"units","operation":"sum","column":"quantity","filters":[{"column":"channel","operator":"in","values":["Local"]}]}. '
+        'A retry requires identical input; changed recipes require a new request_key.'),
+     'inputSchema': {'type':'object','properties': {
+         'table_id':{'type':'string'}, 'request_key':{'type':'string'}, 'cursor':{'type':'integer','minimum':0},
+         'recipes':{'type':'array','minItems':1,'maxItems':32,'items':{'type':'object','properties': {
+             'key':{'type':'string'}, 'operation':{'type':'string','enum':['count','sum','mean','min','max']},
+             'column':{'type':['string','null']}, 'filters':{'type':'array','maxItems':8,'items':{'type':'object','properties':{
+                 'column':{'type':'string'}, 'operator':{'type':'string','enum':['in','date_between']},
+                 'values':{'type':'array','minItems':1,'maxItems':16,'items':{'type':'string'}}},
+                 'required':['column','operator','values'],'additionalProperties':False}}},
+             'required':['key','operation','column','filters'],'additionalProperties':False}}},
+         'required':['table_id','request_key','recipes'],'additionalProperties':False}},
     {'name': 'preguntar_propietario', 'description': 'Persist a question and pause the job without keeping an HTTP request open. Wait for an explicit owner answer before further work. An identical retry retrieves the same question.',
      'inputSchema': {'type': 'object', 'properties': {
          'request_key': {'type': 'string'}, 'text': {'type': 'string'}, 'reason': {'type': 'string'},
          'options': {'type': 'array', 'maxItems': 8, 'items': {'type': 'string'}}},
          'required': ['request_key', 'text', 'reason'], 'additionalProperties': False}},
-    {'name': 'verify_numbers', 'description': 'Resolve 1–32 metric references within this job. Recalculate deterministic panorama scopes; agent calculations remain unverified without a server recipe. Does not verify prose attribution, owner units, causes or priority. Results and corrections are durable and paged; repeat unchanged input with cursor.',
+    {'name': 'verify_numbers', 'description': 'Resolve 1–32 metric references within this job. Recalculate deterministic panorama and calculo scopes; agent calculations remain unverified without a server recipe. Does not verify prose attribution, owner units, causes or priority. Results and corrections are durable and paged; repeat unchanged input with cursor.',
      'inputSchema': {'type': 'object', 'properties': {
          'request_key': {'type': 'string'}, 'cursor': {'type': 'integer', 'minimum': 0},
          'numbers': {'type': 'array', 'minItems': 1, 'maxItems': 32, 'items': {
@@ -188,6 +208,10 @@ def resultado(config, job, args):
             WHERE business_id=%s AND run_id=%s AND execution_id=%s''',
                             (job['business_id'], job['id'], execution_id)).fetchone()
     if not linked:
+        scoped = calculations.observation(config, job['business_id'], job['id'], execution_id)
+        if scoped:
+            return {**page_result({'id': execution_id, 'status': 'completed', 'result': scoped['body']['result']}, args.get('cursor', 0)),
+                    'origin': 'deterministic_calculation', 'table_ids': [scoped['body']['specification']['table_id']]}
         frozen = panorama.observation(config, job['business_id'], job['id'], execution_id)
         if frozen:
             return {**page_result({'id': execution_id, 'status': frozen['status'], 'result': frozen['result']}, args.get('cursor', 0)),
@@ -233,6 +257,12 @@ def dispatch(config, run_id, token, message, *, backend=None):
                 row = numbers.verify(config, run_id, token, request_key=args['request_key'], numbers=args['numbers'])
                 value = page_result({'id': row['id'], 'status': 'completed', 'result': row['body']}, args.get('cursor', 0))
                 value['verification_id'] = value.pop('execution_id')
+            elif params.get('name') == 'calculo':
+                if set(args) - {'table_id', 'request_key', 'recipes', 'cursor'} or not {'table_id', 'request_key', 'recipes'} <= set(args):
+                    raise ValueError('Invalid calculation arguments.')
+                row = calculations.calculate(config, run_id, token, **{k: v for k, v in args.items() if k != 'cursor'})
+                value = {**page_result({'id': row['id'], 'status': 'completed', 'result': row['body']['result']}, args.get('cursor', 0)),
+                         'origin': 'deterministic_calculation', 'table_ids': [args['table_id']]}
             elif params.get('name') == 'panorama':
                 if set(args) - {'table_id', 'request_key', 'mapping', 'cursor'} or not {'table_id', 'request_key'} <= set(args):
                     raise ValueError('Invalid panorama arguments.')

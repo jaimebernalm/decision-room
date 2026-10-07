@@ -56,6 +56,14 @@ certificación automática y gráficos por referencias con tabla completa. La
 spans por ocurrencia. Es un tramo parcial: faltan recetas más generales y la medida
 preregistrada; P3 no está cerrado ni congelado para medir.
 
+**A2 del motor — candidato acotado, 7 de octubre:** herramienta `calculo` para
+agregaciones filtradas independientes, migración 37, facts con fuente y bases
+recalculadas y prompt que vincula evidencia con cada recomendación. Se propone
+[el candidato y sus topes](../technical/engine-p3-candidate.md) para humo/canario;
+129 pruebas del motor y la regresión focal de 51 casos pasan, sin gasto de API.
+El contrato de exportación permanece v1. Esto no cierra P3 ni autoriza avanzar a
+la integración web antes de su puerta.
+
 ## 2. Orden general
 
 | Orden | Entrega | Resultado comprobable | Motivo |

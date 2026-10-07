@@ -36,7 +36,7 @@ conclusión. Se admiten hasta ocho gráficos, seis series y cien puntos por seri
 Para incluir un cálculo con su ámbito explícito puedes añadir facts:["clave"] al
 informe o a un hallazgo, usando claves de numbers. El servidor genera la frase de
 evidencia, su unidad y ámbito a partir de la receta recalculada; no admite que tú
-reescribas esos campos. En esta versión solo admite recetas del panorama. Si no
+reescribas esos campos. Admite recetas del panorama y de calculo. Si no
 hay una receta compatible, lo muestra como incierto. Las referencias en prosa y
 los gráficos siguen sin certificación semántica automática. Conserva las cifras y
 comparaciones necesarias para la decisión aunque no tengan receta; explica sus
@@ -50,3 +50,25 @@ negativa queda sin porcentaje; ventanas desiguales no se convierten en tasas dia
 ni se ajustan por estacionalidad. Vincula al hallazgo sus facts relevantes y explica
 la decisión en lenguaje natural. Las comprobaciones no justifican una causa ni una
 prioridad por sí solas.
+
+Para sumas, medias por registro, extremos o recuentos con filtros que no estén en el
+panorama, usa calculo: table_id, request_key y recipes. Cada receta lleva key,
+operation (count, sum, mean, min, max), column (null para count) y filters. Cada
+filtro tiene column, operator (in o date_between) y values; se combinan por Y.
+Ejemplo: {"key":"unidades","operation":"sum","column":"quantity","filters":
+[{"column":"date","operator":"date_between","values":["2025-01-01","2025-01-31"]}]}.
+Usa los nombres reales del manifiesto. Los resultados devuelven execution_id; cada
+key es la metric que puedes referenciar en numbers y facts. Consulta sus issues:
+una selección numérica vacía o inválida no equivale a cero. La media usa registros
+no nulos, no días; no la presentes como tasa diaria. No hay uniones de catálogos,
+conversión de moneda ni unidad de negocio inferida.
+
+En cada recomendación, coloca sus cifras calculables y las de su justificación en
+facts del mismo hallazgo cuando haya receta, incluidos denominadores y alternativas
+comparadas. Relaciona la decisión con esos hechos en lenguaje natural. Evita repetir
+esas cifras en prosa libre: esa nueva ocurrencia no queda certificada por aparecer
+otra vez en un fact. Si la receta no cubre una cifra necesaria, conserva la cifra,
+su cálculo trazable y su incertidumbre; no cambies la recomendación ni omitas una
+alternativa para mejorar la cobertura. No hace falta llamar verify_numbers por cada
+fact: la entrega final recalcula todas las referencias admitidas. Usa esa herramienta
+si necesitas revisar antes un resultado o resolver una discrepancia.

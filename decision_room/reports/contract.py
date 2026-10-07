@@ -39,6 +39,8 @@ def load(raw):
         for source, finding in zip(findings, doc['findings']):
             if 'facts' in source:
                 finding['facts'] = facts(source['facts'])
+        if sum(1 for _ in fact_entries(doc)) > 256:
+            raise ValueError('At most 256 generated facts per report.')
         if value.get('charts') is not None:
             doc['charts'] = charts.normalize(value['charts'], set(keys))
         refs = value.get('numbers', [])

@@ -124,12 +124,12 @@ formas desconocidas se conservan en una salida textual escapada. No implica inte
 
 ## Evidencia acotada y gráficos (tramo A2)
 
-El renderizador `report-evidence-v3` conserva el ledger versión 1. Un borrador puede
-incluir `facts: [number_key, ...]` en la raíz o en cada hallazgo (hasta 32 por lista).
+El renderizador `report-evidence-v4` conserva el ledger versión 1. Un borrador puede
+incluir `facts: [number_key, ...]` en la raíz o en cada hallazgo (hasta 32 por lista y 256 por informe).
 Cada clave apunta a `numbers`. El documento verificado sustituye la lista por
 objetos `{number_key, text}`; `text` contiene una frase completa con etiqueta,
 valor, unidad, grupo, fechas y límites. El servidor genera esos campos a partir
-del panorama recién recalculado y del snapshot autorizado; el agente no puede
+del panorama o de `calculo` recién recalculados y del snapshot autorizado; el agente no puede
 proporcionar ni reemplazar la etiqueta, el ámbito o la unidad del bloque.
 
 La cifra principal de ese bloque puede tener `verified=true` solamente con una
@@ -213,3 +213,48 @@ rutas, URL, argumentos o cadenas de causas. Los errores de cierre se registran
 separados y no impiden intentar detener el resto de recursos. Un fallo previo al
 primer prompt queda registrado como fallo sin contenido; nunca se fabrica un
 informe para satisfacer una métrica ni se oculta con el éxito de otro intento.
+
+
+## Agregaciones acotadas (A2)
+
+`calculo(table_id, request_key, recipes, cursor?)` admite 1–32 recetas sobre una
+única tabla autorizada. Cada receta tiene `key`, `operation` (`count`, `sum`,
+`mean`, `min`, `max`), `column` (null para contar filas) y `filters`. Un filtro
+contiene `column`, `operator` (`in` o `date_between`) y `values`. `in` compara
+strings exactos; los dos extremos de fecha son ISO canónicos, inclusivos. Los
+filtros se combinan por Y. No acepta SQL, código Python, uniones, deduplicación,
+conversiones de moneda ni unidades comerciales propuestas por el agente.
+
+El servidor lee Parquet y acumula con Decimal; admite valores finitos con hasta
+26 dígitos enteros y 12 decimales. Redondea el resultado a 12 decimales. Los nulos
+numéricos se excluyen; se muestran filas seleccionadas y registros no nulos. La
+media muestra además el numerador y declara que su denominador son registros,
+no días. Una selección numérica vacía no se convierte en cero. Fechas mal formadas
+o valores numéricos no admitidos dejan la métrica sin valor y con un motivo en
+`issues`, sin certificar un subconjunto aparentemente válido.
+
+Límites: 200.000 filas del archivo, 128 MiB de Parquet, 30 segundos por cálculo,
+hasta ocho filtros y 16 valores por filtro, 4 KiB por receta y 2 KiB de nombres
+de fuente. El máximo global de 256 facts evita expansiones sin límite; superar
+ese máximo conserva el bruto como texto de fallback. Sobrepasarlos no devuelve un resultado
+truncado. DuckDB tiene un hilo y 128 MiB de memoria configurada. Estos límites son
+independientes del presupuesto del modelo y no son una cuota total del servicio.
+
+La migración 37 añade `engine_calculations`. La clave y la huella de la receta
+son idempotentes y las peticiones concurrentes iguales calculan una sola vez.
+La observación guarda versión, hash del código, versión de DuckDB, tabla, hash de
+Parquet, nombres originales y filtros. `resultado` pagina la misma observación;
+el ID devuelto se usa como `execution_id` en `numbers`, con la key como metric.
+La verificación final vuelve a leer y calcular desde Parquet. Un valor guardado
+incorrecto se corrige; un ámbito distinto, versión distinta o corrupción no se
+recertifican. Las frases visibles identifican el archivo de origen, columna,
+filtros, tratamiento de nulos y límites. Mantienen el ledger v1 y distinguen cada
+ocurrencia; la prosa y las etiquetas escritas por el agente siguen sin certificación.
+
+No cubre porcentajes entre selecciones arbitrarias, rankings con catálogos unidos,
+predicciones ni consultas Python generales. Los porcentajes del panorama siguen
+su receta anterior. El prompt exige conservar las cifras necesarias sin receta y
+su incertidumbre, y colocar los hechos admitidos junto a la recomendación que
+justifican. No obliga a omitir una conclusión para mejorar una tasa. La puerta de
+P3 sigue pendiente; añadir esta cobertura no acredita que se alcance el 100 % de
+prioridades o el 95 % del resto.

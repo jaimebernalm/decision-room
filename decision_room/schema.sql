@@ -1061,3 +1061,18 @@ CREATE TABLE IF NOT EXISTS engine_owner_answers (
     UNIQUE(run_id,request_key)
 );
 INSERT INTO schema_versions(version) VALUES (36) ON CONFLICT DO NOTHING;
+
+-- Independent, bounded scalar recipes; scoped observations are not agent code.
+CREATE TABLE IF NOT EXISTS engine_calculations (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    run_id uuid NOT NULL,
+    request_key text NOT NULL,
+    request_sha256 text NOT NULL,
+    body jsonb NOT NULL,
+    body_sha256 text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    FOREIGN KEY(business_id,run_id) REFERENCES engine_runs(business_id,id),
+    UNIQUE(run_id,request_key)
+);
+INSERT INTO schema_versions(version) VALUES (37) ON CONFLICT DO NOTHING;
