@@ -40,6 +40,20 @@ Se inicia R1 manteniendo la presentación común entre sus dos brazos.
 **Preparación R1:** R1a y R1b quedan fijados con pruebas sin proveedor facturable
 y presentación común. [Revisiones, encargos, imagen y límites](../technical/engine-r1-freeze.md).
 La medida exploratoria sigue pendiente; esta preparación no abre P4.
+**Cierre exploratorio R1, 8 de octubre:** R1a entrega 6/6 originales y R1b 5/6;
+el intento perdido y su coste desconocido se conservan. Ambos fallan la preferencia
+frente a la referencia histórica y el umbral del juez: ningún brazo es candidato
+al segundo intento formal. R1a gana las seis parejas directas con ambos lectores,
+sin superar al agente en bucle. La auditoría registra cero errores en R1a y 24
+ocurrencias erróneas de ocho valores en R1b; ninguna se une como verificada y una
+inspección posterior del ledger confirma sus estados sin verificar. La cobertura
+principal y la sensibilidad posterior se mantienen separadas. Resultado revisado
+en `claude/agent-engine-eval`, documento `2026-10-08-engine-r1-results.md`;
+la revisión distingue cifras auditadas, afirmaciones y ambigüedad de la unión.
+Los candidatos y artefactos permanecen congelados. Este resultado no abre P4 ni
+inicia otro piloto: la verificación posterior a un informe libre queda como
+propuesta pendiente de decisión del propietario.
+
 
 **P1 del motor — auditoría cerrada, 6 de octubre:** registro privado revisado de
 1.087 cifras/afirmaciones de 12 informes; 12 errores y una ambigüedad, separados
