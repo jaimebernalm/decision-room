@@ -7,7 +7,7 @@ from uuid import UUID
 from ..database import connect
 from ..storage import Storage
 from ..reports import verification
-from ..web.report_projection import project, render
+from ..reports.presentation_r1 import VERSION as RENDERER_VERSION, render
 from . import admission, control, costs, numbers, questions, store
 
 
@@ -76,7 +76,7 @@ def export_run(config, business_id, engine_run_id, dest):
     result = snapshot(config, business_id, engine_run_id)  # Authorize before touching dest.
     target = Path(dest); target.mkdir(parents=True, exist_ok=True, mode=0o700)
     # Prevent a failed rerender from leaving an older revision looking current.
-    for name in ('draft.raw', 'draft.verified.json', 'verification.json', 'informe.html', 'informe.contenido.html'):
+    for name in ('draft.raw', 'draft.verified.json', 'verification.json', 'informe.html', 'informe.contenido.html', 'presentation.map.json'):
         (target / name).unlink(missing_ok=True)
     def write(name, value, raw=False):
         store._write_atomic(target / name, value if raw else admission.canonical(jsonable(value)))
@@ -115,12 +115,14 @@ def export_run(config, business_id, engine_run_id, dest):
                 numbers._references([selected])
                 return numbers._check(config, job, selected, cache)
             doc, ledger = verification.build(raw, resolver=resolve)
+            ledger['renderer_version'] = RENDERER_VERSION
             write('draft.verified.json', doc)
             write('verification.json', ledger)
             result['issues'].extend(ledger['issues'])
-            projection = project(doc)
-            write('informe.html', render(projection).encode(), raw=True)
-            write('informe.contenido.html', render(projection, marks=False).encode(), raw=True)
+            marked,plain,mapping = render(doc,ledger,raw)
+            write('presentation.map.json',mapping)
+            write('informe.html',marked.encode(),raw=True)
+            write('informe.contenido.html',plain.encode(),raw=True)
         except Exception:
             # Never include exceptions carrying raw text, credentials or paths.
             result['issues'].append('report_export_incomplete')

@@ -80,7 +80,7 @@ def _inputs(config, row):
             if sum(map(len, files.values())) > 128*1024*1024:
                 raise ValueError('CSV inputs exceed the runtime bound.')
             manifest.append({**table, 'file': '/inputs/' + name, 'original_names': source['original_names'], 'columns': source['columns']})
-    files['manifest.json'] = admission.canonical(manifest)
+    files['manifest.json'] = json.dumps(manifest, ensure_ascii=False, indent=2, allow_nan=False).encode('utf-8')
     return files
 
 

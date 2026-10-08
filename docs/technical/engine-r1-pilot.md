@@ -49,3 +49,26 @@ Validación: 29 pruebas de exploración, feedback, panorama y ejecución aprobad
 con sandbox Docker real: tabla impresa, repetición idempotente, rechazo entre
 trabajos, modo incompatible bajo la misma clave, paginación Unicode y regresión
 del contrato de consulta. Sin llamadas de modelo.
+
+## R1a: exportación y revisión de partida
+
+La exportación usa la composición R0 congelada y escribe `presentation.map.json`
+con sus textos visibles y desplazamientos. La copia `informe.contenido.html`
+conserva exactamente esos textos, pero retira las marcas y la leyenda de estados;
+`informe.html` las conserva. El registro de verificación sigue siendo v1. No se
+modifican los artefactos de R0 ni P3. El manifiesto de entradas se presenta como
+JSON indentado para que la lectura por líneas no corte todo su contenido a la vez.
+
+Esta revisión completa R1a para el piloto; no acredita su resultado analítico.
+R1b partirá de ella y usará la misma composición. Ambos conservan el encargo
+plano de P3, sin quitar ni sustituir texto del propietario: la aclaración sobre
+la entrega está en las instrucciones del motor. Imagen común, sin reconstrucción:
+`sha256:33ead825a77dfb3e19176fb4d6e42009c2f299a69addc2b9122027d633450342`.
+Topes comunes: 6 millones de entrada, 128.000 de salida acumulada, 16.000 por
+petición, 60 llamadas y 1.200 segundos; tier `default`.
+
+Validación: 44 pruebas de API, presentación, recetas y exploración aprobadas,
+incluidas las pruebas con OpenCode real, sandbox Docker y proveedor simulado.
+Se comprobó el mapa de presentación y la igualdad de texto entre copias con y
+sin marcas. Sin llamadas facturables. Las dos revisiones finales y sus hashes
+se comunicarán juntas antes del orden intercalado de ejecución preregistrado.

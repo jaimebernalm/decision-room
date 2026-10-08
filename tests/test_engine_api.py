@@ -98,11 +98,15 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(result, self.run_report())
         dest = self.root / 'export'; exported = engine.export_run(self.config, self.business, result['engine_run_id'], dest)
         required = {'draft.raw', 'draft.verified.json', 'verification.json', 'informe.html', 'informe.contenido.html',
-                    'run.json', 'session-export.json', 'proxy-calls.jsonl'}
+                    'run.json', 'session-export.json', 'proxy-calls.jsonl', 'presentation.map.json'}
         self.assertTrue(required <= {p.name for p in dest.iterdir()})
         validate(json.loads((dest/'verification.json').read_text()), json.loads((dest/'draft.verified.json').read_text()), (dest/'draft.raw').read_bytes())
         self.assertEqual(json.loads((dest/'run.json').read_text()), exported)
         self.assertNotIn('<mark', (dest/'informe.contenido.html').read_text())
+        self.assertNotIn('class="state ', (dest/'informe.contenido.html').read_text())
+        from decision_room.reports.presentation_r0 import check_invariants
+        check_invariants(json.loads((dest/'draft.verified.json').read_text()),json.loads((dest/'verification.json').read_text()),
+                         (dest/'draft.raw').read_bytes(),(dest/'informe.html').read_text(),json.loads((dest/'presentation.map.json').read_text()))
         with self.assertRaises(admission.Denied):
             engine.export_run(self.config, uuid4(), result['engine_run_id'], self.root/'foreign')
         self.assertFalse((self.root/'foreign').exists())

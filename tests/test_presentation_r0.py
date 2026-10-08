@@ -137,6 +137,16 @@ class PresentationR0Tests(unittest.TestCase):
         self.assertNotEqual(changed,html)
         with self.assertRaises(ValueError):r0.check_invariants(doc,ledger,raw,changed,mapping)
 
+    def test_pilot_audit_copy_has_same_fields_without_state_marks(self):
+        from decision_room.reports.presentation_r1 import render
+        raw,doc,ledger=self.fixture();marked,plain,mapping=render(doc,ledger,raw)
+        self.assertEqual(index_texts(marked),index_texts(plain))
+        self.assertNotIn('class="state ',plain)
+        self.assertNotIn('data-verified=',plain)
+        self.assertNotIn('class="legend',plain)
+        self.assertIn('class="state ',marked)
+        self.assertEqual(marked,r0.render(doc,ledger,raw)[0])
+
     def test_export_attests_exact_output_bytes_and_refuses_overwrite(self):
         raw,doc,ledger=self.fixture()
         with TemporaryDirectory() as temp:
