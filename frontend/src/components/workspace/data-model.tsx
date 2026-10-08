@@ -390,15 +390,18 @@ function ModelContent({
           model={{ ...model, body: { ...model.body, tables } }}
           disabled={Boolean(needs_refresh)}
         >
-          {({ selecting, pickedEdges, pick }) => (
+          {({ selecting, pickedEdges, pickedTables, pickTable, pick }) => (
             <ERDiagram
               tables={visible}
               relations={relations}
-              selected={selected}
+              selected={selecting ? "" : selected}
               edge={selecting ? "" : edge}
               pickedEdges={pickedEdges}
+              pickedTables={pickedTables}
               selecting={selecting}
-              chooseTable={chooseTable}
+              chooseTable={(id) =>
+                selecting ? pickTable(id) : chooseTable(id)
+              }
               chooseEdge={(id) => {
                 if (selecting) {
                   pick(id);

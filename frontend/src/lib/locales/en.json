@@ -1319,7 +1319,7 @@
   "Mapa de relaciones": "Relationship map",
   "{0} tablas · {1} relaciones": "{0} tables · {1} relationships",
   "Todo el mapa": "Entire map",
-  "Selecciona una conexión o todo el mapa.": "Select a connection or the entire map.",
+  "Selecciona una tabla, una conexión o todo el mapa.": "Select a table, a connection or the entire map.",
   "El modelo de datos ha cambiado o ya no está disponible. Vuelve a seleccionarlo.": "The data model has changed or is no longer available. Select it again.",
   "La relación seleccionada no pertenece a este modelo.": "The selected relationship does not belong to this model.",
   "El elemento seleccionado no pertenece a este modelo.": "The selected element does not belong to this model.",

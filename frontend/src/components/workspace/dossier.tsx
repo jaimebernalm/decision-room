@@ -70,6 +70,7 @@ import { useAssistant } from "@/lib/assistant";
 import { UploadForm } from "./business";
 import { DossierDataGroups } from "./dossier-data";
 import { DragScroll } from "./drag-scroll";
+import { DossierPresentation } from "./dossier-presentation";
 import { GroupEditor } from "./dossier-groups";
 import { defaultDossierLayout } from "@/lib/dossier-layout";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -711,32 +712,14 @@ export function Dossier({ files = false }: { files?: boolean }) {
             )}
           </DossierExplorer>
           <Disclosure subtle title={tr("Ver presentación original")}>
-            <Selectable
-              item={{
-                kind: "business",
-                source_id: b.id,
-                source_version: String(data.business.profile_revision),
-                element_key: "profile",
-                title: `Presentación de ${data.business.name}`,
-                href: "#my-business",
-                report_title: tr("Mi negocio"),
-                content: {
-                  key: "profile",
-                  title: data.business.name,
-                  statement: data.business.description,
-                },
+            <DossierPresentation
+              key={b.id}
+              business={data.business}
+              onSaved={() => {
+                resource.refresh();
+                refresh();
               }}
-            >
-              <p className="whitespace-pre-wrap break-words leading-6 text-muted-foreground">
-                {data.business.description}
-              </p>
-            </Selectable>
-            <Button asChild variant="ghost" size="sm">
-              <a href="#business">
-                <Pencil />
-                {tr("Editar presentación")}
-              </a>
-            </Button>
+            />
           </Disclosure>
         </TabsContent>
         <TabsContent value="data" className="min-w-0">

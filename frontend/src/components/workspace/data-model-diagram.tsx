@@ -73,6 +73,7 @@ export function ERDiagram({
   chooseTable,
   chooseEdge,
   pickedEdges,
+  pickedTables,
   selecting = false,
 }: {
   tables: Table[];
@@ -82,6 +83,7 @@ export function ERDiagram({
   chooseTable: (id: string) => void;
   chooseEdge: (id: string) => void;
   pickedEdges?: string[];
+  pickedTables?: string[];
   selecting?: boolean;
 }) {
   const { language } = useLanguage();
@@ -106,6 +108,7 @@ export function ERDiagram({
     x: number;
     y: number;
   } | null>(null);
+  const [hoveredTable, setHoveredTable] = useState<string | null>(null);
   const [direction, setDirection] = useState<"LR" | "TB">("TB");
   const [rendered, setRendered] = useState<{
     source: string;
@@ -209,6 +212,7 @@ export function ERDiagram({
         });
         setPan({ x: 0, y: 0 });
         setHover(null);
+        setHoveredTable(null);
         setError("");
       })
       .catch(() => {
@@ -231,6 +235,9 @@ export function ERDiagram({
       .forEach((node) => {
         const active =
           node.getAttribute("data-table-id") === selected ||
+          Boolean(
+            pickedTables?.includes(node.getAttribute("data-table-id") || ""),
+          ) ||
           node.getAttribute("data-relation-id") === edge ||
           Boolean(
             pickedEdges?.includes(node.getAttribute("data-relation-id") || ""),
@@ -239,13 +246,25 @@ export function ERDiagram({
         node.setAttribute(
           "data-hovered",
           String(
-            selecting && node.getAttribute("data-relation-id") === hover?.id,
+            selecting &&
+              (node.getAttribute("data-relation-id") === hover?.id ||
+                (hoveredTable !== null &&
+                  node.getAttribute("data-table-id") === hoveredTable)),
           ),
         );
         if (node.getAttribute("role") === "button")
           node.setAttribute("aria-pressed", String(active));
       });
-  }, [rendered, selected, edge, pickedEdges, selecting, hover?.id]);
+  }, [
+    rendered,
+    selected,
+    edge,
+    pickedEdges,
+    pickedTables,
+    selecting,
+    hover?.id,
+    hoveredTable,
+  ]);
   const activate = (target: EventTarget | null) => {
     if (!(target instanceof Element)) return;
     const node = target.closest("[data-table-id], [data-relation-id]");
@@ -279,6 +298,12 @@ export function ERDiagram({
     x: number,
     y: number,
   ) => {
+    setHoveredTable(
+      target instanceof Element
+        ? target.closest("[data-table-id]")?.getAttribute("data-table-id") ||
+            null
+        : null,
+    );
     const relationId =
       target instanceof Element
         ? target.closest("[data-relation-id]")?.getAttribute("data-relation-id")
@@ -315,6 +340,7 @@ export function ERDiagram({
               setZoom(1);
               setPan({ x: 0, y: 0 });
               setHover(null);
+              setHoveredTable(null);
             }}
           >
             <Maximize2 className="size-3.5" />
@@ -365,6 +391,7 @@ export function ERDiagram({
             }
             suppressClick.current = true;
             setHover(null);
+            setHoveredTable(null);
             setPan({ x: active.panX + dx, y: active.panY + dy });
           } else {
             const bounds = e.currentTarget.getBoundingClientRect();
@@ -386,6 +413,7 @@ export function ERDiagram({
           drag.current = null;
           setDragging(false);
           setHover(null);
+          setHoveredTable(null);
         }}
         onLostPointerCapture={() => {
           drag.current = null;
@@ -393,6 +421,7 @@ export function ERDiagram({
         }}
         onPointerLeave={() => {
           setHover(null);
+          setHoveredTable(null);
           if (!drag.current?.moved) drag.current = null;
         }}
         onClickCapture={(e) => {
@@ -411,9 +440,15 @@ export function ERDiagram({
             node.y + node.height / 2 - bounds.y,
           );
         }}
-        onBlurCapture={() => setHover(null)}
+        onBlurCapture={() => {
+          setHover(null);
+          setHoveredTable(null);
+        }}
         onKeyDown={(e) => {
-          if (e.key === "Escape") setHover(null);
+          if (e.key === "Escape") {
+            setHover(null);
+            setHoveredTable(null);
+          }
           if (e.target !== e.currentTarget) return;
           const offsets: Record<string, [number, number]> = {
             ArrowLeft: [48, 0],
@@ -424,6 +459,7 @@ export function ERDiagram({
           if (offsets[e.key]) {
             e.preventDefault();
             setHover(null);
+            setHoveredTable(null);
             const [x, y] = offsets[e.key];
             setPan((p) => ({ x: p.x + x, y: p.y + y }));
           }
@@ -486,9 +522,11 @@ export function ERDiagram({
         );
       })}
       <p className="sr-only">
-        {tr(
-          "Arrastra para moverte por el mapa. Pasa por una conexión para entenderla; selecciona una tabla para ver sus columnas.",
-        )}
+        {selecting
+          ? tr("Selecciona una tabla, una conexión o todo el mapa.")
+          : tr(
+              "Arrastra para moverte por el mapa. Pasa por una conexión para entenderla; selecciona una tabla para ver sus columnas.",
+            )}
         {tables.some((t) => t.columns.length > 8) &&
           " " +
             tr(

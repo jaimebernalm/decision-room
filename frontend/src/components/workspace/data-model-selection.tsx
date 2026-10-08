@@ -5,6 +5,7 @@ import { blockId, referenceId, useAssistant } from "@/lib/assistant";
 import { translate as tr, useLanguage } from "@/lib/i18n";
 import type { ContextAttachment } from "@/lib/types";
 import type { DataModel, Relation } from "./data-model";
+import { tableAttachment } from "./data-table-context";
 import { useBlockSelection } from "./context-selection";
 
 function modelAttachment(
@@ -47,18 +48,20 @@ function modelAttachment(
   };
 }
 
-function RelationshipSelection({
+function ModelElementSelection({
   item,
   disabled,
+  anchor = true,
 }: {
   item: ContextAttachment;
+  anchor?: boolean;
   disabled: boolean;
 }) {
   const { assistant, active, selected } = useBlockSelection(
     disabled ? undefined : item,
   );
   return (
-    <div id={blockId(item)} className="min-w-0 max-w-full">
+    <div id={anchor ? blockId(item) : undefined} className="min-w-0 max-w-full">
       {active && (
         <Button
           variant={selected ? "secondary" : "outline"}
@@ -90,6 +93,8 @@ export function DataModelSelection({
   children: (selection: {
     selecting: boolean;
     pickedEdges: string[];
+    pickedTables: string[];
+    pickTable: (id: string) => void;
     pick: (id: string) => void;
   }) => ReactNode;
 }) {
@@ -100,6 +105,18 @@ export function DataModelSelection({
   const attachments = model.body.relations.map((relation) =>
     modelAttachment(model, relation),
   );
+  const tableItems = model.body.tables.map((table) =>
+    tableAttachment(model, table),
+  );
+  const pickedTables = model.body.tables
+    .filter(
+      (_table, index) =>
+        assistant?.selected.some(
+          (ref) => referenceId(ref) === referenceId(tableItems[index]),
+        ) ||
+        (!active && assistant?.dock?.block === blockId(tableItems[index])),
+    )
+    .map((table) => table.id);
   const pickedEdges = model.body.relations
     .filter(
       (_relation, index) =>
@@ -129,13 +146,20 @@ export function DataModelSelection({
             {tr("Todo el mapa")}
           </Button>
           <span className="text-xs text-muted-foreground">
-            {tr("Selecciona una conexión o todo el mapa.")}
+            {tr("Selecciona una tabla, una conexión o todo el mapa.")}
           </span>
         </div>
       )}
       {children({
         selecting: active,
         pickedEdges,
+        pickedTables,
+        pickTable: (id) => {
+          const chosen = tableItems.find(
+            (ref) => ref.element_key === `table:${id}`,
+          );
+          if (chosen) assistant?.toggle(chosen);
+        },
         pick: (id) => {
           const chosen = attachments.find(
             (ref) => ref.element_key === `relation:${id}`,
@@ -144,8 +168,17 @@ export function DataModelSelection({
         },
       })}
       <div className={active ? "flex flex-wrap gap-2" : ""}>
+        {tableItems.map((attachment) => (
+          <ModelElementSelection
+            key={referenceId(attachment)}
+            item={attachment}
+            disabled={disabled}
+            // Table cards own the source anchor; keep its ID unique across both views.
+            anchor={false}
+          />
+        ))}
         {attachments.map((attachment) => (
-          <RelationshipSelection
+          <ModelElementSelection
             key={referenceId(attachment)}
             item={attachment}
             disabled={disabled}

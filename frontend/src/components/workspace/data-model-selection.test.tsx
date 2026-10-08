@@ -323,3 +323,52 @@ it("keeps stale table previews readable without offering obsolete tables for sel
     screen.queryByRole("button", { name: "Seleccionar: Tabla: Ventas" }),
   ).toBeNull();
 });
+
+it("highlights and selects diagram tables with pointer and keyboard, sharing the library selection", async () => {
+  const user = userEvent.setup();
+  const { container } = render(<Harness library />);
+  await user.click(screen.getByRole("button", { name: "Relaciones" }));
+  const table = await screen.findByRole("button", { name: "Tabla Ventas" });
+  await user.click(
+    screen.getByRole("button", { name: /^Seleccionar$/ }),
+  );
+  fireEvent.pointerMove(table, { clientX: 50, clientY: 50 });
+  await waitFor(() => expect(table).toHaveAttribute("data-hovered", "true"));
+  expect(table).toHaveAttribute("aria-pressed", "false");
+  await user.click(table);
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(table).toHaveAttribute("aria-pressed", "true");
+  expect(
+    store.get(contextKey("business"), { context_references: [] })
+      .context_references,
+  ).toEqual([
+    expect.objectContaining({
+      kind: "data_model",
+      source_id: "analysis",
+      source_version: "3",
+      element_key: "table:table-0",
+    }),
+  ]);
+  fireEvent.pointerLeave(container.querySelector(".data-map-viewport")!);
+  await waitFor(() => expect(table).toHaveAttribute("data-hovered", "false"));
+  fireEvent.keyDown(table, { key: " " });
+  expect(table).toHaveAttribute("aria-pressed", "false");
+  fireEvent.keyDown(table, { key: "Enter" });
+  expect(table).toHaveAttribute("aria-pressed", "true");
+  await user.click(screen.getByRole("button", { name: "Tablas 2" }));
+  expect(
+    screen
+      .getAllByRole("button", { name: "Quitar: Tabla: Ventas" })
+      .some((button) => button.getAttribute("aria-pressed") === "true"),
+  ).toBe(true);
+  // The diagram fallback and the table card refer to one saved table, never duplicates.
+  await user.click(
+    screen
+      .getAllByRole("button", { name: "Quitar: Tabla: Ventas" })
+      .find((button) => button.closest(".context-block"))!,
+  );
+  expect(
+    store.get(contextKey("business"), { context_references: [] })
+      .context_references,
+  ).toEqual([]);
+});

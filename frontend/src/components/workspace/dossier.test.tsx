@@ -163,6 +163,17 @@ function setup(
         };
         return { ok: true, json: async () => structuredClone(current.layout) };
       }
+      if (_url === "/api/business") {
+        current.business = {
+          ...current.business,
+          description: body.description,
+          profile_revision: body.profile_revision + 1,
+        };
+        return {
+          ok: true,
+          json: async () => ({ business: structuredClone(current.business) }),
+        };
+      }
       const existing = current.facts.find((f) => f.fact_id === body.fact_id);
       if (existing) {
         current.history.push(structuredClone(existing));
@@ -533,8 +544,8 @@ describe("compact business dossier", () => {
     );
     expect(screen.getByText(business.description)).toBeVisible();
     expect(
-      screen.getByRole("link", { name: "Editar presentación" }),
-    ).toHaveAttribute("href", "#business");
+      screen.getByRole("button", { name: "Editar presentación" }),
+    ).toBeVisible();
     await user.click(screen.getByRole("tab", { name: "Datos" }));
     expect(screen.queryByText(business.description)).not.toBeInTheDocument();
     expect(
@@ -546,6 +557,95 @@ describe("compact business dossier", () => {
     expect(screen.queryByText(business.description)).not.toBeInTheDocument();
     expect(screen.getByText(retired.content.statement)).toBeVisible();
     expect(screen.getByText(replaced.content.statement)).toBeVisible();
+  });
+  it("edits the presentation in place, cancels without writes and saves the exact profile revision", async () => {
+    const { user, writes, refresh } = setup();
+    await ready();
+    await user.click(
+      screen.getByRole("button", { name: "Ver presentación original" }),
+    );
+    const edit = screen.getByRole("button", { name: "Editar presentación" });
+    const hash = window.location.hash;
+    await user.click(edit);
+    const input = screen.getByRole("textbox", {
+      name: "Presentación del negocio",
+    });
+    expect(input).toHaveFocus();
+    await user.clear(input);
+    await user.type(input, "Borrador que descartamos.");
+    await user.click(
+      screen.getByRole("button", { name: /^Cancelar$/ }),
+    );
+    expect(screen.getByText(business.description)).toBeVisible();
+    await waitFor(() => expect(
+      screen.getByRole("button", { name: "Editar presentación" }),
+    ).toHaveFocus());
+    expect(writes).toEqual([]);
+    await user.click(
+      screen.getByRole("button", { name: "Editar presentación" }),
+    );
+    await user.clear(
+      screen.getByRole("textbox", { name: "Presentación del negocio" }),
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Presentación del negocio" }),
+      "Nueva presentación del negocio.",
+    );
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    await screen.findByText("Nueva presentación del negocio.");
+    expect(writes).toEqual([
+      {
+        business_id: business.id,
+        name: business.name,
+        description: "Nueva presentación del negocio.",
+        profile_revision: 4,
+      },
+    ]);
+    expect(refresh).toHaveBeenCalled();
+    expect(window.location.hash).toBe(hash);
+    await user.click(
+      screen.getByRole("button", { name: /^Seleccionar$/ }),
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "Seleccionar: Presentación de Tienda de ejemplo",
+      }),
+    );
+    expect(
+      store.get(contextKey(business.id), { context_references: [] })
+        .context_references,
+    ).toEqual([
+      expect.objectContaining({ source_version: "5", element_key: "profile" }),
+    ]);
+  });
+  it("preserves the presentation draft and revision on conflict, with cancellation available", async () => {
+    const { user, writes } = setup(dossier(), {
+      error:
+        "El contexto ha cambiado en otra página. Recárgalo antes de editar.",
+    });
+    await ready();
+    await user.click(
+      screen.getByRole("button", { name: "Ver presentación original" }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Editar presentación" }),
+    );
+    const input = screen.getByRole("textbox", {
+      name: "Presentación del negocio",
+    });
+    await user.clear(input);
+    await user.type(input, "Mis cambios pendientes.");
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    await screen.findByText(
+      "El contexto ha cambiado en otra página. Recárgalo antes de editar.",
+    );
+    expect(input).toHaveValue("Mis cambios pendientes.");
+    expect(writes[0]).toMatchObject({ profile_revision: 4 });
+    await user.click(
+      screen.getByRole("button", { name: /^Cancelar$/ }),
+    );
+    expect(screen.getByText(business.description)).toBeVisible();
+    expect(writes).toHaveLength(1);
   });
   it("shows a brief presentation when there are no active facts", async () => {
     const { user } = setup(dossier([retired]));

@@ -124,3 +124,14 @@
 .data-model-map[data-selecting="true"] [data-relation-id]:focus-visible rect {
   fill: color-mix(in srgb, var(--primary) 16%, var(--background)) !important;
 }
+
+.data-model-map[data-selecting="true"] .node[data-hovered="true"] rect,
+.data-model-map[data-selecting="true"] .node[data-selected="true"] rect,
+.data-model-map[data-selecting="true"] .node:focus-visible rect,
+.data-model-map[data-selecting="true"]
+  .node:is([data-hovered="true"], [data-selected="true"], :focus-visible)
+  path[fill]:not([fill="none"]) {
+  fill: color-mix(in srgb, var(--primary) 12%, var(--background)) !important;
+  stroke: var(--primary) !important;
+  stroke-width: 2px !important;
+}

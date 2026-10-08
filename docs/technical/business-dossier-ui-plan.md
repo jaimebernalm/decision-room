@@ -235,3 +235,19 @@ Estado: implementado y comprobado el 7 de octubre de 2026. Véanse las
 
 Estado: implementado y comprobado el 7 de octubre de 2026. Véanse las
 [comprobaciones de cierre y alta](../validation/2026-10-07-dossier-group-close.md).
+
+
+## Selección directa en el diagrama y presentación en su sitio (refinamiento de 2.5.5)
+
+1. Unificar la referencia de tabla de la lista y del diagrama. Resaltar tablas y
+   conexiones al pasar el cursor en modo selección; permitir elegirlas sin abrir
+   detalles, mantener teclado, selección del mapa completo y protección de
+   modelos pendientes de actualización.
+2. Cambiar la presentación original a edición en su sitio con Guardar y Cancelar,
+   conservando nombre, revisión, borrador ante errores y selección de contexto
+   del texto guardado. Usar el contrato existente del perfil.
+3. Comprobar regresión, guardado/cancelación, navegación, escritorio y móvil;
+   revisar el diff público y guardar un commit local del incremento completo.
+
+Estado: implementado y comprobado el 7 de octubre de 2026. Véanse las
+[comprobaciones del diagrama y la presentación](../validation/2026-10-07-dossier-diagram-presentation.md).
