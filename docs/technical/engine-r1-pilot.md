@@ -25,3 +25,27 @@ rechazo de fechas/horas/sufijos inválidos, idempotencia, aislamiento y verifica
 El primer intento de integración no cargó el entorno local de pruebas y falló
 al abrir el socket predeterminado; la repetición con ese entorno pasó. Sin
 llamadas de modelo. R1a todavía no está listo para congelar ni medir.
+
+## Segunda pieza: exploración y entrega
+
+`explorar` usa el mismo sandbox y las tablas autorizadas que `consulta`, pero
+permite terminar sin `result.json` y devuelve stdout paginado. La opción de
+ejecución se registra en la identidad de la solicitud; reutilizar una clave con
+otro modo se rechaza. La consulta habitual sigue exigiendo resultado estructurado.
+Completar un programa no certifica lo impreso. `salida` permite releer únicamente
+las ejecuciones del trabajo y distingue paginación de truncamiento de retención.
+
+`panorama_lectura` reúne los bloques de tabla, periodo y señales de la proyección
+compacta existente, con sus valores y un índice de referencias. No selecciona
+señales mediante un modelo; los detalles y ratios completos siguen en `panorama`.
+Sus cursores son posiciones de caracteres, y las respuestas incluyen la siguiente
+llamada exacta. Los límites, nulos y códigos sin catálogo conservan su significado.
+
+El encargo del propietario permanece intacto. Las instrucciones del motor aclaran
+que `entregar_informe` produce el HTML publicado; escribir otro HTML en el entorno
+de trabajo no lo sustituye. Se mantienen los borradores recuperables.
+
+Validación: 29 pruebas de exploración, feedback, panorama y ejecución aprobadas,
+con sandbox Docker real: tabla impresa, repetición idempotente, rechazo entre
+trabajos, modo incompatible bajo la misma clave, paginación Unicode y regresión
+del contrato de consulta. Sin llamadas de modelo.

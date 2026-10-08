@@ -69,7 +69,7 @@ def validate_result(raw, tables):
     return {'verification': 'pending', **result}
 
 
-def validate_payload(raw, tables):
+def validate_payload(raw, tables, *, result_required=True):
     payload = strict_json(raw)
     if not isinstance(payload, dict) or set(payload) != {'protocol', 'status', 'exit_code', 'logs', 'files'} or payload['protocol'] != 1:
         raise ValueError('Invalid worker protocol.')
@@ -117,6 +117,7 @@ def validate_payload(raw, tables):
     result = None
     if status == 'completed':
         if 'result.json' not in files:
-            raise ValueError('Missing result.json.')
-        result = validate_result(files['result.json'], tables)
+            if result_required: raise ValueError('Missing result.json.')
+        else:
+            result = validate_result(files['result.json'], tables)
     return status, logs, files, result

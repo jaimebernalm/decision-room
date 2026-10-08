@@ -47,6 +47,14 @@ class ContractTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_result(json.dumps(base), {'sales': {'row_count':24}})
 
+    def test_explicit_exploration_mode_preserves_stdout_without_result(self):
+        payload={'protocol':1,'status':'completed','exit_code':0,
+                 'logs':{'stdout':'table candidate','stderr':'','stdout_truncated':False,'stderr_truncated':False},'files':[]}
+        with self.assertRaisesRegex(ValueError,'Missing result'):validate_payload(json.dumps(payload),{})
+        status,logs,files,result=validate_payload(json.dumps(payload),{},result_required=False)
+        self.assertEqual(status,'completed');self.assertEqual(logs['stdout'],'table candidate')
+        self.assertIsNone(result);self.assertEqual(files,{})
+
     def test_host_rejects_traversal_and_artifact_disguises(self):
         payload = {'protocol':1, 'status':'failed', 'exit_code':1,
                    'logs':{'stdout':'','stderr':'','stdout_truncated':False,'stderr_truncated':False}, 'files':[]}

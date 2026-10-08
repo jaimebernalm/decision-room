@@ -47,7 +47,7 @@ def list_executions(config, business_id, analysis_id):
 
 
 def execute(config, business_id, analysis_id, *, code, tables, definitions=None,
-            request_key, timeout=30, backend=None):
+            request_key, timeout=30, backend=None, result_required=True):
     """Run once; completed results are candidates, never analytically approved.
 
     `tables` maps readable aliases to prepared table UUIDs. Caller authentication
@@ -55,6 +55,7 @@ def execute(config, business_id, analysis_id, *, code, tables, definitions=None,
     Backend configuration is trusted operator configuration, never agent input.
     """
     business_id, analysis_id = uuid.UUID(str(business_id)), uuid.UUID(str(analysis_id))
+    if type(result_required) is not bool: raise ValueError("result_required must be boolean.")
     definitions = {} if definitions is None else definitions
     if not isinstance(code, str) or not code.strip() or len(code.encode()) > 128 * 1024:
         raise ValueError('Provide nonempty Python code, at most 128 KiB.')
@@ -86,6 +87,7 @@ def execute(config, business_id, analysis_id, *, code, tables, definitions=None,
                                          'parquet_sha256', 'row_count', 'columns', 'lineage_column', 'engine_version')}
         backend = backend or DockerBackend()
         limits = {**LIMITS, 'timeout_seconds': timeout, 'outer_grace_seconds': 10, 'row_order_checks': 1, 'max_program_runs': 2}
+        if not result_required: limits['result_required'] = False
         fingerprint = sha(canonical({'code': code, 'inputs': inputs, 'definitions': definitions,
                                      'limits': limits, 'environment': backend.manifest}))
         # Recovery takes this lock exclusively; live executions share it.
@@ -172,10 +174,10 @@ def execute(config, business_id, analysis_id, *, code, tables, definitions=None,
                 logs = {'transport_stderr': outcome['transport_stderr'][:65536]}
             else:
                 try:
-                    status, logs, files, result = validate_payload(outcome['payload'], inputs)
+                    status, logs, files, result = validate_payload(outcome['payload'], inputs, result_required=result_required)
                 except ValueError as error:
                     status, issue, files = 'invalid_output', str(error), {}
-                if status == 'completed':
+                if status == 'completed' and result is not None:
                     from .order_verification import verify
                     check, order_issue = verify(backend, execution_id, stage, timeout, inputs, result)
                     runtime = {**runtime, 'row_order_check': check}

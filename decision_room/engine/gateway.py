@@ -1,11 +1,12 @@
 """Stateless MCP boundary for a fixed job snapshot and its own executions."""
+from copy import deepcopy
 from uuid import UUID
 import re
 
 from .. import execution
 from ..database import connect
 from ..reports.contract import format_feedback
-from . import admission, store, panorama, numbers, questions, calculations
+from . import admission, store, panorama, numbers, questions, calculations, exploration
 
 VERSIONS = {'2025-03-26', '2025-06-18'}
 TOOLS = [
@@ -88,6 +89,28 @@ TOOLS = [
          'execution_id': {'type': 'string'}, 'cursor': {'type': 'integer', 'minimum': 0}},
          'required': ['execution_id'], 'additionalProperties': False}},
 ]
+
+
+# R1 exploration views reuse the same execution and snapshot boundaries.
+_explore = deepcopy(next(t for t in TOOLS if t['name']=='consulta'))
+_explore['name']='explorar'
+_explore['description']=('Explore with Python and print tables/series using the same scoped aliases and dr_runtime as consulta. '
+    'Printed stdout is returned directly as unverified candidate material, with exact paging via salida. '
+    'write_result is optional for exploration; completed only means the program exited successfully, not that output was verified. '
+    'Check retention_truncated: lost log bytes cannot be paged back. Print selected columns, counts and selection rules; narrow oversized output. '
+    'Use consulta/write_result for structured metrics; use calculo for server-owned recipes. '
+    + _explore['description'])
+TOOLS.append(_explore)
+_readable = deepcopy(next(t for t in TOOLS if t['name']=='panorama'))
+_readable['name']='panorama_lectura'
+_readable['description']=('Read the deterministic panorama as complete readable table/signal blocks, including all compact gap/change signals. '
+    'References R1, R2, etc. are expanded to execution_id/metric in the final reference section; do not use R labels as metric IDs. '
+    'cursor is a Unicode character offset. Follow next_call with the same table/request key and mapping. '
+    'For all detailed totals and ratios use panorama. This overview does not certify interpretation or priorities.')
+TOOLS.append(_readable)
+TOOLS.append({'name':'salida','description':'Read retained stdout from a sandbox execution of this job only. Unverified exploration text, never a certified metric. Follow next_call; retention_truncated means some output was lost before paging.',
+    'inputSchema':{'type':'object','properties':{'execution_id':{'type':'string'},'cursor':{'type':'integer','minimum':0}},
+                   'required':['execution_id'],'additionalProperties':False}})
 
 
 def _leaves(value, path=''):
@@ -189,7 +212,7 @@ def page_result(record, cursor=0, *, repeat_tool=None):
     return page
 
 
-def consulta(config, job, token, args, *, backend=None):
+def consulta(config, job, token, args, *, backend=None, printed=False):
     if set(args) - {'code', 'tables', 'definitions', 'request_key', 'timeout'}:
         raise ValueError('Unexpected consulta arguments.')
     if not isinstance(args.get('tables'), dict) or not isinstance(args.get('request_key'), str) or not 1 <= len(args['request_key']) <= 128:
@@ -202,14 +225,24 @@ def consulta(config, job, token, args, *, backend=None):
     key = 'engine-' + admission.sha(admission.canonical([str(job['id']), args['request_key']]))
     record = execution.execute(config, job['business_id'], job['analysis_id'],
                                code=args.get('code'), tables=tables, definitions=args.get('definitions'),
-                               timeout=args.get('timeout', 30), request_key=key, backend=backend)
+                               timeout=args.get('timeout', 30), request_key=key, backend=backend, result_required=not printed)
     # A tool that finishes after waiting/revocation may retain durable evidence,
     # but cannot send it into the paused/new turn.
     admission.authenticate(config, job['id'], token)
     with connect(config) as db:
         db.execute('''INSERT INTO engine_executions(business_id,run_id,execution_id)
             VALUES (%s,%s,%s) ON CONFLICT DO NOTHING''', (job['business_id'], job['id'], record['id']))
-    return page_result(record)
+    return exploration.stdout_page(record) if printed else page_result(record)
+
+
+def salida(config, job, args):
+    if set(args) - {"execution_id", "cursor"}: raise ValueError("Unexpected salida arguments.")
+    execution_id=UUID(str(args["execution_id"]))
+    with connect(config) as db:
+        linked=db.execute("SELECT execution_id FROM engine_executions WHERE business_id=%s AND run_id=%s AND execution_id=%s",
+                          (job["business_id"],job["id"],execution_id)).fetchone()
+    if not linked: raise admission.Denied("Execution is outside this job.")
+    return exploration.stdout_page(execution.get_execution(config,job["business_id"],execution_id),args.get("cursor",0))
 
 
 def resultado(config, job, args):
@@ -276,6 +309,12 @@ def dispatch(config, run_id, token, message, *, backend=None):
                 row = calculations.calculate(config, run_id, token, **{k: v for k, v in args.items() if k != 'cursor'})
                 value = {**page_result({'id': row['id'], 'status': 'completed', 'result': row['body']['result']}, args.get('cursor', 0)),
                          'origin': 'deterministic_calculation', 'table_ids': [args['table_id']]}
+            elif params.get('name') == 'panorama_lectura':
+                if set(args) - {'table_id','request_key','mapping','cursor'}: raise ValueError('Invalid panorama arguments.')
+                row=panorama.calculate(config,run_id,token,**{k:v for k,v in args.items() if k!='cursor'})
+                value=exploration.text_page(exploration.panorama_text(row['body']),args.get('cursor',0),
+                    tool='panorama_lectura',arguments={k:v for k,v in args.items() if k!='cursor'},
+                    identity={'panorama_id':str(row['id']),'origin':'deterministic_panorama','verification':'scoped_calculations_only'})
             elif params.get('name') == 'panorama':
                 if set(args) - {'table_id', 'request_key', 'mapping', 'cursor'} or not {'table_id', 'request_key'} <= set(args):
                     raise ValueError('Invalid panorama arguments.')
@@ -290,6 +329,10 @@ def dispatch(config, run_id, token, message, *, backend=None):
                 value = store.receive_document(config, run_id, token, **args)
                 # The immutable raw revision is committed before any parsing.
                 value['format'] = format_feedback(args['draft_json'].encode('utf-8'))
+            elif params.get('name') == 'explorar':
+                value=consulta(config,job,token,args,backend=backend,printed=True)
+            elif params.get('name') == 'salida':
+                value=salida(config,job,args)
             elif params.get('name') == 'consulta':
                 value = consulta(config, job, token, args, backend=backend)
             elif params.get('name') == 'resultado':
