@@ -26,6 +26,14 @@ existente queda congelada en `c6bda76`; la aceptación analítica de 3.9 y 3.9.7
 permanece abierta hasta las puertas de evaluación. Los resultados históricos
 que siguen no se reinterpretan como aceptación del motor nuevo.
 
+**R0 del motor — piloto de presentación, 8 de octubre:** tras la puerta P3
+no superada, el propietario autoriza R0 y después R1, secuencialmente. R0 usa
+borradores congelados con un renderer experimental separado, sin recalcular ni
+cambiar estados de verificación; produce mapas de ocurrencias, hashes y
+atestaciones de conservación. Véase [el alcance técnico de R0](../technical/engine-r0-presentation.md).
+La preparación técnica y la evaluación por lectores son hitos distintos: no se
+marca beneficio antes de la medida ni se inicia P4 por este piloto.
+
 **P1 del motor — auditoría cerrada, 6 de octubre:** registro privado revisado de
 1.087 cifras/afirmaciones de 12 informes; 12 errores y una ambigüedad, separados
 por sistema y por vínculo con prioridades. [Resumen público y línea base de
