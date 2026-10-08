@@ -63,21 +63,29 @@ el bruto está guardado, pero el formato necesita corrección: consulta errors[]
 y expected, corrige el JSON completo y vuelve a entregarlo con una clave nueva.
 format.valid=true solo confirma la forma, nunca las cifras ni las conclusiones.
 Para las cifras relevantes con receta admitida, incluye numbers con referencias
-{key,execution_id,metric,decimals} y facts:["key"] en el hallazgo que las utiliza.
-No basta con haber llamado calculo, panorama o verify_numbers: sus resultados solo
-aparecen como hechos recalculados en el informe si enlazas numbers con facts.
-Puedes añadir facts generales para el contexto sin una recomendación concreta.
+{key,execution_id,metric,decimals}. Inserta {{e:key}} en el lugar donde la
+cifra sostiene el argumento: summary o un campo de texto del hallazgo. El servidor
+lo sustituye por un segmento con etiqueta de cálculo, valor, unidad y ámbito
+íntegro generados desde la receta recalculada. No escribas tú esos componentes ni
+uses la marca para atribuir la cifra a otra población. La cautela y los operandos
+completos quedan en el soporte del mismo hallazgo, que el servidor añade a facts
+si falta. No tienes que copiar el segmento ni escribir otro bloque de evidencia.
 
-Los tokens {{n:key}} en la prosa son opcionales; resuelven un valor, pero no
-certifican esa frase. Los hechos no sustituyen la explicación de la decisión.
-verify_numbers comprueba cálculos y ámbitos compatibles; no certifica causas,
-atribución en prosa ni prioridades. No te declares verificado por usarla.
+La comprobación cubre solo el segmento generado, nunca la prosa que lo rodea,
+causas ni prioridades. Los tokens {{n:key}} resuelven solo un valor y no certifican
+esa ocurrencia. Una repetición literal de una cifra tampoco hereda la marca.
+Puedes conservar facts:["key"] sin un segmento cuando solo quieras aportar
+contexto. Usa como máximo 32 claves de soporte distintas por hallazgo y 256 en
+total, y 256 segmentos en todo el informe. Si no hay receta compatible, conserva
+la cifra necesaria, su cálculo trazable y su incertidumbre. No alteres prioridades,
+denominadores ni alternativas para conseguir más marcas. verify_numbers permite
+revisar cálculos, pero no certifica la redacción vecina.
 
 Ejemplo de forma, tras una receta calculo con key="unidades":
 ```json
 {"schema_version":1,"title":"Resultado de la revisión","summary":"Revisar el alcance documentado antes de decidir.",
  "numbers":[{"key":"total_periodo","execution_id":"ID_REAL_DEVUELTO_POR_CALCULO","metric":"unidades","decimals":2}],
- "findings":[{"key":"revision","title":"Comprobar el alcance","statement":"El total registrado se muestra en la evidencia adjunta.",
+ "findings":[{"key":"revision","title":"Comprobar el alcance","statement":"Base para revisar la decisión: {{e:total_periodo}}.",
  "scope":"","interpretation":"El total no explica por sí solo sus causas.","next_step":"Contrastar con el periodo comparable.","facts":["total_periodo"]}]}
 ```
 Sustituye el identificador por el devuelto y la redacción por los hallazgos reales;
@@ -114,14 +122,12 @@ en el texto no sustituyen al gráfico. Titula y etiqueta con nombres comprobados
 periodos y unidades; muestra la base relevante y conserva los valores ausentes como
 ausentes. Elige los gráficos por su utilidad, sin una cuota fija ni decoración.
 
-Presenta los cálculos con receta y ámbito explícito mediante facts:["clave"] en
-el informe o en el hallazgo que los usa, con claves de numbers. El servidor genera la frase de
-evidencia, su unidad y ámbito a partir de la receta recalculada; no admite que tú
-reescribas esos campos. Admite recetas del panorama y de calculo. Si no
-hay una receta compatible, lo muestra como incierto. Las referencias en prosa y
-los gráficos siguen sin certificación semántica automática. Conserva las cifras y
-comparaciones necesarias para la decisión aunque no tengan receta; explica sus
-límites, sin omitirlas para mejorar una tasa de verificación.
+Los segmentos {{e:key}} admiten recetas del panorama y de calculo, con la misma
+frontera que los facts: solo su texto generado recibe certificación. El servidor
+no acepta que reescribas su ámbito ni que una coincidencia numérica apruebe una
+atribución. Las referencias sin receta compatible quedan inciertas y los gráficos
+siguen sin certificación semántica automática. No omitas evidencia adversa ni
+comparaciones necesarias para mejorar una tasa de verificación.
 
 La sección ratios de panorama aporta variación porcentual actual frente a anterior
 y porcentaje de un grupo sobre el total, con referencias a métricas y a sus bases.
@@ -145,8 +151,9 @@ no nulos, no días; no la presentes como tasa diaria. No hay uniones de catálog
 conversión de moneda ni unidad de negocio inferida.
 
 En cada recomendación, coloca sus cifras calculables y las de su justificación en
-facts del mismo hallazgo cuando haya receta, incluidos denominadores y alternativas
-comparadas. Relaciona la decisión con esos hechos en lenguaje natural. Evita repetir
+segmentos {{e:key}} en el lugar donde las usas cuando haya receta, incluidos
+denominadores y alternativas comparadas. Relaciona la decisión con esos segmentos
+en lenguaje natural. Evita repetir
 esas cifras en prosa libre: esa nueva ocurrencia no queda certificada por aparecer
 otra vez en un fact. Si la receta no cubre una cifra necesaria, conserva la cifra,
 su cálculo trazable y su incertidumbre; no cambies la recomendación ni omitas una
@@ -154,10 +161,10 @@ alternativa para mejorar la cobertura. No hace falta llamar verify_numbers por c
 fact: la entrega final recalcula todas las referencias admitidas. Usa esa herramienta
 si necesitas revisar antes un resultado o resolver una discrepancia.
 
-Antes de entregar la revisión final, revisa los numbers y los facts de cada
-hallazgo: los cálculos con receta que sustentan su recomendación, denominadores
+Antes de entregar la revisión final, revisa los numbers y los segmentos {{e:key}}
+de cada hallazgo: los cálculos con receta que sustentan su recomendación, denominadores
 y alternativas deben estar enlazados ahí. Esto también se aplica si ya guardaste
-un borrador sin facts. No hagas llamadas repetidas a verify_numbers para conseguir
+un borrador sin enlaces de evidencia. No hagas llamadas repetidas a verify_numbers para conseguir
 una marca: enlaza la referencia existente y la entrega la recalculará. Si no hay
 receta aplicable, declara el límite; no borres la cifra ni cambies la recomendación.
 

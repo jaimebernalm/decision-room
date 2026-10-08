@@ -6,7 +6,7 @@ from uuid import UUID
 
 from ..database import connect
 from ..storage import Storage
-from ..reports import verification
+from ..reports import verification_occurrences as verification
 from ..reports.presentation_r1 import VERSION as RENDERER_VERSION, render
 from . import admission, control, costs, numbers, questions, store
 

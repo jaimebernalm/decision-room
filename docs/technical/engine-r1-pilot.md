@@ -72,3 +72,44 @@ incluidas las pruebas con OpenCode real, sandbox Docker y proveedor simulado.
 Se comprobó el mapa de presentación y la igualdad de texto entre copias con y
 sin marcas. Sin llamadas facturables. Las dos revisiones finales y sus hashes
 se comunicarán juntas antes del orden intercalado de ejecución preregistrado.
+
+## R1b: evidencia en la ocurrencia
+
+`{{e:key}}` en un campo de prosa existente inserta la etiqueta de cálculo, el
+valor, la unidad y el ámbito íntegro generados por la receta. El verificador
+reutiliza exclusivamente las marcas del fact recalculado; no aprueba la población
+que el agente escriba alrededor ni una repetición libre de la cantidad. Las fechas
+y otros números del ámbito conservan su estado previo: insertar el segmento no
+certifica todas sus palabras ni sus cifras por proximidad.
+
+El soporte completo, con cautelas y operandos, permanece en facts del mismo
+hallazgo (o generales para un campo general); se añade una sola vez por clave en
+cada ubicación. La presentación R0 conserva sus enlaces y anexo. No se abrevia
+el ámbito para reducir longitud. Los límites de 32 claves por ubicación, 256 facts,
+256 segmentos y un millón de caracteres de expansión evitan crecimiento sin cota;
+el exceso deja un aviso legible y un issue sin conceder marcas.
+
+Los campos visibles y la forma del ledger v1 no cambian. `presentation.map.json`
+sigue dando los desplazamientos del texto publicado, tras el formato español.
+Los hashes de documento y figuras se reconstruyen; `draft_sha256` sigue correspondiendo
+al bruto original, conservado byte por byte. Los tokens que aparezcan en nombres
+procedentes del dato no se interpretan recursivamente. Las claves ambiguas o las
+referencias sin receta compatible no adquieren certificación.
+
+Validación: 62 pruebas aprobadas de ocurrencias, facts, API, presentación, recetas
+y exploración. El humo con OpenCode real y proveedor simulado lee entradas,
+calcula con la herramienta real y entrega una cifra insertada verificada junto a
+una repetición libre sin verificar. Tras endurecer referencias no finitas, 28
+pruebas de ocurrencias, contrato y presentación volvieron a pasar. La QA de una
+página sintética en Chrome confirmó cuerpo, marcas, soporte y anexo legibles.
+La unión independiente del evaluador también distinguió los segmentos verificados
+de sus repeticiones libres y conservó la ambigüedad de citas repetidas.
+
+Límites fijados antes de medir: el ámbito íntegro puede ser largo, incluye la
+semántica técnica de fechas y puede duplicar puntuación con la frase vecina.
+Las cautelas quedan en el soporte, pero la regla del hueco o fórmula que forme
+parte del ámbito sigue en la frase. El prompt no se ha acortado como intervención
+independiente. Una cita repetida en resumen, hallazgo y soporte requiere contexto
+único del auditor; el mapa no resuelve la ambigüedad por preferir una marca.
+R1b frente a R1a mide el paquete de contrato e instrucciones de evidencia, no un
+mecanismo aislado. Nada de esto acredita todavía preferencia, exactitud ni P4.

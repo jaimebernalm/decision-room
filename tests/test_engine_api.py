@@ -336,7 +336,7 @@ class RealApiTests(unittest.TestCase):
                         {'key': 'units', 'operation': 'sum', 'column': 'quantity', 'filters': []}]}
                 elif action == 'entregar_informe' and discover:
                     arguments['draft_json'] = json.dumps({'schema_version': 1, 'title': 'Fixture',
-                        'summary': 'Total 5 unidades.', 'findings': [], 'facts': ['units'],
+                        'summary': 'Ámbito recalculado: {{e:units}}. Prosa libre: 5 unidades.', 'findings': [],
                         'numbers': [{'key': 'units', 'metric': 'units', 'execution_id': discovered['calculation']}]})
 
                 actions.append(action)
@@ -407,8 +407,11 @@ class RealApiTests(unittest.TestCase):
                                             (result['engine_run_id'],)).fetchone()['n'], 1)
             self.assertNotIn('Comparación pendiente', (path/'export/draft.raw').read_text())
             ledger = json.loads((path/'export/verification.json').read_text())
-            self.assertEqual([f['value'] for f in ledger['figures'] if f['verified']], ['5.00', '4', '4'])
-            self.assertFalse(next(f for f in ledger['figures'] if f['path'] == '/summary')['verified'])
+            self.assertEqual([f['value'] for f in ledger['figures'] if f['verified']], ['5.00', '5.00', '4', '4'])
+            inline = [f for f in ledger['figures'] if f['path'] == '/summary']
+            self.assertTrue(inline[0]['verified'])
+            self.assertFalse(inline[-1]['verified'])
+            self.assertTrue((path/'export/presentation.map.json').exists())
         self.assertTrue((path/'export/informe.contenido.html').exists())
         self.assertEqual(result['usage']['cost_catalog']['status'], 'estimated')
         self.assertFalse(runtime._inspect()['State']['Running'])
