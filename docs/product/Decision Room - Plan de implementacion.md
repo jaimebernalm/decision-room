@@ -107,6 +107,12 @@ el acumulado sigue en 128.000. [Evidencia, contrato y límites del cambio](../te
 No se cambia el esquema, no se descartan borradores y no se afirma que el nuevo
 candidato supere la puerta. Falta canario antes de congelar P3.
 
+**A2 del motor — congelación para medir, 8 de octubre:** tras las seis entregas
+comunicadas del canario de desarrollo, se acuerda medir el motor `ff6cfdd`, con
+imagen y topes fijados en el [registro del candidato](../technical/engine-p3-candidate.md).
+Preregistro y plan aleatorio deben quedar guardados antes del lote. Esta decisión
+no cierra P3: siguen pendientes la medición formal y sus lectores, juez y auditor.
+
 ## 2. Orden general
 
 | Orden | Entrega | Resultado comprobable | Motivo |

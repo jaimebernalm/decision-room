@@ -311,3 +311,25 @@ la entrega siguiente crea una revisión corregida y conserva la anterior. Tambi�
 se comprueban el máximo efectivo de 16.000 en peticiones de OpenCode, el respeto
 de un límite explícito de 8.000 y el rechazo de reservas que excedan 128.000.
 Sin gasto de API. Estas pruebas no garantizan que el modelo real corrija su entrega.
+
+## Congelación para medición, 8 de octubre
+
+Se acuerda congelar el motor en `ff6cfdd980c16a4ea1d3887c00388de8f9d82b17`, con
+imagen `sha256:33ead825a77dfb3e19176fb4d6e42009c2f299a69addc2b9122027d633450342`.
+El evaluador comunica seis entregas de seis en el canario `p3-canary-g`, sin abortos,
+fallback ni diagnósticos; coste conocido 0,255 USD. Esa evidencia de desarrollo
+permite pasar a la medida formal, pero no demuestra calidad ni cobertura analítica.
+
+Antes de medir se registran la versión 7 del preregistro, el canario completo,
+las revisiones de motor, controles y evaluador, la imagen, las semillas y el plan
+de parejas y orden aleatorio por rondas. Los límites quedan en 6M/128k/16k/60/1200 s,
+tier default, con la desviación respecto a los controles visible. Contrato v1,
+renderer `report-evidence-v4` y comprobador `engine-number-checks-v4`, todos del
+commit congelado. Esta nota documental no cambia el candidato.
+
+No se alteran código, prompt ni topes durante el lote. Una corrección posterior
+tendría revisión propia y no se mezclaría con estos resultados. Se mantienen los
+fallidos en el cómputo formal sin excepción de red; los parciales conservados se
+informan aparte y los costes inciertos permanecen explícitos. P3 sigue abierto
+hasta completar lectores, juez, auditor y evaluación de todos los criterios de
+la puerta. No se declara su superación ni se inicia por ello la integración P4.
