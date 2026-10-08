@@ -235,6 +235,15 @@ fueron `ReadError` al abrir la respuesta, en 1,1 y 4,2 segundos. Esos dos fallos
 no son timeouts de 120 segundos. No identifican si el proveedor cerró una conexión
 reutilizada, si hubo otro fallo de red o si admitió la petición.
 
+Actualización de contexto comunicada por el evaluador: el propietario confirmó
+conectividad inestable durante los dos errores de ese canario. El lote posterior
+`p3-canary-e` también coincidió con pérdida de wifi. Se conservan ambos registros
+como incidentes de entorno en desarrollo; no permiten atribuir los errores a
+reutilización de sockets ni demostrar que el cambio la haya reparado. Desactivar
+keep-alive queda como medida preventiva, pendiente de medir su efecto. El nuevo
+canario `p3-canary-f` usa el mismo código `37d912a`; sus resultados siguen pendientes.
+Esto no introduce exclusiones de fallos en la puerta del lote formal de P3.
+
 El proxy ya creaba un cliente por llamada del modelo; dentro de esa llamada,
 el conteo de entrada y la generación podían reutilizar conexión. La revisión
 desactiva keep-alive en el transporte HTTP/1.1 hacia el proveedor: ambas peticiones
