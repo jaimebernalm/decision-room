@@ -33,6 +33,10 @@ cambiar estados de verificación; produce mapas de ocurrencias, hashes y
 atestaciones de conservación. Véase [el alcance técnico de R0](../technical/engine-r0-presentation.md).
 La preparación técnica y la evaluación por lectores son hitos distintos: no se
 marca beneficio antes de la medida ni se inicia P4 por este piloto.
+**Cierre exploratorio R0:** ambos lectores prefieren R0 en las doce parejas,
+frente al umbral preregistrado de siete. Beneficio de presentación frente al
+original; no mide superioridad frente al agente en bucle ni mejora analítica.
+Se inicia R1 manteniendo la presentación común entre sus dos brazos.
 
 **P1 del motor — auditoría cerrada, 6 de octubre:** registro privado revisado de
 1.087 cifras/afirmaciones de 12 informes; 12 errores y una ambigüedad, separados

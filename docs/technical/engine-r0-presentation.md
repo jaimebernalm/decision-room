@@ -84,5 +84,17 @@ cubre los doce informes, con inspección directa de muestras de cuerpo, tablas,
 referencias ausentes y final de anexo. El anexo conserva los soportes completos sin
 reimprimir la prosa. Los materiales generados y las capturas permanecen fuera de Git.
 
-Esta preparación permite construir el kit. La preferencia de los lectores sigue
-pendiente; no se declara beneficio ni se inicia R1 antes de cerrar esa medida.
+Esta preparación permite construir el kit. La medida posterior se resume a continuación.
+
+## Resultado exploratorio
+
+La puntuación entregada por el evaluador para las doce parejas registra preferencia
+por R0 de ambos lectores en las doce (seis por negocio); supera el umbral fijado de
+siete. Ninguna respuesta señaló información ausente. Este resultado apoya una
+mejora de presentación frente al renderer original con contenido congelado.
+No compara con el agente en bucle ni demuestra mejora analítica o equivalencia
+con dueños reales. Un lector informó de imágenes ocultadas después de verlas;
+la coincidencia del otro no elimina esa limitación.
+
+Con esta medida, R0 queda cerrado en su alcance exploratorio. R1, autorizado
+secuencialmente, mantendrá esta presentación en ambos brazos; P4 sigue cerrado.
