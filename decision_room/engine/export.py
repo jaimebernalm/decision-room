@@ -44,7 +44,8 @@ def snapshot(config, business_id, run_id):
             payload = {'code': payload.get('reason'), 'stage': 'unspecified', **payload}
         details.append({k: payload[k] for k in (
             'code', 'stage', 'exception_type', 'reason', 'message', 'http_status', 'call_id',
-            'limit', 'requested_input', 'requested_output', 'charged_input', 'charged_output') if k in payload})
+            'limit', 'requested_input', 'requested_output', 'charged_input', 'charged_output',
+            'transport') if k in payload})
     calls = admission.inspect_run(config, business_id, run_id)
     received = store.read_document(config, business_id, run_id)
     known = [r['usage'] for r in calls['model_calls'] if r['usage'] is not None]

@@ -283,7 +283,7 @@ def inspect_run(config, business_id, run_id):
             usage,issue,count_seconds,started_at,admitted_at,finished_at FROM engine_model_calls
             WHERE run_id=%s ORDER BY started_at,id''', (run_id,)).fetchall()
         from . import costs
-        events = db.execute("SELECT kind,payload FROM engine_events WHERE run_id=%s AND kind IN ('model_call_started','model_call_finished','proxy_issue') ORDER BY id", (run_id,)).fetchall()
+        events = db.execute("SELECT kind,payload FROM engine_events WHERE run_id=%s AND kind IN ('model_call_started','model_call_finished','model_call_transport','proxy_issue') ORDER BY id", (run_id,)).fetchall()
         metadata = {}
         for event in events:
             data = event['payload']; call = metadata.setdefault(data['call_id'], {})
@@ -291,11 +291,15 @@ def inspect_run(config, business_id, run_id):
                 call.update(requested_model=data.get('requested_model'), requested_tier=data.get('requested_tier'))
             elif event['kind'] == 'proxy_issue':
                 call['diagnostic'] = data
+                call['transport'] = data.get('transport')
+            elif event['kind'] == 'model_call_transport':
+                call['transport'] = data['transport']
             elif data.get('billing') is not None:
                 call.update(data['billing'])
         for call in row['model_calls']:
             metadata_for_call = dict(metadata.get(str(call['id']), {}))
             call['diagnostic'] = metadata_for_call.pop('diagnostic', None)
+            call['transport'] = metadata_for_call.pop('transport', None)
             call['billing'] = metadata_for_call or None
             call['cost_catalog'] = costs.estimate(call['billing'])
         return row

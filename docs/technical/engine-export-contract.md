@@ -272,3 +272,21 @@ No se exportan mensajes originales de excepciones, URLs, credenciales ni cuerpos
 como diagnósticos. El coste sigue incompleto si falta uso; la reserva no se libera.
 Los borradores de trabajos abortados permanecen exportables sin cambiar su estado
 a entrega completa. Son campos aditivos del contrato v1.
+
+### Transporte del proveedor
+
+Cada llamada añade `transport` (null para registros anteriores), separado de
+`billing`, tanto si termina como si falla. Los diagnósticos del proxy incluyen
+el mismo recibo. `connection_policy` es `no_keepalive` en producción o
+`injected_transport` en pruebas con transporte sustituido. `input_count` y
+`generation` contienen `events_seconds`: hitos HTTP/1.1 de una lista cerrada,
+con segundos desde la creación del seguimiento de la llamada. No contiene
+URLs, cabeceras, cuerpos, objetos de conexión ni mensajes de excepción.
+
+`new_connection_observed`, `request_headers_sent`, `request_body_sent` y
+`response_headers_received` valen true solo cuando se observa el correspondiente
+hito completo; en otro caso son null (desconocido). En particular, un fallo al
+leer cabeceras puede haber recibido bytes parciales, y completar la escritura
+local no confirma admisión ni cobro del proveedor. Un transporte sin seguimiento
+no permite deducir que no se envió la petición. Ninguna de estas señales habilita
+reintentos ni devuelve cuota incierta.

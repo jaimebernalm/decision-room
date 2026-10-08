@@ -227,3 +227,35 @@ con motivo correcto; diagnóstico sin excepción del controlador; fallo de escri
 del propio diagnóstico; SIGKILL de controlador/proxy; reservas concurrentes y
 parciales conservados. OpenCode y Docker reales usan proveedor simulado, sin gasto
 facturable. Estas pruebas no identifican retrospectivamente la causa del canario.
+
+## Conexiones y seguimiento del proveedor
+
+El canario diagnóstico de `4bfefd4` tuvo dos entregas y dos abortos. Ambos errores
+fueron `ReadError` al abrir la respuesta, en 1,1 y 4,2 segundos. Esos dos fallos
+no son timeouts de 120 segundos. No identifican si el proveedor cerró una conexión
+reutilizada, si hubo otro fallo de red o si admitió la petición.
+
+El proxy ya creaba un cliente por llamada del modelo; dentro de esa llamada,
+el conteo de entrada y la generación podían reutilizar conexión. La revisión
+desactiva keep-alive en el transporte HTTP/1.1 hacia el proveedor: ambas peticiones
+abren conexiones distintas. Añade hitos acotados de conexión, envío de cabeceras
+y cuerpo, y recepción de cabeceras completas al recibo por llamada, separados
+para conteo y generación. No se inspeccionan los datos de los callbacks, que
+pueden contener secretos. Las señales ausentes son desconocidas, no prueba de
+ausencia de envío o de bytes de respuesta.
+
+Se mantienen las reservas, el cierre ante uso desconocido, los tiempos de espera
+y los topes 6M/128k/8k/60/1200 s. No se reintenta automáticamente, tampoco ante un
+`ReadError` sin cabeceras completas. Se necesita evidencia adicional para demostrar
+un fallo anterior al envío; esta revisión no implementa esa política alternativa.
+El coste de abrir conexiones nuevas y su efecto en fiabilidad quedan pendientes
+de medición. P3 sigue sin congelarse y no se amplía el presupuesto monetario.
+
+Validación: 57 pruebas de transporte, diagnósticos de aborto, admisión, API,
+costes, fallos y brazo vivo aprobadas. Un servidor HTTP local real demuestra
+conexiones distintas para conteo/generación, exportación de hitos en éxito y fallo,
+y reservas retenidas sin reintentar ante reset o cabeceras parciales. Un transporte
+sin trace conserva señales desconocidas; los callbacks no leen información
+privada. La regresión incluye OpenCode/Docker con proveedor simulado, SSE,
+SIGKILL y reservas concurrentes. Sin llamadas facturables. Falta la comprobación
+con el proveedor real: estas pruebas no demuestran la causa del canario anterior.

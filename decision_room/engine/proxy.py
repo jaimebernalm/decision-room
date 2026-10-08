@@ -10,6 +10,7 @@ import httpx
 
 from ..database import connect
 from . import admission, costs, diagnostics
+from .transport_trace import TransportTrace
 
 UPSTREAM = 'https://api.openai.com/v1'
 SERVICE_TIER = 'default'  # Trusted Standard policy; never inherit project auto/Fast.
@@ -125,6 +126,10 @@ def forward(config, run_id, token, raw, *, api_key, send_headers, write, transpo
     measured = None
     parser = None
     body = bytearray()
+    count_trace, generation_trace = TransportTrace(), TransportTrace()
+    def transport_receipt():
+        return {'connection_policy': 'no_keepalive' if transport is None else 'injected_transport',
+                'input_count': count_trace.snapshot(), 'generation': generation_trace.snapshot()}
     def billing():
         return costs.capture(measured or (parser.response if parser else None),
                              requested_model=job['model'], requested_tier=SERVICE_TIER)
@@ -132,9 +137,11 @@ def forward(config, run_id, token, raw, *, api_key, send_headers, write, transpo
     stage = 'count_input'
     try:
         with httpx.Client(transport=transport, trust_env=False, follow_redirects=False,
+                          http2=False, limits=httpx.Limits(max_keepalive_connections=0),
                           timeout=min(120.0, job['remaining_seconds']),
                           headers={'Authorization': 'Bearer ' + api_key, 'Content-Type': 'application/json'}) as client:
-            counted = client.post(UPSTREAM + '/responses/input_tokens', json=count_request)
+            counted = client.post(UPSTREAM + '/responses/input_tokens', json=count_request,
+                                  extensions={'trace': count_trace})
             if counted.status_code != 200:
                 reason = 'input_count_failed'
                 raise admission.Aborted('Input counting failed.')
@@ -150,6 +157,7 @@ def forward(config, run_id, token, raw, *, api_key, send_headers, write, transpo
             current = admission.authenticate(config, run_id, token)
             stage = 'open_provider_response'
             with client.stream('POST', UPSTREAM + '/responses', json=request,
+                               extensions={'trace': generation_trace},
                                timeout=min(120.0, current['remaining_seconds'])) as response:
                 if response.status_code != 200:
                     reason = 'provider_http_error'
@@ -190,6 +198,9 @@ def forward(config, run_id, token, raw, *, api_key, send_headers, write, transpo
                 if status != 'completed':
                     reason = 'provider_response_incomplete'
         stage = 'settle_model_call'
+        with connect(config) as db:
+            admission._event(db, run_id, 'model_call_transport', {
+                'call_id': str(call_id), 'transport': transport_receipt()})
         reason = admission.settle(config, run_id, call_id, usage=usage, reason=reason, billing=billing())
         settled = True
         if usage is None or reason:
@@ -204,7 +215,8 @@ def forward(config, run_id, token, raw, *, api_key, send_headers, write, transpo
                 stopped = db.execute('SELECT abort_reason FROM engine_runs WHERE id=%s', (run_id,)).fetchone()
                 failure_reason = reason or (stopped['abort_reason'] if stopped else None) or failure_reason
                 admission._event(db, run_id, 'proxy_issue', {
-                    'code': failure_reason, 'call_id': str(call_id), **detail})
+                    'code': failure_reason, 'call_id': str(call_id), **detail,
+                    'transport': transport_receipt()})
         finally:
             # Diagnostic persistence must not prevent the conservative settlement.
             if not settled:

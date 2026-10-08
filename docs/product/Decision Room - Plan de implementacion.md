@@ -92,6 +92,13 @@ los abortos de proxy/admisión. [Registro de evidencia y desacuerdo sobre recupe
 Se conservan reservas inciertas y parciales; no se reclasifican abortos como
 entregas ni se amplía el presupuesto monetario. P3 continúa pendiente.
 
+**A2 del motor — conexiones del proveedor, 7 de octubre:** tras dos `ReadError`
+rápidos en el canario de `4bfefd4`, el siguiente candidato desactiva la reutilización
+de conexión entre conteo y generación y exporta hitos seguros de transporte por
+llamada. [Evidencia y límites del diagnóstico](../technical/engine-p3-candidate.md).
+No se atribuye aún una causa al fallo real ni se reenvían peticiones inciertas.
+Topes, tiempos de espera, reservas y puerta de P3 permanecen sin cambios.
+
 ## 2. Orden general
 
 | Orden | Entrega | Resultado comprobable | Motivo |
