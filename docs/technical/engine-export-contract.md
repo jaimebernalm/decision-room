@@ -290,3 +290,20 @@ leer cabeceras puede haber recibido bytes parciales, y completar la escritura
 local no confirma admisión ni cobro del proveedor. Un transporte sin seguimiento
 no permite deducir que no se envió la petición. Ninguna de estas señales habilita
 reintentos ni devuelve cuota incierta.
+
+### Diagnóstico de forma al entregar
+
+El recibo MCP de `entregar_informe` incorpora `format: {valid, errors, action?}`
+después de persistir la revisión exacta. Ante forma inválida, la respuesta MCP lleva
+`isError: true`, pero `status` sigue siendo `received` y los identificadores y hash
+del bruto permanecen disponibles. `errors` contiene solo el primer error, con
+`path` en forma de JSON Pointer (vacío para la raíz) y `expected` como descripción
+fija. No se devuelven los valores ni nombres de campos desconocidos del borrador.
+`action` pide corregir el JSON completo con una nueva clave; repetir idéntica clave
+y bytes devuelve el mismo recibo dentro de la misma revisión del código.
+
+`store.receive_document` sigue sin parsear. La comprobación de forma en la pasarela
+y la carga del exportador usan el mismo parser y conservan el esquema 1: por
+ejemplo, `limitations` sigue exigiendo texto. Si no llega corrección, se mantiene
+el fallback íntegro. `format.valid=true` no acredita disponibilidad de evidencia
+ni verificación analítica; `verification` continúa en `pending`.

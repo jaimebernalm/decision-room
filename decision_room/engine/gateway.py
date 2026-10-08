@@ -4,6 +4,7 @@ import re
 
 from .. import execution
 from ..database import connect
+from ..reports.contract import format_feedback
 from . import admission, store, panorama, numbers, questions, calculations
 
 VERSIONS = {'2025-03-26', '2025-06-18'}
@@ -47,7 +48,7 @@ TOOLS = [
                      'required': ['date', 'product', 'channel', 'quantity'], 'additionalProperties': False},
          'cursor': {'type': 'integer', 'minimum': 0}},
          'required': ['table_id', 'request_key'], 'additionalProperties': False}},
-    {'name': 'entregar_informe', 'description': 'Persist exact draft JSON text before validation. Malformed or empty text is retained. The receipt is pending verification, not approval or completion. Continue investigation after a checkpoint draft; deliver a revised final report before ending your turn. Calculations do not automatically appear in the report: put supported recipe references in numbers and their keys in facts of the relevant finding. Do not invent references; keep necessary unsupported figures and explain their uncertainty. Repeat the same key and bytes to retrieve the same revision.',
+    {'name': 'entregar_informe', 'description': 'Persist exact draft JSON text before validation. Malformed or empty text is retained. After saving, format.valid=false returns isError with a field path and expected shape: correct the complete JSON and deliver with a new request_key. limitations and scope are strings, not lists. format.valid=true validates shape only. The receipt is pending verification, not approval or completion. Continue investigation after a checkpoint draft; deliver a revised final report before ending your turn. Calculations do not automatically appear in the report: put supported recipe references in numbers and their keys in facts of the relevant finding. Do not invent references; keep necessary unsupported figures and explain their uncertainty. Repeat the same key and bytes to retrieve the same revision.',
      'inputSchema': {'type': 'object', 'properties': {
          'request_key': {'type': 'string'}, 'draft_json': {'type': 'string'}},
          'required': ['request_key', 'draft_json'], 'additionalProperties': False}},
@@ -286,6 +287,8 @@ def dispatch(config, run_id, token, message, *, backend=None):
                 if set(args) != {'request_key', 'draft_json'} or not isinstance(args['draft_json'], str):
                     raise ValueError('Invalid delivery arguments.')
                 value = store.receive_document(config, run_id, token, **args)
+                # The immutable raw revision is committed before any parsing.
+                value['format'] = format_feedback(args['draft_json'].encode('utf-8'))
             elif params.get('name') == 'consulta':
                 value = consulta(config, job, token, args, backend=backend)
             elif params.get('name') == 'resultado':
@@ -293,6 +296,8 @@ def dispatch(config, run_id, token, message, *, backend=None):
             else:
                 return {**response, 'error': {'code': -32602, 'message': 'Unknown tool.'}}
             result = {'content': [{'type': 'text', 'text': admission.canonical(value).decode()}]}
+            if params.get('name') == 'entregar_informe' and not value['format']['valid']:
+                result['isError'] = True
         except admission.Denied:
             raise
         except (ValueError, KeyError, TypeError):

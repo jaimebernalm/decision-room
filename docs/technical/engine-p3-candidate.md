@@ -41,13 +41,15 @@ pruebas con proveedor simulado.
 
 ## Topes propuestos para P3
 
-Se proponen **6.000.000 entrada / 128.000 salida / 8.000 por llamada / 60 llamadas /
+Se proponen **6.000.000 entrada / 128.000 salida / 16.000 por llamada / 60 llamadas /
 1.200 s activos**, con `service_tier=default`. P2 observó como máximos 1.952.976,
 44.302, 41 y 419 s respectivamente para entrada/salida/llamadas/tiempo. Hay margen
 observado en P2, pero los canarios de A2 ya alcanzaron el 93–95 % del antiguo
 límite de entrada de 3.000.000. La calibración previa al lote formal aumenta solo
 la entrada a 6.000.000. El canario siguiente agotó el margen para reservar salida
 con 57.912 tokens ya usados; la revisión posterior eleva la salida a 128.000.
+El canario con red estable agotó los 8.000 por llamada y recibió una respuesta
+incompleta; la siguiente calibración eleva ese límite a 16.000.
 Estos límites se fijan antes de la comparación formal;
 no se amplían después de ver resultados evaluados. La desviación entre brazos y
 el cambio respecto de P2 deben constar en el preregistro y manifiesto.
@@ -268,3 +270,44 @@ sin trace conserva señales desconocidas; los callbacks no leen información
 privada. La regresión incluye OpenCode/Docker con proveedor simulado, SSE,
 SIGKILL y reservas concurrentes. Sin llamadas facturables. Falta la comprobación
 con el proveedor real: estas pruebas no demuestran la causa del canario anterior.
+
+## Forma del borrador y salida por llamada
+
+El canario `p3-canary-f` de `37d912a`, comunicado con red estable, entregó cinco
+de seis trabajos. Una entrega perdió su estructura en el renderer: el JSON era
+válido, pero `limitations` era una lista en vez de texto. Se conservó íntegro como
+fallback, sin los hallazgos, facts ni gráfico proyectados como tales. El sexto
+trabajo abortó con `provider_response_incomplete` al llegar a 8.000 tokens de
+salida en una llamada; su borrador anterior quedó conservado. Estos son problemas
+distintos de los incidentes de red de los canarios previos.
+
+La revisión aumenta a 16.000 el máximo por llamada para trabajos nuevos. Conserva
+128.000 acumulados, 6M de entrada, 60 llamadas, 1.200 s y tier default. Las reservas
+siguen contabilizando el máximo solicitado, incluyendo solicitudes concurrentes;
+no se permite sobrepasar el acumulado para aprovechar el nuevo máximo. Los límites
+persistidos y los explícitos de 8.000 no cambian. Tampoco cambia el presupuesto
+monetario: el evaluador debe registrar la calibración y la desviación respecto a
+los controles antes de medir.
+
+`entregar_informe` ahora comprueba la forma después de confirmar la persistencia
+del bruto. Devuelve el recibo con `format.valid`, y, si es inválido, `isError=true`+y un primer error acotado con ruta y forma esperada. Pide corregir el JSON completo
+con una clave nueva. Usa el mismo parser que la exportación, sin convertir listas
+en texto ni cambiar el esquema del informe. No devuelve valores del borrador en
+el diagnóstico. El prompt aclara el tipo de `limitations` y cómo corregir.
+
+La forma válida no certifica números ni conclusiones. La recepción continúa
+siendo un checkpoint, no una orden de terminar; no se introduce un reintento
+automático del proveedor ni un bucle de reparación impuesto por el controlador.
+Si el agente no corrige, el fallback conserva el contenido como antes. No se
+afirma que estas medidas habrían producido seis entregas completas: el nuevo
+comportamiento del agente sigue pendiente de canario. P3 permanece abierto.
+
+Validación: 80 pruebas de formato, almacenamiento, admisión, API, abortos,
+recuperación, lanzador, proyección, gráficos y facts aprobadas. Después se añadió
+la corrección de forma a la prueba de OpenCode real y se repitieron sus cinco
+recorridos: todos aprobados (81 pruebas distintas en total). El proveedor simulado
+recibe `/limitations`, la forma esperada y la confirmación de bruto guardado;
+la entrega siguiente crea una revisión corregida y conserva la anterior. También
+se comprueban el máximo efectivo de 16.000 en peticiones de OpenCode, el respeto
+de un límite explícito de 8.000 y el rechazo de reservas que excedan 128.000.
+Sin gasto de API. Estas pruebas no garantizan que el modelo real corrija su entrega.

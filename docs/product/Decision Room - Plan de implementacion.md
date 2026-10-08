@@ -99,6 +99,14 @@ llamada. [Evidencia y límites del diagnóstico](../technical/engine-p3-candidat
 No se atribuye aún una causa al fallo real ni se reenvían peticiones inciertas.
 Topes, tiempos de espera, reservas y puerta de P3 permanecen sin cambios.
 
+**A2 del motor — diagnóstico del borrador y salida por llamada, 7 de octubre:**
+tras el canario con red estable, la entrega devuelve ruta y forma esperada de un
+campo inválido después de guardar el bruto, para permitir una revisión corregida.
+El máximo de salida por llamada para trabajos nuevos sube de 8.000 a 16.000;
+el acumulado sigue en 128.000. [Evidencia, contrato y límites del cambio](../technical/engine-p3-candidate.md).
+No se cambia el esquema, no se descartan borradores y no se afirma que el nuevo
+candidato supere la puerta. Falta canario antes de congelar P3.
+
 ## 2. Orden general
 
 | Orden | Entrega | Resultado comprobable | Motivo |

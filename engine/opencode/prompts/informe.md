@@ -43,6 +43,11 @@ schema_version:1, title y summary como texto, y findings como lista de
 {key,title,statement,scope,interpretation,next_step,facts}; los cuatro campos de
 texto desde statement a next_step pueden quedar vacíos. scope y limitations
 generales son textos opcionales. Conserva el análisis importante en el texto.
+En particular, limitations es un string, no una lista; separa sus límites con
+frases dentro de ese texto. Si entregar_informe devuelve format.valid=false,
+el bruto está guardado, pero el formato necesita corrección: consulta errors[].path
+y expected, corrige el JSON completo y vuelve a entregarlo con una clave nueva.
+format.valid=true solo confirma la forma, nunca las cifras ni las conclusiones.
 Para las cifras relevantes con receta admitida, incluye numbers con referencias
 {key,execution_id,metric,decimals} y facts:["key"] en el hallazgo que las utiliza.
 No basta con haber llamado calculo, panorama o verify_numbers: sus resultados solo

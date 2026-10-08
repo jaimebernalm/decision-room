@@ -226,7 +226,10 @@ class RealApiTests(unittest.TestCase):
     def test_real_opencode_reads_scoped_inputs_and_discovers_table_for_mcp(self):
         self.real_roundtrip(discover=True)
 
-    def real_roundtrip(self, wait=False, discover=False):
+    def test_real_opencode_receives_shape_error_and_delivers_corrected_revision(self):
+        self.real_roundtrip(repair=True)
+
+    def real_roundtrip(self, wait=False, discover=False, repair=False):
         calls = []; actions = []; discovered = {}; provider_errors = []
         analysis = api._row(self.config, self.business, self.run)['analysis_id']
         if discover:
@@ -239,12 +242,20 @@ class RealApiTests(unittest.TestCase):
             body = json.loads(request.content)
             if request.url.path.endswith('input_tokens'):
                 return httpx.Response(200, json={'input_tokens': 10})
+            self.assertEqual(body['max_output_tokens'], 16000)
             calls.append(body)
-            action = (discovery[len(actions)] if discover and len(actions) < len(discovery)
+            action = ('malformed_draft' if repair and not actions
+                      else discovery[len(actions)] if discover and len(actions) < len(discovery)
                       else 'preguntar_propietario' if wait and not actions else 'entregar_informe')
             tool_name = ('read' if action.startswith('read_') else 'panorama' if action == 'panorama_next'
-                         else 'entregar_informe' if action == 'checkpoint_draft' else action)
+                         else 'entregar_informe' if action in ('checkpoint_draft', 'malformed_draft') else action)
             tools = [t for t in body.get('tools', []) if t['name'].endswith(tool_name)]
+            if repair and actions and actions[-1] == 'malformed_draft':
+                outputs = [x.get('output', '') for x in body.get('input', []) if isinstance(x, dict) and x.get('type') == 'function_call_output']
+                self.assertTrue(outputs)
+                self.assertIn('/limitations', str(outputs[-1]))
+                self.assertIn('string', str(outputs[-1]))
+                self.assertIn('Raw draft saved', str(outputs[-1]))
             if discover and actions and actions[-1] in discovery:
                 outputs = [x.get('output', '') for x in body.get('input', []) if isinstance(x, dict) and x.get('type') == 'function_call_output']
                 output = str(outputs[-1]) if outputs else ''
@@ -305,6 +316,9 @@ class RealApiTests(unittest.TestCase):
                 elif action == 'checkpoint_draft':
                     arguments = {'request_key': 'checkpoint-before-next-page', 'draft_json': json.dumps({
                         'schema_version': 1, 'title': 'Avance', 'summary': 'Comparación pendiente.', 'findings': []})}
+                elif action == 'malformed_draft':
+                    arguments = {'request_key': 'needs-shape-correction', 'draft_json': json.dumps({
+                        'schema_version': 1, 'title': 'Fixture', 'summary': 'Total 5 unidades.', 'limitations': ['Unresolved scope.'], 'findings': []})}
                 elif action == 'consulta':
                     description = tools[0]['description']
                     self.assertIn('NO implicit Python variable named tables', description)
@@ -373,6 +387,15 @@ class RealApiTests(unittest.TestCase):
             raise provider_errors[0]
         self.assertEqual(result['status'], 'delivered', result)
         self.assertGreaterEqual(len(calls), 2)
+        if repair:
+            self.assertEqual(actions, ['malformed_draft', 'entregar_informe'])
+            with connect(self.config) as db:
+                revisions = db.execute('''SELECT r.raw FROM engine_document_revisions r
+                    JOIN engine_documents d ON d.id=r.document_id WHERE d.run_id=%s ORDER BY r.ordinal''',
+                    (result['engine_run_id'],)).fetchall()
+            self.assertEqual(len(revisions), 2)
+            self.assertIsInstance(json.loads(bytes(revisions[0]['raw']))['limitations'], list)
+            self.assertNotIn('report_format_fallback', result['issues'])
         if discover:
             self.assertEqual(actions, [*discovery, 'entregar_informe'])
             with connect(self.config) as db:

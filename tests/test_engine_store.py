@@ -8,6 +8,7 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
+from unittest.mock import patch
 from uuid import uuid4
 
 from psycopg import sql
@@ -16,6 +17,9 @@ from psycopg.conninfo import make_conninfo
 from decision_room.config import Config
 from decision_room.database import connect, migrate
 from decision_room.engine import admission, gateway, store
+from decision_room.reports import contract
+from decision_room.reports.verification import build
+from decision_room.web.report_projection import project, render
 from decision_room.service import create_business, import_batch
 
 
@@ -151,6 +155,66 @@ os._exit(19)
         self.assertNotIn('private fixture draft', json.dumps(result))
         self.assertLess(len(json.dumps(result)), 1024)
         self.assertEqual(store.read_document(self.config, self.business, self.run)['raw'], text.encode())
+
+    def test_mcp_format_feedback_follows_commit_and_correction_keeps_facts_and_chart(self):
+        draft = {'schema_version': 1, 'title': 'Fixture', 'summary': 'Compare the observations.',
+                 'limitations': ['fixture-private-limitation'],
+                 'findings': [{'key': 'first', 'title': 'First', 'facts': ['units']},
+                              {'key': 'second', 'title': 'Second', 'facts': ['units']},
+                              {'key': 'third', 'title': 'Third', 'facts': ['units']}],
+                 'numbers': [{'key': 'units', 'execution_id': str(uuid4()), 'metric': 'quantity', 'decimals': 0}],
+                 'charts': [{'key': 'comparison', 'kind': 'bar', 'title': 'Units',
+                             'series': [{'key': 'one', 'label': 'Units', 'points': [{'label': 'Period', 'number_key': 'units'}]}]}]}
+        def deliver(raw, key):
+            return gateway.dispatch(self.config, self.run, self.token, {
+                'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call',
+                'params': {'name': 'entregar_informe', 'arguments': {'request_key': key, 'draft_json': raw}}})['result']
+        invalid = json.dumps(draft)
+        original = gateway.format_feedback
+        def check_after_commit(raw):
+            # Read through another connection while the feedback runs.
+            self.assertEqual(store.read_document(self.config, self.business, self.run)['raw'], raw)
+            return original(raw)
+        with patch.object(gateway, 'format_feedback', side_effect=check_after_commit):
+            bad = deliver(invalid, 'bad-shape')
+        receipt = json.loads(bad['content'][0]['text'])
+        self.assertTrue(bad['isError'])
+        self.assertEqual(receipt['status'], 'received')
+        self.assertFalse(receipt['format']['valid'])
+        self.assertEqual(receipt['format']['errors'][0]['path'], '/limitations')
+        self.assertIn('string', receipt['format']['errors'][0]['expected'])
+        self.assertNotIn('fixture-private-limitation', json.dumps(bad))
+        self.assertEqual(deliver(invalid, 'bad-shape'), bad)
+        fallback, _, issues = contract.load(invalid.encode())
+        self.assertEqual(fallback['summary'], invalid)
+        self.assertIn('report_format_fallback', issues)
+        draft['limitations'] = 'Known coverage limitations.'
+        corrected = json.dumps(draft)
+        self.assertTrue(deliver(corrected, 'bad-shape')['isError'])  # Changed bytes need a new identity.
+        good = deliver(corrected, 'corrected-shape')
+        self.assertNotIn('isError', good)
+        final_receipt = json.loads(good['content'][0]['text'])
+        self.assertTrue(final_receipt['format']['valid'])
+        self.assertEqual(final_receipt['ordinal'], receipt['ordinal'] + 1)
+        self.assertEqual(store.read_document(self.config, self.business, self.run, revision_id=receipt['revision_id'])['raw'], invalid.encode())
+        raw = store.read_document(self.config, self.business, self.run)['raw']
+        doc, refs, issues = contract.load(raw)
+        self.assertEqual((len(doc['findings']), len(refs), len(doc['charts'])), (3, 1, 1))
+        self.assertEqual([len(f['facts']) for f in doc['findings']], [1, 1, 1])
+        self.assertEqual(issues, [])
+        verified, ledger = build(raw)
+        self.assertNotIn('report_format_fallback', ledger['issues'])
+        self.assertFalse(any(f['verified'] for f in ledger['figures']))  # Valid shape does not certify data.
+        self.assertIn('First', render(project(verified), marks=False))
+        self.assertIn('Units', render(project(verified), marks=False))
+
+    def test_mcp_feedback_failure_does_not_undo_persisted_raw(self):
+        with patch.object(gateway, 'format_feedback', side_effect=RuntimeError('Synthetic validation interruption')):
+            with self.assertRaises(RuntimeError):
+                gateway.dispatch(self.config, self.run, self.token, {
+                    'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call',
+                    'params': {'name': 'entregar_informe', 'arguments': {'request_key': 'saved', 'draft_json': '{'}}})
+        self.assertEqual(store.read_document(self.config, self.business, self.run)['raw'], b'{')
 
     def test_export_replaces_file_symlink_and_detects_damaged_stored_bytes(self):
         receipt = self.deliver('kept raw')

@@ -246,13 +246,36 @@ class EngineTests(unittest.TestCase):
             return httpx.Response(200, json={'status': 'completed', 'usage': {'input_tokens': 7, 'output_tokens': 5, 'input_tokens_details': {'cached_tokens': 3}}, 'output': []})
         self.forward(run, token, handler, request)
         self.assertEqual(seen[0], {k: v for k, v in seen[1].items() if k in proxy.COUNT_FIELDS})
-        self.assertEqual((seen[1]['max_output_tokens'], seen[1]['store']), (8000, False))
+        self.assertEqual((seen[1]['max_output_tokens'], seen[1]['store']), (16000, False))
         self.assertEqual(seen[1]['service_tier'], 'default')
         self.assertNotIn('service_tier', seen[0])
         state = self.inspect(run)
         self.assertEqual((state['charged_input'], state['charged_output'], state['calls']), (7, 5, 1))
         self.assertIsNotNone(state['model_calls'][0]['admitted_at'])
         self.assertGreaterEqual(state['model_calls'][0]['count_seconds'], 0)
+
+    def test_larger_default_per_call_preserves_explicit_limits_and_total_reservations(self):
+        old, old_token = self.create(limits=admission.Limits(output_per_call=8000))
+        current, token = self.create()
+        self.assertEqual(admission.authenticate(self.config, old, old_token)['limits']['output_per_call'], 8000)
+        self.assertEqual(admission.authenticate(self.config, current, token)['limits']['output_per_call'], 16000)
+        seen = []
+        def handler(request):
+            if request.url.path.endswith('input_tokens'):
+                return httpx.Response(200, json={'input_tokens': 10})
+            seen.append(json.loads(request.content)['max_output_tokens'])
+            return httpx.Response(200, json={'status': 'completed', 'usage': {'input_tokens': 10, 'output_tokens': 5}})
+        self.forward(old, old_token, handler, {'model': 'test-model', 'input': 'Compute', 'max_output_tokens': 32000})
+        self.assertEqual(seen, [8000])
+        for i in range(8):
+            call = admission.begin_call(self.config, current, token, str(i))
+            admission.reserve(self.config, current, token, call, 10, 16000)
+            admission.settle(self.config, current, call, usage={'input': 10, 'cached': 0, 'output': 15000})
+        call = admission.begin_call(self.config, current, token, 'over-total')
+        with self.assertRaises(admission.Aborted):
+            admission.reserve(self.config, current, token, call, 10, 16000)
+        state = self.inspect(current)
+        self.assertEqual((state['charged_output'], state['abort_reason']), (120000, 'token_limit'))
 
     def test_processing_tier_cannot_be_upgraded_or_inherited_from_project(self):
         run, token = self.create()
@@ -292,7 +315,7 @@ class EngineTests(unittest.TestCase):
         with self.assertRaises(admission.Aborted):
             self.forward(run, token, handler, {'model': 'test-model', 'input': 'Compute', 'stream': True})
         state = self.inspect(run)
-        self.assertEqual((state['charged_input'], state['charged_output'], state['status']), (7, 8000, 'aborted'))
+        self.assertEqual((state['charged_input'], state['charged_output'], state['status']), (7, 16000, 'aborted'))
 
     def test_sse_parser_handles_fragmentation_and_incomplete_usage(self):
         parser = proxy.EventUsage()
