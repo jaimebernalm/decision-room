@@ -35,7 +35,7 @@ def sha(value):
 
 @dataclass(frozen=True)
 class Limits:
-    input_tokens: int = 3_000_000
+    input_tokens: int = 6_000_000
     output_tokens: int = 64_000
     output_per_call: int = 8_000
     calls: int = 60

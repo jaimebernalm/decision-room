@@ -41,11 +41,14 @@ pruebas con proveedor simulado.
 
 ## Topes propuestos para P3
 
-Se mantienen **3.000.000 entrada / 64.000 salida / 8.000 por llamada / 60 llamadas /
+Se proponen **6.000.000 entrada / 64.000 salida / 8.000 por llamada / 60 llamadas /
 1.200 s activos**, con `service_tier=default`. P2 observó como máximos 1.952.976,
 44.302, 41 y 419 s respectivamente para entrada/salida/llamadas/tiempo. Hay margen
-observado, pero A2 puede consumirlo con más cálculos y texto. Se mantienen constantes
-para la comparación inicial; no se amplían después de ver resultados evaluados.
+observado en P2, pero los canarios de A2 ya alcanzaron el 93–95 % del antiguo
+límite de entrada de 3.000.000. La calibración previa al lote formal aumenta solo
+la entrada a 6.000.000. Estos límites se fijan antes de la comparación formal;
+no se amplían después de ver resultados evaluados. La desviación entre brazos y
+el cambio respecto de P2 deben constar en el preregistro y manifiesto.
 
 Antes del lote de 36, Claude comprueba el brazo sin modelo y un canario de
 comportamiento/consumo con el presupuesto que gestione el propietario. Si hay un
@@ -142,3 +145,39 @@ lee el manifiesto, guarda un avance, sigue la página anunciada, consulta, calcu
 y reemplaza el avance por la revisión final. La fixture cubre dos meses completos.
 Sin llamadas facturables. Esto prueba el protocolo y la persistencia, no que el
 modelo adopte la conducta nueva; esa comprobación sigue en el canario.
+
+
+## Calibración tras el segundo canario y enlace de hechos
+
+El canario de desarrollo de `f1750b0` entregó los tres informes y no repitió el
+abandono prematuro observado antes. Dos trabajos consumieron aproximadamente el
+93 % y el 95 % del tope de entrada; otra entrega no incluyó facts aunque había
+usado `calculo`. Estas observaciones justifican una revisión antes de congelar,
+no prueban todavía que se supere la puerta ni permiten cambiar sus condiciones.
+La fracción de todas las figuras marcadas no equivale a la cobertura auditada:
+el ledger también incluye componentes de fechas y otras cifras no calculables.
+La ausencia de facts sí muestra que calcular no basta para presentar evidencia.
+
+Se corrige una contradicción del prompt: el esquema inicial ahora incluye
+`findings[].facts` y pide enlazar referencias disponibles de `numbers` con esos
+hechos; solo los tokens dentro de prosa siguen siendo opcionales. Un ejemplo
+completo muestra ese enlace y exige sustituir el identificador por el devuelto
+por la herramienta. El recordatorio final y la descripción de entrega explican
+que llamar al cálculo o al verificador no adjunta sus resultados automáticamente.
+No se añaden rechazos de borradores ni certificación de frases libres, y se
+conservan las cifras necesarias que las recetas aún no pueden verificar.
+
+La entrada predeterminada para trabajos nuevos pasa a 6.000.000; los trabajos
+existentes mantienen sus límites persistidos. Salida, llamadas, tiempo y tier
+no cambian. El límite de tokens no es un límite monetario: la proporción de caché
+observada no garantiza un precio y no amplía el presupuesto aprobado. El evaluador
+debe registrar el nuevo límite en los manifiestos, conservar la desviación de
+presupuestos respecto a los controles y vigilar su presupuesto monetario antes
+de ejecutar. Esta revisión sustituye `f1750b0` para el siguiente canario de desarrollo.
+
+Validación de esta revisión: 42 pruebas de admisión, facts, proyección y gráficos
+aprobadas. El ejemplo JSON del prompt pasa el cargador y el contrato de exportación;
+su identificador de ejemplo no se certifica sin evidencia. Se comprobó también que
+un límite explícito de 3.000.000 sigue aceptándose, aunque el valor predeterminado
+sea 6.000.000. Sin llamadas facturables. El cumplimiento de las instrucciones por
+el modelo sigue pendiente del canario; estas pruebas no miden cobertura analítica.

@@ -78,6 +78,13 @@ para investigar tras guardar un avance y acotar las limitaciones de catálogos.
 [Registro y límites de la revisión](../technical/engine-p3-candidate.md).
 Topes y puerta sin cambios. El canario se conserva como evidencia de desarrollo.
 
+**A2 del motor — calibración y enlace de evidencia, 7 de octubre:** tras tres
+entregas del segundo canario, el siguiente candidato aumenta solo el límite de
+entrada para trabajos nuevos a 6.000.000 y aclara `numbers` → `findings[].facts`
+desde el esquema inicial del prompt. [Evidencia y límites del cambio](../technical/engine-p3-candidate.md).
+La puerta de P3 sigue abierta; el cambio debe registrarse antes del lote formal,
+sin ampliar el presupuesto monetario ni reinterpretar los resultados de P2.
+
 ## 2. Orden general
 
 | Orden | Entrega | Resultado comprobable | Motivo |

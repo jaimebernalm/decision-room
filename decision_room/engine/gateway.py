@@ -47,7 +47,7 @@ TOOLS = [
                      'required': ['date', 'product', 'channel', 'quantity'], 'additionalProperties': False},
          'cursor': {'type': 'integer', 'minimum': 0}},
          'required': ['table_id', 'request_key'], 'additionalProperties': False}},
-    {'name': 'entregar_informe', 'description': 'Persist exact draft JSON text before validation. Malformed or empty text is retained. The receipt is pending verification, not approval or completion. Continue investigation after a checkpoint draft; deliver a revised final report before ending your turn. Repeat the same key and bytes to retrieve the same revision.',
+    {'name': 'entregar_informe', 'description': 'Persist exact draft JSON text before validation. Malformed or empty text is retained. The receipt is pending verification, not approval or completion. Continue investigation after a checkpoint draft; deliver a revised final report before ending your turn. Calculations do not automatically appear in the report: put supported recipe references in numbers and their keys in facts of the relevant finding. Do not invent references; keep necessary unsupported figures and explain their uncertainty. Repeat the same key and bytes to retrieve the same revision.',
      'inputSchema': {'type': 'object', 'properties': {
          'request_key': {'type': 'string'}, 'draft_json': {'type': 'string'}},
          'required': ['request_key', 'draft_json'], 'additionalProperties': False}},
