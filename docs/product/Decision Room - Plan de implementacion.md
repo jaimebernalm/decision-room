@@ -85,6 +85,13 @@ desde el esquema inicial del prompt. [Evidencia y límites del cambio](../techni
 La puerta de P3 sigue abierta; el cambio debe registrarse antes del lote formal,
 sin ampliar el presupuesto monetario ni reinterpretar los resultados de P2.
 
+**A2 del motor — cuota de salida y diagnóstico de abortos, 7 de octubre:** se
+retira `7f291b0` antes de la medida formal por dos abortos del canario. El siguiente
+candidato eleva la salida acumulada a 128.000 y exporta fase y motivo seguro de
+los abortos de proxy/admisión. [Registro de evidencia y desacuerdo sobre recuperación](../technical/engine-p3-candidate.md).
+Se conservan reservas inciertas y parciales; no se reclasifican abortos como
+entregas ni se amplía el presupuesto monetario. P3 continúa pendiente.
+
 ## 2. Orden general
 
 | Orden | Entrega | Resultado comprobable | Motivo |

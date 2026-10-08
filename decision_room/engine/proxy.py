@@ -9,7 +9,7 @@ import time
 import httpx
 
 from ..database import connect
-from . import admission, costs
+from . import admission, costs, diagnostics
 
 UPSTREAM = 'https://api.openai.com/v1'
 SERVICE_TIER = 'default'  # Trusted Standard policy; never inherit project auto/Fast.
@@ -129,6 +129,7 @@ def forward(config, run_id, token, raw, *, api_key, send_headers, write, transpo
         return costs.capture(measured or (parser.response if parser else None),
                              requested_model=job['model'], requested_tier=SERVICE_TIER)
     started = time.monotonic()
+    stage = 'count_input'
     try:
         with httpx.Client(transport=transport, trust_env=False, follow_redirects=False,
                           timeout=min(120.0, job['remaining_seconds']),
@@ -144,8 +145,10 @@ def forward(config, run_id, token, raw, *, api_key, send_headers, write, transpo
             with connect(config) as db:
                 db.execute('UPDATE engine_model_calls SET count_seconds=%s WHERE id=%s',
                            (time.monotonic() - started, call_id))
+            stage = 'reserve_tokens'
             admission.reserve(config, run_id, token, call_id, value, request['max_output_tokens'])
             current = admission.authenticate(config, run_id, token)
+            stage = 'open_provider_response'
             with client.stream('POST', UPSTREAM + '/responses', json=request,
                                timeout=min(120.0, current['remaining_seconds'])) as response:
                 if response.status_code != 200:
@@ -155,20 +158,27 @@ def forward(config, run_id, token, raw, *, api_key, send_headers, write, transpo
                 if bool(request.get('stream')) != is_sse:
                     reason = 'provider_transport_mismatch'
                     raise admission.Aborted('Provider transport mismatch.')
+                stage = 'write_downstream_headers'
                 send_headers(200, 'text/event-stream' if is_sse else 'application/json')
                 parser, body = EventUsage(), bytearray()
                 checked = 0
+                stage = 'read_provider_stream'
                 for chunk in response.iter_bytes():
                     if time.monotonic() - checked >= 1:
+                        stage = 'check_stream_job'
                         admission.authenticate(config, run_id, token, check_snapshot=False)
                         checked = time.monotonic()
+                    stage = 'parse_provider_stream'
                     if is_sse:
                         parser.feed(chunk)
                     else:
                         body.extend(chunk)
                         if len(body) > MAX_EVENT_BYTES:
                             raise ValueError('Provider response exceeds the byte limit.')
+                    stage = 'write_downstream_chunk'
                     write(chunk)
+                    stage = 'read_provider_stream'
+                stage = 'parse_provider_completion'
                 if is_sse:
                     parser.feed(b'\n\n')
                     usage, status = parser.usage, parser.status
@@ -179,21 +189,34 @@ def forward(config, run_id, token, raw, *, api_key, send_headers, write, transpo
                     usage, status = usage_from(result.get('usage')), result.get('status')
                 if status != 'completed':
                     reason = 'provider_response_incomplete'
+        stage = 'settle_model_call'
         reason = admission.settle(config, run_id, call_id, usage=usage, reason=reason, billing=billing())
         settled = True
         if usage is None or reason:
             raise admission.Aborted('Provider response ended without confirmed completion.')
-    except BaseException:
-        if not settled:
-            # A terminal SSE receipt remains billable evidence even when writing
-            # that chunk to a disconnected downstream client fails.
-            if measured is None and body:
-                try:
-                    measured = json.loads(body)
-                    usage = usage or usage_from(measured.get('usage'))
-                except (ValueError, AttributeError):
-                    measured = None
-            usage = usage or (parser.usage if parser else None)
-            admission.settle(config, run_id, call_id, usage=usage, reason=reason or 'provider_usage_unknown', billing=billing())
+    except BaseException as error:
+        # Capture the failing boundary before settlement changes the job state.
+        # Only fixed descriptions and exception class names leave this boundary.
+        detail = diagnostics.describe_proxy(error, stage)
+        failure_reason = reason or 'provider_usage_unknown'
+        try:
+            with connect(config) as db:
+                stopped = db.execute('SELECT abort_reason FROM engine_runs WHERE id=%s', (run_id,)).fetchone()
+                failure_reason = reason or (stopped['abort_reason'] if stopped else None) or failure_reason
+                admission._event(db, run_id, 'proxy_issue', {
+                    'code': failure_reason, 'call_id': str(call_id), **detail})
+        finally:
+            # Diagnostic persistence must not prevent the conservative settlement.
+            if not settled:
+                # A terminal SSE receipt remains billable evidence even when writing
+                # that chunk to a disconnected downstream client fails.
+                if measured is None and body:
+                    try:
+                        measured = json.loads(body)
+                        usage = usage or usage_from(measured.get('usage'))
+                    except (ValueError, AttributeError):
+                        measured = None
+                usage = usage or (parser.usage if parser else None)
+                admission.settle(config, run_id, call_id, usage=usage, reason=failure_reason, billing=billing())
         raise
     return call_id

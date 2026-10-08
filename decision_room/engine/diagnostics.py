@@ -1,6 +1,8 @@
 """Safe controller diagnostics: no exception text, paths, URLs or traceback leaks."""
 import re
 
+import httpx
+
 # Exact controller-owned messages. Unknown messages are replaced, not redacted:
 # a provider/database/filesystem error can contain secrets in arbitrary formats.
 _MESSAGES = {
@@ -43,4 +45,18 @@ def describe(error, stage):
         result.update(reason='file_permission', message='A required local operation was denied; its path is withheld.')
     elif isinstance(error, TimeoutError):
         result.update(reason='operation_timeout', message='The controller operation timed out; reconcile before replaying a mutation.')
+    return result
+
+
+def describe_proxy(error, stage):
+    """Use a fixed vocabulary; never persist upstream text, headers or URLs."""
+    result = describe(error, stage)
+    if isinstance(error, httpx.TimeoutException):
+        result.update(reason='transport_timeout', message='The model proxy transport timed out; the request was not retried.')
+    elif isinstance(error, httpx.TransportError):
+        result.update(reason='transport_failure', message='The model proxy transport failed; the request was not retried.')
+    elif isinstance(error, (BrokenPipeError, ConnectionResetError)):
+        result.update(reason='connection_closed', message='The downstream connection closed; the request was not retried.')
+    elif result['reason'] == 'unexpected_exception':
+        result['message'] = 'The model proxy operation failed; the original exception message was withheld.'
     return result

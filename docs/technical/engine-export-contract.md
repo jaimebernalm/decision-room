@@ -258,3 +258,17 @@ su incertidumbre, y colocar los hechos admitidos junto a la recomendación que
 justifican. No obliga a omitir una conclusión para mejorar una tasa. La puerta de
 P3 sigue pendiente; añadir esta cobertura no acredita que se alcance el 100 % de
 prioridades o el 95 % del resto.
+
+
+### Diagnósticos de aborto
+
+`diagnostics` incluye abortos de admisión aunque no haya excepción del controlador,
+y los fallos del proxy con `stage`, `exception_type`, `reason`, un mensaje fijo y
+`call_id` cuando existe. Los rechazos por tokens añaden `limit`, `requested_input`,
+`requested_output`, `charged_input` y `charged_output`. Los eventos antiguos sin
+fase se exportan como `unspecified`, sin inventar su causa. Cada registro de
+`proxy-calls.jsonl` añade `diagnostic` o null, separado de los datos de facturación.
+No se exportan mensajes originales de excepciones, URLs, credenciales ni cuerpos
+como diagnósticos. El coste sigue incompleto si falta uso; la reserva no se libera.
+Los borradores de trabajos abortados permanecen exportables sin cambiar su estado
+a entrega completa. Son campos aditivos del contrato v1.

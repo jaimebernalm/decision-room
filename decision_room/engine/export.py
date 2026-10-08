@@ -28,7 +28,23 @@ def folder(config, business_id, run_id):
 def snapshot(config, business_id, run_id):
     with connect(config) as db, db.transaction():
         row = control._run(db, business_id, run_id)
-        issues = db.execute("SELECT payload FROM engine_events WHERE run_id=%s AND kind='controller_issue' ORDER BY id", (run_id,)).fetchall()
+        events = db.execute("SELECT kind,payload FROM engine_events WHERE run_id=%s AND kind IN ('controller_issue','proxy_issue','aborted','controller_finished') ORDER BY id", (run_id,)).fetchall()
+    issues = [r for r in events if r['kind'] in ('controller_issue', 'proxy_issue')]
+    details = []
+    for event in events:
+        payload = event['payload']
+        if event['kind'] in ('controller_issue', 'proxy_issue'):
+            if 'exception_type' not in payload:
+                continue
+        elif event['kind'] == 'controller_finished':
+            if payload.get('status') != 'aborted':
+                continue
+            payload = {'code': payload.get('reason'), 'reason': payload.get('reason'), 'stage': 'controller_finished'}
+        else:
+            payload = {'code': payload.get('reason'), 'stage': 'unspecified', **payload}
+        details.append({k: payload[k] for k in (
+            'code', 'stage', 'exception_type', 'reason', 'message', 'http_status', 'call_id',
+            'limit', 'requested_input', 'requested_output', 'charged_input', 'charged_output') if k in payload})
     calls = admission.inspect_run(config, business_id, run_id)
     received = store.read_document(config, business_id, run_id)
     known = [r['usage'] for r in calls['model_calls'] if r['usage'] is not None]
@@ -38,8 +54,7 @@ def snapshot(config, business_id, run_id):
               'revision_id': received['revision_id'] if received else None,
               'usage': {k: sum(u[k] for u in known) for k in ('input', 'cached', 'output')},
               'issues': [r['payload']['code'] for r in issues],
-              'diagnostics': [{k: r['payload'][k] for k in ('code', 'stage', 'exception_type', 'reason', 'message', 'http_status')
-                               if k in r['payload']} for r in issues if 'exception_type' in r['payload']]}
+              'diagnostics': details}
     if row['abort_reason']:
         result['issues'].append(row['abort_reason'])
     result['usage'].update(calls=row['calls'], seconds=float(row['elapsed']),

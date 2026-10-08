@@ -41,12 +41,14 @@ pruebas con proveedor simulado.
 
 ## Topes propuestos para P3
 
-Se proponen **6.000.000 entrada / 64.000 salida / 8.000 por llamada / 60 llamadas /
+Se proponen **6.000.000 entrada / 128.000 salida / 8.000 por llamada / 60 llamadas /
 1.200 s activos**, con `service_tier=default`. P2 observó como máximos 1.952.976,
 44.302, 41 y 419 s respectivamente para entrada/salida/llamadas/tiempo. Hay margen
 observado en P2, pero los canarios de A2 ya alcanzaron el 93–95 % del antiguo
 límite de entrada de 3.000.000. La calibración previa al lote formal aumenta solo
-la entrada a 6.000.000. Estos límites se fijan antes de la comparación formal;
+la entrada a 6.000.000. El canario siguiente agotó el margen para reservar salida
+con 57.912 tokens ya usados; la revisión posterior eleva la salida a 128.000.
+Estos límites se fijan antes de la comparación formal;
 no se amplían después de ver resultados evaluados. La desviación entre brazos y
 el cambio respecto de P2 deben constar en el preregistro y manifiesto.
 
@@ -181,3 +183,47 @@ su identificador de ejemplo no se certifica sin evidencia. Se comprobó también
 un límite explícito de 3.000.000 sigue aceptándose, aunque el valor predeterminado
 sea 6.000.000. Sin llamadas facturables. El cumplimiento de las instrucciones por
 el modelo sigue pendiente del canario; estas pruebas no miden cobertura analítica.
+
+
+## Aborto antes de congelar: salida y diagnóstico
+
+El canario de `7f291b0` entregó uno de tres trabajos. Otro abortó con una llamada
+sin recibo de uso y sin borrador; el tercero conservó un borrador legible pero
+abortó por cuota: 57.912 tokens de salida más la reserva de 8.000 superan 64.000.
+La admisión funcionó como estaba configurada. Se retira el candidato antes del
+lote formal y se aumenta la salida acumulada para trabajos nuevos a 128.000.
+Entrada 6.000.000, salida por llamada 8.000, 60 llamadas, 1.200 s y tier default
+se conservan. No se amplía el presupuesto monetario; el evaluador debe registrar
+la nueva calibración y la desviación respecto a los controles antes de medir.
+
+La revisión añade diagnósticos de aborto a `run.json` y diagnósticos por llamada
+a `proxy-calls.jsonl`: fase, tipo de excepción y descripciones fijas, sin texto
+original del proveedor, credenciales, rutas ni cuerpos. Para cuotas se registra
+la dimensión que rechazó la reserva, el pedido y lo ya cargado. Si la cuota ya
+abortó el trabajo, el proxy conserva ese motivo, sin volver a etiquetarlo como
+uso desconocido. El registro de diagnósticos no impide intentar la liquidación
+conservadora si falla su propia escritura.
+
+La duración de la llamada incierta es compatible con alguna espera de 120 s,
+pero no identifica su causa. El proxy, el túnel y el relay tienen esperas de ese
+orden entre lecturas; no son un plazo total de generación. Esta revisión no
+cambia esas esperas ni afirma haber reparado el fallo del proveedor. La próxima
+comprobación debe distinguir timeout de cabeceras, lectura de stream, cierre del
+cliente y fallo de cuota antes de cambiar el transporte.
+
+Se conserva el cierre conservador ante uso desconocido: reserva retenida, sin
+reenvío automático ni continuación. La propuesta del evaluador de continuar
+imputando toda la reserva queda como desacuerdo visible; una reserva contable
+no confirma que la respuesta ni sus posibles acciones estén reconciliadas.
+Tampoco se introduce `delivered_partial`: el borrador de un aborto se conserva
+y exporta, pero `aborted` sigue siendo distinto de entrega completa. Se informa
+por separado de los parciales recuperados; no se cambia la puerta para contar
+el intento abortado como entregado. P3 sigue sin congelarse ni superarse.
+
+Validación de esta revisión: 53 pruebas de diagnósticos de aborto, admisión, API,
+costes, fallos, saneamiento y brazo vivo del lanzador aprobadas con la imagen
+habilitada. Incluyen fallos al contar, abrir, leer y escribir; rechazo por cuota
+con motivo correcto; diagnóstico sin excepción del controlador; fallo de escritura
+del propio diagnóstico; SIGKILL de controlador/proxy; reservas concurrentes y
+parciales conservados. OpenCode y Docker reales usan proveedor simulado, sin gasto
+facturable. Estas pruebas no identifican retrospectivamente la causa del canario.

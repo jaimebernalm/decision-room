@@ -36,7 +36,7 @@ def sha(value):
 @dataclass(frozen=True)
 class Limits:
     input_tokens: int = 6_000_000
-    output_tokens: int = 64_000
+    output_tokens: int = 128_000
     output_per_call: int = 8_000
     calls: int = 60
     active_seconds: int = 1_200
@@ -125,19 +125,19 @@ def _locked(db, run_id, token):
     return row
 
 
-def _abort(db, run_id, reason):
+def _abort(db, run_id, reason, *, stage='admission', details=None):
     db.execute('''UPDATE engine_runs SET status='aborted',abort_reason=%s,
         active_seconds=active_seconds+CASE WHEN active_started_at IS NULL THEN 0
             ELSE EXTRACT(EPOCH FROM clock_timestamp()-active_started_at) END,
         active_started_at=NULL WHERE id=%s AND status<>'aborted' ''', (reason, run_id))
-    _event(db, run_id, 'aborted', {'reason': reason})
+    _event(db, run_id, 'aborted', {'code': reason, 'reason': reason, 'stage': stage, **(details or {})})
 
 
 def _active(db, row):
     if row['status'] != 'running':
         raise Denied('Job is not running.')
     if row['elapsed'] >= row['limits']['active_seconds']:
-        _abort(db, row['id'], 'active_time_limit')
+        _abort(db, row['id'], 'active_time_limit', stage='check_active_time')
         return 'Active time limit reached.'
     return None
 
@@ -160,7 +160,7 @@ def authenticate(config, run_id, token, *, check_snapshot=True):
                 if sha(canonical(current)) != row['snapshot_sha256']:
                     raise Denied('Snapshot changed.')
             except (Denied, ValueError, OSError):
-                _abort(db, row['id'], 'snapshot_changed')
+                _abort(db, row['id'], 'snapshot_changed', stage='authenticate_snapshot')
                 error = 'Snapshot changed or is unavailable.'
     if error:
         raise Aborted(error)
@@ -187,7 +187,7 @@ def begin_call(config, run_id, token, request_sha256, *, requested_model=None, r
         row = _locked(db, run_id, token)
         error = _active(db, row)
         if not error and row['calls'] >= row['limits']['calls']:
-            _abort(db, row['id'], 'call_limit')
+            _abort(db, row['id'], 'call_limit', stage='begin_model_call')
             error = 'Call limit reached.'
         if not error:
             db.execute('UPDATE engine_runs SET calls=calls+1 WHERE id=%s', (run_id,))
@@ -215,7 +215,12 @@ def reserve(config, run_id, token, call_id, input_tokens, output_tokens):
         if not error and (row['charged_input'] + input_tokens > limits['input_tokens']
                           or row['charged_output'] + output_tokens > limits['output_tokens']
                           or output_tokens > limits['output_per_call']):
-            _abort(db, run_id, 'token_limit')
+            _abort(db, run_id, 'token_limit', stage='reserve_tokens', details={
+                'call_id': str(call_id),
+                'limit': ('input' if row['charged_input'] + input_tokens > limits['input_tokens'] else
+                          'per_call_output' if output_tokens > limits['output_per_call'] else 'output'),
+                'requested_input': input_tokens, 'requested_output': output_tokens,
+                'charged_input': row['charged_input'], 'charged_output': row['charged_output']})
             error = 'Token limit reached.'
         if not error:
             db.execute('''UPDATE engine_runs SET charged_input=charged_input+%s,
@@ -261,7 +266,7 @@ def settle(config, run_id, call_id, *, usage=None, reason=None, billing=None):
             settlement_sha256=%s,finished_at=clock_timestamp() WHERE id=%s''',
                    ('settled' if usage is not None else 'uncertain', Jsonb(usage), reason, fingerprint, call_id))
         if reason:
-            _abort(db, run_id, reason)
+            _abort(db, run_id, reason, stage='settle_model_call', details={'call_id': str(call_id)})
         _event(db, run_id, 'model_call_finished', {'call_id': str(call_id), 'usage': usage, 'issue': reason, 'billing': billing})
         return reason or row['abort_reason']
 
@@ -278,15 +283,19 @@ def inspect_run(config, business_id, run_id):
             usage,issue,count_seconds,started_at,admitted_at,finished_at FROM engine_model_calls
             WHERE run_id=%s ORDER BY started_at,id''', (run_id,)).fetchall()
         from . import costs
-        events = db.execute("SELECT kind,payload FROM engine_events WHERE run_id=%s AND kind IN ('model_call_started','model_call_finished') ORDER BY id", (run_id,)).fetchall()
+        events = db.execute("SELECT kind,payload FROM engine_events WHERE run_id=%s AND kind IN ('model_call_started','model_call_finished','proxy_issue') ORDER BY id", (run_id,)).fetchall()
         metadata = {}
         for event in events:
             data = event['payload']; call = metadata.setdefault(data['call_id'], {})
             if event['kind'] == 'model_call_started':
                 call.update(requested_model=data.get('requested_model'), requested_tier=data.get('requested_tier'))
+            elif event['kind'] == 'proxy_issue':
+                call['diagnostic'] = data
             elif data.get('billing') is not None:
                 call.update(data['billing'])
         for call in row['model_calls']:
-            call['billing'] = metadata.get(str(call['id']))
+            metadata_for_call = dict(metadata.get(str(call['id']), {}))
+            call['diagnostic'] = metadata_for_call.pop('diagnostic', None)
+            call['billing'] = metadata_for_call or None
             call['cost_catalog'] = costs.estimate(call['billing'])
         return row
