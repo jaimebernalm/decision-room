@@ -4,7 +4,7 @@ No agent code, SQL, joins, inferred units or inferred business meaning. The visi
 scope states exact filters and null handling; final verification reads Parquet
 again rather than trusting the saved scalar. Arbitrary consulta stays unverified.
 """
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation, localcontext
 from pathlib import Path
 import re
@@ -19,7 +19,7 @@ from ..database import connect
 from ..storage import Storage, digest
 from . import admission
 
-VERSION = 'engine-scoped-aggregates-v1'
+VERSION = 'engine-scoped-aggregates-v2'
 MAX_ROWS = 200_000
 MAX_FILE_BYTES = 128 * 1024 * 1024
 SECONDS = 30
@@ -64,6 +64,19 @@ def validate(recipes, columns):
                     raise ValueError('Date interval must be ordered canonical ISO dates.')
             else:
                 raise ValueError('Filters support in and date_between only.')
+
+
+def _calendar_date(value):
+    """Validate the entire naive ISO timestamp before selecting its calendar day.
+
+    No prefix slicing, locale guessing or timezone conversion. Aware timestamps
+    need an explicit business timezone contract and remain unsupported.
+    """
+    if re.fullmatch(r'\d{4}-\d{2}-\d{2}', value):
+        return date.fromisoformat(value).isoformat()
+    if not re.fullmatch(r'\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?', value):
+        raise ValueError('Date or naive ISO timestamp required.')
+    return datetime.fromisoformat(value).date().isoformat()
 
 
 def _amount(value):
@@ -120,9 +133,8 @@ def evaluate(path, columns, recipes, source_label="tabla preparada"):
                                 accepted = accepted and actual in condition['values']
                             else:
                                 try:
-                                    parsed = date.fromisoformat(actual)
-                                    if parsed.isoformat() != actual: raise ValueError()
-                                    accepted = accepted and condition['values'][0] <= actual <= condition['values'][1]
+                                    day = _calendar_date(actual)
+                                    accepted = accepted and condition['values'][0] <= day <= condition['values'][1]
                                 except ValueError:
                                     # A malformed date may belong in the range. Never silently drop it.
                                     state['issue'] = 'date_value_not_canonical_iso'; accepted = False
@@ -155,6 +167,8 @@ def evaluate(path, columns, recipes, source_label="tabla preparada"):
                 for condition in recipe['filters']:
                     scope += '«'+condition['column']+'» '+('en {'+', '.join('«'+v+'»' for v in condition['values'])+'}' if condition['operator']=='in'
                         else 'entre '+condition['values'][0]+' y '+condition['values'][1]+' inclusive')+'. '
+                if any(f['operator'] == 'date_between' for f in recipe['filters']):
+                    scope += 'Fecha de calendario: fechas ISO o timestamps ISO sin zona, validados completos; hora descartada tras validar, sin conversión de zona. '
                 if not recipe['filters']: scope += 'Todas las filas. '
                 scope += 'Filtros unidos por Y; nulos del filtro excluidos. Sin deduplicar, unir tablas ni imputar ausencias.'
                 displays[key] = {'label': names[operation], 'scope': scope,

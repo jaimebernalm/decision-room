@@ -75,6 +75,40 @@ class AggregateTests(unittest.TestCase):
                 body=calculations.evaluate(other,self.columns,[recipe(filters=filters)])
                 self.assertIsNone(body['metrics']['total']);self.assertEqual(body['issues']['total'],issue)
 
+    def test_naive_timestamps_use_validated_calendar_day_inclusive(self):
+        other=self.path.with_name('timestamps.parquet')
+        with duckdb.connect() as db:
+            db.execute('CREATE TABLE times(day VARCHAR, amount INTEGER)')
+            db.executemany('INSERT INTO times VALUES (?,?)',[
+                ('2024-02-28 23:59:59',100),('2024-02-29 00:00:00',2),
+                ('2024-02-29T23:59:59.999999',3),('2024-03-01 00:00:00',100)])
+            db.execute('COPY times TO ?',[str(other)])
+        rules=[recipe(filters=[condition('day','date_between','2024-02-29','2024-02-29')])]
+        body=calculations.evaluate(other,['day','amount'],rules)
+        self.assertEqual(body['metrics']['total'],'5')
+        self.assertIsNone(body['issues']['total'])
+        self.assertIn('sin conversión de zona',body['displays']['total']['scope'])
+        with duckdb.connect() as db:
+            db.execute('CREATE TABLE typed AS SELECT CAST(day AS TIMESTAMP) AS day,amount FROM read_parquet(?)',[str(other)])
+            db.execute('COPY typed TO ?',[str(other.with_name('typed.parquet'))])
+        typed=calculations.evaluate(other.with_name('typed.parquet'),['day','amount'],rules)
+        self.assertEqual(typed,body)
+
+    def test_invalid_timestamp_suffix_cannot_be_certified_by_date_prefix(self):
+        invalid=['2025-02-29 00:00:00','2024-02-29 24:00:00','2024-02-29 12:60:00',
+                 '2024-02-29T00:00:60','2024-02-29 00:00:00 junk','2024-02-29T00:00:00Z',
+                 '2024-02-29T00:00:00-05:00','2024-02-29 00:00:00.1234567',
+                 '2024-02-29 00:00','20240229','2024-02-29 ']
+        rules=[recipe(filters=[condition('day','date_between','2024-02-29','2024-02-29')])]
+        for i,value in enumerate(invalid):
+            with self.subTest(value=value),duckdb.connect() as db:
+                other=self.path.with_name(f'invalid-{i}.parquet')
+                db.execute('CREATE TABLE invalid AS SELECT ? AS day, 2 AS amount',[value])
+                db.execute('COPY invalid TO ?',[str(other)])
+                body=calculations.evaluate(other,['day','amount'],rules)
+                self.assertIsNone(body['metrics']['total'])
+                self.assertEqual(body['issues']['total'],'date_value_not_canonical_iso')
+
     def test_bounds_and_unknown_fields_reject_instead_of_truncate(self):
         for bound,value in [('MAX_ROWS',4),('MAX_FILE_BYTES',1),('SECONDS',0)]:
             with self.subTest(bound=bound),patch.object(calculations,bound,value),self.assertRaises((ValueError,duckdb.Error)):

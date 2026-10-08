@@ -13,6 +13,7 @@ TOOLS = [
         'Server-owned scalar recipes on one permitted table; usable as numbers/facts with the returned execution_id and recipe key as metric. '
         'No SQL or agent code. Up to 32 recipes: count rows (column=null), sum, mean, min or max of one existing numeric column. '
         'Each recipe fits in 4 KiB; up to 8 AND filters per recipe: in uses exact strings; date_between uses two inclusive canonical YYYY-MM-DD dates. '
+        'date_between accepts source ISO dates or complete naive ISO timestamps (space/T separator, seconds, optional 1–6 fractional digits), selecting their calendar day without timezone conversion. Zoned or malformed values remain unavailable. '
         'No joins, deduplication, locale parsing, inferred units or imputation. Null filter values are excluded; numeric nulls are excluded and their count is visible. '
         'Empty numeric selections and malformed dates/numbers are unavailable, not zero. Mean uses the non-null record count, not calendar days. '
         'Bounded to 200000 input rows, 128 MiB Parquet and 30 s; no truncated result is certified. Values rounded to 12 decimal places. '
