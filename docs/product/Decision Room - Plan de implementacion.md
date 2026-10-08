@@ -37,6 +37,9 @@ marca beneficio antes de la medida ni se inicia P4 por este piloto.
 frente al umbral preregistrado de siete. Beneficio de presentación frente al
 original; no mide superioridad frente al agente en bucle ni mejora analítica.
 Se inicia R1 manteniendo la presentación común entre sus dos brazos.
+**Preparación R1:** R1a y R1b quedan fijados con pruebas sin proveedor facturable
+y presentación común. [Revisiones, encargos, imagen y límites](../technical/engine-r1-freeze.md).
+La medida exploratoria sigue pendiente; esta preparación no abre P4.
 
 **P1 del motor — auditoría cerrada, 6 de octubre:** registro privado revisado de
 1.087 cifras/afirmaciones de 12 informes; 12 errores y una ambigüedad, separados
