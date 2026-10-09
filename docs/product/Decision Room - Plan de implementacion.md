@@ -61,8 +61,11 @@ congelado, siguiendo [la secuencia técnica de V1](../technical/posthoc-verifica
 Están implementados el inventario del DOM renderizado, la precisión y localización
 deterministas, las dos interpretaciones separadas, el recálculo, la derivada con
 invariantes y el proxy con presupuesto persistente. Las pruebas técnicas pasan;
-el desarrollo con modelo ha empezado sobre un solo informe, con intentos y costes
-conservados. La congelación y la medida sellada siguen pendientes. No se abre P4.
+el desarrollo con modelo ha cubierto dos informes, con intentos y costes
+conservados. El segundo termina con invariantes satisfechas, pero el acuerdo de
+interpretaciones sigue siendo escaso; el [diagnóstico offline](../technical/posthoc-development-diagnosis.md)
+distingue problemas de interpretación y límites del catálogo. La congelación y
+la medida sellada siguen pendientes. No se abre P4.
 
 
 **P1 del motor — auditoría cerrada, 6 de octubre:** registro privado revisado de
