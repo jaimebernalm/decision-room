@@ -21,8 +21,26 @@ def normalized_locations(text):
     return ''.join(chars),locations
 
 
+def uncertain_notation(inventory):
+    """Approximate/interval wording never becomes an exact point certificate."""
+    text=inventory['text'];found={}
+    numbers=[o for o in inventory['occurrences'] if o['kind']=='number' and o['region']!='chart']
+    for item in numbers:
+        a,b=item['span'];before=text[max(0,a-50):a]
+        if re.search(r'(?:[~≈]|\b(?:aprox\.?|aproximadamente|alrededor de|cerca de|unos|unas|más de|menos de|al menos))\s*$',before,re.I):
+            found[item['id']]='approximate_or_bound'
+    for first,second in zip(numbers,numbers[1:]):
+        left,right=first['span'][1],second['span'][0]
+        between=text[left:right];before=text[max(0,first['span'][0]-30):first['span'][0]]
+        if (re.fullmatch(r'\s*[–—-]\s*',between)
+            or re.fullmatch(r'\s*(?:a|y)\s*',between) and re.search(r'\b(?:entre|rango(?: de)?|intervalo(?: de)?)\s*$',before,re.I)):
+            found[first['id']]=found[second['id']]='numeric_interval'
+    return found
+
+
 def classify(inventory,sources):
     text=inventory['text'];shadow,positions=normalized_locations(text)
+    notation=uncertain_notation(inventory)
     aliases={a['name'] for source in sources.values() for col in source['columns'] for a in col.get('aliases',[])}
     alias_spans=[]
     for alias in sorted(aliases):
@@ -39,6 +57,7 @@ def classify(inventory,sources):
         rule=None;foundation=None
         if item['region']=='chart':rule='chart_outside_catalogue'
         elif item['kind']=='date':rule='iso_date_label'
+        elif item['id'] in notation:rule=notation[item['id']]
         elif quantity.match(after) or '%' in literal:pass
         else:
             alias=next((s for s in alias_spans if s[0]<=a<b<=s[1]),None)
@@ -65,6 +84,7 @@ def classify(inventory,sources):
                             or re.search(r'\b'+MONTH+r'(?:\s*[–-]\s*'+MONTH+r')?\s*(?:de\s+)?$',before,re.I)
                             or re.match(r'\s*(?:vs|frente a|–|-)\s*(?:19|20|21)\d{2}\b',after,re.I)):
                             rule='calendar_year'
-        result[item['id']]={'eligible':rule is None,'rule':rule or 'numeric_target','span':item['span']}
+        result[item['id']]={'eligible':rule is None,'rule':rule or 'numeric_target','span':item['span'],
+                            'excluded_status':'uncertain' if rule in ('approximate_or_bound','numeric_interval') else 'not_checkable'}
         if foundation is not None:result[item['id']]['foundation_span']=foundation
     return result

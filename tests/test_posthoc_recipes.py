@@ -157,6 +157,13 @@ class RecipeTests(unittest.TestCase):
         req=masked_request(inv,target,self.sources)
         self.assertNotIn('42',req['masked_text'])
 
+    def test_approximate_values_remain_uncertain_without_model_calls(self):
+        inv=from_snapshot(b'approximate',{'nodes':[{'path':[0],'text':'Unas 42 unidades; entre 10 y 20 unidades.'}]})
+        def ask(*args):raise AssertionError('Approximation is outside exact verification')
+        ledger=verify(inv,self.sources,ask,self.root/'approximate',batch_size=4)
+        self.assertEqual(len(ledger),3)
+        self.assertEqual({r['status'] for r in ledger.values()},{'uncertain'})
+
     def test_segment_quotes_resolve_before_recalculation(self):
         def ask(prompt,request,key):
             r=self.recipe(request)

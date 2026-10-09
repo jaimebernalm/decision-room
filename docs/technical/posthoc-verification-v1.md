@@ -206,3 +206,8 @@ una cita hecha solo de máscara/puntuación, no elige la primera de varias y no 
 el valor recalculado para localizarla. Se guardan respuestas crudas y resueltas
 antes del acuerdo y del recálculo. Los targets identifican explícitamente su
 region; una tarjeta numérica de texto no se confunde con un gráfico SVG/canvas.
+
+Las aproximaciones, cotas explícitas e intervalos numéricos se conservan como
+inciertos sin reinterpretarlos como puntos exactos. La decisión y su regla quedan
+en la localización; no hay llamadas para esas ocurrencias ni recálculo adaptativo.
+La regla distingue un intervalo «entre A y B» de un cambio «pasó de A a B».

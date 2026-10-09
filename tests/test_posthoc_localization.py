@@ -40,6 +40,13 @@ class LocalizationTests(unittest.TestCase):
         self.assertEqual([labels[o['id']]['rule'] for o in inv['occurrences']],
                          ['calendar_year','calendar_year','numeric_target'])
 
+    def test_approximations_and_intervals_never_certify_as_exact_values(self):
+        inv=self.inventory('Unas 10 unidades, ≈20 unidades y entre 30 y 40 unidades; rango 50–60. Pasó de 70 a 80 unidades.')
+        labels=classify(inv,self.sources)
+        entries=[labels[o['id']] for o in inv['occurrences']]
+        self.assertTrue(all(not e['eligible'] and e['excluded_status']=='uncertain' for e in entries[:6]))
+        self.assertTrue(all(e['eligible'] for e in entries[6:]))
+
     def test_header_year_and_heading_ordinal(self):
         inv=self.inventory('2025 y 2026. 1. Prioridad')
         inv['occurrences'][0]['context']['table']={'cell_is_header':True}

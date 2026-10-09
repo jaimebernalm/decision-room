@@ -58,9 +58,11 @@ propuesta pendiente de decisión del propietario.
 **V1 — verificación posterior a un informe, 8 de octubre:** el propietario
 aprueba iniciar el piloto revisado después de R1. Se implementa separado del motor
 congelado, siguiendo [la secuencia técnica de V1](../technical/posthoc-verification-v1.md).
-La primera pieza construye el inventario de ocurrencias del DOM renderizado y las
-reglas deterministas de precisión. El recálculo, las dos interpretaciones, la
-conservación de la derivada y la medida siguen pendientes. No se abre P4.
+Están implementados el inventario del DOM renderizado, la precisión y localización
+deterministas, las dos interpretaciones separadas, el recálculo, la derivada con
+invariantes y el proxy con presupuesto persistente. Las pruebas técnicas pasan;
+el desarrollo con modelo ha empezado sobre un solo informe, con intentos y costes
+conservados. La congelación y la medida sellada siguen pendientes. No se abre P4.
 
 
 **P1 del motor — auditoría cerrada, 6 de octubre:** registro privado revisado de

@@ -231,7 +231,7 @@ def verify(inventory,sources,ask,dest,*,batch_size=1):
                 preinterpreted.update(interpret_batch(inventory,targets[offset:offset+batch_size],sources,ask,dest,offset//batch_size))
         for item in inventory['occurrences']:
             identifier=item['id']
-            result={'status':'not_checkable','reason':located[identifier]['rule']}
+            result={'status':located[identifier]['excluded_status'],'reason':located[identifier]['rule']}
             if located[identifier]['eligible']:
                 try:
                     literal=parse_literal(item['text'],spanish=spanish)
