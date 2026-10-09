@@ -73,7 +73,7 @@ it("opens an empty standalone conversation with one focused composer", () => {
     </WorkspaceState.Provider>,
   );
   expect(
-    screen.getByRole("heading", { name: "¿En qué te ayudo con tu negocio?" }),
+    screen.getByRole("heading", { name: "¿Qué quieres hacer hoy?" }),
   ).toBeInTheDocument();
   expect(screen.getAllByRole("textbox", { name: "Mensaje" })).toHaveLength(1);
   expect(screen.getByRole("textbox", { name: "Mensaje" })).toHaveFocus();

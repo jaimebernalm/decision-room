@@ -266,6 +266,7 @@ export function ChatPage({
       await api(`/api/chats/${id}/messages`, {
         business_id: business,
         request_key: key,
+        ...(sent.entry_intent ? { entry_intent: sent.entry_intent } : {}),
         text: sent.text,
         disposition: sent.disposition,
         ...(sent.context_references?.length
@@ -650,6 +651,7 @@ export function ChatPage({
               onChange={(text) =>
                 setDraft({
                   text,
+                  entry_intent: draft.entry_intent,
                   finding_reference: draft.finding_reference,
                   context_references: draft.context_references,
                 })

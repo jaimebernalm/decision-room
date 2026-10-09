@@ -12,6 +12,7 @@ import { useWorkspace } from "./workspace";
 import {
   contextKey,
   homeDraftKey,
+  chatGoalKey,
   referenceWire,
   launchChat,
   store,
@@ -171,6 +172,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
           setError("");
           setContext({});
           store.remove(homeDraftKey(business));
+          store.remove(chatGoalKey(business));
           setDock({ open: presentation === "panel", origin: route });
           if (presentation === "page")
             location.hash = intent === "report" ? "ask/report" : "ask";

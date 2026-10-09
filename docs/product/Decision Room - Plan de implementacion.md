@@ -816,6 +816,22 @@ Validación: 290 pruebas frontend correctas; build, lint y revisión del diff
 correctos. Comprobación visual en escritorio y móvil, borradores, envío real,
 reintento, rutas antiguas y acciones de informe. Evidencias locales fuera de Git.
 
+### 2.5.36. Inicio por objetivo
+
+1. Cuatro tarjetas de objetivo, título y ejemplo adaptados, selección visible y
+   borrador conservado; futuros seleccionables con envío desactivado.
+2. Enviar la intención real de pregunta o análisis al asistente, conservando
+   reintentos, contexto y revisión de los informes.
+3. Validar teclado, borradores, rutas, idiomas, escritorio/móvil y regresiones;
+   revisar cambios y crear un commit local enfocado.
+
+Véase [plan de implementación](../technical/goal-entry-plan.md).
+**Completado y validado el 2026-10-08.**
+
+Validación: 296 pruebas frontend y 60 de conversaciones correctas; build, lint y
+revisión visual en escritorio/móvil. Predicciones e ideas son seleccionables pero
+no se ejecutan. Los informes conservan revisión y comprobación de vigencia.
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Avance, 27 de septiembre de 2026:** completados **3.1** (medición inicial),

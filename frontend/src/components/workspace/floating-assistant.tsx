@@ -1,15 +1,33 @@
 import { translate as tr, useLanguage } from "@/lib/i18n";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { motion, useReducedMotion } from "motion/react";
-import { BotMessageSquare, X, Paperclip } from "lucide-react";
+import {
+  BotMessageSquare,
+  X,
+  Paperclip,
+  MessageCircle,
+  ChartNoAxesCombined,
+  TrendingUp,
+  Lightbulb,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useWorkspace } from "@/lib/workspace";
 import { useAction, useDraft } from "@/lib/hooks";
-import { contextKey, homeDraftKey, launchChat, store } from "@/lib/api";
+import {
+  contextKey,
+  homeDraftKey,
+  chatGoalKey,
+  launchChat,
+  store,
+} from "@/lib/api";
 import type { QuestionContext } from "@/lib/types";
 import { useAssistant, contextualRoute } from "@/lib/assistant";
 import { ContextAttachments, SelectionTool } from "./context-selection";
-import { starterOptions, reportStarter } from "@/lib/chat-start";
+import {
+  starterOptions,
+  reportStarter,
+  type StarterChoice,
+} from "@/lib/chat-start";
 import { ComposerSurface } from "./composer-surface";
 import { Composer } from "./composer";
 
@@ -70,20 +88,19 @@ export function NewChatComposer({
   const action = useAction();
   const reduced = useReducedMotion();
   const reveal = { delay: reduced ? 0 : 0.24, duration: reduced ? 0 : 0.12 };
-  const [choice, setChoice] = useState<string | null>(intent || null);
+  const [choice, setChoice] = useDraft<StarterChoice | null>(
+    chatGoalKey(business.id),
+    intent === "report" ? "analyze" : null,
+  );
   const starter = starterOptions.find((item) => item.id === choice);
   useEffect(() => {
+    if (intent === "report" && !store.get(chatGoalKey(business.id), null))
+      setChoice("analyze");
     if (intent === "report" && !store.get(homeDraftKey(business.id), "").trim())
       setText(tr(reportStarter));
-  }, [intent, business.id, setText]);
-  const choose = (id: string, prompt: string) => {
+  }, [intent, business.id, setText, setChoice]);
+  const choose = (id: StarterChoice) => {
     setChoice(id);
-    const current = store.get(homeDraftKey(business.id), "").trim();
-    const canned = [
-      ...starterOptions.map((item) => tr(item.prompt).trim()),
-      tr(reportStarter).trim(),
-    ];
-    if (!current || canned.includes(current)) setText(tr(prompt));
     container.current
       ?.querySelector("textarea")
       ?.focus({ preventScroll: true });
@@ -96,12 +113,17 @@ export function NewChatComposer({
   }, [autoFocus]);
   const send = () =>
     action.run(async () => {
-      if (!text.trim()) return;
+      if (!text.trim() || (start && starter?.upcoming)) return;
       if (assistant && contextualRoute(route)) {
         await assistant.launch(text, context, route);
         if (action.isMounted()) refresh();
       } else {
-        const chat = await launchChat(business.id, text, context);
+        const chat = await launchChat(
+          business.id,
+          text,
+          context,
+          start ? starter?.entryIntent || "question" : undefined,
+        );
         if (action.isMounted()) {
           assistant?.setDock({ chatId: chat.id, open: false });
           refresh();
@@ -124,15 +146,8 @@ export function NewChatComposer({
           transition={reveal}
         >
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-            {choice === "report"
-              ? tr("¿Qué quieres que incluya el informe?")
-              : starter
-                ? tr(starter.question)
-                : tr("¿En qué te ayudo con tu negocio?")}
+            {tr(starter?.question || "¿Qué quieres hacer hoy?")}
           </h1>
-          <p className="mt-3 text-sm text-muted-foreground">
-            {tr("Pregunta algo o prepara un informe.")}
-          </p>
         </motion.div>
       )}
       <ComposerSurface shared={!assistant?.dock.open || start}>
@@ -200,10 +215,11 @@ export function NewChatComposer({
           onChange={setText}
           onSend={send}
           busy={action.busy}
+          disabled={start && starter?.upcoming}
           error={action.error || assistant?.error}
           placeholder={
             start
-              ? tr("Escribe lo que quieres conseguir…")
+              ? tr(starter?.placeholder || "Escribe lo que quieres conseguir…")
               : tr("Pregunta o añade contexto…")
           }
         />
@@ -215,21 +231,37 @@ export function NewChatComposer({
           transition={reveal}
           className="chat-start-options"
           role="group"
-          aria-label={tr("Ideas para empezar")}
+          aria-label={tr("Elige un objetivo")}
         >
-          {starterOptions.map((item) => (
-            <Button
-              key={item.id}
-              variant="outline"
-              size="sm"
-              type="button"
-              aria-pressed={choice === item.id}
-              disabled={action.busy}
-              onClick={() => choose(item.id, item.prompt)}
-            >
-              {tr(item.label)}
-            </Button>
-          ))}
+          {starterOptions.map((item) => {
+            const Icon = {
+              question: MessageCircle,
+              analyze: ChartNoAxesCombined,
+              predict: TrendingUp,
+              ideas: Lightbulb,
+            }[item.id];
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className="chat-start-card"
+                aria-label={tr(item.label)}
+                aria-pressed={choice === item.id}
+                aria-describedby={`goal-${item.id}-badge`}
+                disabled={action.busy}
+                onClick={() => choose(item.id)}
+              >
+                <Icon className="size-5" aria-hidden="true" />
+                <span className="chat-start-card-label">{tr(item.label)}</span>
+                <span
+                  className="chat-start-card-badge"
+                  id={`goal-${item.id}-badge`}
+                >
+                  {tr(item.badge)}
+                </span>
+              </button>
+            );
+          })}
         </motion.div>
       )}
     </div>

@@ -194,6 +194,7 @@ export type FindingReference = {
   title?: string;
   period?: string;
 };
+export type EntryIntent = "question" | "analysis";
 export type QuestionContext = {
   context_references?: ContextAttachment[];
   analysis_id?: string;

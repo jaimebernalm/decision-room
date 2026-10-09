@@ -2,7 +2,14 @@ import { expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "./App";
-import { contextKey, homeDraftKey, messageKey, store } from "./lib/api";
+import {
+  contextKey,
+  homeDraftKey,
+  chatGoalKey,
+  messageKey,
+  store,
+} from "./lib/api";
+import { setLanguage } from "./lib/i18n";
 import { reportStarter } from "./lib/chat-start";
 import { ChatLoading } from "./components/workspace/chat-start";
 import { ChatPage } from "./components/workspace/chat";
@@ -96,36 +103,145 @@ function server(failFirst = false) {
   return writes;
 }
 
-it("offers editable suggestions without requests and preserves a custom draft", async () => {
+it("changes the goal without overwriting text or sending, and resets with New chat", async () => {
   location.hash = "ask";
   const writes = server();
   render(<App />);
   const user = userEvent.setup();
   const input = await screen.findByRole("textbox", { name: "Mensaje" });
   expect(input).toHaveFocus();
-  expect(screen.getAllByRole("textbox", { name: "Mensaje" })).toHaveLength(1);
   await user.click(screen.getByRole("button", { name: "Analizar mis datos" }));
-  expect(input).toHaveValue("Quiero analizar los datos de mi negocio. ");
+  await waitFor(() =>
+    expect(
+      screen.getByRole("heading", { name: "¿Qué quieres analizar?" }),
+    ).toBeVisible(),
+  );
+  expect(input).toHaveValue("");
+  expect(input).toHaveAttribute(
+    "placeholder",
+    "Por ejemplo: ¿por qué bajaron mis ventas?",
+  );
+  await user.type(input, "¿Qué productos funcionan mejor?");
   await user.click(
     screen.getByRole("button", { name: "Resolver una pregunta" }),
   );
-  expect(input).toHaveValue("");
-  await user.type(input, "¿Qué productos funcionan mejor?");
-  await user.click(screen.getByRole("button", { name: "Ayúdame a empezar" }));
+  expect(
+    screen.getByRole("heading", { name: "¿Qué te gustaría saber?" }),
+  ).toBeVisible();
+  expect(input).toHaveAttribute(
+    "placeholder",
+    "Por ejemplo: ¿qué productos se venden más?",
+  );
   expect(input).toHaveValue("¿Qué productos funcionan mejor?");
   expect(input).toHaveFocus();
+  expect(store.get(chatGoalKey(business.id), null)).toBe("question");
   expect(writes).toEqual([]);
-  expect(
-    screen.queryByText(/predicciones|machine learning|investigar online/i),
-  ).toBeNull();
   await user.click(screen.getByRole("link", { name: "Nuevo chat" }));
-  expect(input).not.toBeInTheDocument();
   await waitFor(() =>
     expect(
-      screen.getByRole("heading", { name: "¿En qué te ayudo con tu negocio?" }),
+      screen.getByRole("heading", { name: "¿Qué quieres hacer hoy?" }),
     ).toBeVisible(),
   );
   expect(screen.getByRole("textbox", { name: "Mensaje" })).toHaveValue("");
+  expect(store.get(chatGoalKey(business.id), null)).toBeNull();
+});
+
+it.each([
+  [
+    "Predecir lo que viene",
+    "¿Qué te gustaría predecir?",
+    "Por ejemplo: las ventas de los próximos meses",
+  ],
+  [
+    "Ideas para crecer",
+    "¿Qué te gustaría mejorar?",
+    "Por ejemplo: ideas para atraer más clientes",
+  ],
+])(
+  "previews %s without allowing button or keyboard submission",
+  async (label, title, placeholder) => {
+    location.hash = "ask";
+    const writes = server();
+    render(<App />);
+    const user = userEvent.setup();
+    const input = await screen.findByRole("textbox", { name: "Mensaje" });
+    await user.type(input, "Mi objetivo escrito");
+    const card = screen.getByRole("button", { name: label });
+    expect(card).toBeEnabled();
+    await user.click(card);
+    expect(card).toHaveAttribute("aria-pressed", "true");
+    expect(card).toHaveAccessibleDescription("Próximamente");
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: title })).toBeVisible(),
+    );
+    expect(input).toHaveAttribute("placeholder", placeholder);
+    expect(input).toHaveValue("Mi objetivo escrito");
+    expect(input).toHaveFocus();
+    expect(
+      screen.getByRole("button", { name: "Enviar mensaje" }),
+    ).toBeDisabled();
+    await user.keyboard("{Enter}");
+    await user.click(screen.getByRole("button", { name: "Enviar mensaje" }));
+    expect(writes).toEqual([]);
+    await user.click(
+      screen.getByRole("button", { name: "Analizar mis datos" }),
+    );
+    expect(input).toHaveValue("Mi objetivo escrito");
+    expect(
+      screen.getByRole("button", { name: "Enviar mensaje" }),
+    ).toBeEnabled();
+    await user.keyboard("{Enter}");
+    await screen.findByText("Resultado disponible.");
+    expect(
+      writes.find((write) => write.url.endsWith("/messages"))?.body,
+    ).toMatchObject({
+      text: "Mi objetivo escrito",
+      entry_intent: "analysis",
+      business_id: business.id,
+    });
+  },
+);
+
+it("restores the selected goal with its business draft after remounting", async () => {
+  location.hash = "ask";
+  server();
+  const view = render(<App />);
+  const input = await screen.findByRole("textbox", { name: "Mensaje" });
+  await userEvent.type(input, "Ventas próximas");
+  await userEvent.click(
+    screen.getByRole("button", { name: "Predecir lo que viene" }),
+  );
+  view.unmount();
+  render(<App />);
+  await screen.findByRole("heading", { name: "¿Qué te gustaría predecir?" });
+  expect(screen.getByRole("textbox", { name: "Mensaje" })).toHaveValue(
+    "Ventas próximas",
+  );
+  expect(screen.getByRole("button", { name: "Enviar mensaje" })).toBeDisabled();
+});
+
+it("translates selected goals while preserving the owner's draft", async () => {
+  location.hash = "ask";
+  server();
+  render(<App />);
+  const input = await screen.findByRole("textbox", { name: "Mensaje" });
+  await userEvent.type(input, "Mis ventas");
+  await userEvent.click(
+    screen.getByRole("button", { name: "Ideas para crecer" }),
+  );
+  setLanguage("en");
+  await screen.findByRole("heading", {
+    name: "What would you like to improve?",
+  });
+  expect(
+    screen.getByRole("button", { name: "Ideas to grow" }),
+  ).toHaveAccessibleDescription("Coming soon");
+  expect(input).toHaveValue("Mis ventas");
+  expect(input).toHaveAttribute(
+    "placeholder",
+    "For example: ideas to attract more customers",
+  );
+  expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
 });
 
 it("starts the first report in the same editable conversation without requiring an upload", async () => {
@@ -138,7 +254,7 @@ it("starts the first report in the same editable conversation without requiring 
   await waitFor(() =>
     expect(
       screen.getByRole("heading", {
-        name: "¿Qué quieres que incluya el informe?",
+        name: "¿Qué quieres analizar?",
       }),
     ).toBeVisible(),
   );
@@ -169,7 +285,7 @@ it.each(["new", "ask/report"])(
     await waitFor(() =>
       expect(
         screen.getByRole("heading", {
-          name: "¿Qué quieres que incluya el informe?",
+          name: "¿Qué quieres analizar?",
         }),
       ).toBeVisible(),
     );
@@ -211,6 +327,7 @@ it("retries a failed starter send in the same saved chat and retains the report 
   expect(messages[1].body).toMatchObject({
     business_id: business.id,
     text: "¿Qué ha cambiado?",
+    entry_intent: "question",
   });
   expect(store.get(homeDraftKey(business.id), "")).toBe("");
   await user.click(screen.getByRole("button", { name: "Crear informe" }));
@@ -235,10 +352,10 @@ it("makes the starter immediately visible when reduced motion is preferred", asy
     const input = await screen.findByRole("textbox", { name: "Mensaje" });
     expect(input).toHaveFocus();
     expect(
-      screen.getByRole("heading", { name: "¿En qué te ayudo con tu negocio?" }),
+      screen.getByRole("heading", { name: "¿Qué quieres hacer hoy?" }),
     ).toBeVisible();
     expect(
-      screen.getByRole("group", { name: "Ideas para empezar" }),
+      screen.getByRole("group", { name: "Elige un objetivo" }),
     ).toBeVisible();
     expect(screen.getAllByRole("textbox", { name: "Mensaje" })).toHaveLength(1);
   } finally {

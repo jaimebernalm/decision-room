@@ -55,7 +55,7 @@ it("starts a standalone new chat without visiting home and can resume its draft 
   const user = userEvent.setup();
   await user.click(screen.getAllByRole("link", { name: "Nuevo chat" }).at(-1)!);
   await screen.findByRole("heading", {
-    name: "¿En qué te ayudo con tu negocio?",
+    name: "¿Qué quieres hacer hoy?",
   });
   expect(location.hash).toBe("#ask");
   expect(
@@ -75,7 +75,7 @@ it("starts a standalone new chat without visiting home and can resume its draft 
   );
   await user.click(screen.getAllByRole("link", { name: "Nuevo chat" }).at(-1)!);
   await screen.findByRole("heading", {
-    name: "¿En qué te ayudo con tu negocio?",
+    name: "¿Qué quieres hacer hoy?",
   });
   await waitFor(() => expect(screen.queryByRole("complementary")).toBeNull());
   expect(location.hash).toBe("#ask");

@@ -1,5 +1,11 @@
 import { translate as tr, locale, selectedLanguage } from "@/lib/i18n";
-import type { QuestionContext, Chat, Turn, ContextReference } from "./types";
+import type {
+  QuestionContext,
+  Chat,
+  Turn,
+  ContextReference,
+  EntryIntent,
+} from "./types";
 export class ApiError extends Error {
   status: number;
   constructor(message: string, status: number) {
@@ -124,6 +130,7 @@ export const analysisHref = (item: {
 export const contextKey = (business: string) =>
   `dr-question-context-${business}`;
 export const homeDraftKey = (business: string) => `dr-home-prompt-${business}`;
+export const chatGoalKey = (business: string) => `dr-home-goal-${business}`;
 export const messageKey = (chat: string) => `dr-chat-draft-${chat}`;
 export const referenceWire = (r: ContextReference): ContextReference =>
   "source_id" in r
@@ -140,6 +147,7 @@ export const referenceWire = (r: ContextReference): ContextReference =>
         element_key: r.element_key,
       };
 export type MessageDraft = {
+  entry_intent?: EntryIntent;
   disposition?: string;
   context_references?: ContextReference[];
   question_id?: string;
@@ -152,6 +160,7 @@ export function launchChat(
   business: string,
   text: string,
   context: QuestionContext = {},
+  entryIntent?: EntryIntent,
 ): Promise<Chat> {
   if (launches.has(business)) return launches.get(business)!;
   const run = async () => {
@@ -159,6 +168,7 @@ export function launchChat(
     type Pending = {
       text: string;
       context: QuestionContext;
+      entryIntent?: EntryIntent;
       key: string;
       messageKey: string;
       chatId?: string;
@@ -166,11 +176,13 @@ export function launchChat(
     const previous = store.get<Pending | null>(cacheKey, null);
     const pending: Pending =
       previous?.text === text &&
+      previous.entryIntent === entryIntent &&
       JSON.stringify(previous.context) === JSON.stringify(context)
         ? previous
         : {
             text,
             context,
+            entryIntent,
             key: crypto.randomUUID(),
             messageKey: crypto.randomUUID(),
           };
@@ -189,6 +201,7 @@ export function launchChat(
     store.set(key, {
       text,
       key: pending.messageKey,
+      entry_intent: entryIntent,
       finding_reference: context.finding_reference,
       context_references: context.context_references?.map(referenceWire),
     });
@@ -196,6 +209,7 @@ export function launchChat(
       business_id: business,
       text,
       request_key: pending.messageKey,
+      ...(entryIntent ? { entry_intent: entryIntent } : {}),
       ...(context.context_references?.length
         ? { context_references: context.context_references.map(referenceWire) }
         : {}),
@@ -208,6 +222,12 @@ export function launchChat(
     store.remove(cacheKey);
     if (store.get(homeDraftKey(business), "") === text) {
       store.remove(homeDraftKey(business));
+      if (
+        entryIntent &&
+        store.get<string>(chatGoalKey(business), "") ===
+          (entryIntent === "analysis" ? "analyze" : "question")
+      )
+        store.remove(chatGoalKey(business));
       if (
         JSON.stringify(store.get(contextKey(business), {})) ===
         JSON.stringify(context)

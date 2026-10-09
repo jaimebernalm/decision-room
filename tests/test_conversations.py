@@ -991,6 +991,60 @@ class ConversationTests(unittest.TestCase):
         self.chats.run(queued['id'])
         self.assertEqual(self.chats.detail(chat)['turns'][0]['response']['kind'], 'grounded_answer')
 
+    def test_entry_intent_is_validated_idempotent_and_available_to_the_agent(self):
+        chat = self.chat()
+        payload = dict(business_id=str(self.b), request_key=str(uuid4()), text='Hola', entry_intent='question')
+        for unsupported in ('predict', 'ideas', '', {}, []):
+            with self.assertRaises(WebError):
+                self.chats.send(chat, payload | dict(entry_intent=unsupported))
+        self.assertEqual(self.chats.detail(chat)['turns'], [])
+        sent = self.chats.send(chat, payload)
+        self.assertEqual(self.chats.send(chat, payload), sent)
+        with self.assertRaises(WebError) as conflict:
+            self.chats.send(chat, payload | dict(entry_intent='analysis'))
+        self.assertEqual(conflict.exception.status, 409)
+        original = ChatModel.generate_chat
+        def capture(model, context, correction=None):
+            self.assertEqual(context['entry_intent'], 'question')
+            return original(model, context, correction)
+        with patch.object(ChatModel, 'generate_chat', capture):
+            self.chats.run(sent['id'])
+            later = self.send(chat, 'Hola otra vez')
+        self.assertEqual(later['status'], 'completed', later)
+        self.assertFalse(later['report_requested'])
+        self.assertEqual(self.ws.listing(), [])
+
+    def test_analysis_goal_survives_clarifications_and_saves_only_a_reviewed_report(self):
+        chat = self.chat(self.batch())
+        original = ChatModel.generate_chat
+        def capture(model, context, correction=None):
+            self.assertEqual(context['entry_intent'], 'analysis')
+            return original(model, context, correction)
+        with patch.object(ChatModel, 'generate_chat', capture):
+            turn = self.send(chat, 'Calculate sales', entry_intent='analysis')
+            job = turn['job_id']
+            self.assertFalse(turn['report_requested'])
+            self.assertEqual(self.ws.listing(), [])
+            for answer in ('unit price', 'Amount is row total.'):
+                self.ws.run_job(job)
+                self.chats.run(turn['id'])
+                turn = self.chats.detail(chat)['turns'][-1]
+                self.assertEqual(turn['status'], 'waiting', turn)
+                self.assertFalse(turn['report_requested'])
+                self.assertEqual(self.ws.listing(), [])
+                turn = self.send(chat, answer, question_id=turn['questions'][0]['id'])
+            self.ws.run_job(job)
+            self.chats.run(turn['id'])
+        turn = self.chats.detail(chat)['turns'][-1]
+        self.assertEqual(turn['status'], 'completed', turn)
+        self.assertTrue(turn['report_requested'])
+        self.assertEqual(len(self.ws.listing()), 1)
+        self.assertIn('Ventas', self.chats.report(chat, turn['id']))
+        memory.change(self.config, self.b, action='declare', request_key='goal-invalidates-review',
+                      content=content('Amount is not defined.', kind='open_question'))
+        with self.assertRaises(WebError):
+            self.chats.report(chat, turn['id'])
+
     def test_reviewed_calculation_explanation_and_explicit_report(self):
         chat, t = self.complete()
         self.assertFalse(self.ws.listing())
