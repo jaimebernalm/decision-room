@@ -109,6 +109,12 @@ class RecipeTests(unittest.TestCase):
     def test_missing_or_wrong_citation_cannot_certify(self):
         r=self.recipe();r['operands'][0]['evidence']['period']=[]
         with self.assertRaises(ValueError): recipes.validate(r,self.text,self.sources)
+
+    def test_listing_all_categories_does_not_bypass_population_grounding(self):
+        r=self.recipe()
+        r['operands'][0]['filters'][0]['values']=['North','South']
+        with self.assertRaisesRegex(ValueError,'cited code'):
+            recipes.validate(r,self.text,self.sources)
         r=self.recipe();r['evidence']['operation'][0]['text']='Media'
         with self.assertRaises(ValueError): recipes.validate(r,self.text,self.sources)
 

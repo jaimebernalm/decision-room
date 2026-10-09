@@ -163,7 +163,9 @@ def reconcile(readings,request,folder,sources,*,context_text=None):
             checked.append(None)
         else:
             try: recipes.validate(reading['recipe'],request['masked_text'],sources,
-                                  population_context=population_context(request),population_text=context_text)
+                                  population_context=population_context(request),population_text=context_text,target_span=request.get('span'))
+            except recipes.PopulationVeto as error:
+                return {'status':'uncertain','reason':str(error),'diagnostic':error.diagnostic}
             except (ValueError,KeyError,TypeError) as error: raise Uncertain(str(error)) from None
             checked.append(reading['recipe'])
     if any(item is None for item in checked):

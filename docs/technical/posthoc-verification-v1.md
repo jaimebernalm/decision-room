@@ -254,6 +254,17 @@ Regresiones: medida sin totalidad, totalidad bajo un encabezado de categoría,
 «total de» una categoría y categoría en contexto de tabla quedan inciertas. Dos
 ocurrencias del mismo grupo con distinto contexto no heredan sus estados.
 
+El complemento registrado en evaluación (`43f945b`) veta también negación o
+exclusión en la oración original que contiene cada cita de totalidad y en la del
+objetivo, aunque la negación quede fuera del recorte citado. La lista cerrada es
+`no`, `sin`, `excepto`, `salvo`, `menos`, `excluye`, `excluido`, `excluida`,
+`excluidos`, `excluidas`. Los delimitadores son punto, punto y coma, interrogación,
+exclamación, salto de bloque o celda. No convierte esas palabras en un veto global
+sobre otras oraciones. El diagnóstico estructurado registra la palabra y span,
+o la categoría, tabla, columna y span que dispararon el veto del catálogo; el
+orden de búsqueda es determinista. Se conserva el estado incierto y el motivo
+estable, para poder contar los rechazos sin mezclar las categorías.
+
 ## Arranque de Chrome después de interpretar
 
 La comprobación de presentación usa los descriptores reales de sus dos pipes,
