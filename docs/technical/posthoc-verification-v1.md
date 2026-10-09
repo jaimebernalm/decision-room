@@ -9,7 +9,8 @@ revisión 3 y aclaración de formato, en la rama de evaluación.
 
 1. Inventario compartido y precisión determinista: implementados y comprobados.
 2. Interpretaciones separadas con valor oculto, recetas fundamentadas y recálculo:
-   pendiente.
+   núcleo implementado con proveedor simulado; pendiente de integración facturable
+   y desarrollo sobre informes.
 3. Derivada con invariantes, exportación y contabilidad mediante el proxy: pendiente.
 4. Desarrollo, congelación y evaluación sellada: pendientes. Las pruebas técnicas
    no acreditan los umbrales del piloto.
@@ -74,3 +75,39 @@ se comprueba además del valor y no borra un signo explícito contradictorio.
 con Chrome real para contenido dinámico/oculto, tablas y SVG; fixtures para nodos
 inline, Unicode/UTF-16, identidades repetidas y reglas adversarias de precisión.
 Sin proveedor facturable y sin inspeccionar el conjunto de prueba de V1.
+
+## Núcleo de interpretación y recálculo
+
+`interpretation.verify(inventory, sources, ask, dest)` conserva primero el
+inventario, política y cada solicitud. Llama dos veces a `ask(prompt, input,
+call_key)` sin pasar respuesta ni historial de la otra llamada. El adaptador
+`ask` es responsable de admisión, proveedor y recibos de coste; el núcleo todavía
+no habilita llamadas facturables por sí mismo.
+
+Se oculta el literal objetivo y las repeticiones de su misma escritura numérica;
+las fechas conservan contexto. La agrupación solo oculta: no comparte estados.
+Los alias con otra escritura son un límite pendiente de endurecer antes de congelar.
+Cada interpretación aporta citas con spans del texto enmascarado. Se validan por
+separado y se compara todo el contenido de cálculo de las recetas. Las citas pueden
+ser distintas si ambas están fundamentadas; no se confunden con el ámbito calculado.
+Un acuerdo con sus dos respuestas queda persistido antes del recálculo. Sigue siendo
+una hipótesis semántica sometida a auditoría, no una garantía por doble votación.
+
+`recipes.py` usa el evaluador existente sobre Parquet fijado por hash, con
+operandos ordenados, filtros explícitos y unidad declarada. No admite base cero o
+negativa, selección vacía ni cuotas sin contención estructural de poblaciones.
+La fecha final es inclusiva. Las medias diarias dividen por días naturales, no por
+filas observadas. Un fallo del proveedor no se oculta como incertidumbre semántica:
+termina el run y preserva los recibos, sin reenvío.
+
+`sources.prepare(csv_files, dest)` prepara snapshots locales y solo permite pasar
+al intérprete hashes, columnas y categorías acotadas. Las medidas numéricas no se
+exportan como ejemplos. Las correspondencias de dimensiones se basan en una clave
+única observada y nombres normalizados sin ambigüedad; no acreditan la granularidad
+de negocio. Las unidades por defecto son los nombres de columna, sin inferir euros,
+ventas ni pedidos. Los archivos preparados y catálogos son privados.
+
+Validación del núcleo: 19 pruebas sin proveedor facturable, incluyendo las diez de
+inventario/precisión, agregados reales en DuckDB, derivados, último día inclusivo,
+datos cambiados, lecturas que discrepan aunque produzcan el mismo número y
+repeticiones con ámbitos distintos que reciben estados distintos.

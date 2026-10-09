@@ -30,9 +30,9 @@ DOM_SCRIPT = r'''(() => {
      const refs=a=>Array.from(new Set(a.filter(Boolean))).filter(c=>c!==cell).map(nodePath);
      const [y,x]=target||[-1,-1];
      tab={caption:table.caption?[nodePath(table.caption)]:[],
-       column_headers:refs(grid.slice(0,Math.max(0,y)).map(r=>r[x]).filter(c=>c?.tagName==='TH'||rows[0]?.contains(c))),
-       row_headers:refs((grid[y]||[]).slice(0,Math.max(0,x)).filter((c,i)=>c?.tagName==='TH'||i===0)),
-       unresolved:!target};
+       column_headers:refs(grid.slice(0,Math.max(0,y)).map(r=>r[x]).filter(c=>c?.tagName==='TH'||c?.parentElement.parentElement.tagName==='THEAD')),
+       row_headers:refs((grid[y]||[]).slice(0,Math.max(0,x)).filter(c=>c?.tagName==='TH')),
+       unresolved:!target || !rows.some(r=>Array.from(r.cells).some(c=>c.tagName==='TH'))};
    }
    return {section:headings.filter(Boolean).map(nodePath),table:tab};
  }
@@ -64,7 +64,7 @@ DOM_SCRIPT = r'''(() => {
 
 TOKEN = re.compile(
     r'\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?)?'
-    r'|[+\-−]?\d+(?:[.,]\d+)*(?:[ \u00a0\u202f\u2009]\d{3}(?!\d))*(?:,\d+)?'
+    r'|[+\-−]?(?:\d{1,3}(?:[ \u00a0\u202f\u2009]\d{3}(?!\d))+(?:,\d+)?|\d+(?:[.,]\d+)*)'
     r'(?:[ \t\u00a0\u202f\u2009]*(?:%|millones\b|mil\b|k\b|M\b))?')
 
 
@@ -163,10 +163,12 @@ def build_inventory(html, *, browser_factory=Browser):
         session = browser.open(path)
         prior = browser.evaluate(DOM_SCRIPT,session)
         deadline = time.monotonic()+10
+        stable_since = time.monotonic()
         while True:
             time.sleep(.25)
             current = browser.evaluate(DOM_SCRIPT,session)
-            if current == prior: break
+            if current == prior and time.monotonic()-stable_since >= 1: break
+            if current != prior: stable_since=time.monotonic()
             if time.monotonic() > deadline: raise ValueError('Rendered text does not stabilize.')
             prior = current
     if path.read_bytes() != source: raise ValueError('Report changed during inventory.')
@@ -178,6 +180,13 @@ def build_inventory(html, *, browser_factory=Browser):
 def validate(inventory):
     if inventory['version'] != VERSION or sha(inventory['text'].encode()) != inventory['text_sha256']:
         raise ValueError('Inventory identity mismatch.')
+    expected_spans=[]
+    for match in TOKEN.finditer(inventory['text']):
+        a,b=match.span()
+        if inventory['text'][a] in '-−+' and a and (inventory['text'][a-1].isalnum() or inventory['text'][a-1]=='_'): a+=1
+        expected_spans.append([a,b])
+    if [e['span'] for e in inventory['occurrences']] != expected_spans:
+        raise ValueError('Inventory is missing or adding numeric occurrences.')
     ids = set(); last = 0
     for entry in inventory['occurrences']:
         a,b = entry['span']

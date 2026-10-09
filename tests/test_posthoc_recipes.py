@@ -1,0 +1,147 @@
+import copy
+import json
+from pathlib import Path
+import tempfile
+import unittest
+from unittest.mock import patch
+
+import duckdb
+from decision_room.reports.posthoc.inventory import from_snapshot, sha
+from decision_room.reports.posthoc import recipes
+from decision_room.reports.posthoc.interpretation import masked_request, verify
+
+
+class RecipeTests(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+        self.root=Path(self.temp.name);self.path=self.root/'table.parquet'
+        with duckdb.connect() as db:
+            db.execute('CREATE TABLE t(day VARCHAR, channel VARCHAR, units INTEGER)')
+            db.execute("INSERT INTO t VALUES ('2025-08-30 00:00:00','North',10),('2025-08-31 23:59:59','North',5),('2025-08-31 12:00:00','South',15)")
+            db.execute('COPY t TO ?',[str(self.path)])
+        self.sources={'sales':{'table_id':'sales','snapshot_sha256':'a'*64,'path':str(self.path),
+                'parquet_sha256':sha(self.path.read_bytes()),'columns':[
+                    {'name':'day','numeric':False},
+                    {'name':'channel','numeric':False,'categories':['North','South']},
+                    {'name':'units','numeric':True,'integer':True,'unit':'unidades'}]}}
+        self.text='Suma de unidades, North, periodo 2025-08-30 a 2025-08-31: 15. Otra cifra 15.'
+        self.inv=from_snapshot(b'original',{'nodes':[{'path':[0],'text':self.text}]})
+        self.number=next(o for o in self.inv['occurrences'] if o['text']=='15')
+
+    def recipe(self,request=None):
+        text=(request or masked_request(self.inv,self.number,self.sources))['masked_text']
+        def ref(value):
+            a=text.index(value);return {'span':[a,a+len(value)],'text':value}
+        return {'operation':'sum','operands':[{'table_id':'sales','snapshot_sha256':'a'*64,
+            'aggregate':'sum','column':'units','filters':[
+                {'column':'channel','operator':'in','values':['North']},
+                {'column':'day','operator':'date_between','values':['2025-08-30','2025-08-31']}],
+            'evidence':{'column':[ref('unidades')],'population':[ref('North')],
+                        'period':[ref('2025-08-30 a 2025-08-31')]}}],
+            'unit':'unidades','direction':None,'evidence':{'operation':[ref('Suma')],
+            'unit':[ref('unidades')],'direction':[]}}
+
+    def test_inclusive_calendar_day_and_hash_guard(self):
+        req=masked_request(self.inv,self.number,self.sources);recipe=self.recipe(req)
+        recipes.validate(recipe,req['masked_text'],self.sources)
+        self.assertEqual(recipes.recalculate(recipe,self.sources)['value'],'15')
+        self.path.write_bytes(b'changed')
+        with self.assertRaises(ValueError): recipes.recalculate(recipe,self.sources)
+
+    def test_unsupported_units_and_unproved_share_population(self):
+        r=self.recipe();r['unit']='euros'
+        with self.assertRaises(recipes.Unsupported): recipes.validate(r,self.text,self.sources)
+        r=self.recipe();r['operation']='share';r['unit']='%';r['operands']=[copy.deepcopy(r['operands'][0]) for _ in range(2)]
+        r['operands'][1]['filters'][0]['values']=['South']
+        with self.assertRaises(recipes.Unsupported): recipes.validate(r,self.text,self.sources)
+
+    def test_derived_operations_empty_selection_and_daily_mean(self):
+        a=self.recipe()['operands'][0]
+        b=copy.deepcopy(a);b['filters']=[b['filters'][1]]
+        for op,expected,unit in [('difference','-15','unidades'),('percent_change','-50','%'),
+                                 ('share','50','%'),('quotient','0.5','cociente')]:
+            r=self.recipe();r.update(operation=op,operands=[a,b],unit=unit)
+            recipes.validate(r,self.text,self.sources)
+            self.assertEqual(float(recipes.recalculate(r,self.sources)['value']),float(expected))
+        r=self.recipe();r.update(operation='daily_mean',unit='unidades/día')
+        recipes.validate(r,self.text,self.sources)
+        self.assertEqual(recipes.recalculate(r,self.sources)['value'],'7.5')
+        r=self.recipe();r['operands'][0]['filters'][1]['values']=['2024-01-01','2024-01-02']
+        with self.assertRaises(recipes.Unsupported):recipes.recalculate(r,self.sources)
+
+    def test_repeated_value_different_period_does_not_inherit_state(self):
+        self.text='Suma de unidades, North, periodo 2025-08-30 a 2025-08-31: 15. Suma de unidades, North, periodo 2025-08-30 a 2025-08-30: 15.'
+        self.inv=from_snapshot(b'two periods',{'nodes':[{'path':[0],'text':self.text}]})
+        values=[o for o in self.inv['occurrences'] if o['text']=='15']
+        def ask(prompt,request,key):
+            r=self.recipe(request)
+            if request['occurrence_id']==values[1]['id']:
+                r['operands'][0]['filters'][1]['values']=['2025-08-30','2025-08-30']
+                a=request['masked_text'].index('2025-08-30 a 2025-08-30')
+                r['operands'][0]['evidence']['period']=[{'span':[a,a+23],'text':request['masked_text'][a:a+23]}]
+            return {'status':'claim','reason':'Separate grounded period','recipe':r}
+        ledger=verify(self.inv,self.sources,ask,self.root/'run')
+        self.assertEqual([ledger[o['id']]['status'] for o in values],['verified','discrepancy'])
+
+    def test_missing_or_wrong_citation_cannot_certify(self):
+        r=self.recipe();r['operands'][0]['evidence']['period']=[]
+        with self.assertRaises(ValueError): recipes.validate(r,self.text,self.sources)
+        r=self.recipe();r['evidence']['operation'][0]['text']='Media'
+        with self.assertRaises(ValueError): recipes.validate(r,self.text,self.sources)
+
+    def test_two_isolated_calls_freeze_before_recalculation(self):
+        calls=[]; real=recipes.recalculate
+        def ask(prompt,request,key):
+            self.assertNotIn('15',request['masked_text'])
+            self.assertNotIn('15',json.dumps(request['context']))
+            self.assertNotIn('path',request['catalog'][0])
+            calls.append(copy.deepcopy(request))
+            return {'status':'claim','reason':'Grounded','recipe':self.recipe(request)}
+        def recalc(recipe,sources):
+            folders=list((self.root/'run').glob('*/agreed-before-recalculation.json'))
+            self.assertTrue(folders)
+            return real(recipe,sources)
+        with patch.object(recipes,'recalculate',side_effect=recalc):
+            ledger=verify(self.inv,self.sources,ask,self.root/'run')
+        self.assertEqual(calls[0],calls[1])
+        self.assertEqual(ledger[self.number['id']]['status'],'verified')
+        with self.assertRaises(FileExistsError): verify(self.inv,self.sources,ask,self.root/'run')
+
+    def test_disagreement_prevents_recalculation_even_when_values_equal(self):
+        n=0
+        def ask(prompt,request,key):
+            nonlocal n
+            r=self.recipe(request);n+=1
+            if n%2==0: r['operands'][0]['filters'][0]['values']=['South']
+            return {'status':'claim','reason':'Reading','recipe':r}
+        with patch.object(recipes,'recalculate',side_effect=AssertionError('must not calculate')):
+            ledger=verify(self.inv,self.sources,ask,self.root/'run')
+        self.assertEqual(ledger[self.number['id']]['status'],'uncertain')
+
+    def test_provider_failure_is_not_swallowed_or_retried(self):
+        calls=[]
+        def ask(*args): calls.append(1);raise ConnectionError('offline')
+        with self.assertRaises(ConnectionError): verify(self.inv,self.sources,ask,self.root/'run')
+        self.assertEqual(len(calls),1)
+        self.assertEqual(json.loads((self.root/'run/run.json').read_text())['status'],'failed')
+        self.assertFalse((self.root/'run/ledger.json').exists())
+
+if __name__=='__main__':unittest.main()
+
+class SourceTests(unittest.TestCase):
+    def test_metadata_has_codes_and_unique_aliases_without_numeric_measure_values(self):
+        from decision_room.reports.posthoc.sources import prepare
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)
+            (root/'facts.csv').write_text('product_id,unidades\n01,391\n02,876\n01,999\n')
+            (root/'products.csv').write_text('product_id,nombre\n01,Small box\n02,Large box\n')
+            sources=prepare([root/'facts.csv',root/'products.csv'],root/'prepared')
+            public=recipes.public_catalog(sources)
+            self.assertNotIn('391',json.dumps(public))
+            self.assertNotIn('876',json.dumps(public))
+            self.assertNotIn('path',json.dumps(public))
+            fact=next(s for s in sources.values() if s['source_name']=='facts.csv')
+            ids=next(c for c in fact['columns'] if c['name']=='product_id')
+            self.assertEqual(ids['categories'],['01','02'])
+            self.assertEqual({a['name']:a['code'] for a in ids['aliases']},{'Large box':'02','Small box':'01'})
+            self.assertNotIn('grain',fact)

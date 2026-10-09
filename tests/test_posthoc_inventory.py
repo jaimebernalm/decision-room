@@ -22,6 +22,10 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual(entry['parts'][0],{'path':[0],'span':[10,12]})
         validate(inv)
 
+    def test_year_followed_by_count_is_not_a_grouped_number(self):
+        inv=from_snapshot(b'x',snapshot('En 2026 120 tiendas; total 74 440 unidades.'))
+        self.assertEqual([o['text'] for o in inv['occurrences']],['2026','120','74 440'])
+
     def test_repeat_identity_and_source_integrity(self):
         snap=snapshot('Total 42.', {'separator':'\n'}, 'Total 42.')
         a=from_snapshot(b'a',snap); b=from_snapshot(b'b',snap)
