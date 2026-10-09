@@ -14,8 +14,8 @@ export function DataModelExample() {
       </figcaption>
       <div className="flex flex-col items-stretch @md:flex-row @md:items-center">
         <div className="min-w-0 flex-1 overflow-hidden rounded-lg border bg-background">
-          <div className="border-b px-3 py-2">
-            <p className="font-medium">{tr("Ventas")}</p>
+          <div className="border-b bg-muted/50 px-3 py-2">
+            <p className="font-bold">{tr("Ventas")}</p>
             <p className="text-xs text-muted-foreground">
               {tr("Varias filas")}
             </p>
@@ -66,8 +66,8 @@ export function DataModelExample() {
           <circle cx="12" cy="48" r="4" className="fill-background" />
         </svg>
         <div className="min-w-0 flex-1 overflow-hidden rounded-lg border bg-background">
-          <div className="border-b px-3 py-2">
-            <p className="font-medium">{tr("Productos")}</p>
+          <div className="border-b bg-muted/50 px-3 py-2">
+            <p className="font-bold">{tr("Productos")}</p>
             <p className="text-xs text-muted-foreground">{tr("Una fila")}</p>
           </div>
           <table className="w-full text-left text-xs">

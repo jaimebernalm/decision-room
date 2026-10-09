@@ -290,3 +290,15 @@ Estado: implementado y comprobado el 8 de octubre de 2026. Véanse las
 
 Estado: implementado y comprobado el 8 de octubre de 2026. Véanse las
 [comprobaciones del ejemplo dibujado](../validation/2026-10-08-dossier-map-example.md).
+
+
+## Jerarquía de títulos y columnas de tablas (refinamiento de 2.5.5)
+
+1. Distinguir el título de cada tabla del mapa con negrita y un fondo de cabecera
+   del tema, conservando las columnas y la selección. Aplicar el mismo criterio
+   al ejemplo de la ayuda.
+2. Comprobar dibujo real, temas y móvil, pruebas del mapa, compilación y lint;
+   revisar el diff público y guardar el incremento en un commit local.
+
+Estado: implementado y comprobado el 8 de octubre de 2026. Véanse las
+[comprobaciones de títulos de tablas](../validation/2026-10-08-map-table-titles.md).

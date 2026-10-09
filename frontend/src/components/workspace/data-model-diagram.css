@@ -45,6 +45,14 @@
 .data-map-drawing .node path[fill="none"] {
   stroke: var(--border) !important;
 }
+/* The outer fill remains visible behind the title; attribute rows retain their own fill. */
+.data-map-drawing .node > .outer-path > path[fill]:not([fill="none"]) {
+  fill: var(--muted) !important;
+}
+.data-map-drawing .node .label.name text,
+.data-map-drawing .node .label.name tspan {
+  font-weight: 700 !important;
+}
 .data-map-drawing .node .label-container {
   rx: 10px;
 }

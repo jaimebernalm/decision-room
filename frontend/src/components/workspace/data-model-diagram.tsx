@@ -22,7 +22,8 @@ function getRenderer() {
       layout: "dagre",
       htmlLabels: false,
       // ER syntax needs a type token; keep that implementation detail out of the map.
-      themeCSS: ".attribute-type { display: none; }",
+      themeCSS:
+        ".attribute-type { display: none; } .label.name text, .label.name tspan { font-weight: 700; }",
       themeVariables: {
         fontFamily: "Geist Variable, sans-serif",
         fontSize: "13px",
