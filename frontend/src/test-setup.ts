@@ -38,6 +38,8 @@ class ResizeObserverMock {
 }
 vi.stubGlobal("ResizeObserver", ResizeObserverMock);
 Element.prototype.scrollIntoView = vi.fn();
+// Layout projection restores browser scroll; jsdom has no scrolling implementation.
+window.scrollTo = vi.fn();
 HTMLElement.prototype.hasPointerCapture = () => false;
 HTMLElement.prototype.setPointerCapture = () => {};
 HTMLElement.prototype.releasePointerCapture = () => {};

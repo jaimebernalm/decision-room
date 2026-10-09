@@ -1,5 +1,6 @@
 import { translate as tr, useLanguage } from "@/lib/i18n";
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
+import { useReducedMotion } from "motion/react";
 import { Paperclip, ArrowUp, LoaderCircle, Sparkles } from "lucide-react";
 import { InputGroupAddon } from "@/components/ui/input-group";
 import {
@@ -21,6 +22,7 @@ export function Composer({
   disabled = false,
   error,
   placeholder = tr("Pregunta sobre tu negocio…"),
+  animatePlaceholder = false,
   suggestions = false,
   compact = false,
   attachments,
@@ -33,12 +35,38 @@ export function Composer({
   disabled?: boolean;
   error?: string;
   placeholder?: string;
+  animatePlaceholder?: boolean;
   suggestions?: boolean;
   compact?: boolean;
   attachments?: ReactNode;
   tools?: ReactNode;
 }) {
   useLanguage();
+  const reduced = useReducedMotion();
+  const field = useRef<HTMLTextAreaElement>(null);
+  const lastPlaceholder = useRef(placeholder);
+  useEffect(() => {
+    const changed = lastPlaceholder.current !== placeholder;
+    lastPlaceholder.current = placeholder;
+    // Animate the empty field's example, keeping its node, focus and caret intact.
+    // Typing or changing the motion preference cancels an in-progress animation.
+    if (
+      !changed ||
+      !animatePlaceholder ||
+      text ||
+      reduced ||
+      !field.current?.animate
+    )
+      return;
+    const animation = field.current.animate(
+      [
+        { opacity: 0.35, transform: "translateY(2px)" },
+        { opacity: 1, transform: "translateY(0)" },
+      ],
+      { duration: 160, easing: "ease-out" },
+    );
+    return () => animation.cancel();
+  }, [placeholder, animatePlaceholder, text, reduced]);
   return (
     <div className="chat-composer w-full">
       {attachments && <div className="composer-contexts">{attachments}</div>}
@@ -56,6 +84,7 @@ export function Composer({
           </InputGroupAddon>
         )}
         <PromptInputTextarea
+          ref={field}
           aria-label={tr("Mensaje")}
           value={text}
           onChange={(e) => onChange(e.target.value)}

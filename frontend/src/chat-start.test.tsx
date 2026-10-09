@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "./App";
 import {
@@ -122,12 +122,25 @@ it("changes the goal without overwriting text or sending, and resets with New ch
     "Por ejemplo: ¿por qué bajaron mis ventas?",
   );
   await user.type(input, "¿Qué productos funcionan mejor?");
+  expect(screen.queryByRole("group", { name: "Elige un objetivo" })).toBeNull();
+  expect(
+    screen.getByRole("group", { name: "Objetivo elegido" }),
+  ).toHaveTextContent("Analizar mis datos");
+  const change = screen.getByRole("button", { name: "Cambiar objetivo" });
+  expect(change).toHaveAttribute("aria-expanded", "false");
+  await user.click(change);
+  expect(change).toHaveAttribute("aria-expanded", "true");
+  expect(
+    screen.getByRole("button", { name: "Analizar mis datos" }),
+  ).toHaveFocus();
   await user.click(
     screen.getByRole("button", { name: "Resolver una pregunta" }),
   );
-  expect(
-    screen.getByRole("heading", { name: "¿Qué te gustaría saber?" }),
-  ).toBeVisible();
+  await waitFor(() =>
+    expect(
+      screen.getByRole("heading", { name: "¿Qué te gustaría saber?" }),
+    ).toBeVisible(),
+  );
   expect(input).toHaveAttribute(
     "placeholder",
     "Por ejemplo: ¿qué productos se venden más?",
@@ -169,8 +182,12 @@ it.each([
     const card = screen.getByRole("button", { name: label });
     expect(card).toBeEnabled();
     await user.click(card);
-    expect(card).toHaveAttribute("aria-pressed", "true");
-    expect(card).toHaveAccessibleDescription("Próximamente");
+    expect(
+      screen.queryByRole("group", { name: "Elige un objetivo" }),
+    ).toBeNull();
+    const selected = screen.getByRole("group", { name: "Objetivo elegido" });
+    expect(selected).toHaveTextContent(label);
+    expect(within(selected).getByText("Próximamente")).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.getByRole("heading", { name: title })).toBeVisible(),
     );
@@ -183,6 +200,7 @@ it.each([
     await user.keyboard("{Enter}");
     await user.click(screen.getByRole("button", { name: "Enviar mensaje" }));
     expect(writes).toEqual([]);
+    await user.click(screen.getByRole("button", { name: "Cambiar objetivo" }));
     await user.click(
       screen.getByRole("button", { name: "Analizar mis datos" }),
     );
@@ -233,9 +251,9 @@ it("translates selected goals while preserving the owner's draft", async () => {
   await screen.findByRole("heading", {
     name: "What would you like to improve?",
   });
-  expect(
-    screen.getByRole("button", { name: "Ideas to grow" }),
-  ).toHaveAccessibleDescription("Coming soon");
+  const selected = screen.getByRole("group", { name: "Selected goal" });
+  expect(selected).toHaveTextContent("Ideas to grow");
+  expect(within(selected).getByText("Coming soon")).toBeInTheDocument();
   expect(input).toHaveValue("Mis ventas");
   expect(input).toHaveAttribute(
     "placeholder",
@@ -406,4 +424,115 @@ it("preserves typing while the conversation module loads", async () => {
     "Mi siguiente pregunta",
   );
   expect(writes).toEqual([]);
+});
+
+it("reopens and dismisses goals with the keyboard without replacing the composer", async () => {
+  location.hash = "ask";
+  const writes = server();
+  render(<App />);
+  const user = userEvent.setup();
+  const input = await screen.findByRole("textbox", { name: "Mensaje" });
+  await user.type(input, "Mi pregunta escrita");
+  await user.click(
+    screen.getByRole("button", { name: "Resolver una pregunta" }),
+  );
+  await user.click(screen.getByRole("button", { name: "Cambiar objetivo" }));
+  expect(
+    screen.getByRole("button", { name: "Resolver una pregunta" }),
+  ).toHaveFocus();
+  await user.keyboard("{Escape}");
+  expect(input).toHaveFocus();
+  expect(input).toHaveValue("Mi pregunta escrita");
+  expect(screen.queryByRole("group", { name: "Elige un objetivo" })).toBeNull();
+  expect(
+    screen.getByRole("button", { name: "Cambiar objetivo" }),
+  ).toHaveAttribute("aria-expanded", "false");
+  await user.click(screen.getByRole("button", { name: "Cambiar objetivo" }));
+  await user.click(screen.getByRole("button", { name: "Cambiar objetivo" }));
+  expect(input).toHaveFocus();
+  expect(screen.getByRole("textbox", { name: "Mensaje" })).toBe(input);
+  expect(writes).toEqual([]);
+});
+
+it("continues an upcoming objective as a question without sending or losing the draft", async () => {
+  location.hash = "ask";
+  const writes = server();
+  render(<App />);
+  const input = await screen.findByRole("textbox", { name: "Mensaje" });
+  await userEvent.type(input, "¿Cómo podría mejorar mis ventas?");
+  await userEvent.click(
+    screen.getByRole("button", { name: "Ideas para crecer" }),
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Continuar como pregunta" }),
+  );
+  await waitFor(() =>
+    expect(
+      screen.getByRole("heading", { name: "¿Qué te gustaría saber?" }),
+    ).toBeVisible(),
+  );
+  expect(screen.getByRole("textbox", { name: "Mensaje" })).toBe(input);
+  expect(input).toHaveValue("¿Cómo podría mejorar mis ventas?");
+  expect(input).toHaveFocus();
+  expect(screen.getByRole("button", { name: "Enviar mensaje" })).toBeEnabled();
+  expect(
+    screen.queryByRole("button", { name: "Continuar como pregunta" }),
+  ).toBeNull();
+  expect(store.get(chatGoalKey(business.id), null)).toBe("question");
+  expect(writes).toEqual([]);
+});
+
+it("animates only a changed empty example and cancels when the owner starts typing", async () => {
+  location.hash = "ask";
+  server();
+  render(<App />);
+  const input = await screen.findByRole("textbox", { name: "Mensaje" });
+  const cancel = vi.fn();
+  const animate = vi.fn(() => ({ cancel }));
+  Object.defineProperty(input, "animate", {
+    configurable: true,
+    value: animate,
+  });
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "Analizar mis datos" }));
+  expect(animate).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole("textbox", { name: "Mensaje" })).toBe(input);
+  expect(input).toHaveFocus();
+  await user.type(input, "Ventas");
+  expect(cancel).toHaveBeenCalledTimes(1);
+  await user.click(screen.getByRole("button", { name: "Cambiar objetivo" }));
+  await user.click(
+    screen.getByRole("button", { name: "Resolver una pregunta" }),
+  );
+  expect(animate).toHaveBeenCalledTimes(1);
+  expect(input).toHaveValue("Ventas");
+});
+
+it("changes and collapses objectives immediately without animation under reduced motion", async () => {
+  reduced.value = true;
+  try {
+    location.hash = "ask";
+    server();
+    render(<App />);
+    const input = await screen.findByRole("textbox", { name: "Mensaje" });
+    const animate = vi.fn();
+    Object.defineProperty(input, "animate", {
+      configurable: true,
+      value: animate,
+    });
+    await userEvent.click(
+      screen.getByRole("button", { name: "Predecir lo que viene" }),
+    );
+    expect(
+      screen.getByRole("heading", { name: "¿Qué te gustaría predecir?" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("group", { name: "Elige un objetivo" }),
+    ).toBeNull();
+    expect(screen.getByRole("textbox", { name: "Mensaje" })).toBe(input);
+    expect(input).toHaveFocus();
+    expect(animate).not.toHaveBeenCalled();
+  } finally {
+    reduced.value = false;
+  }
 });

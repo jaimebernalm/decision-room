@@ -1,15 +1,7 @@
 import { translate as tr, useLanguage } from "@/lib/i18n";
 import { useEffect, useRef } from "react";
 import { motion, useReducedMotion } from "motion/react";
-import {
-  BotMessageSquare,
-  X,
-  Paperclip,
-  MessageCircle,
-  ChartNoAxesCombined,
-  TrendingUp,
-  Lightbulb,
-} from "lucide-react";
+import { BotMessageSquare, X, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useWorkspace } from "@/lib/workspace";
 import { useAction, useDraft } from "@/lib/hooks";
@@ -30,6 +22,7 @@ import {
 } from "@/lib/chat-start";
 import { ComposerSurface } from "./composer-surface";
 import { Composer } from "./composer";
+import { GoalPicker } from "./goal-picker";
 
 export function AssistantToggle() {
   useLanguage();
@@ -131,6 +124,83 @@ export function NewChatComposer({
         }
       }
     });
+  const composer = (
+    <ComposerSurface shared={!assistant?.dock.open || start}>
+      <Composer
+        compact
+        animatePlaceholder={start}
+        tools={
+          start ? (
+            <Button
+              asChild
+              variant="ghost"
+              size="icon"
+              className="size-8 rounded-full"
+            >
+              <a
+                href="#files"
+                aria-label={tr("Añadir datos")}
+                title={tr("Añadir datos")}
+              >
+                <Paperclip className="size-4" />
+              </a>
+            </Button>
+          ) : (
+            <SelectionTool />
+          )
+        }
+        attachments={
+          <>
+            {(context.analysis_id || context.finding_reference) && (
+              <div
+                className="composer-context-bubble flex w-fit max-w-[min(100%,16rem)] items-center gap-1 pl-2.5 pr-1 py-0.5 text-[11px] leading-4"
+                role="group"
+                aria-label={tr("Tablas seleccionadas")}
+              >
+                <span className="min-w-0 truncate" title={context.label}>
+                  {context.label || tr("Contexto seleccionado")}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-6 shrink-0 rounded-full"
+                  aria-label={tr("Quitar contexto")}
+                  onClick={() =>
+                    setContext({
+                      ...context,
+                      analysis_id: undefined,
+                      finding_reference: undefined,
+                      label: undefined,
+                    })
+                  }
+                >
+                  <X className="size-3" />
+                </Button>
+              </div>
+            )}
+            {!!assistant?.selected.length && (
+              <ContextAttachments
+                compact
+                items={assistant.selected}
+                onRemove={assistant.remove}
+              />
+            )}
+          </>
+        }
+        text={text}
+        onChange={setText}
+        onSend={send}
+        busy={action.busy}
+        disabled={start && starter?.upcoming}
+        error={action.error || assistant?.error}
+        placeholder={
+          start
+            ? tr(starter?.placeholder || "Escribe lo que quieres conseguir…")
+            : tr("Pregunta o añade contexto…")
+        }
+      />
+    </ComposerSurface>
+  );
   return (
     <div
       ref={container}
@@ -145,124 +215,23 @@ export function NewChatComposer({
           animate={{ opacity: 1 }}
           transition={reveal}
         >
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+          <motion.h1
+            key={tr(starter?.question || "¿Qué quieres hacer hoy?")}
+            initial={{ opacity: reduced ? 1 : 0, y: reduced ? 0 : 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: reduced ? 0 : 0.16, ease: "easeOut" }}
+            className="text-2xl font-semibold tracking-tight sm:text-3xl"
+          >
             {tr(starter?.question || "¿Qué quieres hacer hoy?")}
-          </h1>
+          </motion.h1>
         </motion.div>
       )}
-      <ComposerSurface shared={!assistant?.dock.open || start}>
-        <Composer
-          compact
-          tools={
-            start ? (
-              <Button
-                asChild
-                variant="ghost"
-                size="icon"
-                className="size-8 rounded-full"
-              >
-                <a
-                  href="#files"
-                  aria-label={tr("Añadir datos")}
-                  title={tr("Añadir datos")}
-                >
-                  <Paperclip className="size-4" />
-                </a>
-              </Button>
-            ) : (
-              <SelectionTool />
-            )
-          }
-          attachments={
-            <>
-              {(context.analysis_id || context.finding_reference) && (
-                <div
-                  className="composer-context-bubble flex w-fit max-w-[min(100%,16rem)] items-center gap-1 pl-2.5 pr-1 py-0.5 text-[11px] leading-4"
-                  role="group"
-                  aria-label={tr("Tablas seleccionadas")}
-                >
-                  <span className="min-w-0 truncate" title={context.label}>
-                    {context.label || tr("Contexto seleccionado")}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-6 shrink-0 rounded-full"
-                    aria-label={tr("Quitar contexto")}
-                    onClick={() =>
-                      setContext({
-                        ...context,
-                        analysis_id: undefined,
-                        finding_reference: undefined,
-                        label: undefined,
-                      })
-                    }
-                  >
-                    <X className="size-3" />
-                  </Button>
-                </div>
-              )}
-              {!!assistant?.selected.length && (
-                <ContextAttachments
-                  compact
-                  items={assistant.selected}
-                  onRemove={assistant.remove}
-                />
-              )}
-            </>
-          }
-          text={text}
-          onChange={setText}
-          onSend={send}
-          busy={action.busy}
-          disabled={start && starter?.upcoming}
-          error={action.error || assistant?.error}
-          placeholder={
-            start
-              ? tr(starter?.placeholder || "Escribe lo que quieres conseguir…")
-              : tr("Pregunta o añade contexto…")
-          }
-        />
-      </ComposerSurface>
-      {start && (
-        <motion.div
-          initial={{ opacity: reduced ? 1 : 0 }}
-          animate={{ opacity: 1 }}
-          transition={reveal}
-          className="chat-start-options"
-          role="group"
-          aria-label={tr("Elige un objetivo")}
-        >
-          {starterOptions.map((item) => {
-            const Icon = {
-              question: MessageCircle,
-              analyze: ChartNoAxesCombined,
-              predict: TrendingUp,
-              ideas: Lightbulb,
-            }[item.id];
-            return (
-              <button
-                key={item.id}
-                type="button"
-                className="chat-start-card"
-                aria-label={tr(item.label)}
-                aria-pressed={choice === item.id}
-                aria-describedby={`goal-${item.id}-badge`}
-                disabled={action.busy}
-                onClick={() => choose(item.id)}
-              >
-                <Icon className="size-5" aria-hidden="true" />
-                <span className="chat-start-card-label">{tr(item.label)}</span>
-                <span
-                  className="chat-start-card-badge"
-                  id={`goal-${item.id}-badge`}
-                >
-                  {tr(item.badge)}
-                </span>
-              </button>
-            );
-          })}
-        </motion.div>
+      {start ? (
+        <GoalPicker choice={choice} disabled={action.busy} onChoose={choose}>
+          {composer}
+        </GoalPicker>
+      ) : (
+        composer
       )}
     </div>
   );

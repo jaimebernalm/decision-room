@@ -832,6 +832,22 @@ Validación: 296 pruebas frontend y 60 de conversaciones correctas; build, lint 
 revisión visual en escritorio/móvil. Predicciones e ideas son seleccionables pero
 no se ejecutan. Los informes conservan revisión y comprobación de vigencia.
 
+### 2.5.37. Transiciones al elegir un objetivo
+
+1. Recoger y volver a abrir las tarjetas con una transición; conservar el objetivo
+   junto al campo y un control para cambiarlo, sin selector de tablas.
+2. Animar los cambios de título y ejemplo sin remontar el campo ni animar el
+   borrador al escribir; respetar movimiento reducido, teclado y futuros.
+3. Comprobar recorridos, reintentos, idiomas, escritorio/móvil, build y lint;
+   revisar el diff y crear un commit local enfocado.
+
+Véase [plan de implementación](../technical/goal-motion-plan.md).
+**Completado y validado el 2026-10-08.**
+
+Validación: 300 pruebas frontend correctas; build, lint y revisión en escritorio/
+móvil. Borrador y foco conservados; reapertura, Escape, futuros y movimiento
+reducido comprobados. Sin selector de tablas.
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Avance, 27 de septiembre de 2026:** completados **3.1** (medición inicial),
