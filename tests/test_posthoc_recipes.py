@@ -110,6 +110,45 @@ class RecipeTests(unittest.TestCase):
         r=self.recipe();r['operands'][0]['evidence']['period']=[]
         with self.assertRaises(ValueError): recipes.validate(r,self.text,self.sources)
 
+    def test_table_difference_uses_joint_citations_without_revealing_values(self):
+        # Synthetic table: the result and both aggregate values remain hidden.
+        text=('Suma de unidades. Agosto y septiembre de 2025, ambos meses completos.\n'
+              'Canal\tAgosto\tSeptiembre\tCambio: septiembre menos agosto\n'
+              'North\t██\t██\t██')
+        segments=segments_of(text)
+        def ref(value):
+            matches=[s for s in segments if value in s['text']]
+            self.assertEqual(len(matches),1)
+            return {'segment_id':matches[0]['id'],'text':value}
+        base=self.recipe()['operands'][0]
+        operands=[]
+        for month,limits in [('Septiembre',['2025-09-01','2025-09-30']),
+                             ('Agosto',['2025-08-01','2025-08-31'])]:
+            operand=copy.deepcopy(base)
+            operand['filters'][1]['values']=limits
+            # Header segment, not the same month named in the global period.
+            header={'segment_id':segments[1]['id'],'text':month}
+            operand['evidence']={'column':[ref('unidades')],'population':[ref('North')],
+                'period':[ref('Agosto y septiembre de 2025, ambos meses completos'),header]}
+            operands.append(operand)
+        recipe={'operation':'difference','operands':operands,'unit':'unidades','direction':None,
+            'evidence':{'operation':[ref('Cambio: septiembre menos agosto')],
+                        'unit':[ref('unidades')],'direction':[]}}
+        request={'masked_text':text,'segments':segments}
+        resolved=resolved_reading({'status':'claim','reason':'Synthetic table','recipe':recipe},request)
+        recipes.validate(resolved['recipe'],text,self.sources)
+        self.assertEqual([o['aggregate'] for o in resolved['recipe']['operands']],['sum','sum'])
+        # Dropping the global-year citation cannot pass on a month alone.
+        missing_year=copy.deepcopy(resolved['recipe'])
+        missing_year['operands'][0]['evidence']['period']=missing_year['operands'][0]['evidence']['period'][1:]
+        with self.assertRaisesRegex(ValueError,'cited calendar years'):
+            recipes.validate(missing_year,text,self.sources)
+        # No implicit extension to a ratio whose operands are differences.
+        nested=copy.deepcopy(resolved['recipe']);nested['operation']='quotient';nested['unit']='cociente'
+        nested['operands'][0]['aggregate']='difference'
+        with self.assertRaisesRegex(recipes.Unsupported,'primitive aggregate'):
+            recipes.validate(nested,text,self.sources)
+
     def test_listing_all_categories_does_not_bypass_population_grounding(self):
         r=self.recipe()
         r['operands'][0]['filters'][0]['values']=['North','South']

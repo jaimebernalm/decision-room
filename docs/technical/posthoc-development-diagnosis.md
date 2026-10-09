@@ -103,3 +103,14 @@ Esta propuesta no asegura alcanzar la cobertura exigida y no autoriza ampliar
 operaciones ni relajar fundamentos. Si una mejora exige cambiar esas reglas, se
 registra y decide expresamente antes de usarla. No se congela ni se ejecuta la
 prueba sellada basándose solo en este diagnóstico.
+
+La siguiente revisión implementa únicamente esas aclaraciones del prompt. Un
+fixture sintético resuelve citas de fila, cabecera y periodo global para una
+diferencia de dos sumas con los valores ocultos; rechaza perder la cita del año y
+no admite un operando derivado dentro de un cociente. Las 28 pruebas de recetas y
+población pasan sin proveedor. Los validadores y las reglas siguen iguales.
+La última iteración de desarrollo comparará el segundo informe ya usado con un
+informe aún no usado, elegido por orden lexicográfico antes de ejecutarlo. Su
+techo conjunto de coste conocido es 0,25 USD, además de los límites existentes;
+la reserva se comprueba antes de cada llamada. Después se decide si proponer la
+congelación o presentar el diagnóstico al propietario, sin más rondas abiertas.
