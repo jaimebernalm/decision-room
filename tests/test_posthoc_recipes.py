@@ -123,6 +123,11 @@ class RecipeTests(unittest.TestCase):
         calls=[]
         def ask(prompt,request,key):
             self.assertNotIn('15',request['masked_text'])
+            for target in request['targets']:
+                excerpt=target['excerpt'];a,b=excerpt['span'];x,y=excerpt['focus']
+                self.assertEqual(excerpt['text'],request['masked_text'][a:b])
+                self.assertEqual(excerpt['text'][x:y],'██')
+                self.assertNotIn('15',excerpt['text'])
             calls.append(copy.deepcopy(request))
             responses=[]
             for index,target in enumerate(request['targets']):

@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from ...engine import admission, costs
 from ...service import create_business,import_batch
-from . import sources,interpretation,presentation
+from . import sources,interpretation,presentation,localization
 from .inventory import build_inventory,sha,canonical
 from .provider import Budget,ProxyInterpreter
 
@@ -32,7 +32,8 @@ def estimate_preflight(dest,*,batch_size=4,output_per_call=16000):
     dest=Path(dest);inventory=json.loads((dest/'inventory.json').read_text())
     catalog=json.loads((dest/'sources/sources.json').read_text())
     encoder=tiktoken.get_encoding('o200k_base')
-    targets=[o for o in inventory['occurrences'] if o['kind']=='number' and o['region']!='chart']
+    located=localization.classify(inventory,catalog)
+    targets=[o for o in inventory['occurrences'] if located[o['id']]['eligible']]
     groups=math.ceil(len(targets)/batch_size)
     estimated=len(encoder.encode(interpretation.PROMPT+inventory['text']+canonical(sources_public(catalog)).decode(),disallowed_special=()))
     # 600 output tokens per occurrence is a planning scenario, not an enforced maximum.

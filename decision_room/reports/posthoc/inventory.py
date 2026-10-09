@@ -29,7 +29,8 @@ DOM_SCRIPT = r'''(() => {
        x+=c.colSpan;});});
      const refs=a=>Array.from(new Set(a.filter(Boolean))).filter(c=>c!==cell).map(nodePath);
      const [y,x]=target||[-1,-1];
-     tab={caption:table.caption?[nodePath(table.caption)]:[],
+     tab={caption:table.caption?[nodePath(table.caption)]:[],row_text:[nodePath(cell.parentElement)],
+       cell_is_header:cell.tagName==='TH'||!!cell.closest('thead'),
        column_headers:refs(grid.slice(0,Math.max(0,y)).map(r=>r[x]).filter(c=>c?.tagName==='TH'||c?.parentElement.parentElement.tagName==='THEAD')),
        row_headers:refs((grid[y]||[]).slice(0,Math.max(0,x)).filter(c=>c?.tagName==='TH')),
        unresolved:!target || !rows.some(r=>Array.from(r.cells).some(c=>c.tagName==='TH'))};
@@ -143,8 +144,9 @@ def from_snapshot(source, snapshot):
         table=raw_context.get('table')
         context={'section':references(raw_context.get('section',[])), 'table':None}
         if table is not None:
-            context['table']={k:references(table.get(k,[])) for k in ('caption','column_headers','row_headers')}
+            context['table']={k:references(table.get(k,[])) for k in ('caption','column_headers','row_headers','row_text')}
             context['table']['unresolved']=table.get('unresolved',False)
+            context['table']['cell_is_header']=table.get('cell_is_header',False)
         identifier = sha(canonical([VERSION,source_hash,text_hash,start,end,literal]))[:24]
         occurrences.append({'id': identifier, 'span': [start,end], 'text': literal,
                             'kind': 'date' if re.match(r'^\d{4}-\d{2}-\d{2}',literal) else 'number',

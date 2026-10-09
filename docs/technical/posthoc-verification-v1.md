@@ -173,3 +173,27 @@ centrado y los valores originales no se corrigen de forma silenciosa.
 Las pruebas en Chrome comprueban los cuatro estados, sus descripciones accesibles,
 el enlace de discrepancia y la conservación de DOM/gráfico. La evaluación mantiene
 una comprobación independiente de bytes, DOM y píxeles.
+
+## Ayuda de localización en desarrollo
+
+El intérprete recibe para cada objetivo un fragmento de hasta 240 caracteres antes
+y después, con span global y foco relativo. Los textos de contexto se extraen del
+mismo texto enmascarado conjunto después de ocultar todos los objetivos y sus
+escrituras equivalentes. Son una ayuda para localizar el objetivo, no evidencia
+nueva ni una reconstrucción del valor. Las citas siguen teniendo offsets globales
+y deben superar las mismas comprobaciones antes de cualquier recálculo.
+
+La localización `posthoc-localization-v1` deja fuera de los objetivos las cifras
+contenidas en alias de dimensión acreditados, identificadores y nombres de archivo,
+ordinales al inicio de encabezados y componentes de fecha con contexto explícito.
+Un número seguido de una unidad o sustantivo de cantidad sigue siendo objetivo.
+Un año aislado sin contexto de calendario no se descarta. Cada decisión y su regla
+quedan en `localization.json`; no se elimina ningún id del inventario ni del ledger.
+Una etiqueta se mantiene visible salvo que sea una escritura equivalente de otro
+objetivo, en cuyo caso la protección de enmascarado prevalece. Los grupos se forman
+en orden de inventario después de esta clasificación, sin usar resultados ni
+respuestas del modelo. Un falso descarte cuenta contra la cobertura auditada.
+
+El contexto de tabla añade `row_text` (texto de la fila, sin atribuirle función de
+cabecera) y `cell_is_header` derivado exclusivamente de TH/THEAD. Los textos de fila
+que recibe el intérprete se vuelven a extraer después del enmascarado conjunto.
