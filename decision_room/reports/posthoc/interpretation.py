@@ -19,7 +19,7 @@ Cada cita es {"segment_id":"s0000","text":"cita exacta"} tomada de segments. Deb
 Receta: {"operation":...,"operands":[...],"unit":...,"direction":null|-1|1,"evidence":{"operation":[citas],"unit":[citas],"direction":[citas]}}.
 Operando: {"table_id":...,"snapshot_sha256":...,"aggregate":"count"|"sum"|"mean"|"min"|"max","column":null|nombre,"filters":[{"column":nombre,"operator":"in"|"date_between","values":[strings]}],"evidence":{"column":[citas],"population":[citas],"period":[citas]}}.
 Las operaciones primitivas requieren un operando con el mismo agregado. daily_mean requiere una suma y un único intervalo de días naturales fundamentado. difference=A-B, percent_change=100*(A-B)/B, share=100*A/B con A contenido en B y quotient=A/B requieren dos operandos; percentage_points=100*A/B-100*C/D requiere cuatro, solo si dice puntos. No uses base negativa ni cero. Media sin unidad de agregación fundamentada: uncertain. Una receta sin filtro necesita una cita de toda la población/periodo; no asumas que la ausencia de periodo significa todo el archivo.
-Unidad: exactamente la unidad declarada de la columna o su nombre; count usa filas, percent_change/share %, percentage_points puntos porcentuales, quotient cociente y daily_mean unidad/día. No infieras pedidos de filas ni euros de ventas. direction=-1 para caída, 1 para subida explícita; sin dirección explícita null. Las fuentes y hashes vienen de metadatos confiables; la precisión la aplica un parser externo. No propongas precisión ni valores publicados o recalculados. Un valor oculto no impide interpretar una magnitud si las etiquetas visibles fundamentan su ámbito. Usa excerpt.focus para localizar exactamente el objetivo: sus offsets son relativos al fragmento; las citas usan segment_id y texto exacto. No confundas el objetivo con otro número vecino. Los targets con region=text son texto, tablas o tarjetas de cifras, no cifras de SVG/canvas; no los descartes como gráficos.'''
+Unidad: exactamente la unidad declarada de la columna o su nombre; count usa filas, percent_change/share %, percentage_points puntos porcentuales, quotient cociente y daily_mean unidad/día. No infieras pedidos de filas ni euros de ventas. direction=-1 para caída, 1 para subida explícita; sin dirección explícita null. Las fuentes y hashes vienen de metadatos confiables; la precisión la aplica un parser externo. No propongas precisión ni valores publicados o recalculados. Un valor oculto no impide interpretar una magnitud si las etiquetas visibles fundamentan su ámbito. Usa excerpt.target para localizar el objetivo exacto; before y after son su texto inmediatamente anterior y posterior, y focus da los offsets relativos al fragmento; las citas usan segment_id y texto exacto. No confundas el objetivo con otro número vecino. Los targets con region=text son texto, tablas o tarjetas de cifras, no cifras de SVG/canvas; no los descartes como gráficos.'''
 
 
 def masked_request(inventory, occurrence, sources):
@@ -100,7 +100,8 @@ def location_context(masked,occurrence):
             return result
         if isinstance(value,list):return [quoted(v) for v in value]
         return value
-    return {'excerpt':{'span':[left,right],'focus':[a-left,b-left],'text':masked[left:right]},
+    return {'excerpt':{'span':[left,right],'focus':[a-left,b-left],'text':masked[left:right],
+                       'before':masked[left:a],'target':masked[a:b],'after':masked[b:right]},
             'context':quoted(occurrence['context'])}
 
 
