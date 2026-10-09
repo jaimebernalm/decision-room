@@ -5,6 +5,7 @@ cache-write rate is persisted before forwarding generation. Unknown cost blocks
 all later calls. Credentials are constructor-only and never written to artifacts.
 """
 from decimal import Decimal
+from contextlib import closing
 import json
 from pathlib import Path
 import sqlite3
@@ -26,7 +27,7 @@ class Budget:
         self.path.parent.mkdir(parents=True,exist_ok=True)
         self.limit,self.report_limit=Decimal(limit),Decimal(report_limit)
         if not 0<self.report_limit<=self.limit<=3:raise ValueError('Budget outside approved ceiling.')
-        with sqlite3.connect(self.path) as db:
+        with closing(sqlite3.connect(self.path)) as db, db:
             db.execute('CREATE TABLE IF NOT EXISTS policy (id INTEGER PRIMARY KEY, total TEXT, per_report TEXT)')
             db.execute('INSERT OR IGNORE INTO policy VALUES(1,?,?)',(str(self.limit),str(self.report_limit)))
             if db.execute('SELECT total,per_report FROM policy').fetchone()!=(str(self.limit),str(self.report_limit)):
@@ -36,7 +37,7 @@ class Budget:
     def reserve(self,key,report,upper):
         upper=Decimal(upper)
         if not upper.is_finite() or upper<0:raise ValueError('Invalid cost reservation.')
-        with sqlite3.connect(self.path) as db:
+        with closing(sqlite3.connect(self.path)) as db, db:
             db.execute('BEGIN IMMEDIATE')
             rows=db.execute('SELECT id,report,state,reservation,cost FROM calls').fetchall()
             if any(row[0]==key for row in rows):raise BudgetStop('Call already recorded; never replay.')
@@ -50,7 +51,7 @@ class Budget:
     def settle(self,key,catalog):
         cost=catalog.get('cost') if catalog and catalog.get('status')=='estimated' else None
         if cost is not None and (not Decimal(cost).is_finite() or Decimal(cost)<0):cost=None
-        with sqlite3.connect(self.path) as db:
+        with closing(sqlite3.connect(self.path)) as db, db:
             db.execute('BEGIN IMMEDIATE')
             prior=db.execute('SELECT state,reservation,cost FROM calls WHERE id=?',(key,)).fetchone()
             if prior is None:raise BudgetStop('Missing budget reservation.')
@@ -60,7 +61,7 @@ class Budget:
         if state!='settled':raise BudgetStop('Unknown or out-of-reservation cost; stop and consult.')
 
     def inspect(self):
-        with sqlite3.connect(self.path) as db:
+        with closing(sqlite3.connect(self.path)) as db, db:
             rows=db.execute('SELECT id,report,state,reservation,cost FROM calls ORDER BY rowid').fetchall()
         return {'limit':str(self.limit),'per_report':str(self.report_limit),
                 'known_cost':str(sum((Decimal(r[4]) for r in rows if r[4] is not None),Decimal(0))),
