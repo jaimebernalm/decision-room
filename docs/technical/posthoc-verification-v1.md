@@ -211,3 +211,17 @@ Las aproximaciones, cotas explícitas e intervalos numéricos se conservan como
 inciertos sin reinterpretarlos como puntos exactos. La decisión y su regla quedan
 en la localización; no hay llamadas para esas ocurrencias ni recálculo adaptativo.
 La regla distingue un intervalo «entre A y B» de un cambio «pasó de A a B».
+
+## Arranque de Chrome después de interpretar
+
+La comprobación de presentación usa los descriptores reales de sus dos pipes,
+remapeados a 3/4 en un intérprete hijo antes de ejecutar Chrome. No presupone que
+3/4 estén abiertos en el proceso que ya ha usado conexiones HTTP y de base de
+datos, ni ejecuta código Python mediante `preexec_fn` en ese proceso.
+
+Una regresión con los pipes trasladados a descriptores altos reproduce el error
+EBADF del lanzador anterior y comprueba dos aperturas reales de Chrome con la
+corrección. Pasan 44 pruebas del paquete, incluidas persistencia PostgreSQL, Chrome
+y transporte simulado. No se hicieron llamadas facturables para esta corrección.
+Un intento que falló en la QA mantiene su estado fallido; una comprobación posterior
+se guarda aparte y no lo convierte retrospectivamente en una entrega completada.

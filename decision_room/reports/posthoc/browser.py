@@ -5,6 +5,7 @@ from pathlib import Path
 import select
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 
@@ -25,15 +26,25 @@ class Browser:
         self.profile = tempfile.mkdtemp(prefix='report-verification-')
         r, self.writer = os.pipe()
         self.reader, w = os.pipe()
-        def child_fds():
-            a, b = os.dup(r), os.dup(w)
-            os.dup2(a, 3); os.dup2(b, 4)
+        # Remap in a fresh interpreter, not preexec_fn (the caller may have
+        # active HTTP threads). Pass the real descriptors: 3/4 may be closed
+        # or belong to unrelated database/network connections in the parent.
+        launcher = '''import fcntl, os, sys
+r, w = map(int, sys.argv[1:3])
+a, b = (fcntl.fcntl(fd, fcntl.F_DUPFD, 5) for fd in (r, w))
+os.dup2(a, 3, inheritable=True)
+os.dup2(b, 4, inheritable=True)
+for fd in {r, w, a, b} - {3, 4}:
+    os.close(fd)
+os.execv(sys.argv[3], sys.argv[3:])
+'''
         try:
             self.process = subprocess.Popen(
-                [binary or chrome_binary(), '--headless=new', '--disable-gpu',
+                [sys.executable, '-c', launcher, str(r), str(w),
+                 binary or chrome_binary(), '--headless=new', '--disable-gpu',
                  '--no-first-run', '--hide-scrollbars', '--remote-debugging-pipe',
                  '--user-data-dir=' + self.profile, 'about:blank'],
-                pass_fds=(3, 4), preexec_fn=child_fds,
+                pass_fds=(r, w),
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except BaseException:
             os.close(self.writer); os.close(self.reader)
