@@ -7,7 +7,7 @@ import time
 from .browser import Browser
 from .inventory import DOM_SCRIPT, canonical, sha, validate
 
-VERSION='posthoc-presentation-v1'
+VERSION='posthoc-presentation-v2'
 MARK='data-posthoc-owned'
 LABELS={'verified':'Verificada','discrepancy':'Discrepancia','not_checkable':'No comprobable','uncertain':'Incierta'}
 
@@ -35,18 +35,35 @@ INSTALL=r'''(() => {
     const mark=document.createElement('span');mark.setAttribute('data-posthoc-owned','mark');
     mark.setAttribute('data-posthoc-occurrence',o.id);mark.setAttribute('data-posthoc-status',o.status);
     mark.title=p.labels[o.status];mark.setAttribute('aria-label',target.nodeValue+' — '+p.labels[o.status]);
-    mark.style.textDecorationLine='underline';mark.style.textDecorationStyle='dotted';
-    mark.style.textDecorationColor=o.status==='discrepancy'?'#a62121':o.status==='verified'?'#226b49':'#696969';
+    mark.setAttribute('aria-describedby','posthoc-state-'+o.status);
+    if(o.status==='verified' || o.status==='discrepancy'){
+     mark.style.textDecorationLine='underline';mark.style.textDecorationStyle='dotted';
+     mark.style.textDecorationColor=o.status==='discrepancy'?'#a62121':'#226b49';
+    }
+    if(o.status==='discrepancy'){
+     mark.setAttribute('role','link');mark.tabIndex=0;mark.style.cursor='pointer';
+     const jump=()=>document.getElementById('posthoc-check-'+o.id)?.scrollIntoView({block:'center'});
+     mark.addEventListener('click',jump);mark.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();jump();}});
+    }
     target.replaceWith(mark);mark.appendChild(target);
    }
   }
   const appendix=document.createElement('section');appendix.setAttribute('data-posthoc-owned','appendix');
+  Object.assign(appendix.style,{boxSizing:'border-box',width:'calc(100% - 48px)',maxWidth:'960px',margin:'32px auto',
+   padding:'24px',border:'1px solid #d5dbe3',borderRadius:'8px',background:'#f7f9fc',color:'#182438',
+   font:window.getComputedStyle(document.querySelector('main,article')||document.body).font,lineHeight:'1.55'});
   const title=document.createElement('h2');title.textContent='Comprobación de cifras';appendix.appendChild(title);
   const counts={};Object.values(p.ledger).forEach(r=>counts[r.status]=(counts[r.status]||0)+1);
   const summary=document.createElement('p');summary.textContent=Object.entries(p.labels).map(([k,v])=>v+': '+(counts[k]||0)).join(' · ');appendix.appendChild(summary);
-  const note=document.createElement('p');note.textContent='Las marcas describen la comprobación de cada cifra. No certifican la recomendación ni la interpretación que la rodea. El informe original se conserva íntegro.';appendix.appendChild(note);
+  const note=document.createElement('p');note.textContent='Las marcas describen la comprobación de cada cifra. No certifican la recomendación ni la interpretación que la rodea. El informe original se conserva íntegro. Los valores inventariados de los gráficos cuentan en los totales, aunque no llevan marcas sobre el gráfico.';appendix.appendChild(note);
+  const meanings={verified:'Coincide con el recálculo del ámbito interpretado.',discrepancy:'No coincide con ese recálculo; abajo se muestran ambos valores.',
+   uncertain:'No se ha podido fijar una interpretación suficientemente fundamentada.',not_checkable:'Queda fuera de las comprobaciones disponibles; no significa que sea incorrecta.'};
+  const legend=document.createElement('dl');
+  for(const [state,label] of Object.entries(p.labels)){const term=document.createElement('dt'),meaning=document.createElement('dd');
+   term.id='posthoc-state-'+state;term.textContent=label;term.style.fontWeight='600';meaning.textContent=meanings[state];meaning.style.margin='0 0 8px';legend.append(term,meaning);}
+  appendix.appendChild(legend);
   for(const entry of p.occurrences){const state=p.ledger[entry.id];if(state.status!=='discrepancy')continue;
-   const row=document.createElement('p');
+   const row=document.createElement('p');row.id='posthoc-check-'+entry.id;
    row.textContent='Publicado: '+entry.text+'. Recalculado: '+state.recalculated.value+' '+state.recalculated.unit+'. '+p.descriptions[entry.id];appendix.appendChild(row);
   }
   document.body.appendChild(appendix);

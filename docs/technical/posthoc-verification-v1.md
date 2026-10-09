@@ -159,3 +159,17 @@ HTTP simulado en todos los casos. Se comprobaron conservación de un SVG generad
 por script, exportación completa, rechazo de reenvío, límites global/por informe,
 parada por coste desconocido y ausencia de credenciales en artefactos. El entorno
 de pruebas usa el socket corto configurado localmente para PostgreSQL.
+
+## Presentación de estados
+
+La variante `posthoc-presentation-v2` conserva una envoltura por ocurrencia textual:
+verificada lleva un subrayado discreto; discrepancia lleva subrayado y enlace por
+clic o teclado a su recálculo; incierta y no comprobable conservan `title`, etiqueta
+accesible y referencia a la leyenda sin añadir ruido visual. Los valores SVG/canvas
+inventariados figuran en los totales, sin insertar marcas en el gráfico. El anexo
+lo explica y distingue no comprobable de incorrecto. El anexo usa un contenedor
+centrado y los valores originales no se corrigen de forma silenciosa.
+
+Las pruebas en Chrome comprueban los cuatro estados, sus descripciones accesibles,
+el enlace de discrepancia y la conservación de DOM/gráfico. La evaluación mantiene
+una comprobación independiente de bytes, DOM y píxeles.
