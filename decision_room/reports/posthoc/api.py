@@ -59,11 +59,11 @@ def sources_public(catalog):
     return public_catalog(catalog)
 
 
-def run(config,dest,budget_path,*,api_key,batch_size=4,report_limit='0.50',transport=None):
+def run(config,dest,budget_path,*,api_key,batch_size=4,report_limit='0.50',spend_ceiling='1.80',transport=None):
     """One report, one durable job; caller must explicitly choose the next report."""
     dest=Path(dest)
     with (dest/'started.json').open('x') as handle:
-        handle.write(json.dumps({'batch_size':batch_size,'report_limit':report_limit,
+        handle.write(json.dumps({'batch_size':batch_size,'report_limit':report_limit,'spend_ceiling':spend_ceiling,
           'code_sha256':{p.name:sha(p.read_bytes()) for p in sorted(Path(__file__).parent.glob('*.py'))}}))
     inventory=json.loads((dest/'inventory.json').read_text())
     prepared=json.loads((dest/'sources/sources.json').read_text())
@@ -74,7 +74,7 @@ def run(config,dest,budget_path,*,api_key,batch_size=4,report_limit='0.50',trans
     if sha(original.read_bytes())!=manifest['source_sha256']:raise ValueError('Original changed.')
     if sorted(sha(Path(p).read_bytes()) for p in manifest['csv_files'])!=sorted(s['snapshot_sha256'] for s in prepared.values()):
         raise ValueError('CSV snapshot changed.')
-    budget=Budget(budget_path,report_limit=report_limit)
+    budget=Budget(budget_path,report_limit=report_limit,spend_ceiling=spend_ceiling)
     if budget.inspect()['unresolved']:raise ValueError('Unresolved prior provider cost; consult before continuing.')
     business=create_business(config,'Posthoc verification pilot')['id']
     batch=import_batch(config,business,[Path(p) for p in manifest['csv_files']])

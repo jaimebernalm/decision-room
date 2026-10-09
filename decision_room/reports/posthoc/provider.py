@@ -22,11 +22,14 @@ class BudgetStop(RuntimeError):
 
 
 class Budget:
-    def __init__(self,path,*,limit='3',report_limit='0.50'):
+    def __init__(self,path,*,limit='3',report_limit='0.50',spend_ceiling=None):
         self.path=Path(path)
         self.path.parent.mkdir(parents=True,exist_ok=True)
         self.limit,self.report_limit=Decimal(limit),Decimal(report_limit)
         if not 0<self.report_limit<=self.limit<=3:raise ValueError('Budget outside approved ceiling.')
+        self.spend_ceiling=Decimal(spend_ceiling) if spend_ceiling is not None else self.limit
+        if not self.spend_ceiling.is_finite() or not 0<self.spend_ceiling<=self.limit:
+            raise ValueError('Spend ceiling outside the persistent budget.')
         with closing(sqlite3.connect(self.path)) as db, db:
             db.execute('CREATE TABLE IF NOT EXISTS policy (id INTEGER PRIMARY KEY, total TEXT, per_report TEXT)')
             db.execute('INSERT OR IGNORE INTO policy VALUES(1,?,?)',(str(self.limit),str(self.report_limit)))
@@ -44,7 +47,7 @@ class Budget:
             if any(row[2]!='settled' for row in rows):raise BudgetStop('An unresolved call blocks the budget.')
             total=sum((Decimal(r[4]) for r in rows),Decimal(0))
             own=sum((Decimal(r[4]) for r in rows if r[1]==report),Decimal(0))
-            if total+upper>self.limit or own+upper>self.report_limit:
+            if total+upper>min(self.limit,self.spend_ceiling) or own+upper>self.report_limit:
                 raise BudgetStop('Call reservation would exceed the global or report budget.')
             db.execute('INSERT INTO calls VALUES(?,?,?,?,NULL)',(key,report,'pending',str(upper)))
 
@@ -64,6 +67,7 @@ class Budget:
         with closing(sqlite3.connect(self.path)) as db, db:
             rows=db.execute('SELECT id,report,state,reservation,cost FROM calls ORDER BY rowid').fetchall()
         return {'limit':str(self.limit),'per_report':str(self.report_limit),
+                'spend_ceiling':str(self.spend_ceiling),
                 'known_cost':str(sum((Decimal(r[4]) for r in rows if r[4] is not None),Decimal(0))),
                 'unresolved':sum(r[2]!='settled' for r in rows),
                 'calls':[dict(zip(('id','report','state','reservation','cost'),r)) for r in rows]}

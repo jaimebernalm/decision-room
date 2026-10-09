@@ -154,6 +154,15 @@ hashes idénticos de capturas de cada gráfico SVG/canvas. No se cambian sus val
 Los informes con recursos relativos que no se resuelvan igual en el destino deben
 fallar la QA, sin reescribir silenciosamente el original.
 
+El comando de ejecución usa por defecto un techo acumulado de desarrollo de
+1,80 USD, aplicado antes de cada generación junto con la reserva de coste y el
+tope por informe. Deja al menos 1,20 USD del presupuesto compartido para la prueba.
+La prueba congelada debe seleccionar explícitamente un techo acumulado de 3 USD
+en la misma base de presupuesto: no borra ni reinicia costes de desarrollo, y
+cualquier llamada pendiente o incierta sigue bloqueando. El techo elegido queda
+en el registro de inicio y los recibos. Se revisará el desarrollo al aproximarse
+a 1 USD si no produce acuerdos en magnitudes simples sobre varios informes.
+
 Validación integrada: 31 pruebas, incluidas PostgreSQL y Chrome reales; proveedor
 HTTP simulado en todos los casos. Se comprobaron conservación de un SVG generado
 por script, exportación completa, rechazo de reenvío, límites global/por informe,

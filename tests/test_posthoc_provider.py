@@ -39,6 +39,21 @@ class BudgetTests(unittest.TestCase):
             for db in opened:
                 with self.assertRaises(sqlite3.ProgrammingError):db.execute('SELECT 1')
 
+    def test_development_ceiling_reserves_test_budget_without_resetting_cost(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'b'
+            budget=Budget(path,spend_ceiling='1.80')
+            for i in range(4):
+                budget.reserve(str(i),str(i),'.45')
+                budget.settle(str(i),{'status':'estimated','cost':'.45'})
+            with self.assertRaises(BudgetStop):budget.reserve('extra','extra','.01')
+            frozen=Budget(path,spend_ceiling='3')
+            self.assertEqual(frozen.inspect()['known_cost'],'1.80')
+            frozen.reserve('test','test','.01')
+            self.assertEqual(len(frozen.inspect()['calls']),5)
+            with self.assertRaises(BudgetStop):frozen.reserve('other','other','.01')
+            with self.assertRaises(ValueError):Budget(path,spend_ceiling='3.01')
+
     def test_generation_is_not_sent_until_cost_reserved(self):
         requests=[]
         def handler(request):
