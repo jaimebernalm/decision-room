@@ -38,6 +38,13 @@
   fill: var(--background) !important;
   stroke: var(--border) !important;
 }
+/* Mermaid also paints table rows with paths carrying literal light-theme colors. */
+.data-map-drawing .node path[fill]:not([fill="none"]) {
+  fill: var(--background) !important;
+}
+.data-map-drawing .node path[fill="none"] {
+  stroke: var(--border) !important;
+}
 .data-map-drawing .node .label-container {
   rx: 10px;
 }
@@ -53,8 +60,13 @@
   stroke-width: 1.5px !important;
   cursor: pointer;
 }
-.data-map-drawing .marker {
+.data-map-drawing .marker,
+.data-map-drawing .marker path,
+.data-map-drawing .marker circle {
   stroke: var(--primary) !important;
+}
+.data-map-drawing .marker circle {
+  fill: var(--background) !important;
 }
 .data-map-drawing .edgeLabel rect {
   fill: var(--background) !important;
@@ -71,7 +83,12 @@
   opacity: 0.4;
 }
 .data-map-drawing .node[data-selected="true"] rect,
-.data-map-drawing .node:focus-visible rect {
+.data-map-drawing .node:focus-visible rect,
+.data-map-drawing .node[data-selected="true"] path[fill="none"],
+.data-map-drawing .node:focus-visible path[fill="none"],
+.data-model-map[data-selecting="true"]
+  .node[data-hovered="true"]
+  path[fill="none"] {
   stroke: var(--primary) !important;
   stroke-width: 2px !important;
 }

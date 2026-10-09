@@ -251,3 +251,16 @@ Estado: implementado y comprobado el 7 de octubre de 2026. Véanse las
 
 Estado: implementado y comprobado el 7 de octubre de 2026. Véanse las
 [comprobaciones del diagrama y la presentación](../validation/2026-10-07-dossier-diagram-presentation.md).
+
+
+## Relaciones adaptadas al tema (refinamiento de 2.5.5)
+
+1. Reproducir en modo oscuro el fondo blanco de las tablas y símbolos del SVG.
+2. Aplicar los colores del tema a las capas de filas, sus bordes y los marcadores
+   de cardinalidad, manteniendo selección, hover y foco visibles.
+3. Comprobar claro/oscuro y cambio de tema con el mapa abierto, regresión de
+   selección/arrastre, compilación y lint; revisar el diff público y guardar
+   un commit local del arreglo.
+
+Estado: implementado y comprobado el 8 de octubre de 2026. Véanse las
+[comprobaciones de relaciones en oscuro](../validation/2026-10-08-dossier-dark-relations.md).
