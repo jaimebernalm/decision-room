@@ -2,7 +2,6 @@
 from dataclasses import asdict
 from pathlib import Path
 import json
-import math
 from uuid import uuid4
 
 from ...engine import admission, costs
@@ -34,18 +33,25 @@ def estimate_preflight(dest,*,batch_size=4,output_per_call=16000):
     encoder=tiktoken.get_encoding('o200k_base')
     located=localization.classify(inventory,catalog)
     targets=[o for o in inventory['occurrences'] if located[o['id']]['eligible']]
-    groups=math.ceil(len(targets)/batch_size)
-    estimated=len(encoder.encode(interpretation.PROMPT+inventory['text']+canonical(sources_public(catalog)).decode(),disallowed_special=()))
-    # 600 output tokens per occurrence is a planning scenario, not an enforced maximum.
-    scenario=costs.estimate({'requested_model':'gpt-6-luna','effective_model':'gpt-6-luna',
-       'effective_tier':'default','input':estimated,'output':600*batch_size,'cache_read':0,'cache_write':0})
     from decimal import Decimal
+    input_tokens=0;scenario=Decimal(0);upper=Decimal(0);calls=0
+    for offset in range(0,len(targets),batch_size):
+        group=targets[offset:offset+batch_size]
+        prompt,request=interpretation.batch_input(inventory,group,catalog)
+        encoded=prompt+canonical({'response_format':'json',**request}).decode()
+        measured=len(encoder.encode(encoded,disallowed_special=()))
+        input_tokens+=measured*2;calls+=2
+        base={'requested_model':'gpt-6-luna','effective_model':'gpt-6-luna','effective_tier':'default',
+              'input':measured,'cache_read':0}
+        scenario+=2*Decimal(costs.estimate({**base,'output':600*len(group),'cache_write':0})['cost'])
+        upper+=2*Decimal(costs.estimate({**base,'output':output_per_call,'cache_write':measured})['cost'])
     return {'occurrences':len(inventory['occurrences']),'targets':len(targets),'batch_size':batch_size,
-            'calls':groups*2,'estimated_input_tokens':estimated*groups*2,
-            'output_scenario_tokens':len(targets)*1200,
-            'scenario_usd':str(Decimal(scenario['cost'])*groups*2),
-            'output_per_call':output_per_call,'assumptions':['Approximate local tokenizer; no cached tokens assumed.',
-                '600 output tokens per occurrence; actual output and context overhead may differ.']}
+            'calls':calls,'estimated_input_tokens':input_tokens,
+            'output_scenario_tokens':len(targets)*1200,'scenario_usd':str(scenario),
+            'full_output_scenario_usd':str(upper),'output_per_call':output_per_call,
+            'assumptions':['Approximate local tokenizer including masks, segments and excerpts; no cached tokens assumed.',
+                '600 output tokens per occurrence; full-output scenario uses all allowed output and cache writes.',
+                'Neither local scenario is an invoice or an exact provider count.']}
 
 
 def sources_public(catalog):

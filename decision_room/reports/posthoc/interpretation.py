@@ -163,8 +163,7 @@ def reconcile(readings,request,folder,sources):
     return {'status':'claim','recipe':checked[0]}
 
 
-def interpret_batch(inventory,items,sources,ask,root,index):
-    folder=root/('group_'+str(index));folder.mkdir(exist_ok=False)
+def batch_input(inventory,items,sources):
     requests=[masked_request(inventory,item,sources) for item in items]
     chars=list(inventory['text'])
     for request in requests:
@@ -176,6 +175,12 @@ def interpret_batch(inventory,items,sources,ask,root,index):
              'targets':[{'occurrence_id':item['id'],'span':item['span'],'region':item['region'],**location_context(masked,item)} for item in items],
              'hidden_occurrences':sorted({i for r in requests for i in r['hidden_occurrences']})}
     prompt=PROMPT+'\nEsta solicitud agrupa ocurrencias. Interpreta cada target por separado sobre el MISMO masked_text. Devuelve {"readings":[{"occurrence_id":id,"status":...,"reason":...,"recipe":...}]} con exactamente una entrada por target. No compartas recetas ni estados entre targets.'
+    return prompt,request
+
+
+def interpret_batch(inventory,items,sources,ask,root,index):
+    folder=root/('group_'+str(index));folder.mkdir(exist_ok=False)
+    prompt,request=batch_input(inventory,items,sources)
     save_new(folder/'request.json',{'prompt_sha256':sha(prompt.encode()),'input':request})
     readings=[]
     for n in (1,2):
