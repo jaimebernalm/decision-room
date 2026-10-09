@@ -2,8 +2,9 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Minus, Plus, Maximize2 } from "lucide-react";
 import { translate as tr, useLanguage } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
-import { Loading, Notice } from "./shared";
+import { Loading, Notice, Disclosure } from "./shared";
 import type { Table, Relation } from "./data-model";
+import { normalizeERMarkers } from "./data-model-markers";
 import { dataModelMermaid } from "./data-model-mermaid";
 import "./data-model-diagram.css";
 
@@ -45,13 +46,11 @@ function relationExplanation(relation: Relation, from: Table, to: Table) {
     "many-to-many":
       "Varias filas de «{0}» pueden corresponder a varias filas de «{1}».",
   };
-  const summary =
-    relation.description ||
-    tr(
-      cardinalities[relation.cardinality] ||
-        "Esta conexión permite combinar información de «{0}» y «{1}».",
-      { 0: from.name, 1: to.name },
-    );
+  const summary = tr(
+    cardinalities[relation.cardinality] ||
+      "Esta conexión permite combinar información de «{0}» y «{1}».",
+    { 0: from.name, 1: to.name },
+  );
   const keys = tr("Se conectan comparando «{0}» con «{1}».", {
     0: relation.source_columns.join(" + "),
     1: relation.target_columns.join(" + "),
@@ -62,7 +61,7 @@ function relationExplanation(relation: Relation, from: Table, to: Table) {
       : relation.semantic_status === "rejected"
         ? tr("Esta conexión está descartada.")
         : "";
-  return { summary, keys, status };
+  return { summary, description: relation.description, keys, status };
 }
 
 export function ERDiagram({
@@ -147,6 +146,7 @@ export function ERDiagram({
         const root = doc.documentElement;
         root.setAttribute("role", "presentation");
         root.removeAttribute("aria-roledescription");
+        normalizeERMarkers(root);
         // Remove the generic type column and its separator; retain row borders and declared keys.
         root
           .querySelectorAll(".attribute-type, .divider")
@@ -494,10 +494,13 @@ export function ERDiagram({
             className="data-map-tooltip"
             style={{
               left: Math.max(12, Math.min(hover.x - 130, size.width - 272)),
-              top: Math.max(12, Math.min(hover.y + 16, size.height - 176)),
+              top: Math.max(12, Math.min(hover.y + 16, size.height - 216)),
             }}
           >
             <p className="line-clamp-3">{explanation.summary}</p>
+            {explanation.description && (
+              <p className="mt-1 line-clamp-2">{explanation.description}</p>
+            )}
             <p className="mt-1 line-clamp-2 text-muted-foreground">
               {explanation.keys}
             </p>
@@ -509,6 +512,74 @@ export function ERDiagram({
           </div>
         )}
       </div>
+      <div className="border-t px-3 py-2">
+        <Disclosure subtle title={tr("Cómo leer este mapa")}>
+          <p>
+            {tr(
+              "Las líneas muestran cómo se conectan las filas de dos tablas.",
+            )}
+          </p>
+          <ul className="space-y-2">
+            <li className="flex items-center gap-3">
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 40 18"
+                className="h-5 w-10 shrink-0 text-primary"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
+                <path d="M0,9 H40 M22,2 V16" />
+              </svg>
+              <span>{tr("Una raya: una fila.")}</span>
+            </li>
+            <li className="flex items-center gap-3">
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 40 18"
+                className="h-5 w-10 shrink-0 text-primary"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
+                <path d="M0,9 H22 M40,2 L22,9 L40,16 M22,9 H40" />
+              </svg>
+              <span>{tr("Tres puntas: varias filas.")}</span>
+            </li>
+            <li className="flex items-center gap-3">
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 40 18"
+                className="h-5 w-10 shrink-0 text-primary"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
+                <path d="M0,9 H40" fill="none" />
+                <circle cx="20" cy="9" r="4" className="fill-background" />
+              </svg>
+              <span>{tr("Un círculo: puede no haber coincidencia.")}</span>
+            </li>
+          </ul>
+          <p>
+            {tr(
+              "Por ejemplo: varias ventas pueden corresponder al mismo producto.",
+            )}
+          </p>
+          <p className="text-muted-foreground">
+            {tr(
+              "El mapa orienta el cruce de los datos actuales; no establece qué relaciones son obligatorias para el negocio.",
+            )}
+          </p>
+          <p className="text-muted-foreground">
+            {tr(
+              "Una línea discontinua indica una conexión por confirmar o descartada. Pasa por una conexión para ver su explicación.",
+            )}
+          </p>
+          <p className="text-muted-foreground">
+            {tr("Los botones + y − solo acercan y alejan el mapa.")}
+          </p>
+        </Disclosure>
+      </div>
       {graph.edges.map(({ relation, source: from, target: to }, index) => {
         const text = relationExplanation(relation, from.table, to.table);
         return (
@@ -517,7 +588,7 @@ export function ERDiagram({
             id={`${id}-relation-${index}`}
             className="sr-only"
           >
-            {text.summary} {text.keys} {text.status}
+            {text.summary} {text.description} {text.keys} {text.status}
           </p>
         );
       })}

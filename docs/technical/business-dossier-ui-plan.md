@@ -264,3 +264,17 @@ Estado: implementado y comprobado el 7 de octubre de 2026. Véanse las
 
 Estado: implementado y comprobado el 8 de octubre de 2026. Véanse las
 [comprobaciones de relaciones en oscuro](../validation/2026-10-08-dossier-dark-relations.md).
+
+
+## Lectura de las relaciones (refinamiento de 2.5.5)
+
+1. Revisar símbolos, dibujo real y alcance de las cardinalidades frente a la
+   notación estándar; distinguir relación entre datos y obligatoriedad de negocio.
+2. Dar al extremo de varias filas tres puntas rectas, conservar los marcadores
+   uno/cero y evitar que crezcan al seleccionar una línea. Ofrecer una ayuda
+   plegada y mostrar la cardinalidad junto a la descripción al pasar por la conexión.
+3. Comprobar semántica de extremos, selección, arrastre, claro/oscuro, teclado y
+   móvil; revisar el diff público y guardar un commit local del incremento.
+
+Estado: implementado y comprobado el 8 de octubre de 2026. Véanse las
+[comprobaciones de lectura del mapa](../validation/2026-10-08-dossier-map-help.md).

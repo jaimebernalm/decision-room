@@ -222,3 +222,45 @@ it("shows a useful fallback if the renderer fails", async () => {
   );
   expect(await screen.findByText(/No se pudo dibujar el mapa/)).toBeVisible();
 });
+
+it("offers optional map help and explains cardinality even when the connection has its own description", async () => {
+  const user = userEvent.setup();
+  render(
+    <ERDiagram
+      tables={tables}
+      relations={[
+        {
+          ...relations[0],
+          description: "Cada línea del pedido describe un artículo.",
+        },
+      ]}
+      selected=""
+      edge=""
+      chooseTable={vi.fn()}
+      chooseEdge={vi.fn()}
+    />,
+  );
+  const connection = await screen.findByRole("button", {
+    name: "Relación a.csv con b.csv",
+  });
+  expect(screen.queryByText("Una raya: una fila.")).toBeNull();
+  const help = screen.getByRole("button", { name: "Cómo leer este mapa" });
+  await user.click(help);
+  expect(help).toHaveAttribute("aria-expanded", "true");
+  expect(screen.getByText("Tres puntas: varias filas.")).toBeVisible();
+  expect(
+    screen.getByText(/no establece qué relaciones son obligatorias/),
+  ).toBeVisible();
+  await user.keyboard("{Enter}");
+  expect(help).toHaveAttribute("aria-expanded", "false");
+  fireEvent.focus(connection);
+  expect(screen.getByRole("tooltip")).toHaveTextContent(
+    "Varias filas de «a.csv» pueden corresponder a una misma fila de «b.csv».",
+  );
+  expect(screen.getByRole("tooltip")).toHaveTextContent(
+    "Cada línea del pedido describe un artículo.",
+  );
+  expect(connection).toHaveAccessibleDescription(
+    /Varias filas.*Cada línea del pedido/,
+  );
+});
