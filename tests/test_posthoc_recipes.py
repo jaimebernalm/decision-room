@@ -61,7 +61,8 @@ class RecipeTests(unittest.TestCase):
         for op,expected,unit in [('difference','-15','unidades'),('percent_change','-50','%'),
                                  ('share','50','%'),('quotient','0.5','cociente')]:
             r=self.recipe();r.update(operation=op,operands=[a,b],unit=unit)
-            recipes.validate(r,self.text,self.sources)
+            # Arithmetic is independent of whether an unfiltered denominator
+            # passes the occurrence-specific totality veto.
             self.assertEqual(float(recipes.recalculate(r,self.sources)['value']),float(expected))
         r=self.recipe();r.update(operation='daily_mean',unit='unidades/día')
         recipes.validate(r,self.text,self.sources)
@@ -82,6 +83,28 @@ class RecipeTests(unittest.TestCase):
             return {'status':'claim','reason':'Separate grounded period','recipe':r}
         ledger=verify(self.inv,self.sources,ask,self.root/'run')
         self.assertEqual([ledger[o['id']]['status'] for o in values],['verified','discrepancy'])
+
+    def test_group_totality_veto_does_not_propagate_a_neighbours_scope(self):
+        text='Total de unidades, periodo 2025-08-30 a 2025-08-31: 30.\nTotal de North, unidades, periodo 2025-08-30 a 2025-08-31: 30.'
+        first,second=text.split('\n')
+        inv=from_snapshot(b'totals',{'nodes':[{'path':[0],'text':first},{'separator':'\n'},{'path':[1],'text':second}]})
+        def ask(prompt,request,key):
+            readings=[]
+            for target in request['targets']:
+                start=request['masked_text'].rfind('\n',0,target['span'][0])+1
+                def ref(value):
+                    a=request['masked_text'].index(value,start)
+                    return {'span':[a,a+len(value)],'text':value}
+                r=self.recipe()
+                r['evidence']={'operation':[ref('Total')],'unit':[ref('unidades')],'direction':[]}
+                o=r['operands'][0];o['filters']=o['filters'][1:]
+                o['evidence']={'column':[ref('unidades')],'population':[ref('Total')],
+                               'period':[ref('2025-08-30 a 2025-08-31')]}
+                readings.append({'occurrence_id':target['occurrence_id'],'status':'claim','reason':'fixture','recipe':r})
+            return {'readings':readings}
+        ledger=verify(inv,self.sources,ask,self.root/'totals',batch_size=4)
+        values=[o for o in inv['occurrences'] if o['text']=='30']
+        self.assertEqual([ledger[o['id']]['status'] for o in values],['verified','uncertain'])
 
     def test_missing_or_wrong_citation_cannot_certify(self):
         r=self.recipe();r['operands'][0]['evidence']['period']=[]

@@ -9,12 +9,16 @@ revisión 3 y aclaración de formato, en la rama de evaluación.
 
 1. Inventario compartido y precisión determinista: implementados y comprobados.
 2. Interpretaciones separadas con valor oculto, recetas fundamentadas y recálculo:
-   núcleo implementado con proveedor simulado; pendiente de integración facturable
-   y desarrollo sobre informes.
+   núcleo implementado con proveedor simulado y probado también en desarrollo
+   facturable sobre un primer informe.
 3. Derivada con invariantes, exportación y contabilidad mediante el proxy:
    implementadas y comprobadas con Chrome/PostgreSQL reales y proveedor simulado.
-4. Desarrollo, congelación y evaluación sellada: pendientes. Las pruebas técnicas
-   no acreditan los umbrales del piloto.
+4. Desarrollo en curso; congelación y evaluación sellada pendientes. Las pruebas técnicas
+  no acreditan los umbrales del piloto.
+
+La aclaración de población aprobada durante desarrollo queda registrada en la
+rama de evaluación (revisión `1ad423d`): se exige totalidad explícita y veto por
+categorías. No se aplica retrospectivamente a los recibos de intentos anteriores.
 
 El presupuesto conjunto de desarrollo y prueba es de 3 USD conocidos. Una llamada
 con coste incierto exige parar y consultar. El auditor y los lectores siguen el
@@ -228,6 +232,28 @@ inciertos sin reinterpretarlos como puntos exactos. La decisión y su regla qued
 en la localización; no hay llamadas para esas ocurrencias ni recálculo adaptativo.
 La regla distingue un intervalo «entre A y B» de un cambio «pasó de A a B».
 
+## Población sin filtro: totalidad con veto
+
+Cada operando sin filtro categórico necesita una cita de la lista cerrada `total`,
+`en total`, `todas`, `todos`, `conjunto`, `el negocio`; «unidades registradas» no
+basta. El servidor veta esa población si encuentra un nombre o código de categoría
+del catálogo en el segmento objetivo, la cadena de secciones o el contexto de tabla
+(caption, cabeceras de columna/fila y texto de fila). Comprueba el texto original
+en esos mismos spans, de modo que el enmascarado no oculte una restricción a la
+guarda. Ese texto original no se envía al intérprete.
+
+Se aplica a cada operando y ocurrencia; tampoco exime el denominador sin filtrar de
+un cociente o cuota. Puede reducir la cobertura cuando el contexto nombra una
+categoría que solo corresponde al numerador. No se elige una interpretación para
+salvar el rechazo. La doble lectura debe seguir fundamentando los filtros y los
+años de los límites deben estar citados. Las alusiones indirectas («estos
+productos», «solo online», «excepto…») no quedan resueltas por el veto del catálogo:
+son un riesgo residual para la interpretación y la auditoría.
+
+Regresiones: medida sin totalidad, totalidad bajo un encabezado de categoría,
+«total de» una categoría y categoría en contexto de tabla quedan inciertas. Dos
+ocurrencias del mismo grupo con distinto contexto no heredan sus estados.
+
 ## Arranque de Chrome después de interpretar
 
 La comprobación de presentación usa los descriptores reales de sus dos pipes,
@@ -241,3 +267,5 @@ corrección. Pasan 44 pruebas del paquete, incluidas persistencia PostgreSQL, Ch
 y transporte simulado. No se hicieron llamadas facturables para esta corrección.
 Un intento que falló en la QA mantiene su estado fallido; una comprobación posterior
 se guarda aparte y no lo convierte retrospectivamente en una entrega completada.
+La navegación también exige la URL exacta del informe y rechaza el error de carga
+de Chrome, para no inventariar o comparar accidentalmente su página de error.

@@ -18,7 +18,7 @@ Devuelve solo JSON: {"status":"claim"|"uncertain"|"not_checkable","reason":"brev
 Cada cita es {"segment_id":"s0000","text":"cita exacta"} tomada de segments. Debe aparecer una sola vez dentro de ese segmento. El servidor calcula los offsets; no los calcules tú. No cites cifras ocultas como prueba de ámbito.
 Receta: {"operation":...,"operands":[...],"unit":...,"direction":null|-1|1,"evidence":{"operation":[citas],"unit":[citas],"direction":[citas]}}.
 Operando: {"table_id":...,"snapshot_sha256":...,"aggregate":"count"|"sum"|"mean"|"min"|"max","column":null|nombre,"filters":[{"column":nombre,"operator":"in"|"date_between","values":[strings]}],"evidence":{"column":[citas],"population":[citas],"period":[citas]}}.
-Las operaciones primitivas requieren un operando con el mismo agregado. daily_mean requiere una suma y un único intervalo de días naturales fundamentado. difference=A-B, percent_change=100*(A-B)/B, share=100*A/B con A contenido en B y quotient=A/B requieren dos operandos; percentage_points=100*A/B-100*C/D requiere cuatro, solo si dice puntos. No uses base negativa ni cero. Media sin unidad de agregación fundamentada: uncertain. Una receta sin filtro necesita una cita de toda la población/periodo; no asumas que la ausencia de periodo significa todo el archivo.
+Las operaciones primitivas requieren un operando con el mismo agregado. daily_mean requiere una suma y un único intervalo de días naturales fundamentado. difference=A-B, percent_change=100*(A-B)/B, share=100*A/B con A contenido en B y quotient=A/B requieren dos operandos; percentage_points=100*A/B-100*C/D requiere cuatro, solo si dice puntos. No uses base negativa ni cero. Media sin unidad de agregación fundamentada: uncertain. Cada operando sin filtro de población necesita citar totalidad explícita (total, en total, todas, todos, conjunto o el negocio). Si hay un nombre o código de categoría en el segmento objetivo, encabezados o contexto de tabla, no se admite población sin filtrar aunque diga total. No basta «unidades registradas». El periodo requiere citas con los años de ambos límites. Una receta sin filtro necesita una cita de toda la población/periodo; no asumas que la ausencia de periodo significa todo el archivo.
 Unidad: exactamente la unidad declarada de la columna o su nombre; count usa filas, percent_change/share %, percentage_points puntos porcentuales, quotient cociente y daily_mean unidad/día. No infieras pedidos de filas ni euros de ventas. direction=-1 para caída, 1 para subida explícita; sin dirección explícita null. Las fuentes y hashes vienen de metadatos confiables; la precisión la aplica un parser externo. No propongas precisión ni valores publicados o recalculados. Un valor oculto no impide interpretar una magnitud si las etiquetas visibles fundamentan su ámbito. Usa excerpt.target para localizar el objetivo exacto; before y after son su texto inmediatamente anterior y posterior, y focus da los offsets relativos al fragmento; las citas usan segment_id y texto exacto. No confundas el objetivo con otro número vecino. Los targets con region=text son texto, tablas o tarjetas de cifras, no cifras de SVG/canvas; no los descartes como gráficos.'''
 
 
@@ -132,10 +132,23 @@ def interpret_one(inventory,occurrence,sources,ask,folder):
         save_new(folder/f'{index}.response.json',reading)
         readings.append(reading)
     save_new(folder/'comparison.json',{'interpretations_canonical_identical':canonical(readings[0])==canonical(readings[1])})
-    return reconcile(readings,request,folder,sources)
+    return reconcile(readings,request,folder,sources,context_text=inventory['text'])
 
 
-def reconcile(readings,request,folder,sources):
+def population_context(request):
+    """Server-selected spans around this occurrence, never model-selected quotes."""
+    span=request.get('span')
+    if not span:return []
+    result=[s['span'] for s in request.get('segments',[]) if s['span'][0]<span[1] and span[0]<s['span'][1]]
+    context=request.get('context',{})
+    result.extend(ref['span'] for ref in context.get('section',[]))
+    table=context.get('table') or {}
+    for field in ('caption','column_headers','row_headers','row_text'):
+        result.extend(ref['span'] for ref in table.get(field,[]))
+    return result
+
+
+def reconcile(readings,request,folder,sources,*,context_text=None):
     checked=[]
     for index,raw_reading in enumerate(readings,1):
         reading=resolved_reading(raw_reading,request)
@@ -149,7 +162,8 @@ def reconcile(readings,request,folder,sources):
         if reading['status']!='claim':
             checked.append(None)
         else:
-            try: recipes.validate(reading['recipe'],request['masked_text'],sources)
+            try: recipes.validate(reading['recipe'],request['masked_text'],sources,
+                                  population_context=population_context(request),population_text=context_text)
             except (ValueError,KeyError,TypeError) as error: raise Uncertain(str(error)) from None
             checked.append(reading['recipe'])
     if any(item is None for item in checked):
@@ -203,7 +217,8 @@ def interpret_batch(inventory,items,sources,ask,root,index):
         responses=[{k:v for k,v in m[identifier].items() if k!='occurrence_id'} for m in maps]
         save_new(own/'comparison.json',{'interpretations_canonical_identical':canonical(responses[0])==canonical(responses[1]),'group':index})
         for n,response in enumerate(responses,1):save_new(own/f'{n}.response.json',response)
-        try:results[identifier]=reconcile(responses,request,own,sources)
+        own_request={**request,'span':item['span'],'context':location_context(request['masked_text'],item)['context']}
+        try:results[identifier]=reconcile(responses,own_request,own,sources,context_text=inventory['text'])
         except Uncertain as error:results[identifier]={'status':'uncertain','reason':str(error)}
     return results
 

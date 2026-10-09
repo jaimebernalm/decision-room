@@ -44,7 +44,28 @@ def citation(ref, text):
         raise ValueError('Citation has no semantic context.')
 
 
-def validate(recipe, text, sources):
+def unfiltered_population(operand,text,sources,context_spans,context_text):
+    """Explicit totality plus a catalogue veto; not a semantic proof of scope."""
+    cited=' '.join(normalized(ref['text']) for ref in operand['evidence']['population'])
+    if not re.search(r'(?<!\w)(?:total|en total|todas|todos|conjunto|el negocio)(?!\w)',cited):
+        raise ValueError('Unfiltered population lacks cited explicit totality.')
+    if not context_spans:
+        raise ValueError('Unfiltered population lacks occurrence context for the veto.')
+    context=[]
+    for span in context_spans:
+        if (not isinstance(span,list) or len(span)!=2 or any(type(v) is not int for v in span)
+                or not 0<=span[0]<span[1]<=len(text)):
+            raise ValueError('Invalid population context span.')
+        context.append(normalized(context_text[slice(*span)]))
+    names={str(v) for s in sources.values() for c in s['columns'] for v in c.get('categories',[])}
+    names.update(a['name'] for s in sources.values() for c in s['columns'] for a in c.get('aliases',[]))
+    for name in names:
+        value=normalized(name)
+        if value and any(re.search(r'(?<!\w)'+re.escape(value)+r'(?!\w)',part) for part in context):
+            raise ValueError('Category in occurrence context vetoes an unfiltered population.')
+
+
+def validate(recipe, text, sources, *, population_context=None, population_text=None):
     if not isinstance(recipe,dict) or set(recipe)!={'operation','operands','unit','direction','evidence'}:
         raise ValueError('Recipe fields do not match the contract.')
     operation=recipe['operation']
@@ -86,6 +107,8 @@ def validate(recipe, text, sources):
             if not isinstance(items,list) or not 1<=len(items)<=8:
                 raise ValueError('Missing operand context; no implicit all-time or all-population.')
             for ref in items: citation(ref,text)
+        if not any(f['operator']=='in' for f in operand['filters']):
+            unfiltered_population(operand,text,sources,population_context,population_text if population_text is not None else text)
         if aggregate=='count':
             units.append('filas')
         else:
