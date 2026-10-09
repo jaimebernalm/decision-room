@@ -182,6 +182,9 @@ class RecipeTests(unittest.TestCase):
         reading['recipe']['evidence']['operation'][0]['text']='██ %'
         normalized=resolved_reading(reading,request)
         with self.assertRaises(ValueError):recipes.citation(normalized['recipe']['evidence']['operation'][0],text)
+        for value in ['(█████%)','[██]','«██»','— (█ / █) —']:
+            with self.subTest(value=value),self.assertRaises(ValueError):
+                recipes.citation({'span':[0,len(value)],'text':value},value)
 
     def test_percent_literal_against_grounded_points_is_discrepancy(self):
         text='Diferencia en puntos porcentuales entre North y el total: 0 %.'

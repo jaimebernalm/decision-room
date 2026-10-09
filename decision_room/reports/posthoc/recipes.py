@@ -40,7 +40,7 @@ def citation(ref, text):
     if (not isinstance(span,list) or len(span)!=2 or any(type(v) is not int for v in span)
             or not 0<=span[0]<span[1]<=len(text) or text[slice(*span)]!=ref['text']):
         raise ValueError('Citation is not anchored in the masked visible text.')
-    if not re.search(r'[^\s█.,;:%+−\-]',ref['text']):
+    if not any(char.isalnum() for char in ref['text']):
         raise ValueError('Citation has no semantic context.')
 
 
