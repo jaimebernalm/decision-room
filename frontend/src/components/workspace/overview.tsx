@@ -2,7 +2,6 @@ import { translate as tr, useLanguage } from "@/lib/i18n";
 import { AnalysisActivity } from "./analysis-activity";
 import { useState } from "react";
 import {
-  Plus,
   ArrowUpRight,
   MoreHorizontal,
   MessageCircle,
@@ -26,25 +25,11 @@ import { Heading, Notice, Empty, Loading } from "./shared";
 import { ReportDownload } from "./report-download";
 import { ReportView } from "./report";
 import { ChatActions } from "./chat-actions";
-import { NewChatComposer } from "./floating-assistant";
 import { Selectable } from "./context-selection";
 import { useAssistant } from "@/lib/assistant";
 import { useChatSearch } from "@/lib/chat-search";
 import { SearchHighlight } from "./search-highlight";
-export function StartChat() {
-  useLanguage();
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <h1 className="sr-only">{tr("Nuevo chat")}</h1>
-      <div className="flex-1" />
-      <div className="shrink-0 px-4 pb-4 pt-2 sm:px-8">
-        <div className="mx-auto max-w-2xl">
-          <NewChatComposer />
-        </div>
-      </div>
-    </div>
-  );
-}
+export { StartChat } from "./chat-start";
 export { Reports } from "./reports";
 export function Chats() {
   useLanguage();
@@ -57,14 +42,7 @@ export function Chats() {
       <Heading
         title={tr("Chats")}
         description={tr("Retoma una pregunta o empieza a explorar algo nuevo.")}
-      >
-        <Button asChild>
-          <a href="#ask" onClick={() => assistant?.newConversation("page")}>
-            <Plus />
-            {tr("Nuevo chat")}
-          </a>
-        </Button>
-      </Heading>
+      />
       <div className="relative mb-6 max-w-sm">
         <Search
           aria-hidden="true"

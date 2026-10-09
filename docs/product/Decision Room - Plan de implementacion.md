@@ -802,6 +802,20 @@ y última página en 24,48–46,36 ms; filtro y búsqueda con continuidad compro
 Verificados escritorio/móvil y cachés acotadas con invalidación. Véanse
 [medición, contrato y límites](../validation/2026-10-07-large-table-browser.md).
 
+### 2.5.35. Inicio común para preguntas e informes
+
+1. Unificar acción de inicio, compositor centrado y sugerencias de intención.
+2. Conectar el primer informe y la ruta anterior al mismo recorrido conversacional.
+3. Comprobar animación, teclado, borradores, datos y contexto en escritorio/móvil;
+   conservar informes y conversaciones existentes, pruebas, build y lint.
+
+Véase [plan de implementación](../technical/unified-chat-entry-plan.md).
+**Completado y validado el 2026-10-08.**
+
+Validación: 290 pruebas frontend correctas; build, lint y revisión del diff
+correctos. Comprobación visual en escritorio y móvil, borradores, envío real,
+reintento, rutas antiguas y acciones de informe. Evidencias locales fuera de Git.
+
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 
 **Avance, 27 de septiembre de 2026:** completados **3.1** (medición inicial),

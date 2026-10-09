@@ -12,6 +12,8 @@ import {
   ChevronRight,
   Pin,
 } from "lucide-react";
+import { isChatStart } from "@/lib/chat-start";
+import "./chat-start.css";
 import { LayoutGroup } from "motion/react";
 import {
   Sidebar,
@@ -110,6 +112,23 @@ function Navigation({
             />
           </div>
         )}
+        <Button
+          asChild
+          className="workspace-start-button"
+          aria-label={tr("Nuevo chat")}
+        >
+          <a
+            href="#ask"
+            title={tr("Nuevo chat")}
+            onClick={() => {
+              assistant?.newConversation("page");
+              close();
+            }}
+          >
+            <Plus className="size-4 shrink-0" />
+            <span>{tr("Nuevo chat")}</span>
+          </a>
+        </Button>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
@@ -150,7 +169,7 @@ function Navigation({
               aria-label={tr("Chats")}
               title={tr("Chats")}
               aria-current={route === "chats" ? "page" : undefined}
-              className="workspace-library-link group/library flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-sidebar-accent-foreground group-data-[collapsible=icon]:hidden"
+              className="workspace-library-link group/library flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center"
             >
               <MessageSquare className="hidden size-4 group-data-[collapsible=icon]:block" />
               <span className="group-data-[collapsible=icon]:hidden">
@@ -158,27 +177,9 @@ function Navigation({
               </span>
               <ChevronRight
                 aria-hidden="true"
-                className="ml-auto size-3.5 text-muted-foreground group-hover/library:text-foreground"
+                className="ml-auto size-3.5 text-muted-foreground group-hover/library:text-foreground group-data-[collapsible=icon]:hidden"
               />
             </a>
-            <Button
-              asChild
-              variant="ghost"
-              size="icon"
-              className="workspace-create workspace-new-chat ml-auto size-7"
-            >
-              <a
-                href="#ask"
-                aria-label={tr("Nuevo chat")}
-                title={tr("Nuevo chat")}
-                onClick={() => {
-                  assistant?.newConversation("page");
-                  close();
-                }}
-              >
-                <Plus className="size-4" />
-              </a>
-            </Button>
           </SidebarGroupLabel>
           <SidebarMenu>
             {chatRows.map((chat) => (
@@ -252,8 +253,9 @@ function Navigation({
               aria-label={tr("Informes")}
               title={tr("Informes")}
               aria-current={route === "reports" ? "page" : undefined}
-              className="workspace-library-link group/library flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-sidebar-accent-foreground group-data-[collapsible=icon]:hidden"
+              className="workspace-library-link group/library flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center"
             >
+              <FileText className="hidden size-4 group-data-[collapsible=icon]:block" />
               <span className="group-data-[collapsible=icon]:hidden">
                 {tr("Informes")}
               </span>
@@ -262,21 +264,6 @@ function Navigation({
                 className="ml-auto size-3.5 text-muted-foreground group-hover/library:text-foreground group-data-[collapsible=icon]:hidden"
               />
             </a>
-            <Button
-              asChild
-              variant="ghost"
-              size="icon"
-              className="workspace-create ml-auto size-7"
-            >
-              <a
-                href="#new"
-                aria-label={tr("Crear informe")}
-                title={tr("Crear informe")}
-                onClick={close}
-              >
-                <Plus className="size-4" />
-              </a>
-            </Button>
           </SidebarGroupLabel>
           <SidebarMenu>
             {reportRows.map((item) => (
@@ -369,7 +356,7 @@ function Topbar() {
         href: `#chat/${route.split("/")[1]}`,
         label: tr("Volver al chat"),
       }
-    : route === "ask" || route.startsWith("chat/")
+    : isChatStart(route) || route.startsWith("chat/")
       ? { href: "#chats", label: tr("Volver a chats") }
       : route.startsWith("report/") || route.startsWith("analysis/")
         ? { href: "#reports", label: tr("Volver a informes") }
@@ -390,6 +377,14 @@ function Topbar() {
         </Button>
       )}
       <div className="ml-auto flex items-center gap-2">
+        {isMobile && !openMobile && (
+          <Button asChild size="sm" variant="outline">
+            <a href="#ask" onClick={() => assistant?.newConversation("page")}>
+              <Plus className="size-4" />
+              {tr("Nuevo chat")}
+            </a>
+          </Button>
+        )}
         {route.startsWith("chat/") && assistant && (
           <Button
             variant="ghost"

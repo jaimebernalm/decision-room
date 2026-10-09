@@ -70,7 +70,7 @@ it("switches to English through Language without resetting the current draft", a
   );
   expect(screen.getByRole("textbox", { name: "Message" })).toHaveAttribute(
     "placeholder",
-    "Ask a question or add context…",
+    "Describe what you want to achieve…",
   );
   expect(document.documentElement.lang).toBe("en");
   expect(screen.getByRole("button", { name: "Nombre propio" })).toBeVisible();

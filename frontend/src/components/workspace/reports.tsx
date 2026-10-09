@@ -1,7 +1,6 @@
 import { translate as tr, useLanguage } from "@/lib/i18n";
 import { useState } from "react";
 import {
-  Plus,
   ArrowUpRight,
   Trash2,
   Undo2,
@@ -93,14 +92,6 @@ function ReportsList({
             {trash ? <Undo2 /> : <Trash2 />}
             {trash ? tr("Volver a informes") : tr("Papelera")}
           </Button>
-          {!trash && (
-            <Button asChild>
-              <a href="#new">
-                <Plus />
-                {tr("Crear informe")}
-              </a>
-            </Button>
-          )}
         </div>
       </Heading>
       <Input
@@ -247,13 +238,16 @@ function ReportTable({ items, search, ...actions }: TableProps) {
           </TableBody>
         </Table>
       ) : (
-        <p className="py-10 text-center text-sm text-muted-foreground">
-          {search
-            ? tr("No hay informes que coincidan con tu búsqueda.")
-            : actions.trash
-              ? tr("La papelera está vacía.")
-              : tr("Todavía no hay informes. Crea uno para empezar.")}
-        </p>
+        <div className="py-10 text-center">
+          <p className="text-sm text-muted-foreground">
+            {search
+              ? tr("No hay informes que coincidan con tu búsqueda.")
+              : actions.trash
+                ? tr("La papelera está vacía.")
+                : tr("Todavía no hay informes.")}
+          </p>
+          {!search && !actions.trash && !items.length && <FirstReportAction />}
+        </div>
       )}
       <Dialog
         open={!!details}
@@ -264,6 +258,19 @@ function ReportTable({ items, search, ...actions }: TableProps) {
         {details && <ReportDetails key={details.id} item={details} />}
       </Dialog>
     </>
+  );
+}
+function FirstReportAction() {
+  const assistant = useAssistant();
+  return (
+    <Button asChild className="mt-4">
+      <a
+        href="#ask/report"
+        onClick={() => assistant?.newConversation("page", "report")}
+      >
+        {tr("Crear mi primer informe")}
+      </a>
+    </Button>
   );
 }
 function ReportDetails({ item }: { item: Analysis }) {

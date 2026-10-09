@@ -45,7 +45,6 @@ export const contextualRoute = (route: string) =>
     "businesses",
     "chats",
     "how",
-    "new",
   ].includes(route) ||
   route.startsWith("analysis/") ||
   route.startsWith("report/") ||
@@ -58,7 +57,8 @@ type Dock = {
   block?: string;
 };
 type Assistant = {
-  newConversation: (presentation: "page" | "panel") => void;
+  startRevision: number;
+  newConversation: (presentation: "page" | "panel", intent?: "report") => void;
   dock: Dock;
   setDock: (d: Dock) => void;
   openConversation: (id: string) => void;
@@ -108,6 +108,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const selecting = selectionRoute === route;
   const setSelecting = (value: boolean) =>
     setSelectionRoute(value ? route : null);
+  const [startRevision, setStartRevision] = useState(0);
   const [error, setError] = useState("");
   const [launching, setLaunching] = useState(false);
   const [previews, setPreviews] = useState<Record<string, ContextAttachment>>(
@@ -159,9 +160,11 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   return (
     <AssistantContext.Provider
       value={{
+        startRevision,
         dock,
         setDock,
-        newConversation: (presentation) => {
+        newConversation: (presentation, intent) => {
+          setStartRevision((revision) => revision + 1);
           launchVersion.current += 1;
           setLaunching(false);
           setSelecting(false);
@@ -169,7 +172,8 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
           setContext({});
           store.remove(homeDraftKey(business));
           setDock({ open: presentation === "panel", origin: route });
-          if (presentation === "page") location.hash = "ask";
+          if (presentation === "page")
+            location.hash = intent === "report" ? "ask/report" : "ask";
         },
         openConversation: (id) => {
           launchVersion.current += 1;

@@ -65,14 +65,8 @@ it("groups direct chats and reports once, with library access in the heading", (
     "href",
     "#reports",
   );
-  expect(reports.getByRole("link", { name: "Crear informe" })).toHaveAttribute(
-    "href",
-    "#new",
-  );
-  expect(reports.getByRole("link", { name: "Crear informe" })).toHaveAttribute(
-    "title",
-    "Crear informe",
-  );
+  expect(reports.queryByRole("link", { name: "Crear informe" })).toBeNull();
+  expect(chats.queryByRole("link", { name: "Nuevo chat" })).toBeNull();
   expect(chats.getByRole("link", { name: "Conversación 0" })).toHaveAttribute(
     "href",
     "#chat/c0",
@@ -111,17 +105,16 @@ it("keeps an older active report visible and identifies empty groups without hid
   );
 });
 
-it("places the single new-chat action beside Chats, with no prominent header button", () => {
+it("places the single labeled new-chat action in the sidebar header", () => {
   const { container } = mount();
-  const action = within(
-    screen.getByRole("region", { name: "Chats" }),
-  ).getByRole("link", { name: "Nuevo chat" });
+  const action = screen.getByRole("link", { name: "Nuevo chat" });
   expect(action).toHaveAttribute("href", "#ask");
   expect(action).toHaveAttribute("title", "Nuevo chat");
   expect(screen.getAllByRole("link", { name: "Nuevo chat" })).toHaveLength(1);
   expect(
     container.querySelector('[data-slot="sidebar-header"] a[href="#ask"]'),
-  ).toBeNull();
+  ).toBe(action);
+  expect(action).toHaveTextContent("Nuevo chat");
 });
 
 it.each([
@@ -163,6 +156,11 @@ it("moves the navigation control between the sidebar header and content as it co
     screen.queryByRole("button", { name: "Expandir barra lateral" }),
   ).toBeNull();
   fireEvent.click(collapse);
+  for (const name of ["Chats", "Informes"]) {
+    const link = screen.getByRole("link", { name });
+    expect(link).not.toHaveClass("group-data-[collapsible=icon]:hidden");
+    expect(link.querySelector("svg")).not.toBeNull();
+  }
   const expand = screen.getByRole("button", { name: "Expandir barra lateral" });
   expect(expand.closest("header")).not.toBeNull();
   expect(
@@ -185,6 +183,9 @@ it("moves the navigation control between the sidebar header and content as it co
 it("opens mobile navigation from the content and closes it from its own header", () => {
   vi.stubGlobal("innerWidth", 390);
   mount();
+  expect(screen.getByRole("link", { name: "Nuevo chat" })).toHaveTextContent(
+    "Nuevo chat",
+  );
   fireEvent.click(
     screen.getByRole("button", { name: "Expandir barra lateral" }),
   );

@@ -11,6 +11,7 @@ import { ChatPage } from "./chat";
 import { Chats, Reports, StartChat } from "./overview";
 import { Dossier } from "./dossier";
 import { Layout } from "./layout";
+import { isChatStart } from "@/lib/chat-start";
 const item: ContextAttachment = {
   report_id: "review",
   report_version: "v1",
@@ -87,7 +88,7 @@ function Harness({
         <Layout>
           {route.startsWith("chat/") ? (
             <ChatPage id={route.split("/")[1]} />
-          ) : route === "ask" ? (
+          ) : isChatStart(route) ? (
             <StartChat />
           ) : route === "chats" ? (
             <>
@@ -794,7 +795,7 @@ it("reduces a directly opened chat to home when there is no saved source", async
   expect(calls.some(c => c.url === "/api/chats" || c.url.endsWith("/messages"))).toBe(false);
 });
 
-it.each(["home", "my-business", "reports", "chats", "files", "business", "businesses", "how", "new", "report/sales", "analysis/running", "chat-report/answer"])(
+it.each(["home", "my-business", "reports", "chats", "files", "business", "businesses", "how", "report/sales", "analysis/running", "chat-report/answer"])(
   "offers exactly one bottom composer without stealing focus or creating a chat on %s",
   async (route) => {
     const calls = server();

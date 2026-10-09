@@ -21,6 +21,8 @@ import type { Workspace, ChatListing, Chat } from "@/lib/types";
 import { WorkspaceState } from "@/lib/workspace";
 import { useAction } from "@/lib/hooks";
 import { Layout } from "@/components/workspace/layout";
+import { StartChat, ChatLoading } from "@/components/workspace/chat-start";
+import { isChatStart } from "@/lib/chat-start";
 import { MainContent } from "@/components/workspace/main-content";
 import { EntryFrame, Welcome } from "@/components/entry/welcome";
 const Onboarding = lazy(() =>
@@ -37,11 +39,6 @@ import {
 } from "@/components/workspace/shared";
 const Home = lazy(() =>
   import("@/components/workspace/home").then((m) => ({ default: m.Home })),
-);
-const StartChat = lazy(() =>
-  import("@/components/workspace/overview").then((m) => ({
-    default: m.StartChat,
-  })),
 );
 const Chats = lazy(() =>
   import("@/components/workspace/overview").then((m) => ({ default: m.Chats })),
@@ -72,11 +69,6 @@ const BusinessPicker = lazy(() =>
     default: m.BusinessPicker,
   })),
 );
-const NewReport = lazy(() =>
-  import("@/components/workspace/business").then((m) => ({
-    default: m.NewReport,
-  })),
-);
 const Dossier = lazy(() =>
   import("@/components/workspace/dossier").then((m) => ({
     default: m.Dossier,
@@ -87,7 +79,11 @@ const JobPage = lazy(() =>
 );
 const routeNow = () => {
   const route = location.hash.slice(1) || "home";
-  return route === "analyses" ? "reports" : route;
+  return route === "analyses"
+    ? "reports"
+    : route === "new"
+      ? "ask/report"
+      : route;
 };
 let loginPromise: Promise<unknown> | undefined;
 function exchangeAccess() {
@@ -283,20 +279,24 @@ function App() {
             <MainContent
               key={`${workspace.business?.id || "empty"}:${activeRoute}`}
               scrollable={
-                activeRoute !== "ask" && !activeRoute.startsWith("chat/")
+                !isChatStart(activeRoute) && !activeRoute.startsWith("chat/")
               }
             >
               <Notice error>{error}</Notice>
               <Suspense
                 fallback={
-                  <div className="p-6">
-                    <Loading />
-                  </div>
+                  activeRoute.startsWith("chat/") ? (
+                    <ChatLoading />
+                  ) : (
+                    <div className="p-6">
+                      <Loading />
+                    </div>
+                  )
                 }
               >
                 {activeRoute.startsWith("chat/") ? (
                   <ChatPage id={activeRoute.split("/")[1]} />
-                ) : activeRoute === "ask" ? (
+                ) : isChatStart(activeRoute) ? (
                   <StartChat />
                 ) : (
                   <div className="mx-auto w-full max-w-7xl px-5 py-8 sm:px-8 lg:px-10">
@@ -390,7 +390,7 @@ function Route({ route }: { route: string }) {
     case "analyses":
       return <Reports />;
     case "new":
-      return <NewReport />;
+      return <StartChat />;
     case "business-new":
       return <BusinessForm create />;
     case "business":

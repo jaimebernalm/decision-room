@@ -1349,5 +1349,21 @@
   "La tabla seleccionada no pertenece a este modelo.": "The selected table does not belong to this model.",
   "Cerrar edición del grupo {0}": "Close group {0} editor",
   "Cancelar nuevo grupo": "Cancel new group",
-  "Arrastra el asa para ordenar los grupos. También puedes usar las teclas ↑ y ↓ sobre el asa. Guarda para aplicar el orden.": "Drag the handle to reorder groups. You can also use the ↑ and ↓ keys on the handle. Save to apply the order."
+  "Arrastra el asa para ordenar los grupos. También puedes usar las teclas ↑ y ↓ sobre el asa. Guarda para aplicar el orden.": "Drag the handle to reorder groups. You can also use the ↑ and ↓ keys on the handle. Save to apply the order.",
+  "¿En qué te ayudo con tu negocio?": "How can I help with your business?",
+  "Pregunta algo o prepara un informe.": "Ask a question or prepare a report.",
+  "Escribe lo que quieres conseguir…": "Describe what you want to achieve…",
+  "Analizar mis datos": "Analyze my data",
+  "Resolver una pregunta": "Answer a question",
+  "Ayúdame a empezar": "Help me get started",
+  "¿Qué te gustaría entender?": "What would you like to understand?",
+  "¿Qué te gustaría saber?": "What would you like to know?",
+  "¿Por dónde empezamos?": "Where should we start?",
+  "Quiero analizar los datos de mi negocio.": "I want to analyze my business data.",
+  "Ayúdame a decidir qué debería revisar primero en mi negocio.": "Help me decide what I should review first in my business.",
+  "¿Qué quieres que incluya el informe?": "What should the report cover?",
+  "Quiero preparar un informe con los datos de mi negocio.": "I want to prepare a report using my business data.",
+  "Ideas para empezar": "Ideas to get started",
+  "Todavía no hay informes.": "No reports yet.",
+  "Añadir datos": "Add data"
 }
