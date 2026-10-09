@@ -26,10 +26,17 @@ def masked_request(inventory, occurrence, sources):
     text=inventory['text']; chars=list(text)
     # Conservative same-literal repetition masking. Dates retain their context.
     target=re.sub(r'[\s\u00a0\u202f\u2009]','',occurrence['text']).replace('−','-').lstrip('+-')
+    spanish=spanish_convention([o['text'] for o in inventory['occurrences'] if o['kind']=='number'])
+    def numeric_key(literal):
+        try:
+            parsed=parse_literal(literal,spanish=spanish)
+            return (abs(parsed.displayed*parsed.scale),parsed.percent)
+        except Uncertain:return None
+    target_key=numeric_key(occurrence['text'])
     hidden=[]
     for item in inventory['occurrences']:
         literal=re.sub(r'[\s\u00a0\u202f\u2009]','',item['text']).replace('−','-').lstrip('+-')
-        if item['id']==occurrence['id'] or item['kind']!='date' and literal==target:
+        if item['id']==occurrence['id'] or item['kind']!='date' and (literal==target or target_key is not None and numeric_key(item['text'])==target_key):
             a,b=item['span'];hidden.append(item['id'])
             for i in range(a,b):
                 if chars[i].isdigit() or chars[i] in '.,+−-': chars[i]='█'
@@ -68,6 +75,11 @@ def interpret_one(inventory,occurrence,sources,ask,folder):
         reading=ask(PROMPT,request,key)
         save_new(folder/f'{index}.response.json',reading)
         readings.append(reading)
+    save_new(folder/'comparison.json',{'interpretations_canonical_identical':canonical(readings[0])==canonical(readings[1])})
+    return reconcile(readings,request,folder,sources)
+
+
+def reconcile(readings,request,folder,sources):
     checked=[]
     for reading in readings:
         if not isinstance(reading,dict) or set(reading)!={'status','reason','recipe'}:
@@ -93,34 +105,80 @@ def interpret_one(inventory,occurrence,sources,ask,folder):
     return {'status':'claim','recipe':checked[0]}
 
 
-def verify(inventory,sources,ask,dest):
+def interpret_batch(inventory,items,sources,ask,root,index):
+    folder=root/('group_'+str(index));folder.mkdir(exist_ok=False)
+    requests=[masked_request(inventory,item,sources) for item in items]
+    chars=list(inventory['text'])
+    for request in requests:
+        for i,char in enumerate(request['masked_text']):
+            if char=='█':chars[i]='█'
+    masked=''.join(chars)
+    request={'version':VERSION,'masked_text':masked,'catalog':recipes.public_catalog(sources),
+             'targets':[{k:r[k] for k in ('occurrence_id','span','context')} for r in requests],
+             'hidden_occurrences':sorted({i for r in requests for i in r['hidden_occurrences']})}
+    prompt=PROMPT+'\nEsta solicitud agrupa ocurrencias. Interpreta cada target por separado sobre el MISMO masked_text. Devuelve {"readings":[{"occurrence_id":id,"status":...,"reason":...,"recipe":...}]} con exactamente una entrada por target. No compartas recetas ni estados entre targets.'
+    save_new(folder/'request.json',{'prompt_sha256':sha(prompt.encode()),'input':request})
+    readings=[]
+    for n in (1,2):
+        key='group_'+str(index)+'-'+str(n)
+        save_new(folder/f'{n}.admitted.json',{'call_key':key,'request_sha256':sha(canonical(request))})
+        response=ask(prompt,request,key);save_new(folder/f'{n}.response.json',response)
+        readings.append(response)
+    expected={item['id'] for item in items};maps=[]
+    try:
+        for response in readings:
+            if set(response)!={'readings'} or len(response['readings'])!=len(expected):raise ValueError()
+            mapped={r['occurrence_id']:r for r in response['readings']}
+            if set(mapped)!=expected:raise ValueError()
+            maps.append(mapped)
+    except (ValueError,TypeError,KeyError):
+        return {key:{'status':'uncertain','reason':'Batch interpretation does not account for every target.'} for key in expected}
+    results={}
+    for item in items:
+        identifier=item['id'];own=root/identifier;own.mkdir(exist_ok=False)
+        responses=[{k:v for k,v in m[identifier].items() if k!='occurrence_id'} for m in maps]
+        save_new(own/'comparison.json',{'interpretations_canonical_identical':canonical(responses[0])==canonical(responses[1]),'group':index})
+        for n,response in enumerate(responses,1):save_new(own/f'{n}.response.json',response)
+        try:results[identifier]=reconcile(responses,request,own,sources)
+        except Uncertain as error:results[identifier]={'status':'uncertain','reason':str(error)}
+    return results
+
+
+def verify(inventory,sources,ask,dest,*,batch_size=1):
     """One immutable run; caller must stop on provider/cost uncertainty.
 
     No automatic retry/resume and no cache sharing across occurrences. If ask fails,
     already-written transcripts remain; the run is failed, not silently partial.
     """
     validate_inventory(inventory)
+    if type(batch_size) is not int or not 1<=batch_size<=8:raise ValueError('Batch size outside 1–8.')
     dest=Path(dest);dest.mkdir(parents=True,exist_ok=False)
     save_new(dest/'inventory.json',inventory)
-    save_new(dest/'policy.json',{'version':VERSION,'prompt_sha256':sha(PROMPT.encode()),'catalog':recipes.public_catalog(sources)})
+    save_new(dest/'policy.json',{'version':VERSION,'prompt_sha256':sha(PROMPT.encode()),'catalog':recipes.public_catalog(sources),'batch_size':batch_size})
     spanish=spanish_convention([o['text'] for o in inventory['occurrences'] if o['kind']=='number'])
     ledger={}
     try:
+        preinterpreted={}
+        if batch_size>1:
+            targets=[o for o in inventory['occurrences'] if o['kind']=='number' and o['region']!='chart']
+            for offset in range(0,len(targets),batch_size):
+                preinterpreted.update(interpret_batch(inventory,targets[offset:offset+batch_size],sources,ask,dest,offset//batch_size))
         for item in inventory['occurrences']:
             identifier=item['id']
             result={'status':'not_checkable','reason':'Date label or chart is outside the initial catalogue.'}
             if item['kind']=='number' and item['region']!='chart':
                 try:
                     literal=parse_literal(item['text'],spanish=spanish)
-                    interpreted=interpret_one(inventory,item,sources,ask,dest/identifier)
+                    interpreted=preinterpreted[identifier] if batch_size>1 else interpret_one(inventory,item,sources,ask,dest/identifier)
                     result=interpreted
                     if interpreted['status']=='claim':
                         recipe=interpreted['recipe']
-                        if literal.percent != (recipe['unit']=='%'):
+                        unit_conflict=literal.percent and recipe['operation']=='percentage_points'
+                        if literal.percent != (recipe['unit']=='%') and not unit_conflict:
                             raise Uncertain('Literal unit and grounded recipe do not agree.')
                         calculated=recipes.recalculate(recipe,sources)
                         save_new(dest/identifier/'recalculated.json',calculated)
-                        matches=compare(literal,calculated['value'],integer_quantity=calculated['integer_quantity'],direction=recipe['direction'])
+                        matches=not unit_conflict and compare(literal,calculated['value'],integer_quantity=calculated['integer_quantity'],direction=recipe['direction'])
                         result={'status':'verified' if matches else 'discrepancy','recipe':recipe,
                                 'recalculated':calculated,'literal_policy':literal.public()}
                 except Uncertain as error:

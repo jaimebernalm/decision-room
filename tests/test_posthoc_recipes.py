@@ -53,7 +53,7 @@ class RecipeTests(unittest.TestCase):
         with self.assertRaises(recipes.Unsupported): recipes.validate(r,self.text,self.sources)
         r=self.recipe();r['operation']='share';r['unit']='%';r['operands']=[copy.deepcopy(r['operands'][0]) for _ in range(2)]
         r['operands'][1]['filters'][0]['values']=['South']
-        with self.assertRaises(recipes.Unsupported): recipes.validate(r,self.text,self.sources)
+        with self.assertRaises(ValueError): recipes.validate(r,self.text,self.sources)
 
     def test_derived_operations_empty_selection_and_daily_mean(self):
         a=self.recipe()['operands'][0]
@@ -112,11 +112,59 @@ class RecipeTests(unittest.TestCase):
         def ask(prompt,request,key):
             nonlocal n
             r=self.recipe(request);n+=1
-            if n%2==0: r['operands'][0]['filters'][0]['values']=['South']
+            if n%2==0:
+                r['operands'][0]['filters'][1]['values']=['2025-08-30','2025-08-30']
             return {'status':'claim','reason':'Reading','recipe':r}
         with patch.object(recipes,'recalculate',side_effect=AssertionError('must not calculate')):
             ledger=verify(self.inv,self.sources,ask,self.root/'run')
         self.assertEqual(ledger[self.number['id']]['status'],'uncertain')
+
+    def test_batch_masks_all_targets_and_compares_each_separately(self):
+        calls=[]
+        def ask(prompt,request,key):
+            self.assertNotIn('15',request['masked_text'])
+            calls.append(copy.deepcopy(request))
+            responses=[]
+            for index,target in enumerate(request['targets']):
+                r=self.recipe(request)
+                if len(calls)==2 and index==1:
+                    r['operands'][0]['filters'][1]['values']=['2025-08-30','2025-08-30']
+                responses.append({'occurrence_id':target['occurrence_id'],'status':'claim','reason':'Grounded','recipe':r})
+            return {'readings':responses}
+        ledger=verify(self.inv,self.sources,ask,self.root/'run',batch_size=4)
+        self.assertEqual(len(calls),2)
+        self.assertEqual(calls[0],calls[1])
+        values=[o for o in self.inv['occurrences'] if o['text']=='15']
+        self.assertEqual([ledger[o['id']]['status'] for o in values],['verified','uncertain'])
+
+    def test_alias_citation_cannot_ground_a_different_code(self):
+        r=self.recipe();r['operands'][0]['filters'][0]['values']=['South']
+        with self.assertRaises(ValueError):recipes.validate(r,self.text,self.sources)
+        self.sources['sales']['columns'][1]['aliases']=[{'name':'North','code':'South'}]
+        recipes.validate(r,self.text,self.sources)
+
+    def test_mask_equivalent_numeric_spellings_and_percent_spaces(self):
+        text='Total 10.679; otra vez 10 679; +10.679; 10,679 mil. Contexto 12,5 %. 42% y 42 %.'
+        inv=from_snapshot(b'aliases',{'nodes':[{'path':[0],'text':text}]})
+        req=masked_request(inv,inv['occurrences'][0],self.sources)
+        for visible in ['10.679','10 679','10,679']:self.assertNotIn(visible,req['masked_text'])
+        target=next(o for o in inv['occurrences'] if o['text']=='42%')
+        req=masked_request(inv,target,self.sources)
+        self.assertNotIn('42',req['masked_text'])
+
+    def test_percent_literal_against_grounded_points_is_discrepancy(self):
+        text='Diferencia en puntos porcentuales entre North y el total: 0 %.'
+        inv=from_snapshot(b'points',{'nodes':[{'path':[0],'text':text}]})
+        recipe=self.recipe();recipe.update(operation='percentage_points',unit='puntos porcentuales')
+        a=recipe['operands'][0];b=copy.deepcopy(a);b['filters']=[b['filters'][1]]
+        recipe['operands']=[a,b,copy.deepcopy(a),copy.deepcopy(b)]
+        # Isolate the comparison policy; grounding is exercised by the other tests.
+        def ask(*args):return {'status':'claim','reason':'Grounded points','recipe':recipe}
+        with patch.object(recipes,'validate',return_value=None):
+            ledger=verify(inv,self.sources,ask,self.root/'points')
+        number=next(o for o in inv['occurrences'] if o['text']=='0 %')
+        self.assertEqual(ledger[number['id']]['recalculated']['value'],'0')
+        self.assertEqual(ledger[number['id']]['status'],'discrepancy')
 
     def test_provider_failure_is_not_swallowed_or_retried(self):
         calls=[]

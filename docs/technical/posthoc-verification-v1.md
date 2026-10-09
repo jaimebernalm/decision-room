@@ -11,7 +11,8 @@ revisión 3 y aclaración de formato, en la rama de evaluación.
 2. Interpretaciones separadas con valor oculto, recetas fundamentadas y recálculo:
    núcleo implementado con proveedor simulado; pendiente de integración facturable
    y desarrollo sobre informes.
-3. Derivada con invariantes, exportación y contabilidad mediante el proxy: pendiente.
+3. Derivada con invariantes, exportación y contabilidad mediante el proxy:
+   implementadas y comprobadas con Chrome/PostgreSQL reales y proveedor simulado.
 4. Desarrollo, congelación y evaluación sellada: pendientes. Las pruebas técnicas
    no acreditan los umbrales del piloto.
 
@@ -84,9 +85,8 @@ call_key)` sin pasar respuesta ni historial de la otra llamada. El adaptador
 `ask` es responsable de admisión, proveedor y recibos de coste; el núcleo todavía
 no habilita llamadas facturables por sí mismo.
 
-Se oculta el literal objetivo y las repeticiones de su misma escritura numérica;
+Se oculta el literal objetivo y las repeticiones con escritura numérica equivalente según el parser;
 las fechas conservan contexto. La agrupación solo oculta: no comparte estados.
-Los alias con otra escritura son un límite pendiente de endurecer antes de congelar.
 Cada interpretación aporta citas con spans del texto enmascarado. Se validan por
 separado y se compara todo el contenido de cálculo de las recetas. Las citas pueden
 ser distintas si ambas están fundamentadas; no se confunden con el ámbito calculado.
@@ -111,3 +111,51 @@ Validación del núcleo: 19 pruebas sin proveedor facturable, incluyendo las die
 inventario/precisión, agregados reales en DuckDB, derivados, último día inclusivo,
 datos cambiados, lecturas que discrepan aunque produzcan el mismo número y
 repeticiones con ámbitos distintos que reciben estados distintos.
+
+## Recorrido integrado y presupuesto
+
+La CLI `python -m decision_room.reports.posthoc` separa `prepare`, `estimate` y
+`run`. Preparar no llama a un modelo. El run exige una clave por entorno, un archivo
+SQLite de presupuesto compartido por todo V1 y una carpeta no ejecutada antes.
+`api.run` usa el proxy existente y fija gpt-6-luna, low, tier default; no arranca
+OpenCode ni cambia los candidatos anteriores.
+
+Se admiten grupos de cuatro ocurrencias en orden de inventario (parámetro que se
+fijará al congelar). En cada grupo se ocultan simultáneamente todos los objetivos
+y sus escrituras equivalentes, con dos llamadas sin historial cruzado. Cada
+ocurrencia conserva dos recetas y un estado propios. Una forma ilegible o un grupo
+incompleto queda incierto, sin reparación usando resultados. Se guardan las
+interpretaciones textuales para comparar bytes, y aparte la igualdad canónica de
+sus objetos JSON. La agrupación no depende de lo que responda el modelo.
+
+El proxy cuenta entrada antes de generar. Un transporte de servicio reserva en
+SQLite la cota del catálogo aplicable (toda entrada como escritura de caché y toda
+salida autorizada) antes de enviar generación. Los costes confirmados liberan la
+parte no consumida; coste desconocido, proceso interrumpido o reserva excedida
+bloquean llamadas posteriores. Techo global 3 USD y por informe 0,50 USD. Son guardas
+contra el catálogo, no garantía sobre la factura. La política persistida no se
+resetea al abrir otro proceso ni se reescriben llamadas ya registradas.
+
+Topes provisionales del trabajo de verificación: 6M de entrada, 512k de salida,
+16k por llamada, 512 llamadas, 3600 s. Son de desarrollo, pendientes del anexo de
+congelación; no reinterpretan los topes de P3/R1. Ninguna llamada facturable se
+incluye en las pruebas de código.
+
+Salidas: original.html idéntico en bytes, inventory.json, snapshots preparados,
+verification/ledger.json, solicitudes/respuestas/acuerdos/recálculos por ocurrencia,
+recibos de proxy y presupuesto, derived.html y checks.json. Solo run.json con
+status=completed permite usar el ledger en evaluación. Un fallo conserva parciales
+sin acreditar entrega. Las credenciales no se persisten.
+
+La derivada conserva los bytes del original como prefijo y solo añade un instalador
+identificado. Las marcas no se instalan si el DOM renderizado difiere de la captura.
+La QA retira exclusivamente las inserciones y exige igualdad del DOM original y
+hashes idénticos de capturas de cada gráfico SVG/canvas. No se cambian sus valores.
+Los informes con recursos relativos que no se resuelvan igual en el destino deben
+fallar la QA, sin reescribir silenciosamente el original.
+
+Validación integrada: 31 pruebas, incluidas PostgreSQL y Chrome reales; proveedor
+HTTP simulado en todos los casos. Se comprobaron conservación de un SVG generado
+por script, exportación completa, rechazo de reenvío, límites global/por informe,
+parada por coste desconocido y ausencia de credenciales en artefactos. El entorno
+de pruebas usa el socket corto configurado localmente para PostgreSQL.

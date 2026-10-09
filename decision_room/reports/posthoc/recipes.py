@@ -97,6 +97,11 @@ def validate(recipe, text, sources):
                 allowed=columns[condition['column']].get('categories')
                 if allowed is None or any(v not in allowed for v in condition['values']):
                     raise Unsupported('Filter values absent from the categorical catalogue.')
+                population=' '.join(normalized(ref['text']) for ref in operand['evidence']['population'])
+                for value in condition['values']:
+                    names=[value]+[a['name'] for a in columns[condition['column']].get('aliases',[]) if a['code']==value]
+                    if not any(re.search(r'(?<!\w)'+re.escape(normalized(name))+r'(?!\w)',population) for name in names):
+                        raise ValueError('Categorical filter lacks a cited code or unambiguous label.')
     if len({normalized(unit) for unit in units})!=1:
         raise Unsupported('Operand units differ.')
     if operation in ('percent_change','share','percentage_points'):
