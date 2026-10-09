@@ -93,7 +93,12 @@ def validate(recipe, text, sources):
             if not column.get('numeric'): raise Unsupported('Column is not a trusted numeric quantity.')
             units.append(column.get('unit') or column['name'])
         for condition in operand['filters']:
-            if condition['operator']=='in':
+            if condition['operator']=='date_between':
+                period=' '.join(ref['text'] for ref in operand['evidence']['period'])
+                years={boundary[:4] for boundary in condition['values']}
+                if any(not re.search(r'(?<!\d)'+re.escape(year)+r'(?!\d)',period) for year in years):
+                    raise ValueError('Date boundaries lack cited calendar years.')
+            elif condition['operator']=='in':
                 allowed=columns[condition['column']].get('categories')
                 if allowed is None or any(v not in allowed for v in condition['values']):
                     raise Unsupported('Filter values absent from the categorical catalogue.')

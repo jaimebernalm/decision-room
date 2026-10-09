@@ -89,6 +89,25 @@ class RecipeTests(unittest.TestCase):
         r=self.recipe();r['evidence']['operation'][0]['text']='Media'
         with self.assertRaises(ValueError): recipes.validate(r,self.text,self.sources)
 
+    def test_period_citations_must_include_each_boundary_year(self):
+        text='Suma de unidades North, ene–ago, 2025, 2026'
+        def ref(value):
+            start=text.index(value)
+            return {'span':[start,start+len(value)],'text':value}
+        r=self.recipe()
+        r['evidence']={'operation':[ref('Suma')],'unit':[ref('unidades')],'direction':[]}
+        o=r['operands'][0]
+        o['filters'][1]['values']=['2025-01-01','2026-08-31']
+        o['evidence']={'column':[ref('unidades')],'population':[ref('North')],
+                       'period':[ref('ene–ago')]}
+        with self.assertRaisesRegex(ValueError,'cited calendar years'):
+            recipes.validate(r,text,self.sources)
+        o['evidence']['period'].append(ref('2025'))
+        with self.assertRaisesRegex(ValueError,'cited calendar years'):
+            recipes.validate(r,text,self.sources)
+        o['evidence']['period'].append(ref('2026'))
+        recipes.validate(r,text,self.sources)
+
     def test_two_isolated_calls_freeze_before_recalculation(self):
         calls=[]; real=recipes.recalculate
         def ask(prompt,request,key):

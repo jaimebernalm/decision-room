@@ -207,6 +207,13 @@ el valor recalculado para localizarla. Se guardan respuestas crudas y resueltas
 antes del acuerdo y del recálculo. Los targets identifican explícitamente su
 region; una tarjeta numérica de texto no se confunde con un gráfico SVG/canvas.
 
+Las citas de periodo deben incluir los años de ambos límites de cada filtro de
+fecha. Un mes o intervalo de meses citado sin el año no basta aunque el año exista
+en otra parte del informe. Esta guarda mecánica no acredita por sí sola el día,
+mes, relación con la ocurrencia ni significado del periodo; siguen sujetos a la
+doble interpretación y a la auditoría. Regresión: ningún año, solo uno de los dos
+años y ambos citados por separado.
+
 Las aproximaciones, cotas explícitas e intervalos numéricos se conservan como
 inciertos sin reinterpretarlos como puntos exactos. La decisión y su regla quedan
 en la localización; no hay llamadas para esas ocurrencias ni recálculo adaptativo.
