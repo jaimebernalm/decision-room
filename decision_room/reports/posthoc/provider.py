@@ -108,7 +108,7 @@ class ProxyInterpreter:
         folder=self.dest/key;folder.mkdir(exist_ok=False)
         credential=admission.authenticate(self.config,self.run_id,self.token)
         if credential['model']!='gpt-6-luna':raise ValueError('Pilot model must match the frozen configuration.')
-        payload={'model':credential['model'],'instructions':prompt,'input':canonical(request).decode(),
+        payload={'model':credential['model'],'instructions':prompt,'input':canonical({'response_format':'json',**request}).decode(),
                  'max_output_tokens':self.output_tokens,'reasoning':{'effort':'low'},
                  'text':{'format':{'type':'json_object'}},'service_tier':'default','stream':False}
         save_new(folder/'request.json',payload)

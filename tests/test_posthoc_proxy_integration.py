@@ -65,7 +65,7 @@ class ProxyIntegrationTests(unittest.TestCase):
         calls=[]
         def provider(request):
             if request.url.path.endswith('input_tokens'):return httpx.Response(200,json={'input_tokens':100})
-            body=json.loads(request.content);data=json.loads(body['input']);calls.append(data)
+            body=json.loads(request.content);data=json.loads(body['input']);self.assertEqual(data['response_format'],'json');calls.append(data)
             readings=[{'occurrence_id':target['occurrence_id'],'status':'uncertain','reason':'No explicit period','recipe':None} for target in data['targets']]
             return httpx.Response(200,json={'status':'completed','model':'gpt-6-luna','service_tier':'default',
                 'usage':{'input_tokens':100,'output_tokens':20,'input_tokens_details':{'cached_tokens':0,'cache_write_tokens':0}},
