@@ -4,6 +4,7 @@ import { translate as tr, useLanguage } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Loading, Notice, Disclosure } from "./shared";
 import type { Table, Relation } from "./data-model";
+import { DataModelExample } from "./data-model-example";
 import { normalizeERMarkers } from "./data-model-markers";
 import { dataModelMermaid } from "./data-model-mermaid";
 import "./data-model-diagram.css";
@@ -560,11 +561,7 @@ export function ERDiagram({
               <span>{tr("Un círculo: puede no haber coincidencia.")}</span>
             </li>
           </ul>
-          <p>
-            {tr(
-              "Por ejemplo: varias ventas pueden corresponder al mismo producto.",
-            )}
-          </p>
+          <DataModelExample />
           <p className="text-muted-foreground">
             {tr(
               "El mapa orienta el cruce de los datos actuales; no establece qué relaciones son obligatorias para el negocio.",

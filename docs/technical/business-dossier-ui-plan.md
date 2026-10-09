@@ -278,3 +278,15 @@ Estado: implementado y comprobado el 8 de octubre de 2026. Véanse las
 
 Estado: implementado y comprobado el 8 de octubre de 2026. Véanse las
 [comprobaciones de lectura del mapa](../validation/2026-10-08-dossier-map-help.md).
+
+
+## Ejemplo dibujado de una relación (refinamiento de 2.5.5)
+
+1. Sustituir el ejemplo solo textual de Cómo leer este mapa por una ilustración
+   con filas ficticias de Ventas y Productos, código compartido y extremos uno/varias.
+2. Adaptar el dibujo al espacio disponible y a ambos temas, conservando la ayuda
+   plegada, su cierre y la funcionalidad del mapa. Comprobar el resultado, revisar
+   el diff público y guardar un commit local.
+
+Estado: implementado y comprobado el 8 de octubre de 2026. Véanse las
+[comprobaciones del ejemplo dibujado](../validation/2026-10-08-dossier-map-example.md).
