@@ -95,11 +95,16 @@ os.execv(sys.argv[3], sys.argv[3:])
         session = self.call('Target.attachToTarget', {'targetId': target, 'flatten': True})['sessionId']
         self.call('Emulation.setDeviceMetricsOverride', {
             'width': 1280, 'height': 1000, 'deviceScaleFactor': 1, 'mobile': False}, session)
-        self.call('Page.navigate', {'url': Path(path).resolve().as_uri()}, session)
+        url=Path(path).resolve().as_uri()
+        navigation=self.call('Page.navigate', {'url': url}, session)
+        if navigation.get('errorText'):
+            raise ValueError('Chrome could not load the requested report.')
         deadline = time.monotonic() + self.timeout
-        while self.evaluate('document.readyState', session) != 'complete':
+        while True:
+            state=self.evaluate('({ready:document.readyState,url:document.URL})',session)
+            if state['ready']=='complete' and state['url']==url:break
             if time.monotonic() > deadline:
-                raise TimeoutError('Report did not finish loading.')
+                raise TimeoutError('Requested report did not finish loading at its original URL.')
             time.sleep(.05)
         self.evaluate('document.fonts.ready.then(() => true)', session)
         return session

@@ -9,6 +9,12 @@ from decision_room.reports.posthoc.browser import Browser, chrome_binary
 
 
 class BrowserDescriptorTests(unittest.TestCase):
+    def test_missing_report_is_not_chrome_error_page_inventory(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with Browser() as browser:
+                with self.assertRaisesRegex(ValueError,'requested report'):
+                    browser.open(Path(folder)/'missing.html')
+
     def test_chrome_uses_real_pipe_descriptors_after_other_runtime_work(self):
         try:
             chrome_binary()
