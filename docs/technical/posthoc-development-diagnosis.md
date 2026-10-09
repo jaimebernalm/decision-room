@@ -114,3 +114,51 @@ informe aún no usado, elegido por orden lexicográfico antes de ejecutarlo. Su
 techo conjunto de coste conocido es 0,25 USD, además de los límites existentes;
 la reserva se comprueba antes de cada llamada. Después se decide si proponer la
 congelación o presentar el diagnóstico al propietario, sin más rondas abiertas.
+
+## Resultado de la última iteración de interfaz
+
+Revisión ejecutada: `5cc10f688acf8bdda097113ee51015a1a5cccfc6`. Selección guardada
+antes de preparar los informes: repetir el informe del diagnóstico anterior y
+elegir el primer HTML de desarrollo aún no usado, en orden lexicográfico.
+Ambas ejecuciones terminaron, sin coste incierto y con conservación exacta de
+fuente, DOM y gráficos. No hubo discrepancias detectadas.
+
+| Informe de desarrollo | Objetivos enviados | Llamadas | Verificadas | Inciertas | No comprobables | Coste USD |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Repetido | 111 | 56 | 24 | 94 | 39 | 0,082572695 |
+| No usado antes | 77 | 40 | 11 | 66 | 95 | 0,059851355 |
+
+Los estados incluyen todo el inventario, no solo los objetivos enviados. La ronda
+costó **0,142424050 USD** frente al techo de 0,25; el acumulado de desarrollo es
+**0,356329610 USD**, todo conocido. La prueba sellada no se ejecutó.
+
+En el informe repetido, 18 ocurrencias pasaron de inciertas a verificadas, 6
+conservaron la verificación y 5 la perdieron. El total pasa de 11 a 24, pero una
+repetición estocástica por versión no aísla causalmente el efecto del prompt.
+La razón genérica sin acuerdo baja de 80 a 59 ocurrencias. En el informe nuevo
+aparece en 50; además, dos grupos incompletos dejan ocho objetivos inciertos.
+No se repararon esas respuestas ni se reintentaron.
+
+Una inspección posterior del registro privado de errores de desarrollo y sus
+citas encontró tres ocurrencias numéricas erróneas, todas inciertas; otras dos
+cantidades erróneas estaban escritas con palabras y no tenían token numérico en
+el inventario. Ninguna de las cinco fue señalada como discrepancia. Es una
+comprobación limitada sobre errores ya conocidos, no el anclaje preregistrado ni
+una auditoría completa de las verificadas. No acredita la condición de seguridad
+del piloto ni elimina del denominador las cantidades que no se localizaron.
+
+El recuento retrospectivo de obstáculos en las 80 ocurrencias del diagnóstico
+anterior distingue 12 contribuciones expresadas como cociente de cambios, seis
+referencias a combinaciones residuales y cinco recuentos de entidades o
+combinaciones. Se solapan: son **20 ocurrencias distintas**, incluidas repeticiones
+de afirmaciones. Los recuentos de entidades necesitan fundamento semántico; no
+todos exigirían necesariamente una operación nueva. Estos números describen ese
+grupo privado, no todos los informes ni las causas comprobadas de cada rechazo.
+
+**Recomendación:** presentar el diagnóstico al propietario antes de congelar o
+gastar en la prueba. Hay mejora parcial en un informe repetido, pero persiste una
+gran cantidad de incertidumbre y no se detectaron los errores conocidos de los
+dos informes. No se ha medido aún la cobertura sobre prioridades auditadas, por
+lo que no se declara que su umbral haya fallado ni que se haya alcanzado. La
+ronda de interfaz queda cerrada; continuar con la prueba o cambiar el alcance
+requiere una decisión explícita, sin otra iteración silenciosa.

@@ -61,11 +61,14 @@ congelado, siguiendo [la secuencia técnica de V1](../technical/posthoc-verifica
 Están implementados el inventario del DOM renderizado, la precisión y localización
 deterministas, las dos interpretaciones separadas, el recálculo, la derivada con
 invariantes y el proxy con presupuesto persistente. Las pruebas técnicas pasan;
-el desarrollo con modelo ha cubierto dos informes, con intentos y costes
-conservados. El segundo termina con invariantes satisfechas, pero el acuerdo de
-interpretaciones sigue siendo escaso; el [diagnóstico offline](../technical/posthoc-development-diagnosis.md)
-distingue problemas de interpretación y límites del catálogo. La congelación y
-la medida sellada siguen pendientes. No se abre P4.
+el desarrollo con modelo ha cubierto tres informes distintos, con intentos y
+costes conservados. La última ronda de interfaz termina sus dos ejecuciones con
+invariantes satisfechas: 24 y 11 ocurrencias verificadas, sin discrepancias
+detectadas. El [diagnóstico de desarrollo](../technical/posthoc-development-diagnosis.md)
+distingue problemas de interpretación y límites del catálogo; recomienda llevar
+el resultado al propietario antes de congelar. El coste conocido acumulado es
+0,356329610 USD. No se ha medido la cobertura auditada de prioridades; congelación
+y prueba sellada siguen pendientes. No se abre P4.
 
 
 **P1 del motor — auditoría cerrada, 6 de octubre:** registro privado revisado de
