@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 from uuid import uuid4
 
 import httpx
@@ -76,6 +77,15 @@ class ProxyIntegrationTests(unittest.TestCase):
         for filename in ['original.html','derived.html','inventory.json','verification/ledger.json','run.json','checks.json']:
             self.assertTrue((self.root/'run'/filename).is_file(),filename)
         with self.assertRaises(FileExistsError):api.run(self.config,self.root/'run',self.root/'all-budget.sqlite',api_key='offline-test-only')
+
+        api.prepare(source,[csv],self.root/'qa-failure')
+        with patch('decision_room.reports.posthoc.presentation.check',side_effect=OSError(9,'sensitive diagnostic text')):
+            with self.assertRaises(OSError):api.run(self.config,self.root/'qa-failure',self.root/'all-budget.sqlite',api_key='offline-test-only',transport=httpx.MockTransport(provider))
+        failure=json.loads((self.root/'qa-failure/run.json').read_text())
+        self.assertEqual(failure['stage'],'presentation_check');self.assertEqual(failure['errno'],9)
+        self.assertNotIn('sensitive diagnostic text',json.dumps(failure))
+        started=json.loads((self.root/'qa-failure/started.json').read_text())
+        self.assertIn('interpretation.py',started['code_sha256'])
 
     def test_unknown_cost_stops_without_replaying_generation(self):
         calls=[]

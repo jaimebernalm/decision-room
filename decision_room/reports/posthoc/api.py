@@ -57,7 +57,8 @@ def run(config,dest,budget_path,*,api_key,batch_size=4,report_limit='0.50',trans
     """One report, one durable job; caller must explicitly choose the next report."""
     dest=Path(dest)
     with (dest/'started.json').open('x') as handle:
-        handle.write(json.dumps({'batch_size':batch_size,'report_limit':report_limit}))
+        handle.write(json.dumps({'batch_size':batch_size,'report_limit':report_limit,
+          'code_sha256':{p.name:sha(p.read_bytes()) for p in sorted(Path(__file__).parent.glob('*.py'))}}))
     inventory=json.loads((dest/'inventory.json').read_text())
     prepared=json.loads((dest/'sources/sources.json').read_text())
     manifest=json.loads((dest/'manifest.json').read_text())
@@ -78,15 +79,19 @@ def run(config,dest,budget_path,*,api_key,batch_size=4,report_limit='0.50',trans
     interpretation.save_new(dest/'engine-job.json',{'business_id':str(business),'run_id':str(run_id),'limits':asdict(limits)})
     ask=ProxyInterpreter(config,business,run_id,token,api_key=api_key,budget=budget,
         report=inventory['source_sha256'],dest=dest/'provider',transport=transport)
+    stage='interpretation'
     try:
         ledger=interpretation.verify(inventory,prepared,ask,dest/'verification',batch_size=batch_size)
+        stage='render'
         derived=dest/'derived.html';derived.write_bytes(presentation.render(original.read_bytes(),inventory,ledger))
+        stage='presentation_check'
         checks=presentation.check(original,derived,inventory)
         interpretation.save_new(dest/'checks.json',checks)
         interpretation.save_new(dest/'run.json',{'status':'completed','budget':budget.inspect()})
     except BaseException as error:
         # Do not promote an incomplete ledger to a successful report.
-        interpretation.save_new(dest/'run.json',{'status':'failed','exception_type':type(error).__name__,'budget':budget.inspect()})
+        interpretation.save_new(dest/'run.json',{'status':'failed','exception_type':type(error).__name__,
+            'stage':stage,'errno':error.errno if isinstance(error,OSError) else None,'budget':budget.inspect()})
         raise
     finally:
         admission.revoke(config,business,run_id)
