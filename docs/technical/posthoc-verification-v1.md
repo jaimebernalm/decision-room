@@ -197,3 +197,12 @@ respuestas del modelo. Un falso descarte cuenta contra la cobertura auditada.
 El contexto de tabla añade `row_text` (texto de la fila, sin atribuirle función de
 cabecera) y `cell_is_header` derivado exclusivamente de TH/THEAD. Los textos de fila
 que recibe el intérprete se vuelven a extraer después del enmascarado conjunto.
+
+El adaptador de citas ofrece segmentos deterministas: líneas del texto enmascarado,
+divididas cada 800 caracteres si son más largas. Cada cita del modelo da id de
+segmento y texto exacto; el servidor exige una sola aparición dentro de ese
+segmento, resuelve el offset global y aplica las mismas validaciones. No acepta
+una cita hecha solo de máscara/puntuación, no elige la primera de varias y no usa
+el valor recalculado para localizarla. Se guardan respuestas crudas y resueltas
+antes del acuerdo y del recálculo. Los targets identifican explícitamente su
+region; una tarjeta numérica de texto no se confunde con un gráfico SVG/canvas.

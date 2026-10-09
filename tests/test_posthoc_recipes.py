@@ -8,7 +8,7 @@ from unittest.mock import patch
 import duckdb
 from decision_room.reports.posthoc.inventory import from_snapshot, sha
 from decision_room.reports.posthoc import recipes
-from decision_room.reports.posthoc.interpretation import masked_request, verify
+from decision_room.reports.posthoc.interpretation import masked_request, verify, resolved_reading, segments_of
 
 
 class RecipeTests(unittest.TestCase):
@@ -156,6 +156,32 @@ class RecipeTests(unittest.TestCase):
         target=next(o for o in inv['occurrences'] if o['text']=='42%')
         req=masked_request(inv,target,self.sources)
         self.assertNotIn('42',req['masked_text'])
+
+    def test_segment_quotes_resolve_before_recalculation(self):
+        def ask(prompt,request,key):
+            r=self.recipe(request)
+            for evidence in [r['evidence']]+[o['evidence'] for o in r['operands']]:
+                for field,refs in evidence.items():
+                    evidence[field]=[{'segment_id':next(seg['id'] for seg in request['segments'] if seg['span'][0]<=ref['span'][0]<ref['span'][1]<=seg['span'][1]),'text':ref['text']} for ref in refs]
+            return {'status':'claim','reason':'Grounded exact segment quotes','recipe':r}
+        ledger=verify(self.inv,self.sources,ask,self.root/'segmented')
+        self.assertEqual(ledger[self.number['id']]['status'],'verified')
+        folder=self.root/'segmented'/self.number['id']
+        self.assertIn('segment_id',(folder/'1.response.json').read_text())
+        self.assertNotIn('segment_id',(folder/'1.resolved.json').read_text())
+        self.assertTrue((folder/'agreed-before-recalculation.json').exists())
+
+    def test_segment_requires_unique_quote_and_mask_only_is_not_evidence(self):
+        from decision_room.reports.posthoc.precision import Uncertain
+        text='North North. ██ %'
+        request={'masked_text':text,'segments':segments_of(text)}
+        reading={'status':'claim','recipe':{'evidence':{'operation':[{'segment_id':'s0000','text':'North'}]},'operands':[]}}
+        with self.assertRaises(Uncertain):resolved_reading(reading,request)
+        reading['recipe']['evidence']['operation'][0]['text']='South'
+        with self.assertRaises(Uncertain):resolved_reading(reading,request)
+        reading['recipe']['evidence']['operation'][0]['text']='██ %'
+        normalized=resolved_reading(reading,request)
+        with self.assertRaises(ValueError):recipes.citation(normalized['recipe']['evidence']['operation'][0],text)
 
     def test_percent_literal_against_grounded_points_is_discrepancy(self):
         text='Diferencia en puntos porcentuales entre North y el total: 0 %.'
