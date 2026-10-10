@@ -54,7 +54,9 @@ it("starts a standalone new chat without visiting home and can resume its draft 
   expect(screen.getByRole("textbox", { name: "Mensaje" })).toBeVisible();
   const user = userEvent.setup();
   await user.click(screen.getAllByRole("link", { name: "Nuevo chat" }).at(-1)!);
-  await screen.findByRole("heading", { name: "Nuevo chat" });
+  await screen.findByRole("heading", {
+    name: "¿Qué quieres hacer hoy?",
+  });
   expect(location.hash).toBe("#ask");
   expect(
     screen.queryByRole("complementary", { name: "Chat lateral" }),
@@ -65,16 +67,16 @@ it("starts a standalone new chat without visiting home and can resume its draft 
   await user.type(screen.getByRole("textbox", { name: "Mensaje" }), "Borrador");
   await user.click(screen.getByRole("link", { name: "Chats" }));
   await screen.findByRole("heading", { name: "Chats" });
-  await user.click(
-    screen.getByRole("button", { name: "Continuar chat" }),
-  );
+  await user.click(screen.getByRole("button", { name: "Continuar chat" }));
   await screen.findByRole("complementary", { name: "Chat lateral" });
   expect(location.hash).toBe("#chats");
   expect(screen.getByRole("textbox", { name: "Mensaje" })).toHaveValue(
     "Borrador",
   );
   await user.click(screen.getAllByRole("link", { name: "Nuevo chat" }).at(-1)!);
-  await screen.findByRole("heading", { name: "Nuevo chat" });
+  await screen.findByRole("heading", {
+    name: "¿Qué quieres hacer hoy?",
+  });
   await waitFor(() => expect(screen.queryByRole("complementary")).toBeNull());
   expect(location.hash).toBe("#ask");
   expect(screen.getByRole("textbox", { name: "Mensaje" })).toHaveValue("");
@@ -231,9 +233,7 @@ it("delete dialog cancel makes no mutation and explicit delete refreshes the lis
       .getAllByRole("button", { name: "Opciones de Chat de prueba" })
       .at(-1)!,
   );
-  await user.click(
-    screen.getByRole("menuitem", { name: "Eliminar chat" }),
-  );
+  await user.click(screen.getByRole("menuitem", { name: "Eliminar chat" }));
   expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Cancelar" }));
   expect(writes).toEqual([]);
@@ -242,9 +242,7 @@ it("delete dialog cancel makes no mutation and explicit delete refreshes the lis
       .getAllByRole("button", { name: "Opciones de Chat de prueba" })
       .at(-1)!,
   );
-  await user.click(
-    screen.getByRole("menuitem", { name: "Eliminar chat" }),
-  );
+  await user.click(screen.getByRole("menuitem", { name: "Eliminar chat" }));
   await user.click(screen.getByRole("button", { name: "Eliminar chat" }));
   await waitFor(() => expect(writes).toEqual(["/api/chats/chat/delete"]));
   expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
@@ -349,23 +347,19 @@ it("switches business from the header without leaking chats or drafts between sp
   await user.click(screen.getByRole("menuitem", { name: other.name }));
   await screen.findByRole("button", { name: other.name });
   expect(screen.queryByRole("link", { name: "Chat de prueba" })).toBeNull();
-  await user.click(
-    screen.getByRole("button", { name: "Continuar chat" }),
-  );
+  await user.click(screen.getByRole("button", { name: "Continuar chat" }));
   expect(await screen.findByRole("textbox", { name: "Mensaje" })).toHaveValue(
     "Borrador del segundo negocio",
   );
   await user.click(screen.getByRole("button", { name: "Cerrar chat lateral" }));
   await waitFor(() => expect(screen.queryByRole("complementary")).toBeNull());
   await user.click(
-    screen.getByRole("button", { name: "Abrir o cerrar navegación" }),
+    screen.getByRole("button", { name: "Expandir barra lateral" }),
   );
   await user.click(screen.getByRole("button", { name: other.name }));
   await user.click(screen.getByRole("menuitem", { name: business.name }));
   await screen.findByRole("button", { name: business.name });
-  await user.click(
-    screen.getByRole("button", { name: "Continuar chat" }),
-  );
+  await user.click(screen.getByRole("button", { name: "Continuar chat" }));
   expect(await screen.findByRole("textbox", { name: "Mensaje" })).toHaveValue(
     "Borrador del primer negocio",
   );

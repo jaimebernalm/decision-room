@@ -23,7 +23,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { PanelLeftIcon } from "lucide-react";
+import { PanelLeftClose, PanelLeftIcon } from "lucide-react";
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
@@ -260,7 +260,8 @@ function SidebarTrigger({
   ...props
 }: React.ComponentProps<typeof Button>) {
   useLanguage();
-  const { toggleSidebar } = useSidebar();
+  const { toggleSidebar, isMobile, openMobile, open } = useSidebar();
+  const Icon = (isMobile ? openMobile : open) ? PanelLeftClose : PanelLeftIcon;
 
   return (
     <Button
@@ -275,7 +276,7 @@ function SidebarTrigger({
       }}
       {...props}
     >
-      <PanelLeftIcon />
+      <Icon />
       <span className="sr-only">{tr("Abrir o cerrar navegación")}</span>
     </Button>
   );

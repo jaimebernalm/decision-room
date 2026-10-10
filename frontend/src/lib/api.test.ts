@@ -3,6 +3,8 @@ import {
   launchChat,
   store,
   homeDraftKey,
+  chatGoalKey,
+  messageKey,
   contextKey,
   queuePosition,
   shortTitle,
@@ -52,6 +54,35 @@ describe("durable chat handoff", () => {
       expect(s.chats.size).toBe(1);
       expect(s.messages.size).toBe(1);
     });
+  it("keeps the selected goal in a retriable pending send and clears matching context", async () => {
+    const s = server("message");
+    const context = { analysis_id: "sales", label: "Ventas" };
+    store.set(homeDraftKey("a"), "Analiza ventas");
+    store.set(chatGoalKey("a"), "analyze");
+    store.set(contextKey("a"), context);
+    await expect(
+      launchChat("a", "Analiza ventas", context, "analysis"),
+    ).rejects.toThrow();
+    const chat = [...s.chats.values()][0];
+    expect(store.get(messageKey(chat.id), {})).toMatchObject({
+      entry_intent: "analysis",
+    });
+    await launchChat("a", "Analiza ventas", context, "analysis");
+    const messages = s.calls.filter((call) => call.url.endsWith("/messages"));
+    expect(messages[0].data).toEqual(messages[1].data);
+    expect(messages[1].data.entry_intent).toBe("analysis");
+    expect(s.chats.size).toBe(1);
+    expect(store.get(contextKey("a"), null)).toBeNull();
+    expect(store.get(chatGoalKey("a"), null)).toBeNull();
+  });
+  it("does not reuse a failed request identity when the owner changes the goal", async () => {
+    const s = server("message");
+    await expect(launchChat("a", "Ventas", {}, "question")).rejects.toThrow();
+    await launchChat("a", "Ventas", {}, "analysis");
+    const messages = s.calls.filter((call) => call.url.endsWith("/messages"));
+    expect(messages[0].data.request_key).not.toBe(messages[1].data.request_key);
+    expect(messages[1].data.entry_intent).toBe("analysis");
+  });
   it("deduplicates concurrent submission", async () => {
     const s = server();
     const [a, b] = await Promise.all([

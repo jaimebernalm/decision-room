@@ -1,0 +1,122 @@
+.dossier-explorer {
+  container-type: inline-size;
+}
+
+.dossier-explorer-layout {
+  display: grid;
+  min-width: 0;
+  gap: 1.5rem;
+}
+
+.dossier-explorer-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.375rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 1rem;
+}
+
+.dossier-explorer-link {
+  height: auto;
+  min-height: 2.75rem;
+  max-width: 100%;
+  justify-content: flex-start;
+  gap: 0.75rem;
+  text-align: left;
+  border-radius: 0.625rem;
+}
+
+.dossier-explorer-link[aria-pressed="true"] {
+  background: var(--sidebar-accent);
+  color: var(--sidebar-accent-foreground);
+}
+
+.dossier-explorer-footer {
+  width: 100%;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+@container (min-width: 38rem) {
+  .dossier-explorer-layout {
+    grid-template-columns: minmax(10rem, 13rem) minmax(0, 1fr);
+    gap: 1.75rem;
+  }
+
+  .dossier-explorer-nav {
+    flex-direction: column;
+    border-bottom: 0;
+    border-right: 1px solid var(--border);
+    padding: 0 1rem 0 0;
+  }
+
+  .dossier-explorer-link {
+    width: 100%;
+  }
+}
+
+.dossier-group-edit-item {
+  animation: dossier-group-wiggle 0.28s ease-in-out 3;
+}
+.dossier-group-edit-item:hover,
+.dossier-group-edit-item:focus-within {
+  animation: none;
+}
+.dossier-group-edit-row .dossier-explorer-link {
+  flex: 1;
+  padding-inline: 0.375rem;
+}
+.dossier-group-remove {
+  position: absolute;
+  top: -0.4rem;
+  right: -0.35rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+}
+@keyframes dossier-group-wiggle {
+  0%,
+  100% {
+    transform: rotate(-0.6deg);
+  }
+  50% {
+    transform: rotate(0.6deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dossier-group-edit-item {
+    animation: none;
+  }
+}
+@media (pointer: coarse) {
+  .dossier-group-remove {
+    position: static;
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+}
+
+.dossier-drag-scroll {
+  cursor: grab;
+}
+.dossier-drag-scroll[data-dragging="true"],
+.dossier-drag-scroll[data-dragging="true"] * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
+.context-pickable [data-table-row] {
+  padding-right: 3rem;
+}
+
+.dossier-group-edit-row {
+  flex-basis: calc(100% - 2rem);
+}
+@media (pointer: coarse) {
+  .dossier-group-edit-row {
+    flex-basis: calc(100% - 6rem);
+  }
+}

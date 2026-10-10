@@ -1,4 +1,4 @@
-"""Versioned UI selections. Only server-resolved report content is evidence."""
+"""Versioned UI selections resolved from business-scoped server content."""
 from .web.errors import WebError, identifier
 from .web.dashboard import presentation
 
@@ -19,7 +19,7 @@ def normalize(values):
             raise WebError('La selección no es válida.')
         identity, version = fields[:2]
         item = dict(value, **{identity: str(identifier(value[identity]))})
-        kinds = ('business', 'memory', 'conversation') if fields == SOURCE_FIELDS else ('chart', 'metric', 'insight', 'section', 'report')
+        kinds = ('business', 'memory', 'conversation', 'data_model') if fields == SOURCE_FIELDS else ('chart', 'metric', 'insight', 'section', 'report')
         if (item['kind'] not in kinds or
             any(not isinstance(item[k], str) or not 0 < len(item[k]) <= 180
                 for k in (version, 'element_key'))):
@@ -67,11 +67,13 @@ def resolve(reference, reviewed, display=None):
 
 
 def resolve_source(reference, db, business):
-    """Resolve owner-declared context, never treating it as reviewed analysis."""
+    """Resolve business-scoped context without treating it as reviewed analysis."""
     from .web.business import profile
     if reference['kind'] == 'conversation':
         from .conversation_context import attachment
         return attachment(db, business, reference)
+    if reference['kind'] == 'data_model':
+        return resolve_data_model(reference, db, business)
     kind, key = reference['kind'], reference['element_key']
     if kind == 'business' and key == 'profile' and reference['source_id'] == str(business):
         row = profile(db, business)
@@ -99,3 +101,49 @@ def resolve_source(reference, db, business):
         raise WebError('La información seleccionada ha cambiado. Vuelve a seleccionarla.', 409)
     return dict(**reference, title=title, content=content, status='available',
                 report_title='Mi negocio', href='#my-business', **details)
+
+
+def resolve_data_model(reference, db, business):
+    """Resolve saved schemas and checks, without upgrading proposed business meaning."""
+    from .data_knowledge import service
+    row = service.latest(db, business, reference['source_id'])
+    if (not row or str(row['revision']) != reference['source_version'] or
+            not service.current(db, business, dict(analysis_id=reference['source_id'], revision=row['revision']))):
+        raise WebError('El modelo de datos ha cambiado o ya no está disponible. Vuelve a seleccionarlo.', 409)
+    body, key = row['body'], reference['element_key']
+    if key == 'model':
+        relations, tables = body['relations'], body['tables']
+        title, scope = 'Mapa de relaciones', 'whole_data_model'
+    elif key.startswith('table:'):
+        table = next((t for t in body['tables'] if t['id'] == key.removeprefix('table:')), None)
+        if not table:
+            raise WebError('La tabla seleccionada no pertenece a este modelo.', 409)
+        tables, relations = [table], []
+        title, scope = f"Tabla: {table['name']}", 'table'
+    elif key.startswith('relation:'):
+        relation = next((r for r in body['relations'] if r['id'] == key.removeprefix('relation:')), None)
+        if not relation:
+            raise WebError('La relación seleccionada no pertenece a este modelo.', 409)
+        relations = [relation]
+        tables = [t for t in body['tables'] if t['id'] in (relation['source'], relation['target'])]
+        names = {t['id']: t['name'] for t in tables}
+        title = f"Relación: {names[relation['source']]} → {names[relation['target']]}"
+        scope = 'relationship'
+    else:
+        raise WebError('El elemento seleccionado no pertenece a este modelo.', 409)
+    statements = [f"{len(tables)} tablas · {len(relations)} relaciones"]
+    if scope == 'table':
+        statements = [title, f"{table['row_count']} filas",
+                      'Columnas: ' + ', '.join(c['name'] for c in table['columns'])]
+    names = {t['id']: t['name'] for t in tables}
+    for relation in relations:
+        statements.append(f"{names[relation['source']]} ({', '.join(relation['source_columns'])}) → "
+                          f"{names[relation['target']]} ({', '.join(relation['target_columns'])}): "
+                          f"{relation['semantic_status']} · {relation['verification']}" +
+                          (f". {relation['description']}" if relation['description'] else ''))
+    content = dict(key=key, title=title, statement='\n'.join(statements), tables=tables, relations=relations,
+                   scope=body.get('scope'), inference=body.get('inference'),
+                   discovery_limits=body.get('discovery', {}).get('limitations', []))
+    return dict(**reference, title=title, content=content, status='available', authority='data_model',
+                selection_scope=scope, analysis_id=str(row['analysis_id']), model_revision=row['revision'],
+                report_title='Datos', href='#my-business')

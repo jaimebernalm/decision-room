@@ -555,6 +555,15 @@ y 128 backend seleccionadas, compilación y lint sin errores; comprobación visu
 en escritorio/móvil y ambos temas. Se conserva el historial en su idioma original.
 La prueba real del proveedor recibe HTTP 429; véanse [validación y límites](../validation/2026-09-30-language-and-composer.md).
 
+**2.5.20.7 completado, 7 de octubre de 2026:** campo de mensaje sin borde visible,
+incluido el foco. Pasan 44 pruebas frontend seleccionadas, build y lint; comprobado
+en navegador. Véase el [ajuste del compositor](../technical/language-and-composer-plan.md).
+
+**2.5.20.8 completado, 7 de octubre de 2026:** tras aclarar el usuario el cambio
+con una captura, se restaura el borde del campo y se elimina la sombra exterior
+de la barra flotante. Sustituye el aspecto de 2.5.20.7. Pasan 44 pruebas frontend
+seleccionadas, build y lint; comprobado en navegador en reposo y con foco.
+
 **Integración de UI1 y UI2, 1 de octubre de 2026:** se unen navegación,
 idioma y compositor (2.5.18–2.5.20) con la ficha y sus grupos (2.5.5) en una rama
 local de integración. Se conservan ambas migraciones de datos (presentación 27,
@@ -639,6 +648,210 @@ al asistente en escritorio y móvil. Véanse
 **Completado:** TypeScript y Vite pasan (avisos existentes de tamaño de paquetes).
 En localhost 8788, comprobados botón de 36 × 36 px, icono de 24 × 24 px y
 apertura/cierre del chat. Revisión visual y `git diff --check` sin incidencias.
+
+### 2.5.26. Apertura y cierre fluidos del panel derecho
+
+1. Animar la apertura y el cierre del chat lateral junto con el espacio ocupado
+   en escritorio, sin saltos de la página ni redistribución del contenido del chat.
+2. Mantener ajuste inmediato por arrastre/teclado, límites, borradores y cierre
+   accesible; permitir invertir la transición y respetar movimiento reducido.
+3. Comprobar apertura/cierre y ajuste en localhost, escritorio y móvil; ejecutar
+   pruebas frontend, compilación, lint y revisión de diferencias.
+
+**Completado:** 225 pruebas frontend pasan; compilación y lint sin errores.
+Comprobados el movimiento gradual de la página, ajuste inmediato, alineación del
+tirador, reapertura durante el cierre con borrador y deslizamiento móvil sin
+desbordamiento. Véanse [comprobaciones y límites](../validation/2026-10-06-smooth-assistant-panel.md).
+
+### 2.5.27. Coincidencias visibles y datos organizados en la ficha
+
+1. Resaltar en negrita las coincidencias literales en títulos y fragmentos de
+   Chats, conservando texto original, mayúsculas/tildes, caracteres especiales
+   y escape de HTML.
+2. Reducir altura y relleno de Información, Datos e Historial en Mi negocio.
+3. Separar Datos en Archivos, Tablas y Relaciones, según la preferencia explícita
+   del propietario: grupos desplegables como Información y subida desde un `+`
+   independiente en la cabecera de Archivos. Conservar versiones, descargas,
+   errores de preparación, relaciones y selección de la versión para preguntar.
+4. Comprobar escritorio/móvil y controles, ejecutar pruebas frontend,
+   compilación, lint y revisión de diferencias.
+
+**Completado:** 233 pruebas frontend pasan; compilación y lint sin errores.
+Comprobados negrita de coincidencias con tildes, pestañas compactas, grupos
+desplegables y `+` independiente en localhost, escritorio y móvil. Véanse
+[comprobaciones y límites](../validation/2026-10-06-chat-matches-and-data-groups.md).
+
+### 2.5.28. Contexto en burbujas y consulta junto a las tablas
+
+1. Mostrar el contexto añadido como burbujas independientes sobre el campo,
+   con una pequeña unión visual, sin ampliar la superficie del formulario.
+   Mantener retirada individual, borradores y vistas previas de adjuntos.
+2. Sustituir «Preguntar con esta versión» por «Preguntar sobre estas tablas»:
+   abrir el asistente a la derecha conservando Datos y el conjunto exacto.
+3. Mostrar el modelo directamente dentro de Relaciones; explicar la estructura
+   de los conjuntos con una sola tabla y conservar revisión y correcciones.
+4. Añadir un conjunto sintético independiente de ventas, productos y proveedores
+   con originales y dos conexiones comprobadas, repetible sin sobrescribir
+   correcciones posteriores. Comprobar interfaz, datos y escritorio/móvil.
+
+**Completado:** 236 pruebas frontend y 15 del modelo de datos pasan;
+compilación, lint y revisión de diferencias sin errores. Ejemplo cargado en el
+negocio local y comprobados burbuja independiente, panel junto a Datos y modelo
+visible desde el inicio. Véanse [comprobaciones y límites](../validation/2026-10-06-context-bubbles-and-inline-relations.md).
+
+### 2.5.29. Burbujas compactas y mapa de relaciones con Mermaid
+
+1. Reducir el contexto pendiente a cápsulas pequeñas, redondas y pegadas al
+   compositor; conservar retirada y apertura de la vista previa completa.
+2. Dibujar las tablas y conexiones con Mermaid, mostrando columnas y claves
+   declaradas válidas, con selección, teclado, zoom y disposición adaptable.
+3. Plegar búsqueda e historial inicialmente, manteniendo revisión exacta,
+   comprobaciones y correcciones. Escapar nombres subidos como texto literal.
+4. Comprobar escritorio/móvil, ejecutar pruebas frontend, compilación, lint
+   y revisión del contenido antes del commit local.
+
+**Completado:** 242 pruebas frontend pasan; compilación y lint sin errores.
+Comprobados cápsulas de 30 px, separación de 3 px, Mermaid real con tres tablas,
+selección de conexiones mediante ratón y teclado, zoom y móvil sin desbordamiento.
+Véanse [comprobaciones y límites](../validation/2026-10-06-compact-bubbles-and-mermaid.md).
+
+### 2.5.30. Navegación por el mapa y conexiones comprensibles
+
+1. Retirar el tipo genérico «dato» y su separador del dibujo; conservar nombres
+   de columnas, bordes de filas y claves declaradas.
+2. Convertir el mapa en un lienzo contenido que permita arrastrar con ratón o
+   puntero táctil, ampliar y volver a ajustar. Separar clic de arrastre.
+3. Explicar brevemente cada conexión al pasar por su línea o etiqueta, y al
+   enfocarla con teclado: significado, columnas comparadas y estado pendiente
+   o descartado. Conservar acceso a detalles y comprobaciones.
+4. Comprobar escritorio/móvil, pruebas frontend, compilación, lint y revisión
+   pública de los archivos antes de guardar el commit local.
+
+**Completado:** 244 pruebas frontend pasan; compilación y lint sin errores.
+Comprobados retirada de «dato», arrastre libre, zoom, ajuste, explicación por
+puntero y teclado, y móvil sin desbordamiento. Véanse
+[comprobaciones y límites](../validation/2026-10-06-map-canvas-and-explanations.md).
+
+### 2.5.31. Relaciones mínimas y comprensibles para usuarios no técnicos
+
+1. Dar protagonismo al mapa y conservar Conexiones y comprobaciones; trasladar
+   la lista repetida de tablas y los datos de revisión a búsqueda e historial.
+2. Retirar las secciones vacías y agrupar las aclaraciones opcionales con
+   lenguaje cotidiano y ejemplos: conectar dos tablas y aclarar un cálculo.
+3. Mostrar los conjuntos de una sola tabla como explicación breve con acceso
+   a columnas, sin otro diagrama ni título de conexiones. Permitir cerrar
+   detalles y desplegar las comprobaciones técnicas cuando se necesiten.
+4. Conservar definiciones, revisiones, edición y avisos; comprobar escritorio,
+   móvil, pruebas frontend, compilación, lint y contenido público del commit.
+
+**Completado:** 246 pruebas frontend pasan; compilación y lint sin errores.
+Verificados mapa único, conjunto de una sola tabla sin mapa redundante,
+aclaraciones con ejemplos, detalles cerrables y móvil sin desbordamiento.
+Véanse [comprobaciones y límites](../validation/2026-10-07-minimal-data-model.md).
+
+### 2.5.32. Datos y detalles de informes sin ruido visual
+
+1. Mostrar únicamente archivos reales y nombres de tablas, sin títulos de lotes,
+   versiones ni extensiones en las tablas; reconocer hojas de Excel y conservar
+   las descargas y el conjunto exacto al preguntar.
+2. Retirar búsqueda/historial del mapa habitual y mantener búsqueda solo en
+   catálogos grandes. Abrir Conexiones y comprobaciones con un botón compacto,
+   sin cajas anidadas ni confirmaciones redundantes; conservar avisos reales,
+   comprobaciones, aclaraciones y control de revisión al guardar.
+3. Abrir detalles al pulsar la fila de un informe o su botón de información;
+   conservar apertura desde título y Abrir. Mostrar fecha, catálogo original
+   y tablas añadidas después a partir de procedencia guardada, sin afirmar que
+   todas las tablas participaron en los cálculos. Respetar negocio, selección,
+   informes retirados, papelera y acceso a la evidencia.
+4. Comprobar interfaz en escritorio y móvil, nombres CSV/hojas Excel, contexto,
+   procedencia inmutable, autenticación/aislamiento, pruebas, build y lint.
+
+**Completado:** 253 pruebas frontend y 12 backend dirigidas pasan; build y lint
+sin errores. Comprobados archivos/tablas limpios, conexiones bajo petición y
+detalles históricos de informes en escritorio/móvil. Véanse
+[alcance y validación](../validation/2026-10-07-client-data-and-report-details.md).
+
+### 2.5.33. Biblioteca actual y apertura de tablas
+
+1. Retirar de Datos las copias históricas indicadas por el propietario, sin
+   eliminar originales, evidencias ni procedencia de informes. Conservar una
+   preferencia reversible y excluir versiones corregidas/sustituidas del listado.
+2. Convertir las filas de Tablas en botones que abren una ventana con columnas
+   y valores reales; mantener descargas independientes, teclado y retorno del foco.
+3. Reutilizar lectura paginada y controles de integridad, vinculando la fuente
+   exacta y el negocio activo, con estados de error/reintento y sin texto extra.
+4. Comprobar archivo/recuperación y continuidad histórica, tabla seleccionada,
+   paginación, autenticación/aislamiento, escritorio/móvil, pruebas, build y lint.
+
+**Completado:** 259 pruebas frontend y 14 backend dirigidas pasan; build y lint
+sin errores. Comprobados tres archivos/tablas actuales, apertura de Productos
+y Ventas, móvil contenido y retorno del foco. Véanse
+[validación y límites](../validation/2026-10-07-current-library-and-table-dialog.md).
+
+### 2.5.34. Consulta fluida de tablas grandes
+
+1. Consultar bloques de 50 filas por intervalo de origen, sin recorrer páginas
+   anteriores; cachear verificaciones de archivos inmutables con invalidación
+   por identidad, tamaño, tiempos de modificación/cambio y hash esperado.
+2. Añadir búsqueda literal y filtros por columna con parámetros validados;
+   continuar resultados por ordinal, sin contar todos los resultados por página.
+3. Virtualizar filas visibles, mantener una caché limitada y permitir saltos
+   directos sin superar los límites de altura del navegador. Conservar teclado,
+   errores/reintento, columnas paginadas y cambio seguro de consulta.
+4. Medir una importación real de un millón de filas; comprobar búsquedas,
+   continuidad, integridad, aislamiento, escritorio/móvil, pruebas, build y lint.
+
+**Completado:** 267 pruebas frontend y 60 backend distintas pasan; build y lint
+sin errores. Importación real de un millón de filas: bloques de primera, mitad
+y última página en 24,48–46,36 ms; filtro y búsqueda con continuidad comprobados.
+Verificados escritorio/móvil y cachés acotadas con invalidación. Véanse
+[medición, contrato y límites](../validation/2026-10-07-large-table-browser.md).
+
+### 2.5.35. Inicio común para preguntas e informes
+
+1. Unificar acción de inicio, compositor centrado y sugerencias de intención.
+2. Conectar el primer informe y la ruta anterior al mismo recorrido conversacional.
+3. Comprobar animación, teclado, borradores, datos y contexto en escritorio/móvil;
+   conservar informes y conversaciones existentes, pruebas, build y lint.
+
+Véase [plan de implementación](../technical/unified-chat-entry-plan.md).
+**Completado y validado el 2026-10-08.**
+
+Validación: 290 pruebas frontend correctas; build, lint y revisión del diff
+correctos. Comprobación visual en escritorio y móvil, borradores, envío real,
+reintento, rutas antiguas y acciones de informe. Evidencias locales fuera de Git.
+
+### 2.5.36. Inicio por objetivo
+
+1. Cuatro tarjetas de objetivo, título y ejemplo adaptados, selección visible y
+   borrador conservado; futuros seleccionables con envío desactivado.
+2. Enviar la intención real de pregunta o análisis al asistente, conservando
+   reintentos, contexto y revisión de los informes.
+3. Validar teclado, borradores, rutas, idiomas, escritorio/móvil y regresiones;
+   revisar cambios y crear un commit local enfocado.
+
+Véase [plan de implementación](../technical/goal-entry-plan.md).
+**Completado y validado el 2026-10-08.**
+
+Validación: 296 pruebas frontend y 60 de conversaciones correctas; build, lint y
+revisión visual en escritorio/móvil. Predicciones e ideas son seleccionables pero
+no se ejecutan. Los informes conservan revisión y comprobación de vigencia.
+
+### 2.5.37. Transiciones al elegir un objetivo
+
+1. Recoger y volver a abrir las tarjetas con una transición; conservar el objetivo
+   junto al campo y un control para cambiarlo, sin selector de tablas.
+2. Animar los cambios de título y ejemplo sin remontar el campo ni animar el
+   borrador al escribir; respetar movimiento reducido, teclado y futuros.
+3. Comprobar recorridos, reintentos, idiomas, escritorio/móvil, build y lint;
+   revisar el diff y crear un commit local enfocado.
+
+Véase [plan de implementación](../technical/goal-motion-plan.md).
+**Completado y validado el 2026-10-08.**
+
+Validación: 300 pruebas frontend correctas; build, lint y revisión en escritorio/
+móvil. Borrador y foco conservados; reapertura, Escape, futuros y movimiento
+reducido comprobados. Sin selector de tablas.
 
 ## 6. Entrega 3: adaptación y ampliación de cobertura
 

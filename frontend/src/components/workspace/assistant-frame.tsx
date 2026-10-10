@@ -120,6 +120,8 @@ export function AssistantFrame({
     >
       <SidebarInset
         ref={pageRef}
+        aria-hidden={isMobile && panel && !a.selecting ? true : undefined}
+        inert={isMobile && panel && !a.selecting ? true : undefined}
         className={`assistant-page ${floatingComposer ? "has-workspace-composer" : ""}`}
       >
         {header}
@@ -157,24 +159,29 @@ export function AssistantFrame({
           </div>
         )}
       </SidebarInset>
-      {panel && !isMobile && (
-        <ResizeHandle
-          label={tr("Anchura del chat")}
-          className="assistant-resize"
-          min={340}
-          max={640}
-          width={width}
-          direction={-1}
-          step={24}
-          getWidth={() =>
-            panelRef.current?.getBoundingClientRect().width ?? width
-          }
-          onResize={resize}
-        />
-      )}
       <AnimatePresence initial={false}>
         {panel && (
-          <PanelPresence key="chat-panel" mobile={isMobile} width={width}>
+          <PanelPresence
+            key="chat-panel"
+            mobile={isMobile}
+            handle={
+              !isMobile && (
+                <ResizeHandle
+                  label={tr("Anchura del chat")}
+                  className="assistant-resize"
+                  min={340}
+                  max={640}
+                  width={width}
+                  direction={-1}
+                  step={24}
+                  getWidth={() =>
+                    panelRef.current?.getBoundingClientRect().width ?? width
+                  }
+                  onResize={resize}
+                />
+              )
+            }
+          >
             <aside
               ref={panelRef}
               className="assistant-panel"
@@ -274,26 +281,32 @@ function PanelAction({
 function PanelPresence({
   children,
   mobile,
-  width,
+  handle,
 }: {
   children: ReactNode;
   mobile: boolean;
-  width: number;
+  handle: ReactNode;
 }) {
   const reduced = useReducedMotion();
   const present = useIsPresent();
   return (
     <motion.div
       className="assistant-panel-shell"
-      style={{ width: mobile ? "100%" : width }}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
+      initial="closed"
+      animate="open"
+      exit="closed"
+      variants={{
+        // Animate visibility independently of the owner's chosen width so
+        // resizing never starts another width transition.
+        open: { "--panel-reveal": 1, opacity: 1, x: 0 },
+        closed: { "--panel-reveal": 0, opacity: 0, x: mobile ? "100%" : 0 },
+      }}
       transition={{ duration: reduced ? 0 : 0.28, ease: [0.22, 1, 0.36, 1] }}
       aria-hidden={!present}
       inert={!present}
     >
-      {children}
+      {present && handle}
+      <div className="assistant-panel-clip">{children}</div>
     </motion.div>
   );
 }

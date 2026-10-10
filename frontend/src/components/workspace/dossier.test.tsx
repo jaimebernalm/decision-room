@@ -136,6 +136,16 @@ function setup(
   const writes: Record<string, unknown>[] = [];
   const refresh = vi.fn();
   const fetch = vi.fn(async (_url: string, init: RequestInit) => {
+    if (_url.startsWith("/api/business/data-model?"))
+      return {
+        ok: true,
+        json: async () => ({
+          model: null,
+          history: [],
+          editable: false,
+          affected_reports: [],
+        }),
+      };
     if (init.method === "POST") {
       const body = JSON.parse(init.body as string);
       writes.push(body);
@@ -152,6 +162,17 @@ function setup(
           assignments: body.assignments,
         };
         return { ok: true, json: async () => structuredClone(current.layout) };
+      }
+      if (_url === "/api/business") {
+        current.business = {
+          ...current.business,
+          description: body.description,
+          profile_revision: body.profile_revision + 1,
+        };
+        return {
+          ok: true,
+          json: async () => ({ business: structuredClone(current.business) }),
+        };
       }
       const existing = current.facts.find((f) => f.fact_id === body.fact_id);
       if (existing) {
@@ -217,23 +238,51 @@ function setup(
 async function ready() {
   await screen.findByRole("tab", { name: "Información" });
 }
+async function selectFact(user: ReturnType<typeof userEvent.setup>, f: Fact) {
+  const row = screen.getByRole("button", {
+    name: `Ver información: ${f.content.statement}`,
+    hidden: true,
+  });
+  const panel = row.closest("section")!;
+  const trigger = document.getElementById(
+    panel.getAttribute("aria-labelledby")!,
+  )!;
+  await user.click(trigger);
+}
+async function selectGroup(
+  user: ReturnType<typeof userEvent.setup>,
+  name: string,
+) {
+  await user.click(
+    screen.getByRole("button", { name: new RegExp(`^${name}( \\d+)?$`) }),
+  );
+}
 async function menu(user: ReturnType<typeof userEvent.setup>, f: Fact) {
+  await selectFact(user, f);
   await user.click(
     screen.getByRole("button", { name: `Acciones: ${f.content.statement}` }),
   );
 }
 
 describe("compact business dossier", () => {
+  it("keeps group customization reachable with no groups or facts and returns focus after closing", async () => {
+    const data = dossier([]);
+    data.layout = { revision: 1, groups: [], assignments: {} };
+    const { user } = setup(data);
+    await ready();
+    expect(screen.getByText("Un contexto que crece contigo")).toBeVisible();
+    const trigger = within(screen.getByRole("navigation", { name: "Información" })).getByRole("button", { name: "Personalizar grupos" });
+    await user.click(trigger);
+    expect(screen.getByRole("form", {name: "Personalizar grupos"})).toBeVisible();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await user.keyboard("{Escape}");
+    expect(trigger).toHaveFocus();
+  });
   it.each(["Confirmar", "Descartar"])(
     "decides a proposal from its reading dialog with %s",
     async (decision) => {
       const { user, writes } = setup(dossier([proposed]));
       await ready();
-      if (decision === "Confirmar") {
-        await user.click(
-          screen.getByRole("button", { name: "Sobre el negocio 0" }),
-        );
-      }
       const row = screen.getByRole("button", {
         name: `Ver información: ${proposed.content.statement}`,
       });
@@ -378,19 +427,19 @@ describe("compact business dossier", () => {
     handle.focus();
     await user.keyboard("{ArrowUp}");
     expect(
-      screen.getByRole("textbox", { name: "Nombre del grupo 1" }),
-    ).toHaveValue("Sobre el negocio");
+      screen.getByRole("button", { name: "Sobre el negocio 1" }),
+    ).toHaveTextContent("Sobre el negocio");
     await user.keyboard("{ArrowDown}");
     expect(
-      screen.getByRole("textbox", { name: "Nombre del grupo 2" }),
-    ).toHaveValue("Sobre el negocio");
+      screen.getByRole("button", { name: "Sobre el negocio 1" }),
+    ).toHaveTextContent("Sobre el negocio");
     expect(screen.getByRole("status")).toHaveTextContent(
       "Sobre el negocio: posición 2 de 3.",
     );
     expect(writes).toEqual([]);
     await user.click(screen.getByRole("button", { name: "Guardar grupos" }));
     await waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+      expect(screen.queryByRole("form", {name: "Personalizar grupos"})).not.toBeInTheDocument(),
     );
     expect(writes[0]).toMatchObject({
       revision: 7,
@@ -435,28 +484,24 @@ describe("compact business dossier", () => {
       expect(writes).toEqual([]);
     },
   );
-  it("groups every active fact and only shows material status, dates and scope", async () => {
-    setup();
+  it("navigates every active group without writing and preserves material status, dates and scope", async () => {
+    const { user, writes } = setup();
     await ready();
-    expect(
-      screen.getByRole("button", { name: "Sobre el negocio 1" }),
-    ).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByRole("button", { name: "Operativa 2" })).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
-    expect(
-      screen.getByRole("button", { name: "Objetivos y preferencias 2" }),
-    ).toHaveAttribute("aria-expanded", "true");
-    expect(
-      screen.getByRole("button", { name: "Por revisar 3" }),
-    ).toHaveAttribute("aria-expanded", "true");
-    expect(
-      screen.getByText("Ventas de septiembre · 2026-09-01 — 2026-09-30"),
-    ).toBeVisible();
+    const review = screen.getByRole("button", { name: "Por revisar 3" });
+    expect(review).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText("Por confirmar")).toBeVisible();
     expect(screen.getByText("En conflicto")).toBeVisible();
     expect(screen.getByText("Fechas por aclarar")).toBeVisible();
+    await selectGroup(user, "Operativa");
+    expect(
+      screen.getByText("Ventas de septiembre · 2026-09-01 — 2026-09-30"),
+    ).toBeVisible();
+    await selectGroup(user, "Objetivos y preferencias");
+    expect(screen.getByText(goal.content.statement)).toBeVisible();
+    expect(screen.getByText(preference.content.statement)).toBeVisible();
+    await selectGroup(user, "Sobre el negocio");
+    expect(screen.getByText(shop.content.statement)).toBeVisible();
+    expect(screen.getByText(hours.content.statement)).not.toBeVisible();
     expect(screen.queryByText("Confirmado por ti")).not.toBeInTheDocument();
     expect(screen.queryByText("Todo el negocio")).not.toBeInTheDocument();
     expect(
@@ -470,18 +515,26 @@ describe("compact business dossier", () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByText(business.description)).not.toBeInTheDocument();
     expect(screen.queryByRole("menuitem")).not.toBeInTheDocument();
+    expect(writes).toEqual([]);
   });
-  it("folds groups without losing information", async () => {
-    const { user } = setup();
+  it("switches groups with keyboard without losing information or the selected group", async () => {
+    const { user, writes } = setup();
     await ready();
-    await user.click(
-      screen.getByRole("button", { name: "Sobre el negocio 1" }),
-    );
-    expect(screen.queryByText(shop.content.statement)).not.toBeInTheDocument();
-    await user.click(
-      screen.getByRole("button", { name: "Sobre el negocio 1" }),
-    );
+    const businessGroup = screen.getByRole("button", {
+      name: "Sobre el negocio 1",
+    });
+    businessGroup.focus();
+    await user.keyboard("{Enter}");
+    expect(businessGroup).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText(shop.content.statement)).toBeVisible();
+    await selectGroup(user, "Operativa");
+    expect(screen.getByText(shop.content.statement)).not.toBeVisible();
+    expect(screen.getByText(hours.content.statement)).toBeVisible();
+    businessGroup.focus();
+    await user.keyboard(" ");
+    expect(screen.getByText(shop.content.statement)).toBeVisible();
+    expect(businessGroup).toHaveFocus();
+    expect(writes).toEqual([]);
   });
   it("keeps the original presentation and editing inside Information", async () => {
     const { user } = setup();
@@ -491,18 +544,111 @@ describe("compact business dossier", () => {
     );
     expect(screen.getByText(business.description)).toBeVisible();
     expect(
-      screen.getByRole("link", { name: "Editar presentación" }),
-    ).toHaveAttribute("href", "#business");
+      screen.getByRole("button", { name: "Editar presentación" }),
+    ).toBeVisible();
     await user.click(screen.getByRole("tab", { name: "Datos" }));
     expect(screen.queryByText(business.description)).not.toBeInTheDocument();
-    expect(screen.getByText("Ventas de septiembre")).toBeVisible();
+    expect(
+      within(screen.getByRole("region", { name: /^Archivos/ })).getByText(
+        "No hay archivos originales disponibles.",
+      ),
+    ).toBeVisible();
     await user.click(screen.getByRole("tab", { name: "Historial" }));
     expect(screen.queryByText(business.description)).not.toBeInTheDocument();
     expect(screen.getByText(retired.content.statement)).toBeVisible();
     expect(screen.getByText(replaced.content.statement)).toBeVisible();
   });
+  it("edits the presentation in place, cancels without writes and saves the exact profile revision", async () => {
+    const { user, writes, refresh } = setup();
+    await ready();
+    await user.click(
+      screen.getByRole("button", { name: "Ver presentación original" }),
+    );
+    const edit = screen.getByRole("button", { name: "Editar presentación" });
+    const hash = window.location.hash;
+    await user.click(edit);
+    const input = screen.getByRole("textbox", {
+      name: "Presentación del negocio",
+    });
+    expect(input).toHaveFocus();
+    await user.clear(input);
+    await user.type(input, "Borrador que descartamos.");
+    await user.click(
+      screen.getByRole("button", { name: /^Cancelar$/ }),
+    );
+    expect(screen.getByText(business.description)).toBeVisible();
+    await waitFor(() => expect(
+      screen.getByRole("button", { name: "Editar presentación" }),
+    ).toHaveFocus());
+    expect(writes).toEqual([]);
+    await user.click(
+      screen.getByRole("button", { name: "Editar presentación" }),
+    );
+    await user.clear(
+      screen.getByRole("textbox", { name: "Presentación del negocio" }),
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Presentación del negocio" }),
+      "Nueva presentación del negocio.",
+    );
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    await screen.findByText("Nueva presentación del negocio.");
+    expect(writes).toEqual([
+      {
+        business_id: business.id,
+        name: business.name,
+        description: "Nueva presentación del negocio.",
+        profile_revision: 4,
+      },
+    ]);
+    expect(refresh).toHaveBeenCalled();
+    expect(window.location.hash).toBe(hash);
+    await user.click(
+      screen.getByRole("button", { name: /^Seleccionar$/ }),
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "Seleccionar: Presentación de Tienda de ejemplo",
+      }),
+    );
+    expect(
+      store.get(contextKey(business.id), { context_references: [] })
+        .context_references,
+    ).toEqual([
+      expect.objectContaining({ source_version: "5", element_key: "profile" }),
+    ]);
+  });
+  it("preserves the presentation draft and revision on conflict, with cancellation available", async () => {
+    const { user, writes } = setup(dossier(), {
+      error:
+        "El contexto ha cambiado en otra página. Recárgalo antes de editar.",
+    });
+    await ready();
+    await user.click(
+      screen.getByRole("button", { name: "Ver presentación original" }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Editar presentación" }),
+    );
+    const input = screen.getByRole("textbox", {
+      name: "Presentación del negocio",
+    });
+    await user.clear(input);
+    await user.type(input, "Mis cambios pendientes.");
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    await screen.findByText(
+      "El contexto ha cambiado en otra página. Recárgalo antes de editar.",
+    );
+    expect(input).toHaveValue("Mis cambios pendientes.");
+    expect(writes[0]).toMatchObject({ profile_revision: 4 });
+    await user.click(
+      screen.getByRole("button", { name: /^Cancelar$/ }),
+    );
+    expect(screen.getByText(business.description)).toBeVisible();
+    expect(writes).toHaveLength(1);
+  });
   it("shows a brief presentation when there are no active facts", async () => {
-    setup(dossier([retired]));
+    const { user } = setup(dossier([retired]));
     await ready();
     expect(
       within(
@@ -514,9 +660,11 @@ describe("compact business dossier", () => {
         name: "Añadir información a Sobre el negocio",
       }),
     ).toBeVisible();
+    await selectGroup(user, "Operativa");
     expect(
       screen.getByRole("button", { name: "Añadir información a Operativa" }),
     ).toBeVisible();
+    await selectGroup(user, "Objetivos y preferencias");
     expect(
       screen.getByRole("button", {
         name: "Añadir información a Objetivos y preferencias",
@@ -525,6 +673,83 @@ describe("compact business dossier", () => {
     expect(
       screen.queryByRole("button", { name: /^Acciones:/ }),
     ).not.toBeInTheDocument();
+  });
+  it("navigates data groups while preserving downloads and the upload dialog", async () => {
+    const data = dossier();
+    data.datasets[0].original_files = [
+      { path: "carpeta/ventas.csv", size: 1200 },
+    ];
+    data.datasets[0].files = [
+      { id: "table", name: "ventas.csv", rows: 12, status: "ready" },
+      { id: "failed", name: "fallido.csv", status: "failed" },
+    ];
+    const { user } = setup(data, { files: true });
+    await ready();
+    const files = screen.getByRole("region", { name: "Archivos 1" });
+    expect(
+      within(files).getByRole("link", { name: "Descargar carpeta/ventas.csv" }),
+    ).toHaveAttribute(
+      "href",
+      "/api/datasets/original/sales?path=carpeta%2Fventas.csv",
+    );
+    await selectGroup(user, "Tablas");
+    const tables = screen.getByRole("region", { name: "Tablas 2" });
+    expect(
+      within(tables).getByRole("link", { name: "Descargar Ventas" }),
+    ).toHaveAttribute("href", "/api/datasets/file/table");
+    expect(
+      within(tables).queryByRole("link", { name: "Descargar Fallido" }),
+    ).toBeNull();
+    expect(within(tables).getByText("No se pudo preparar")).toBeVisible();
+    await selectGroup(user, "Relaciones");
+    expect(screen.getByRole("region", { name: "Relaciones" })).toBeVisible();
+    const filesTrigger = screen.getByRole("button", { name: "Archivos 1" });
+    await user.click(filesTrigger);
+    expect(filesTrigger).toHaveAttribute("aria-pressed", "true");
+    expect(tables).not.toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Subir datos" }));
+    expect(
+      await screen.findByRole("dialog", { name: "Añadir datos al negocio" }),
+    ).toBeVisible();
+    expect(filesTrigger).toHaveAttribute("aria-pressed", "true");
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Archivos 1" }));
+    expect(screen.getByRole("region", { name: "Archivos 1" })).toBeVisible();
+  });
+  it("uses the exact data version from Tables and prevents questions from corrected versions", async () => {
+    const data = dossier();
+    data.datasets[0].files = [
+      { id: "sales-table", name: "ventas.csv", rows: 12, status: "ready" },
+    ];
+    data.datasets.push({
+      ...data.datasets[0],
+      id: "corrected",
+      title: "Datos corregidos",
+      corrected: true,
+    });
+    const { user } = setup(data, { files: true });
+    await ready();
+    await selectGroup(user, "Tablas");
+    const tables = screen.getByRole("region", { name: "Tablas 1" });
+    expect(
+      within(tables).getAllByRole("button", {
+        name: "Preguntar sobre estas tablas",
+      }),
+    ).toHaveLength(1);
+    await user.click(
+      within(tables).getByRole("button", {
+        name: "Preguntar sobre estas tablas",
+      }),
+    );
+    expect(store.get(contextKey(business.id), {})).toMatchObject({
+      analysis_id: "sales",
+      label: "Ventas",
+    });
+    expect(location.hash).not.toBe("#ask");
+    expect(store.get(`dr-dock-${business.id}`, {})).toMatchObject({
+      open: true,
+      origin: "my-business",
+    });
   });
   it("opens provenance, alternatives and exact revision from the menu", async () => {
     const { user } = setup();
@@ -549,6 +774,7 @@ describe("compact business dossier", () => {
   it("supports keyboard navigation from row actions to details", async () => {
     const { user } = setup();
     await ready();
+    await selectFact(user, shop);
     const trigger = screen.getByRole("button", {
       name: `Acciones: ${shop.content.statement}`,
     });
@@ -631,6 +857,7 @@ describe("compact business dossier", () => {
         screen.queryByText(shop.content.statement),
       ).not.toBeInTheDocument(),
     );
+    await selectFact(user, hours);
     expect(screen.getByText(hours.content.statement)).toBeVisible();
     await user.click(screen.getByRole("tab", { name: "Historial" }));
     expect(screen.getByText(shop.content.statement)).toBeVisible();
@@ -666,6 +893,7 @@ describe("compact business dossier", () => {
   it("adds information through the existing declaration contract", async () => {
     const { user, writes } = setup();
     await ready();
+    await selectGroup(user, "Sobre el negocio");
     await user.click(
       screen.getByRole("button", {
         name: "Añadir información a Sobre el negocio",
@@ -693,7 +921,7 @@ describe("compact business dossier", () => {
       await screen.findByText("También vendemos cuadernos."),
     ).toBeVisible();
   });
-  it("adds to an empty custom group with a fixed destination without expanding its header", async () => {
+  it("adds to an empty custom group with a fixed destination and preserves its selection", async () => {
     const { user, writes } = setup({
       ...dossier([]),
       layout: {
@@ -711,12 +939,12 @@ describe("compact business dossier", () => {
     await ready();
     const header = screen.getByRole("button", { name: "Clientes 0" });
     await user.click(header);
-    expect(header).toHaveAttribute("aria-expanded", "false");
+    expect(header).toHaveAttribute("aria-pressed", "true");
     const add = screen.getByRole("button", {
       name: "Añadir información a Clientes",
     });
     await user.click(add);
-    expect(header).toHaveAttribute("aria-expanded", "false");
+    expect(header).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("dialog")).toHaveAccessibleName(
       "Añadir información a Clientes",
     );
@@ -768,8 +996,9 @@ describe("compact business dossier", () => {
     expect(writes[0]).toMatchObject({ action: "propose" });
     expect(writes[0]).not.toHaveProperty("group_id");
     expect(screen.getByRole("button", { name: "Por revisar 2" })).toBeVisible();
+    await selectGroup(user, "Otros");
     await user.click(
-      screen.getByRole("button", { name: "Añadir información a Sin grupo" }),
+      screen.getByRole("button", { name: "Añadir información a Otros" }),
     );
     await user.type(
       screen.getByRole("textbox", { name: "Información" }),
@@ -784,7 +1013,7 @@ describe("compact business dossier", () => {
       group_id: "ungrouped",
     });
     expect(
-      await screen.findByRole("button", { name: "Sin grupo 2" }),
+      await screen.findByRole("button", { name: "Otros 2" }),
     ).toBeVisible();
   });
   it("retains the fixed-group draft after a failed save and returns focus on cancel", async () => {
@@ -792,6 +1021,7 @@ describe("compact business dossier", () => {
       error: "Este grupo ya no está disponible.",
     });
     await ready();
+    await selectGroup(user, "Objetivos y preferencias");
     const add = screen.getByRole("button", {
       name: "Añadir información a Objetivos y preferencias",
     });
@@ -835,7 +1065,9 @@ describe("compact business dossier", () => {
     await waitFor(() =>
       expect(screen.queryByText("Por confirmar")).not.toBeInTheDocument(),
     );
+    await selectFact(user, proposed);
     expect(screen.getByText(proposed.content.statement)).toBeVisible();
+    await selectGroup(user, "Por revisar");
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", {
@@ -867,6 +1099,7 @@ describe("compact business dossier", () => {
         screen.queryByText(proposed.content.statement),
       ).not.toBeInTheDocument(),
     );
+    await selectFact(user, shop);
     expect(screen.getByText(shop.content.statement)).toBeVisible();
     await user.click(screen.getByRole("tab", { name: "Historial" }));
     expect(screen.getByText(proposed.content.statement)).toBeVisible();
@@ -981,6 +1214,7 @@ describe("compact business dossier", () => {
   it("preserves versioned context selection for compact rows and the original profile", async () => {
     const { user } = setup();
     await ready();
+    await selectFact(user, shop);
     await user.click(
       screen.getByRole("button", { name: "Ver presentación original" }),
     );
@@ -1012,6 +1246,41 @@ describe("compact business dossier", () => {
       ],
     });
   });
+  it("shows every historical revision in the timeline without altering order, status or provenance", async () => {
+    const historical = {
+      ...conflict,
+      revision: 6,
+      status: "superseded",
+      content: {
+        ...conflict.content,
+        statement: "Primera línea.\nSegunda línea.",
+      },
+    };
+    const { user, writes } = setup({
+      ...dossier(),
+      history: [historical, retired],
+    });
+    await ready();
+    await user.click(screen.getByRole("tab", { name: "Historial" }));
+    const timeline = screen.getByRole("list", { name: "Historial" });
+    const entries = within(timeline).getAllByRole("listitem");
+    expect(entries).toHaveLength(2);
+    expect(entries[0]).toHaveTextContent("Primera línea. Segunda línea.");
+    expect(entries[0]).toHaveTextContent("revisión 6");
+    expect(entries[0]).toHaveTextContent("Sustituido");
+    expect(entries[1]).toHaveTextContent(retired.content.statement);
+    expect(entries[1]).toHaveTextContent("Retirado");
+    await user.click(
+      within(entries[0]).getByRole("button", { name: "Origen y vigencia" }),
+    );
+    expect(within(entries[0]).getByText(conflict.quote!)).toBeVisible();
+    expect(
+      within(entries[0]).getByRole("link", {
+        name: "Ver chat de origen",
+      }),
+    ).toHaveAttribute("href", "#chat/chat-origin");
+    expect(writes).toEqual([]);
+  });
   it("still opens the files route directly on data", async () => {
     setup(dossier(), { files: true });
     await ready();
@@ -1019,7 +1288,11 @@ describe("compact business dossier", () => {
       "aria-selected",
       "true",
     );
-    expect(screen.getByText("Ventas de septiembre")).toBeVisible();
+    expect(
+      within(screen.getByRole("region", { name: /^Archivos/ })).getByText(
+        "No hay archivos originales disponibles.",
+      ),
+    ).toBeVisible();
     expect(
       screen.queryByRole("button", { name: "Ver presentación original" }),
     ).not.toBeInTheDocument();
@@ -1067,9 +1340,11 @@ describe("compact business dossier", () => {
     await user.click(
       screen.getByRole("button", { name: "Personalizar grupos" }),
     );
+    await user.click(screen.getByRole("button", {name: "Editar grupo 1"}));
     const first = screen.getByRole("textbox", { name: "Nombre del grupo 1" });
     await user.clear(first);
     await user.type(first, "Mi empresa");
+    await user.click(screen.getByRole("button", {name: "Nuevo grupo"}));
     await user.type(
       screen.getByRole("textbox", { name: "Nombre del nuevo grupo" }),
       "Clientes",
@@ -1087,7 +1362,8 @@ describe("compact business dossier", () => {
       "Características generales de la empresa.",
     );
     await user.click(screen.getByRole("button", { name: "Añadir grupo" }));
-    await user.click(screen.getByRole("button", { name: "Subir grupo 4" }));
+    screen.getByRole("button", { name: "Arrastrar grupo Clientes" }).focus();
+    await user.keyboard("{ArrowUp}");
     await user.click(screen.getByRole("button", { name: "Guardar grupos" }));
     await waitFor(() =>
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
@@ -1130,6 +1406,17 @@ describe("compact business dossier", () => {
     expect(
       await screen.findByRole("button", { name: "Clientes 1" }),
     ).toBeVisible();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", {
+          name: `Ver información: ${shop.content.statement}`,
+        }),
+      ).toHaveFocus(),
+    );
+    expect(screen.getByRole("button", { name: "Clientes 1" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
   });
   it("keeps pending facts in review and preserves facts when their group is deleted", async () => {
     const { user, writes } = setup({
@@ -1143,6 +1430,7 @@ describe("compact business dossier", () => {
     await ready();
     expect(screen.getByRole("button", { name: "Por revisar 1" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Clientes 1" })).toBeVisible();
+    await selectGroup(user, "Clientes");
     await user.click(
       screen.getByRole("button", { name: "Personalizar grupos" }),
     );
@@ -1156,8 +1444,10 @@ describe("compact business dossier", () => {
       groups: [],
       assignments: {},
     });
-    expect(screen.getByRole("button", { name: "Sin grupo 1" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Otros 1" })).toBeVisible();
+    await selectGroup(user, "Otros");
     expect(screen.getByText(shop.content.statement)).toBeVisible();
+    await selectGroup(user, "Por revisar");
     expect(screen.getByText(proposed.content.statement)).toBeVisible();
   });
   it("validates names and preserves the group draft on a stale revision", async () => {
@@ -1166,6 +1456,7 @@ describe("compact business dossier", () => {
     await user.click(
       screen.getByRole("button", { name: "Personalizar grupos" }),
     );
+    await user.click(screen.getByRole("button", {name: "Editar grupo 1"}));
     const name = screen.getByRole("textbox", { name: "Nombre del grupo 1" });
     await user.clear(name);
     await user.type(name, "Operativa");
@@ -1183,6 +1474,7 @@ describe("compact business dossier", () => {
     await ready();
     const trigger = screen.getByRole("button", { name: "Personalizar grupos" });
     await user.click(trigger);
+    await user.click(screen.getByRole("button", {name: "Nuevo grupo"}));
     await user.type(
       screen.getByRole("textbox", { name: "Nombre del nuevo grupo" }),
       "Draft",
@@ -1203,7 +1495,7 @@ describe("compact business dossier", () => {
     await ready();
     expect(screen.getByRole("button", { name: "Clientes 0" })).toBeVisible();
     expect(
-      screen.getByText("Añade información desde el botón + de este grupo."),
+      screen.getAllByText("Añade información desde el botón + de este grupo.").find((node) => !node.closest("section[hidden]")),
     ).toBeVisible();
   });
   it("adds a description to an existing group without losing its manual assignments", async () => {
@@ -1219,6 +1511,7 @@ describe("compact business dossier", () => {
     await user.click(
       screen.getByRole("button", { name: "Personalizar grupos" }),
     );
+    await user.click(screen.getByRole("button", {name: "Editar grupo 1"}));
     const description = screen.getByRole("textbox", {
       name: "Descripción del grupo 1",
     });
@@ -1300,6 +1593,7 @@ it("localizes group actions without translating customer groups or resetting dra
   ).toHaveValue("Borrador original");
   await user.keyboard("{Escape}");
   await user.click(screen.getByRole("button", { name: "Personalizar grupos" }));
+  await user.click(screen.getByRole("button", {name: "Editar grupo 1"}));
   const description = screen.getByRole("textbox", {
     name: "Descripción del grupo 1",
   });
@@ -1323,4 +1617,55 @@ it("localizes group actions without translating customer groups or resetting dra
     ],
     assignments: { [shop.fact_id]: "clients" },
   });
+});
+
+
+it("keeps review first and Other available at zero, with protected system groups in the inline editor", async () => {
+  const {user, writes} = setup(dossier([]));
+  await ready();
+  const nav = screen.getByRole("navigation", {name: "Información"});
+  expect(within(nav).getAllByRole("button")[0]).toHaveAccessibleName("Por revisar 0");
+  expect(within(nav).getByRole("button", {name: "Otros 0"})).toBeVisible();
+  await user.click(within(nav).getByRole("button", {name: "Personalizar grupos"}));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(screen.getAllByRole("button", {name: /^Eliminar grupo/})).toHaveLength(3);
+  await user.click(screen.getByRole("button", {name: "Sobre el negocio 0"}));
+  await user.click(screen.getByRole("button", {name: "Por revisar 0"}));
+  await user.click(screen.getByRole("button", {name: "Otros 0"}));
+  expect(screen.getByRole("form", {name: "Personalizar grupos"})).toBeVisible();
+  expect(writes).toEqual([]);
+  expect(screen.queryByRole("textbox", {name: "Nombre del nuevo grupo"})).toBeNull();
+  await user.click(screen.getByRole("button", {name: "Nuevo grupo"}));
+  const name = screen.getByRole("textbox", {name: "Nombre del nuevo grupo"});
+  await user.type(name, "Borrador");
+  await user.keyboard("{Escape}");
+  expect(screen.queryByRole("form", {name: "Personalizar grupos"})).toBeNull();
+  expect(writes).toEqual([]);
+});
+
+
+it("closes group fields preserving edits and cancels a new group without discarding other changes", async () => {
+  const {user, writes} = setup();
+  await ready();
+  await user.click(screen.getByRole("button", {name: "Personalizar grupos"}));
+  await user.click(screen.getByRole("button", {name: "Editar grupo 1"}));
+  const name = screen.getByRole("textbox", {name: "Nombre del grupo 1"});
+  await user.clear(name);
+  await user.type(name, "Mi empresa");
+  await user.click(screen.getByRole("button", {name: "Cerrar edición del grupo 1"}));
+  expect(screen.queryByRole("textbox", {name: "Nombre del grupo 1"})).toBeNull();
+  expect(screen.getByRole("button", {name: "Editar grupo 1"})).toHaveFocus();
+  await user.click(screen.getByRole("button", {name: "Editar grupo 1"}));
+  expect(screen.getByRole("textbox", {name: "Nombre del grupo 1"})).toHaveValue("Mi empresa");
+  expect(screen.queryByRole("button", {name: /^Subir grupo|^Bajar grupo/})).toBeNull();
+  await user.click(screen.getByRole("button", {name: "Nuevo grupo"}));
+  await user.type(screen.getByRole("textbox", {name: "Nombre del nuevo grupo"}), "Borrador");
+  await user.click(screen.getByRole("button", {name: "Cancelar nuevo grupo"}));
+  expect(screen.queryByRole("textbox", {name: "Nombre del nuevo grupo"})).toBeNull();
+  await waitFor(() => expect(screen.getByRole("button", {name: "Nuevo grupo"})).toHaveFocus());
+  expect(screen.getByRole("button", {name: "Guardar grupos"})).toBeEnabled();
+  expect(writes).toEqual([]);
+  await user.click(screen.getByRole("button", {name: "Guardar grupos"}));
+  await waitFor(() => expect(writes).toHaveLength(1));
+  expect(writes[0]).toMatchObject({groups: [expect.objectContaining({name: "Mi empresa"}), expect.anything(), expect.anything()]});
 });

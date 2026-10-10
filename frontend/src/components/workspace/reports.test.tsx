@@ -50,9 +50,20 @@ function setup() {
       return {
         ok: true,
         json: async () =>
-          url === "/api/reports/deleted"
-            ? { items: [available, withdrawn].filter((a) => deleted.has(a.id)) }
-            : { saved: true },
+          url.endsWith("/sources")
+            ? {
+                tables: [{ id: "sales", name: "sales.csv" }],
+                added_tables: [
+                  { id: "products", name: "catalog.xlsx [Products].csv" },
+                ],
+              }
+            : url === "/api/reports/deleted"
+              ? {
+                  items: [available, withdrawn].filter((a) =>
+                    deleted.has(a.id),
+                  ),
+                }
+              : { saved: true },
       };
     }),
   );
@@ -161,4 +172,34 @@ it("confirms deletion, preserves failures and restores reports from trash", asyn
   await screen.findByText("La papelera está vacía.");
   await user.click(screen.getByRole("button", { name: "Volver a informes" }));
   expect(screen.getByRole("link", { name: "Informe retirado" })).toBeVisible();
+});
+
+it("opens report metadata from the row or info button while title and Open keep navigation", async () => {
+  location.hash = "reports";
+  const { user, calls } = setup();
+  const row = screen
+    .getByRole("link", { name: "Ventas revisadas" })
+    .closest("tr")!;
+  await user.click(within(row).getByText("Disponible"));
+  expect(location.hash).toBe("#reports");
+  const dialog = await screen.findByRole("dialog");
+  expect(await within(dialog).findByText("Sales")).toBeVisible();
+  expect(within(dialog).getByText("Products")).toBeVisible();
+  expect(within(dialog).getByText("Tablas al crearlo")).toBeVisible();
+  expect(within(dialog).getByText("Tablas añadidas después")).toBeVisible();
+  expect(calls.at(-1)?.url).toBe("/api/jobs/available/sources");
+  expect(
+    within(dialog).getByRole("link", { name: "Abrir informe" }),
+  ).toHaveAttribute("href", "#report/available");
+  await user.keyboard("{Escape}");
+  await user.click(
+    screen.getByRole("button", { name: "Detalles de Ventas revisadas" }),
+  );
+  expect(screen.getByRole("dialog")).toBeVisible();
+  await user.keyboard("{Escape}");
+  await user.click(
+    screen.getByRole("link", { name: "Abrir Ventas revisadas" }),
+  );
+  expect(location.hash).toBe("#report/available");
+  expect(screen.queryByRole("dialog")).toBeNull();
 });

@@ -37,6 +37,7 @@ import { Notice, Loading, Status, ChoiceSelect, Disclosure } from "./shared";
 import { ReportView } from "./report";
 import { useAssistant } from "@/lib/assistant";
 import { ContextAttachments, SelectionTool } from "./context-selection";
+import { ComposerSurface } from "./composer-surface";
 import { Composer } from "./composer";
 import { PresentationChangeReceipt } from "./presentation-receipt";
 export function Answer({
@@ -265,6 +266,7 @@ export function ChatPage({
       await api(`/api/chats/${id}/messages`, {
         business_id: business,
         request_key: key,
+        ...(sent.entry_intent ? { entry_intent: sent.entry_intent } : {}),
         text: sent.text,
         disposition: sent.disposition,
         ...(sent.context_references?.length
@@ -331,9 +333,7 @@ export function ChatPage({
   );
   return (
     <div className={`flex min-h-0 flex-col ${composerOnly ? "" : "flex-1"}`}>
-      {!composerOnly && (
-        <h1 className="sr-only">{tr("Chat con IA")}</h1>
-      )}
+      {!composerOnly && <h1 className="sr-only">{tr("Chat con IA")}</h1>}
       {composerOnly && <Notice error>{resource.error}</Notice>}
       {!composerOnly &&
         (!data ? (
@@ -634,50 +634,54 @@ export function ChatPage({
               {tr("No lo sé")}
             </Button>
           )}
-          <Composer
-            compact
-            tools={docked || composerOnly ? <SelectionTool /> : undefined}
-            attachments={
-              assistant?.selected.length ? (
-                <ContextAttachments
-                  items={assistant.selected}
-                  onRemove={assistant.remove}
-                />
-              ) : undefined
-            }
-            text={draft.text}
-            onChange={(text) =>
-              setDraft({
-                text,
-                finding_reference: draft.finding_reference,
-                context_references: draft.context_references,
-              })
-            }
-            onSend={async () => {
-              const sent = await send();
-              if (sent && composerOnly && sendAction.isMounted() && assistant)
-                assistant.setDock({
-                  ...assistant.dock,
-                  chatId: id,
-                  open: true,
-                });
-            }}
-            busy={
-              sendAction.busy ||
-              !data ||
-              (setup &&
-                data.turns.some((t) =>
-                  ["queued", "routing", "processing"].includes(t.status),
-                ))
-            }
-            disabled={setup && Boolean(pending)}
-            error={sendAction.error}
-            placeholder={
-              selected
-                ? tr("Escribe tu aclaración…")
-                : tr("Pregunta o añade contexto…")
-            }
-          />
+          <ComposerSurface shared={!docked}>
+            <Composer
+              compact
+              tools={docked || composerOnly ? <SelectionTool /> : undefined}
+              attachments={
+                assistant?.selected.length ? (
+                  <ContextAttachments
+                    compact
+                    items={assistant.selected}
+                    onRemove={assistant.remove}
+                  />
+                ) : undefined
+              }
+              text={draft.text}
+              onChange={(text) =>
+                setDraft({
+                  text,
+                  entry_intent: draft.entry_intent,
+                  finding_reference: draft.finding_reference,
+                  context_references: draft.context_references,
+                })
+              }
+              onSend={async () => {
+                const sent = await send();
+                if (sent && composerOnly && sendAction.isMounted() && assistant)
+                  assistant.setDock({
+                    ...assistant.dock,
+                    chatId: id,
+                    open: true,
+                  });
+              }}
+              busy={
+                sendAction.busy ||
+                !data ||
+                (setup &&
+                  data.turns.some((t) =>
+                    ["queued", "routing", "processing"].includes(t.status),
+                  ))
+              }
+              disabled={setup && Boolean(pending)}
+              error={sendAction.error}
+              placeholder={
+                selected
+                  ? tr("Escribe tu aclaración…")
+                  : tr("Pregunta o añade contexto…")
+              }
+            />
+          </ComposerSurface>
         </div>
       </div>
     </div>

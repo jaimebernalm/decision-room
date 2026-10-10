@@ -174,3 +174,131 @@ Estado: implementado y comprobado el 2 de octubre de 2026; véase la
 
 Estado: implementado y comprobado el 2 de octubre de 2026; véase la
 [validación de avisos](../validation/2026-10-02-error-notices.md).
+
+## Explorador y línea temporal (refinamiento de 2.5.5)
+
+1. Presentar los grupos de Información y Datos mediante una navegación de grupos
+   y un área de lectura. Conservar clasificación, grupos personalizados, orden,
+   cantidades, formularios, acciones y selección de contexto. Adaptar el diseño
+   al ancho disponible, también con el chat lateral abierto.
+2. Presentar Historial como una lista cronológica con línea temporal, manteniendo
+   el orden recibido, fecha, revisión, estado, texto completo y procedencia de
+   cada revisión. No añadir cambios calculados ni modificar contratos del servidor.
+3. Comprobar navegación, grupos vacíos, edición, confirmación, retirada, conflictos,
+   descargas, tablas, relaciones, errores, contexto y retorno del foco. Ejecutar
+   regresión frontend, compilación, lint y revisión visual en escritorio/móvil;
+   revisar el diff público y guardar un commit local del incremento completo.
+
+Estado: implementado y comprobado el 7 de octubre de 2026. Véanse las
+[comprobaciones y límites](../validation/2026-10-07-dossier-explorer.md).
+
+## Acciones discretas y selección de relaciones (refinamiento de 2.5.5)
+
+1. Colocar Personalizar grupos debajo de la navegación de Información y reducir
+   la presentación original a una acción desplegable discreta. Mantener edición,
+   acceso con teclado y adaptación al espacio disponible.
+2. Permitir adjuntar una relación concreta o todo el mapa desde Seleccionar.
+   Resolver el contexto en el servidor por negocio, conjunto y revisión vigente;
+   conservar estados semánticos, comprobaciones y límites, sin elevar propuestas
+   a resultados revisados. Mantener apertura de detalles fuera de la selección.
+3. Comprobar selección, deselección, envío, restauración, revisiones obsoletas y
+   aislamiento; ejecutar regresión, compilación, lint y revisión visual adaptable.
+   Revisar el diff público y crear un commit local del incremento terminado.
+
+Estado: implementado y comprobado el 7 de octubre de 2026. Véanse las
+[comprobaciones de acciones y contexto](../validation/2026-10-07-dossier-controls-context.md).
+
+
+## Selección visible y personalización en la columna (refinamiento de 2.5.5)
+
+1. Resaltar conexiones y mapa al preseleccionar con ratón o teclado, y permitir
+   adjuntar tablas por identidad y revisión verificadas en el servidor.
+2. Editar los grupos en la navegación: añadir, renombrar, describir, eliminar,
+   ordenar y guardar o cancelar. Mantener Por revisar primero y Otros visible;
+   mostrar los pendientes en rojo y respetar movimiento reducido.
+3. Aplicar el arrastre solicitado a Datos e Historial sin perder acciones ni
+   contexto; comprobar regresión, aislamiento, teclado y diseño adaptable.
+   Revisar el diff público y guardar un commit local del incremento completo.
+
+Estado: implementado y comprobado el 7 de octubre de 2026. Véanse las
+[comprobaciones de selección y edición](../validation/2026-10-07-dossier-inline-selection.md).
+
+
+## Cierre de campos y alta consistente (refinamiento de 2.5.5)
+
+1. Añadir cierre visible para los campos de un grupo, conservar sus cambios en el
+   borrador y permitir cancelar el alta de un grupo sin abandonar la personalización.
+   Dar al alta el mismo fondo gris y forma de los grupos en edición.
+2. Retirar las flechas de ordenación de los campos; conservar arrastre y teclado
+   desde el asa. Comprobar cierre, foco, borrador, guardado y diseño adaptable;
+   revisar el contenido público y guardar un commit local.
+
+Estado: implementado y comprobado el 7 de octubre de 2026. Véanse las
+[comprobaciones de cierre y alta](../validation/2026-10-07-dossier-group-close.md).
+
+
+## Selección directa en el diagrama y presentación en su sitio (refinamiento de 2.5.5)
+
+1. Unificar la referencia de tabla de la lista y del diagrama. Resaltar tablas y
+   conexiones al pasar el cursor en modo selección; permitir elegirlas sin abrir
+   detalles, mantener teclado, selección del mapa completo y protección de
+   modelos pendientes de actualización.
+2. Cambiar la presentación original a edición en su sitio con Guardar y Cancelar,
+   conservando nombre, revisión, borrador ante errores y selección de contexto
+   del texto guardado. Usar el contrato existente del perfil.
+3. Comprobar regresión, guardado/cancelación, navegación, escritorio y móvil;
+   revisar el diff público y guardar un commit local del incremento completo.
+
+Estado: implementado y comprobado el 7 de octubre de 2026. Véanse las
+[comprobaciones del diagrama y la presentación](../validation/2026-10-07-dossier-diagram-presentation.md).
+
+
+## Relaciones adaptadas al tema (refinamiento de 2.5.5)
+
+1. Reproducir en modo oscuro el fondo blanco de las tablas y símbolos del SVG.
+2. Aplicar los colores del tema a las capas de filas, sus bordes y los marcadores
+   de cardinalidad, manteniendo selección, hover y foco visibles.
+3. Comprobar claro/oscuro y cambio de tema con el mapa abierto, regresión de
+   selección/arrastre, compilación y lint; revisar el diff público y guardar
+   un commit local del arreglo.
+
+Estado: implementado y comprobado el 8 de octubre de 2026. Véanse las
+[comprobaciones de relaciones en oscuro](../validation/2026-10-08-dossier-dark-relations.md).
+
+
+## Lectura de las relaciones (refinamiento de 2.5.5)
+
+1. Revisar símbolos, dibujo real y alcance de las cardinalidades frente a la
+   notación estándar; distinguir relación entre datos y obligatoriedad de negocio.
+2. Dar al extremo de varias filas tres puntas rectas, conservar los marcadores
+   uno/cero y evitar que crezcan al seleccionar una línea. Ofrecer una ayuda
+   plegada y mostrar la cardinalidad junto a la descripción al pasar por la conexión.
+3. Comprobar semántica de extremos, selección, arrastre, claro/oscuro, teclado y
+   móvil; revisar el diff público y guardar un commit local del incremento.
+
+Estado: implementado y comprobado el 8 de octubre de 2026. Véanse las
+[comprobaciones de lectura del mapa](../validation/2026-10-08-dossier-map-help.md).
+
+
+## Ejemplo dibujado de una relación (refinamiento de 2.5.5)
+
+1. Sustituir el ejemplo solo textual de Cómo leer este mapa por una ilustración
+   con filas ficticias de Ventas y Productos, código compartido y extremos uno/varias.
+2. Adaptar el dibujo al espacio disponible y a ambos temas, conservando la ayuda
+   plegada, su cierre y la funcionalidad del mapa. Comprobar el resultado, revisar
+   el diff público y guardar un commit local.
+
+Estado: implementado y comprobado el 8 de octubre de 2026. Véanse las
+[comprobaciones del ejemplo dibujado](../validation/2026-10-08-dossier-map-example.md).
+
+
+## Jerarquía de títulos y columnas de tablas (refinamiento de 2.5.5)
+
+1. Distinguir el título de cada tabla del mapa con negrita y un fondo de cabecera
+   del tema, conservando las columnas y la selección. Aplicar el mismo criterio
+   al ejemplo de la ayuda.
+2. Comprobar dibujo real, temas y móvil, pruebas del mapa, compilación y lint;
+   revisar el diff público y guardar el incremento en un commit local.
+
+Estado: implementado y comprobado el 8 de octubre de 2026. Véanse las
+[comprobaciones de títulos de tablas](../validation/2026-10-08-map-table-titles.md).

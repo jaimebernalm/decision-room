@@ -74,7 +74,11 @@ it("pins from the three-dot menu, refreshes the order and offers unpin", async (
   );
   await user.click(screen.getByRole("menuitem", { name: "Fijar chat" }));
   await waitFor(() =>
-    expect(screen.getAllByRole("link")[1]).toHaveAttribute("href", "#chat/old"),
+    expect(
+      screen
+        .getAllByRole("link")
+        .filter((link) => link.getAttribute("href")?.startsWith("#chat/"))[0],
+    ).toHaveAttribute("href", "#chat/old"),
   );
   expect(request).toHaveBeenCalledWith(
     "/api/chats/old/pin",
@@ -90,10 +94,11 @@ it("pins from the three-dot menu, refreshes the order and offers unpin", async (
   await waitFor(() =>
     expect(screen.queryByLabelText("Chat fijado")).toBeNull(),
   );
-  expect(screen.getAllByRole("link")[1]).toHaveAttribute(
-    "href",
-    "#chat/recent",
-  );
+  expect(
+    screen
+      .getAllByRole("link")
+      .filter((link) => link.getAttribute("href")?.startsWith("#chat/"))[0],
+  ).toHaveAttribute("href", "#chat/recent");
 });
 it("keeps the order and reports a failed pin without marking it saved", async () => {
   const { user } = mount(true);
@@ -105,8 +110,9 @@ it("keeps the order and reports a failed pin without marking it saved", async ()
     expect(toast.error).toHaveBeenCalledWith("No se pudo guardar"),
   );
   expect(screen.queryByLabelText("Chat fijado")).toBeNull();
-  expect(screen.getAllByRole("link")[1]).toHaveAttribute(
-    "href",
-    "#chat/recent",
-  );
+  expect(
+    screen
+      .getAllByRole("link")
+      .filter((link) => link.getAttribute("href")?.startsWith("#chat/"))[0],
+  ).toHaveAttribute("href", "#chat/recent");
 });

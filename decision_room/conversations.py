@@ -560,6 +560,9 @@ class Conversations:
         key = identifier(data.get('request_key'))
         text = bounded(data.get('text'), 'el mensaje', 6000)
         question_id = str(data.get('question_id') or '')
+        entry_intent = data.get('entry_intent')
+        if entry_intent is not None and entry_intent not in ('question', 'analysis'):
+            raise WebError('Ese objetivo todavía no está disponible.')
         reference = data.get('finding_reference')
         refs = selections.normalize(data.get('context_references', []))
         if reference and refs:
@@ -577,7 +580,7 @@ class Conversations:
             if prior:
                 if any(
                     prior['payload'].get(k) != v
-                    for k, v in dict(text=text, question_id=question_id, disposition=disposition).items()
+                    for k, v in dict(text=text, question_id=question_id, disposition=disposition, entry_intent=entry_intent).items()
                 ):
                     raise WebError('Este envío ya contiene otro mensaje.', 409)
                 saved_ref = prior['payload'].get('finding_reference')
@@ -647,6 +650,8 @@ class Conversations:
                 text=text, question_id=question_id, disposition=disposition, question=question, phase=phase,
                 memory_deferred=defer_memory,
             )
+            if entry_intent is not None:
+                payload['entry_intent'] = entry_intent
             if setup:
                 payload['onboarding_revision'] = setup['revision']
                 if setup['question']:
@@ -1054,7 +1059,30 @@ class Conversations:
             self._save(db, turn, 'completed', response)
             return response
 
+    def _entry_intent(self, db, turn):
+        # Keep the starting objective through clarification turns and worker recovery.
+        row = db.execute(
+            """SELECT payload->>'entry_intent' AS intent FROM chat_turns
+            WHERE business_id=%s AND conversation_id=%s AND ordinal<=%s
+              AND payload->>'entry_intent' IN ('question','analysis')
+            ORDER BY ordinal DESC LIMIT 1""",
+            (self.business, turn['conversation_id'], turn['ordinal']),
+        ).fetchone()
+        return row['intent'] if row else None
+
     def _save(self, db, turn, status, response=None, issue=None):
+        # An analysis conversation requests an eventual report, never an unreviewed result.
+        if (status == 'completed' and response and response.get('report_id')
+                and response.get('report_version') and self._entry_intent(db, turn) == 'analysis'):
+            memory.lock(db, self.business)
+            try:
+                result = reviewed(self.config, self.business, response['report_id'], db)
+                current = bool(turn['job_id']) or dependencies_current(
+                    self.config, db, turn['snapshot'], self.events(db, turn))
+                if current and result['publishable'] and result['approved_sha256'] == response['report_version']:
+                    db.execute('UPDATE chat_turns SET report_requested=true WHERE id=%s', (turn['id'],))
+            except WebError:
+                pass  # Existing report actions explain unavailable reviews without losing the answer.
         db.execute(
             'UPDATE chat_turns SET status=%s,response=%s,issue=%s,updated_at=now() WHERE id=%s',
             (status, Jsonb(response) if response else None, issue, turn['id']),
@@ -1320,6 +1348,7 @@ class Conversations:
                             retrievals=[{k: e[k] for k in ('ordinal', 'request', 'response')} for e in events],
                         )
                         from .web import onboarding
+                        context['entry_intent'] = self._entry_intent(db, turn)
                         context['onboarding'] = onboarding.chat_state(db, self.business, chat['id'])
                         from .web.presentation_editing import chat_targets
                         context['presentation_targets'] = chat_targets(self.ws, db, turn['payload'], chat['analysis_id']) if not context['onboarding'] else []

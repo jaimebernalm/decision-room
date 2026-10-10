@@ -1,14 +1,22 @@
 import { translate as tr, useLanguage, locale } from "@/lib/i18n";
-import { useId, useState, type ReactNode } from "react";
-import { GitBranch, Plus } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { GitBranch, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { tableName } from "@/lib/table-name";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useResource, useAction } from "@/lib/hooks";
 import { api } from "@/lib/api";
 import { Notice, Loading, Disclosure } from "./shared";
+import { ERDiagram } from "./data-model-diagram";
+import { DataModelSelection } from "./data-model-selection";
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -32,8 +40,9 @@ type Column = {
   unit: string;
   conversion: string;
 };
-type Table = {
+export type Table = {
   id: string;
+  source_id?: string;
   name: string;
   row_count: number;
   duplicate_rows: number;
@@ -50,7 +59,7 @@ type Counts = {
   duplicate_keys: number;
   duplicate_rows: number;
 };
-type Relation = {
+export type Relation = {
   id: string;
   source: string;
   target: string;
@@ -114,27 +123,31 @@ const selectClass =
 export function DataModelPanel({
   business,
   analysis,
+  inline = false,
 }: {
   business: string;
   analysis: string;
+  inline?: boolean;
 }) {
   useLanguage();
   const [open, setOpen] = useState(false);
   return (
     <section className="min-w-0 max-w-full space-y-4">
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setOpen(!open)}
-        className="h-auto max-w-full whitespace-normal text-left"
-        aria-expanded={open}
-      >
-        <GitBranch />
-        {open
-          ? tr("Ocultar relaciones")
-          : tr("Ver relaciones y cómo entendemos los datos")}
-      </Button>
-      {open && (
+      {!inline && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setOpen(!open)}
+          className="h-auto max-w-full whitespace-normal text-left"
+          aria-expanded={open}
+        >
+          <GitBranch />
+          {open
+            ? tr("Ocultar relaciones")
+            : tr("Ver relaciones y cómo entendemos los datos")}
+        </Button>
+      )}
+      {(inline || open) && (
         <ModelContent
           key={`${business}/${analysis}`}
           business={business}
@@ -152,9 +165,9 @@ function ModelContent({
   analysis: string;
 }) {
   useLanguage();
-  const [revision, setRevision] = useState("");
+  const [checksOpen, setChecksOpen] = useState(false);
   const resource = useResource<Response>(
-      `/api/business/data-model?analysis_id=${analysis}${revision ? `&revision=${revision}` : ""}`,
+      `/api/business/data-model?analysis_id=${analysis}`,
     ),
     action = useAction();
   const [selected, setSelected] = useState(""),
@@ -182,8 +195,7 @@ function ModelContent({
         {!resource.error && <Loading />}
       </>
     );
-  const { model, history, editable, affected_reports, needs_refresh } =
-    resource.data;
+  const { model, editable, affected_reports, needs_refresh } = resource.data;
   if (!model)
     return (
       <div className="space-y-3">
@@ -203,10 +215,15 @@ function ModelContent({
         </Button>
       </div>
     );
-  const { tables, relations, metrics } = model.body,
+  const tables = model.body.tables.map((t) => ({
+    ...t,
+    name: tableName(t.name),
+  }));
+  const { relations, metrics } = model.body,
+    singleTable = tables.length === 1,
     table = tables.find((t) => t.id === selected),
     relation = relations.find((r) => r.id === edge);
-  const canEdit = editable && !revision && !needs_refresh,
+  const canEdit = editable && !needs_refresh,
     names = Object.fromEntries(tables.map((t) => [t.id, t.name]));
   const neighbors = new Set(
     relations
@@ -225,248 +242,273 @@ function ModelContent({
     setEdge("");
     setForm("");
   };
+  const closeDetails = () => {
+    setSelected("");
+    setEdge("");
+    setFocus(false);
+    setForm("");
+  };
+  const renderForm = () => (
+    <div
+      className="space-y-3 border-t pt-5"
+      key={`${form}/${selected}/${edge}`}
+    >
+      <h3 className="font-medium">
+        {form === "relation"
+          ? tr("Conectar dos tablas")
+          : form.startsWith("metric:")
+            ? tr("Aclarar un cálculo")
+            : tr("Aclarar esta tabla")}
+      </h3>
+      <p className="text-sm text-muted-foreground">
+        {tr(
+          "Se guardará una nueva revisión. Los informes que usaban este modelo quedarán pendientes de revisar.",
+        )}
+      </p>
+      {form === "table" && table && (
+        <TableForm table={table} save={save} busy={action.busy} />
+      )}{" "}
+      {form === "relation" && (
+        <RelationForm
+          tables={tables}
+          relation={relation}
+          save={save}
+          busy={action.busy}
+        />
+      )}{" "}
+      {form.startsWith("metric:") && (
+        <MetricForm
+          tables={tables}
+          metric={metrics.find((m) => m.key === form.slice(7))}
+          save={save}
+          busy={action.busy}
+        />
+      )}
+      <Button variant="ghost" size="sm" onClick={() => setForm("")}>
+        {tr("Cancelar")}
+      </Button>
+    </div>
+  );
   return (
-    <Card className="min-w-0 max-w-full shadow-none">
-      <CardHeader>
+    <div className="min-w-0 max-w-full space-y-4">
+      {singleTable && (
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <CardTitle>{tr("Cómo se conectan tus datos")}</CardTitle>
-          <Badge variant="outline">
-            {tr("Modelo · revisión ")}
-            {model.revision}
-          </Badge>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          {tables.length}
-          {tr(" tablas · ")}
-          {relations.length}
-          {tr(
-            " relaciones propuestas o comprobadas. Las comprobaciones técnicas y el significado de negocio se revisan por separado.",
-          )}
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        <Notice error>{resource.error || action.error}</Notice>
-        {needs_refresh && (
-          <Notice>
-            {tr(
-              "Este modelo corresponde a una preparación anterior. Vuelve a comprobar las tablas antes de reutilizar sus relaciones.",
-            )}{" "}
-            {editable && (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={action.busy}
-                onClick={() => void save("prepare", {})}
-              >
-                {tr("Volver a comprobar las tablas")}
-              </Button>
-            )}
-          </Notice>
-        )}
-        {!!affected_reports.length && (
-          <Notice>
-            {affected_reports.length}
-            {tr(
-              " informes necesitan una nueva revisión tras cambios de contexto. Sus resultados anteriores se conservan.",
-            )}
-          </Notice>
-        )}
-        {!!model.body.discovery?.limitations.length && (
-          <Disclosure title={tr("Límites de las relaciones propuestas")}>
-            <ul className="list-disc space-y-2 pl-5 text-sm">
-              {model.body.discovery.limitations.map((item, index) => (
-                <li key={index}>{item}</li>
-              ))}
-            </ul>
-          </Disclosure>
-        )}
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label={tr("Buscar tabla")}>
-            <Input
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              placeholder={tr("Nombre de la tabla")}
-            />
-          </Field>
-          <Field label={tr("Historial del modelo")}>
-            <select
-              className={selectClass}
-              value={revision}
-              onChange={(e) => {
-                setRevision(e.target.value);
-                setForm("");
-              }}
-            >
-              <option value="">{tr("Revisión vigente")}</option>
-              {history.map((h) => (
-                <option key={h.revision} value={h.revision}>
-                  {tr("Revisión ")}
-                  {h.revision} ·{" "}
-                  {new Date(h.created_at).toLocaleDateString(locale())}
-                </option>
-              ))}
-            </select>
-          </Field>
-        </div>
-        {table && (
           <Button
             size="sm"
-            variant="outline"
-            onClick={() => {
-              setFocus(!focus);
-              if (!focus) setFilter("");
-            }}
+            variant="ghost"
+            onClick={() => chooseTable(tables[0].id)}
           >
-            {focus
-              ? tr("Ver todas las tablas")
-              : tr("Centrar en esta tabla y sus conexiones")}
+            {tr("Ver tabla {0}", { 0: tables[0].name })}
           </Button>
-        )}
-        <ERDiagram
-          tables={visible}
-          relations={relations}
-          selected={selected}
-          edge={edge}
-          chooseTable={chooseTable}
-          chooseEdge={(id) => {
-            setEdge(id);
-            setForm("");
-          }}
-        />
-        {matching.length > 12 && (
-          <p className="text-sm text-muted-foreground">
-            {tr("Se muestran 12 de ")}
-            {matching.length}
-            {tr(" tablas. Busca o selecciona una tabla para centrar el mapa.")}
-          </p>
-        )}
-        <div
-          className="flex max-h-36 flex-wrap gap-2 overflow-auto"
-          aria-label={tr("Todas las tablas")}
-        >
-          {matching.map((t) => (
-            <Button
-              key={t.id}
-              className="h-auto max-w-full whitespace-normal py-1"
-              size="sm"
-              variant={selected === t.id ? "default" : "outline"}
-              onClick={() => chooseTable(t.id)}
-            >
-              {t.name}
-            </Button>
-          ))}
         </div>
-        <Disclosure
-          title={tr("Conexiones y comprobaciones")}
-          defaultOpen={!!edge}
-        >
-          <div className="space-y-2">
-            {relations
-              .filter(
-                (r) => !selected || [r.source, r.target].includes(selected),
-              )
-              .map((r) => (
-                <button
-                  type="button"
-                  key={r.id}
-                  onClick={() => {
-                    setEdge(r.id);
-                    setForm("");
-                  }}
-                  className="block w-full rounded-lg border p-3 text-left text-sm hover:bg-muted"
-                >
-                  <span className="break-all">
-                    {names[r.source]} → {names[r.target]}
-                  </span>
-                  <span className="mt-1 block text-xs text-muted-foreground">
-                    {tr(cardinalities[r.cardinality])} ·{" "}
-                    {tr(labels[r.semantic_status])} ·{" "}
-                    {r.verification === "checked"
-                      ? tr("Claves comprobadas")
-                      : tr("Revisar claves o cobertura")}
-                  </span>
-                </button>
-              ))}
-            {!relations.length && (
-              <p className="text-sm text-muted-foreground">
-                {tr(
-                  "Todavía no hay relaciones propuestas en este catálogo. Esto no significa que las tablas estén desconectadas. Puedes añadir conexiones, incluidas claves compuestas.",
-                )}
-              </p>
-            )}
-          </div>
+      )}
+      {!singleTable && !relations.length && (
+        <p className="text-sm text-muted-foreground">
+          {tr("Todavía no hemos encontrado conexiones entre estas tablas.")}
+        </p>
+      )}
+      <Notice error>{resource.error || action.error}</Notice>
+      {needs_refresh && (
+        <Notice>
+          {tr(
+            "Este modelo corresponde a una preparación anterior. Vuelve a comprobar las tablas antes de reutilizar sus relaciones.",
+          )}{" "}
+          {editable && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={action.busy}
+              onClick={() => void save("prepare", {})}
+            >
+              {tr("Volver a comprobar las tablas")}
+            </Button>
+          )}
+        </Notice>
+      )}
+      {!!affected_reports.length && (
+        <Notice>
+          {affected_reports.length}
+          {tr(
+            " informes necesitan una nueva revisión tras cambios de contexto. Sus resultados anteriores se conservan.",
+          )}
+        </Notice>
+      )}
+      {!!model.body.discovery?.limitations.length && (
+        <Disclosure title={tr("Límites de las relaciones propuestas")}>
+          <ul className="list-disc space-y-2 pl-5 text-sm">
+            {model.body.discovery.limitations.map((item, index) => (
+              <li key={index}>{item}</li>
+            ))}
+          </ul>
         </Disclosure>
-        {table && !relation && (
-          <div className="space-y-3 rounded-xl border p-4">
+      )}
+      {tables.length > 12 && (
+        <div className="space-y-3">
+          <Input
+            aria-label={tr("Buscar tabla")}
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder={tr("Buscar tabla")}
+            className="max-w-xs"
+          />
+          <div
+            className="flex max-h-28 flex-wrap gap-2 overflow-auto"
+            aria-label={tr("Todas las tablas")}
+          >
+            {matching.map((t) => (
+              <Button
+                key={t.id}
+                size="sm"
+                variant={selected === t.id ? "default" : "outline"}
+                onClick={() => {
+                  chooseTable(t.id);
+                  setFocus(true);
+                }}
+              >
+                {t.name}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+      {table && !singleTable && (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            setFocus(!focus);
+            if (!focus) setFilter("");
+          }}
+        >
+          {focus
+            ? tr("Ver todas las tablas")
+            : tr("Centrar en esta tabla y sus conexiones")}
+        </Button>
+      )}
+      {!singleTable && (
+        <DataModelSelection
+          model={{ ...model, body: { ...model.body, tables } }}
+          disabled={Boolean(needs_refresh)}
+        >
+          {({ selecting, pickedEdges, pickedTables, pickTable, pick }) => (
+            <ERDiagram
+              tables={visible}
+              relations={relations}
+              selected={selecting ? "" : selected}
+              edge={selecting ? "" : edge}
+              pickedEdges={pickedEdges}
+              pickedTables={pickedTables}
+              selecting={selecting}
+              chooseTable={(id) =>
+                selecting ? pickTable(id) : chooseTable(id)
+              }
+              chooseEdge={(id) => {
+                if (selecting) {
+                  pick(id);
+                  return;
+                }
+                setEdge(id);
+                setForm("");
+                setChecksOpen(true);
+              }}
+            />
+          )}
+        </DataModelSelection>
+      )}
+      {matching.length > 12 && (
+        <p className="text-sm text-muted-foreground">
+          {tr("Se muestran 12 de ")}
+          {matching.length}
+          {tr(" tablas. Busca o selecciona una tabla para centrar el mapa.")}
+        </p>
+      )}
+      {table && !relation && (
+        <div className="space-y-3 rounded-xl border p-4">
+          <div className="flex items-start justify-between gap-3">
             <h3 className="font-semibold break-all">{table.name}</h3>
-            <p className="text-sm">
-              {table.row_count.toLocaleString(locale())}
-              {tr(" filas ·")} {table.duplicate_rows.toLocaleString(locale())}
-              {tr(" filas duplicadas")}
-            </p>
-            <p className="text-sm">
-              {table.description || tr("Descripción pendiente de aclarar.")}
-            </p>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="size-7 shrink-0"
+              aria-label={tr("Cerrar detalles")}
+              onClick={closeDetails}
+            >
+              <X className="size-3.5" />
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {table.row_count.toLocaleString(locale())}
+            {tr(" filas")}
+            {!!table.duplicate_rows && (
+              <span>
+                {" "}
+                · {table.duplicate_rows.toLocaleString(locale())}
+                {tr(" filas duplicadas")}
+              </span>
+            )}
+          </p>
+          {table.description && <p className="text-sm">{table.description}</p>}
+          {table.grain && (
             <p className="text-sm">
               <strong>{tr("Cada fila representa: ")}</strong>
-              {table.grain || tr("Todavía no está confirmado.")}
+              {table.grain}
             </p>
-            {table.semantic_status === "inferred" && (
-              <p className="text-xs text-muted-foreground">
-                {tr("Interpretación del analista, pendiente de confirmación.")}
-              </p>
-            )}
-            <Disclosure title={tr("Columnas, tipos y cobertura")}>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr>
-                      <th className="p-2">{tr("Columna")}</th>
-                      <th className="p-2">{tr("Tipo observado")}</th>
-                      <th className="p-2">{tr("Vacíos")}</th>
-                      <th className="p-2">{tr("Distintos")}</th>
-                      <th className="p-2">{tr("Definición / periodo")}</th>
+          )}
+          {table.semantic_status === "inferred" && (
+            <p className="text-xs text-muted-foreground">
+              {tr("Interpretación del analista, pendiente de confirmación.")}
+            </p>
+          )}
+          <Disclosure title={tr("Ver columnas y detalles")}>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr>
+                    <th className="p-2">{tr("Columna")}</th>
+                    <th className="p-2">{tr("Tipo observado")}</th>
+                    <th className="p-2">{tr("Vacíos")}</th>
+                    <th className="p-2">{tr("Distintos")}</th>
+                    <th className="p-2">{tr("Definición / periodo")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {table.columns.map((c) => (
+                    <tr key={c.name} className="border-t">
+                      <td className="p-2">
+                        {c.name}
+                        {c.key_candidate ? tr(" · clave candidata") : ""}
+                      </td>
+                      <td className="p-2">{c.logical_type}</td>
+                      <td className="p-2">{c.missing}</td>
+                      <td className="p-2">{c.distinct}</td>
+                      <td className="p-2">
+                        {c.meaning || tr("Sin confirmar")}
+                        {c.unit && ` · ${c.unit}`}
+                        {c.period &&
+                          tr(
+                            " · {0} — {1} ({2}/{3} valores con fecha válida)",
+                            {
+                              "0": c.period.from,
+                              "1": c.period.until,
+                              "2": c.date_parseable,
+                              "3": table.row_count - c.missing,
+                            },
+                          )}
+                        {c.conversion &&
+                          tr(" · Conversión declarada: {0}", {
+                            "0": c.conversion,
+                          })}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {table.columns.map((c) => (
-                      <tr key={c.name} className="border-t">
-                        <td className="p-2">
-                          {c.name}
-                          {c.key_candidate ? tr(" · clave candidata") : ""}
-                        </td>
-                        <td className="p-2">{c.logical_type}</td>
-                        <td className="p-2">{c.missing}</td>
-                        <td className="p-2">{c.distinct}</td>
-                        <td className="p-2">
-                          {c.meaning || tr("Sin confirmar")}
-                          {c.unit && ` · ${c.unit}`}
-                          {c.period &&
-                            tr(
-                              " · {0} — {1} ({2}/{3} valores con fecha válida)",
-                              {
-                                "0": c.period.from,
-                                "1": c.period.until,
-                                "2": c.date_parseable,
-                                "3": table.row_count - c.missing,
-                              },
-                            )}
-                          {c.conversion &&
-                            tr(" · Conversión declarada: {0}", {
-                              "0": c.conversion,
-                            })}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                {tr(
-                  "Comprobación sobre todas las filas. Los valores originales se conservan como texto; los tipos observados no aplican conversiones.",
-                )}
-              </p>
-            </Disclosure>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {tr(
+                "Comprobación sobre todas las filas. Los valores originales se conservan como texto; los tipos observados no aplican conversiones.",
+              )}
+            </p>
             {table.declared_keys.map((k, i) => (
               <p key={i} className="text-sm">
                 {tr("Clave declarada (")}
@@ -476,338 +518,230 @@ function ModelContent({
                   : tr("contiene duplicados o vacíos")}
               </p>
             ))}
-            {canEdit && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setForm("table")}
-              >
-                {tr("Corregir o aclarar esta tabla")}
-              </Button>
-            )}
-          </div>
-        )}
-        {relation && (
-          <div className="space-y-3 rounded-xl border p-4">
-            <h3 className="font-semibold break-all">
-              {names[relation.source]} → {names[relation.target]}
-            </h3>
-            <p className="text-sm break-all">
-              {relation.source_columns.join(" + ")} ={" "}
-              {relation.target_columns.join(" + ")}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="secondary">
-                {tr(cardinalities[relation.cardinality])}
-              </Badge>
-              <Badge variant="outline">
-                {tr(labels[relation.semantic_status])}
-              </Badge>
-            </div>
-            <p className="text-sm">
-              {relation.description ||
-                tr("El significado de este enlace aún necesita confirmación.")}
-            </p>
-            <dl className="grid grid-cols-2 gap-2 text-sm">
-              <dt>{tr("Claves duplicadas (origen / destino)")}</dt>
-              <dd>
-                {relation.evidence.source.duplicate_keys} /{" "}
-                {relation.evidence.target.duplicate_keys}
-              </dd>
-              <dt>{tr("Filas sin clave (origen / destino)")}</dt>
-              <dd>
-                {relation.evidence.source.missing_rows} /{" "}
-                {relation.evidence.target.missing_rows}
-              </dd>
-              <dt>{tr("Filas sin correspondencia")}</dt>
-              <dd>{relation.evidence.unmatched_rows}</dd>
-              <dt>{tr("Filas tras unión izquierda")}</dt>
-              <dd>
-                {relation.evidence.left_join_rows.toLocaleString(locale())}
-              </dd>
-              <dt>{tr("Filas adicionales por multiplicación")}</dt>
-              <dd>{relation.evidence.extra_rows.toLocaleString(locale())}</dd>
-            </dl>
-            <p className="text-sm text-muted-foreground">
-              {tr("Origen:")}{" "}
-              {relation.origin === "owner"
-                ? tr("declaración del usuario")
-                : relation.origin === "agent"
-                  ? tr("propuesta del analista, comprobada sobre los datos")
-                  : "inferencia anterior"}
-              {tr(
-                ". Comparación exacta, sin convertir valores. Confirma el significado y la granularidad antes de sumar: las medidas de la tabla padre pueden repetirse al unirlas con sus detalles.",
+          </Disclosure>
+          {canEdit && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setForm("table")}
+            >
+              {tr("Corregir o aclarar esta tabla")}
+            </Button>
+          )}
+        </div>
+      )}
+      {(!singleTable || canEdit || metrics.length > 0) && (
+        <Button
+          variant="secondary"
+          className="rounded-full bg-muted px-4 shadow-none hover:bg-foreground/15 focus-visible:bg-foreground/15"
+          onClick={() => {
+            setChecksOpen(true);
+            setEdge("");
+            setForm("");
+          }}
+        >
+          <GitBranch />
+          {tr("Conexiones y comprobaciones")}
+        </Button>
+      )}
+      <Dialog
+        open={checksOpen}
+        onOpenChange={(open) => {
+          setChecksOpen(open);
+          if (!open) {
+            setEdge("");
+            setForm("");
+          }
+        }}
+      >
+        <DialogContent
+          className="max-h-[85dvh] overflow-y-auto sm:max-w-xl"
+          aria-describedby={undefined}
+        >
+          <DialogHeader>
+            <DialogTitle>{tr("Conexiones y comprobaciones")}</DialogTitle>
+          </DialogHeader>
+          {!relation && (
+            <div className="space-y-2">
+              {relations.map((r) => (
+                <button
+                  type="button"
+                  key={r.id}
+                  onClick={() => {
+                    setEdge(r.id);
+                    setForm("");
+                  }}
+                  className="block w-full rounded-xl bg-muted/60 p-3 text-left text-sm font-medium transition-colors hover:bg-foreground/10 focus-visible:bg-foreground/10"
+                >
+                  <span className="break-all">
+                    {names[r.source]} → {names[r.target]}
+                  </span>
+                  {(r.semantic_status !== "confirmed" ||
+                    r.verification !== "checked") && (
+                    <span className="mt-1 block text-xs text-muted-foreground">
+                      {r.semantic_status === "rejected"
+                        ? tr("Descartada")
+                        : tr("Necesita revisión")}
+                    </span>
+                  )}
+                </button>
+              ))}
+              {!relations.length && (
+                <p className="text-sm text-muted-foreground">
+                  {tr("No hay conexiones guardadas todavía.")}
+                </p>
               )}
-            </p>
-            {canEdit && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setForm("relation")}
-              >
-                {tr("Corregir o confirmar relación")}
-              </Button>
-            )}
-          </div>
-        )}
-        <section className="space-y-3">
-          <h3 className="font-medium">{tr("Cómo entendemos las métricas")}</h3>
-          {metrics.map((m) => (
-            <div key={m.key} className="rounded-lg border p-3 text-sm">
-              <strong>{m.name || m.key}</strong>
-              <p>{m.definition}</p>
-              <p className="text-xs text-muted-foreground">
-                {m.unit || tr("Unidad no indicada")} ·{" "}
-                {m.period.from || tr("Inicio no acotado")} —{" "}
-                {m.period.until || tr("Fin no acotado")}
-                {tr(" · Declarado por ti")}
+            </div>
+          )}
+          {relation && (
+            <div className="space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="font-semibold break-all">
+                  {names[relation.source]} → {names[relation.target]}
+                </h3>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="size-7 shrink-0"
+                  aria-label={tr("Cerrar detalles")}
+                  onClick={closeDetails}
+                >
+                  <X className="size-3.5" />
+                </Button>
+              </div>
+              {relation.semantic_status !== "confirmed" && (
+                <Badge variant="outline">
+                  {tr(labels[relation.semantic_status])}
+                </Badge>
+              )}
+              <p className="text-sm">
+                {relation.description ||
+                  tr(
+                    "El significado de este enlace aún necesita confirmación.",
+                  )}
               </p>
+              <Disclosure title={tr("Ver comprobaciones")} subtle>
+                <p className="text-sm break-all">
+                  {relation.source_columns.join(" + ")} ={" "}
+                  {relation.target_columns.join(" + ")}
+                </p>
+                <p className="mb-3 text-sm text-muted-foreground">
+                  {tr(cardinalities[relation.cardinality])}
+                </p>
+                <dl className="grid grid-cols-2 gap-2 text-sm">
+                  <dt>{tr("Claves duplicadas (origen / destino)")}</dt>
+                  <dd>
+                    {relation.evidence.source.duplicate_keys} /{" "}
+                    {relation.evidence.target.duplicate_keys}
+                  </dd>
+                  <dt>{tr("Filas sin clave (origen / destino)")}</dt>
+                  <dd>
+                    {relation.evidence.source.missing_rows} /{" "}
+                    {relation.evidence.target.missing_rows}
+                  </dd>
+                  <dt>{tr("Filas sin correspondencia")}</dt>
+                  <dd>{relation.evidence.unmatched_rows}</dd>
+                  <dt>{tr("Filas tras unión izquierda")}</dt>
+                  <dd>
+                    {relation.evidence.left_join_rows.toLocaleString(locale())}
+                  </dd>
+                  <dt>{tr("Filas adicionales por multiplicación")}</dt>
+                  <dd>
+                    {relation.evidence.extra_rows.toLocaleString(locale())}
+                  </dd>
+                </dl>
+                <p className="text-sm text-muted-foreground">
+                  {tr("Origen:")}{" "}
+                  {relation.origin === "owner"
+                    ? tr("declaración del usuario")
+                    : relation.origin === "agent"
+                      ? tr("propuesta del analista, comprobada sobre los datos")
+                      : "inferencia anterior"}
+                  {tr(
+                    ". Comparación exacta, sin convertir valores. Confirma el significado y la granularidad antes de sumar: las medidas de la tabla padre pueden repetirse al unirlas con sus detalles.",
+                  )}
+                </p>
+              </Disclosure>
               {canEdit && (
                 <Button
                   size="sm"
-                  variant="ghost"
-                  onClick={() => setForm(`metric:${m.key}`)}
+                  variant="outline"
+                  onClick={() => setForm("relation")}
                 >
-                  {tr("Corregir definición")}
+                  {tr("Aclarar esta conexión")}
                 </Button>
               )}
             </div>
-          ))}
-          {!metrics.length && (
-            <p className="text-sm text-muted-foreground">
-              {tr(
-                "Todavía no has definido métricas aquí. Las definiciones guardadas en la memoria del negocio también se consultan, respetando su ámbito y periodo.",
-              )}
-            </p>
           )}
-        </section>
-        {canEdit && (
-          <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setEdge("");
-                setForm("relation");
-              }}
-            >
-              <Plus />
-              {tr("Añadir relación")}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setForm("metric:")}
-            >
-              <Plus />
-              {tr("Definir métrica")}
-            </Button>
-          </div>
-        )}
-        {form && canEdit && (
-          <div
-            className="space-y-3 border-t pt-5"
-            key={`${form}/${selected}/${edge}`}
-          >
-            <p className="text-sm text-muted-foreground">
-              {tr(
-                "Se guardará una nueva revisión. Los informes que usaban este modelo quedarán pendientes de revisar.",
+          {(canEdit || !!metrics.length) && (
+            <Disclosure title={tr("Ajustar cómo usamos estos datos")} subtle>
+              {!!metrics.length && (
+                <section className="mb-4 space-y-3">
+                  <h3 className="text-sm font-medium">
+                    {tr("Cálculos guardados")}
+                  </h3>
+                  {metrics.map((m) => (
+                    <div key={m.key} className="rounded-lg border p-3 text-sm">
+                      <strong>{m.name || m.key}</strong>
+                      <p>{m.definition}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {[
+                          m.unit,
+                          [m.period.from, m.period.until]
+                            .filter(Boolean)
+                            .join(" — "),
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                      {canEdit && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setForm(`metric:${m.key}`)}
+                        >
+                          {tr("Corregir definición")}
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </section>
               )}
-            </p>
-            {form === "table" && table && (
-              <TableForm table={table} save={save} busy={action.busy} />
-            )}{" "}
-            {form === "relation" && (
-              <RelationForm
-                tables={tables}
-                relation={relation}
-                save={save}
-                busy={action.busy}
-              />
-            )}{" "}
-            {form.startsWith("metric:") && (
-              <MetricForm
-                tables={tables}
-                metric={metrics.find((m) => m.key === form.slice(7))}
-                save={save}
-                busy={action.busy}
-              />
-            )}
-            <Button variant="ghost" size="sm" onClick={() => setForm("")}>
-              {tr("Cancelar")}
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-export function ERDiagram({
-  tables,
-  relations,
-  selected,
-  edge,
-  chooseTable,
-  chooseEdge,
-}: {
-  tables: Table[];
-  relations: Relation[];
-  selected: string;
-  edge: string;
-  chooseTable: (id: string) => void;
-  chooseEdge: (id: string) => void;
-}) {
-  useLanguage();
-  const marker = useId();
-  const positions = new Map(
-    tables.map((t, i) => [
-      t.id,
-      { x: 30 + (i % 3) * 310, y: 40 + Math.floor(i / 3) * 150 },
-    ]),
-  );
-  const links = relations.filter(
-    (r) => positions.has(r.source) && positions.has(r.target),
-  );
-  return (
-    <div
-      className="min-w-0 w-full overflow-x-auto rounded-xl border bg-muted/20"
-      style={{ contain: "inline-size" }}
-    >
-      <svg
-        role="group"
-        aria-label={tr("Diagrama ER de esta revisión del modelo")}
-        viewBox={`0 0 960 ${Math.max(210, Math.ceil(tables.length / 3) * 150 + 60)}`}
-        className="min-w-[640px] w-full"
-      >
-        <defs>
-          <marker
-            id={marker}
-            viewBox="0 0 10 10"
-            refX="9"
-            refY="5"
-            markerWidth="7"
-            markerHeight="7"
-            orient="auto-start-reverse"
-          >
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
-          </marker>
-        </defs>
-        {links.map((r, i) => {
-          const a = positions.get(r.source)!,
-            b = positions.get(r.target)!,
-            y = 15 + (i % 4) * 5;
-          return (
-            <g
-              key={r.id}
-              role="button"
-              tabIndex={0}
-              aria-label={tr("Relación {0} con {1}", {
-                "0": tables.find((t) => t.id === r.source)!.name,
-                "1": tables.find((t) => t.id === r.target)!.name,
-              })}
-              onClick={() => chooseEdge(r.id)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  chooseEdge(r.id);
-                }
-              }}
-              className="cursor-pointer text-primary"
-            >
-              <title>
-                {tr(cardinalities[r.cardinality])} ·{" "}
-                {tr(labels[r.semantic_status])}
-              </title>
-              <path
-                d={`M ${a.x + 120} ${a.y} C ${a.x + 120} ${a.y - y - 25}, ${b.x + 120} ${b.y - y - 25}, ${b.x + 120} ${b.y}`}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={edge === r.id ? 4 : 2}
-                strokeDasharray={
-                  r.semantic_status === "confirmed" ? undefined : "6 4"
-                }
-                opacity={r.semantic_status === "rejected" ? 0.3 : 0.75}
-                markerEnd={`url(#${marker})`}
-              />
-              <path
-                d={`M ${a.x + 120} ${a.y} C ${a.x + 120} ${a.y - y - 25}, ${b.x + 120} ${b.y - y - 25}, ${b.x + 120} ${b.y}`}
-                fill="none"
-                stroke="transparent"
-                strokeWidth="14"
-              />
-            </g>
-          );
-        })}
-        {tables.map((t) => {
-          const p = positions.get(t.id)!;
-          return (
-            <g
-              key={t.id}
-              role="button"
-              tabIndex={0}
-              aria-label={tr("Tabla {0}", { "0": t.name })}
-              onClick={() => chooseTable(t.id)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  chooseTable(t.id);
-                }
-              }}
-              className="cursor-pointer"
-            >
-              <rect
-                x={p.x}
-                y={p.y}
-                width="270"
-                height="94"
-                rx="12"
-                className="fill-background stroke-border"
-                style={{
-                  stroke: selected === t.id ? "var(--primary)" : undefined,
-                  strokeWidth: selected === t.id ? 3 : 1,
-                }}
-              />
-              <text
-                x={p.x + 14}
-                y={p.y + 30}
-                className="fill-foreground"
-                fontSize="13"
-                fontWeight="600"
-              >
-                {t.name.length > 32 ? t.name.slice(0, 29) + "…" : t.name}
-              </text>
-              <text
-                x={p.x + 14}
-                y={p.y + 52}
-                className="fill-muted-foreground"
-                fontSize="12"
-              >
-                {t.row_count.toLocaleString(locale())}
-                {tr(" filas · ")}
-                {t.columns.length} {tr("columnas")}
-              </text>
-              <text
-                x={p.x + 14}
-                y={p.y + 75}
-                className="fill-muted-foreground"
-                fontSize="11"
-              >
-                {t.grain
-                  ? t.semantic_status === "inferred"
-                    ? tr("Granularidad propuesta")
-                    : tr("Granularidad declarada")
-                  : tr("Granularidad por confirmar")}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-      <p className="p-3 text-xs text-muted-foreground">
-        {tr(
-          "Flecha: origen → destino. Línea discontinua: significado pendiente o descartado. Selecciona una conexión para ver su cardinalidad y comprobaciones.",
-        )}
-      </p>
+              {canEdit && (
+                <div className="flex flex-col items-start gap-4">
+                  {!singleTable && (
+                    <div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setEdge("");
+                          setForm("relation");
+                        }}
+                      >
+                        <Plus />
+                        {tr("Conectar dos tablas")}
+                      </Button>
+                    </div>
+                  )}
+                  <div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setForm("metric:")}
+                    >
+                      <Plus />
+                      {tr("Aclarar un cálculo")}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </Disclosure>
+          )}
+          {form && form !== "table" && canEdit && renderForm()}
+        </DialogContent>
+      </Dialog>
+      {form === "table" && canEdit && renderForm()}
     </div>
   );
 }
@@ -1122,7 +1056,7 @@ function MetricForm({
         });
       }}
     >
-      <Field label={tr("Nombre de la métrica")}>
+      <Field label={tr("Nombre del resultado")}>
         <Input
           required
           value={name}

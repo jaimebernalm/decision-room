@@ -55,6 +55,28 @@ identifica el espacio real, sin nombres, correos ni acciones de cuenta ficticios
 Cada paso se prueba, se revisa y se guarda en un commit local separado. No se
 publica en GitHub salvo petición explícita del usuario.
 
+7. **2.5.19.7 — Control de navegación dentro de su barra.** Con la barra abierta,
+   colocar el botón de contraer en el extremo derecho de su cabecera, junto al
+   selector de negocio. Cuando esté contraída, mantener el botón de expandir en
+   la cabecera del contenido. Comprobar escritorio, móvil, teclado y continuidad
+   del panel del chat, con etiquetas de acción en español e inglés.
+
+8. **2.5.19.8 — Nombre del negocio, acciones al borde y cierre por arrastre.**
+   Dar al selector de negocio su fila completa y colocar el botón de contraer
+   justo debajo, alineado a la derecha con los +. Acercar las acciones de Chats
+   e Informes al borde. Contraer la barra al arrastrarla más allá de la anchura
+   mínima; conservar una anchura utilizable para reabrir y los límites del teclado.
+   Comprobar nombre visible, arrastre, reapertura, móvil y continuidad del chat.
+
+9. **2.5.19.9 — Reabrir arrastrando el borde contraído.** Mantener el separador
+   de escritorio en ambos estados y comenzar el arrastre desde la anchura de la
+   barra compacta. Abrir al superar el umbral y continuar ajustando la anchura sin
+   perder la captura del puntero. Mantener botones, teclado y navegación móvil.
+
+10. **2.5.19.10 — Iconos de cierre simétricos.** Usar `PanelLeftClose` para cerrar
+    la navegación izquierda, como reflejo del `PanelRightClose` del chat derecho.
+    Comprobar su aspecto y conservar las acciones de apertura, cierre y arrastre.
+
 ## Estado
 
 - 2.5.19.1 completado: bibliotecas sin duplicación, límites y selección conservados.
@@ -76,3 +98,37 @@ publica en GitHub salvo petición explícita del usuario.
 
 Los seis pasos están completos. Véase la
 [validación y sus límites](../validation/2026-09-30-navigation-and-chat.md).
+
+- 2.5.19.7 completado, 7 de octubre de 2026: un solo control visible según el
+  estado de la barra; contraer en su cabecera y expandir en el contenido. Pasan
+  las nuevas pruebas de ubicación, ida/vuelta, atajo y móvil, junto a selector
+  de negocios y continuidad del chat. En los cuatro archivos de pruebas
+  seleccionados pasan 58 casos; uno falla por los cambios locales simultáneos de
+  nombres de tablas (espera «Ventas de septiembre · v2», recibe «Ventas»), ajenos
+  a este ajuste. Build y lint pasan con avisos existentes. Verificados en navegador
+  escritorio y móvil de 390 × 844; la captura se conserva localmente, fuera de Git.
+
+- 2.5.19.8 completado, 7 de octubre de 2026: título en su fila completa y botón
+  de contraer debajo, con el mismo eje derecho que los +. Las cabeceras y listas
+  de Chats e Informes aprovechan el espacio derecho antes reservado a padding.
+  El arrastre contrae al llegar a una anchura propuesta de 144 px o menos,
+  conservando el mínimo legible de 216 px al reabrir; el teclado mantiene sus
+  límites anteriores. Pasan 65 pruebas de layout, redimensionado, selector,
+  chat contextual y aplicación, build y lint con avisos existentes. Verificados
+  arrastre y reapertura reales, nombre completo a 256 px, controles alineados
+  y móvil de 390 × 844. Captura guardada localmente fuera de Git.
+
+- 2.5.19.9 completado, 7 de octubre de 2026: el borde de la barra contraída
+  permanece interactivo. Arrastrar hacia la derecha más allá del umbral de 144 px
+  abre la barra con un mínimo de 216 px y permite seguir ajustándola en el mismo
+  gesto; la flecha derecha del teclado también la abre desde el separador.
+  Pasan 65 pruebas de layout, redimensionado, chat contextual y aplicación,
+  build y lint con avisos existentes. Verificado en navegador el cierre mediante
+  arrastre seguido de reapertura desde el borde compacto y ajuste hasta 254 px.
+  El gesto se incorpora al separador de escritorio; móvil conserva sus controles.
+
+- 2.5.19.10 completado, 7 de octubre de 2026: el botón de contraer usa el panel
+  con flecha hacia la izquierda, simétrico al cierre del chat derecho, también
+  al abrir la navegación móvil. Pasan 51 pruebas de layout y chat contextual,
+  build y lint con avisos existentes. Icono verificado en navegador y página
+  actualizada; captura local fuera de Git.

@@ -95,15 +95,19 @@ it("ignores a late search response after the query changes", async () => {
   await waitFor(() => expect(fetcher).toHaveBeenCalledOnce());
   await user.clear(input);
   await user.type(input, "dos");
-  expect(await screen.findByText("Resultado dos")).toBeVisible();
+  expect(
+    await screen.findByRole("link", { name: /^Resultado dos/ }),
+  ).toBeVisible();
   resolveFirst(
     response({
       ...listing,
       conversations: [{ ...chat, title: "Resultado uno" }],
     }),
   );
-  await waitFor(() => expect(screen.queryByText("Resultado uno")).toBeNull());
-  expect(screen.getByText("Resultado dos")).toBeVisible();
+  await waitFor(() =>
+    expect(screen.queryByRole("link", { name: /^Resultado uno/ })).toBeNull(),
+  );
+  expect(screen.getByRole("link", { name: /^Resultado dos/ })).toBeVisible();
 });
 it("distinguishes a failed search from no matches and supports retry", async () => {
   const fetcher = vi

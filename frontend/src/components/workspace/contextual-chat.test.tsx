@@ -4,13 +4,14 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { WorkspaceState, type WorkspaceContext } from "@/lib/workspace";
-import { store, messageKey } from "@/lib/api";
-import type { ContextAttachment } from "@/lib/types";
+import { store, messageKey, homeDraftKey, contextKey } from "@/lib/api";
+import type { ContextAttachment, Dataset } from "@/lib/types";
 import { Selectable } from "./context-selection";
 import { ChatPage } from "./chat";
 import { Chats, Reports, StartChat } from "./overview";
 import { Dossier } from "./dossier";
 import { Layout } from "./layout";
+import { isChatStart } from "@/lib/chat-start";
 const item: ContextAttachment = {
   report_id: "review",
   report_version: "v1",
@@ -87,7 +88,7 @@ function Harness({
         <Layout>
           {route.startsWith("chat/") ? (
             <ChatPage id={route.split("/")[1]} />
-          ) : route === "ask" ? (
+          ) : isChatStart(route) ? (
             <StartChat />
           ) : route === "chats" ? (
             <>
@@ -113,7 +114,7 @@ function Harness({
     </TooltipProvider>
   );
 }
-function server(delayed?: Promise<void>, failSend = 0) {
+function server(delayed?: Promise<void>, failSend = 0, datasets: Dataset[] = []) {
   const calls: { url: string; data: Record<string, unknown> }[] = [];
   let sent = false;
   let sendCount = 0;
@@ -130,8 +131,10 @@ function server(delayed?: Promise<void>, failSend = 0) {
           memory: {},
           facts: [],
           history: [],
-          datasets: [],
+          datasets,
         };
+      } else if (url.startsWith("/api/business/data-model?")) {
+        body = { model: null, history: [], editable: false, affected_reports: [] };
       } else if (url === "/api/chats") {
         await delayed;
         body = { id: "chat", business_id: "a" };
@@ -166,6 +169,73 @@ function server(delayed?: Promise<void>, failSend = 0) {
   );
   return calls;
 }
+it("opens data questions alongside Tables, preserves the draft and uses the exact dataset", async () => {
+  location.hash = "my-business";
+  store.set(homeDraftKey("a"), "Explica esto");
+  const calls = server(undefined, 0, [
+    {
+      id: "sales",
+      title: "Ventas de septiembre",
+      version: 2,
+      status: "ready",
+      files: [{ id: "file", name: "ventas.csv", rows: 12, status: "ready" }],
+    },
+  ]);
+  const user = userEvent.setup();
+  render(<Harness initialRoute="my-business" />);
+  await user.click(await screen.findByRole("tab", { name: "Datos" }));
+  await user.click(screen.getByRole("button", { name: "Tablas 1" }));
+  await user.click(
+    screen.getByRole("button", { name: "Preguntar sobre estas tablas" }),
+  );
+  const panel = await screen.findByRole("complementary", {
+    name: "Chat lateral",
+  });
+  expect(location.hash).toBe("#my-business");
+  expect(screen.getByRole("tab", { name: "Datos" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  expect(within(panel).getByRole("textbox", { name: "Mensaje" })).toHaveValue(
+    "Explica esto",
+  );
+  const bubble = within(panel).getByRole("group", {
+    name: "Tablas seleccionadas",
+  });
+  expect(bubble).toHaveTextContent("Ventas");
+  expect(bubble.closest("[data-slot=input-group]")).toBeNull();
+  expect(calls.some((c) => c.url === "/api/chats")).toBe(false);
+  await user.click(
+    within(panel).getByRole("button", { name: "Enviar mensaje" }),
+  );
+  await waitFor(() =>
+    expect(calls.find((c) => c.url === "/api/chats")?.data).toMatchObject({
+      analysis_id: "sales",
+    }),
+  );
+});
+it("removes a data bubble independently from selected context and keeps the message draft", async () => {
+  location.hash = "home";
+  store.set(homeDraftKey("a"), "Mi borrador");
+  store.set(contextKey("a"), {
+    analysis_id: "sales",
+    label: "Ventas · v2",
+    context_references: [item],
+  });
+  server();
+  const user = userEvent.setup();
+  render(<Harness />);
+  await user.click(screen.getByRole("button", { name: "Quitar contexto" }));
+  expect(
+    screen.queryByRole("group", { name: "Tablas seleccionadas" }),
+  ).toBeNull();
+  expect(screen.getByRole("textbox", { name: "Mensaje" })).toHaveValue(
+    "Mi borrador",
+  );
+  expect(store.get(contextKey("a"), {})).toMatchObject({
+    context_references: [item],
+  });
+});
 it("applies right-panel width changes immediately, without a trailing width animation", async () => {
   location.hash = "home";
   server();
@@ -174,14 +244,14 @@ it("applies right-panel width changes immediately, without a trailing width anim
   const panel = await screen.findByRole("complementary", {
     name: "Chat lateral",
   });
-  const shell = panel.parentElement!;
-  expect(shell).toHaveStyle({ width: "420px" });
+  const frame = panel.closest(".assistant-frame") as HTMLElement;
+  expect(frame.style.getPropertyValue("--chat-panel-width")).toBe("420px");
   const handle = screen.getByRole("separator", { name: "Anchura del chat" });
   fireEvent.keyDown(handle, { key: "ArrowLeft" });
-  expect(shell).toHaveStyle({ width: "444px" });
+  expect(frame.style.getPropertyValue("--chat-panel-width")).toBe("444px");
   expect(store.get("dr-chat-panel-width", 0)).toBe(444);
   fireEvent.keyDown(handle, { key: "ArrowRight" });
-  expect(shell).toHaveStyle({ width: "420px" });
+  expect(frame.style.getPropertyValue("--chat-panel-width")).toBe("420px");
 });
 it.each(["home", "my-business", "reports", "chats"])(
   "opens the right panel immediately from the launcher on %s, preserving a folded draft",
@@ -407,7 +477,7 @@ it("opens navigation by folding the chat and can resume it", async () => {
   render(<Harness />);
   await screen.findByRole("textbox");
   await user.click(
-    screen.getByRole("button", { name: "Abrir o cerrar navegación" }),
+    screen.getByRole("button", { name: "Expandir barra lateral" }),
   );
   await waitFor(() =>
     expect(screen.queryByRole("complementary")).not.toBeInTheDocument(),
@@ -524,7 +594,7 @@ it("switches chats from navigation without leaving the report or losing the prev
   render(<Harness initialRoute="report/sales" conversations={existingChats} />);
   await user.type(await screen.findByRole("textbox"), "Conservar borrador");
   await user.click(
-    screen.getByRole("button", { name: "Abrir o cerrar navegación" }),
+    screen.getByRole("button", { name: "Expandir barra lateral" }),
   );
   await user.click(
     screen.getByRole("button", { name: "Opciones de Ya guardada" }),
@@ -725,7 +795,7 @@ it("reduces a directly opened chat to home when there is no saved source", async
   expect(calls.some(c => c.url === "/api/chats" || c.url.endsWith("/messages"))).toBe(false);
 });
 
-it.each(["home", "my-business", "reports", "chats", "files", "business", "businesses", "how", "new", "report/sales", "analysis/running", "chat-report/answer"])(
+it.each(["home", "my-business", "reports", "chats", "files", "business", "businesses", "how", "report/sales", "analysis/running", "chat-report/answer"])(
   "offers exactly one bottom composer without stealing focus or creating a chat on %s",
   async (route) => {
     const calls = server();

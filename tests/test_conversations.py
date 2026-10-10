@@ -501,6 +501,40 @@ class ConversationTests(unittest.TestCase):
         with self.assertRaises(WebError):
             self.send(chat, 'Explain this', context_references=[ref])
 
+    def test_data_model_selection_reaches_chat_and_survives_reload(self):
+        from decision_room.data_knowledge import service as knowledge
+        from scripts.dev.add_demo_tables import add_demo_tables
+        result = add_demo_tables(self.config, self.b)
+        with connect(self.config) as db:
+            row = knowledge.latest(db, self.b, result['analysis_id'])
+        relation = row['body']['relations'][0]
+        base = dict(kind='data_model', source_id=str(result['analysis_id']), source_version=str(row['revision']))
+        refs = [base | dict(element_key='relation:' + relation['id']), base | dict(element_key='model'),
+                base | dict(element_key='table:' + row['body']['tables'][0]['id'])]
+        seen = []
+        def answer_selected(model, context, correction=None):
+            seen.append(context)
+            return action('answer', text='The selected saved relationships describe these table connections.',
+                          sources=['selection/0', 'selection/1', 'selection/2']), {}
+        chat = self.chat()
+        with patch.object(ChatModel, 'generate_chat', answer_selected):
+            turn = self.send(chat, 'Explain these connections', context_references=refs)
+        self.assertEqual(turn['status'], 'completed', turn)
+        self.assertEqual(seen[-1]['available_sources']['selection/0']['content']['content']['relations'], [relation])
+        self.assertEqual(seen[-1]['available_sources']['selection/1']['content']['selection_scope'], 'whole_data_model')
+        self.assertEqual(seen[-1]['available_sources']['selection/2']['content']['selection_scope'], 'table')
+        self.assertEqual(seen[-1]['available_sources']['selection/2']['content']['content']['tables'], [row['body']['tables'][0]])
+        self.assertEqual(seen[-1]['retrievals'], [])
+        restored = Conversations(self.ws.scoped(self.b)).detail(chat)['turns'][-1]['attachments']
+        self.assertEqual(restored, turn['attachments'])
+        knowledge.change(self.config, self.b, result['analysis_id'], row['revision'], 'relation',
+            {k: relation[k] for k in ('source', 'target', 'source_columns', 'target_columns')} |
+            dict(semantic_status='rejected', description='Synthetic owner correction'))
+        updated = self.chats.detail(chat)['turns'][-1]['attachments']
+        self.assertTrue(all(item['status'] == 'withdrawn' and 'content' not in item for item in updated))
+        with self.assertRaises(WebError):
+            self.send(chat, 'Explain the old selection', context_references=refs)
+
     def test_selected_memory_can_change_before_routing_without_reviving_old_content(self):
         saved = memory.change(self.config, self.b, action='declare', request_key=str(uuid4()), content=content())
         with connect(self.config) as db:
@@ -956,6 +990,60 @@ class ConversationTests(unittest.TestCase):
         self.chats.run(results[0]['id'])
         self.chats.run(queued['id'])
         self.assertEqual(self.chats.detail(chat)['turns'][0]['response']['kind'], 'grounded_answer')
+
+    def test_entry_intent_is_validated_idempotent_and_available_to_the_agent(self):
+        chat = self.chat()
+        payload = dict(business_id=str(self.b), request_key=str(uuid4()), text='Hola', entry_intent='question')
+        for unsupported in ('predict', 'ideas', '', {}, []):
+            with self.assertRaises(WebError):
+                self.chats.send(chat, payload | dict(entry_intent=unsupported))
+        self.assertEqual(self.chats.detail(chat)['turns'], [])
+        sent = self.chats.send(chat, payload)
+        self.assertEqual(self.chats.send(chat, payload), sent)
+        with self.assertRaises(WebError) as conflict:
+            self.chats.send(chat, payload | dict(entry_intent='analysis'))
+        self.assertEqual(conflict.exception.status, 409)
+        original = ChatModel.generate_chat
+        def capture(model, context, correction=None):
+            self.assertEqual(context['entry_intent'], 'question')
+            return original(model, context, correction)
+        with patch.object(ChatModel, 'generate_chat', capture):
+            self.chats.run(sent['id'])
+            later = self.send(chat, 'Hola otra vez')
+        self.assertEqual(later['status'], 'completed', later)
+        self.assertFalse(later['report_requested'])
+        self.assertEqual(self.ws.listing(), [])
+
+    def test_analysis_goal_survives_clarifications_and_saves_only_a_reviewed_report(self):
+        chat = self.chat(self.batch())
+        original = ChatModel.generate_chat
+        def capture(model, context, correction=None):
+            self.assertEqual(context['entry_intent'], 'analysis')
+            return original(model, context, correction)
+        with patch.object(ChatModel, 'generate_chat', capture):
+            turn = self.send(chat, 'Calculate sales', entry_intent='analysis')
+            job = turn['job_id']
+            self.assertFalse(turn['report_requested'])
+            self.assertEqual(self.ws.listing(), [])
+            for answer in ('unit price', 'Amount is row total.'):
+                self.ws.run_job(job)
+                self.chats.run(turn['id'])
+                turn = self.chats.detail(chat)['turns'][-1]
+                self.assertEqual(turn['status'], 'waiting', turn)
+                self.assertFalse(turn['report_requested'])
+                self.assertEqual(self.ws.listing(), [])
+                turn = self.send(chat, answer, question_id=turn['questions'][0]['id'])
+            self.ws.run_job(job)
+            self.chats.run(turn['id'])
+        turn = self.chats.detail(chat)['turns'][-1]
+        self.assertEqual(turn['status'], 'completed', turn)
+        self.assertTrue(turn['report_requested'])
+        self.assertEqual(len(self.ws.listing()), 1)
+        self.assertIn('Ventas', self.chats.report(chat, turn['id']))
+        memory.change(self.config, self.b, action='declare', request_key='goal-invalidates-review',
+                      content=content('Amount is not defined.', kind='open_question'))
+        with self.assertRaises(WebError):
+            self.chats.report(chat, turn['id'])
 
     def test_reviewed_calculation_explanation_and_explicit_report(self):
         chat, t = self.complete()

@@ -1,0 +1,162 @@
+.data-model-map {
+  contain: inline-size;
+}
+.data-map-viewport {
+  position: relative;
+  height: clamp(20rem, 45vh, 34rem);
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+  background-image: radial-gradient(var(--border) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+.data-map-viewport[data-dragging="true"],
+.data-map-viewport[data-dragging="true"] * {
+  cursor: grabbing !important;
+}
+.data-map-viewport:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.data-map-drawing {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform-origin: center;
+}
+.data-map-drawing > svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: none !important;
+}
+.data-map-drawing .node {
+  cursor: pointer;
+}
+.data-map-drawing .node rect {
+  fill: var(--background) !important;
+  stroke: var(--border) !important;
+}
+/* Mermaid also paints table rows with paths carrying literal light-theme colors. */
+.data-map-drawing .node path[fill]:not([fill="none"]) {
+  fill: var(--background) !important;
+}
+.data-map-drawing .node path[fill="none"] {
+  stroke: var(--border) !important;
+}
+/* The outer fill remains visible behind the title; attribute rows retain their own fill. */
+.data-map-drawing .node > .outer-path > path[fill]:not([fill="none"]) {
+  fill: var(--muted) !important;
+}
+.data-map-drawing .node .label.name text,
+.data-map-drawing .node .label.name tspan {
+  font-weight: 700 !important;
+}
+.data-map-drawing .node .label-container {
+  rx: 10px;
+}
+.data-map-drawing .node text,
+.data-map-drawing .edgeLabel text {
+  fill: var(--foreground) !important;
+}
+.data-map-drawing .node .divider {
+  stroke: var(--border) !important;
+}
+.data-map-drawing .relationshipLine {
+  stroke: var(--primary) !important;
+  stroke-width: 1.5px !important;
+  cursor: pointer;
+}
+.data-map-drawing .marker,
+.data-map-drawing .marker path,
+.data-map-drawing .marker circle {
+  stroke: var(--primary) !important;
+}
+.data-map-drawing .marker circle {
+  fill: var(--background) !important;
+}
+.data-map-drawing .edgeLabel rect {
+  fill: var(--background) !important;
+}
+.data-map-drawing .edgeLabel {
+  pointer-events: auto;
+  cursor: pointer;
+}
+.data-map-drawing [data-status="proposed"],
+.data-map-drawing [data-status="rejected"] {
+  stroke-dasharray: 5 4;
+}
+.data-map-drawing [data-status="rejected"] {
+  opacity: 0.4;
+}
+.data-map-drawing .node[data-selected="true"] rect,
+.data-map-drawing .node:focus-visible rect,
+.data-map-drawing .node[data-selected="true"] path[fill="none"],
+.data-map-drawing .node:focus-visible path[fill="none"],
+.data-model-map[data-selecting="true"]
+  .node[data-hovered="true"]
+  path[fill="none"] {
+  stroke: var(--primary) !important;
+  stroke-width: 2px !important;
+}
+.data-map-drawing [data-relation-id][data-selected="true"] .relationshipLine,
+.data-map-drawing [data-relation-id]:focus-visible .relationshipLine {
+  stroke-width: 3px !important;
+}
+.data-map-drawing .data-map-hit {
+  fill: none;
+  stroke: transparent !important;
+  stroke-width: 16px !important;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+.data-map-drawing [role="button"]:focus-visible {
+  outline: none;
+}
+.data-map-tooltip {
+  position: absolute;
+  z-index: 1;
+  width: 260px;
+  max-width: calc(100% - 24px);
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: 0 4px 16px #00000012;
+  font-size: 12px;
+  line-height: 1.5;
+  pointer-events: none;
+  overflow-wrap: anywhere;
+}
+
+.data-model-context:has([data-select-map]:hover),
+.data-model-context:has([data-select-map]:focus-visible) {
+  border-radius: 0.75rem;
+  outline: 2px solid var(--primary);
+  outline-offset: 4px;
+  background: color-mix(in srgb, var(--primary) 5%, transparent);
+}
+.data-model-map[data-selecting="true"]
+  [data-relation-id][data-hovered="true"]
+  .relationshipLine {
+  stroke-width: 4px !important;
+}
+.data-model-map[data-selecting="true"]
+  [data-relation-id][data-hovered="true"]
+  rect,
+.data-model-map[data-selecting="true"] [data-relation-id]:focus-visible rect {
+  fill: color-mix(in srgb, var(--primary) 16%, var(--background)) !important;
+}
+
+.data-model-map[data-selecting="true"] .node[data-hovered="true"] rect,
+.data-model-map[data-selecting="true"] .node[data-selected="true"] rect,
+.data-model-map[data-selecting="true"] .node:focus-visible rect,
+.data-model-map[data-selecting="true"]
+  .node:is([data-hovered="true"], [data-selected="true"], :focus-visible)
+  path[fill]:not([fill="none"]) {
+  fill: color-mix(in srgb, var(--primary) 12%, var(--background)) !important;
+  stroke: var(--primary) !important;
+  stroke-width: 2px !important;
+}

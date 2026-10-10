@@ -53,6 +53,14 @@ los mensajes, nombres, informes y datos ya guardados conservan su texto original
    mantener el foco de los botones. Comprobar scroll, altura variable, chat completo,
    panel, escritorio/móvil, ambos temas y las regresiones del envío y borrador.
 
+7. **2.5.20.7 — Campo de mensaje sin borde.** Quitar el contorno permanente de
+   «Pregunta o añade contexto…» y mantenerlo transparente al recibir foco.
+   Comprobar la barra y las regresiones de borrador, envío y panel.
+
+8. **2.5.20.8 — Borde original y barra sin sombra.** Tras la aclaración del
+   usuario con captura, restaurar el borde y quitar la sombra exterior de la barra
+   flotante. Comprobar el aspecto en reposo y con foco y las regresiones del chat.
+
 ## Glosario
 
 | Concepto | Español | Inglés |
@@ -94,6 +102,17 @@ existentes pueden mantener sus nombres para compatibilidad.
   frontend, compilación y lint sin errores; comprobados scroll, último contenido,
   texto multilínea, panel/chat completo, móvil y temas claro/oscuro. Véase
   [validación de la isla](../validation/2026-10-01-composer-island.md).
+
+- 2.5.20.7 completado, 7 de octubre de 2026: campo de mensaje sin borde visible,
+  en reposo y con foco. Pasan 44 pruebas de UI y chat contextual, build y lint
+  (con avisos existentes). Revisión visual de Inicio y comprobación del borde
+  transparente al pulsar el campo; el cambio queda limitado al compositor.
+
+- 2.5.20.8 completado, 7 de octubre de 2026: aclaración del usuario aplicada;
+  se restaura el borde original y se elimina la sombra exterior, cuyo recorte
+  producía el rectángulo señalado. Pasan 44 pruebas de UI y chat contextual,
+  build y lint (con avisos existentes). Comprobado en navegador: borde neutral
+  visible y ausencia de sombra en reposo y con foco. Sustituye el aspecto de 2.5.20.7.
 
 Los cuatro pasos originales quedan terminados. La prueba con el proveedor real recibe HTTP 429
 y no permite comprobar una respuesta nueva real en inglés. Los textos históricos

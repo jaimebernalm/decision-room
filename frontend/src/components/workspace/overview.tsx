@@ -2,7 +2,6 @@ import { translate as tr, useLanguage } from "@/lib/i18n";
 import { AnalysisActivity } from "./analysis-activity";
 import { useState } from "react";
 import {
-  Plus,
   ArrowUpRight,
   MoreHorizontal,
   MessageCircle,
@@ -26,24 +25,11 @@ import { Heading, Notice, Empty, Loading } from "./shared";
 import { ReportDownload } from "./report-download";
 import { ReportView } from "./report";
 import { ChatActions } from "./chat-actions";
-import { NewChatComposer } from "./floating-assistant";
 import { Selectable } from "./context-selection";
 import { useAssistant } from "@/lib/assistant";
 import { useChatSearch } from "@/lib/chat-search";
-export function StartChat() {
-  useLanguage();
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <h1 className="sr-only">{tr("Nuevo chat")}</h1>
-      <div className="flex-1" />
-      <div className="shrink-0 px-4 pb-4 pt-2 sm:px-8">
-        <div className="mx-auto max-w-2xl">
-          <NewChatComposer />
-        </div>
-      </div>
-    </div>
-  );
-}
+import { SearchHighlight } from "./search-highlight";
+export { StartChat } from "./chat-start";
 export { Reports } from "./reports";
 export function Chats() {
   useLanguage();
@@ -56,14 +42,7 @@ export function Chats() {
       <Heading
         title={tr("Chats")}
         description={tr("Retoma una pregunta o empieza a explorar algo nuevo.")}
-      >
-        <Button asChild>
-          <a href="#ask" onClick={() => assistant?.newConversation("page")}>
-            <Plus />
-            {tr("Nuevo chat")}
-          </a>
-        </Button>
-      </Heading>
+      />
       <div className="relative mb-6 max-w-sm">
         <Search
           aria-hidden="true"
@@ -99,7 +78,9 @@ export function Chats() {
                     className="min-w-0 flex-1 after:absolute after:inset-0 after:rounded-2xl focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring"
                     href={`#chat/${c.id}`}
                   >
-                    <p className="truncate text-sm font-medium">{c.title}</p>
+                    <p className="truncate text-sm font-medium">
+                      <SearchHighlight text={c.title} query={search} />
+                    </p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {date(c.last_message_at || c.created_at)}
                     </p>
@@ -108,7 +89,11 @@ export function Chats() {
                         {c.search_match.role === "user"
                           ? tr("Tú")
                           : tr("Asistente")}
-                        : {c.search_match.text}
+                        :{" "}
+                        <SearchHighlight
+                          text={c.search_match.text}
+                          query={search}
+                        />
                       </p>
                     )}
                   </a>

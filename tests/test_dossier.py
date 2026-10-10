@@ -2,6 +2,7 @@
 import json
 import threading
 import unittest
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 from uuid import uuid4
@@ -27,6 +28,7 @@ class DossierTests(unittest.TestCase):
     create = Fixture.create
     answer = Fixture.answer
     complete = Fixture.complete
+    http = Fixture.http
 
     def upload(self, raw=b'quantity,amount\n2,10\n3,20\n', **changes):
         data = dict(business_id=str(self.business['id']), request_key=str(uuid4()),
@@ -94,6 +96,53 @@ class DossierTests(unittest.TestCase):
             self.assertEqual(catalog[0]['period']['from'], '2026-09-01')
         chat = Conversations(self.ws).create(dict(business_id=str(self.business['id']), request_key=str(uuid4()), analysis_id=first['analysis_id']))
         self.assertEqual(str(chat['analysis_id']), first['analysis_id'])
+
+    def test_archived_report_inputs_keep_history_and_return_only_when_explicitly_shared(self):
+        job = self.complete()
+        report = self.ws.report(job)
+        historical = dossier.listing(self.ws)['datasets'][0]
+        dossier.library_visibility(self.ws, str(historical['id']), dict(business_id=str(self.business['id']), hidden=True))
+        self.assertTrue(dossier.listing(self.ws)['datasets'][0]['library_hidden'])
+        self.assertEqual(self.ws.report(job), report)
+        shared = self.upload(self.csv)
+        self.assertTrue(shared['reused'])
+        self.assertEqual(str(historical['id']), shared['analysis_id'])
+        self.assertFalse(dossier.listing(self.ws)['datasets'][0]['library_hidden'])
+        self.assertEqual(self.ws.report(job), report)
+
+    def test_table_dialog_preview_uses_clicked_source_paginates_and_respects_scope(self):
+        first, second = Path(self.temp.name) / 'first.csv', Path(self.temp.name) / 'second.csv'
+        first.write_text('id,value\n' + '\n'.join(f'{n},first-{n}' for n in range(55)))
+        second.write_text('id,value\n0,second-0\n1,second-1\n')
+        dossier.upload_paths(self.ws, dict(business_id=str(self.business['id']),
+            request_key=str(uuid4()), title='Two tables', mode='separate'), [first, second])
+        data = dossier.listing(self.ws)['datasets'][0]
+        sources = {f['name']: str(f['id']) for f in data['files']}
+        client, server = self.http()
+        path = '/api/datasets/table/' + sources['second.csv']
+        self.assertEqual(client.get(path).status_code, 401)
+        client.post('/api/login', json={'token': server.token})
+        preview = client.get(path).json()
+        self.assertEqual(preview['columns'], ['id', 'value'])
+        self.assertEqual(preview['rows'][0]['values'], ['0', 'second-0'])
+        first_preview = client.get('/api/datasets/table/' + sources['first.csv']).json()
+        self.assertEqual(len(first_preview['rows']), 50)
+        later = client.get('/api/datasets/table/' + sources['first.csv'] + '?offset=50').json()
+        self.assertEqual(len(later['rows']), 5)
+        self.assertEqual(later['rows'][0]['values'], ['50', 'first-50'])
+        # Even a table selector in the URL cannot redirect a clicked source to another table.
+        redirected = client.get(path + '?table=' + first_preview['table_id']).json()
+        self.assertEqual(redirected['table_id'], preview['table_id'])
+        self.assertEqual(client.get(path + '?offset=999').status_code, 400)
+        library_path='/api/datasets/' + str(data['id']) + '/library'
+        self.assertEqual(client.post(library_path, json=dict(business_id=str(self.business['id']), hidden=True)).status_code, 200)
+        self.assertTrue(dossier.listing(self.ws)['datasets'][0]['library_hidden'])
+        self.assertEqual(client.get(path).status_code, 200)
+        self.assertEqual(client.post(library_path, json=dict(business_id=str(self.business['id']), hidden='true')).status_code, 400)
+        other = self.ws.save_business(dict(request_key=str(uuid4()), name='Other', description='Other shop',
+                                  expected_active_id=str(self.business['id'])))
+        self.assertEqual(client.get(path).status_code, 404)
+        self.assertEqual(client.post(library_path, json=dict(business_id=str(other['id']), hidden=False)).status_code, 404)
 
     def test_version_update_preserves_report_dependencies_correction_invalidates(self):
         first = self.upload()

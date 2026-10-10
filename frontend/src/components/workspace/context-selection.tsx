@@ -169,10 +169,12 @@ export function ContextAttachments({
   items,
   onRemove,
   chatId,
+  compact = false,
 }: {
   items: ContextAttachment[];
   onRemove?: (r: ContextReference) => void;
   chatId?: string;
+  compact?: boolean;
 }) {
   useLanguage();
   const [opened, setOpened] = useState<string | null>(null);
@@ -197,59 +199,86 @@ export function ContextAttachments({
               title: r.title || tr("Elemento seleccionado"),
             }}
             onRemove={onRemove ? () => onRemove(r) : undefined}
-            className="!h-auto !w-36 !rounded-xl bg-muted/40"
+            className={
+              compact
+                ? "composer-context-bubble !h-auto !w-auto !max-w-56 !rounded-full"
+                : "!h-auto !w-36 !rounded-xl bg-muted/40"
+            }
           >
             <button
               type="button"
-              className="w-full rounded-xl p-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className={
+                compact
+                  ? "flex w-full min-w-0 items-center gap-1.5 rounded-full pl-2.5 pr-8 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  : "w-full rounded-xl p-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              }
               onClick={() => setOpened(referenceId(r))}
               aria-label={tr("Ver adjunto: {0}", {
                 "0": r.title || "Elemento seleccionado",
               })}
             >
-              <div className="mb-1 flex items-center gap-1 text-[10px] text-muted-foreground">
-                {r.kind === "report" && <FileText className="size-3" />}
-                {r.kind === "conversation" && (
-                  <MessagesSquare className="size-3" />
-                )}
-                {r.kind === "conversation"
-                  ? tr("Chat")
-                  : r.kind === "report"
-                    ? tr("Informe")
-                    : r.kind === "business" || r.kind === "memory"
-                      ? tr("Mi negocio")
-                      : tr("Fragmento de informe")}
-              </div>
-              <div className="mb-1 flex h-12 items-center overflow-hidden">
-                {r.status === "withdrawn" ? (
-                  <span className="text-xs text-muted-foreground">
-                    {tr("Ya no disponible")}
+              {compact ? (
+                <>
+                  <FileText className="size-3 shrink-0 text-muted-foreground" />
+                  <span className="truncate text-[11px] leading-4">
+                    {r.title || tr("Elemento seleccionado")}
                   </span>
-                ) : r.content && "points" in r.content ? (
-                  <MiniChart chart={r.content} />
-                ) : r.content && "value" in r.content ? (
-                  <span className="truncate text-xl font-semibold">
-                    {r.content.value}{" "}
-                    <small className="text-xs font-normal">
-                      {r.content.unit}
-                    </small>
+                </>
+              ) : (
+                <>
+                  <div className="mb-1 flex items-center gap-1 text-[10px] text-muted-foreground">
+                    {r.kind === "report" && <FileText className="size-3" />}
+                    {r.kind === "conversation" && (
+                      <MessagesSquare className="size-3" />
+                    )}
+                    {r.kind === "conversation"
+                      ? tr("Chat")
+                      : r.kind === "report"
+                        ? tr("Informe")
+                        : r.kind === "data_model"
+                          ? tr(
+                              r.element_key.startsWith("table:")
+                                ? "Tablas"
+                                : "Relaciones",
+                            )
+                          : r.kind === "business" || r.kind === "memory"
+                            ? tr("Mi negocio")
+                            : tr("Fragmento de informe")}
+                  </div>
+                  <div className="mb-1 flex h-12 items-center overflow-hidden">
+                    {r.status === "withdrawn" ? (
+                      <span className="text-xs text-muted-foreground">
+                        {tr("Ya no disponible")}
+                      </span>
+                    ) : r.content && "points" in r.content ? (
+                      <MiniChart chart={r.content} />
+                    ) : r.content && "value" in r.content ? (
+                      <span className="truncate text-xl font-semibold">
+                        {r.content.value}{" "}
+                        <small className="text-xs font-normal">
+                          {r.content.unit}
+                        </small>
+                      </span>
+                    ) : r.content && "statement" in r.content ? (
+                      <span className="line-clamp-3 text-[10px] text-muted-foreground">
+                        {r.content.statement}
+                      </span>
+                    ) : (
+                      <FileText className="size-5 text-muted-foreground" />
+                    )}
+                  </div>
+                  <span className="block truncate text-xs font-medium">
+                    {r.title || tr("Elemento seleccionado")}
                   </span>
-                ) : r.content && "statement" in r.content ? (
-                  <span className="line-clamp-3 text-[10px] text-muted-foreground">
-                    {r.content.statement}
-                  </span>
-                ) : (
-                  <FileText className="size-5 text-muted-foreground" />
-                )}
-              </div>
-              <span className="block truncate text-xs font-medium">
-                {r.title || tr("Elemento seleccionado")}
-              </span>
+                </>
+              )}
             </button>
             {onRemove && (
               <AttachmentRemove
                 label={tr("Quitar {0}", { "0": r.title || "elemento" })}
-                className="!opacity-100"
+                className={
+                  compact ? "!top-0.5 !right-0.5 !opacity-100" : "!opacity-100"
+                }
               />
             )}
           </Attachment>

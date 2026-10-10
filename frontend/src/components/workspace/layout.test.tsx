@@ -65,14 +65,8 @@ it("groups direct chats and reports once, with library access in the heading", (
     "href",
     "#reports",
   );
-  expect(reports.getByRole("link", { name: "Crear informe" })).toHaveAttribute(
-    "href",
-    "#new",
-  );
-  expect(reports.getByRole("link", { name: "Crear informe" })).toHaveAttribute(
-    "title",
-    "Crear informe",
-  );
+  expect(reports.queryByRole("link", { name: "Crear informe" })).toBeNull();
+  expect(chats.queryByRole("link", { name: "Nuevo chat" })).toBeNull();
   expect(chats.getByRole("link", { name: "Conversación 0" })).toHaveAttribute(
     "href",
     "#chat/c0",
@@ -111,17 +105,16 @@ it("keeps an older active report visible and identifies empty groups without hid
   );
 });
 
-it("places the single new-chat action beside Chats, with no prominent header button", () => {
+it("places the single labeled new-chat action in the sidebar header", () => {
   const { container } = mount();
-  const action = within(
-    screen.getByRole("region", { name: "Chats" }),
-  ).getByRole("link", { name: "Nuevo chat" });
+  const action = screen.getByRole("link", { name: "Nuevo chat" });
   expect(action).toHaveAttribute("href", "#ask");
   expect(action).toHaveAttribute("title", "Nuevo chat");
   expect(screen.getAllByRole("link", { name: "Nuevo chat" })).toHaveLength(1);
   expect(
     container.querySelector('[data-slot="sidebar-header"] a[href="#ask"]'),
-  ).toBeNull();
+  ).toBe(action);
+  expect(action).toHaveTextContent("Nuevo chat");
 });
 
 it.each([
@@ -151,4 +144,159 @@ it("persists a resized navigation width and restores it on remount", () => {
   expect(
     screen.getByRole("separator", { name: "Anchura de la barra lateral" }),
   ).toHaveAttribute("aria-valuenow", "272");
+});
+
+it("moves the navigation control between the sidebar header and content as it collapses", () => {
+  const { container } = mount();
+  const collapse = screen.getByRole("button", {
+    name: "Contraer barra lateral",
+  });
+  expect(collapse.closest('[data-slot="sidebar-header"]')).not.toBeNull();
+  expect(
+    screen.queryByRole("button", { name: "Expandir barra lateral" }),
+  ).toBeNull();
+  fireEvent.click(collapse);
+  for (const name of ["Chats", "Informes"]) {
+    const link = screen.getByRole("link", { name });
+    expect(link).not.toHaveClass("group-data-[collapsible=icon]:hidden");
+    expect(link.querySelector("svg")).not.toBeNull();
+  }
+  const expand = screen.getByRole("button", { name: "Expandir barra lateral" });
+  expect(expand.closest("header")).not.toBeNull();
+  expect(
+    container.querySelector(
+      '[data-slot="sidebar-header"] [data-slot="sidebar-trigger"]',
+    ),
+  ).toBeNull();
+  fireEvent.click(expand);
+  expect(
+    screen
+      .getByRole("button", { name: "Contraer barra lateral" })
+      .closest('[data-slot="sidebar-header"]'),
+  ).not.toBeNull();
+  fireEvent.keyDown(window, { key: "b", ctrlKey: true });
+  expect(
+    screen.getByRole("button", { name: "Expandir barra lateral" }),
+  ).toBeInTheDocument();
+});
+
+it("opens mobile navigation from the content and closes it from its own header", () => {
+  vi.stubGlobal("innerWidth", 390);
+  mount();
+  expect(screen.getByRole("link", { name: "Nuevo chat" })).toHaveTextContent(
+    "Nuevo chat",
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "Expandir barra lateral" }),
+  );
+  const dialog = screen.getByRole("dialog", { name: "Navegación" });
+  const collapse = within(dialog).getByRole("button", {
+    name: "Contraer barra lateral",
+  });
+  expect(collapse.closest('[data-slot="sidebar-header"]')).not.toBeNull();
+  fireEvent.click(collapse);
+  expect(screen.queryByRole("dialog", { name: "Navegación" })).toBeNull();
+  expect(
+    screen.getByRole("button", { name: "Expandir barra lateral" }),
+  ).toBeInTheDocument();
+});
+
+it("collapses when dragged past the minimum width and restores a usable width", () => {
+  mount();
+  const handle = screen.getByRole("separator", {
+    name: "Anchura de la barra lateral",
+  });
+  handle.hasPointerCapture = () => true;
+  const pointer = (type: string, x: number) =>
+    fireEvent(
+      handle,
+      new MouseEvent(type, { bubbles: true, clientX: x, button: 0 }),
+    );
+  pointer("pointerdown", 256);
+  pointer("pointermove", 200);
+  expect(
+    screen.getByRole("button", { name: "Contraer barra lateral" }),
+  ).toBeInTheDocument();
+  expect(handle).toHaveAttribute("aria-valuenow", "216");
+  pointer("pointermove", 140);
+  expect(
+    screen.getByRole("button", { name: "Expandir barra lateral" }),
+  ).toBeInTheDocument();
+  expect(handle).toHaveAttribute("aria-valuenow", "64");
+  pointer("pointerup", 140);
+  fireEvent.click(
+    screen.getByRole("button", { name: "Expandir barra lateral" }),
+  );
+  expect(
+    screen.getByRole("separator", { name: "Anchura de la barra lateral" }),
+  ).toHaveAttribute("aria-valuenow", "216");
+  expect(store.get("dr-sidebar-width", 0)).toBe(216);
+});
+
+it("keeps the sidebar open when keyboard resizing reaches its minimum", () => {
+  mount();
+  const handle = screen.getByRole("separator", {
+    name: "Anchura de la barra lateral",
+  });
+  fireEvent.keyDown(handle, { key: "Home" });
+  fireEvent.keyDown(handle, { key: "ArrowLeft" });
+  expect(handle).toHaveAttribute("aria-valuenow", "216");
+  expect(
+    screen.getByRole("button", { name: "Contraer barra lateral" }),
+  ).toBeInTheDocument();
+});
+
+it("expands by dragging the collapsed edge and continues resizing with the same handle", () => {
+  mount();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Contraer barra lateral" }),
+  );
+  const handle = screen.getByRole("separator", {
+    name: "Anchura de la barra lateral",
+  });
+  handle.hasPointerCapture = () => true;
+  const pointer = (type: string, x: number) =>
+    fireEvent(
+      handle,
+      new MouseEvent(type, { bubbles: true, clientX: x, button: 0 }),
+    );
+  pointer("pointerdown", 74);
+  pointer("pointermove", 90);
+  expect(
+    screen.getByRole("button", { name: "Expandir barra lateral" }),
+  ).toBeInTheDocument();
+  pointer("pointermove", 174);
+  expect(
+    screen.getByRole("button", { name: "Contraer barra lateral" }),
+  ).toBeInTheDocument();
+  expect(handle).toHaveAttribute("aria-valuenow", "216");
+  expect(
+    screen.getByRole("separator", { name: "Anchura de la barra lateral" }),
+  ).toBe(handle);
+  pointer("pointermove", 304);
+  expect(handle).toHaveAttribute("aria-valuenow", "294");
+  pointer("pointerup", 304);
+  pointer("pointermove", 350);
+  expect(handle).toHaveAttribute("aria-valuenow", "294");
+  expect(store.get("dr-sidebar-width", 0)).toBe(294);
+});
+
+it("reopens the collapsed edge with the right arrow and skips edge dragging on mobile", () => {
+  const view = mount();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Contraer barra lateral" }),
+  );
+  fireEvent.keyDown(
+    screen.getByRole("separator", { name: "Anchura de la barra lateral" }),
+    { key: "ArrowRight" },
+  );
+  expect(
+    screen.getByRole("button", { name: "Contraer barra lateral" }),
+  ).toBeInTheDocument();
+  view.unmount();
+  vi.stubGlobal("innerWidth", 390);
+  mount();
+  expect(
+    screen.queryByRole("separator", { name: "Anchura de la barra lateral" }),
+  ).toBeNull();
 });

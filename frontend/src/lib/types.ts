@@ -19,6 +19,7 @@ export type Dataset = {
   version: number;
   status: string;
   corrected?: boolean;
+  library_hidden?: boolean;
   superseded_by?: string;
   period_from?: string;
   period_until?: string;
@@ -175,7 +176,7 @@ export type ContextReference =
   | {
       source_id: string;
       source_version: string;
-      kind: "business" | "memory" | "conversation";
+      kind: "business" | "memory" | "conversation" | "data_model";
       element_key: string;
     };
 export type ContextAttachment = ContextReference & {
@@ -193,6 +194,7 @@ export type FindingReference = {
   title?: string;
   period?: string;
 };
+export type EntryIntent = "question" | "analysis";
 export type QuestionContext = {
   context_references?: ContextAttachment[];
   analysis_id?: string;

@@ -12,6 +12,8 @@ import {
   ChevronRight,
   Pin,
 } from "lucide-react";
+import { isChatStart } from "@/lib/chat-start";
+import "./chat-start.css";
 import { LayoutGroup } from "motion/react";
 import {
   Sidebar,
@@ -74,7 +76,7 @@ function Navigation({
 }) {
   useLanguage();
   const { workspace, listing, route } = useWorkspace(),
-    { isMobile, setOpenMobile, state } = useSidebar();
+    { isMobile, setOpenMobile, setOpen, state } = useSidebar();
   const assistant = useAssistant();
   const close = () => {
     if (isMobile) setOpenMobile(false);
@@ -97,8 +99,36 @@ function Navigation({
       : recentReports;
   return (
     <Sidebar variant="inset" collapsible="icon">
-      <SidebarHeader className="p-3">
-        <BusinessSwitcher />
+      <SidebarHeader className="gap-0 pb-0 pl-3 pr-0 pt-3 group-data-[collapsible=icon]:p-3">
+        <div className="min-w-0 w-full">
+          <BusinessSwitcher />
+        </div>
+        {(isMobile || state === "expanded") && (
+          <div className="flex w-full justify-end">
+            <SidebarTrigger
+              className="shrink-0"
+              aria-label={tr("Contraer barra lateral")}
+              title={tr("Contraer barra lateral")}
+            />
+          </div>
+        )}
+        <Button
+          asChild
+          className="workspace-start-button"
+          aria-label={tr("Nuevo chat")}
+        >
+          <a
+            href="#ask"
+            title={tr("Nuevo chat")}
+            onClick={() => {
+              assistant?.newConversation("page");
+              close();
+            }}
+          >
+            <Plus className="size-4 shrink-0" />
+            <span>{tr("Nuevo chat")}</span>
+          </a>
+        </Button>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
@@ -128,9 +158,9 @@ function Navigation({
             ))}
           </SidebarMenu>
         </SidebarGroup>
-        <SidebarGroup role="region" aria-label={tr("Chats")}>
+        <SidebarGroup role="region" aria-label={tr("Chats")} className="pr-0">
           <SidebarGroupLabel
-            className="workspace-section-label workspace-chat-heading"
+            className="workspace-section-label workspace-chat-heading pr-0"
             aria-label={tr("Chats")}
           >
             <a
@@ -139,7 +169,7 @@ function Navigation({
               aria-label={tr("Chats")}
               title={tr("Chats")}
               aria-current={route === "chats" ? "page" : undefined}
-              className="workspace-library-link group/library flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-sidebar-accent-foreground group-data-[collapsible=icon]:hidden"
+              className="workspace-library-link group/library flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center"
             >
               <MessageSquare className="hidden size-4 group-data-[collapsible=icon]:block" />
               <span className="group-data-[collapsible=icon]:hidden">
@@ -147,27 +177,9 @@ function Navigation({
               </span>
               <ChevronRight
                 aria-hidden="true"
-                className="ml-auto size-3.5 text-muted-foreground group-hover/library:text-foreground"
+                className="ml-auto size-3.5 text-muted-foreground group-hover/library:text-foreground group-data-[collapsible=icon]:hidden"
               />
             </a>
-            <Button
-              asChild
-              variant="ghost"
-              size="icon"
-              className="workspace-create workspace-new-chat ml-auto size-7"
-            >
-              <a
-                href="#ask"
-                aria-label={tr("Nuevo chat")}
-                title={tr("Nuevo chat")}
-                onClick={() => {
-                  assistant?.newConversation("page");
-                  close();
-                }}
-              >
-                <Plus className="size-4" />
-              </a>
-            </Button>
           </SidebarGroupLabel>
           <SidebarMenu>
             {chatRows.map((chat) => (
@@ -226,9 +238,13 @@ function Navigation({
             </p>
           )}
         </SidebarGroup>
-        <SidebarGroup role="region" aria-label={tr("Informes")}>
+        <SidebarGroup
+          role="region"
+          aria-label={tr("Informes")}
+          className="pr-0"
+        >
           <SidebarGroupLabel
-            className="workspace-section-label workspace-report-heading"
+            className="workspace-section-label workspace-report-heading pr-0"
             aria-label={tr("Informes")}
           >
             <a
@@ -237,8 +253,9 @@ function Navigation({
               aria-label={tr("Informes")}
               title={tr("Informes")}
               aria-current={route === "reports" ? "page" : undefined}
-              className="workspace-library-link group/library flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-sidebar-accent-foreground group-data-[collapsible=icon]:hidden"
+              className="workspace-library-link group/library flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center"
             >
+              <FileText className="hidden size-4 group-data-[collapsible=icon]:block" />
               <span className="group-data-[collapsible=icon]:hidden">
                 {tr("Informes")}
               </span>
@@ -247,21 +264,6 @@ function Navigation({
                 className="ml-auto size-3.5 text-muted-foreground group-hover/library:text-foreground group-data-[collapsible=icon]:hidden"
               />
             </a>
-            <Button
-              asChild
-              variant="ghost"
-              size="icon"
-              className="workspace-create ml-auto size-7"
-            >
-              <a
-                href="#new"
-                aria-label={tr("Crear informe")}
-                title={tr("Crear informe")}
-                onClick={close}
-              >
-                <Plus className="size-4" />
-              </a>
-            </Button>
           </SidebarGroupLabel>
           <SidebarMenu>
             {reportRows.map((item) => (
@@ -317,16 +319,23 @@ function Navigation({
       <SidebarFooter className="p-3">
         <SpaceMenu />
       </SidebarFooter>
-      {!isMobile && state === "expanded" && (
+      {!isMobile && (
         <ResizeHandle
           label={tr("Anchura de la barra lateral")}
           className="navigation-resize"
-          min={216}
+          min={state === "collapsed" ? 64 : 216}
           max={420}
-          width={width}
+          width={state === "collapsed" ? 64 : width}
           direction={1}
-          step={16}
+          step={state === "collapsed" ? 152 : 16}
           onResize={(next) => {
+            // Keep the same handle and pointer capture across both states.
+            // A drag past the threshold expands to a readable width.
+            if (next <= 144) {
+              setOpen(false);
+              return;
+            }
+            setOpen(true);
             const value = Math.max(216, Math.min(next, 420, innerWidth * 0.4));
             setWidth(value);
             store.set("dr-sidebar-width", value);
@@ -339,20 +348,27 @@ function Navigation({
 function Topbar() {
   useLanguage();
   const { route } = useWorkspace();
+  const { isMobile, openMobile, state } = useSidebar();
+  const navigationOpen = isMobile ? openMobile : state === "expanded";
   const assistant = useAssistant();
   const back = route.startsWith("chat-report/")
     ? {
         href: `#chat/${route.split("/")[1]}`,
         label: tr("Volver al chat"),
       }
-    : route === "ask" || route.startsWith("chat/")
+    : isChatStart(route) || route.startsWith("chat/")
       ? { href: "#chats", label: tr("Volver a chats") }
       : route.startsWith("report/") || route.startsWith("analysis/")
         ? { href: "#reports", label: tr("Volver a informes") }
         : null;
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 px-4 sm:px-6">
-      <SidebarTrigger aria-label={tr("Abrir o cerrar navegación")} />
+      {!navigationOpen && (
+        <SidebarTrigger
+          aria-label={tr("Expandir barra lateral")}
+          title={tr("Expandir barra lateral")}
+        />
+      )}
       {back && (
         <Button asChild variant="ghost" size="icon" className="rounded-full">
           <a href={back.href} aria-label={back.label} title={back.label}>
@@ -361,6 +377,14 @@ function Topbar() {
         </Button>
       )}
       <div className="ml-auto flex items-center gap-2">
+        {isMobile && !openMobile && (
+          <Button asChild size="sm" variant="outline">
+            <a href="#ask" onClick={() => assistant?.newConversation("page")}>
+              <Plus className="size-4" />
+              {tr("Nuevo chat")}
+            </a>
+          </Button>
+        )}
         {route.startsWith("chat/") && assistant && (
           <Button
             variant="ghost"
