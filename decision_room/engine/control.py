@@ -176,6 +176,13 @@ def dispatch_prompt(config, business_id, run_id, message_id, client):
     from successful prompt submission.
     """
     with connect(config) as db, db.transaction():
+        # A resumed owner turn must still have current context when it leaves
+        # the durable queue. Lock memory before the run, as in activation.
+        owner_turn = db.execute('SELECT question_id FROM engine_owner_answers WHERE run_id=%s AND message_id=%s',
+                                (run_id, message_id)).fetchone()
+        if owner_turn:
+            from ..memory import service as memory
+            memory.lock(db, business_id)
         run = _run(db, business_id, run_id)
         row = _prompt(db, run_id, message_id)
         if row['state'] == 'confirmed':
@@ -184,6 +191,12 @@ def dispatch_prompt(config, business_id, run_id, message_id, client):
         if should_send:
             _running(run)
             error = admission._active(db, run)
+            if not error and owner_turn:
+                from . import questions
+                question = questions._question(db, run_id, owner_turn['question_id'])
+                if questions.context_reason(db, config, run, question):
+                    admission._abort(db, run_id, 'context_revoked')
+                    error = 'Owner turn context is no longer current.'
             if not error and run['credential_expires_at'] <= run['checked_at']:
                 admission._abort(db, run_id, 'credential_expired')
                 error = 'Job credential expired.'

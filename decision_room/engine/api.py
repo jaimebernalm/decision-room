@@ -16,6 +16,7 @@ from .container import Runtime
 from .export import export_run, folder, snapshot
 from .server import Server
 from .tunnel import JobTunnel
+from .client import DeliveryUncertain
 
 _services = {}
 _service_lock = threading.Lock()
@@ -191,20 +192,39 @@ def _drive(config, business, run, *, new_token=None, answer=None):
                         'password': secrets.token_urlsafe(32), 'token': new_token, 'model': row['model'], 'initialized': False}
                 _save(meta_path, meta)
             stage = 'restore_or_create_runtime'
+            if row['status'] == 'pausing':
+                # A crashed pause is recovered while stopped. Never restart the
+                # agent just to finish a checkpoint or resend an uncertain prompt.
+                runtime = Runtime(backend, **{k: meta[k] for k in ('run_id', 'instance_id', 'image', 'password', 'token', 'model')})
+                runtime.stop()
+                key = _checkpoint(config, business, run, runtime, meta, meta_path)
+                q = questions.read(config, business, run)
+                questions.confirm_waiting(config, business, run, q['question_id'], checkpoint_key=key)
+                return
             if row['status'] == 'waiting':
                 if not isinstance(answer, dict) or set(answer) != {'question_id', 'disposition', 'text', 'request_key'}:
                     raise ValueError('A complete explicit owner answer is required.')
                 questions.answer(config, business, run, **answer)
-                previous = Runtime(backend, **{k: meta[k] for k in ('run_id', 'instance_id', 'image', 'password', 'token', 'model')})
-                previous.stop()
-                restored = {**meta, 'instance_id': str(uuid4()), 'password': secrets.token_urlsafe(32),
-                            'token': secrets.token_urlsafe(32), 'initialized': True, 'restoring': True}
-                _save(meta_path, restored)
-                runtime = Runtime(backend, **{k: restored[k] for k in ('run_id', 'instance_id', 'image', 'password', 'token', 'model')})
-                runtime.restore(Storage(config.storage).path(business, meta['checkpoint_key']))
-                restored['restoring'] = False; _save(meta_path, restored); meta = restored
+                questions.check_resume(config, business, run, answer['question_id'])
+                if meta.get('restoring'):
+                    raise ValueError('An incomplete restore requires explicit recovery.')
+                if meta.get('resume_question_id') == str(answer['question_id']):
+                    # Restore completed before a crash at activation: reuse the
+                    # same generation, token and files, rather than restore again.
+                    runtime = Runtime(backend, **{k: meta[k] for k in ('run_id', 'instance_id', 'image', 'password', 'token', 'model')})
+                    runtime.create()
+                else:
+                    previous = Runtime(backend, **{k: meta[k] for k in ('run_id', 'instance_id', 'image', 'password', 'token', 'model')})
+                    previous.stop()
+                    restored = {**meta, 'instance_id': str(uuid4()), 'password': secrets.token_urlsafe(32),
+                                'token': secrets.token_urlsafe(32), 'initialized': True, 'restoring': True,
+                                'resume_question_id': str(answer['question_id'])}
+                    _save(meta_path, restored)
+                    runtime = Runtime(backend, **{k: restored[k] for k in ('run_id', 'instance_id', 'image', 'password', 'token', 'model')})
+                    runtime.restore(Storage(config.storage).path(business, meta['checkpoint_key']))
+                    restored['restoring'] = False; _save(meta_path, restored); meta = restored
+                    previous.remove()
                 questions.activate_answer(config, business, run, answer['question_id'], new_token=meta['token'])
-                previous.remove()
             else:
                 if meta.get('restoring'):
                     raise ValueError('An incomplete restore requires explicit recovery.')
@@ -261,7 +281,12 @@ def _drive(config, business, run, *, new_token=None, answer=None):
                 pending = [p for p in state['outbox'] if p['state'] != 'confirmed']
                 for pending_prompt in pending:
                     stage = 'dispatch_prompt'
-                    control.dispatch_prompt(config, business, run, pending_prompt['message_id'], client)
+                    try:
+                        control.dispatch_prompt(config, business, run, pending_prompt['message_id'], client)
+                    except DeliveryUncertain:
+                        # The durable dispatch marker prevents a second send.
+                        # Subsequent polls only reconcile the exact message ID.
+                        uncertain_since = uncertain_since or time.monotonic()
                 stage = 'observe_sessions'
                 observed = _observe(config, business, run, client, root)
                 row = _row(config, business, run)

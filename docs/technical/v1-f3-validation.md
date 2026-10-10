@@ -41,3 +41,38 @@ El selector de una prueba legacy inexistente se corrigió antes de esta pasada; 
 fallo de implementación. Se probó interrupción entre los dos recibos, antes del envío,
 reintento tras completar, dos respuestas y pregunta/run ajenos. El encargo y la memoria
 conservan sus versiones después de responder.
+
+## Controlador y recuperación (tercer paso completado)
+
+El controlador comprueba la espera antes de restaurar y otra vez al activar. Un
+turno de respuesta en cola comprueba también la vigencia antes de enviarse. Si la
+pregunta vence o cambia su contexto tras guardar la respuesta, el run se aborta,
+el trabajo queda bloqueado y los recibos y `pending_answer` se conservan.
+
+La identidad de restauración se guarda antes de copiar. Si la copia termina y el
+proceso cae antes de activar, se reutilizan generación y token. Una restauración
+parcial se detiene como `failed`, conservando checkpoint y respuesta; no se crea
+una nueva generación automáticamente. Recuperar `pausing` detiene y captura sin
+arrancar el agente. Si el prompt previo quedó sin reconciliar, no se declara una
+espera íntegra: queda `failed` y conserva lo recibido, sin repetir el envío.
+
+Una respuesta HTTP perdida después de aceptar el prompt se reconcilia por su ID
+persistido. El marcador de envío impide reenviarlo. No se reinician presupuestos,
+encargo, contexto o sesión. Uso de modelo incierto conserva la política de aborto
+sin reintento de F0; un fallo transitorio del controlador exige análisis nuevo.
+
+Las comprobaciones profundas de pregunta/reanudación y envío de respuesta hashean
+los CSV bajo el lock de memoria; son eventos raros, no lecturas de página. La
+prueba concurrente verifica que un writer de memoria espera y continúa cuando se
+libera el lock. La excepción de credencial de `retry_question` existe solo para
+recuperar un recibo idéntico durante `pausing`; `questions.request` vuelve a exigir
+perfil, identidad, estado y límite de una pregunta para una solicitud nueva.
+
+Pruebas: 59 PostgreSQL, sin fallos, con un smoke Docker omitido hasta la regresión
+nativa. Incluyen SIGKILL real en procesos nuevos antes/después de la transacción de
+respuesta, después de pregunta, checkpoint y espera, durante restauración,
+antes/después de activación, envío y reconocimiento. Dos workers reanudan una sola
+vez; sesión, archivos y encargo permanecen iguales. Se prueban vencimiento y
+revocación entre recibo y worker, revocación tras activación, restauración fallida,
+espera sin modelo y acuse de transporte perdido. Los primeros fallos de fixtures
+(claves reutilizadas y patch de método) se corrigieron antes de esta pasada.
