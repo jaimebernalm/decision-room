@@ -77,6 +77,7 @@ class HtmlTests(unittest.TestCase):
 
     def test_file_delivery_two_controllers_and_bootstrap_restart(self):
         FakeRuntime.sessions = {}; FakeRuntime.mode = 'deliver'; FakeClient.config = self.config
+        FakeRuntime.payload = b'<!doctype html><h1>Resultado</h1><p>5 unidades.</p>'
         patches = [('Runtime', FakeRuntime), ('DockerBackend', lambda: object()), ('JobTunnel', FakeTunnel),
                    ('_service', lambda *args: SimpleNamespace(origin='http://127.0.0.1:1'))]
         for target, value in patches:

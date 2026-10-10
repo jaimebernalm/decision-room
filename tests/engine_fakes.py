@@ -7,6 +7,7 @@ from decision_room.engine import checkpoint, questions
 class FakeRuntime:
     sessions = {}
     mode = 'deliver'
+    payload = b'<!doctype html><h1>Resultado</h1><p>5 unidades.</p>'
     def __init__(self, backend, **kwargs):
         self.__dict__.update(kwargs); self.container_id = '0' * 64
         self.state = self.sessions.setdefault(self.run_id, {'session': None, 'messages': []})
@@ -49,7 +50,7 @@ class FakeClient:
             questions.request(self.config, self.runtime.run_id, self.runtime.token,
                               request_key='need-unit', text='What unit?', reason='Missing from source')
         else:
-            self.state['raw'] = b'<!doctype html><h1>Resultado</h1><p>5 unidades.</p>'
+            self.state['raw'] = self.runtime.payload
         self.state['messages'].append(message('msg_' + uuid4().hex, 'assistant', 'Trabajo guardado.',
                                             parentID=message_id, time={'completed': 1}, finish='stop'))
     def message(self, session, message_id):

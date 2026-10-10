@@ -426,7 +426,7 @@ class Workspace:
         return job
 
     def update(self, job_id, **values):
-        allowed = {'status', 'phase', 'issue', 'pending_answer', 'retry_uncertain', 'analysis_id', 'session_id', 'research_id', 'review_id'}
+        allowed = {'status', 'phase', 'issue', 'pending_answer', 'retry_uncertain', 'analysis_id', 'session_id', 'research_id', 'review_id', 'engine_run_id'}
         assert values.keys() <= allowed
         with connect(self.config) as db:
             row = db.execute('UPDATE web_jobs SET ' + ','.join(f'{key}=%s' for key in values) + ',updated_at=now() WHERE id=%s AND business_id=%s RETURNING id',
@@ -437,6 +437,9 @@ class Workspace:
     def sync(self, job_id):
         """Discover durable child IDs even if the process died before a call returned."""
         j = self.row(job_id)
+        if j['engine_kind'] == 'opencode':
+            from .engine_jobs import reconcile
+            return reconcile(self, j)
         # The imported batch is recovered by its content/preparation identity in
         # run_job, never by "latest analysis" now that businesses can have many.
         with connect(self.config) as db:
@@ -649,7 +652,7 @@ class Workspace:
         if (result.get('data_version') or {}).get('corrected'):
             result.update(status='blocked', publishable=False, questions=[],
                           issue='Esta versión de datos se ha corregido. Abre Mi negocio y pregunta con la versión actual; el informe anterior se conserva como registro, pero no como resultado válido.')
-        result['can_retry'] = bool(not (result.get('data_version') or {}).get('corrected') and (
+        result['can_retry'] = bool(j['engine_kind'] == 'legacy' and not (result.get('data_version') or {}).get('corrected') and (
             result['status'] == 'failed' or result.get('context_stale') or
             (j['status'] == 'blocked' and j['review_id'] and self.review_retryable(j))))
         return result
@@ -695,6 +698,8 @@ class Workspace:
 
     def retry(self, job_id, *, _db=None):
         j = self.row(job_id)
+        if j['engine_kind'] == 'opencode':
+            raise WebError('Este motor conserva el trabajo detenido; crea otro análisis para iniciar una ejecución nueva.', 409)
         from .dossier import available
         with connect(self.config) as db:
             if j['analysis_id'] and not available(db, j['business_id'], j['analysis_id']):
@@ -806,9 +811,49 @@ class Workspace:
                 'offset': offset, 'has_more': len(rows) > 30,
                 'cell_limit': 200, 'files': files, 'file_index': file_index}
 
+    def ingest_job(self, j):
+        """Shared deterministic ingestion, without any model or legacy preludio."""
+        job_id, b = j['id'], j['business_id']
+        if not j['analysis_id']:
+            self.update(job_id, phase='upload')
+            _, files = self.file_rows(job_id)
+            storage = Storage(self.config.storage)
+            if files:
+                paths = [storage.path(b, item['upload_key']) for item in files]
+                hashes = []
+                for item, path in zip(files, paths):
+                    if not path.is_file() or path.stat().st_size != item['byte_count'] or digest(path) != item['sha256']:
+                        raise WebError('Uno de los CSV guardados ha cambiado y no coincide con el original enviado.', 409)
+                    hashes.append(item['sha256'])
+            else:
+                content = self.upload(job_id)[1]  # Legacy single-file identity.
+                paths = [storage.path(b, j['upload_key'])]
+                hashes = [hashlib.sha256(content).hexdigest()]
+            batch_hash, _ = ingestion.batch_metadata(hashes)
+            with connect(self.config) as db:
+                existing = db.execute('SELECT id FROM analyses WHERE business_id=%s AND batch_sha256=%s',
+                                      (b, batch_hash)).fetchone()
+            # Reuse and verify the exact batch without changing the names
+            # in previous source snapshots. This upload keeps its own name.
+            data = (ingestion.resume(self.config, b, existing['id']) if existing else
+                    ingestion.import_batch(self.config, b, paths, title=j['title'],
+                                           original_names=[item['filename'] for item in files] if files else None))
+        else:
+            data = ingestion.describe(self.config, b, j['analysis_id'])
+            if data['analysis']['status'] == 'importing':
+                data = ingestion.resume(self.config, b, j['analysis_id'])
+        self.update(job_id, analysis_id=data['analysis']['id'])
+        if data['analysis']['status'] not in ('ready', 'partial'):
+            self.update(job_id, status='blocked', issue='No hemos podido preparar archivos útiles para este análisis. Corrige los archivos y crea otra entrega.')
+            return None
+        return data
+
     @tracked('job')
     def run_job(self, job_id):
         j = self.sync(job_id)
+        if j['engine_kind'] == 'opencode':
+            from .engine_jobs import run
+            return run(self, job_id)
         b, key = j['business_id'], 'web:' + str(j['id'])
         model = self.model_factory(ModelSettings(**j['model_settings']))
         retry = j['retry_uncertain']
@@ -840,37 +885,7 @@ class Workspace:
                 abandoned = db.execute("SELECT 1 FROM executions WHERE business_id=%s AND status IN ('preparing','running') LIMIT 1", (b,)).fetchone()
             if abandoned:
                 recover_executions(self.config, b)
-            if not j['analysis_id']:
-                self.update(job_id, phase='upload')
-                _, files = self.file_rows(job_id)
-                storage = Storage(self.config.storage)
-                if files:
-                    paths = [storage.path(b, item['upload_key']) for item in files]
-                    hashes = []
-                    for item, path in zip(files, paths):
-                        if not path.is_file() or path.stat().st_size != item['byte_count'] or digest(path) != item['sha256']:
-                            raise WebError('Uno de los CSV guardados ha cambiado y no coincide con el original enviado.', 409)
-                        hashes.append(item['sha256'])
-                else:
-                    content = self.upload(job_id)[1]  # Legacy single-file identity.
-                    paths = [storage.path(b, j['upload_key'])]
-                    hashes = [hashlib.sha256(content).hexdigest()]
-                batch_hash, _ = ingestion.batch_metadata(hashes)
-                with connect(self.config) as db:
-                    existing = db.execute('SELECT id FROM analyses WHERE business_id=%s AND batch_sha256=%s',
-                                          (b, batch_hash)).fetchone()
-                # Reuse and verify the exact batch without changing the names
-                # in previous source snapshots. This upload keeps its own name.
-                data = (ingestion.resume(self.config, b, existing['id']) if existing else
-                        ingestion.import_batch(self.config, b, paths, title=j['title'],
-                                               original_names=[item['filename'] for item in files] if files else None))
-            else:
-                data = ingestion.describe(self.config, b, j['analysis_id'])
-                if data['analysis']['status'] == 'importing':
-                    data = ingestion.resume(self.config, b, j['analysis_id'])
-            self.update(job_id, analysis_id=data['analysis']['id'])
-            if data['analysis']['status'] not in ('ready', 'partial'):
-                self.update(job_id, status='blocked', issue='No hemos podido preparar archivos útiles para este análisis. Corrige los archivos y crea otra entrega.')
+            if self.ingest_job(j) is None:
                 return
             j = self.sync(job_id)
             # Once review exists it owns continuity, including answers that invalidate research.
@@ -959,7 +974,9 @@ class Workspace:
     def worker(self):
         while not self.stop.is_set():
             try:
-                if self.settings and memory_extraction.work_once(self.config, self.model_factory, self.settings):
+                with connect(self.config) as db:
+                    pending = db.execute("SELECT engine_kind FROM web_jobs WHERE status IN ('queued','running') ORDER BY created_at LIMIT 1").fetchone()
+                if (not pending or pending['engine_kind'] == 'legacy') and self.settings and memory_extraction.work_once(self.config, self.model_factory, self.settings):
                     continue
                 if self.work_once():
                     continue

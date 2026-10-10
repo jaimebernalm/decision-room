@@ -67,7 +67,7 @@ def _snapshot(db, config, business_id, analysis_id, table_ids):
 
 
 def create_run(config, business_id, analysis_id, *, table_ids, owner_context, request_key,
-               model, limits=None, context=None, engine_config=None):
+               model, limits=None, context=None, engine_config=None, frozen_prompt=None):
     """Trusted bootstrap. Returns (run_id, token); replay returns (run_id, None).
 
     Tokens are never stored in cleartext. The controller must retain its private
@@ -85,7 +85,9 @@ def create_run(config, business_id, analysis_id, *, table_ids, owner_context, re
     expected = profile.configuration(model=model, image=settings.get("image_id", ""))
     if settings != expected:
         raise ValueError("Unsupported engine configuration.")
-    prompt = profile.prompt(owner_context)
+    prompt = profile.prompt(owner_context) if frozen_prompt is None else frozen_prompt
+    if not isinstance(prompt, str):
+        raise ValueError("Invalid frozen prompt.")
     if len(prompt.encode()) > 256 * 1024:
         raise ValueError("Engine prompt exceeds 256 KiB.")
     if not 1 <= len(table_ids) <= 64 or not isinstance(limits, Limits):

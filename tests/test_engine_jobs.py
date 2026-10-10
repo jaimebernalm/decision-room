@@ -1,13 +1,16 @@
 """Immutable creation paths, with fake agents and an isolated PostgreSQL DB."""
 import io
 import unittest
+import threading
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 from uuid import uuid4
 
 from decision_room.database import connect
-from decision_room.engine import admission
+from decision_room.engine import admission, api, store
+from types import SimpleNamespace
+from tests.engine_fakes import FakeRuntime, FakeClient, FakeTunnel
 from decision_room.service import import_batch
 from decision_room.web.service import Workspace, WebError
 from tests import test_web as fixtures
@@ -62,6 +65,70 @@ class EngineJobTests(unittest.TestCase):
         self.assertEqual(self.ws.row(engine)['engine_kind'], 'opencode')
         with self.assertRaises(WebError): self.create(request_key=str(uuid4()), engine_kind='other')
         with self.assertRaises(WebError): self.create(request_key=str(uuid4()), engine_kind='legacy')
+
+    def fake_runtime(self):
+        self.pinned()
+        FakeRuntime.sessions = {}; FakeRuntime.mode = 'deliver'; FakeClient.config = self.config
+        FakeRuntime.payload = b'<!doctype html><h1>Resultado</h1><p>5 unidades.</p>'
+        for target, value in [('Runtime', FakeRuntime), ('DockerBackend', lambda: object()), ('JobTunnel', FakeTunnel),
+                              ('_service', lambda *a: SimpleNamespace(origin='http://127.0.0.1:1'))]:
+            p = patch.object(api, target, value); p.start(); self.addCleanup(p.stop)
+        def forbidden(*args, **kwargs): raise AssertionError('Legacy report path entered')
+        self.ws.model_factory = forbidden
+        for target in ('memory_extraction.prepare', 'recover_executions', 'planning.start', 'research.start', 'review.start'):
+            p = patch('decision_room.web.service.'+target, side_effect=forbidden); p.start(); self.addCleanup(p.stop)
+
+    def test_run_dispatches_before_legacy_preludio_and_keeps_ids_separate(self):
+        self.fake_runtime()
+        job = self.create(engine_kind='opencode')
+        self.ws.run_job(job)
+        row = self.ws.row(job)
+        self.assertEqual(row['status'], 'completed', row['issue'])
+        self.assertEqual(row['phase'], 'engine')
+        self.assertIsNotNone(row['engine_run_id'])
+        self.assertTrue(all(row[k] is None for k in ('session_id', 'research_id', 'review_id', 'report_document_id')))
+        receipt = store.read_document(self.config, row['business_id'], row['engine_run_id'])
+        self.assertEqual(receipt['delivery_via'], 'file')
+        self.ws.run_job(job)
+        self.assertEqual(self.ws.row(job)['engine_run_id'], row['engine_run_id'])
+        self.assertEqual(sum(m['info']['role']=='user' for m in FakeRuntime.sessions[str(row['engine_run_id'])]['messages']), 1)
+        with self.assertRaises(WebError): self.ws.retry(job)
+
+    def test_restart_after_run_creation_and_after_delivery_never_replays_prompt(self):
+        self.fake_runtime()
+        for boundary in ('link', 'finish'):
+            job = self.create(request_key=str(uuid4()), engine_kind='opencode')
+            if boundary == 'link':
+                original = self.ws.update
+                def crash(ident, **values):
+                    if values.get('engine_run_id'): raise SystemExit('Simulated process death')
+                    return original(ident, **values)
+                p = patch.object(self.ws, 'update', side_effect=crash)
+            else:
+                p = patch.object(api, '_finish', side_effect=SystemExit('Simulated process death'))
+            with p, self.assertRaises(SystemExit): self.ws.run_job(job)
+            self.ws.run_job(job)
+            row = self.ws.row(job)
+            self.assertEqual(row['status'], 'completed', row['issue'])
+            self.assertEqual(sum(m['info']['role']=='user' for m in FakeRuntime.sessions[str(row['engine_run_id'])]['messages']), 1)
+            with connect(self.config) as db:
+                self.assertEqual(db.execute('SELECT count(*) AS n FROM engine_runs WHERE business_id=%s AND request_key=%s',
+                                            (row['business_id'], 'web:'+job)).fetchone()['n'], 1)
+
+    def test_two_workers_and_empty_receipt_has_independent_execution_state(self):
+        self.fake_runtime(); FakeRuntime.payload = b''
+        job = self.create(engine_kind='opencode')
+        errors = []
+        def run():
+            try: self.ws.run_job(job)
+            except Exception as error: errors.append(error)
+        workers = [threading.Thread(target=run) for _ in range(2)]
+        for w in workers: w.start()
+        for w in workers: w.join(10); self.assertFalse(w.is_alive())
+        self.assertFalse(errors, errors)
+        row = self.ws.row(job)
+        self.assertEqual(row['status'], 'failed')
+        self.assertEqual(store.read_document(self.config, row['business_id'], row['engine_run_id'])['raw'], b'')
 
 
 class ChatEngineCreationTests(unittest.TestCase):
