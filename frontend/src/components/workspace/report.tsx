@@ -41,6 +41,8 @@ import {
   groupedPoints,
   seriesColor,
   chartPoints,
+  monthLabel,
+  temporalLine,
 } from "@/lib/charts";
 import { findingTarget } from "@/lib/report-navigation";
 import { PresentationEditor } from "./presentation-editor";
@@ -202,13 +204,7 @@ export function EvidenceChart({
 }) {
   useLanguage();
   const bars = chart.kind === "bar";
-  const temporal =
-    chart.kind === "line" &&
-    chart.points.every(
-      (p) =>
-        /^\d{4}-\d{2}-\d{2}/.test(p.label) &&
-        Number.isFinite(Date.parse(p.label)),
-    );
+  const temporal = temporalLine(chart);
   const points = chartPoints(chart);
   const axes = (
     <>
@@ -238,7 +234,7 @@ export function EvidenceChart({
                   day: "numeric",
                   timeZone: "UTC",
                 })
-              : String(v)
+              : monthLabel(String(v), locale())
         }
         tickLine={false}
         axisLine={false}

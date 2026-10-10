@@ -5,7 +5,9 @@ import {
   CHART_NEUTRALS,
   chartPoints,
   groupedPoints,
+  monthLabel,
   seriesColor,
+  temporalLine,
 } from "./charts";
 import type { ChartData } from "./types";
 const chart: ChartData = {
@@ -37,6 +39,33 @@ it("preserves reviewed decimal formatting even beyond floating point precision",
   });
   expect(points[0].formatted).toBe("9.007.199.254.740.993,01");
   expect(points[0].axis).toBe("Total");
+});
+it("draws monthly lines as categories, without time gaps between months", () => {
+  const monthly: ChartData = {
+    ...chart,
+    points: ["2026-01", "2026-02", "2026-03"].map((label, i) => ({
+      label,
+      value: String(i + 1),
+      formatted: String(i + 1),
+    })),
+  };
+  expect(temporalLine(monthly)).toBe(false);
+  expect(temporalLine(chart)).toBe(true);
+  const points = chartPoints(monthly);
+  expect(points.map((p) => p.axis)).toEqual(["2026-01", "2026-02", "2026-03"]);
+  expect(points.map((p) => p.value)).toEqual([1, 2, 3]);
+});
+it("names months and leaves other labels as written", () => {
+  expect(monthLabel("2026-01", "es-ES")).toBe(
+    new Date(Date.UTC(2026, 0, 1)).toLocaleDateString("es-ES", {
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    }),
+  );
+  expect(monthLabel("2026-01", "es-ES")).toMatch(/ene/);
+  expect(monthLabel("2026-13", "es-ES")).toBe("2026-13");
+  expect(monthLabel("Semana 3", "es-ES")).toBe("Semana 3");
 });
 
 it("groups exact values with missing cells absent, never synthesized zero", () => {

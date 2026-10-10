@@ -8,9 +8,34 @@ export const CHART_PALETTE: readonly string[] = [
   ...CHART_SERIES_PALETTE,
   ...Object.values(CHART_NEUTRALS),
 ];
+/** A line is drawn on a time axis only when every label is a full date (YYYY-MM-DD). */
+export function temporalLine(chart: ChartData) {
+  return (
+    chart.kind === "line" &&
+    chart.points.every(
+      (p) =>
+        /^\d{4}-\d{2}-\d{2}/.test(p.label) &&
+        Number.isFinite(Date.parse(p.label)),
+    )
+  );
+}
+
+/** "2026-01" reads as a month name; any other label is shown as written. */
+export function monthLabel(label: string, language: string) {
+  const month = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(label);
+  return month
+    ? new Date(Date.UTC(Number(month[1]), Number(month[2]) - 1, 1))
+        .toLocaleDateString(language, {
+          month: "short",
+          year: "numeric",
+          timeZone: "UTC",
+        })
+    : label;
+}
+
 /** Numeric coordinates are for drawing only; display keeps the server's decimal strings. */
 export function chartPoints(chart: ChartData) {
-  const temporal = chart.kind === "line";
+  const temporal = temporalLine(chart);
   const points: {
     label: string;
     value: number | null;
