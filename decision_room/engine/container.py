@@ -18,7 +18,7 @@ import tempfile
 import time
 from uuid import UUID
 
-from . import checkpoint, file_delivery
+from . import checkpoint, file_delivery, profile
 from .client import Client, ProtocolError
 from .transport import DockerHTTPTransport
 
@@ -147,6 +147,16 @@ class Runtime:
                     raise ProtocolError('Runtime volume is not owned by this job.')
             else:
                 self._docker('volume', 'create', '--label', self.label + '=' + self.instance_id, volume)
+        # The pinned trial image predates XDG_DATA_HOME=/state and may have
+        # root-owned empty mount points. Prepare only the two volume roots;
+        # never recursively change agent-controlled paths on recovery.
+        self._docker('run', '--rm', '--pull=never', '--network', 'none', '--read-only',
+                     '--cap-drop', 'ALL', '--cap-add', 'CHOWN', '--security-opt', 'no-new-privileges',
+                     '--user', '0:0', '--memory', '64m', '--pids-limit', '16', '--log-driver', 'none',
+                     '--mount', f'type=volume,src={self.volumes["state"]},dst=/state',
+                     '--mount', f'type=volume,src={self.volumes["work"]},dst=/work',
+                     '--entrypoint', 'python', self.image, '-I', '-S', '-c',
+                     "import os; os.chown('/state',10001,10001); os.chown('/work',10001,10001)")
         config = {'autoupdate': False, 'share': 'disabled', 'snapshot': False,
                   'model': 'openai/' + self.model, 'small_model': 'openai/' + self.model,
                   'provider': {'openai': {'options': {'baseURL': f'http://127.0.0.1:8080/jobs/{self.run_id}/v1',
@@ -166,7 +176,8 @@ class Runtime:
             '--mount', f'type=volume,src={self.volumes["state"]},dst=/state',
             '--mount', f'type=volume,src={self.volumes["work"]},dst=/work',
             '--mount', f'type=volume,src={self.volumes["inputs"]},dst=/inputs,readonly',
-            '-e', 'OPENCODE_SERVER_PASSWORD', '-e', 'OPENCODE_CONFIG_CONTENT', self.image,
+            '-e', 'OPENCODE_SERVER_PASSWORD', '-e', 'OPENCODE_CONFIG_CONTENT',
+            *[arg for key, value in profile.RUNTIME_ENV.items() for arg in ('-e', key + '=' + value)], self.image,
             'serve', '--hostname', '127.0.0.1', '--port', '4096', env=env)
         self.container_id = result.stdout.decode().strip()
         return self.container_id

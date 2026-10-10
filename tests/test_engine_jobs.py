@@ -130,6 +130,35 @@ class EngineJobTests(unittest.TestCase):
         self.assertEqual(row['status'], 'failed')
         self.assertEqual(store.read_document(self.config, row['business_id'], row['engine_run_id'])['raw'], b'')
 
+    def test_unknown_usage_is_preserved_and_web_never_enqueues_a_retry(self):
+        import secrets
+        from decision_room.engine.export import folder, snapshot
+        self.fake_runtime()
+        job = self.create(engine_kind='opencode')
+        self.ws.ingest_job(self.ws.row(job)); row = self.ws.row(job); settings = row['engine_config']
+        run, token = api.prepare_report(self.config, row['business_id'], row['analysis_id'],
+                                        request_key='web:'+job, owner_context=settings['owner_context'],
+                                        engine_config=settings['profile'], limits=settings['limits'], frozen_prompt=settings['prompt'])
+        self.ws.update(job, engine_run_id=run)
+        store.receive_document(self.config, run, token, request_key='partial', html=b'<h1>Partial')
+        call = admission.begin_call(self.config, run, token, 'uncertain')
+        admission.reserve(self.config, run, token, call, 100, 20)
+        api._save(folder(self.config, row['business_id'], run)/'control.json',
+                  {'run_id': str(run), 'instance_id': str(uuid4()), 'image': settings['profile']['image_id'],
+                   'password': secrets.token_urlsafe(32), 'token': token, 'model': settings['profile']['model'], 'initialized': True})
+        self.ws.run_job(job)
+        state = admission.inspect_run(self.config, row['business_id'], run)
+        self.assertEqual(state['status'], 'aborted')
+        self.assertEqual(state['model_calls'][0]['state'], 'uncertain')
+        self.assertEqual((state['charged_input'], state['charged_output']), (100, 20))
+        self.assertEqual(store.read_document(self.config, row['business_id'], run)['raw'], b'<h1>Partial')
+        self.assertTrue(snapshot(self.config, row['business_id'], run)['usage']['incomplete'])
+        self.assertEqual(self.ws.row(job)['status'], 'blocked')
+        self.assertFalse(self.ws.detail(job)['can_retry'])
+        with self.assertRaises(WebError): self.ws.retry(job)
+        self.ws.run_job(job)
+        self.assertEqual(len(admission.inspect_run(self.config, row['business_id'], run)['model_calls']), 1)
+
 
 class ChatEngineCreationTests(unittest.TestCase):
     # Independent fixtures: no report engine or real model is invoked by chat.

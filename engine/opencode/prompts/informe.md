@@ -1,3 +1,5 @@
+<!-- Provisional F0 fixture, not the frozen v1 brief. F2 replaces this file with
+the unchanged fixed v1 paragraphs and the generated business brief. -->
 Investiga el encargo del propietario y prepara un informe útil y legible en español.
 Los CSV inmutables están en /inputs/datos; /inputs/manifest.json describe sus tablas.
 Puedes usar Python y las herramientas locales para calcular sobre esos datos.

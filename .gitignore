@@ -73,3 +73,6 @@ node_modules/
 # Generated report exports and visual QA pages.
 /output/pdf/
 /tmp/pdfs/
+
+# Pinned runtime archives are fetched locally, never committed.
+/engine/opencode/vendor/

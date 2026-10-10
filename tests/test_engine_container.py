@@ -32,6 +32,28 @@ class ArchiveTests(unittest.TestCase):
 
 @unittest.skipUnless(os.environ.get('DECISION_ROOM_ENGINE_IMAGE_ID'), 'Build the pinned engine image.')
 class RuntimeTests(unittest.TestCase):
+    def test_raw_file_collection_in_stopped_networkless_runtime(self):
+        from decision_room.engine.client import ProtocolError
+        from decision_room.engine import admission, store
+        runtime = Runtime(DockerBackend(), run_id=uuid4(), instance_id=uuid4(),
+                          image=os.environ['DECISION_ROOM_ENGINE_IMAGE_ID'], password=secrets.token_urlsafe(32),
+                          token=secrets.token_urlsafe(32), model='gpt-6-luna')
+        self.addCleanup(runtime.remove); runtime.create()
+        for raw in (b'\xff<script>partial', b'', b'x' * (store.MAX_DRAFT_BYTES+1)):
+            with runtime.start():
+                runtime._docker('exec', '-i', runtime.container_id, 'python', '-I', '-S', '-c',
+                                "import sys; open('/work/informe.html','wb').write(sys.stdin.buffer.read())", data=raw)
+            collected = runtime.collect_report()
+            self.assertFalse(runtime._inspect()['State']['Running'])
+            self.assertEqual(collected['bytes'], len(raw))
+            self.assertEqual(collected['sha256'], admission.sha(raw))
+            if len(raw) <= store.MAX_DRAFT_BYTES: self.assertEqual(collected['raw'], raw)
+            else: self.assertEqual(collected['status'], 'oversized')
+        with runtime.start():
+            runtime._docker('exec', runtime.container_id, 'python', '-I', '-S', '-c',
+                            "import os; os.unlink('/work/informe.html'); os.symlink('/etc/passwd','/work/informe.html')")
+        with self.assertRaises(ProtocolError): runtime.collect_report()
+
     def test_sigkill_retains_sessions_and_files_without_exposing_host_or_provider_key(self):
         backend = DockerBackend(); image = os.environ['DECISION_ROOM_ENGINE_IMAGE_ID']; run = uuid4()
         def runtime():
