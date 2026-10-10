@@ -1010,3 +1010,35 @@ CREATE TABLE IF NOT EXISTS engine_owner_answers (
 
 
 INSERT INTO schema_versions(version) VALUES (31) ON CONFLICT DO NOTHING;
+
+-- F0 immutable engine selection: existing jobs stay legacy and are never replayed.
+ALTER TABLE web_jobs ADD COLUMN IF NOT EXISTS engine_kind text NOT NULL DEFAULT 'legacy'
+    CHECK(engine_kind IN ('legacy','opencode'));
+ALTER TABLE web_jobs ADD COLUMN IF NOT EXISTS engine_config jsonb NOT NULL DEFAULT '{}';
+ALTER TABLE web_jobs ADD COLUMN IF NOT EXISTS engine_run_id uuid;
+ALTER TABLE web_jobs ADD COLUMN IF NOT EXISTS report_document_id uuid;
+ALTER TABLE web_jobs DROP CONSTRAINT IF EXISTS web_jobs_phase_check;
+ALTER TABLE web_jobs ADD CONSTRAINT web_jobs_phase_check
+    CHECK(phase IN ('upload','planning','research','review','done','engine'));
+ALTER TABLE web_jobs DROP CONSTRAINT IF EXISTS web_jobs_engine_run_fk;
+ALTER TABLE web_jobs ADD CONSTRAINT web_jobs_engine_run_fk
+    FOREIGN KEY(business_id,engine_run_id) REFERENCES engine_runs(business_id,id);
+ALTER TABLE web_jobs DROP CONSTRAINT IF EXISTS web_jobs_engine_legacy_ids_check;
+ALTER TABLE web_jobs ADD CONSTRAINT web_jobs_engine_legacy_ids_check
+    CHECK(engine_kind='legacy' OR (session_id IS NULL AND research_id IS NULL AND review_id IS NULL));
+CREATE UNIQUE INDEX IF NOT EXISTS web_jobs_engine_run_unique ON web_jobs(engine_run_id);
+CREATE OR REPLACE FUNCTION keep_web_job_engine() RETURNS trigger AS $$
+BEGIN
+    IF NEW.engine_kind IS DISTINCT FROM OLD.engine_kind OR NEW.engine_config IS DISTINCT FROM OLD.engine_config THEN
+        RAISE EXCEPTION 'Job engine configuration is immutable';
+    END IF;
+    IF OLD.engine_run_id IS NOT NULL AND NEW.engine_run_id IS DISTINCT FROM OLD.engine_run_id THEN
+        RAISE EXCEPTION 'Job engine run identity is immutable';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS web_job_engine_immutable ON web_jobs;
+CREATE TRIGGER web_job_engine_immutable BEFORE UPDATE ON web_jobs
+    FOR EACH ROW EXECUTE FUNCTION keep_web_job_engine();
+INSERT INTO schema_versions(version) VALUES (32) ON CONFLICT DO NOTHING;

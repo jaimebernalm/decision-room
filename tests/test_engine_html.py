@@ -141,7 +141,7 @@ class MasterMigrationTests(unittest.TestCase):
                 migrate(config); migrate(config)
                 with connect(config) as db:
                     self.assertEqual(before, db.execute('SELECT * FROM analyses WHERE id=%s', (analysis,)).fetchone())
-                    self.assertEqual(db.execute('SELECT max(version) AS v FROM schema_versions').fetchone()['v'], 31)
+                    self.assertEqual(db.execute('SELECT max(version) AS v FROM schema_versions').fetchone()['v'], 32)
                     self.assertEqual(db.execute('SELECT count(*) AS n FROM engine_runs').fetchone()['n'], 0)
         finally:
             with connect(base) as db:

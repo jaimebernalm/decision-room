@@ -1128,10 +1128,14 @@ class Conversations:
                 ),
                 dependencies=dependencies,
             )
+            from .engine.job_profile import selection, freeze
+            kind, engine_settings = selection(self.config, {})
+            engine_settings = freeze(engine_settings, context=memory.encoded(continuation),
+                                     goal=turn['payload']['text'], input_hash=memory.digest(turn['payload']))
             job = uuid4()
             db.execute(
-                """INSERT INTO web_jobs(id,request_key,request_sha256,business_id,analysis_id,title,context,goal,filename,upload_key,byte_count,model_settings,status,phase,business_name,origin)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'','',0,%s,'queued','planning',%s,'chat')""",
+                """INSERT INTO web_jobs(id,request_key,request_sha256,business_id,analysis_id,title,context,goal,filename,upload_key,byte_count,model_settings,status,phase,business_name,origin,engine_kind,engine_config)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'','',0,%s,'queued','planning',%s,'chat',%s,%s)""",
                 (
                     job,
                     turn['id'],
@@ -1143,6 +1147,7 @@ class Conversations:
                     turn['payload']['text'],
                     Jsonb(turn['model_settings']),
                     turn['snapshot']['profile']['name'],
+                    kind, Jsonb(engine_settings),
                 ),
             )
             db.execute("UPDATE chat_turns SET job_id=%s,status='processing' WHERE id=%s", (job, turn['id']))

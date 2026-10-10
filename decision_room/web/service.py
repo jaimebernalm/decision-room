@@ -218,6 +218,17 @@ class Workspace:
         finally:
             Path(temporary).unlink(missing_ok=True)
 
+    def engine_selection(self, data, old=None):
+        from ..engine.job_profile import selection
+        try:
+            return selection(self.config, data, old)
+        except ValueError:
+            raise WebError('El motor solicitado no está disponible o ya quedó fijado para este trabajo.', 409) from None
+
+    def engine_snapshot(self, settings, context, goal, signature):
+        from ..engine.job_profile import freeze
+        return freeze(settings, context=context, goal=goal, input_hash=signature)
+
     @created('job')
     def create_batch(self, data):
         if not isinstance(data, dict) or not isinstance(data.get('files'), list) or not data['files']:
@@ -240,6 +251,7 @@ class Workspace:
                 raise WebError('El negocio activo ha cambiado. Recarga la página.', 409)
             db.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s, 7))', (str(key),))
             old = db.execute('SELECT * FROM web_jobs WHERE request_key=%s', (key,)).fetchone()
+            kind, engine_settings = self.engine_selection(data, old)
             current = business_store.profile(db, business)
             name, context = (old['business_name'], old['context']) if old else (current['name'], current['description'])
             rows = db.execute('SELECT * FROM web_job_files WHERE id=ANY(%s) AND business_id=%s FOR UPDATE', (ids, business)).fetchall()
@@ -266,7 +278,7 @@ class Workspace:
                     raise WebError('Completa o retoma el primer informe antes de crear otro análisis.', 409)
             elif data.get('onboarding') is True:
                 raise WebError('Este negocio no tiene un onboarding pendiente.', 409)
-            if self.settings is None:
+            if self.settings is None and kind == 'legacy':
                 raise WebError('Falta configurar el modelo local. El borrador está guardado; podrás enviarlo cuando esté disponible.', 503)
             # Verify exact staged bytes before the job becomes visible to the worker.
             storage = Storage(self.config.storage)
@@ -277,8 +289,8 @@ class Workspace:
             job_id = uuid4()
             first = files[0]
             db.execute('''INSERT INTO web_jobs(id,request_key,request_sha256,business_id,business_name,business_revision,title,context,goal,
-                filename,upload_key,byte_count,model_settings,status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'queued')''',
-                (job_id, key, signature, business, name, revision, title, context, goal, first['filename'], first['upload_key'], total, Jsonb(asdict(self.settings))))
+                filename,upload_key,byte_count,model_settings,engine_kind,engine_config,status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'queued')''',
+                (job_id, key, signature, business, name, revision, title, context, goal, first['filename'], first['upload_key'], total, Jsonb(asdict(self.settings) if self.settings else {}), kind, Jsonb(self.engine_snapshot(engine_settings, context, goal, signature))))
             for position, item in enumerate(ids):
                 db.execute('UPDATE web_job_files SET job_id=%s,position=%s WHERE id=%s', (job_id, position, item))
             if data.get('onboarding') is True:
@@ -320,6 +332,7 @@ class Workspace:
                 raise WebError('El negocio activo ha cambiado. Vuelve a abrir el formulario.', 409)
             db.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s, 7))', (str(key),))
             old = db.execute('SELECT * FROM web_jobs WHERE request_key=%s', (key,)).fetchone()
+            kind, engine_settings = self.engine_selection(data, old)
             current = business_store.profile(db, business)
             name, context = (old['business_name'], old['context']) if old else (current['name'], current['description'])
             signature = hashlib.sha256(json.dumps([name, context, goal, title, filename], ensure_ascii=False).encode() + content).hexdigest()
@@ -336,7 +349,7 @@ class Workspace:
                     raise WebError('Completa o retoma el primer informe antes de crear otro análisis.', 409)
             elif data.get('onboarding') is True:
                 raise WebError('Este negocio no tiene un onboarding pendiente.', 409)
-            if self.settings is None:
+            if self.settings is None and kind == 'legacy':
                 raise WebError('Falta configurar el modelo local. El borrador está guardado; podrás enviarlo cuando esté disponible.', 503)
             job_id = uuid4()
             upload_key = f'{business}/web/{job_id}/{filename}'
@@ -346,8 +359,8 @@ class Workspace:
             path.chmod(0o600)
             try:
                 db.execute('''INSERT INTO web_jobs(id,request_key,request_sha256,business_id,business_name,business_revision,title,context,goal,
-                    filename,upload_key,byte_count,model_settings,status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'queued')''',
-                    (job_id, key, signature, business, name, revision, title, context, goal, filename, upload_key, len(content), Jsonb(asdict(self.settings))))
+                    filename,upload_key,byte_count,model_settings,engine_kind,engine_config,status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'queued')''',
+                    (job_id, key, signature, business, name, revision, title, context, goal, filename, upload_key, len(content), Jsonb(asdict(self.settings) if self.settings else {}), kind, Jsonb(self.engine_snapshot(engine_settings, context, goal, signature))))
                 if data.get('onboarding') is True:
                     db.execute('UPDATE web_onboarding SET job_id=%s WHERE business_id=%s', (job_id, business))
                 db.execute("UPDATE web_businesses SET onboarding_status='analysis_started',updated_at=now() WHERE business_id=%s", (business,))
@@ -379,7 +392,8 @@ class Workspace:
             if selected['active_business_id'] != business:
                 raise WebError('El negocio activo ha cambiado. Recarga la página.', 409)
             db.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s, 7))', (str(key),))
-            old = db.execute('SELECT id,business_id,request_sha256 FROM web_jobs WHERE request_key=%s', (key,)).fetchone()
+            old = db.execute('SELECT * FROM web_jobs WHERE request_key=%s', (key,)).fetchone()
+            kind, engine_settings = self.engine_selection(data, old)
             if old:
                 if old['business_id'] != business or old['request_sha256'] != signature:
                     raise WebError('Este envío ya se guardó con otros datos.', 409)
@@ -390,15 +404,15 @@ class Workspace:
             from .dossier import available
             if not available(db, business, analysis_id):
                 raise WebError('Los archivos de esta entrega aún no están preparados.', 409)
-            if self.settings is None:
+            if self.settings is None and kind == 'legacy':
                 raise WebError('Falta configurar el modelo local. Tus datos están guardados.', 503)
             job_id = uuid4()
             db.execute('''INSERT INTO web_jobs(id,request_key,request_sha256,business_id,analysis_id,
                 business_name,business_revision,title,context,goal,filename,upload_key,byte_count,
-                model_settings,status,phase,origin)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'Carpeta de datos','',0,%s,'queued','planning','upload')''',
+                model_settings,engine_kind,engine_config,status,phase,origin)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'Carpeta de datos','',0,%s,%s,%s,'queued','planning','upload')''',
                 (job_id, key, signature, business, analysis_id, current['name'], revision,
-                 title, current['description'], goal, Jsonb(asdict(self.settings))))
+                 title, current['description'], goal, Jsonb(asdict(self.settings) if self.settings else {}), kind, Jsonb(self.engine_snapshot(engine_settings, current['description'], goal, signature))))
             db.execute("UPDATE web_businesses SET onboarding_status='analysis_started',updated_at=now() WHERE business_id=%s", (business,))
         self.wake.set()
         return {'id': str(job_id)}
