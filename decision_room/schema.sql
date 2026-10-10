@@ -1141,3 +1141,21 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 INSERT INTO schema_versions(version) VALUES (33) ON CONFLICT DO NOTHING;
+
+-- Migration 34: bind registry and job analysis to the exact source run.
+CREATE UNIQUE INDEX IF NOT EXISTS engine_runs_analysis_source ON engine_runs(business_id,id,analysis_id);
+CREATE UNIQUE INDEX IF NOT EXISTS report_documents_analysis_source ON report_documents(business_id,source_run_id,id,analysis_id);
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='report_documents_run_analysis') THEN
+        ALTER TABLE report_documents ADD CONSTRAINT report_documents_run_analysis
+            FOREIGN KEY(business_id,source_run_id,analysis_id) REFERENCES engine_runs(business_id,id,analysis_id);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='web_jobs_report_analysis') THEN
+        ALTER TABLE web_jobs ADD CONSTRAINT web_jobs_report_analysis
+            FOREIGN KEY(business_id,engine_run_id,report_document_id,analysis_id)
+            REFERENCES report_documents(business_id,source_run_id,id,analysis_id);
+        ALTER TABLE web_jobs ADD CONSTRAINT web_jobs_report_analysis_required
+            CHECK(report_document_id IS NULL OR analysis_id IS NOT NULL);
+    END IF;
+END $$;
+INSERT INTO schema_versions(version) VALUES (34) ON CONFLICT DO NOTHING;

@@ -45,6 +45,7 @@ it("shows saved metadata and exact history without rendering HTML or verificatio
   expect(
     screen.getByRole("heading", { name: "<script>owner text</script>" }),
   ).toBeInTheDocument();
+  await userEvent.click(screen.getByText("Detalles técnicos"));
   await userEvent.click(screen.getByText("Historial de entregas"));
   expect(screen.getByText("a".repeat(64))).toBeVisible();
 });

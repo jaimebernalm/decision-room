@@ -442,29 +442,34 @@ function EngineReportView({ report }: { report: ReportData }) {
           )}
         </p>
       )}
-      <Disclosure title={tr("Registro de entrega")}>
-        <p className="mb-2 text-sm">
-          {tr("Revisión")}: {metadata.revision_id}
-        </p>
-        <p className="break-all font-mono text-xs">
-          SHA-256: {metadata.raw_sha256}
-        </p>
-        <p className="mt-2 text-sm">{metadata.raw_bytes} bytes</p>
-      </Disclosure>
-      <Disclosure title={tr("Historial de entregas")}>
-        <ul className="space-y-4">
-          {metadata.history.map((revision) => (
-            <li key={revision.id} className="text-sm">
-              <p>
-                {tr("Revisión")} {revision.ordinal} · {revision.raw_bytes} bytes
-                · {revision.delivery_via}
-              </p>
-              <p className="break-all font-mono text-xs">
-                {revision.raw_sha256}
-              </p>
-            </li>
-          ))}
-        </ul>
+      <Disclosure title={tr("Detalles técnicos")}>
+        <Disclosure title={tr("Registro de entrega")}>
+          <p className="mb-2 text-sm">
+            {tr("Revisión")}: {metadata.revision_id}
+          </p>
+          <p className="break-all font-mono text-xs">
+            SHA-256: {metadata.raw_sha256}
+          </p>
+          <p className="mt-2 text-sm">{metadata.raw_bytes} bytes</p>
+        </Disclosure>
+        <Disclosure title={tr("Historial de entregas")}>
+          <ul className="space-y-4">
+            {metadata.history.map((revision) => (
+              <li key={revision.id} className="text-sm">
+                <p>
+                  {tr("Revisión")} {revision.ordinal} · {revision.raw_bytes}{" "}
+                  bytes ·{" "}
+                  {revision.delivery_via === "file"
+                    ? tr("Archivo final")
+                    : tr("Entrega directa")}
+                </p>
+                <p className="break-all font-mono text-xs">
+                  {revision.raw_sha256}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </Disclosure>
       </Disclosure>
     </div>
   );

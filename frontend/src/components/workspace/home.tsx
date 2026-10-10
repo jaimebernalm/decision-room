@@ -287,6 +287,9 @@ export function Home() {
               <h2 className="text-sm font-medium">
                 {tr("Informes guardados")}
               </h2>
+              <p className="text-sm text-muted-foreground">
+                {tr("Podrás abrir el contenido cuando la vista esté lista.")}
+              </p>
               {data.report_accesses!.map((report) => (
                 <a
                   key={report.id}

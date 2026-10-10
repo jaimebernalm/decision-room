@@ -76,3 +76,33 @@ class HtmlSurfaceTests(unittest.TestCase):
         for action in ('sources','presentation','report','pdf'):
             self.assertEqual(client.get(f'/api/jobs/{job}/{action}').status_code,404)
         self.assertEqual(client.get('/api/reports').json()['items'],[])
+
+    def test_analysis_identity_is_bound_and_concurrent_visibility_is_atomic(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from pathlib import Path
+        from decision_room.service import import_batch
+        job=self.delivered(); row=self.ws.row(job)
+        another=Path(self.temp.name)/'different.csv'; another.write_text('quantity\n8\n')
+        analysis=import_batch(self.config,row['business_id'],[another])['analysis']['id']
+        with connect(self.config) as db:
+            for wrong in (analysis,None):
+                with self.assertRaises(Exception):
+                    db.execute('UPDATE web_jobs SET analysis_id=%s WHERE id=%s',(wrong,job))
+            with self.assertRaises(Exception):
+                db.execute('UPDATE engine_runs SET analysis_id=%s WHERE id=%s',(analysis,row['engine_run_id']))
+        def mutate(_):
+            self.ws.delete_report(job,{'business_id':str(row['business_id'])})
+            self.ws.delete_report(job,{'business_id':str(row['business_id'])},restore=True)
+        def observe(_):
+            from decision_room.web.report_access import read_job
+            from decision_room.reports import reading
+            try:
+                with read_job(self.ws,job,deleted=True) as (db,current,pair):
+                    meta=reading.metadata(db,*pair)
+                    stored=db.execute('SELECT deleted_at FROM web_jobs WHERE id=%s',(job,)).fetchone()['deleted_at']
+                    self.assertEqual(meta['deleted'],bool(stored))
+                    self.assertEqual(meta['document_id'],str(current['report_document_id']))
+            except WebError as error:
+                self.fail(str(error))
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            list(pool.map(lambda i: mutate(i) if i%3==0 else observe(i),range(12)))

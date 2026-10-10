@@ -31,7 +31,7 @@ def read_job(workspace, job_id, *, revision=None, deleted=False):
             raise WebError('El informe todavía no tiene una entrega registrada.',409)
         from ..reports.reading import read
         with read(workspace.config,job['business_id'],job['report_document_id'],revision=revision,deleted=deleted) as (db,doc,version):
-            if doc['job_id'] != job['id'] or doc['source_run_id'] != job['engine_run_id']:
+            if doc['job_id'] != job['id'] or doc['source_run_id'] != job['engine_run_id'] or doc['analysis_id'] != job['analysis_id']:
                 raise WebError('Informe no encontrado.',404)
             yield db,job,(doc,version)
     else:

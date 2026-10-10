@@ -87,7 +87,7 @@ export function JobPage({
           <CardContent>
             <p className="mb-4 text-sm">
               {tr(
-                "Puedes consultar el estado y los metadatos. La presentación todavía no está disponible.",
+                "Puedes consultar el estado y los metadatos. Podrás abrir el contenido cuando la vista esté lista.",
               )}
             </p>
             <Button asChild>

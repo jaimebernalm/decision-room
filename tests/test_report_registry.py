@@ -59,3 +59,38 @@ class RegistryTests(unittest.TestCase):
             self.assertEqual(db.execute('SELECT * FROM engine_report_contexts WHERE run_id=%s',(run,)).fetchone(),saved)
             with self.assertRaises(Exception): db.execute("UPDATE engine_report_contexts SET memories='[]' WHERE run_id=%s",(run,))
             with self.assertRaises(Exception): db.execute('DELETE FROM engine_report_contexts WHERE run_id=%s',(run,))
+
+    def test_upgrade_f0_receipt_keeps_bytes_and_stays_non_current(self):
+        import subprocess
+        from dataclasses import replace
+        from unittest.mock import patch
+        from psycopg import sql
+        from psycopg.conninfo import make_conninfo
+        from decision_room.service import create_business, import_batch
+        name='dr_f1_upgrade_'+uuid4().hex
+        with connect(self.base) as db:
+            db.execute(sql.SQL('CREATE DATABASE {}').format(sql.Identifier(name)))
+        try:
+            config=replace(self.config,dsn=make_conninfo(self.base.dsn,dbname=name))
+            old=subprocess.run(['git','show','60360df:decision_room/schema.sql'],check=True,capture_output=True).stdout.decode()
+            with connect(config) as db: db.execute(old)
+            business=create_business(config,'Upgrade fixture')['id']
+            csv=self.root/'upgrade.csv'; csv.write_text('quantity\n4\n')
+            # Emulate the pre-F1 writer while building old-schema fixtures.
+            with patch('decision_room.reports.store.invalidate'):
+                imported=import_batch(config,business,[csv])
+            with patch('decision_room.reports.store.capture'):
+                run,token=receipts.admission.create_run(config,business,imported['analysis']['id'],
+                    table_ids=[imported['files'][0]['table_id']],owner_context='Fixture',request_key='old',model='test')
+            receipt=receipts.receive_document(config,run,token,request_key='old',html=b'\xffF0 receipt')
+            api._finish(config,business,run,'delivered')
+            migrate(config); migrate(config)
+            document=store.adopt(config,business,run)
+            self.assertEqual(str(document),receipt['document_id'])
+            self.assertEqual(receipts.read_document(config,business,run)['raw'],b'\xffF0 receipt')
+            with connect(config) as db:
+                row=db.execute('SELECT * FROM report_documents WHERE id=%s',(document,)).fetchone()
+                self.assertIsNone(row['current_revision_id']); self.assertEqual(row['stale_reason'],'missing_context')
+        finally:
+            with connect(self.base) as db:
+                db.execute(sql.SQL('DROP DATABASE {} WITH (FORCE)').format(sql.Identifier(name)))
