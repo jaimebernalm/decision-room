@@ -1,15 +1,5 @@
-<!-- Provisional F0 fixture, not the frozen v1 brief. F2 replaces this file with
-the unchanged fixed v1 paragraphs and the generated business brief. -->
-Investiga el encargo del propietario y prepara un informe útil y legible en español.
-Los CSV inmutables están en /inputs/datos; /inputs/manifest.json describe sus tablas.
-Puedes usar Python y las herramientas locales para calcular sobre esos datos.
-Si existe /inputs/contexto/panorama.md, úsalo como punto de partida y comprueba sus
-cifras con los CSV. No presupongas que existe ni traslades nombres de archivo al negocio.
-Distingue hechos, interpretaciones, límites y acciones. Compara periodos y bases
-compatibles. No inventes significados, unidades, causas ni cifras.
-Escribe un informe HTML autocontenido en /work/informe.html con gráficos legibles
-que dibujes tú. También puedes guardarlo con entregar_informe(request_key, html).
-No uses cargas externas. Una entrega solo confirma que el contenido queda guardado;
-no significa que esté verificado o que su presentación esté autorizada.
-Las preguntas al propietario no están disponibles en este perfil inicial.
-Si faltan definiciones, declara el límite y conserva lo que los datos permiten calcular.
+Incluye gráficos en el informe; elige los que mejor ayuden a entender los resultados. Guarda el informe con sus gráficos en informe.html, listo para abrir localmente en un navegador.
+
+Profundiza en las señales relevantes: busca qué combinaciones de producto, canal y fechas las explican y cuánto contribuyen. Haz las comprobaciones que permiten los CSV antes de proponerlas como tarea pendiente. Elige pocas prioridades y explica qué decisión justifica revisarlas antes que una alternativa relevante. Para cada prioridad, indica qué comprobar después y cómo cambiaría la reacción según el resultado. Si falta información, nombra la fuente o registro concreto que haría falta y mantén la conclusión parcial, sin inventar causas.
+
+Comprueba que todas las cifras de la prosa, tablas y gráficos proceden de tus cálculos y coinciden en periodo, segmento, unidad y denominador. Verifica también que los gráficos representen las magnitudes correctas, tengan etiquetas legibles y se abran correctamente. Añade interacción para consultar valores exactos cuando ayude a leerlos. Presenta primero las conclusiones. Calcula con los archivos y muestra solo los resúmenes necesarios, sin imprimir todos los CSV.

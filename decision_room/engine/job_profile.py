@@ -27,9 +27,9 @@ def selection(config, data, old=None):
 
 
 def freeze(settings, *, context, goal, input_hash):
+    """Owner inputs at creation. The brief needs prepared data, so it is built once at run creation."""
     if not settings:
         return {}
     owner = context + '\n\n' + goal
-    prompt = profile.prompt(owner)
-    return {**settings, 'owner_context': owner, 'prompt': prompt,
-            'prompt_sha256': admission.sha(prompt.encode()), 'input_request_sha256': input_hash}
+    return {**settings, 'owner_context': owner, 'goal': goal,
+            'owner_sha256': admission.sha(admission.canonical([owner, goal])), 'input_request_sha256': input_hash}

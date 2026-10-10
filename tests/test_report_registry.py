@@ -73,7 +73,10 @@ class RegistryTests(unittest.TestCase):
         try:
             config=replace(self.config,dsn=make_conninfo(self.base.dsn,dbname=name))
             old=subprocess.run(['git','show','60360df:decision_room/schema.sql'],check=True,capture_output=True).stdout.decode()
-            with connect(config) as db: db.execute(old)
+            with connect(config) as db:
+                db.execute(old)
+                # The current writer records brief provenance (migration 35, additive and idempotent).
+                db.execute("ALTER TABLE engine_runs ADD COLUMN IF NOT EXISTS brief jsonb NOT NULL DEFAULT '{}'")
             business=create_business(config,'Upgrade fixture')['id']
             csv=self.root/'upgrade.csv'; csv.write_text('quantity\n4\n')
             # Emulate the pre-F1 writer while building old-schema fixtures.

@@ -330,7 +330,7 @@ def _drive(config, business, run, *, new_token=None, answer=None):
                 _issue(config, run, code, error=error, stage=cleanup_stage)
 
 
-def prepare_report(config, business_id, analysis_id, *, owner_context, request_key, limits=None, context=None, engine_config=None, frozen_prompt=None):
+def prepare_report(config, business_id, analysis_id, *, owner_context, request_key, limits=None, context=None, engine_config=None, frozen_prompt=None, brief=None, builder=None):
     business, analysis = UUID(str(business_id)), UUID(str(analysis_id))
     with connect(config) as db:
         rows = db.execute('SELECT id FROM prepared_tables WHERE business_id=%s AND analysis_id=%s ORDER BY id', (business, analysis)).fetchall()
@@ -338,7 +338,8 @@ def prepare_report(config, business_id, analysis_id, *, owner_context, request_k
     settings = profile.configuration() if engine_config is None else engine_config
     run, token = admission.create_run(config, business, analysis, table_ids=[r['id'] for r in rows],
                                      owner_context=owner_context, request_key=request_key,
-                                     model=settings['model'], limits=budget, context=context, engine_config=settings, frozen_prompt=frozen_prompt)
+                                     model=settings['model'], limits=budget, context=context, engine_config=settings, frozen_prompt=frozen_prompt,
+                                     brief=brief, builder=builder)
     return run, token
 
 

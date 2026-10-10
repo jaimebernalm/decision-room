@@ -1,4 +1,4 @@
-"""Fixed F0 profile. Business briefs and panorama generation belong to F2."""
+"""Fixed html-v1 runtime profile. The generated brief and panorama live in engine.brief and engine.panorama_v1."""
 import os
 from pathlib import Path
 
@@ -23,8 +23,9 @@ def configuration(*, model=None, image=None):
 
 
 def prompt(owner_context):
+    """Direct API fallback. Web jobs build the generated v1 brief in engine.brief instead."""
     fixed = (Path(__file__).resolve().parents[2] / 'engine/opencode/prompts/informe.md').read_text()
-    return fixed + '\n\nEncargo del propietario:\n' + owner_context
+    return owner_context.strip() + '\n\n' + fixed
 
 
 def context_files(value=None):

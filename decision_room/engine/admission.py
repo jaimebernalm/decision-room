@@ -66,9 +66,24 @@ def _snapshot(db, config, business_id, analysis_id, table_ids):
              'columns': r['columns']} for r in rows]
 
 
+def _frozen(prompt, brief):
+    brief = {} if brief is None else brief
+    if not isinstance(prompt, str):
+        raise ValueError('Invalid frozen prompt.')
+    if len(prompt.encode()) > 256 * 1024:
+        raise ValueError('Engine prompt exceeds 256 KiB.')
+    if not isinstance(brief, dict) or len(canonical(brief)) > 64 * 1024:
+        raise ValueError('Invalid brief provenance.')
+    return prompt, brief
+
+
 def create_run(config, business_id, analysis_id, *, table_ids, owner_context, request_key,
-               model, limits=None, context=None, engine_config=None, frozen_prompt=None):
+               model, limits=None, context=None, engine_config=None, frozen_prompt=None, brief=None, builder=None):
     """Trusted bootstrap. Returns (run_id, token); replay returns (run_id, None).
+
+    ``builder(db)`` may return (prompt, brief provenance). It runs under the memory
+    head lock in the same transaction that captures the report dependencies, so the
+    brief and the dependency baseline always describe the same revisions.
 
     Tokens are never stored in cleartext. The controller must retain its private
     credential or explicitly rotate it; idempotent creation does not rotate it.
@@ -85,11 +100,10 @@ def create_run(config, business_id, analysis_id, *, table_ids, owner_context, re
     expected = profile.configuration(model=model, image=settings.get("image_id", ""))
     if settings != expected:
         raise ValueError("Unsupported engine configuration.")
-    prompt = profile.prompt(owner_context) if frozen_prompt is None else frozen_prompt
-    if not isinstance(prompt, str):
-        raise ValueError("Invalid frozen prompt.")
-    if len(prompt.encode()) > 256 * 1024:
-        raise ValueError("Engine prompt exceeds 256 KiB.")
+    if builder is not None and (frozen_prompt is not None or brief is not None):
+        raise ValueError('Use either a brief builder or a frozen prompt.')
+    if builder is None:
+        prompt, brief = _frozen(profile.prompt(owner_context) if frozen_prompt is None else frozen_prompt, brief)
     if not 1 <= len(table_ids) <= 64 or not isinstance(limits, Limits):
         raise ValueError('Select 1–64 tables and valid limits.')
     if not isinstance(request_key, str) or not 1 <= len(request_key) <= 128:
@@ -103,8 +117,10 @@ def create_run(config, business_id, analysis_id, *, table_ids, owner_context, re
         memory.lock(db, business_id)
         lock = int.from_bytes(hashlib.sha256(canonical([str(business_id), request_key])).digest()[:8], 'big', signed=True)
         db.execute('SELECT pg_advisory_xact_lock(%s)', (lock,))
+        if builder is not None:
+            prompt, brief = _frozen(*builder(db))
         snapshot = _snapshot(db, config, business_id, analysis_id, table_ids)
-        fingerprint = sha(canonical([str(analysis_id), snapshot, owner_context, model, asdict(limits), settings, context, prompt]))
+        fingerprint = sha(canonical([str(analysis_id), snapshot, owner_context, model, asdict(limits), settings, context, prompt, brief]))
         previous = db.execute('SELECT id,request_sha256 FROM engine_runs WHERE business_id=%s AND request_key=%s',
                               (business_id, request_key)).fetchone()
         if previous:
@@ -114,11 +130,11 @@ def create_run(config, business_id, analysis_id, *, table_ids, owner_context, re
         run_id, token = uuid4(), secrets.token_urlsafe(32)
         db.execute('''INSERT INTO engine_runs
             (id,business_id,analysis_id,request_key,request_sha256,owner_context,model,
-             snapshot,snapshot_sha256,limits,credential_sha256,profile,prompt,prompt_sha256,input_context,input_sha256)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)''',
+             snapshot,snapshot_sha256,limits,credential_sha256,profile,prompt,prompt_sha256,input_context,input_sha256,brief)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)''',
                    (run_id, business_id, analysis_id, request_key, fingerprint, owner_context,
                     model, Jsonb(snapshot), sha(canonical(snapshot)), Jsonb(asdict(limits)), sha(token.encode()), Jsonb(settings), prompt, sha(prompt.encode()),
-                    Jsonb(context), sha(canonical({"snapshot": snapshot, "context": context}))))
+                    Jsonb(context), sha(canonical({"snapshot": snapshot, "context": context})), Jsonb(brief)))
         _event(db, run_id, 'created', {})
         from ..reports.store import capture
         capture(db, business_id, analysis_id, run_id, snapshot)

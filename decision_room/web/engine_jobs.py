@@ -21,6 +21,49 @@ def reconcile(workspace, job):
     return job
 
 
+def inputs(config, job):
+    """Panorama from the prepared tables plus a brief builder, used once at run creation.
+
+    The panorama depends only on the snapshot tables (their hashes are rechecked at
+    creation). The brief reads profile, data model and memory inside create_run, under
+    the same memory lock that captures the report's dependency baseline. A resumed
+    run reads its stored prompt and context; this is never called again for it.
+    """
+    from ..engine import brief, panorama_v1
+    business, analysis = job['business_id'], job['analysis_id']
+    with connect(config) as db:
+        tables = db.execute('''SELECT id,parquet_key,parquet_sha256,columns FROM prepared_tables
+            WHERE business_id=%s AND analysis_id=%s ORDER BY id''', (business, analysis)).fetchall()
+    panorama = panorama_v1.build(config, business, tables)
+    available = panorama['status'] == 'available'
+    # Upload and dataset jobs froze the profile description in web_jobs.context; chat
+    # jobs store the legacy continuation there, which is not owner text for the brief.
+    owner = {} if job.get('origin') == 'chat' else dict(name=job['business_name'], description=job['context'],
+                                                         profile_revision=job.get('business_revision'))
+
+    def builder(db):
+        text, provenance = brief.build(db, business, analysis, goal=job['engine_config']['goal'],
+                                       panorama=available, **owner)
+        provenance['panorama'] = {k: v for k, v in panorama.items() if k != 'markdown'}
+        return text, provenance
+    return builder, ({'panorama.md': panorama['markdown']} if available else None)
+
+
+def creation(config, job):
+    """Run-creation arguments; F0/F1 jobs keep the provisional prompt they captured."""
+    settings = job['engine_config']
+    if settings['input_request_sha256'] != job['request_sha256']:
+        raise ValueError('Captured job configuration failed its integrity check.')
+    if 'prompt' in settings:
+        if admission.sha(settings['prompt'].encode()) != settings['prompt_sha256']:
+            raise ValueError('Captured job configuration failed its integrity check.')
+        return dict(frozen_prompt=settings['prompt'])
+    if admission.sha(admission.canonical([settings['owner_context'], settings['goal']])) != settings['owner_sha256']:
+        raise ValueError('Captured job configuration failed its integrity check.')
+    builder, context = inputs(config, job)
+    return dict(builder=builder, context=context)
+
+
 def apply_state(workspace, job, state):
     from ..reports.store import adopt
     adopt(workspace.config, job['business_id'], job['engine_run_id'])
@@ -57,13 +100,11 @@ def run(workspace, job_id):
                 return
             job = workspace.row(job_id)
             settings = job['engine_config']
-            if admission.sha(settings['prompt'].encode()) != settings['prompt_sha256'] or settings['input_request_sha256'] != job['request_sha256']:
-                raise ValueError('Captured job configuration failed its integrity check.')
             if not job['engine_run_id']:
                 run_id, _ = api.prepare_report(config, job['business_id'], job['analysis_id'],
                                                owner_context=settings['owner_context'], request_key='web:' + str(job_id),
                                                limits=settings['limits'], engine_config=settings['profile'],
-                                               frozen_prompt=settings['prompt'])
+                                               **creation(config, job))
                 # Publish identity before driving. A crash before this update
                 # is recovered by reconcile's business + web-job key.
                 workspace.update(job_id, engine_run_id=run_id, phase='engine')

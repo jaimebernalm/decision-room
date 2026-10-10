@@ -40,7 +40,8 @@ class EngineJobTests(unittest.TestCase):
             row = self.ws.row(job); settings = row['engine_config']
             self.assertEqual(settings['profile']['model'], 'gpt-6-luna')
             self.assertEqual(settings['profile']['variant'], 'low')
-            self.assertEqual(settings['prompt_sha256'], admission.sha(settings['prompt'].encode()))
+            self.assertEqual(settings['owner_sha256'], admission.sha(admission.canonical([settings['owner_context'], settings['goal']])))
+            self.assertNotIn('prompt', settings)  # The brief is generated at run creation from prepared data.
             self.assertEqual(settings['input_request_sha256'], row['request_sha256'])
             self.assertIsNone(row['report_document_id'])
             self.assertIsNone(row['engine_run_id'])
@@ -139,7 +140,7 @@ class EngineJobTests(unittest.TestCase):
         self.ws.ingest_job(self.ws.row(job)); row = self.ws.row(job); settings = row['engine_config']
         run, token = api.prepare_report(self.config, row['business_id'], row['analysis_id'],
                                         request_key='web:'+job, owner_context=settings['owner_context'],
-                                        engine_config=settings['profile'], limits=settings['limits'], frozen_prompt=settings['prompt'])
+                                        engine_config=settings['profile'], limits=settings['limits'])
         self.ws.update(job, engine_run_id=run)
         store.receive_document(self.config, run, token, request_key='partial', html=b'<h1>Partial')
         call = admission.begin_call(self.config, run, token, 'uncertain')

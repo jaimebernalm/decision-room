@@ -1159,3 +1159,7 @@ DO $$ BEGIN
     END IF;
 END $$;
 INSERT INTO schema_versions(version) VALUES (34) ON CONFLICT DO NOTHING;
+
+-- Migration 35: provenance of the generated v1 brief and panorama (F2). Existing runs keep '{}'.
+ALTER TABLE engine_runs ADD COLUMN IF NOT EXISTS brief jsonb NOT NULL DEFAULT '{}';
+INSERT INTO schema_versions(version) VALUES (35) ON CONFLICT DO NOTHING;
