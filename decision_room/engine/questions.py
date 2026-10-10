@@ -12,6 +12,7 @@ from psycopg.types.json import Jsonb
 
 from ..database import connect
 from ..storage import Storage
+from ..memory import service as memory
 from . import admission, checkpoint, control
 
 
@@ -35,6 +36,34 @@ def _receipt(row):
             'pending': row['state'] != 'resumed', **row['body']}
 
 
+def context_reason(db, config, run, question=None):
+    """Run dependencies, not a published document: works before any HTML exists.
+
+    Caller holds memory head before the run row. Answers belong to this run only
+    and never edit business memory or replace the captured dependency baseline.
+    """
+    if question and question['expires_at'] and question['expires_at'] <= run['checked_at']:
+        return 'owner_question_expired'
+    from ..reports.store import reason
+    return reason(db, dict(source_run_id=run['id'], business_id=run['business_id'],
+                           analysis_id=run['analysis_id'], stale_reason=None), config=config, deep=True)
+
+
+def check_resume(config, business_id, run_id, question_id):
+    """Before restoring: refuse expired/revoked context without running a model."""
+    with connect(config) as db, db.transaction():
+        memory.lock(db, business_id)
+        run = control._run(db, business_id, run_id)
+        q = _question(db, run_id, question_id)
+        if run['status'] != 'waiting' or run['credential_revoked'] or q['state'] != 'waiting':
+            raise admission.Denied('Job is not waiting for this answer.')
+        problem = context_reason(db, config, run, q)
+        if problem:
+            admission._abort(db, run_id, problem)
+    if problem:
+        raise admission.Aborted('Owner wait expired or its context is no longer current.')
+
+
 def request(config, run_id, token, *, request_key, text, reason, options=None):
     """Commit the question and close admission before returning its receipt.
 
@@ -51,14 +80,25 @@ def request(config, run_id, token, *, request_key, text, reason, options=None):
     body = {'text': text, 'reason': reason, 'options': options}
     fingerprint = admission.sha(admission.canonical(body))
     with connect(config) as db, db.transaction():
+        with_scope = db.execute('SELECT business_id FROM engine_runs WHERE id=%s', (run_id,)).fetchone()
+        if not with_scope:
+            raise admission.Denied('Invalid job credential.')
+        memory.lock(db, with_scope['business_id'])
         run = admission._locked(db, run_id, token)
+        if not run['profile'].get('questions'):
+            raise admission.Denied('Owner questions are disabled for this profile.')
         previous = db.execute('SELECT * FROM engine_owner_questions WHERE run_id=%s AND request_key=%s',
                               (run_id, request_key)).fetchone()
         if previous:
             if previous['request_sha256'] != fingerprint or previous['body'] != body:
                 raise ValueError('Question key already used with different content.')
             return _receipt(previous)
+        if db.execute('SELECT 1 FROM engine_owner_questions WHERE run_id=%s', (run_id,)).fetchone():
+            raise admission.Denied('Only one owner question is permitted per run.')
         error = admission._active(db, run)
+        if not error and context_reason(db, config, run):
+            admission._abort(db, run_id, 'context_revoked')
+            error = 'Run context is no longer current.'
         if not error:
             try:
                 snapshot = admission._snapshot(db, config, run['business_id'], run['analysis_id'],
@@ -175,6 +215,7 @@ def activate_answer(config, business_id, run_id, question_id, *, new_token):
         raise ValueError('A new private job credential is required.')
     token_hash = admission.sha(new_token.encode())
     with connect(config) as db, db.transaction():
+        memory.lock(db, business_id)
         run = control._run(db, business_id, run_id)
         question = _question(db, run_id, question_id)
         received = db.execute('SELECT * FROM engine_owner_answers WHERE run_id=%s AND question_id=%s',
@@ -193,7 +234,11 @@ def activate_answer(config, business_id, run_id, question_id, *, new_token):
             raise ValueError('Resume must rotate the previous credential.')
         if _checkpoint(config, run, question['checkpoint_key']) != question['checkpoint_sha256']:
             raise ValueError('Confirmed checkpoint changed.')
-        if run['active_seconds'] >= run['limits']['active_seconds']:
+        problem = context_reason(db, config, run, question)
+        if problem:
+            admission._abort(db, run_id, problem)
+            error = 'Owner wait expired or its context is no longer current.'
+        elif run['active_seconds'] >= run['limits']['active_seconds']:
             admission._abort(db, run_id, 'active_time_limit')
             error = 'Active time limit reached.'
         else:

@@ -97,7 +97,7 @@ def create_run(config, business_id, analysis_id, *, table_ids, owner_context, re
     if engine_config is not None and not isinstance(engine_config, dict):
         raise ValueError('Unsupported engine configuration.')
     settings = profile.configuration(model=model) if engine_config is None else engine_config
-    expected = profile.configuration(model=model, image=settings.get("image_id", ""))
+    expected = profile.configuration(model=model, image=settings.get("image_id", ""), questions=settings.get("questions", False))
     if settings != expected:
         raise ValueError("Unsupported engine configuration.")
     if builder is not None and (frozen_prompt is not None or brief is not None):

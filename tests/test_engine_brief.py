@@ -49,6 +49,12 @@ class BriefTextTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(brief.FIXED.read_bytes()).hexdigest(), FIXED_SHA256)
         self.assertTrue(self.compose().endswith(brief.FIXED.read_text()))
 
+    def test_question_variant_is_explicit_and_does_not_change_default_text(self):
+        self.assertNotIn('preguntar_dueno', self.compose())
+        self.assertIn(brief.QUESTIONS, self.compose(questions=True))
+        self.assertNotIn('no respondo', brief.QUESTIONS)
+        self.assertIn('como mucho una vez', brief.QUESTIONS)
+
     def test_owner_paragraphs_follow_the_trial_order(self):
         model = dict(tables=[dict(name='ventas', description='', semantic_status='unknown', columns=[
             column('unidades', 'la cantidad registrada por fecha, producto y canal', 'owner_declared'),

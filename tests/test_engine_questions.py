@@ -17,7 +17,7 @@ from psycopg.conninfo import make_conninfo
 
 from decision_room.config import Config
 from decision_room.database import connect, migrate
-from decision_room.engine import admission, checkpoint, control, gateway, questions, store
+from decision_room.engine import admission, checkpoint, control, gateway, questions, store, profile
 from decision_room.engine.server import Server
 from decision_room.service import create_business, import_batch
 
@@ -46,7 +46,7 @@ class QuestionTests(unittest.TestCase):
         source = self.root / 'units.csv'; source.write_text('quantity\n2\n3\n')
         batch = import_batch(self.config, self.business, [source])
         self.run, self.token = admission.create_run(self.config, self.business, batch['analysis']['id'],
-            table_ids=[batch['files'][0]['table_id']], owner_context='Units', request_key=uuid4().hex, model='test-model')
+            table_ids=[batch['files'][0]['table_id']], owner_context='Units', request_key=uuid4().hex, model='test-model', engine_config=profile.configuration(model='test-model', questions=True))
         self.session = 'ses_' + uuid4().hex
         control.bind_session(self.config, self.business, self.run, self.session)
         self.key = f'{self.business}/engine/{self.run}/checkpoints/{uuid4()}'
@@ -98,6 +98,41 @@ class QuestionTests(unittest.TestCase):
         self.pause()
         with self.assertRaises(admission.Denied):
             gateway.dispatch(self.config, self.run, self.token, message)
+
+    def test_mcp_question_retry_works_while_pausing_and_disabled_run_cannot_ask(self):
+        message = {'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call', 'params': {
+            'name': 'preguntar_dueno', 'arguments': {'request_key': 'mcp-q', 'text': '¿Unidad?', 'reason': 'No declarada'}}}
+        first = gateway.dispatch(self.config, self.run, self.token, message)
+        self.assertEqual(first, gateway.dispatch(self.config, self.run, self.token, message))
+        with connect(self.config) as db:
+            snapshot = db.execute('SELECT snapshot FROM engine_runs WHERE id=%s', (self.run,)).fetchone()['snapshot']
+        other, token = admission.create_run(self.config, self.business, admission.inspect_run(self.config, self.business, self.run)['analysis_id'],
+            table_ids=[snapshot[0]['id']],
+            owner_context='Units', request_key=uuid4().hex, model='test-model')
+        listing = gateway.dispatch(self.config, other, token, {'jsonrpc':'2.0','id':2,'method':'tools/list'})
+        self.assertEqual([t['name'] for t in listing['result']['tools']], ['entregar_informe'])
+        with self.assertRaises(admission.Denied):
+            questions.request(self.config, other, token, request_key='q', text='?', reason='?')
+
+    def test_second_question_cannot_be_requested_after_resume(self):
+        q = self.pause(); self.answer(q); token = secrets.token_urlsafe(32)
+        questions.activate_answer(self.config, self.business, self.run, q['question_id'], new_token=token)
+        with self.assertRaisesRegex(admission.Denied, 'Only one'):
+            questions.request(self.config, self.run, token, request_key='q2', text='Second?', reason='Different')
+
+    def test_definition_change_blocks_before_restoring_and_keeps_answer(self):
+        q = self.pause(); self.answer(q)
+        from decision_room.data_knowledge.service import ensure, change
+        analysis = admission.inspect_run(self.config, self.business, self.run)['analysis_id']
+        model = ensure(self.config, self.business, analysis)
+        change(self.config, self.business, analysis, model['revision'], 'table',
+               {'id': model['body']['tables'][0]['id'], 'grain': 'un registro corregido'})
+        with self.assertRaises(admission.Aborted):
+            questions.check_resume(self.config, self.business, self.run, q['question_id'])
+        run = admission.inspect_run(self.config, self.business, self.run)
+        self.assertEqual((run['status'], run['abort_reason']), ('aborted', 'definitions_changed'))
+        with connect(self.config) as db:
+            self.assertEqual(db.execute('SELECT count(*) AS n FROM engine_owner_answers WHERE run_id=%s', (self.run,)).fetchone()['n'], 1)
 
     def test_checkpoint_pin_is_scoped_validated_and_does_not_reset_expiry(self):
         q = self.request()
@@ -169,7 +204,7 @@ class QuestionTests(unittest.TestCase):
         self.assertIn('"disposition":"answered"', outbox[0]['prompt'])
         self.assertIsNone(questions.read(self.config, self.business, self.run))
 
-    def test_wait_expiry_requires_explicit_answer_and_preserves_consumed_budget(self):
+    def test_wait_expiry_never_reactivates_even_with_answer_and_preserves_budget(self):
         call = admission.begin_call(self.config, self.run, self.token, 'fixture')
         admission.reserve(self.config, self.run, self.token, call, 100, 100)
         admission.settle(self.config, self.run, call, usage={'input': 100, 'cached': 10, 'output': 30})
@@ -183,12 +218,14 @@ class QuestionTests(unittest.TestCase):
         with self.assertRaises(admission.Denied):
             questions.activate_answer(self.config, self.business, self.run, q['question_id'], new_token=token)
         self.answer(q, disposition='unknown', text='')
-        questions.activate_answer(self.config, self.business, self.run, q['question_id'], new_token=token)
+        with self.assertRaises(admission.Aborted):
+            questions.activate_answer(self.config, self.business, self.run, q['question_id'], new_token=token)
         run = admission.inspect_run(self.config, self.business, self.run)
         self.assertEqual((run['charged_input'], run['charged_output'], run['calls']), (100, 30, 1))
         with connect(self.config) as db:
             self.assertEqual(db.execute('SELECT active_seconds FROM engine_runs WHERE id=%s', (self.run,)).fetchone()['active_seconds'], seconds)
-        self.assertIn('"disposition":"unknown"', control.read_state(self.config, self.business, self.run)['outbox'][0]['prompt'])
+        self.assertEqual(run['status'], 'aborted')
+        self.assertEqual(control.read_state(self.config, self.business, self.run)['outbox'], [])
 
     def test_concurrent_activation_queues_once_and_declined_is_not_an_answer(self):
         q = self.pause(); self.answer(q, disposition='declined', text='')

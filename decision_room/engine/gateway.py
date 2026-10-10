@@ -1,5 +1,5 @@
 """HTML-only MCP boundary. Calculations remain local to the isolated agent."""
-from . import admission, store
+from . import admission, store, questions
 
 VERSIONS = {'2025-03-26', '2025-06-18'}
 TOOLS = [{'name': 'entregar_informe',
@@ -9,9 +9,23 @@ TOOLS = [{'name': 'entregar_informe',
               'html': {'type': 'string'}}, 'required': ['request_key', 'html'],
               'additionalProperties': False}}]
 
+QUESTION_TOOL = {'name': 'preguntar_dueno',
+    'description': 'Ask the owner once when their declaration would change a conclusion. Stops this run until an explicit answer; unknown and declined remain limitations.',
+    'inputSchema': {'type': 'object', 'properties': {
+        'request_key': {'type': 'string', 'minLength': 1, 'maxLength': 128},
+        'text': {'type': 'string'}, 'reason': {'type': 'string'},
+        'options': {'type': 'array', 'items': {'type': 'string'}, 'maxItems': 8}},
+        'required': ['request_key', 'text', 'reason'], 'additionalProperties': False}}
+
 
 def dispatch(config, run_id, token, message, *, backend=None):
-    admission.authenticate(config, run_id, token)
+    retry_question = (isinstance(message, dict) and message.get('method') == 'tools/call'
+                      and isinstance(message.get('params'), dict)
+                      and message['params'].get('name') == 'preguntar_dueno')
+    if retry_question:
+        admission.check_credential(config, run_id, token)
+    else:
+        admission.authenticate(config, run_id, token)
     if not isinstance(message, dict) or message.get('jsonrpc') != '2.0':
         raise ValueError('Invalid MCP message.')
     if set(message) - {'jsonrpc', 'id', 'method', 'params'}:
@@ -31,13 +45,21 @@ def dispatch(config, run_id, token, message, *, backend=None):
     elif method == 'ping':
         result = {}
     elif method == 'tools/list':
-        result = {'tools': TOOLS}
+        from ..database import connect
+        with connect(config) as db:
+            enabled = db.execute('SELECT profile FROM engine_runs WHERE id=%s', (run_id,)).fetchone()['profile'].get('questions')
+        result = {'tools': TOOLS + ([QUESTION_TOOL] if enabled else [])}
     elif method == 'tools/call':
         try:
             args = params.get('arguments', {})
-            if params.get('name') != 'entregar_informe' or not isinstance(args, dict) or set(args) != {'request_key', 'html'} or not isinstance(args['html'], str):
+            if params.get('name') == 'preguntar_dueno':
+                if not isinstance(args, dict) or set(args) - {'request_key', 'text', 'reason', 'options'} or not {'request_key', 'text', 'reason'} <= set(args):
+                    raise ValueError('Invalid owner question.')
+                value = questions.request(config, run_id, token, **args)
+            elif params.get('name') != 'entregar_informe' or not isinstance(args, dict) or set(args) != {'request_key', 'html'} or not isinstance(args['html'], str):
                 raise ValueError('Invalid HTML delivery.')
-            value = store.receive_document(config, run_id, token, **args)
+            else:
+                value = store.receive_document(config, run_id, token, **args)
             result = {'content': [{'type': 'text', 'text': admission.canonical(value).decode()}]}
         except admission.Denied:
             raise

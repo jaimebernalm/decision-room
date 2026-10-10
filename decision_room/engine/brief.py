@@ -11,6 +11,11 @@ from pathlib import Path
 from ..memory import context
 
 VERSION = 'v1-brief-1'
+QUESTIONS_VERSION = 'v1-brief-1q'
+QUESTIONS = ('Si te falta un dato que solo yo puedo darte y que cambiaría una conclusión, puedes hacerme una pregunta '
+             'breve con preguntar_dueno, con su motivo y, si ayuda, opciones. Hazlo como mucho una vez y no sigas '
+             'calculando mientras esperas. Si respondo «no lo sé» o prefiero no responder, mantén la conclusión parcial '
+             'y dilo como límite. Mi respuesta es una declaración mía, no una cifra comprobada.')
 FIXED = Path(__file__).resolve().parents[2] / 'engine/opencode/prompts/informe.md'
 DATA = 'Los CSV están en la carpeta /inputs/datos; /inputs/manifest.json indica qué tabla es cada archivo.'
 PANORAMA = ('En la carpeta /inputs/contexto tienes panorama.md, un resumen calculado automáticamente a partir de '
@@ -87,7 +92,7 @@ def facts(rows):
             and r['content'].get('temporal_scope') != 'unresolved']
 
 
-def compose(*, name, description, goal, model, memory, panorama):
+def compose(*, name, description, goal, model, memory, panorama, questions=False):
     declared, unknown = meanings(model)
     first = [identity(name, description), DATA]
     if panorama:
@@ -96,6 +101,8 @@ def compose(*, name, description, goal, model, memory, panorama):
     if unknown:
         first.append(UNKNOWN)
     first.append(LIMITS)
+    if questions:
+        first.append(QUESTIONS)
     paragraphs = [' '.join(first)]
     remembered = facts(memory)
     if remembered:
@@ -104,7 +111,7 @@ def compose(*, name, description, goal, model, memory, panorama):
     return '\n\n'.join(paragraphs) + '\n\n' + FIXED.read_text()
 
 
-def build(db, business, analysis, *, goal, panorama, name=None, description=None, profile_revision=None):
+def build(db, business, analysis, *, goal, panorama, name=None, description=None, profile_revision=None, questions=False):
     """Read the product inputs once, under the caller's transaction, and return text + provenance.
 
     ``name``/``description`` come from the job when it froze them at creation; otherwise
@@ -125,8 +132,8 @@ def build(db, business, analysis, *, goal, panorama, name=None, description=None
     selection = dict(analysis_id=str(analysis), source_ids=sources, period=context.period())
     memory = context.scoped(context.effective(db, business), selection)
     text = compose(name=owner['name'], description=owner['description'], goal=goal,
-                   model=model, memory=memory, panorama=panorama)
-    provenance = dict(version=VERSION, profile='job' if frozen else 'current', profile_revision=owner['profile_revision'],
+                   model=model, memory=memory, panorama=panorama, questions=questions)
+    provenance = dict(version=QUESTIONS_VERSION if questions else VERSION, profile='job' if frozen else 'current', profile_revision=owner['profile_revision'],
                       data_model=dict(analysis_id=str(analysis), revision=head['revision']) if model else None,
                       memory=sorted(r['reference'] for r in memory if facts([r])),
                       panorama=bool(panorama))

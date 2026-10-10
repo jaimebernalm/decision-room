@@ -6,17 +6,24 @@ from . import admission, profile
 
 
 def selection(config, data, old=None):
+    questions = data.get('engine_questions', False)
+    if type(questions) is not bool:
+        raise ValueError('Questions must be an explicit boolean.')
     explicit = data.get('engine_kind')
     if 'engine_kind' in data and explicit not in ('legacy', 'opencode'):
         raise ValueError('Unknown report engine.')
     if old:
         if explicit is not None and explicit != old['engine_kind']:
             raise ValueError('The job engine is already fixed.')
+        if 'engine_questions' in data and questions != bool(old['engine_config'].get('profile', {}).get('questions')):
+            raise ValueError('The job question profile is already fixed.')
         return old['engine_kind'], old['engine_config']
     kind = explicit if explicit is not None else config.report_engine
     if kind == 'legacy':
+        if questions:
+            raise ValueError('Engine questions require an engine job.')
         return kind, {}
-    settings = profile.configuration()
+    settings = profile.configuration(questions=questions)
     if not re.fullmatch(r'sha256:[0-9a-f]{64}', settings['image_id']):
         raise ValueError('Configure a pinned engine image before creating engine jobs.')
     limits = admission.Limits(input_tokens=config.engine_input_tokens,

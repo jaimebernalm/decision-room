@@ -26,6 +26,17 @@ class EngineJobTests(unittest.TestCase):
         p = patch.dict('os.environ', {'DECISION_ROOM_ENGINE_IMAGE_ID': 'sha256:'+'a'*64})
         p.start(); self.addCleanup(p.stop)
 
+    def test_question_opt_in_is_versioned_immutable_and_not_a_legacy_option(self):
+        self.pinned()
+        job = self.create(engine_kind='opencode', engine_questions=True)
+        row = self.ws.row(job)
+        self.assertTrue(row['engine_config']['profile']['questions'])
+        self.assertEqual(row['engine_config']['profile']['version'], 'html-v1-questions-1')
+        with self.assertRaises(WebError):
+            self.create(engine_kind='opencode', engine_questions=False)
+        with self.assertRaises(WebError):
+            self.ws.create({**self.metadata, 'request_key': str(uuid4()), 'engine_questions': True}, 'sales.csv', self.csv)
+
     def test_single_batch_dataset_selection_and_retry_after_default_change(self):
         self.pinned()
         single = self.create(engine_kind='opencode')

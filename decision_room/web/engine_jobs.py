@@ -43,7 +43,7 @@ def inputs(config, job):
 
     def builder(db):
         text, provenance = brief.build(db, business, analysis, goal=job['engine_config']['goal'],
-                                       panorama=available, **owner)
+                                       panorama=available, questions=job['engine_config'].get('profile', {}).get('questions', False), **owner)
         provenance['panorama'] = {k: v for k, v in panorama.items() if k != 'markdown'}
         return text, provenance
     return builder, ({'panorama.md': panorama['markdown']} if available else None)
