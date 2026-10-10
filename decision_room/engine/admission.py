@@ -99,6 +99,8 @@ def create_run(config, business_id, analysis_id, *, table_ids, owner_context, re
     if not isinstance(model, str) or not 1 <= len(model) <= 128:
         raise ValueError('A fixed model is required.')
     with connect(config) as db, db.transaction():
+        from ..memory import service as memory
+        memory.lock(db, business_id)
         lock = int.from_bytes(hashlib.sha256(canonical([str(business_id), request_key])).digest()[:8], 'big', signed=True)
         db.execute('SELECT pg_advisory_xact_lock(%s)', (lock,))
         snapshot = _snapshot(db, config, business_id, analysis_id, table_ids)
@@ -118,6 +120,8 @@ def create_run(config, business_id, analysis_id, *, table_ids, owner_context, re
                     model, Jsonb(snapshot), sha(canonical(snapshot)), Jsonb(asdict(limits)), sha(token.encode()), Jsonb(settings), prompt, sha(prompt.encode()),
                     Jsonb(context), sha(canonical({"snapshot": snapshot, "context": context}))))
         _event(db, run_id, 'created', {})
+        from ..reports.store import capture
+        capture(db, business_id, analysis_id, run_id, snapshot)
         return run_id, token
 
 

@@ -1042,3 +1042,102 @@ DROP TRIGGER IF EXISTS web_job_engine_immutable ON web_jobs;
 CREATE TRIGGER web_job_engine_immutable BEFORE UPDATE ON web_jobs
     FOR EACH ROW EXECUTE FUNCTION keep_web_job_engine();
 INSERT INTO schema_versions(version) VALUES (32) ON CONFLICT DO NOTHING;
+
+-- F1 gradual registry: HTML only. Legacy IDs, tables and presentation FKs stay intact.
+CREATE TABLE IF NOT EXISTS engine_report_contexts (
+    run_id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    selection jsonb NOT NULL,
+    memories jsonb NOT NULL,
+    data_models jsonb NOT NULL,
+    table_versions jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    FOREIGN KEY(business_id,run_id) REFERENCES engine_runs(business_id,id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS engine_documents_source ON engine_documents(business_id,id,run_id);
+CREATE UNIQUE INDEX IF NOT EXISTS engine_revisions_source ON engine_document_revisions(business_id,document_id,id);
+CREATE TABLE IF NOT EXISTS report_documents (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    analysis_id uuid NOT NULL,
+    origin text NOT NULL CHECK(origin='engine_html'),
+    source_run_id uuid NOT NULL UNIQUE,
+    current_revision_id uuid,
+    stale_reason text,
+    deleted_at timestamptz,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    FOREIGN KEY(business_id,analysis_id) REFERENCES analyses(business_id,id),
+    FOREIGN KEY(business_id,id,source_run_id) REFERENCES engine_documents(business_id,id,run_id),
+    UNIQUE(business_id,id),
+    UNIQUE(business_id,source_run_id,id)
+);
+CREATE TABLE IF NOT EXISTS report_document_revisions (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    document_id uuid NOT NULL,
+    ordinal integer NOT NULL CHECK(ordinal>0),
+    raw_sha256 text NOT NULL CHECK(raw_sha256 ~ '^[0-9a-f]{64}$'),
+    raw_bytes integer NOT NULL CHECK(raw_bytes BETWEEN 0 AND 262144),
+    profile_version text NOT NULL,
+    presentation_state text NOT NULL CHECK(presentation_state='not_evaluated'),
+    verification_state text NOT NULL CHECK(verification_state='not_requested'),
+    derived_version integer NOT NULL CHECK(derived_version=0),
+    canonical_text text CHECK(canonical_text IS NULL),
+    canonical_sha256 text CHECK(canonical_sha256 IS NULL),
+    created_at timestamptz NOT NULL,
+    FOREIGN KEY(business_id,document_id) REFERENCES report_documents(business_id,id),
+    FOREIGN KEY(business_id,document_id,id) REFERENCES engine_document_revisions(business_id,document_id,id),
+    UNIQUE(document_id,ordinal),
+    UNIQUE(business_id,document_id,id)
+);
+ALTER TABLE report_documents DROP CONSTRAINT IF EXISTS report_document_head;
+ALTER TABLE report_documents ADD CONSTRAINT report_document_head
+    FOREIGN KEY(business_id,id,current_revision_id) REFERENCES report_document_revisions(business_id,document_id,id);
+ALTER TABLE web_jobs DROP CONSTRAINT IF EXISTS web_jobs_report_document_fk;
+ALTER TABLE web_jobs ADD CONSTRAINT web_jobs_report_document_fk
+    FOREIGN KEY(business_id,engine_run_id,report_document_id) REFERENCES report_documents(business_id,source_run_id,id);
+ALTER TABLE web_jobs DROP CONSTRAINT IF EXISTS web_jobs_report_document_kind;
+ALTER TABLE web_jobs ADD CONSTRAINT web_jobs_report_document_kind
+    CHECK(report_document_id IS NULL OR (engine_kind='opencode' AND engine_run_id IS NOT NULL));
+CREATE UNIQUE INDEX IF NOT EXISTS web_jobs_report_document_unique ON web_jobs(report_document_id);
+CREATE OR REPLACE FUNCTION keep_report_revision() RETURNS trigger AS $$
+BEGIN
+    RAISE EXCEPTION 'Report source and revision are immutable';
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS engine_report_context_immutable ON engine_report_contexts;
+CREATE TRIGGER engine_report_context_immutable BEFORE UPDATE OR DELETE ON engine_report_contexts
+    FOR EACH ROW EXECUTE FUNCTION keep_report_revision();
+DROP TRIGGER IF EXISTS engine_report_raw_immutable ON engine_document_revisions;
+CREATE TRIGGER engine_report_raw_immutable BEFORE UPDATE OR DELETE ON engine_document_revisions
+    FOR EACH ROW EXECUTE FUNCTION keep_report_revision();
+DROP TRIGGER IF EXISTS report_revision_immutable ON report_document_revisions;
+CREATE TRIGGER report_revision_immutable BEFORE UPDATE OR DELETE ON report_document_revisions
+    FOR EACH ROW EXECUTE FUNCTION keep_report_revision();
+CREATE OR REPLACE FUNCTION keep_report_document_source() RETURNS trigger AS $$
+BEGIN
+    IF (NEW.id,NEW.business_id,NEW.analysis_id,NEW.origin,NEW.source_run_id,NEW.created_at)
+        IS DISTINCT FROM (OLD.id,OLD.business_id,OLD.analysis_id,OLD.origin,OLD.source_run_id,OLD.created_at) THEN
+        RAISE EXCEPTION 'Report source is immutable';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS report_document_source_immutable ON report_documents;
+CREATE TRIGGER report_document_source_immutable BEFORE UPDATE ON report_documents
+    FOR EACH ROW EXECUTE FUNCTION keep_report_document_source();
+CREATE OR REPLACE FUNCTION keep_web_job_engine() RETURNS trigger AS $$
+BEGIN
+    IF NEW.engine_kind IS DISTINCT FROM OLD.engine_kind OR NEW.engine_config IS DISTINCT FROM OLD.engine_config THEN
+        RAISE EXCEPTION 'Job engine configuration is immutable';
+    END IF;
+    IF OLD.engine_run_id IS NOT NULL AND NEW.engine_run_id IS DISTINCT FROM OLD.engine_run_id THEN
+        RAISE EXCEPTION 'Job engine run identity is immutable';
+    END IF;
+    IF OLD.report_document_id IS NOT NULL AND NEW.report_document_id IS DISTINCT FROM OLD.report_document_id THEN
+        RAISE EXCEPTION 'Job report identity is immutable';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+INSERT INTO schema_versions(version) VALUES (33) ON CONFLICT DO NOTHING;

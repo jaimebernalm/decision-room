@@ -15,10 +15,15 @@ def reconcile(workspace, job):
         if not job['engine_run_id']:
             workspace.update(job['id'], engine_run_id=row['id'])
             job = workspace.row(job['id'])
+        from ..reports.store import adopt
+        adopt(workspace.config, job['business_id'], row['id'])
+        job = workspace.row(job['id'])
     return job
 
 
 def apply_state(workspace, job, state):
+    from ..reports.store import adopt
+    adopt(workspace.config, job['business_id'], job['engine_run_id'])
     status = state['status']
     mapped = {'running': 'running', 'pausing': 'running', 'waiting': 'waiting',
               'delivered': 'completed', 'failed': 'failed', 'aborted': 'blocked'}[status]
