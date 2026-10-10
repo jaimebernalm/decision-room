@@ -207,3 +207,27 @@ class ChatEngineCreationTests(unittest.TestCase):
         self.assertEqual(row['engine_kind'], 'opencode')
         self.assertEqual(row['origin'], 'chat')
         self.assertEqual(row['engine_config']['profile']['image_id'], 'sha256:'+'b'*64)
+
+    def test_completed_chat_engine_delivery_is_metadata_only_and_later_stale(self):
+        from decision_room.conversations import Conversations
+        from decision_room.memory import service as memory
+        from tests.test_memory import content
+        self.ws.config=replace(self.config,report_engine='opencode')
+        self.chats=Conversations(self.ws.scoped(self.b))
+        dataset=self.batch(); chat=self.chat(dataset)
+        with patch.dict('os.environ', {'DECISION_ROOM_ENGINE_IMAGE_ID':'sha256:'+'b'*64}):
+            turn=self.send(chat,'Calculate the total',entry_intent='analysis')
+        self.pinned=EngineJobTests.pinned.__get__(self)
+        EngineJobTests.fake_runtime(self)
+        self.ws.run_job(turn['job_id'])
+        self.chats.run(turn['id'])
+        delivered=self.chats.detail(chat)['turns'][-1]
+        self.assertEqual(delivered['status'],'completed')
+        self.assertEqual(delivered['response']['kind'],'report_status')
+        self.assertNotIn('report_id',delivered['response'])
+        self.assertNotIn('claims',delivered['response'])
+        self.assertEqual(self.ws.listing()[0]['report_document_id'],self.ws.row(turn['job_id'])['report_document_id'])
+        self.assertEqual(self.chats.report(chat,turn['id'],structured=True)['origin'],'engine_html')
+        with self.assertRaises(WebError): self.chats.report(chat,turn['id'],structured=True,purpose='pdf')
+        memory.change(self.config,self.b,action='declare',request_key=uuid4().hex,content=content())
+        self.assertEqual(self.chats.detail(chat)['turns'][-1]['status'],'stale')

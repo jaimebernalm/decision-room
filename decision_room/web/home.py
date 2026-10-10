@@ -53,7 +53,9 @@ def collect(ws):
     listing = ws.listing()
     items, sources = [], []
     # Bounded catalogue; unlike the report viewer, home can combine reviewed sources.
-    eligible = [x for x in listing if x['status'] == 'completed']
+    accesses = [dict(id=str(x['id']),title=x['title'],href='#report/'+str(x['id']),state=x['engine_report']['state'])
+                for x in listing if x.get('engine_report') and x['engine_report']['is_current']]
+    eligible = [x for x in listing if x['status'] == 'completed' and x.get('engine_kind')!='opencode']
     pinned_sources = {x.split(':', 1)[0] for x in load(ws)['layout'].get('pinned', [])}
     candidates = eligible[:20] + [x for x in eligible[20:] if str(x['id']) in pinned_sources]
     for item in candidates:
@@ -91,7 +93,7 @@ def collect(ws):
         facts = [f['content']
                  for f in memory.current(db, business) if f['status'] == 'declared'][:30]
     context = {'name': profile['name'], 'description': profile['description'], 'facts': facts}
-    return dict(items=items, sources=sources, context=context,
+    return dict(items=items, sources=sources, report_accesses=accesses, context=context,
                 fingerprint=signature([items, context]), activity=ws.daily_activity(listing),
                 limited=len(eligible) > 20)
 
@@ -122,6 +124,7 @@ def view(ws, catalogue=None, saved_row=None):
     available = {x['id'] for x in data['items']}
     saved = layout.get('selected', initial(data['items']))
     return {**{k: data[k] for k in ('items', 'sources', 'fingerprint', 'activity', 'limited')},
+            'report_accesses': data.get('report_accesses',[]),
             'business_id': str(ws.business_id()), 'revision': row['revision'],
             'selected': [x for x in saved if x in available],
             'pinned': [x for x in layout.get('pinned', []) if x in available],

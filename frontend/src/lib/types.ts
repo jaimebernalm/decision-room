@@ -34,6 +34,8 @@ export type Analysis = {
   created_at: string;
   status: string;
   presentation_status?: string;
+  engine_kind?: "legacy" | "opencode";
+  engine_report?: EngineReportMetadata;
   conversation_id?: string;
   data_version?: Dataset;
 };
@@ -122,7 +124,27 @@ export type Presentation = {
     created_at: string | null;
   }[];
 };
+export type EngineReportMetadata = {
+  document_id: string;
+  revision_id: string;
+  state: "current" | "withdrawn" | "historical" | "incomplete";
+  is_current: boolean;
+  run_status: string;
+  raw_sha256: string;
+  raw_bytes: number;
+  profile_version: string;
+  history: {
+    id: string;
+    ordinal: number;
+    raw_sha256: string;
+    raw_bytes: number;
+    delivery_via: string;
+    created_at: string;
+  }[];
+};
 export type Report = {
+  origin?: "engine_html";
+  engine_report?: EngineReportMetadata;
   presentation?: Presentation;
   partial?: boolean;
   report_id?: string;
@@ -370,6 +392,12 @@ export type HomeItem = { id: string; title: string; source: HomeSource } & (
   | { kind: "insight"; content: Claim }
 );
 export type HomeDashboard = {
+  report_accesses?: {
+    id: string;
+    title: string;
+    href: string;
+    state: string;
+  }[];
   business_id: string;
   revision: number;
   fingerprint: string;

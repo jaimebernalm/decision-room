@@ -31,8 +31,10 @@ documento y filas mutables. El token del motor no es una autoridad de lectura.
 Borrar/restaurar cambia la visibilidad de trabajo y documento en una transacción;
 restaurar no elimina una retirada previa.
 
-La vigencia compara las dependencias congeladas, los hashes de los archivos y el
-estado de los datos. Cambios aplicables de memoria o definiciones, correcciones,
+La vigencia compara las dependencias congeladas y el estado de los datos.
+Al adoptar una revisión nueva y en `audit()` se comprueban también los hashes de
+los archivos. Las lecturas de metadatos solo consultan versiones y presencia, sin
+hashear CSV/Parquet ni persistir retirada bajo un lock compartido. Cambios aplicables de memoria o definiciones, correcciones,
 sustituciones y archivos ausentes retiran el informe. Se conservan la instantánea
 y el histórico, sin recalcularlo ni modificar runs activos o en espera.
 
@@ -51,3 +53,34 @@ falsos y sandbox local. Incluyen rechazo cruzado entre negocio/documento/revisi�
 archivos ausentes y restaurados, retirada de memoria aplicable sin modificar runs
 activos, revisión histórica exacta, lectura concurrente con adopción y borrado/
 restauración sin recuperar vigencia. También pasan dossier y contexto legacy.
+
+
+## Superficies de metadatos
+
+Listado, búsqueda por metadatos del dueño, detalle, fuentes e Inicio resuelven el
+registro HTML sin usar IDs del revisor legacy. Inicio ofrece solo enlace y estado;
+sus candidatos y fijados legacy permanecen separados. Las revisiones históricas
+se resuelven por UUID exacto y el detalle conserva hashes y vías de entrega.
+El chat registra una respuesta de estado con el documento y revisión, sin claims,
+evidencia ni contenido canónico del agente; las referencias legacy conservan sus
+IDs y hashes. Una respuesta de estado se retira cuando el documento deja de ser
+actual.
+
+La UI muestra entrega guardada, incompleta o retirada, sin «Revisado». El HTML
+bruto y PDF están bloqueados por la misma guarda; la vista solo recibe metadatos.
+El texto del dueño se escapa por React y no hay iframe ni montaje del HTML. La
+edición de presentaciones HTML espera F4 y los PDF v1 la fase posterior acordada.
+Una ausencia de archivos detectada en una lectura impide vigencia sin escribir;
+solo un evento del producto o la auditoría explícita registra una retirada
+permanente. F4 deberá hacer la comprobación profunda antes del uso de contenido.
+El writer de definiciones ya invoca `context.invalidate` desde `persist`; ese
+hook incluye ahora la retirada de los informes HTML en la misma transacción.
+
+Validación de superficies: 22 pruebas de metadatos/Inicio/motor sin fallos; tras
+ampliar a 130 pruebas de chat y web se detectó un cambio no deseado en la lectura
+legacy de la papelera. Se restauró ese comportamiento y pasan las 17 pruebas de
+motor/guardas/superficies más el caso de papelera. Se comprobaron también las
+rutas HTML/PDF bloqueadas, UUID de revisión exacto, fuentes, búsqueda, negocio
+ajeno, chat de estado y retirada por definición escrita. La regresión completa
+se ejecuta en el cierre. UI: 305 pruebas sin fallos; TypeScript, Vite y oxlint
+pasan (avisos preexistentes de Fast Refresh y tamaño de bundle).

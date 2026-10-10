@@ -24,9 +24,9 @@ def read_lock(config, business_id, session_id):
 def read_job(workspace, job_id, *, revision=None, deleted=False):
     """Common dispatch, preserving legacy parent coordination and identifiers."""
     job = workspace.row(job_id)
-    if not deleted and job['deleted_at']:
-        raise WebError('Informe no encontrado.',404)
     if job['engine_kind']=='opencode':
+        if not deleted and job['deleted_at']:
+            raise WebError('Informe no encontrado.',404)
         if not job['report_document_id']:
             raise WebError('El informe todavía no tiene una entrega registrada.',409)
         from ..reports.reading import read

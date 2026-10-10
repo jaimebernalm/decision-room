@@ -746,7 +746,14 @@ class Conversations:
                     ):
                         value['context_changed_before'] = True
                     previous_snapshot = t['snapshot']
-                if t['response'] and t['response'].get('report_id'):
+                if t['response'] and t['response'].get('kind')=='report_status':
+                    try:
+                        job=self.ws.row(t['job_id'])
+                        engine_metadata=self.ws.engine_metadata(job,revision=t['response']['revision_id'])
+                        valid=bool(engine_metadata and engine_metadata['is_current'] and engine_metadata['document_id']==t['response']['report_document_id'])
+                    except WebError:
+                        valid=False
+                elif t['response'] and t['response'].get('report_id'):
                     r = reviewed(self.config, self.business, t['response']['report_id'])
                     valid = r['publishable'] and r['approved_sha256'] == t['response'].get('report_version')
                     if valid and t['response']['kind'] == 'evidence':
@@ -863,9 +870,15 @@ class Conversations:
         self.ws.wake.set()
         return {'saved': True}
 
-    def report(self, chat_id, turn_id, data=None, *, structured=False):
+    def report(self, chat_id, turn_id, data=None, *, structured=False, purpose='view'):
         if data is not None:
             self.guard(data)
+        with connect(self.config) as lookup:
+            found = self.turn(lookup,chat_id,turn_id)
+            job = lookup.execute('SELECT id,engine_kind FROM web_jobs WHERE id=%s AND business_id=%s',
+                                 (found['job_id'],self.business)).fetchone() if found['job_id'] else None
+        if job and job['engine_kind']=='opencode':
+            return self.ws.report(job['id'],structured=structured,purpose=purpose)
         with connect(self.config) as db, db.transaction():
             t = self.turn(db, chat_id, turn_id)
             memory.lock(db, self.business)
@@ -1207,7 +1220,14 @@ class Conversations:
                     # Snapshot captures the clarification's current memory; history is still labelled as a quote.
                     saved = snapshot(db, self.business, chat['analysis_id'], turn['payload']['text'])
                     db.execute('UPDATE chat_turns SET snapshot=%s WHERE id=%s', (Jsonb(saved), turn_id))
-                    if job['publishable']:
+                    if job.get('engine_kind')=='opencode' and job['status']=='completed' and job.get('engine_report'):
+                        value=job['engine_report']
+                        self._save(db,turn,'completed',dict(kind='report_status',
+                            text='La entrega del informe está guardada. Puedes consultar su estado y metadatos; la presentación todavía no está disponible.',
+                            report_document_id=value['document_id'],revision_id=value['revision_id'],raw_sha256=value['raw_sha256']))
+                        if self._entry_intent(db,turn)=='analysis':
+                            db.execute('UPDATE chat_turns SET report_requested=true WHERE id=%s',(turn['id'],))
+                    elif job['publishable']:
                         row = self.ws.row(turn['job_id'])
                         delivery = brief(self.ws.review_state(row), ws=self.ws, db=db)
                         setup = db.execute('SELECT 1 FROM onboarding_sessions WHERE business_id=%s AND job_id=%s',

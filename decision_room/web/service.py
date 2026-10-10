@@ -466,9 +466,26 @@ class Workspace:
                     return self.sync(job_id)
         return j
 
+    def engine_metadata(self, job, *, revision=None, deleted=False, history=False):
+        if not job['report_document_id']:
+            return None
+        from .report_access import read_job
+        from ..reports.reading import metadata
+        with read_job(self,job['id'],revision=revision,deleted=deleted) as (db,_,pair):
+            return metadata(db,*pair,history=history)
+
     def public(self, j):
         fields = ('id', 'business_id', 'analysis_id', 'title', 'business', 'context', 'goal', 'filename', 'byte_count', 'status', 'phase', 'created_at', 'updated_at', 'issue', 'origin')
         result = {key: j[key] for key in fields}
+        result['engine_kind'] = j['engine_kind']
+        result['report_document_id'] = j['report_document_id']
+        if j['engine_kind']=='opencode':
+            value = self.engine_metadata(j,deleted=True)
+            result['engine_report'] = value
+            if value:
+                result['presentation_status'] = 'saved' if value['is_current'] else value['state']
+                if j['status']=='completed' and not value['is_current']:
+                    result.update(status='blocked',issue='Esta entrega se conserva como registro y no es un informe vigente.')
         from ..observability.store import linked
         with connect(self.config) as db:
             trace=linked(db,j['business_id'],'job',j['id'])
@@ -503,7 +520,7 @@ class Workspace:
             LOG.exception('Cannot read evidence for web job %s', j['id'])
             return {'publishable': False, 'pending_questions': [], 'unavailable': True}
 
-    def listing(self, *, deleted=False):
+    def listing(self, *, deleted=False, query=''):
         with connect(self.config) as db:
             rows = db.execute("SELECT w.*,w.business_name AS business FROM web_jobs w WHERE w.business_id=%s AND (w.deleted_at IS NOT NULL)=%s AND (w.origin='upload' OR EXISTS (SELECT 1 FROM chat_turns t WHERE t.business_id=w.business_id AND (t.job_id=w.id OR t.response->>'report_id'=w.review_id::text) AND t.report_requested)) ORDER BY w.created_at DESC",
                               (self.business_id(), deleted)).fetchall()
@@ -519,7 +536,11 @@ class Workspace:
                 else:
                     item.update(status='blocked', presentation_status='withdrawn', phase='review', issue='Informe retirado: necesita un nuevo cálculo y revisión.')
             result.append(item)
-        return result
+        if not isinstance(query,str) or len(query)>300:
+            raise WebError('La búsqueda no es válida.')
+        from ..conversations import library_query
+        term=library_query(query.strip())
+        return [item for item in result if not term or term in library_query(' '.join(str(item.get(k) or '') for k in ('title','goal','filename')))]
 
     def delete_report(self, job_id, data, *, restore=False):
         from .dossier import guard
@@ -584,7 +605,10 @@ class Workspace:
         """One currently publishable revision, scoped to the active business."""
         listing = self.listing()
         activity = self.daily_activity(listing)
-        reports = [item for item in listing if item['status'] == 'completed']
+        accesses = [dict(id=str(item['id']),title=item['title'],href='#report/'+str(item['id']),
+                         state=item['engine_report']['state']) for item in listing
+                    if item.get('engine_report',{} ) and item['engine_report']['is_current']]
+        reports = [item for item in listing if item['status'] == 'completed' and item.get('engine_kind')!='opencode']
         choices = [{'id': str(item['id']), 'title': item['title'],
                     'created_at': item['created_at']} for item in reports]
         requested = identifier(selected) if selected else None
@@ -601,7 +625,7 @@ class Workspace:
                     reviewed = self.review_state(job, _db=db)
                     content = dashboard_projection(reviewed)
                     if content:
-                        return {'reports': choices, 'activity': activity, 'report_id': str(reviewed['id']),
+                        return {'reports': choices, 'report_accesses': accesses, 'activity': activity, 'report_id': str(reviewed['id']),
                                 'report_version': reviewed['approved_sha256'], 'analysis_id': str(job['analysis_id']),
                                 'selected_id': str(job['id']),
                                 'report': content, 'created_at': job['created_at'],
@@ -609,7 +633,7 @@ class Workspace:
             except ValueError:
                 # The review may be running or changing. Show no stale content.
                 continue
-        return {'reports': choices, 'activity': activity, 'selected_id': None, 'report': None}
+        return {'reports': choices, 'report_accesses': accesses, 'activity': activity, 'selected_id': None, 'report': None}
 
     def detail(self, job_id):
         j = self.sync(job_id)
@@ -620,6 +644,10 @@ class Workspace:
         if j['analysis_id']:
             data = ingestion.describe(self.config, b, j['analysis_id'])
             result['files'] = [{k: f[k] for k in ('original_names', 'status', 'row_count', 'column_count')} for f in data['files']]
+        if j['engine_kind']=='opencode':
+            result['engine_report'] = self.engine_metadata(j,deleted=True,history=True)
+            result['can_retry'] = False
+            return result
         if j['session_id']:
             plan = planning.show(self.config, b, j['session_id'])
             result['questions'] = [{'id': q['id'], 'phase': 'planning', 'text': q['text'], 'reason': q['reason'], 'options': q['options'], 'references': q.get('references', [])} for q in plan['questions']]
@@ -739,13 +767,22 @@ class Workspace:
         self.wake.set()
         return {'saved': True}
 
-    def report(self, job_id, *, structured=False):
+    def report(self, job_id, *, structured=False, revision=None, purpose='view'):
         j = self.row(job_id)
+        if j['engine_kind']=='opencode':
+            j = self.sync(job_id)
+            from .report_access import read_job
+            from ..reports import reading
+            with read_job(self,job_id,revision=revision) as (db,_,pair):
+                if not structured or purpose!='view':
+                    reading.blocked_content()
+                value = reading.metadata(db,*pair)
+                return reading.presentation(*pair,value)
         if not j['review_id']:
             raise WebError('El informe todavía no está disponible.', 409)
         # Export uses the same parent lock; approval is rechecked on every request.
-        from .report_access import read_lock
-        with read_lock(self.config, j['business_id'], j['session_id']) as (db, _), db.transaction():
+        from .report_access import read_job
+        with read_job(self,job_id,revision=revision) as (db,_,_), db.transaction():
             memory.lock(db, j['business_id'])
             data = self.review_state(j, _db=db)
             if not data['publishable']:

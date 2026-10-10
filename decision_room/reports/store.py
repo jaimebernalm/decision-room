@@ -49,19 +49,22 @@ def adopt(config, business, run):
             (document, business, source['analysis_id'], run))
         revisions = db.execute('''SELECT * FROM engine_document_revisions
             WHERE business_id=%s AND document_id=%s ORDER BY ordinal''', (business, document)).fetchall()
+        added = False
         for row in revisions:
             raw = bytes(row['raw'])
             if admission.sha(raw) != row['raw_sha256']:
                 raise ValueError('Report receipt failed its integrity check.')
-            db.execute('''INSERT INTO report_document_revisions
+            inserted = db.execute('''INSERT INTO report_document_revisions
                 (id,business_id,document_id,ordinal,raw_sha256,raw_bytes,profile_version,
                  presentation_state,verification_state,derived_version,created_at)
                 VALUES (%s,%s,%s,%s,%s,%s,%s,'not_evaluated','not_requested',0,%s)
                 ON CONFLICT(id) DO NOTHING''',
                 (row['id'], business, document, row['ordinal'], row['raw_sha256'], len(raw),
                  source['profile']['version'], row['created_at']))
+            added = added or inserted.rowcount > 0
         registered = db.execute('SELECT * FROM report_documents WHERE id=%s', (document,)).fetchone()
-        retire(db,registered,config=config)
+        if added:
+            retire(db,registered,config=config,deep=True)
         baseline = db.execute('SELECT 1 FROM engine_report_contexts WHERE run_id=%s AND business_id=%s', (run,business)).fetchone()
         if not baseline:
             db.execute("UPDATE report_documents SET stale_reason=coalesce(stale_reason,'missing_context') WHERE id=%s", (document,))
@@ -75,7 +78,7 @@ def adopt(config, business, run):
         return document
 
 
-def reason(db, document, *, config=None):
+def reason(db, document, *, config=None, deep=False):
     """Compare frozen dependencies, never recalculate or alter a run snapshot."""
     if document['stale_reason']:
         return document['stale_reason']
@@ -108,21 +111,23 @@ def reason(db, document, *, config=None):
         source = db.execute('SELECT snapshot FROM engine_runs WHERE business_id=%s AND id=%s',
                             (business,document['source_run_id'])).fetchone()['snapshot']
         try:
-            if admission._snapshot(db,config,business,document['analysis_id'],[UUID(v) for v in baseline['table_versions']]) != source:
+            if deep and admission._snapshot(db,config,business,document['analysis_id'],[UUID(v) for v in baseline['table_versions']]) != source:
                 return 'data_changed'
-            originals = db.execute('''SELECT DISTINCT s.original_key,s.sha256 FROM sources s
+            originals = db.execute('''SELECT DISTINCT s.original_key,s.sha256,p.parquet_key FROM sources s
                 JOIN prepared_tables p ON p.source_id=s.id AND p.business_id=s.business_id
                 WHERE p.business_id=%s AND p.id=ANY(%s::uuid[])''',
                 (business,list(baseline['table_versions']))).fetchall()
-            if any(digest(storage.path(business,r['original_key'])) != r['sha256'] for r in originals):
+            if any(not storage.path(business,r[key]).is_file() for r in originals for key in ('original_key','parquet_key')):
+                return 'data_unavailable'
+            if deep and any(digest(storage.path(business,r['original_key'])) != r['sha256'] for r in originals):
                 return 'data_unavailable'
         except (OSError,ValueError):
             return 'data_unavailable'
     return None
 
 
-def retire(db, document, *, config=None):
-    problem = reason(db,document,config=config)
+def retire(db, document, *, config=None, deep=False):
+    problem = reason(db,document,config=config,deep=deep)
     if problem and not document['stale_reason']:
         db.execute('UPDATE report_documents SET stale_reason=%s WHERE business_id=%s AND id=%s',
                    (problem,document['business_id'],document['id']))
@@ -141,3 +146,15 @@ def invalidate(db, business):
 def is_current(document, revision, run_status):
     return bool(revision and document['current_revision_id']==revision['id'] and
                 run_status=='delivered' and not document['stale_reason'] and not document['deleted_at'])
+
+
+def audit(config, business, document):
+    """Explicit integrity inspection, outside metadata reads; no provider call."""
+    business,document=UUID(str(business)),UUID(str(document))
+    with connect(config) as db, db.transaction():
+        row=db.execute('SELECT * FROM report_documents WHERE business_id=%s AND id=%s',(business,document)).fetchone()
+        if not row:
+            raise ValueError('Report does not belong to this business.')
+        memory.lock(db,business); lock(db,document)
+        row=db.execute('SELECT * FROM report_documents WHERE business_id=%s AND id=%s',(business,document)).fetchone()
+        return retire(db,row,config=config,deep=True)

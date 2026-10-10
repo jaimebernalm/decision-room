@@ -151,7 +151,13 @@ export function Presentation({
   return (
     <>
       <Heading title={tr("Informe del negocio")}>
-        <ReportDownload url={exportUrl} disabled={!data || Boolean(error)} />
+        {data?.origin === "engine_html" ? (
+          <p className="text-sm text-muted-foreground">
+            {tr("PDF no disponible todavía")}
+          </p>
+        ) : (
+          <ReportDownload url={exportUrl} disabled={!data || Boolean(error)} />
+        )}
       </Heading>
       <Notice error>{error}</Notice>
       <AnalysisActivity endpoint={activityPath} />

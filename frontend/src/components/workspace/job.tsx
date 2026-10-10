@@ -53,14 +53,16 @@ export function JobPage({
       <Heading
         title={
           onboarding
-            ? job.status === "waiting"
-              ? tr("Una aclaración antes de continuar")
-              : job.publishable
-                ? tr("Tu primer informe está listo")
-                : ["failed", "blocked"].includes(job.status) ||
-                    job.context_stale
-                  ? tr("Tu informe necesita atención")
-                  : tr("Tu primer informe, en preparación")
+            ? job.engine_report
+              ? tr("Entrega del informe guardada")
+              : job.status === "waiting"
+                ? tr("Una aclaración antes de continuar")
+                : job.publishable
+                  ? tr("Tu primer informe está listo")
+                  : ["failed", "blocked"].includes(job.status) ||
+                      job.context_stale
+                    ? tr("Tu informe necesita atención")
+                    : tr("Tu primer informe, en preparación")
             : job.title
         }
         description={`${date(job.created_at)} · ${job.filename}`}
@@ -77,6 +79,23 @@ export function JobPage({
         />
       </Heading>
       <Notice error>{resource.error || action.error || job.issue}</Notice>
+      {job.engine_report && (
+        <Card className="mb-6 shadow-none">
+          <CardHeader>
+            <CardTitle>{tr("Entrega conservada")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-4 text-sm">
+              {tr(
+                "Puedes consultar el estado y los metadatos. La presentación todavía no está disponible.",
+              )}
+            </p>
+            <Button asChild>
+              <a href={`#report/${id}`}>{tr("Abrir registro del informe")}</a>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
       {job.publishable && (
         <Card className="mb-6 shadow-none">
           <CardHeader>

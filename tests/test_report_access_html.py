@@ -53,6 +53,9 @@ class HtmlAccessTests(unittest.TestCase):
             path=Storage(self.config.storage).path(self.business,row[kind+'_key'])
             saved=path.read_bytes(); path.unlink()
             stale=self.view(receipt)
+            self.assertFalse(stale['is_current'])
+            store.audit(self.config,self.business,receipt['document_id'])
+            stale=self.view(receipt)
             self.assertFalse(stale['is_current']); self.assertEqual(stale['state'],'withdrawn')
             path.write_bytes(saved)
             self.assertFalse(self.view(receipt)['is_current'])
@@ -89,3 +92,14 @@ class HtmlAccessTests(unittest.TestCase):
         with ThreadPoolExecutor(max_workers=3) as pool:
             list(pool.map(lambda i: store.adopt(self.config,self.business,run) if i else self.view(last),range(3)))
         self.assertEqual(self.view(last)['revision_id'],last['revision_id'])
+
+    def test_definition_writer_retires_without_a_metadata_read(self):
+        from decision_room.data_knowledge import service as knowledge
+        original=knowledge.ensure(self.config,self.business,self.analysis)
+        run,receipt=self.delivered()
+        knowledge.change(self.config,self.business,self.analysis,original['revision'],'table',
+                         {'id':str(self.table),'columns':[{'name':'quantity','meaning':'Recorded units'}]})
+        with connect(self.config) as db:
+            document=db.execute('SELECT * FROM report_documents WHERE id=%s',(receipt['document_id'],)).fetchone()
+            self.assertEqual(document['stale_reason'],'definitions_changed')
+        self.assertFalse(self.view(receipt)['is_current'])

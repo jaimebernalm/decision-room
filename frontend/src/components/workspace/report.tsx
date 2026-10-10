@@ -422,6 +422,54 @@ export function ChartValues({ chart }: { chart: ChartData }) {
   );
 }
 
+function EngineReportView({ report }: { report: ReportData }) {
+  const metadata = report.engine_report!;
+  const labels = {
+    current: "Entrega guardada",
+    withdrawn: "Informe retirado",
+    historical: "Revisión anterior",
+    incomplete: "Entrega incompleta",
+  };
+  return (
+    <div className="space-y-6">
+      <Badge variant="outline">{tr(labels[metadata.state])}</Badge>
+      <h2 className="text-2xl font-semibold tracking-tight">{report.title}</h2>
+      <p>{tr(report.summary || "")}</p>
+      {metadata.state === "withdrawn" && (
+        <p>
+          {tr(
+            "Crea un análisis nuevo para usar los datos y definiciones actuales.",
+          )}
+        </p>
+      )}
+      <Disclosure title={tr("Registro de entrega")}>
+        <p className="mb-2 text-sm">
+          {tr("Revisión")}: {metadata.revision_id}
+        </p>
+        <p className="break-all font-mono text-xs">
+          SHA-256: {metadata.raw_sha256}
+        </p>
+        <p className="mt-2 text-sm">{metadata.raw_bytes} bytes</p>
+      </Disclosure>
+      <Disclosure title={tr("Historial de entregas")}>
+        <ul className="space-y-4">
+          {metadata.history.map((revision) => (
+            <li key={revision.id} className="text-sm">
+              <p>
+                {tr("Revisión")} {revision.ordinal} · {revision.raw_bytes} bytes
+                · {revision.delivery_via}
+              </p>
+              <p className="break-all font-mono text-xs">
+                {revision.raw_sha256}
+              </p>
+            </li>
+          ))}
+        </ul>
+      </Disclosure>
+    </div>
+  );
+}
+
 export function ReportView({
   report,
   compact = false,
@@ -514,6 +562,12 @@ export function ReportView({
       ))}{" "}
     </div>
   );
+  if (report.origin === "engine_html")
+    return report.engine_report ? (
+      <EngineReportView report={report} />
+    ) : (
+      <p>{tr("Registro de entrega no disponible")}</p>
+    );
   return (
     <div ref={root} className="space-y-6">
       <div>

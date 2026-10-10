@@ -25,7 +25,7 @@ def read(config, business, document, *, revision=None, deleted=False):
             WHERE d.business_id=%s AND d.id=%s''', (business,document)).fetchone()
         if not row or not deleted and (row['deleted_at'] or row['job_deleted_at']):
             raise WebError('Informe no encontrado.',404)
-        row['stale_reason'] = store.retire(db,row,config=config)
+        row['stale_reason'] = store.reason(db,row,config=config)
         params = [business,document]
         where = ''
         if revision:
@@ -43,15 +43,16 @@ def read(config, business, document, *, revision=None, deleted=False):
         yield db,row,selected
 
 
-def metadata(db, document, revision):
+def metadata(db, document, revision, *, history=True):
     current = store.is_current(document,revision,document['run_status'])
-    state = ('withdrawn' if document['stale_reason'] else 'current' if current else
-             'historical' if document['run_status']=='delivered' and document['current_revision_id'] else 'incomplete')
+    state = ('incomplete' if document['run_status']!='delivered' or not revision['raw_bytes'] else
+             'withdrawn' if document['stale_reason'] else 'current' if current else
+             'historical' if document['current_revision_id'] else 'incomplete')
     history = db.execute('''SELECT r.id,r.ordinal,r.raw_sha256,r.raw_bytes,r.created_at,s.delivery_via
         FROM report_document_revisions r JOIN engine_document_revisions s
         ON s.business_id=r.business_id AND s.document_id=r.document_id AND s.id=r.id
         WHERE r.business_id=%s AND r.document_id=%s ORDER BY r.ordinal''',
-        (document['business_id'],document['id'])).fetchall()
+        (document['business_id'],document['id'])).fetchall() if history else []
     return dict(origin='engine_html',document_id=str(document['id']),revision_id=str(revision['id']),
                 business_id=str(document['business_id']),analysis_id=str(document['analysis_id']),
                 source_run_id=str(document['source_run_id']),raw_sha256=revision['raw_sha256'],raw_bytes=revision['raw_bytes'],
@@ -65,3 +66,15 @@ def metadata(db, document, revision):
 
 def blocked_content():
     raise WebError('La presentación de este informe todavía no está disponible. Conservamos su entrega y sus metadatos.',409)
+
+
+def presentation(document, revision, value):
+    """Typed metadata envelope; empty evidence cannot be mistaken for extraction."""
+    summaries = {'current':'La entrega está guardada. Su presentación todavía no está disponible.',
+                 'withdrawn':'Los datos o la memoria aplicable han cambiado. Conservamos esta entrega como histórico.',
+                 'historical':'Esta revisión es histórica. Conservamos sus metadatos y su hash.',
+                 'incomplete':'La ejecución no completó un informe actual. Conservamos las entregas recibidas.'}
+    return dict(origin='engine_html',engine_report=value,report_id=str(document['id']),report_version=revision['raw_sha256'],
+                title=document.get('title') or 'Informe',summary=summaries[value['state']],
+                scope=dict(period='',coverage='',question=document.get('goal') or ''),
+                claims=[],highlights=[],charts=[],limitations=[])

@@ -292,7 +292,7 @@ class Handler(BaseHTTPRequestHandler):
                     self.send(200, chats.report(chat_id, parts[4], structured=True))
                     return
                 if not mutation and len(parts) == 5 and parts[3] == 'pdf':
-                    self.send_pdf(chats.report(chat_id, parts[4], structured=True))
+                    self.send_pdf(chats.report(chat_id, parts[4], structured=True,purpose='pdf'))
                     return
                 if not mutation and len(parts) == 5 and parts[3] == 'report':
                     self.send(200,chats.report(chat_id,parts[4]),'text/html; charset=utf-8')
@@ -366,6 +366,9 @@ class Handler(BaseHTTPRequestHandler):
             if mutation and path == '/api/memory/retry':
                 self.send(202, {'memory': ws.retry_memory(self.json_body())})
                 return
+            if not mutation and path == '/api/reports':
+                self.send(200, {'items':ws.listing(query=parse_qs(urlsplit(self.path).query).get('q',[''])[0])})
+                return
             if path.startswith('/api/presentation/'):
                 from . import presentation_editing
                 report_id = path.rsplit('/', 1)[-1]
@@ -426,7 +429,7 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 if not mutation and action == 'sources':
                     from . import report_sources
-                    self.send(200, report_sources.view(ws, job_id))
+                    self.send(200, report_sources.view(ws, job_id,revision=parse_qs(urlsplit(self.path).query).get('revision',[None])[0]))
                     return
                 if not mutation and action == 'activity':
                     from . import activity
@@ -457,10 +460,10 @@ class Handler(BaseHTTPRequestHandler):
                     self.send(202, ws.retry(job_id))
                     return
                 if not mutation and action == 'presentation':
-                    self.send(200, ws.report(job_id, structured=True))
+                    self.send(200, ws.report(job_id, structured=True, revision=parse_qs(urlsplit(self.path).query).get('revision',[None])[0]))
                     return
                 if not mutation and action == 'pdf':
-                    self.send_pdf(ws.report(job_id, structured=True))
+                    self.send_pdf(ws.report(job_id, structured=True,purpose='pdf'))
                     return
                 if not mutation and action == 'report':
                     self.send(200, ws.report(job_id), 'text/html; charset=utf-8')

@@ -279,6 +279,28 @@ export function Home() {
       {!data && !resource.error && <Loading />}
       {data && (
         <>
+          {Boolean(data.report_accesses?.length) && (
+            <section
+              aria-label={tr("Informes guardados")}
+              className="mb-6 space-y-2"
+            >
+              <h2 className="text-sm font-medium">
+                {tr("Informes guardados")}
+              </h2>
+              {data.report_accesses!.map((report) => (
+                <a
+                  key={report.id}
+                  href={report.href}
+                  className="flex items-center justify-between rounded-lg border p-4 text-sm"
+                >
+                  <span>{report.title}</span>
+                  <span className="text-muted-foreground">
+                    {tr("Entrega guardada")}
+                  </span>
+                </a>
+              ))}
+            </section>
+          )}
           {data.unavailable > 0 && (
             <Notice>
               {tr("Se han retirado ")}
@@ -421,16 +443,22 @@ export function Home() {
               title={
                 data.items.length
                   ? tr("Elige qué quieres tener a la vista")
-                  : tr("Tu dashboard empieza con tus datos")
+                  : data.report_accesses?.length
+                    ? tr("Sin tarjetas de cifras")
+                    : tr("Tu dashboard empieza con tus datos")
               }
               description={
                 data.items.length
                   ? tr(
                       "Personaliza la selección o pide una propuesta al agente. Los elementos que ocultas no vuelven a aparecer en sus propuestas.",
                     )
-                  : tr(
-                      "Cuando haya resultados revisados, aquí aparecerán indicadores y gráficos con su periodo y fuente.",
-                    )
+                  : data.report_accesses?.length
+                    ? tr(
+                        "Los informes guardados se muestran arriba con su estado. Todavía no se extraen tarjetas de estas entregas.",
+                      )
+                    : tr(
+                        "Cuando haya resultados revisados, aquí aparecerán indicadores y gráficos con su periodo y fuente.",
+                      )
               }
               {...(!data.items.length
                 ? { href: "#new", label: tr("Crear informe") }
