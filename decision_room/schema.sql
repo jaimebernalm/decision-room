@@ -845,3 +845,168 @@ INSERT INTO schema_versions(version) VALUES (29) ON CONFLICT DO NOTHING;
 -- Historical inputs remain available to reports while leaving the everyday library.
 ALTER TABLE analyses ADD COLUMN IF NOT EXISTS library_hidden boolean NOT NULL DEFAULT false;
 INSERT INTO schema_versions(version) VALUES (30) ON CONFLICT DO NOTHING;
+
+-- F0: HTML engine control and receipts; preserve master version 30.
+-- Engine P2 admission foundation; legacy sessions and report FKs are unchanged.
+CREATE TABLE IF NOT EXISTS engine_runs (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    analysis_id uuid NOT NULL,
+    request_key text NOT NULL,
+    request_sha256 text NOT NULL,
+    owner_context text NOT NULL,
+    profile jsonb NOT NULL,
+    prompt text NOT NULL CHECK(octet_length(prompt)<=262144),
+    prompt_sha256 text NOT NULL,
+    input_context jsonb NOT NULL,
+    input_sha256 text NOT NULL,
+    model text NOT NULL,
+    snapshot jsonb NOT NULL,
+    snapshot_sha256 text NOT NULL,
+    limits jsonb NOT NULL,
+    status text NOT NULL DEFAULT 'running'
+        CHECK(status IN ('running','pausing','waiting','delivered','failed','aborted')),
+    abort_reason text,
+    credential_sha256 text NOT NULL,
+    credential_revoked boolean NOT NULL DEFAULT false,
+    credential_expires_at timestamptz NOT NULL DEFAULT clock_timestamp()+interval '7 days',
+    active_started_at timestamptz DEFAULT clock_timestamp(),
+    active_seconds double precision NOT NULL DEFAULT 0 CHECK(active_seconds>=0),
+    calls integer NOT NULL DEFAULT 0 CHECK(calls>=0),
+    charged_input bigint NOT NULL DEFAULT 0 CHECK(charged_input>=0),
+    charged_output bigint NOT NULL DEFAULT 0 CHECK(charged_output>=0),
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    FOREIGN KEY(business_id,analysis_id) REFERENCES analyses(business_id,id),
+    UNIQUE(business_id,request_key),
+    UNIQUE(business_id,id)
+);
+CREATE TABLE IF NOT EXISTS engine_events (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    run_id uuid NOT NULL REFERENCES engine_runs(id),
+    kind text NOT NULL,
+    payload jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp()
+);
+CREATE INDEX IF NOT EXISTS engine_events_run ON engine_events(run_id,id);
+CREATE TABLE IF NOT EXISTS engine_model_calls (
+    id uuid PRIMARY KEY,
+    run_id uuid NOT NULL REFERENCES engine_runs(id),
+    request_sha256 text NOT NULL,
+    state text NOT NULL CHECK(state IN ('counting','admitted','settled','uncertain')),
+    reserved_input bigint NOT NULL DEFAULT 0 CHECK(reserved_input>=0),
+    reserved_output bigint NOT NULL DEFAULT 0 CHECK(reserved_output>=0),
+    usage jsonb,
+    issue text,
+    settlement_sha256 text,
+    count_seconds double precision,
+    started_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    admitted_at timestamptz,
+    finished_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS engine_model_calls_run ON engine_model_calls(run_id,started_at,id);
+
+-- Engine drafts are independent of legacy approvals and retain exact raw bytes.
+CREATE TABLE IF NOT EXISTS engine_documents (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    run_id uuid NOT NULL UNIQUE,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    FOREIGN KEY(business_id,run_id) REFERENCES engine_runs(business_id,id),
+    UNIQUE(business_id,id)
+);
+CREATE TABLE IF NOT EXISTS engine_document_revisions (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    document_id uuid NOT NULL,
+    ordinal integer NOT NULL CHECK(ordinal>0),
+    request_key text NOT NULL,
+    raw bytea NOT NULL CHECK(octet_length(raw)<=262144),
+    raw_sha256 text NOT NULL,
+    delivery_via text NOT NULL CHECK(delivery_via IN ('mcp','file')),
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    FOREIGN KEY(business_id,document_id) REFERENCES engine_documents(business_id,id),
+    UNIQUE(document_id,request_key),
+    UNIQUE(document_id,ordinal),
+    UNIQUE(business_id,id)
+);
+
+-- Engine control-plane state. Outbox admission precedes every prompt submission.
+CREATE TABLE IF NOT EXISTS engine_sessions (
+    run_id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    session_id text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    FOREIGN KEY(business_id,run_id) REFERENCES engine_runs(business_id,id),
+    UNIQUE(run_id,session_id)
+);
+CREATE TABLE IF NOT EXISTS engine_prompt_outbox (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    run_id uuid NOT NULL,
+    session_id text NOT NULL,
+    request_key text NOT NULL,
+    request_sha256 text NOT NULL,
+    message_id text NOT NULL,
+    prompt text NOT NULL CHECK(octet_length(prompt)<=262144),
+    state text NOT NULL DEFAULT 'queued' CHECK(state IN ('queued','dispatching','confirmed')),
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    dispatched_at timestamptz,
+    confirmed_at timestamptz,
+    FOREIGN KEY(business_id,run_id) REFERENCES engine_runs(business_id,id),
+    FOREIGN KEY(run_id,session_id) REFERENCES engine_sessions(run_id,session_id),
+    UNIQUE(run_id,request_key),
+    UNIQUE(run_id,message_id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS engine_prompt_outbox_pending
+    ON engine_prompt_outbox(run_id) WHERE state<>'confirmed';
+CREATE TABLE IF NOT EXISTS engine_message_versions (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    business_id uuid NOT NULL,
+    run_id uuid NOT NULL,
+    session_id text NOT NULL,
+    message_id text NOT NULL,
+    content jsonb NOT NULL,
+    content_sha256 text NOT NULL,
+    observed_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    FOREIGN KEY(business_id,run_id) REFERENCES engine_runs(business_id,id),
+    FOREIGN KEY(run_id,session_id) REFERENCES engine_sessions(run_id,session_id),
+    UNIQUE(run_id,message_id,content_sha256)
+);
+
+-- Durable owner questions; pausing and receipt of an answer do not run a model.
+CREATE TABLE IF NOT EXISTS engine_owner_questions (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    run_id uuid NOT NULL,
+    request_key text NOT NULL,
+    request_sha256 text NOT NULL,
+    body jsonb NOT NULL,
+    state text NOT NULL DEFAULT 'pausing' CHECK(state IN ('pausing','waiting','resumed')),
+    checkpoint_key text,
+    checkpoint_sha256 text,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    waiting_at timestamptz,
+    expires_at timestamptz,
+    resumed_at timestamptz,
+    FOREIGN KEY(business_id,run_id) REFERENCES engine_runs(business_id,id),
+    UNIQUE(run_id,request_key),
+    UNIQUE(run_id,id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS engine_owner_question_pending
+    ON engine_owner_questions(run_id) WHERE state<>'resumed';
+CREATE TABLE IF NOT EXISTS engine_owner_answers (
+    question_id uuid PRIMARY KEY,
+    run_id uuid NOT NULL,
+    request_key text NOT NULL,
+    request_sha256 text NOT NULL,
+    body jsonb NOT NULL,
+    message_id text,
+    resumed_credential_sha256 text,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    FOREIGN KEY(run_id,question_id) REFERENCES engine_owner_questions(run_id,id),
+    FOREIGN KEY(run_id,message_id) REFERENCES engine_prompt_outbox(run_id,message_id),
+    UNIQUE(run_id,request_key)
+);
+
+
+INSERT INTO schema_versions(version) VALUES (31) ON CONFLICT DO NOTHING;
