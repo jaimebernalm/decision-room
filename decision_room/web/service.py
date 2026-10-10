@@ -647,6 +647,8 @@ class Workspace:
         if j['engine_kind']=='opencode':
             result['engine_report'] = self.engine_metadata(j,deleted=True,history=True)
             result['can_retry'] = False
+            from . import engine_wait
+            result.update(engine_wait.detail(self.config, j))
             return result
         if j['session_id']:
             plan = planning.show(self.config, b, j['session_id'])
@@ -717,6 +719,9 @@ class Workspace:
             raise WebError('Has escrito una respuesta. Guárdala o borra el texto antes de indicar que no dispones del dato.')
         answer = {'id': str(data.get('question_id', '')), 'phase': data.get('phase'), 'text': text,
                   'disposition': disposition, 'request_key': str(key)}
+        if self.row(job_id)['engine_kind'] == 'opencode':
+            from . import engine_wait
+            return engine_wait.reply(self, job_id, data, answer)
         questions = self.detail(job_id)['questions']
         with connect(self.config) as db, db.transaction():
             job = db.execute('SELECT * FROM web_jobs WHERE id=%s AND business_id=%s FOR UPDATE',

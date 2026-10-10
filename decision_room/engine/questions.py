@@ -172,11 +172,15 @@ def confirm_waiting(config, business_id, run_id, question_id, *, checkpoint_key)
 
 
 def answer(config, business_id, run_id, *, question_id, disposition, text, request_key):
-    """Record an explicit owner answer, including after the waiting deadline.
+    """Receipt only; including a late answer never restarts or increases budgets."""
+    with connect(config) as db, db.transaction():
+        run = control._run(db, business_id, run_id)
+        return _answer(db, run, question_id=question_id, disposition=disposition, text=text, request_key=request_key)
 
-    Receipt does not restart generation, rotate credentials or reset budgets.
-    Unknown/declined are data for the next turn, not fabricated owner answers.
-    """
+
+def _answer(db, run, *, question_id, disposition, text, request_key):
+    """Caller holds the run row; shared transactional writer for web and controller."""
+    run_id = run['id']
     _key(request_key)
     question_id = UUID(str(question_id))
     if (not isinstance(disposition, str) or disposition not in {'answered', 'unknown', 'declined'}
@@ -185,22 +189,20 @@ def answer(config, business_id, run_id, *, question_id, disposition, text, reque
         raise ValueError('Invalid owner answer.')
     body = {'question_id': str(question_id), 'disposition': disposition, 'text': text}
     fingerprint = admission.sha(admission.canonical(body))
-    with connect(config) as db, db.transaction():
-        run = control._run(db, business_id, run_id)
-        question = _question(db, run_id, question_id)
-        previous = db.execute('''SELECT * FROM engine_owner_answers
-            WHERE run_id=%s AND (question_id=%s OR request_key=%s)''', (run_id, question_id, request_key)).fetchall()
-        if previous:
-            if (len(previous) != 1 or previous[0]['request_key'] != request_key
-                    or previous[0]['request_sha256'] != fingerprint or previous[0]['body'] != body):
-                raise ValueError('Owner answer already received with different content or key.')
-            return previous[0]
-        if question['state'] != 'waiting' or run['status'] != 'waiting' or run['credential_revoked']:
-            raise admission.Denied('Job is not waiting for this answer.')
-        row = db.execute('''INSERT INTO engine_owner_answers
-            (question_id,run_id,request_key,request_sha256,body) VALUES (%s,%s,%s,%s,%s) RETURNING *''',
-                         (question_id, run_id, request_key, fingerprint, Jsonb(body))).fetchone()
-        admission._event(db, run_id, 'owner_answer_received', {'question_id': str(question_id), 'disposition': disposition})
+    question = _question(db, run_id, question_id)
+    previous = db.execute('''SELECT * FROM engine_owner_answers
+        WHERE run_id=%s AND (question_id=%s OR request_key=%s)''', (run_id, question_id, request_key)).fetchall()
+    if previous:
+        if (len(previous) != 1 or previous[0]['request_key'] != request_key
+                or previous[0]['request_sha256'] != fingerprint or previous[0]['body'] != body):
+            raise ValueError('Owner answer already received with different content or key.')
+        return previous[0]
+    if question['state'] != 'waiting' or run['status'] != 'waiting' or run['credential_revoked']:
+        raise admission.Denied('Job is not waiting for this answer.')
+    row = db.execute('''INSERT INTO engine_owner_answers
+        (question_id,run_id,request_key,request_sha256,body) VALUES (%s,%s,%s,%s,%s) RETURNING *''',
+                     (question_id, run_id, request_key, fingerprint, Jsonb(body))).fetchone()
+    admission._event(db, run_id, 'owner_answer_received', {'question_id': str(question_id), 'disposition': disposition})
     return row
 
 

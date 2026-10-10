@@ -23,3 +23,21 @@ cambio de definiciones antes de restaurar, identidad y límites acumulados.
 
 Pendiente en los siguientes commits: integración de respuesta web y acuse, recuperación del
 controlador, UI y regresión de cierre. No se declara F3 terminada aún.
+
+## Respuesta web y acuse (segundo paso completado)
+
+`web/engine_wait.py` adapta el detalle y `reply` con negocio, trabajo, run y pregunta
+exactos. `web_replies` y `engine_owner_answers` se guardan en la misma transacción;
+una caída antes de terminar no deja solo uno de los recibos. Se reutiliza el JSON existente,
+sin modificar ni migrar recibos legacy. La cola web conserva `pending_answer` hasta el
+acuse del mensaje exacto del outbox o su reconciliación; guardar la respuesta no basta.
+
+Orden de locks de respuesta: selección del negocio, memoria, run y trabajo. Confirmar un
+prompt toma run y trabajo en el mismo orden. Dos respuestas no sobrescriben el primer
+recibo. El detalle usa comparación barata de vigencia y presencia; no hashea archivos.
+
+Pruebas: 38 (web_wait, questions, control, jobs), sin fallos y un smoke Docker omitido.
+El selector de una prueba legacy inexistente se corrigió antes de esta pasada; no fue un
+fallo de implementación. Se probó interrupción entre los dos recibos, antes del envío,
+reintento tras completar, dos respuestas y pregunta/run ajenos. El encargo y la memoria
+conservan sus versiones después de responder.

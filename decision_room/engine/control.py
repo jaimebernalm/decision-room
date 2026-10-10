@@ -162,6 +162,8 @@ def confirm_prompt(config, business_id, run_id, message_id, message):
         if row['state'] != 'confirmed':
             db.execute("UPDATE engine_prompt_outbox SET state='confirmed',confirmed_at=clock_timestamp() WHERE id=%s", (row['id'],))
             admission._event(db, run_id, 'prompt_confirmed', {'message_id': message_id})
+        from ..web.engine_wait import acknowledge
+        acknowledge(db, business_id, run_id)
     return 'confirmed'
 
 

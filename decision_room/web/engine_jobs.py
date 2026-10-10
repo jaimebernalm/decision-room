@@ -65,6 +65,9 @@ def creation(config, job):
 
 
 def apply_state(workspace, job, state):
+    from .engine_wait import acknowledge
+    with connect(workspace.config) as db, db.transaction():
+        acknowledge(db, job['business_id'], job['engine_run_id'])
     from ..reports.store import adopt
     adopt(workspace.config, job['business_id'], job['engine_run_id'])
     status = state['status']
@@ -88,7 +91,7 @@ def run(workspace, job_id):
             job = reconcile(workspace, workspace.row(job_id))
             if job['engine_run_id']:
                 state = snapshot(config, job['business_id'], job['engine_run_id'])
-                if state['status'] in ('delivered', 'failed', 'aborted', 'waiting'):
+                if state['status'] in ('delivered', 'failed', 'aborted') or (state['status']=='waiting' and not job['pending_answer']):
                     # resume_report may clean up a crashed terminal runtime but
                     # never calls a provider for a terminal job.
                     api.resume_report(config, job['business_id'], job['engine_run_id'])
@@ -109,7 +112,13 @@ def run(workspace, job_id):
                 # is recovered by reconcile's business + web-job key.
                 workspace.update(job_id, engine_run_id=run_id, phase='engine')
                 job = workspace.row(job_id)
-            api.resume_report(config, job['business_id'], job['engine_run_id'])
+            pending = job['pending_answer']
+            answer = None
+            if pending:
+                if pending.get('phase') != 'engine' or pending.get('run_id') != str(job['engine_run_id']):
+                    raise ValueError('Pending answer belongs to another run.')
+                answer = dict(question_id=pending['id'], disposition=pending['disposition'], text=pending['text'], request_key=pending['request_key'])
+            api.resume_report(config, job['business_id'], job['engine_run_id'], answer=answer)
             apply_state(workspace, job, snapshot(config, job['business_id'], job['engine_run_id']))
         except admission.Denied:
             # A concurrent direct controller owns the run. This is not a failed
