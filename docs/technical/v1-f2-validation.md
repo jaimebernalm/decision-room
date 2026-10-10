@@ -158,10 +158,24 @@ La línea que difiere es la del recuento de huecos no mostrados:
 - trabajos de F0/F1 con su prompt capturado;
 - secciones por encima del límite de grupos y panorama demasiado grande: `unavailable`.
 
-**Regresión.** Suite completa de Python en este worktree frente a `e2c7032`, con PG desechable
-y sin clave: misma lista de fallos (174, todos de entorno por no tener construido el sandbox
-local en esta ruta), ninguno nuevo; 731 pruebas frente a 710. Frontend: 305/305, tsc OK (sin
-cambios de frontend).
+**Regresión, en este orden.**
+
+1. Suite completa de Python frente a `e2c7032`, con PG desechable y sin clave, **antes** de los
+   dos últimos cambios (definición de métrica en el encargo y límite de 256 KiB del panorama):
+   - base: 710 pruebas, 77 failures + 97 errors, 6 omitidas;
+   - F2: 731 pruebas, 77 failures + 97 errors, 6 omitidas;
+   - las dos listas ordenadas de ERROR/FAIL son idénticas (174). Todas son de entorno: el
+     sandbox local no está construido en esas rutas («Build the runtime first»);
+   - las 6 omitidas son los smokes Docker nativos, sin `DECISION_ROOM_ENGINE_IMAGE_ID`.
+2. Después de esos dos cambios se repitieron las suites afectadas, todas OK salvo el mismo error
+   de entorno de la base en `test_data_knowledge`:
+   - `test_engine_brief` (22);
+   - `test_engine_*` (6 omitidas);
+   - `test_report_*`, migraciones y actividad.
+3. No se afirma una suite completa sobre `f977a8f`. Astra repitió 54 pruebas PG y una
+   reproducción de concurrencia real sobre ese commit.
+
+Frontend: 305/305 y tsc OK (sin cambios de frontend).
 
 **Revisión de Astra (run 7f12a04e).** Sus hallazgos sobre el borrador están corregidos:
 
