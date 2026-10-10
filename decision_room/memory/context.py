@@ -290,6 +290,9 @@ def invalidate(db, business_id):
     db.execute("""UPDATE agent_reviews r SET status='stale',issue='Memory changed; legacy context requires replanning.'
         WHERE business_id=%s AND NOT EXISTS (SELECT 1 FROM context_manifests m WHERE m.session_id=r.session_id)""", (business_id,))
 
+    from ..reports.store import invalidate as invalidate_reports
+    invalidate_reports(db, business_id)
+
 
 def delivered(db, session_id):
     m = manifest(db, session_id)

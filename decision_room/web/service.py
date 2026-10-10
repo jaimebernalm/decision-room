@@ -524,8 +524,16 @@ class Workspace:
     def delete_report(self, job_id, data, *, restore=False):
         from .dossier import guard
         business = guard(self, data)
+        initial = self.row(job_id)
         with connect(self.config) as db, db.transaction():
-            job = db.execute('SELECT status FROM web_jobs WHERE id=%s AND business_id=%s FOR UPDATE',
+            if initial['engine_kind']=='opencode':
+                memory.lock(db,business)
+                from ..reports import store as documents
+                linked = db.execute('SELECT report_document_id FROM web_jobs WHERE business_id=%s AND id=%s',
+                                    (business,initial['id'])).fetchone()['report_document_id']
+                if linked:
+                    documents.lock(db,linked)
+            job = db.execute('SELECT status,report_document_id FROM web_jobs WHERE id=%s AND business_id=%s FOR UPDATE',
                              (identifier(job_id), business)).fetchone()
             if not job:
                 raise WebError('Informe no encontrado.', 404)
@@ -533,6 +541,11 @@ class Workspace:
                 raise WebError('Espera a que termine el informe antes de eliminarlo.', 409)
             db.execute('UPDATE web_jobs SET deleted_at=' + ('NULL' if restore else 'coalesce(deleted_at,now())') +
                        ' WHERE id=%s AND business_id=%s', (job_id, business))
+            if initial['engine_kind']=='opencode' and job['report_document_id']:
+                # The head lock prevents adoption from changing the link mid-delete.
+                db.execute('UPDATE report_documents SET deleted_at=' + ('NULL' if restore else 'coalesce(deleted_at,now())') +
+                           ' WHERE business_id=%s AND id=%s AND source_run_id=%s',
+                           (business,job['report_document_id'],initial['engine_run_id']))
         return {'saved': True}
 
     def daily_activity(self, listing):

@@ -161,6 +161,30 @@ class EngineJobTests(unittest.TestCase):
         self.assertEqual(len(admission.inspect_run(self.config, row['business_id'], run)['model_calls']), 1)
 
 
+    def test_registry_delete_restore_preserves_history_and_retirement(self):
+        from decision_room.web.report_access import read_job
+        from decision_room.reports.reading import metadata
+        from decision_room.memory import service as memory
+        from tests.test_memory import content
+        self.fake_runtime(); job=self.create(engine_kind='opencode'); self.ws.run_job(job)
+        row=self.ws.row(job); document=row['report_document_id']
+        with read_job(self.ws,job) as (db,_,pair):
+            self.assertTrue(metadata(db,*pair)['is_current'])
+        body={'business_id':str(row['business_id'])}
+        self.ws.delete_report(job,body)
+        with self.assertRaises(WebError):
+            with read_job(self.ws,job): pass
+        with read_job(self.ws,job,deleted=True) as (db,_,pair):
+            self.assertTrue(metadata(db,*pair)['deleted'])
+        memory.change(self.config,row['business_id'],action='declare',request_key=uuid4().hex,content=content())
+        self.ws.delete_report(job,body,restore=True)
+        with read_job(self.ws,job) as (db,_,pair):
+            value=metadata(db,*pair)
+            self.assertFalse(value['is_current']); self.assertEqual(value['state'],'withdrawn')
+        self.assertEqual(self.ws.row(job)['report_document_id'],document)
+        self.assertIsNotNone(store.read_document(self.config,row['business_id'],row['engine_run_id']))
+
+
 class ChatEngineCreationTests(unittest.TestCase):
     # Independent fixtures: no report engine or real model is invoked by chat.
     from tests import test_conversations as chat_fixtures

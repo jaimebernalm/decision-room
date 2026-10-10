@@ -60,6 +60,8 @@ def adopt(config, business, run):
                 ON CONFLICT(id) DO NOTHING''',
                 (row['id'], business, document, row['ordinal'], row['raw_sha256'], len(raw),
                  source['profile']['version'], row['created_at']))
+        registered = db.execute('SELECT * FROM report_documents WHERE id=%s', (document,)).fetchone()
+        retire(db,registered,config=config)
         baseline = db.execute('SELECT 1 FROM engine_report_contexts WHERE run_id=%s AND business_id=%s', (run,business)).fetchone()
         if not baseline:
             db.execute("UPDATE report_documents SET stale_reason=coalesce(stale_reason,'missing_context') WHERE id=%s", (document,))
@@ -71,3 +73,71 @@ def adopt(config, business, run):
             WHERE business_id=%s AND engine_run_id=%s AND engine_kind='opencode'
             AND (report_document_id IS NULL OR report_document_id=%s)''', (document,business,run,document))
         return document
+
+
+def reason(db, document, *, config=None):
+    """Compare frozen dependencies, never recalculate or alter a run snapshot."""
+    if document['stale_reason']:
+        return document['stale_reason']
+    baseline = db.execute('SELECT * FROM engine_report_contexts WHERE run_id=%s AND business_id=%s',
+                          (document['source_run_id'], document['business_id'])).fetchone()
+    if not baseline:
+        return 'missing_context'
+    business = document['business_id']
+    if db.execute('''SELECT 1 FROM dataset_versions WHERE business_id=%s AND analysis_id=%s
+        AND (corrected OR superseded_by IS NOT NULL)''', (business, document['analysis_id'])).fetchone():
+        return 'data_changed'
+    from ..data_knowledge import service as knowledge
+    if any(not knowledge.current(db,business,dep) for dep in baseline['data_models']):
+        return 'definitions_changed'
+    if knowledge.heads(db,business,document['analysis_id']) != baseline['data_models']:
+        return 'definitions_changed'
+    for table, version in baseline['table_versions'].items():
+        if version is None or context.table_version(db,business,table) != version:
+            return 'data_changed'
+    current = context.effective(db,business)
+    selection = baseline['selection']
+    active = {r['id'] for r in context.scoped(current,selection)}
+    if any(r['id'] not in active for r in baseline['memories'] if r['content']['kind']=='priority'):
+        return 'memory_changed'
+    if context.watch(current,selection) != context.watch(baseline['memories'],selection):
+        return 'memory_changed'
+    if config is not None:
+        from ..storage import Storage, digest
+        storage = Storage(config.storage)
+        source = db.execute('SELECT snapshot FROM engine_runs WHERE business_id=%s AND id=%s',
+                            (business,document['source_run_id'])).fetchone()['snapshot']
+        try:
+            if admission._snapshot(db,config,business,document['analysis_id'],[UUID(v) for v in baseline['table_versions']]) != source:
+                return 'data_changed'
+            originals = db.execute('''SELECT DISTINCT s.original_key,s.sha256 FROM sources s
+                JOIN prepared_tables p ON p.source_id=s.id AND p.business_id=s.business_id
+                WHERE p.business_id=%s AND p.id=ANY(%s::uuid[])''',
+                (business,list(baseline['table_versions']))).fetchall()
+            if any(digest(storage.path(business,r['original_key'])) != r['sha256'] for r in originals):
+                return 'data_unavailable'
+        except (OSError,ValueError):
+            return 'data_unavailable'
+    return None
+
+
+def retire(db, document, *, config=None):
+    problem = reason(db,document,config=config)
+    if problem and not document['stale_reason']:
+        db.execute('UPDATE report_documents SET stale_reason=%s WHERE business_id=%s AND id=%s',
+                   (problem,document['business_id'],document['id']))
+    return problem
+
+
+def invalidate(db, business):
+    """Writer already holds memory head; documents follow in stable ID order."""
+    rows = db.execute('SELECT * FROM report_documents WHERE business_id=%s AND stale_reason IS NULL ORDER BY id',
+                      (business,)).fetchall()
+    for document in rows:
+        lock(db,document['id'])
+        retire(db,document)
+
+
+def is_current(document, revision, run_status):
+    return bool(revision and document['current_revision_id']==revision['id'] and
+                run_status=='delivered' and not document['stale_reason'] and not document['deleted_at'])
