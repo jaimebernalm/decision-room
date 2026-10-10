@@ -187,7 +187,6 @@
 }
 .workspace-composer-island .chat-composer [data-slot="input-group"] {
   background: var(--background);
-  box-shadow: 0 4px 24px color-mix(in oklch, var(--foreground) 10%, transparent);
 }
 .workspace-composer-clearance {
   height: 0;

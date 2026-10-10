@@ -559,6 +559,11 @@ La prueba real del proveedor recibe HTTP 429; véanse [validación y límites](.
 incluido el foco. Pasan 44 pruebas frontend seleccionadas, build y lint; comprobado
 en navegador. Véase el [ajuste del compositor](../technical/language-and-composer-plan.md).
 
+**2.5.20.8 completado, 7 de octubre de 2026:** tras aclarar el usuario el cambio
+con una captura, se restaura el borde del campo y se elimina la sombra exterior
+de la barra flotante. Sustituye el aspecto de 2.5.20.7. Pasan 44 pruebas frontend
+seleccionadas, build y lint; comprobado en navegador en reposo y con foco.
+
 **Integración de UI1 y UI2, 1 de octubre de 2026:** se unen navegación,
 idioma y compositor (2.5.18–2.5.20) con la ficha y sus grupos (2.5.5) en una rama
 local de integración. Se conservan ambas migraciones de datos (presentación 27,
