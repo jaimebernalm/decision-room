@@ -1247,7 +1247,7 @@ class Conversations:
                     if job.get('engine_kind')=='opencode' and job['status']=='completed' and job.get('engine_report'):
                         value=job['engine_report']
                         self._save(db,turn,'completed',dict(kind='report_status',
-                            text='La entrega del informe está guardada. Puedes consultar su estado y metadatos; la presentación todavía no está disponible.',
+                            text='La entrega del informe está guardada. Abre el informe para consultar su vista o su estado.',
                             report_document_id=value['document_id'],revision_id=value['revision_id'],raw_sha256=value['raw_sha256']))
                         if self._entry_intent(db,turn)=='analysis':
                             db.execute('UPDATE chat_turns SET report_requested=true WHERE id=%s',(turn['id'],))
