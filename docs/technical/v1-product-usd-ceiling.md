@@ -45,6 +45,9 @@ el proveedor. La cota y las estimaciones de catálogo se exportan separadas. Si
 falta el ledger, la cota es desconocida, nunca cero. Puede quedar saldo sin usar:
 si no cabe la reserva máxima siguiente, se rechaza antes de enviar aunque la
 llamada hubiera costado menos en la práctica.
+Con un techo de 1,00 USD y sin llamadas pendientes, el envío siguiente solo se
+admite si los cargos previos no superan 0,6415 USD. El cargo final puede superar
+esa cifra al liquidar la última llamada; el techo total continúa siendo 1,00 USD.
 
 Las preguntas al dueño no reinician el saldo. Los días esperando no consumen el
 contador de tiempo del ledger; el límite de tiempo activo del motor permanece
@@ -85,6 +88,14 @@ añadir el campo de exportación, endurecer el parseo decimal y la lectura de un
 ledger corrupto, y añadir el caso SIGKILL; las pasadas focales anteriores se
 ejecutan después de esos cambios. No se presenta como una pasada completa sobre
 el árbol final.
+
+Una nueva pasada completa sobre `10f3933`, que ya incluye todos esos cambios y
+la corrección del mensaje final del chat, ejecuta **839 pruebas Python en
+553,399 s**, todas correctas y sin omitidas, con PostgreSQL y Docker nativos.
+Usa proveedores falsos y no consume API. Claude revisa el código del techo en
+`840d74b` y reproduce las ocho pruebas de P4 y las del ledger en una copia limpia;
+su revisión técnica es conforme. Esto no convierte el ensayo F5 incompleto en
+una autorización de adopción: legacy sigue por defecto.
 
 UI sin cambios: 313 pruebas correctas, TypeScript/Vite correctos y oxlint sin
 errores (27 avisos existentes). Vite conserva el aviso de tamaño de chunks.
