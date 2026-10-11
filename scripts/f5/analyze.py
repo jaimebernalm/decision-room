@@ -1,0 +1,163 @@
+"""Apply the frozen F5 decision rule (docs/validation/2026-10-11-f5-preregistration.md).
+
+Usage: python scripts/f5/analyze.py TRIAL_OUTPUT KEY_PATH RESULTS_DIR OUT_JSON
+
+Reads the unblinding key (kits.py), the sealed evaluator outputs (RESULTS_DIR/audit-, group-,
+judge-, owner-, advisor-*.json), result.json of every attempt and the trial ledger. Prints
+and writes every condition per business. Written before any result was seen.
+"""
+import json
+import sqlite3
+import statistics
+import sys
+from pathlib import Path
+
+BUSINESSES = ('herbolario', 'clinica')
+
+
+def load(path):
+    path = Path(path)
+    return json.loads(path.read_text()) if path.exists() else None
+
+
+def mean(values):
+    return sum(values) / len(values) if values else None
+
+
+def main(trial, key_path, results, out):
+    trial, results = Path(trial), Path(results)
+    key = load(key_path)
+    manifest = load(trial / 'manifest.json')
+    by_code = {a['code']: a for a in key['attempts']}
+    kit_of = {v['code']: k for k, v in key['reports'].items()}
+    report = dict(businesses={}, conditions={}, attempts=key['attempts'])
+
+    # Cost bound per attempt from the trial ledger: the job's web scope plus its engine scope.
+    ledger = sqlite3.connect(Path(manifest['budget_path']).resolve().as_uri() + '?mode=ro', uri=True)
+    scopes = {}
+    for scope, charged, state in ledger.execute('SELECT scope, charged, state FROM calls'):
+        entry = scopes.setdefault(scope, dict(usd=0.0, calls=0, unsettled=0))
+        entry['usd'] += charged / 1e9
+        entry['calls'] += 1
+        entry['unsettled'] += state != 'settled'
+    for job in manifest['jobs']:
+        result = load(trial / 'runs' / job['code'] / 'result.json') or {}
+        own = [scopes.get('web:' + job['job_id'])]
+        if result.get('engine_run_id'):
+            own.append(scopes.get('engine:' + str(result['engine_run_id'])))
+        own = [o for o in own if o]
+        by_code[job['code']].update(
+            usd=sum(o['usd'] for o in own), calls=sum(o['calls'] for o in own),
+            unsettled=sum(o['unsettled'] for o in own), seconds=result.get('seconds'),
+            owner_answers=result.get('owner_answers'))
+
+    ok = {}
+    for business in BUSINESSES:
+        b = dict(arms={})
+        for arm in ('v1', 'legacy'):
+            attempts = [a for a in key['attempts'] if a['business'] == business and a['arm'] == arm]
+            delivered = [a for a in attempts if a['delivered']]
+            groups = [load(results / f"group-{kit_of[a['code']]}.json") for a in delivered]
+            audits = [load(results / f"audit-{kit_of[a['code']]}.json") for a in delivered]
+            judges = [load(results / f"judge-{kit_of[a['code']]}.json") for a in delivered]
+            complete = all(groups) and all(audits) and all(judges)
+            den = dict(prioridad_calculables=0, prioridad_correctas=0, resto_calculables=0, resto_correctas=0)
+            for audit in filter(None, audits):
+                for claim in audit['claims']:
+                    if claim.get('calculable'):
+                        section = 'prioridad' if claim['seccion'] == 'prioridad' else 'resto'
+                        den[section + '_calculables'] += 1
+                        den[section + '_correctas'] += claim['veredicto'] == 'correcta'
+            b['arms'][arm] = dict(
+                attempts=len(attempts), delivered=len(delivered), losses=len(attempts) - len(delivered),
+                evaluations_complete=complete,
+                material_mean=mean([g['material_distintos'] for g in groups if g]),
+                critical_total=sum(g['criticos_distintos'] for g in groups if g),
+                denominators=den,
+                signal_mean=mean([sum(j[f'S{i}'] for i in range(1, 6)) for j in judges if j]),
+                decoy_hits=sum(j['S6'] for j in judges if j),
+                usd_mean=mean([a['usd'] for a in attempts]), usd_max=max((a['usd'] for a in attempts), default=None),
+                unsettled=sum(a['unsettled'] for a in attempts),
+                minutes_median=statistics.median([a['seconds'] / 60 for a in attempts if a['seconds'] is not None])
+                if any(a['seconds'] is not None for a in attempts) else None)
+        # Reading: 1 v1, 0.5 explicit tie, 0 legacy; loss rules; incomplete if any reading missing.
+        reading = {}
+        for role in ('owner', 'advisor'):
+            scores, incomplete = [], False
+            for i in range(1, 7):
+                name = f'{business}-{i}'
+                pair = key['pairs'][name]
+                kits = pair['kits']
+                if not kits['v1'] and not kits['legacy']:
+                    scores.append(0.5)
+                elif not kits['legacy']:
+                    scores.append(1.0)
+                elif not kits['v1']:
+                    scores.append(0.0)
+                elif pair.get('reading'):
+                    incomplete = True
+                else:
+                    answer = load(results / f'{role}-{name}.json')
+                    if not answer or answer.get('eleccion') not in ('A', 'B', 'empate'):
+                        incomplete = True
+                        continue
+                    if answer['eleccion'] == 'empate':
+                        scores.append(0.5)
+                    else:
+                        arm = pair['order']['AB'.index(answer['eleccion'])]
+                        scores.append(1.0 if arm == 'v1' else 0.0)
+            reading[role] = dict(scores=scores, mean=None if incomplete else mean(scores), incomplete=incomplete)
+        b['reading'] = reading
+        report['businesses'][business] = b
+
+    v1 = {k: report['businesses'][k]['arms']['v1'] for k in BUSINESSES}
+    lg = {k: report['businesses'][k]['arms']['legacy'] for k in BUSINESSES}
+    v1_losses, lg_losses = sum(v['losses'] for v in v1.values()), sum(v['losses'] for v in lg.values())
+    unaccredited = []
+    cond = {}
+    cond['a'] = v1_losses <= 1 and v1_losses <= lg_losses
+    b_ok = sum(v['critical_total'] for v in v1.values()) == 0
+    for k in BUSINESSES:
+        if not v1[k]['evaluations_complete'] or not lg[k]['evaluations_complete'] or v1[k]['material_mean'] is None or lg[k]['material_mean'] is None:
+            unaccredited.append(f'b:{k}'); b_ok = False
+            continue
+        b_ok = b_ok and v1[k]['material_mean'] <= 0.5 and v1[k]['material_mean'] - lg[k]['material_mean'] <= 0.25
+    cond['b'] = b_ok
+    c_ok = True
+    for k in BUSINESSES:
+        r = report['businesses'][k]['reading']
+        if r['owner']['incomplete'] or r['advisor']['incomplete']:
+            unaccredited.append(f'c:{k}'); c_ok = False
+            continue
+        c_ok = c_ok and r['owner']['mean'] > 0.5 and r['advisor']['mean'] >= 0.5
+    cond['c'] = c_ok
+    d_ok = True
+    for k in BUSINESSES:
+        if v1[k]['signal_mean'] is None or lg[k]['signal_mean'] is None:
+            unaccredited.append(f'd:{k}'); d_ok = False
+            continue
+        d_ok = d_ok and v1[k]['signal_mean'] >= lg[k]['signal_mean'] - 1 and v1[k]['decoy_hits'] <= lg[k]['decoy_hits'] + 1
+    cond['d'] = d_ok
+    usd = [a['usd'] for a in key['attempts'] if a['arm'] == 'v1']
+    seconds = [by_code[a['code']]['seconds'] for a in key['attempts'] if a['arm'] == 'v1' and by_code[a['code']]['seconds'] is not None]
+    cond['e'] = (mean(usd) <= 0.50 and max(usd) <= 1.00 and sum(v['unsettled'] for v in v1.values()) == 0
+                 and bool(seconds) and statistics.median(seconds) / 60 <= 15)
+    complete = (all(a['status'] in ('completed', 'blocked', 'failed', 'waiting', 'failure') for a in key['attempts'])
+                and not any(u.startswith(('b:', 'c:', 'd:')) for u in unaccredited))
+    failed_bcd = [c for c in 'bcd' if not cond[c]]
+    if not cond['a'] or len(failed_bcd) >= 2:
+        outcome = 'no_candidato'
+    elif failed_bcd or not cond['e'] or unaccredited:
+        outcome = 'mixto'
+    else:
+        outcome = 'candidato'
+    if not complete and outcome == 'candidato':
+        outcome = 'incompleto'
+    report['conditions'] = dict(cond, unaccredited=unaccredited, v1_losses=v1_losses, legacy_losses=lg_losses,
+                                complete=complete, outcome=outcome)
+    Path(out).write_text(json.dumps(report, indent=2, ensure_ascii=False, default=str) + '\n')
+    print(json.dumps(report['conditions'], ensure_ascii=False))
+
+
+if __name__ == '__main__':
+    main(*sys.argv[1:5])
