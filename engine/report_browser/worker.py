@@ -9,6 +9,7 @@ import math
 from pathlib import Path
 import struct
 import sys
+import time
 import traceback
 
 # -I intentionally excludes the script directory; only this image-owned path is
@@ -22,6 +23,22 @@ MAX_HEIGHT = 24000
 MAX_OUTPUT = 36 * 1024 * 1024
 PREFIX = '<!doctype html><html lang="es"><meta charset="utf-8"><meta name="referrer" content="no-referrer"><body style="margin:0;background:white">'
 SUFFIX = '</body></html>'
+
+
+def stable_pixels(browser, args, session):
+    """Allow bounded compositor settling, still require identical captures.
+
+    Freezing scripts does not finish Chromium's asynchronous raster work. Never
+    publish a differing pair or accept a tolerance for changing pixels.
+    """
+    previous = browser.call('Page.captureScreenshot', args, session)['data']
+    for _ in range(5):
+        time.sleep(.1)
+        current = browser.call('Page.captureScreenshot', args, session)['data']
+        if current == previous:
+            return current
+        previous = current
+    raise ValueError('Rendered pixels do not stabilize.')
 
 
 def capture(browser, session, expected):
@@ -39,9 +56,7 @@ def capture(browser, session, expected):
         h=min(2000,height-top)
         args={'format':'png','captureBeyondViewport':True,
               'clip':{'x':0,'y':top,'width':1280,'height':h,'scale':1}}
-        first=browser.call('Page.captureScreenshot',args,session)['data']
-        second=browser.call('Page.captureScreenshot',args,session)['data']
-        if first!=second: raise ValueError('Rendered pixels do not stabilize.')
+        first=stable_pixels(browser,args,session)
         png=base64.b64decode(first,validate=True)
         if png[:8]!=b'\x89PNG\r\n\x1a\n' or struct.unpack('>II',png[16:24])!=(1280,h):
             raise ValueError('Unexpected snapshot dimensions.')

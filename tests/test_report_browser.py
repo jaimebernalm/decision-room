@@ -2,16 +2,46 @@
 import base64
 from concurrent.futures import ThreadPoolExecutor
 import json
+import importlib.util
 import struct
+import sys
 import time
 import unittest
 from uuid import uuid4
+from unittest.mock import patch
+from types import SimpleNamespace
 
 from decision_room.config import ROOT
 from decision_room.reports import inventory, render_browser as rb
 
 
 class OutputTests(unittest.TestCase):
+    def worker(self):
+        # Load trusted capture helpers with fake browser imports. This never
+        # launches Chrome or executes report HTML on the host.
+        spec=importlib.util.spec_from_file_location('contained_worker',ROOT/'engine/report_browser/worker.py')
+        module=importlib.util.module_from_spec(spec)
+        with patch.dict(sys.modules,{'chrome':SimpleNamespace(Browser=None),'inventory':inventory}),patch.object(sys,'path',list(sys.path)):
+            spec.loader.exec_module(module)
+        return module
+
+    def test_compositor_settling_requires_an_exact_pair_and_has_a_fixed_bound(self):
+        worker=self.worker()
+        class Fake:
+            def __init__(self,frames):self.frames=iter(frames);self.calls=0
+            def call(self,method,args,session):
+                self.calls+=1
+                return {'data':next(self.frames)}
+        browser=Fake(['initial','partial','finished','finished'])
+        with patch.object(worker.time,'sleep') as sleep:
+            self.assertEqual(worker.stable_pixels(browser,{},'session'),'finished')
+            self.assertEqual(sleep.call_count,3)
+            self.assertTrue(all(args[0]==(.1,) for args in sleep.call_args_list))
+        browser=Fake([str(i) for i in range(6)])
+        with patch.object(worker.time,'sleep'),self.assertRaisesRegex(ValueError,'do not stabilize'):
+            worker.stable_pixels(browser,{},'session')
+        self.assertEqual(browser.calls,6)
+
     def test_static_snapshot_cannot_smuggle_markup_urls_or_dimensions(self):
         for value in [None,'<script>alert(1)</script>',rb.SNAPSHOT_PREFIX+'<img src="https://example.org">'+rb.SNAPSHOT_SUFFIX,
                       rb.SNAPSHOT_PREFIX+'<img onerror="x" src="data:image/png;base64,AA">'+rb.SNAPSHOT_SUFFIX,

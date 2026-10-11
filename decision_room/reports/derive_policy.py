@@ -7,7 +7,7 @@ import re
 from ..config import ROOT
 
 from .presentation import POLICY_VERSION
-RENDERER_VERSION = 'v1-container-raster-1'
+RENDERER_VERSION = 'v1-container-raster-2'
 DERIVED_VERSION = 1
 MAX_TEXT = 1_000_000
 MAX_SNAPSHOT_BYTES = 20 * 1024 * 1024
