@@ -143,7 +143,7 @@ export type EngineReportMetadata = {
   }[];
 };
 export type Report = {
-  origin?: "engine_html";
+  origin?: "engine_html" | "engine_blocks";
   engine_report?: EngineReportMetadata;
   view?: EngineReportView | null;
   presentation?: Presentation;
@@ -449,8 +449,74 @@ export type SetupSession = {
   context_stale?: boolean;
 };
 
+export type BlockSpan = { text: string; bold: boolean; italic: boolean };
+export type BlockContent =
+  | { kind: "paragraph"; spans: BlockSpan[] }
+  | { kind: "list"; ordered: boolean; items: BlockSpan[][] };
+export type BlockChartSeries = {
+  name: string;
+  values: (number | null)[];
+  details: (string | null)[] | null;
+};
+export type ReportBlock = { id: string } & (
+  | { type: "section" | "priority"; title: string; blocks: ReportBlock[] }
+  | { type: "text" | "notice"; content: BlockContent[] }
+  | {
+      type: "figure";
+      label: string;
+      value: number;
+      unit: string | null;
+      decimals: number;
+      period: string | null;
+      previous: { value: number; period: string | null } | null;
+      change: number | null;
+      change_pct: number | null;
+      note: string | null;
+    }
+  | {
+      type: "chart";
+      kind: "bar" | "column" | "line" | "change" | "table";
+      requested_kind: string;
+      fallback: boolean;
+      title: string;
+      categories: string[];
+      series: BlockChartSeries[];
+      unit: string | null;
+      decimals: number;
+      category_title: string | null;
+      value_title: string | null;
+      note: string | null;
+    }
+  | {
+      type: "table";
+      title: string | null;
+      columns: { title: string; unit: string | null; decimals: number }[];
+      rows: (string | number | null)[][];
+      note: string | null;
+    }
+);
+export type BlocksProjection = {
+  schema: string;
+  projector: string;
+  title: string;
+  blocks: ReportBlock[];
+};
+export type BlockCheck = {
+  block_id: string;
+  quote: string;
+  status: "discrepancy" | "unverifiable";
+  independent_value?: string | null;
+  method?: string | null;
+  message?: string | null;
+};
+export type BlockChecks = {
+  state: "unknown" | "pending" | "complete" | "incomplete";
+  items: BlockCheck[];
+};
 export type EngineReportView = {
-  mode: "snapshot" | "pending" | "blocked" | "unavailable";
+  blocks?: BlocksProjection;
+  checks?: BlockChecks;
+  mode: "snapshot" | "pending" | "blocked" | "unavailable" | "blocks";
   policy_version: string;
   receipt: "allowed" | "blocked";
   reason: string | null;

@@ -16,6 +16,7 @@ from psycopg.types.json import Jsonb
 
 from .database import connect
 from . import chat_agent, context_references as selections, conversation_context
+from .chat_agent import ENGINE_ORIGINS
 from .greetings import is_greeting, salutation
 from .agent.model import ModelSettings, ModelRequestUncertain, record_transport
 from .agent import review
@@ -1037,7 +1038,7 @@ class Conversations:
         # An optional evidence attachment retains report export and version checks.
         opened = [e['response'] for i, e in enumerate(context['retrievals'])
                   if f'tool/{e.get("ordinal", i)}' in cited and e['request']['tool'] == 'open_report' and 'error' not in e['response']
-                  and e['response'].get('origin') != 'engine_html']  # v1 text has no reviewed evidence to attach
+                  and e['response'].get('origin') not in ENGINE_ORIGINS]  # v1 text has no reviewed evidence to attach
         if opened and action.include_report:
             ref = context['message'].get('finding_reference')
             report = next((r for r in opened if ref and r['id'] == ref['report_id']), opened[-1])
@@ -1473,7 +1474,7 @@ class Conversations:
                                         ],
                                     )
                                 if (action.retrieval.tool == 'open_report' and 'error' not in response
-                                        and response.get('origin') != 'engine_html'):
+                                        and response.get('origin') not in ENGINE_ORIGINS):
                                     from .web.presentation_editing import view
                                     current = view(self.ws, response['id'], db=db)
                                     response['display'] = {k:current[k] for k in ('title','highlights','charts','claims','presentation')}

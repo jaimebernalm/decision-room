@@ -48,6 +48,7 @@ import { findingTarget } from "@/lib/report-navigation";
 import { PresentationEditor } from "./presentation-editor";
 import { ReportSection } from "./report-section";
 import { ReportChartTooltip } from "./report-chart-tooltip";
+import { BlocksReport } from "./engine-blocks";
 import type {
   ChartData,
   ChartPanel,
@@ -430,6 +431,13 @@ function EngineFrame({ report }: { report: ReportData }) {
       <p className="whitespace-pre-wrap text-sm">{view.canonical_text}</p>
     </Disclosure>
   ) : null;
+  if (view.mode === "blocks" && view.blocks)
+    return (
+      <>
+        <BlocksReport projection={view.blocks} checks={view.checks} />
+        {text}
+      </>
+    );
   if (view.mode === "snapshot")
     return (
       <>
@@ -610,7 +618,7 @@ export function ReportView({
       ))}{" "}
     </div>
   );
-  if (report.origin === "engine_html")
+  if (report.origin === "engine_html" || report.origin === "engine_blocks")
     return report.engine_report ? (
       <EngineReportView report={report} />
     ) : (

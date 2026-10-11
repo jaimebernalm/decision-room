@@ -221,7 +221,7 @@ def _engine_reports(config, db, m, scope, request):
         current = reading.chat_document(db, m['business_id'], r['id'])
         if not current or current['version'] != r['version']:
             raise ctx.StaleContext('Report changed during search; retry.')
-    items = [dict(id=r['id'], version=r['version'], origin='engine_html', title=r['title'],
+    items = [dict(id=r['id'], version=r['version'], origin=r.get('origin', 'engine_html'), title=r['title'],
                   summary=r['text'][:300], analysis_id=r['analysis_id'], delivered_at=r['created_at'],
                   evidence_class=ENGINE_EVIDENCE) for r in rows]
     return items, [dict(kind='engine_report', id=r['id'], version=r['version']) for r in rows]
