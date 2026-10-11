@@ -69,6 +69,13 @@ class BlocksPdfTests(unittest.TestCase):
             if kind == 'barras_apiladas':
                 self.assertIn('120', [x.text for x in drawing.contents if isinstance(x, String)])
 
+    def test_series_colors_spread_from_dark_to_light(self):
+        from reportlab.lib import colors
+        hexes = [blocks_pdf._color(i, 3).hexval() for i in range(3)]
+        expected = [colors.HexColor(blocks_pdf.BY_LIGHTNESS[i]).hexval() for i in (0, 2, 4)]
+        self.assertEqual(hexes, expected)
+        self.assertEqual(len(set(blocks_pdf._color(i, 6).hexval() for i in range(6))), 6)
+
     def test_long_figure_notes_paginate_and_disputed_figures_keep_their_notice(self):
         figures = [{'tipo': 'cifra', 'etiqueta': f'Total {i}', 'valor': 1, 'nota': 'palabra ' * 490} for i in range(3)]
         projection = blocks.parse(raw(doc(*figures, {'tipo': 'cifra', 'etiqueta': 'A', 'valor': 2},

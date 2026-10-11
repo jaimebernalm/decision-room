@@ -1,9 +1,13 @@
-import { locale } from "@/lib/i18n";
+/**
+ * Native reports are written in Spanish, so their numbers follow the report's language
+ * (and the canonical text and PDF), not the interface language: 7,89 next to 8,43.
+ */
+export const REPORT_LOCALE = "es-ES";
 
 /** Platform formatting of agent numbers; the agent never supplies formatted strings. */
 export function formatNumber(value: number | null, decimals: number) {
   if (value === null || value === undefined) return "—";
-  return new Intl.NumberFormat(locale(), {
+  return new Intl.NumberFormat(REPORT_LOCALE, {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
     // Same grouping as the canonical text: 4.918, not 4918 (Spanish default).

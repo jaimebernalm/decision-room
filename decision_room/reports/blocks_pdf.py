@@ -66,8 +66,23 @@ def _unit(value, decimals, unit):
     return f'{text} %' if unit == '%' else f'{text} {unit}'
 
 
-def _color(i):
-    return colors.HexColor(CHART_SERIES_PALETTE[i % len(CHART_SERIES_PALETTE)])
+def _lightness(hex_color):
+    r, g, b = (int(hex_color[i:i + 2], 16) for i in (1, 3, 5))
+    return .299 * r + .587 * g + .114 * b
+
+
+BY_LIGHTNESS = sorted(CHART_SERIES_PALETTE, key=_lightness)
+
+
+def _color(i, count=1):
+    """Same spread as the web view: dark to light so neighbouring series stay distinguishable."""
+    if count <= 1:
+        return colors.HexColor(CHART_SERIES_PALETTE[0])
+    if count > len(BY_LIGHTNESS):
+        return colors.HexColor(CHART_SERIES_PALETTE[i % len(CHART_SERIES_PALETTE)])
+    last = len(BY_LIGHTNESS) - (1 if count >= len(BY_LIGHTNESS) else 2)
+    # Half-up like JavaScript's Math.round, so web and PDF pick the same tone.
+    return colors.HexColor(BY_LIGHTNESS[int(i * last / (count - 1) + .5)])
 
 
 def _short(text, n=24):
@@ -109,7 +124,7 @@ def chart_drawing(chart):
                 for i, s in enumerate(series):
                     v = s['values'][c]
                     if v:
-                        d.add(Rect(x(start), y, x(start + v) - x(start), 9, fillColor=_color(i), strokeColor=None))
+                        d.add(Rect(x(start), y, x(start + v) - x(start), 9, fillColor=_color(i, len(series)), strokeColor=None))
                         start += v
                 d.add(String(right + 4, y + 1.5, format_number(totals[c], chart['decimals']), fontName='Helvetica', fontSize=7, fillColor=GRAY))
                 continue
@@ -118,7 +133,7 @@ def chart_drawing(chart):
                 if v is None:
                     continue
                 y = top - (i + 1) * 12
-                fill = (colors.HexColor(CHART_NEUTRALS['reference']) if kind == 'change' and len(series) == 1 and v < 0 else _color(i))
+                fill = (colors.HexColor(CHART_NEUTRALS['reference']) if kind == 'change' and len(series) == 1 and v < 0 else _color(i, len(series)))
                 d.add(Rect(min(x(v), zero), y, abs(x(v) - zero) or .5, 9, fillColor=fill, strokeColor=None))
                 d.add(String(right + 4, y + 1.5, format_number(v, chart['decimals']), fontName='Helvetica', fontSize=7, fillColor=GRAY))
     else:
@@ -140,7 +155,7 @@ def chart_drawing(chart):
                 for c, v in enumerate(s['values']):
                     if v:
                         x0 = left + step * c + step * .2
-                        d.add(Rect(x0, y(base[c]), step * .6, y(base[c] + v) - y(base[c]), fillColor=_color(i), strokeColor=None))
+                        d.add(Rect(x0, y(base[c]), step * .6, y(base[c] + v) - y(base[c]), fillColor=_color(i, len(series)), strokeColor=None))
                         base[c] += v
         for i, s in enumerate(series if kind != 'stacked_column' else []):
             if kind == 'column':
@@ -148,22 +163,22 @@ def chart_drawing(chart):
                 for c, v in enumerate(s['values']):
                     if v is not None:
                         x0 = left + step * c + step * .15 + i * width
-                        d.add(Rect(x0, min(y(v), y(0)), width, abs(y(v) - y(0)) or .5, fillColor=_color(i), strokeColor=None))
+                        d.add(Rect(x0, min(y(v), y(0)), width, abs(y(v) - y(0)) or .5, fillColor=_color(i, len(series)), strokeColor=None))
             else:
                 segment = []
                 for c, v in enumerate(s['values'] + [None]):
                     if v is None:
                         if len(segment) >= 4:
-                            d.add(PolyLine(segment, strokeColor=_color(i), strokeWidth=1.6))
+                            d.add(PolyLine(segment, strokeColor=_color(i, len(series)), strokeWidth=1.6))
                         segment = []
                         continue
                     px, py = left + step * (c + .5), y(v)
                     segment += [px, py]
-                    d.add(Circle(px, py, 2, fillColor=_color(i), strokeColor=None))
+                    d.add(Circle(px, py, 2, fillColor=_color(i, len(series)), strokeColor=None))
     if legend:
         for i, s in enumerate(series):
             lx, ly = 10 + (i % per_row) * LEGEND_ITEM, height - 12 - (i // per_row) * 18
-            d.add(Rect(lx, ly, 8, 8, fillColor=_color(i), strokeColor=None))
+            d.add(Rect(lx, ly, 8, 8, fillColor=_color(i, len(series)), strokeColor=None))
             d.add(String(lx + 12, ly + 1, _short(s['name'], 18), fontName='Helvetica', fontSize=7.5, fillColor=INK))
     return d
 

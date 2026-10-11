@@ -1,4 +1,4 @@
-import { translate as tr, useLanguage, locale } from "@/lib/i18n";
+import { translate as tr, useLanguage } from "@/lib/i18n";
 import { Fragment, useState, type ReactNode } from "react";
 import {
   Bar,
@@ -30,7 +30,7 @@ import {
 import { CHART_NEUTRALS, CHART_SERIES_PALETTE } from "@/lib/charts";
 import { Disclosure, Notice } from "./shared";
 import { ReportChartTooltip } from "./report-chart-tooltip";
-import { formatNumber, naturalDecimals, signed, withUnit } from "@/lib/blocks-format";
+import { REPORT_LOCALE, formatNumber, naturalDecimals, signed, withUnit } from "@/lib/blocks-format";
 import type {
   BlockCheck,
   BlockChecks,
@@ -135,8 +135,21 @@ function Figure({ block }: { block: FigureBlock }) {
   );
 }
 
-const color = (i: number) =>
-  CHART_SERIES_PALETTE[i % CHART_SERIES_PALETTE.length];
+/** Same platform palette, spread from dark to light so neighbouring series stay distinguishable. */
+const BY_LIGHTNESS = [...CHART_SERIES_PALETTE].sort(
+  (a, b) => lightness(a) - lightness(b),
+);
+function lightness(hex: string) {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return 0.299 * r + 0.587 * g + 0.114 * b;
+}
+export function seriesColor(i: number, count: number) {
+  if (count <= 1) return CHART_SERIES_PALETTE[0];
+  if (count > BY_LIGHTNESS.length) return CHART_SERIES_PALETTE[i % CHART_SERIES_PALETTE.length];
+  // The lightest tone is kept for six series only: it is faint as a line on white.
+  const last = count >= BY_LIGHTNESS.length ? BY_LIGHTNESS.length - 1 : BY_LIGHTNESS.length - 2;
+  return BY_LIGHTNESS[Math.round((i * last) / (count - 1))];
+}
 
 function chartRows(chart: ChartBlock) {
   return chart.categories.map((category, c) => {
@@ -188,6 +201,7 @@ function ChartValues({ chart }: { chart: ChartBlock }) {
 function BlockChartBody({ chart }: { chart: ChartBlock }) {
   useLanguage();
   const rows = chartRows(chart);
+  const color = (i: number) => seriesColor(i, chart.series.length);
   const stacked = chart.kind === "stacked_column" || chart.kind === "stacked_bar";
   const horizontal = chart.kind === "bar" || chart.kind === "change" || chart.kind === "stacked_bar";
   // Series hidden from the legend; at least one always stays visible.
@@ -205,7 +219,7 @@ function BlockChartBody({ chart }: { chart: ChartBlock }) {
     : shown.flatMap(({ s }) => s.values.filter((v): v is number => v !== null));
   const extent = Math.max(...values.map(Math.abs), 1);
   const compact = (v: number) =>
-    new Intl.NumberFormat(locale(), { notation: "compact" }).format(v);
+    new Intl.NumberFormat(REPORT_LOCALE, { notation: "compact" }).format(v);
   const valueDomain: [number | ((v: number) => number), number | ((v: number) => number)] =
     chart.kind === "change"
       ? [-extent, extent]
@@ -436,7 +450,7 @@ export function BlockTable({ block }: { block: TableBlock }) {
       const order =
         typeof x === "number" && typeof y === "number"
           ? x - y
-          : String(x).localeCompare(String(y), locale(), { numeric: true });
+          : String(x).localeCompare(String(y), REPORT_LOCALE, { numeric: true });
       return (sort.descending ? -order : order) || a.index - b.index;
     });
   const folded = !expanded && rows.length > TABLE_PREVIEW_ROWS;
