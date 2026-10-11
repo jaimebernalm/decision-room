@@ -56,13 +56,20 @@ def initialize(spec_path, root):
         reasoning='low',max_output_tokens=spec.get('legacy_output_tokens',8192),response_language='es')
     ws=Workspace(config,settings)
     budget_path=Path(spec.get('budget_path',root/'budget.sqlite')).resolve()
+    # Per-report scope quotas of the ledger. Defaults mirror the engine's admission limits;
+    # a spec may widen them so they never bind legacy before the dollar caps do.
+    quotas={'input_tokens':6000000,'output_tokens':128000,'calls':60,'seconds':1200,**spec.get('scope_quotas',{})}
+    if set(quotas)!={'input_tokens','output_tokens','calls','seconds'} or any(type(v) is not int or v<=0 for v in quotas.values()):
+        raise ValueError('Scope quotas must be positive integers.')
     if budget_path.exists():
         policy=api_budget.Ledger(budget_path).snapshot()['policy']
-        if policy['cap'] != spec['cap_micro_usd']*1000 or policy['scope_cap'] != spec['scope_cap_micro_usd']*1000:
+        expected={'input_cap':quotas['input_tokens'],'output_cap':quotas['output_tokens'],'calls_cap':quotas['calls'],'seconds_cap':quotas['seconds']}
+        if (policy['cap'] != spec['cap_micro_usd']*1000 or policy['scope_cap'] != spec['scope_cap_micro_usd']*1000
+                or any(policy[k]!=v for k,v in expected.items())):
             raise ValueError('The shared ledger has different ceilings; never reset it.')
     else:
         api_budget.Ledger.create(budget_path,cap_micro_usd=spec['cap_micro_usd'],
-                                scope_cap_micro_usd=spec['scope_cap_micro_usd'])
+                                scope_cap_micro_usd=spec['scope_cap_micro_usd'],**quotas)
     jobs=[];active=None
     for item in spec['businesses']:
         if not isinstance(item['key'],str) or not re.fullmatch(r'[a-z][a-z0-9-]{0,63}',item['key']):
@@ -99,9 +106,53 @@ def initialize(spec_path, root):
                         head=knowledge.change(config,active,analysis,head['revision'],'table',payload)
                 jobs.append({'code':code,'job_id':job,'business_id':active,'arm':arm,'repetition':repetition+1,
                     'business_key':item['key'],'inputs':[{'name':n,'sha256':hashlib.sha256(r).hexdigest(),'bytes':len(r)} for n,r in files]})
-    save(root/'manifest.json',{'version':1,'config':asdict(config),'settings':asdict(settings),
+    # The owner stand-in knows what any owner knows: today's date, its description and its request.
+    owners={item['key']:{'today':spec['owner_today'],'description':item['description'],'goal':item['goal']} for item in spec['businesses']}
+    save(root/'manifest.json',{'version':1,'owners':owners,'config':asdict(config),'settings':asdict(settings),
         'spec_sha256':hashlib.sha256(spec_path.read_bytes()).hexdigest(),'budget_path':str(budget_path),'jobs':jobs})
     print(json.dumps({'database':database,'jobs':len(jobs),'output':str(root)}))
+
+MAX_ANSWERS=6
+OWNER_PROMPT=(
+    'Eres la persona dueña del negocio descrito abajo. Encargaste un informe a una herramienta de análisis y ahora te hace '
+    'una pregunta. Responde como lo haría esa persona: en primera persona, breve (de una a tres frases), coherente con la '
+    'descripción y con lo que pediste. Puedes expresar preferencias razonables que se deduzcan de tu petición (qué periodos '
+    'comparar, qué te importa más). No inventes hechos que no estén en la descripción: causas, cifras, acontecimientos o '
+    'significados de columnas que no se explican. Si te preguntan algo así, di con naturalidad que no lo sabes. Si la pregunta '
+    'ofrece opciones, elige la que mejor encaje con tu petición. Responde en JSON con "disposition" ("answered" si '
+    'respondes, "unknown" si no lo sabes, "declined" si prefieres no responder) y "text" (tu respuesta; vacío si no '
+    'respondes).\n\n'
+    'Hoy es {today}.\n\nDescripción del negocio:\n{description}\n\nLo que pediste:\n{goal}\n\nPregunta de la herramienta:\n{question}')
+
+
+def owner_answer(owner, question):
+    """Owner stand-in for legacy questions. Sends only through the scoped budget transport."""
+    import httpx
+    shown={k:question.get(k) for k in ('text','reason','options') if question.get(k)}
+    prompt=OWNER_PROMPT.format(today=owner['today'],description=owner['description'],goal=owner['goal'],
+                               question=json.dumps(shown,ensure_ascii=False,indent=1))
+    transport=api_budget.transport()
+    if transport is None:
+        raise api_budget.BudgetStopped('The owner stand-in requires the trial budget.')
+    schema={'type':'object','additionalProperties':False,'required':['disposition','text'],
+            'properties':{'disposition':{'type':'string','enum':['answered','unknown','declined']},'text':{'type':'string'}}}
+    with httpx.Client(transport=transport,trust_env=False,timeout=120) as client:
+        response=client.post('https://api.openai.com/v1/chat/completions',
+            headers={'Authorization':'Bearer '+os.environ['OPENAI_API_KEY']},
+            json={'model':'gpt-6-luna','reasoning_effort':'low','store':False,'max_completion_tokens':2000,
+                  'response_format':{'type':'json_schema','json_schema':{'name':'owner_answer','strict':True,'schema':schema}},
+                  'messages':[{'role':'user','content':prompt}]})
+        response.raise_for_status()
+        choice=response.json()['choices'][0]
+    # A truncated or malformed answer is not an owner declaration: refuse it, never repair it.
+    if choice.get('finish_reason')!='stop' or not isinstance(choice['message'].get('content'),str):
+        raise ValueError('The owner stand-in did not finish a complete answer.')
+    value=json.loads(choice['message']['content'])
+    if (not isinstance(value,dict) or set(value)!={'disposition','text'} or value['disposition'] not in ('answered','unknown','declined')
+            or not isinstance(value['text'],str) or len(value['text'])>1500
+            or (value['disposition']=='answered')!=bool(value['text'].strip())):
+        raise ValueError('The owner stand-in answer is invalid.')
+    return value['disposition'],value['text'].strip() if value['disposition']=='answered' else ''
 
 
 def _execute(root, code):
@@ -119,8 +170,30 @@ def _execute(root, code):
     if ledger.snapshot()['policy']['stopped']:
         raise api_budget.BudgetStopped('Trial provider budget is stopped.')
     start=time.monotonic();save(target/'started.json',job)
+    answers=[]
     with api_budget.scope('web:'+job['job_id']):
         ws.run_job(job['job_id'])
+        # Legacy may ask its owner. A stand-in that knows only the spec's description
+        # and goal answers, inside the same budget scope as the job; one send per
+        # question and no repeat after an uncertain send (it stops the ledger).
+        while ws.row(job['job_id'])['status']=='waiting' and job['arm']=='legacy' and len(answers)<MAX_ANSWERS:
+            pending=ws.detail(job['job_id'])['questions']
+            if not pending:
+                break
+            question=pending[0]
+            shown={k:question.get(k) for k in ('text','reason','options')}
+            attempt={'question_id':str(question['id']),'phase':question['phase'],'question':shown,'state':'sending',
+                     'question_sha256':hashlib.sha256(json.dumps(shown,ensure_ascii=False,sort_keys=True).encode()).hexdigest()}
+            if any(a['question_id']==attempt['question_id'] and a['phase']==attempt['phase'] for a in answers):
+                break  # never send the same question twice; the wait stays a loss
+            answers.append(attempt);save(target/'answers.json',answers)  # durable before the send
+            disposition,text=owner_answer(manifest['owners'][job['business_key']],question)
+            attempt.update(answer=text,disposition=disposition,state='answered')
+            save(target/'answers.json',answers)  # durable before the reply; a failed reply is not resent
+            ws.reply(job['job_id'],{'request_key':str(uuid4()),'question_id':question['id'],'phase':question['phase'],
+                                    'text':text,'disposition':disposition})
+            attempt['state']='replied';save(target/'answers.json',answers)
+            ws.run_job(job['job_id'])
     row=ws.row(job['job_id'])
     # OpenCode can acknowledge a terminal turn before the provider stream's
     # final settlement commits on the server thread. Export after that boundary
@@ -135,7 +208,7 @@ def _execute(root, code):
     result={'job':job,'status':row['status'],'phase':row['phase'],'issue':row['issue'],
         'seconds':time.monotonic()-start,'engine_run_id':row['engine_run_id'],
         'session_id':row['session_id'],'research_id':row['research_id'],'review_id':row['review_id'],
-        'report_document_id':row['report_document_id'],'delivery':False,'snapshot':False}
+        'report_document_id':row['report_document_id'],'delivery':False,'snapshot':False,'owner_answers':len(answers)}
     if row['engine_run_id']:
         state=admission.inspect_run(config,job['business_id'],row['engine_run_id'])
         save(target/'engine.json',state)
