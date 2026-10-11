@@ -184,6 +184,15 @@ def _figure_cell(block):
     return _figure(block, boxed=False)[0]
 
 
+GRID_NOTE = 300  # longer notes would make an indivisible grid row taller than a page
+
+
+def gridable(block, checks):
+    """Short, undisputed figures go in the card grid; others stay standalone next to their notice."""
+    disputed = any(c.get('status') == 'discrepancy' for c in checks.get(block['id'], []))
+    return not disputed and len(block.get('note') or '') <= GRID_NOTE and len(block['label']) <= 200
+
+
 def _figure_grid(figures):
     """Consecutive figures as a grid of cards, like the web view (3 per row)."""
     rows = [[_figure_cell(f) for f in figures[i:i + 3]] for i in range(0, len(figures), 3)]
@@ -240,15 +249,17 @@ def _blocks(blocks, checks, depth, numbers):
     def flush():
         if figures:
             flow.extend(_figure_grid(figures))
-            for f in figures:
-                flow.extend(_checks(checks.get(f['id'], [])))
             figures.clear()
     for b in blocks:
         kind = b['type']
-        if kind == 'figure':
+        if kind == 'figure' and gridable(b, checks):
             figures.append(b)
             continue
         flush()
+        if kind == 'figure':
+            # Disputed or long figures stay splittable, each followed by its own notice.
+            flow += _figure(b) + _checks(checks.get(b['id'], []))
+            continue
         own = _checks(checks.get(b['id'], []))
         if kind == 'section':
             flow.append(Paragraph(_text(b['title']), STYLES['heading'] if depth == 0 else SUBHEAD))

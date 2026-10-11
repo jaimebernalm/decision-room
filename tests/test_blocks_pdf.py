@@ -53,6 +53,25 @@ class BlocksPdfTests(unittest.TestCase):
             self.assertLessEqual(label.y, drawing.height)
             self.assertGreaterEqual(label.y, 0)
 
+    def test_long_figure_notes_paginate_and_disputed_figures_keep_their_notice(self):
+        figures = [{'tipo': 'cifra', 'etiqueta': f'Total {i}', 'valor': 1, 'nota': 'palabra ' * 490} for i in range(3)]
+        projection = blocks.parse(raw(doc(*figures, {'tipo': 'cifra', 'etiqueta': 'A', 'valor': 2},
+                                          {'tipo': 'cifra', 'etiqueta': 'B', 'valor': 3}, {'tipo': 'cifra', 'etiqueta': 'C', 'valor': 4})))
+        text = text_of(blocks_pdf.render(projection))  # no LayoutError
+        self.assertEqual(text.count('Total 0'), 1)
+        self.assertGreaterEqual(text.count('palabra'), 3 * 400)
+        checks = {'state': 'complete', 'items': [
+            {'block_id': 'b4', 'quote': '2', 'status': 'discrepancy', 'independent_value': 'dos'},
+            {'block_id': 'b6', 'quote': '4', 'status': 'discrepancy', 'independent_value': 'cuatro'}]}
+        text = text_of(blocks_pdf.render(projection, checks))
+        self.assertLess(text.index('cálculo independiente: dos'), text.index('cálculo independiente: cuatro'))
+        flow = blocks_pdf._blocks(projection['blocks'], {i['block_id']: [i] for i in checks['items']}, 0, {})
+        kinds = [type(x).__name__ for x in flow]
+        notices = [i for i, x in enumerate(flow) if getattr(x, 'style', None) is blocks_pdf.NOTICE]
+        self.assertEqual(len(notices), 2)
+        for i in notices:  # each notice directly follows its own standalone figure paragraph
+            self.assertEqual(kinds[i - 1], 'Paragraph')
+
     def test_extreme_sizes_paginate_without_loss(self):
         cats = [f'Categoría con una etiqueta bastante larga {i}' for i in range(blocks.MAX_CATEGORIES)]
         series = [{'nombre': f'S{j}', 'valores': [((-1) ** i) * (i + j + 0.5) for i in range(len(cats))]}
