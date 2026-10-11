@@ -39,14 +39,21 @@ form:has([data-slot=input-group]), [data-slot=sidebar-inset] > header button { d
 html, body, [data-slot=sidebar-wrapper], main, .assistant-frame, main * { overflow: visible !important; }
 html, body, [data-slot=sidebar-wrapper], main, .assistant-frame { height: auto !important; min-height: 0 !important; max-height: none !important; }
 '''
-# Independent-check notices (role=note), its folded details and state notices: auditor mode only.
+# Independent-check output only (auditor mode): per-block notices (role=note), the folded
+# "Detalles de la comprobación independiente" disclosure and the incomplete/pending state notices.
+# The report's own callouts (aside) are never touched.
 HIDE_CHECKS = r'''
 (() => {
-  document.querySelectorAll('main [role=note]').forEach(e => e.style.setProperty('display','none','important'));
-  for (const e of document.querySelectorAll('main *')) {
-    if (e.children.length === 0 && /Detalles de la comprobación independiente|comprobación independiente de cifras/.test(e.textContent))
-      (e.closest('[data-slot=collapsible]') || e.closest('[role=alert]') || e.closest('div') || e).style.setProperty('display','none','important');
-  }
+  const hide = e => e && e.style.setProperty('display','none','important');
+  const hidden = {notes: 0, details: 0, state: 0};
+  document.querySelectorAll('main [role=note]').forEach(e => { hide(e); hidden.notes++; });
+  document.querySelectorAll('main [data-slot=collapsible-trigger]').forEach(t => {
+    if (/Detalles de la comprobación independiente/.test(t.textContent)) { hide(t.closest('[data-slot=collapsible]') || t); hidden.details++; }
+  });
+  document.querySelectorAll('main [role=alert], main [data-slot=alert]').forEach(e => {
+    if (/comprobación independiente de cifras/.test(e.textContent)) { hide(e); hidden.state++; }
+  });
+  return hidden;
 })()
 '''
 EXPAND = r'''
@@ -144,8 +151,12 @@ async def capture(base_url, key_file, db_name, out_dir, mode, targets, port=9333
                     raise RuntimeError(f'{name}: report view did not load')
                 await asyncio.sleep(3)
                 await run(f"(()=>{{const s=document.createElement('style');s.textContent={json.dumps(HIDE)};document.head.appendChild(s)}})()")
+                hidden = None
                 if mode == 'auditor':
-                    await run(HIDE_CHECKS)
+                    hidden = (await run(HIDE_CHECKS, returnByValue=True))['result']['value']
+                visible = (await run("""JSON.stringify({notes: [...document.querySelectorAll('main [role=note]')].filter(e => e.offsetParent).length,
+                    details: [...document.querySelectorAll('main [data-slot=collapsible-trigger]')].filter(t => t.offsetParent &&
+                      /Detalles de la comprobación independiente/.test(t.textContent)).length})"""))['result']['value']
                 await asyncio.sleep(1)
                 await run(EXPAND)
                 await asyncio.sleep(2)
@@ -162,7 +173,8 @@ async def capture(base_url, key_file, db_name, out_dir, mode, targets, port=9333
                     path = folder / f'page-{i:02d}.png'
                     full.crop((0, top, WIDTH, min(full.height, top + SLICE))).save(path)
                     pages.append(path.name)
-                manifest.append({'name': name, 'job': job, 'mode': mode, 'height': full.height, 'pages': pages})
+                manifest.append({'name': name, 'job': job, 'mode': mode, 'height': full.height, 'pages': pages,
+                                 'check_elements_hidden': hidden, 'check_elements_visible': json.loads(visible)})
                 await metrics(1000)
     finally:
         chrome.terminate()
