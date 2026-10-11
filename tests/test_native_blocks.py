@@ -82,6 +82,20 @@ class NativeRegistryTests(unittest.TestCase):
             with reading.read(self.config,self.business,doc,revision=uuid4()): pass
         self.assertEqual(receipts.read_document(self.config,self.business,run)['raw_sha256'],receipt['raw_sha256'])
 
+    def test_historical_projection_is_not_recomputed_after_projector_upgrade(self):
+        raw=encode(example());run,receipt=self.native(raw)
+        doc=store.adopt(self.config,self.business,run)
+        with reading.read(self.config,self.business,doc) as (db,document,revision):
+            original=native_store.result(db,self.business,doc,revision['id'])
+        with patch.object(blocks,'PROJECTOR_VERSION','future-projector'), patch.object(blocks,'parse',side_effect=AssertionError('reprojected')):
+            store.adopt(self.config,self.business,run)
+            with reading.read(self.config,self.business,doc) as (db,document,revision):
+                saved=native_store.result(db,self.business,doc,revision['id'])
+                self.assertEqual(saved['document'],original['document'])
+                self.assertEqual(saved['canonical_sha256'],original['canonical_sha256'])
+                self.assertEqual(saved['projector_version'],original['projector_version'])
+                self.assertEqual(reading.view(db,document,revision)['mode'],'blocks')
+
 
 class NativeProductTests(unittest.TestCase):
     from tests import test_engine_jobs as product_fixtures

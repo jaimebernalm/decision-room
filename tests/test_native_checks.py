@@ -250,6 +250,9 @@ class ProductCycleTests(unittest.TestCase):
         with reading.read(self.config,row['business_id'],row['report_document_id']) as (db,doc,rev):
             self.assertEqual(doc['current_revision_id'],rev['id'])
             self.assertEqual(reading.view(db,doc,rev)['checks']['state'],'incomplete')
+            text=reading.chat_document(db,row['business_id'],doc['id'])['text']
+            self.assertIn('Comprobación independiente de cifras: no completada',text)
+            self.assertNotIn('Comprobación independiente: incomplete',text)
             check=db.execute('SELECT * FROM engine_native_checks WHERE run_id=%s',(row['engine_run_id'],)).fetchone()
             self.assertEqual(check['status'],'incomplete');self.assertIsNotNone(check['raw_result'])
 

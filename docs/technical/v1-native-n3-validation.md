@@ -52,8 +52,7 @@ publica un informe. Conserva su recibo y resultado exactos; una repetición solo
 - Sin llamadas reales al proveedor. Los tests usan modelos y respuestas HTTP
   simulados. No acreditan exactitud ni utilidad del comprobador: eso queda para
   la validación retenida y los ensayos N4/N5, con materiales y reglas congelados.
-- La regresión Python completa del conjunto está en marcha; no se declara pasada
-  hasta que termine. Legacy sigue por defecto y no hay push ni merge a master.
+- Legacy sigue por defecto y no hay push ni merge a master.
 
 La comprobación profunda del contexto ocurre en eventos del ciclo y mantiene el
 lock de memoria mientras lee hashes; el polling usa la comprobación barata. El
@@ -77,3 +76,24 @@ inválidos. La integración anterior pasa 57 pruebas de superficies/ejecutor/PDF
 completa inicial se interrumpió al integrar cambios durante su ejecución; la
 repetición congelada encontró montajes de sandbox no visibles en la VM. Ninguna
 se presenta como una regresión completa exitosa de esta variante.
+
+## Smoke real y ajustes antes de congelar N4
+
+Claude ejecutó un smoke del producto sobre 688ab50, anterior a la reparación de
+formato. Su metadato declara entrega, corrección y publicación en 323 segundos,
+45 llamadas y 0,206 USD de catálogo. No acredita la exactitud de los cálculos.
+El comprobador final calculó el hash del fichero de prioridades en lugar de
+copiar el campo revision_sha256, por una ambigüedad de las instrucciones. El
+resultado se conservó como incompleto y el informe llevó el aviso correspondiente.
+
+Las instrucciones ahora exigen copiar literalmente el campo, sin calcular ningún
+hash; el parser sigue rechazando cualquier identidad distinta. El perfil congela
+el hash nuevo de las instrucciones. El estado añadido al texto del chat se expresa
+en español. Al cambiar el proyector, las revisiones ya derivadas conservan su
+proyección, versiones y hash canónico; ni lectura ni adopción repetida las recalculan.
+
+La regresión completa congelada en fba8fc4 ejecutó 898 pruebas en 627 segundos:
+cero fallos de aserción y un error. El smoke del renderizador HTML usaba un fixture
+sin origin al llamar a reading.view. Se corrigió indicando engine_html en el
+fixture; no se cambia el despacho del producto para ocultar ese error. Esta pasada
+no se declara exitosa; la repetición sobre el conjunto corregido se registra aparte.

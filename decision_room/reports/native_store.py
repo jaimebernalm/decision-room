@@ -45,8 +45,9 @@ def result(db, business, document, revision):
         ON r.business_id=x.business_id AND r.document_id=x.document_id AND r.id=x.revision_id AND r.raw_sha256=x.raw_sha256
         JOIN report_documents d ON d.id=r.document_id AND d.business_id=r.business_id
         WHERE r.business_id=%s AND r.document_id=%s AND r.id=%s AND d.origin='engine_blocks'
-        AND x.policy_version=%s AND x.renderer_version=%s''',
-        (business,document,revision,POLICY_VERSION,blocks.PROJECTOR_VERSION)).fetchone()
+        AND x.policy_version=r.policy_version AND x.renderer_version=r.renderer_version''',
+        (business,document,revision)).fetchone()
     if not row: return None
     return {**row, 'document': row['inventory']['document'] if row['status']=='ready' else None,
-            'schema_version': blocks.VERSION, 'projector_version': blocks.PROJECTOR_VERSION}
+            'schema_version': row['inventory']['schema_version'] if row['inventory'] else None,
+            'projector_version': row['renderer_version']}
