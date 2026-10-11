@@ -34,7 +34,8 @@ debe tener:
     comparó cada profesional con su propia evolución mes a mes.
 - **Exactitud:** `html-v1` tuvo 2 errores materiales en la clínica. El agente escribió a mano el
   ancho de cada barra del SVG: los valores de la etiqueta eran correctos y los anchos no. El
-  nativo no puede cometer ese error, porque la plataforma dibuja a partir de los datos.
+  nativo evita ese dibujo manual, porque la plataforma dibuja a partir de los datos; siguen
+  siendo posibles errores en los datos, en su selección o en el componente.
 - **El texto era distinto en cada brazo.** Fueron ejecuciones separadas, así que el resultado
   mezcla formato y suerte del análisis. Con una sola repetición no se pueden separar.
 - **Parada:** el flujo de una llamada del comprobador quedó más de 120 s sin datos tras un HTTP 200
