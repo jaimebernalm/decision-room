@@ -71,3 +71,8 @@ semántica de un juicio. Tampoco sustituye el sellado separado de las evaluacion
 de desvelar. Siete tests nuevos comprueban cobertura repetida o ausente, pérdida de
 gravedad, denominadores incorrectos, lectores incompletos, puntuaciones inválidas y
 alteraciones del kit. Estos tests son posteriores a la pasada completa de 815 indicada arriba.
+
+Una ampliación posterior aplica también la regla congelada de parejas que superan el
+límite de imágenes: si `index.incomplete_pairs` contiene alguna, el resultado de la
+comprobación es incompleto aunque el subconjunto evaluado sea válido. Ocho tests focalizados
+pasan; este control no cambia los materiales ni la regla de decisión del ensayo.

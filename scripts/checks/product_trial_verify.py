@@ -122,6 +122,8 @@ def verify(kits, results):
         require(len(index['pairs']) == len(set(index['pairs'])), 'Duplicate reader pair')
     except (ValueError, OSError, TypeError) as error:
         return {'valid': False, 'issues': ['kit: ' + str(error)]}
+    if index.get('incomplete_pairs'):
+        issues.append('Reader pairs marked incomplete in the frozen kit index')
     def check(filename, function):
         try:
             return function(load(results / filename))

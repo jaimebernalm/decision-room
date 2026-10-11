@@ -84,3 +84,13 @@ class ProductTrialVerifyTests(unittest.TestCase):
     def test_duplicate_json_keys_cannot_overwrite_a_verdict(self):
         (self.results / 'owner-units-1.json').write_text('{"pair":"units-1","eleccion":"A","eleccion":"B","motivo":"x"}')
         self.assertFalse(verify.verify(self.kits, self.results)['valid'])
+
+    def test_omitted_over_limit_pairs_do_not_make_the_subsample_complete(self):
+        path = self.kits / 'index.json'
+        value = json.loads(path.read_text())
+        value['incomplete_pairs'] = ['units-2']
+        path.write_text(json.dumps(value))
+        (self.kits / 'SEALED.sha256').write_text(hashlib.sha256(path.read_bytes()).hexdigest() + '  index.json\n')
+        result = verify.verify(self.kits, self.results)
+        self.assertFalse(result['valid'])
+        self.assertIn('incomplete', result['issues'][0])
