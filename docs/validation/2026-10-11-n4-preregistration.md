@@ -61,13 +61,18 @@ Opus nueva.
 - **Juez:** oráculo, señales S1–S5 y señuelo, como en F5.
 - **Lectores:** uno como dueño y otro como asesor, por pareja (orden A/B aleatorio), con la misma
   pregunta que en F5.
-- **Comprobador (retenido para N3):** sus resultados en blocks-v1 se comparan con los errores
-  materiales y críticos que encuentra el auditor en las prioridades. Se mide:
-  - detección;
-  - falsas alarmas;
-  - cifras no comprobables;
-  - correcciones aplicadas;
-  - coste y tiempo de la comprobación.
+- **Comprobador (validación retenida de N3).** Hay dos fuentes, con denominadores separados:
+  1. **Errores naturales.** Las comprobaciones del ciclo en blocks-v1 se comparan con lo que el
+     auditor ciego marca en las prioridades. Se cuentan por separado los negativos correctos
+     (cifras correctas no señaladas), las falsas alarmas, las detecciones y los no comprobables.
+     El auditor es un modelo, no una verdad certificada, y se declara así.
+  2. **Errores sembrados.** En copias de los informes blocks-v1 entregados, Claude cambia 2
+     cifras de prioridades por informe. Elige cifras que el auditor dio por correctas y les
+     aplica un cambio material (±20–60 % o un periodo equivocado). Los cambios se fijan con
+     semilla y se guardan fuera de los kits. Después se vuelve a ejecutar solo el comprobador
+     sobre esas prioridades, con su propio coste en el ledger. Se mide la detección de lo
+     sembrado y las falsas alarmas sobre el resto.
+  - También se registran las correcciones aplicadas y el coste y el tiempo de la comprobación.
 
 ## Regla (blocks-v1 «pasa N4» solo si se cumplen todas)
 
@@ -84,8 +89,10 @@ Opus nueva.
   - mediana de coste ≤ 0,30 USD;
   - mediana de tiempo ≤ mediana de html-v1 + 5 min.
 - **(f) Comprobador:**
-  - falsas alarmas ≤ 10 % de las cifras de prioridades que dio por comprobadas;
-  - detecta todo error crítico presente en las prioridades de blocks-v1, si lo hay.
+  - falsas alarmas ≤ 10 % de las cifras correctas que comprobó;
+  - detecta al menos el 70 % de los errores sembrados que llegó a comprobar;
+  - los sembrados que no comprobó se informan aparte (cobertura);
+  - detecta todo error crítico natural presente en las prioridades de blocks-v1, si lo hay.
 
 **Resultado:**
 - **incompleto** si algún intento no se inició o alguna pareja quedó sin leer por pérdida;
