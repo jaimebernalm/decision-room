@@ -25,6 +25,16 @@ solo al formato.
 | Lo que ve el lector | páginas de la instantánea | páginas del PDF de la plataforma (`blocks_pdf`), que dibuja los mismos bloques que la vista web |
 | Preguntas al dueño | desactivadas | desactivadas |
 
+**Variante exacta de blocks-v1.** Hay una sola vuelta de corrección por informe, y la consume lo
+que ocurra primero:
+- una **reparación de formato**, si el borrador no valida. El agente recibe rutas y causas, sin
+  contenido;
+- una **corrección de cifras**, si el comprobador encuentra discrepancias.
+
+Después hay siempre una comprobación final. Si tras reparar quedan discrepancias, se avisan sin
+un tercer turno. Si el borrador sigue sin validar, el intento cuenta como pérdida y se conservan
+los dos recibos.
+
 **Limitación declarada.** El dueño verá la versión web. Los lectores ven el PDF de la plataforma,
 porque en este entorno no se puede capturar la página web completa sin un navegador. Ambos salen
 de los mismos bloques, con la misma paleta y el mismo diseño.
