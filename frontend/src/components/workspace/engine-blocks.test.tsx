@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { it, expect } from "vitest";
 import { BlocksReport, stackTotalLabel } from "./engine-blocks";
-import { formatNumber } from "@/lib/blocks-format";
+import { exactDecimals, formatNumber } from "@/lib/blocks-format";
 import { ReportView } from "./report";
 import fixture from "@/test-fixtures/blocks-report.json";
 import type { BlocksProjection, Report } from "@/lib/types";
@@ -187,4 +187,12 @@ it("names stack totals with gaps or hidden series instead of treating a gap as z
   expect(stackTotalLabel(chart as never, 0, false)).toBe("Total");
   expect(stackTotalLabel(chart as never, 1, false)).toBe("Total parcial");
   expect(stackTotalLabel(chart as never, 0, true)).toBe("Total visible");
+});
+
+it("keeps every delivered decimal for exact values", () => {
+  expect(exactDecimals(0.1234, 2)).toBe(4);
+  expect(exactDecimals(13.7, 1)).toBe(1);
+  expect(exactDecimals(12, 1)).toBe(1);
+  expect(exactDecimals(1.5e-7, 0)).toBe(8);
+  expect(exactDecimals(null, 2)).toBe(2);
 });

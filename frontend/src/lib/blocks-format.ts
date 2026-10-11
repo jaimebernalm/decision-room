@@ -38,3 +38,13 @@ export function withUnit(value: number | null, decimals: number, unit: string | 
 export function signed(value: number, decimals: number, unit: string | null) {
   return (value > 0 ? "+" : "") + withUnit(value, decimals, unit);
 }
+
+/** Every delivered decimal (up to 15): exact values on hover and in the data view, never rounded away. */
+export function exactDecimals(value: number | null, decimals: number) {
+  if (value === null) return decimals;
+  const text = String(Math.abs(value));
+  const places = text.includes("e-")
+    ? Number(text.split("e-")[1]) + (text.split("e-")[0].split(".")[1] || "").length
+    : (text.split(".")[1] || "").length;
+  return Math.min(15, Math.max(decimals, places));
+}

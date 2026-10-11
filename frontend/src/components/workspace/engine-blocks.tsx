@@ -30,7 +30,7 @@ import {
 import { CHART_NEUTRALS, CHART_SERIES_PALETTE } from "@/lib/charts";
 import { Disclosure, Notice } from "./shared";
 import { ReportChartTooltip } from "./report-chart-tooltip";
-import { REPORT_LOCALE, formatNumber, naturalDecimals, signed, withUnit } from "@/lib/blocks-format";
+import { REPORT_LOCALE, exactDecimals, formatNumber, naturalDecimals, signed, withUnit } from "@/lib/blocks-format";
 import type {
   BlockCheck,
   BlockChecks,
@@ -183,7 +183,7 @@ function ChartValues({ chart }: { chart: ChartBlock }) {
                 key={s.name}
                 className="text-right font-mono tabular-nums"
               >
-                {withUnit(s.values[c], chart.decimals, chart.unit)}
+                {withUnit(s.values[c], exactDecimals(s.values[c], chart.decimals), chart.unit)}
                 {s.details?.[c] && (
                   <span className="block text-xs text-muted-foreground">
                     {s.details[c]}
@@ -244,7 +244,7 @@ function BlockChartBody({ chart }: { chart: ChartBlock }) {
           ({ s, i }) => ({
             label: s.name,
             value:
-              withUnit(s.values[c], chart.decimals, chart.unit) +
+              withUnit(s.values[c], exactDecimals(s.values[c], chart.decimals), chart.unit) +
               (s.details?.[c] ? ` · ${s.details[c]}` : ""),
             color: color(i),
           }),

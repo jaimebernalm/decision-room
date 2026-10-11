@@ -5,6 +5,7 @@ vector drawings followed by their exact values, so nothing depends on reading a 
 Disputed figures carry the same notice as on screen; nothing is ever marked verified.
 """
 from datetime import datetime
+from decimal import Decimal
 from html import escape
 from io import BytesIO
 
@@ -220,11 +221,19 @@ def _chart(chart, appendix):
     return flow + _values(chart)
 
 
+def _exact(value, decimals):
+    """Every delivered decimal (up to 15) in the values table, as in the web data view."""
+    if value is None:
+        return decimals
+    exponent = Decimal(str(value)).normalize().as_tuple().exponent
+    return min(15, max(decimals, -exponent if exponent < 0 else 0))
+
+
 def _values(chart, note=True):
     flow = []
     rows = [[chart['category_title'] or 'Categoría'] + [s['name'] for s in chart['series']]]
     for c, cat in enumerate(chart['categories']):
-        rows.append([cat] + [_unit(s['values'][c], chart['decimals'], chart['unit']) +
+        rows.append([cat] + [_unit(s['values'][c], _exact(s['values'][c], chart['decimals']), chart['unit']) +
                              (f" ({s['details'][c]})" if s['details'] and s['details'][c] else '') for s in chart['series']])
     cols = len(rows[0])
     first = min(170, WIDTH * .4)

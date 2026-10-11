@@ -104,6 +104,11 @@ class BlocksPdfTests(unittest.TestCase):
             self.assertEqual(labels.count('0'), 0 if kind == 'barras_apiladas' else 1)  # only the axis
             self.assertNotIn('2', labels)
 
+    def test_values_table_keeps_every_delivered_decimal(self):
+        self.assertEqual(blocks_pdf._exact(0.1234, 2), 4)
+        self.assertEqual(blocks_pdf._exact(12, 1), 1)
+        self.assertEqual(blocks_pdf._exact(None, 2), 2)
+
     def test_series_colors_spread_from_dark_to_light(self):
         from reportlab.lib import colors
         hexes = [blocks_pdf._color(i, 3).hexval() for i in range(3)]
