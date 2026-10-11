@@ -38,11 +38,11 @@ def _resolved_usage(db, config, run):
     if db.execute("SELECT 1 FROM engine_model_calls WHERE run_id=%s AND state<>'settled' LIMIT 1", (run['id'],)).fetchone():
         raise admission.Denied('Provider usage is unresolved.')
     from . import provider_budget
-    ledger=provider_budget.ledger(config,run)
-    if ledger:
-        state=ledger.snapshot()
-        if state['policy']['stopped'] or state['uncertain']:
-            raise admission.Denied('Provider budget stopped or unresolved.')
+    from ..agent import api_budget
+    try:
+        provider_budget.guard(config,run,resolved=True)
+    except api_budget.BudgetStopped:
+        raise admission.Denied('Provider budget stopped or unresolved.') from None
 
 
 def read(db,business,run,revision):
@@ -260,8 +260,7 @@ def recover(config,run):
         for call in pending:
             admission.settle(config,run['id'],call['id'],reason='checker_recovery_usage_unknown')
         from . import provider_budget
-        ledger=provider_budget.ledger(config,run)
-        if ledger and ledger.snapshot()['uncertain']:ledger.stop()
+        provider_budget.recover(config,run)
         incomplete(config,run,'checker_recovery_uncertain')
     return interrupted
 

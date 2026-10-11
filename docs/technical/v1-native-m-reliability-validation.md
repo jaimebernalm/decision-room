@@ -23,3 +23,43 @@ Validación inicial: 21 pruebas de `test_api_budget` con SQLite y PostgreSQL
 locales y transporte simulado. Incluye primera y segunda incertidumbre,
 reapertura del archivo, callback repetido, dos liquidaciones concurrentes,
 rechazo HTTP, recuperación, topes y las pruebas de la política anterior.
+
+## Motor y ejecutor
+
+El motor comprueba el ámbito `engine:<run>` del ledger compartido antes de
+operar. Antes de publicar también exige uso resuelto del propio ámbito, sin
+confundir una llamada pendiente o incierta de otro intento con la propia. El
+ledger P4 por ejecución conserva su política: solo contiene esa ejecución.
+La recuperación del comprobador, tras detener su runtime, reconcilia las
+reservas huérfanas tanto en P4 como en el ledger del lote.
+
+El spec del ejecutor fija `scope_uncertainty` y `ledger_version`; reutilizar un
+ledger exige que coincidan política, cuotas y topes. El resultado registra el
+ámbito detenido, su incertidumbre y el motivo. No se continúa un intento detenido
+ni se vuelve a enviar su pregunta. Otro intento puede operar tras la primera
+incertidumbre, hasta la segunda. Los intentos y recibos anteriores se conservan.
+
+El timeout de lectura inactiva pasa a 300 s, limitado por el tiempo restante del
+run. Conexión y pool tienen un máximo de 10 s y escritura de 30 s, todos limitados
+por ese mismo tiempo restante. La prueba simula `response.created` seguido de
+ReadTimeout, comprueba los parámetros entregados a HTTPX y verifica las reservas
+y la continuación de otro run. No espera 300 s ni acredita la latencia real del
+proveedor.
+
+## Investigación de recuperación por ID
+
+La API tiene GET de Responses por ID, pero `store` controla su almacenamiento
+para recuperarla después. El proxy del producto fuerza `store=false`. Por ello
+no se incorpora polling ni se da por recuperable un flujo cortado; tampoco se
+habilita almacenamiento de contenido para intentar recuperarlo. Esta conclusión
+es una limitación de la ruta actual, no una prueba de una consulta real.
+
+Fuentes oficiales consultadas el 11 de octubre de 2026:
+[creación](https://developers.openai.com/api/reference/resources/responses/methods/create),
+[recuperación](https://developers.openai.com/api/reference/resources/responses/methods/retrieve),
+[almacenamiento](https://developers.openai.com/api/docs/guides/migrate-to-responses).
+
+Validación de integración: 97 pruebas de ledger, techo P4, admisión, ciclo del
+comprobador, ejecutor, jobs y lifecycle con PostgreSQL desechable y proveedores
+simulados. No hubo gasto de API. La revisión pública del commit no incluye datos
+privados, credenciales, rutas personales ni archivos de runtime.

@@ -227,10 +227,18 @@ class Ledger:
 
     def scope_state(self, identifier):
         """Durable send/publication guard; old policies keep global uncertainty."""
-        state = self.snapshot()
-        scoped = state['policy']['version'] in SCOPED_VERSIONS
-        return {'stopped': bool(state['policy']['stopped'] or identifier in state['stopped_scopes']),
-                'uncertain': identifier in state['uncertain_scopes'] if scoped else state['uncertain']}
+        with self.db() as db:
+            db.execute('BEGIN')
+            policy = db.execute('SELECT version,stopped FROM policy').fetchone()
+            if not policy or policy['version'] not in (VERSION, REJECTION_VERSION, *SCOPED_VERSIONS):
+                raise BudgetStopped('Unsupported provider budget policy.')
+            scoped = policy['version'] in SCOPED_VERSIONS
+            stopped = bool(policy['stopped'] or (scoped and db.execute(
+                'SELECT 1 FROM stopped_scopes WHERE scope=?', (identifier,)).fetchone()))
+            query = "SELECT 1 FROM calls WHERE state IN ('reserved','uncertain')"
+            uncertain = db.execute(query + (' AND scope=?' if scoped else '') + ' LIMIT 1',
+                                   (identifier,) if scoped else ()).fetchone() is not None
+            return {'stopped': stopped, 'uncertain': uncertain}
 
     def reconcile_scope(self, identifier):
         """Trusted recovery after stopping the controller, never while it sends.

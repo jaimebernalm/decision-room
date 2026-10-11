@@ -68,9 +68,10 @@ def initialize(spec_path, root):
     rejections=spec.get('explicit_http_rejections',False)
     if type(rejections) is not bool:
         raise ValueError('explicit_http_rejections must be a boolean.')
-    version=api_budget.REJECTION_VERSION if rejections else api_budget.VERSION
+    scoped=spec.get('scope_uncertainty',False)
+    version=api_budget.policy_version(explicit_http_rejections=rejections,scope_uncertainty=scoped)
     if spec.get('ledger_version',version)!=version:
-        raise ValueError('The spec ledger version does not match its rejection policy.')
+        raise ValueError('The spec ledger version does not match its frozen provider policies.')
     if budget_path.exists():
         policy=api_budget.Ledger(budget_path).snapshot()['policy']
         expected={'input_cap':quotas['input_tokens'],'output_cap':quotas['output_tokens'],'calls_cap':quotas['calls'],'seconds_cap':quotas['seconds']}
@@ -79,7 +80,7 @@ def initialize(spec_path, root):
             raise ValueError('The shared ledger has different ceilings; never reset it.')
     else:
         api_budget.Ledger.create(budget_path,cap_micro_usd=spec['cap_micro_usd'],
-                                scope_cap_micro_usd=spec['scope_cap_micro_usd'],explicit_http_rejections=rejections,**quotas)
+                                scope_cap_micro_usd=spec['scope_cap_micro_usd'],explicit_http_rejections=rejections,scope_uncertainty=scoped,**quotas)
     jobs=[];active=None
     for item in spec['businesses']:
         if not isinstance(item['key'],str) or not re.fullmatch(r'[a-z][a-z0-9-]{0,63}',item['key']):
@@ -202,10 +203,14 @@ def _execute(root, code, resume=False):
         ws.run_job(job['job_id'])
         # Legacy may ask its owner. A stand-in that knows only the spec's description
         # and goal answers, inside the same budget scope as the job; one send per
-        # question and no repeat after an uncertain send (it stops the ledger).
+        # question and no repeat after an uncertain send (it stops that scope).
         reruns=0
         while True:
-            status=ws.row(job['job_id'])['status']
+            current=ws.row(job['job_id'])
+            identifier='engine:'+str(current['engine_run_id']) if current['engine_run_id'] else 'web:'+job['job_id']
+            if ledger.scope_state(identifier)['stopped']:
+                break  # No continuation or stand-in send for a stopped attempt.
+            status=current['status']
             if status in ('queued','running') and reruns<MAX_RERUNS:
                 # Not terminal: the product worker would pick the job up again (for example
                 # after a legacy replan). Continue the same job; nothing is resent.
@@ -240,10 +245,14 @@ def _execute(root, code, resume=False):
     deadline=time.monotonic()+15
     while any(c['scope']==identifier and c['state']=='reserved' for c in ledger.snapshot()['calls']):
         if time.monotonic()>=deadline:
-            ledger.stop()
+            ledger.reconcile_scope(identifier)
             break
         time.sleep(0.1)
-    result={'job':job,'status':row['status'],'phase':row['phase'],'issue':row['issue'],
+    budget_state=ledger.scope_state(identifier)
+    result={'budget_scope':identifier,'budget_scope_stopped':budget_state['stopped'],
+        'budget_scope_uncertain':budget_state['uncertain'],
+        'budget_issue':'provider_usage_unknown' if budget_state['uncertain'] else 'provider_budget_stopped' if budget_state['stopped'] else None,
+        'job':job,'status':row['status'],'phase':row['phase'],'issue':row['issue'],
         'seconds':time.monotonic()-start,'engine_run_id':row['engine_run_id'],
         'session_id':row['session_id'],'research_id':row['research_id'],'review_id':row['review_id'],
         'report_document_id':row['report_document_id'],'delivery':False,'snapshot':False,'owner_answers':len(answers),

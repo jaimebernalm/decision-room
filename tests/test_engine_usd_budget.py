@@ -176,4 +176,75 @@ with httpx.Client(transport=api_budget.BudgetTransport(ledger,httpx.MockTranspor
             with patch.dict('os.environ',{'DECISION_ROOM_ENGINE_USD_CAP':value}),self.assertRaises(ValueError):Config.load()
 
 
+
+    def test_scoped_trial_uncertainty_blocks_failed_run_only_then_global_second(self):
+        runs=[self.create() for _ in range(4)]
+        path=self.root/'scoped-trial.sqlite'
+        shared=api_budget.Ledger.create(path,cap_micro_usd=2000000,scope_cap_micro_usd=1000000,
+            output_tokens=500000,scope_uncertainty=True,explicit_http_rejections=True)
+        seen=[]
+        def silent(request):
+            seen.append(request.url.path)
+            if request.url.path.endswith('input_tokens'):
+                return httpx.Response(200,json={'input_tokens':20})
+            timeout=request.extensions['timeout']
+            self.assertEqual(timeout['read'],300.0)
+            self.assertLessEqual(timeout['connect'],10)
+            class Silence(httpx.SyncByteStream):
+                def __iter__(self):
+                    yield b'data: {"type":"response.created","response":{"id":"synthetic"}}\n\n'
+                    raise httpx.ReadTimeout('Synthetic idle stream')
+            return httpx.Response(200,headers={'content-type':'text/event-stream'},stream=Silence())
+        def good(request):
+            seen.append(request.url.path)
+            if request.url.path.endswith('input_tokens'):
+                return httpx.Response(200,json={'input_tokens':20})
+            return httpx.Response(200,json={'model':'gpt-6-luna','service_tier':'default','status':'completed',
+                'usage':{'input_tokens':20,'output_tokens':10}})
+        def stream(run,token):
+            return proxy.forward(self.config,run,token,admission.canonical({'model':'gpt-6-luna','input':'X','stream':True}),
+                api_key='test-only',transport=httpx.MockTransport(silent),send_headers=lambda *a:None,write=lambda *a:None)
+        with patch.dict('os.environ',{'DECISION_ROOM_API_BUDGET_PATH':str(path)}):
+            with self.assertRaises(httpx.ReadTimeout):stream(*runs[0])
+            self.assertEqual(shared.snapshot()['charged_nano_usd'],358500000)
+            self.assertFalse(shared.snapshot()['policy']['stopped'])
+            before=len(seen)
+            with self.assertRaises(admission.Denied):self.forward(*runs[0],good)
+            self.assertEqual(len(seen),before)
+            self.forward(*runs[1],good)
+            from decision_room.engine import native_checks
+            from decision_room.database import connect
+            with connect(self.config) as db:
+                row=db.execute('SELECT * FROM engine_runs WHERE id=%s',(runs[1][0],)).fetchone()
+                native_checks._resolved_usage(db,self.config,row)
+            with self.assertRaises(httpx.ReadTimeout):stream(*runs[2])
+            self.assertTrue(shared.snapshot()['policy']['stopped'])
+            before=len(seen)
+            with self.assertRaises(api_budget.BudgetStopped):self.forward(*runs[3],good)
+            self.assertEqual(len(seen),before)
+
+    def test_stream_idle_timeout_remains_bounded_by_run_time(self):
+        self.assertEqual(proxy.provider_timeout(600).read,300)
+        limited=proxy.provider_timeout(2.5)
+        self.assertEqual((limited.read,limited.connect,limited.write,limited.pool),(2.5,2.5,2.5,2.5))
+
+    def test_controller_recovery_reconciles_own_and_shared_scope_without_replay(self):
+        first,token=self.create();second,other=self.create()
+        job=admission.authenticate(self.config,first,token)
+        own=provider_budget.ledger(self.config,job)
+        path=self.root/'recover-trial.sqlite'
+        shared=api_budget.Ledger.create(path,cap_micro_usd=2000000,scope_cap_micro_usd=1000000,scope_uncertainty=True)
+        identifier='engine:'+str(first)
+        own.reserve(identifier,'hash','/v1/responses',128000)
+        shared.reserve(identifier,'hash','/v1/responses',128000)
+        with patch.dict('os.environ',{'DECISION_ROOM_API_BUDGET_PATH':str(path)}):
+            provider_budget.recover(self.config,job)
+            provider_budget.recover(self.config,job)
+            self.assertTrue(own.snapshot()['policy']['stopped'])
+            self.assertFalse(shared.snapshot()['policy']['stopped'])
+            self.assertEqual(shared.snapshot()['charged_nano_usd'],358500000)
+            with self.assertRaises(api_budget.BudgetStopped):admission.authenticate(self.config,first,token)
+            admission.authenticate(self.config,second,other)
+
+
 if __name__=='__main__':unittest.main()

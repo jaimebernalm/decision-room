@@ -110,6 +110,13 @@ class EventUsage:
                 self.data.append(line[5:].lstrip())
 
 
+def provider_timeout(remaining_seconds):
+    """Idle read allowance, bounded by the run; other phases stay short."""
+    read = max(0.001, min(300.0, remaining_seconds))
+    return httpx.Timeout(connect=min(10.0, read), write=min(30.0, read),
+                         pool=min(10.0, read), read=read)
+
+
 def forward(config, run_id, token, raw, *, api_key, send_headers, write, transport=None):
     """Stream one request, recording uncertainty even when the client disconnects.
 
@@ -142,7 +149,7 @@ def forward(config, run_id, token, raw, *, api_key, send_headers, write, transpo
         guarded = provider_budget.transport(config, job, guarded)
         with httpx.Client(transport=guarded, trust_env=False, follow_redirects=False,
                           http2=False, limits=httpx.Limits(max_keepalive_connections=0),
-                          timeout=min(120.0, job['remaining_seconds']),
+                          timeout=provider_timeout(job['remaining_seconds']),
                           headers={'Authorization': 'Bearer ' + api_key, 'Content-Type': 'application/json'}) as client:
             counted = client.post(UPSTREAM + '/responses/input_tokens', json=count_request,
                                   extensions={'trace': count_trace})
@@ -162,7 +169,7 @@ def forward(config, run_id, token, raw, *, api_key, send_headers, write, transpo
             stage = 'open_provider_response'
             with client.stream('POST', UPSTREAM + '/responses', json=request,
                                extensions={'trace': generation_trace},
-                               timeout=min(120.0, current['remaining_seconds'])) as response:
+                               timeout=provider_timeout(current['remaining_seconds'])) as response:
                 if response.status_code != 200:
                     reason = 'provider_http_error'
                     raise admission.Aborted('Provider request failed.')
