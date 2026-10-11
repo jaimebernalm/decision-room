@@ -1393,5 +1393,6 @@
   "Leyenda": "Legend",
   "Ver valores": "Show values",
   "Categoría": "Category",
-  "Texto del informe": "Report text"
+  "Texto del informe": "Report text",
+  "La comprobación independiente de cifras no se completó para este informe.": "The independent figure check was not completed for this report."
 }

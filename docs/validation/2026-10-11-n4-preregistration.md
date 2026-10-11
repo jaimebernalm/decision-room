@@ -56,8 +56,10 @@ La canalización es la de F5. Kits sellados, sin brazo visible, y cada evaluador
 Opus nueva.
 - **Auditor:** CSV más el informe. Cuenta las cifras de las prioridades y del resto y los errores
   menores, materiales y críticos, como en F5.
-  - En blocks-v1 se registra también si una cifra errónea lleva el aviso de la plataforma.
-  - El auditor ve los avisos porque forman parte del informe.
+  - En blocks-v1 el auditor recibe una copia **sin avisos** (`informe-auditor.pdf`), para que su
+    exactitud sea independiente del comprobador.
+  - Después se cruza cada error con los items del comprobador por bloque y cita, de forma
+    mecánica, para saber si la cifra errónea llevaba aviso en el informe que vio el dueño.
 - **Juez:** oráculo, señales S1–S5 y señuelo, como en F5.
 - **Lectores:** uno como dueño y otro como asesor, por pareja (orden A/B aleatorio), con la misma
   pregunta que en F5.
@@ -80,7 +82,9 @@ Opus nueva.
   iniciados.
 - **(b) Exactitud:**
   - 0 errores críticos sin aviso en blocks-v1;
-  - errores materiales por informe en blocks-v1 ≤ html-v1.
+  - errores materiales por informe **entregado** en blocks-v1 ≤ html-v1, calculados sobre los
+    informes entregados (las pérdidas cuentan en (a));
+  - si un brazo no entrega ningún informe en un negocio, (b) queda sin acreditar.
 - **(c) Lectura:** en las parejas completas, blocks-v1 se elige en al menos el 50 % de las
   decisiones de los lectores. Un empate cuenta como medio.
 - **(d) Señales:** en cada negocio, la media de blocks-v1 ≥ la media de html-v1 − 0,5 (sobre 10).
@@ -90,8 +94,9 @@ Opus nueva.
   - mediana de tiempo ≤ mediana de html-v1 + 5 min.
 - **(f) Comprobador:**
   - falsas alarmas ≤ 10 % de las cifras correctas que comprobó;
-  - detecta al menos el 70 % de los errores sembrados que llegó a comprobar;
-  - los sembrados que no comprobó se informan aparte (cobertura);
+  - detecta al menos el 70 % de **todos** los errores sembrados (denominador: todos, incluidos los
+    que no llegó a comprobar);
+  - la cobertura se informa además aparte;
   - detecta todo error crítico natural presente en las prioridades de blocks-v1, si lo hay.
 
 **Resultado:**

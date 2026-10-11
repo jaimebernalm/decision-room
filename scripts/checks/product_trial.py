@@ -270,6 +270,8 @@ def _execute(root, code, resume=False):
                     save(target/'checks.json',view.get('checks'))
                     (target/'informe.txt').write_text(view['canonical_text'])
                     (target/'informe.pdf').write_bytes(blocks_pdf.render(view['blocks'],view.get('checks')))
+                    # The auditor reads the same report without check notices (independent accuracy).
+                    (target/'informe-auditor.pdf').write_bytes(blocks_pdf.render(view['blocks'],None))
                     result['snapshot']=True
             elif revision:
                 output=derive.derive(config,job['business_id'],row['report_document_id'],revision)

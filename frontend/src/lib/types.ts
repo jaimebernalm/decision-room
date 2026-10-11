@@ -175,6 +175,7 @@ export type Report = {
     unit_origin?: "analysis" | "owner";
     /** v1 figure cards on Home: an independent check disputes this figure. */
     disputed?: boolean;
+    check_incomplete?: boolean;
   }[];
   charts: ChartData[];
   limitations: string[];

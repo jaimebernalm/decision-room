@@ -43,13 +43,15 @@ def page_count(run):
     return len(pages((run / 'informe.html').read_text()))
 
 
-def write_report(target, run, with_pages=True):
+def write_report(target, run, with_pages=True, auditor=False):
     target.mkdir(parents=True)
     shutil.copyfile(run / 'informe.txt', target / 'report.txt')
     if not with_pages:
         return
     if (run / 'informe.pdf').exists():
-        subprocess.run(['swift', str(SWIFT), str(run / 'informe.pdf'), str(target), '1.5'], check=True, capture_output=True)
+        # Auditors get the copy without check notices, so accuracy stays independent of the checker.
+        pdf = run / 'informe-auditor.pdf' if auditor and (run / 'informe-auditor.pdf').exists() else run / 'informe.pdf'
+        subprocess.run(['swift', str(SWIFT), str(pdf), str(target), '1.5'], check=True, capture_output=True)
         return
     for i, data in enumerate(pages((run / 'informe.html').read_text()), 1):
         (target / f'page-{i:02d}.png').write_bytes(data)
@@ -120,7 +122,7 @@ def build(data_dir, kits, key_path, *trials, allow_not_run=False, repetitions=6)
         code = f'R{number}'
         attempt['kit'] = code
         run = Path(attempt['run'])
-        write_report(kits / 'audit' / code, run)
+        write_report(kits / 'audit' / code, run, auditor=True)
         write_report(kits / 'judge' / code, run)
         key['reports'][code] = {k: attempt[k] for k in ('code', 'business', 'repetition', 'arm')}
     for business in sorted({a['business'] for a in attempts}):

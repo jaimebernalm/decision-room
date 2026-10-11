@@ -94,6 +94,13 @@ function Source({ item, reason }: { item: HomeItem; reason?: string }) {
             {tr("Cifra en revisión: una comprobación independiente obtuvo otro resultado.")}
           </p>
         )}
+      {item.kind === "metric" &&
+        !item.content.disputed &&
+        item.content.check_incomplete && (
+          <p className="mb-2 rounded-md bg-muted px-2 py-1">
+            {tr("La comprobación independiente de cifras no se completó para este informe.")}
+          </p>
+        )}
       <Collapsible>
         <CollapsibleTrigger className="group inline-flex items-center gap-1 rounded-sm py-1 text-xs hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           {tr("Periodo y fuente")}{" "}

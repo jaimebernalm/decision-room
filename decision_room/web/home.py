@@ -102,6 +102,12 @@ def collect(ws):
                 limited=len(eligible) > 20)
 
 
+def disputed(block_id, items):
+    """A discrepancy on this block or on an ancestor (unlocated quote in its priority or section)."""
+    return any(c.get('status') == 'discrepancy' and (block_id == c['block_id'] or block_id.startswith(c['block_id'] + '-'))
+               for c in items)
+
+
 def engine_figures(ws, listing):
     """Figure blocks of current native v1 reports: agent figures with platform formatting, never reviewed."""
     from ..engine import blocks
@@ -111,12 +117,16 @@ def engine_figures(ws, listing):
     for entry in listing:
         try:
             with read_job(ws, entry['id'], revision=entry['engine_report']['revision_id']) as (db, job, (document, revision)):
+                # The listing may be stale: recheck currency under the same read lock.
+                if not reading.metadata(db, document, revision, history=False)['is_current']:
+                    continue
                 view = reading.view(db, document, revision)
         except WebError:
             continue
         if view.get('mode') != 'blocks':
             continue
-        disputed = {c['block_id'] for c in (view.get('checks') or {}).get('items', []) if c.get('status') == 'discrepancy'}
+        checks = view.get('checks') or {}
+        incomplete = checks.get('state') != 'complete'
         source = dict(job_id=str(job['id']), report_id=str(document['id']), version=str(revision['id']),
                       title=view['blocks']['title'], presentation=None, coverage='', filename=job['filename'],
                       created_at=job['created_at'], data_version=entry.get('data_version'), analysis_id=str(job['analysis_id']),
@@ -126,7 +136,8 @@ def engine_figures(ws, listing):
                 continue
             content = dict(key=block['id'], label=block['label'], value=blocks.format_number(block['value'], block['decimals']),
                            unit=block['unit'] or '', claim_key=block['id'], decimals=block['decimals'],
-                           period=block['period'], disputed=block['id'] in disputed)
+                           period=block['period'], disputed=disputed(block['id'], checks.get('items', [])),
+                           check_incomplete=incomplete)
             items.append(dict(id=f"{job['id']}:metric:{block['id']}", kind='metric', title=block['label'],
                               content=content, source={**source, 'period': block['period'] or ''}))
     return items
