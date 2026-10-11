@@ -96,7 +96,9 @@ class NativeProductTests(unittest.TestCase):
         from tests.engine_fakes import FakeRuntime
         self.fake_runtime(); raw = encode(example()); FakeRuntime.payload = raw
         job = self.create(engine_kind='opencode', engine_format='blocks')
-        self.ws.run_job(job); row = self.ws.row(job)
+        with patch('decision_room.engine.native_checks.draft',return_value='delivered'):
+            self.ws.run_job(job)
+        row = self.ws.row(job)
         self.assertEqual(row['status'], 'completed', row['issue'])
         self.assertIsNone(row['review_id'])
         self.assertEqual(receipts.read_document(self.config, row['business_id'], row['engine_run_id'])['raw'], raw)

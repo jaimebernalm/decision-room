@@ -1305,3 +1305,83 @@ ALTER TABLE report_documents DROP CONSTRAINT IF EXISTS report_documents_origin_c
 ALTER TABLE report_documents ADD CONSTRAINT report_documents_origin_check
     CHECK(origin IN ('engine_html','engine_blocks'));
 INSERT INTO schema_versions(version) VALUES (37) ON CONFLICT DO NOTHING;
+
+-- Native preterminal checks share the parent run's proxy, quotas and USD ledger.
+CREATE TABLE IF NOT EXISTS engine_native_cycles (
+    run_id UUID PRIMARY KEY REFERENCES engine_runs(id),
+    business_id UUID NOT NULL REFERENCES businesses(id),
+    stage TEXT NOT NULL CHECK(stage IN ('checking','correcting','final_checking','complete','incomplete')),
+    draft_revision_id UUID NOT NULL REFERENCES engine_document_revisions(id),
+    selected_revision_id UUID REFERENCES engine_document_revisions(id),
+    correction_used BOOLEAN NOT NULL DEFAULT false,
+    issue TEXT,
+    CHECK(stage IN ('complete','incomplete') OR selected_revision_id IS NULL),
+    CHECK(stage<>'complete' OR selected_revision_id IS NOT NULL)
+);
+CREATE TABLE IF NOT EXISTS engine_native_checks (
+    id UUID PRIMARY KEY,
+    run_id UUID NOT NULL REFERENCES engine_runs(id),
+    business_id UUID NOT NULL REFERENCES businesses(id),
+    revision_id UUID NOT NULL REFERENCES engine_document_revisions(id),
+    raw_sha256 TEXT NOT NULL CHECK(raw_sha256 ~ '^[0-9a-f]{64}$'),
+    version TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'running' CHECK(status IN ('running','complete','incomplete')),
+    credential_sha256 TEXT NOT NULL,
+    instance_id UUID NOT NULL,
+    session_id TEXT,
+    message_id TEXT NOT NULL,
+    dispatched BOOLEAN NOT NULL DEFAULT false,
+    input_sha256 TEXT NOT NULL,
+    calls INTEGER NOT NULL DEFAULT 0 CHECK(calls BETWEEN 0 AND 20),
+    started_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+    finished_at TIMESTAMPTZ,
+    observations JSONB,
+    raw_result BYTEA CHECK(octet_length(raw_result)<=262144),
+    result JSONB,
+    result_sha256 TEXT,
+    issue TEXT,
+    UNIQUE(run_id,revision_id,version),
+    CHECK((status='complete')=(result IS NOT NULL)),
+    CHECK((result IS NULL)=(result_sha256 IS NULL))
+);
+CREATE OR REPLACE FUNCTION guard_native_check() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF TG_OP='DELETE' THEN RAISE EXCEPTION 'Native check history is immutable'; END IF;
+    IF TG_OP='UPDATE' AND (OLD.status<>'running' OR
+        (OLD.id,OLD.run_id,OLD.business_id,OLD.revision_id,OLD.raw_sha256,OLD.version,
+         OLD.credential_sha256,OLD.instance_id,OLD.message_id,OLD.input_sha256,OLD.started_at)
+         IS DISTINCT FROM
+        (NEW.id,NEW.run_id,NEW.business_id,NEW.revision_id,NEW.raw_sha256,NEW.version,
+         NEW.credential_sha256,NEW.instance_id,NEW.message_id,NEW.input_sha256,NEW.started_at))
+        THEN RAISE EXCEPTION 'Native check identity/result is immutable'; END IF;
+    IF NOT EXISTS(SELECT 1 FROM engine_document_revisions r JOIN engine_documents d ON d.id=r.document_id
+        WHERE r.id=NEW.revision_id AND r.business_id=NEW.business_id AND d.run_id=NEW.run_id
+        AND d.business_id=NEW.business_id AND r.raw_sha256=NEW.raw_sha256)
+        THEN RAISE EXCEPTION 'Native check source mismatch'; END IF;
+    RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS native_check_guard ON engine_native_checks;
+CREATE TRIGGER native_check_guard BEFORE INSERT OR UPDATE OR DELETE ON engine_native_checks FOR EACH ROW EXECUTE FUNCTION guard_native_check();
+INSERT INTO schema_versions(version) VALUES (38) ON CONFLICT DO NOTHING;
+CREATE OR REPLACE FUNCTION guard_native_cycle() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF TG_OP='DELETE' THEN RAISE EXCEPTION 'Native cycle history is retained'; END IF;
+    IF TG_OP='UPDATE' AND (OLD.stage IN ('complete','incomplete') OR OLD.run_id<>NEW.run_id OR OLD.business_id<>NEW.business_id
+        OR OLD.correction_used AND NOT NEW.correction_used) THEN RAISE EXCEPTION 'Native cycle cannot be reopened'; END IF;
+    IF NOT EXISTS(SELECT 1 FROM engine_document_revisions r JOIN engine_documents d ON d.id=r.document_id
+        WHERE r.id=NEW.draft_revision_id AND d.run_id=NEW.run_id AND d.business_id=NEW.business_id AND r.business_id=NEW.business_id)
+        THEN RAISE EXCEPTION 'Native cycle source mismatch'; END IF;
+    IF NEW.selected_revision_id IS NOT NULL AND (NEW.selected_revision_id<>NEW.draft_revision_id OR NOT EXISTS(
+        SELECT 1 FROM engine_document_revisions r JOIN engine_documents d ON d.id=r.document_id
+        WHERE r.id=NEW.selected_revision_id AND r.business_id=NEW.business_id
+        AND d.run_id=NEW.run_id AND d.business_id=NEW.business_id))
+        THEN RAISE EXCEPTION 'Native selection source mismatch'; END IF;
+    IF NEW.selected_revision_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM engine_native_checks c
+        WHERE c.run_id=NEW.run_id AND c.business_id=NEW.business_id AND c.revision_id=NEW.selected_revision_id
+        AND c.version='priority-check-1-' || CASE WHEN NEW.correction_used THEN 'final' ELSE 'initial' END
+        AND c.status=CASE WHEN NEW.stage='complete' THEN 'complete' ELSE 'incomplete' END)
+        THEN RAISE EXCEPTION 'Native selection requires final check'; END IF;
+    RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS native_cycle_guard ON engine_native_cycles;
+CREATE TRIGGER native_cycle_guard BEFORE INSERT OR UPDATE OR DELETE ON engine_native_cycles FOR EACH ROW EXECUTE FUNCTION guard_native_cycle();

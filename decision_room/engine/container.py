@@ -99,8 +99,9 @@ def inspect_snapshot(folder, *, run_id, image):
 
 
 class Runtime:
-    def __init__(self, backend, *, run_id, instance_id, image, password, token, model):
+    def __init__(self, backend, *, run_id, instance_id, image, password, token, model, checker=False):
         self.backend = backend
+        self.checker = checker
         self.run_id, self.instance_id = str(UUID(str(run_id))), str(UUID(str(instance_id)))
         if not re.fullmatch(r'sha256:[0-9a-f]{64}', image):
             raise ValueError('An immutable local engine image is required.')
@@ -165,6 +166,9 @@ class Runtime:
                                            'headers': {'Authorization': 'Bearer ' + self.token}, 'oauth': False}},
                   'permission': {'*': 'allow', 'external_directory': {'*': 'deny', '/inputs/*': 'allow'}, 'webfetch': 'deny',
                                  'websearch': 'deny', 'question': 'deny'}}
+        if self.checker:
+            config['mcp'] = {}
+            config['permission']['task'] = 'deny'
         env = {'OPENCODE_SERVER_PASSWORD': self.password, 'OPENCODE_CONFIG_CONTENT': json.dumps(config)}
         result = self._docker('create', '--pull=never', '--name', self.name,
             '--label', self.label + '=' + self.instance_id, '--label', 'decision-room.engine-run=' + self.run_id,

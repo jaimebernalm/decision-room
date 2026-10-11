@@ -32,6 +32,30 @@ class ArchiveTests(unittest.TestCase):
 
 @unittest.skipUnless(os.environ.get('DECISION_ROOM_ENGINE_IMAGE_ID'), 'Build the pinned engine image.')
 class RuntimeTests(unittest.TestCase):
+    def test_independent_checker_has_no_mcp_writer_files_or_provider_secret(self):
+        import json
+        runtime=Runtime(DockerBackend(),run_id=uuid4(),instance_id=uuid4(),
+                        image=os.environ['DECISION_ROOM_ENGINE_IMAGE_ID'],password=secrets.token_urlsafe(32),
+                        token=secrets.token_urlsafe(32),model='gpt-6-luna',checker=True)
+        self.addCleanup(runtime.remove)
+        with patch.dict(os.environ,{'OPENAI_API_KEY':'synthetic-host-key'}):runtime.create()
+        runtime.install_files('inputs',{'datos/fixture.csv':b'units\n2\n3\n','prioridades.json':b'{}'})
+        inspected=runtime._inspect()
+        self.assertEqual(inspected['HostConfig']['NetworkMode'],'none')
+        self.assertTrue(inspected['HostConfig']['ReadonlyRootfs'])
+        config=json.loads(next(e.split('=',1)[1] for e in inspected['Config']['Env'] if e.startswith('OPENCODE_CONFIG_CONTENT=')))
+        self.assertEqual(config['mcp'],{});self.assertEqual(config['permission']['task'],'deny')
+        with runtime.start() as client:
+            session=client.create_session(title='Independent check isolation',model='gpt-6-luna')
+            self.assertEqual(client.messages(session['id']),[])
+            runtime._docker('exec',runtime.container_id,'python','-I','-S','-c',
+                "import os; from pathlib import Path; assert 'OPENAI_API_KEY' not in os.environ; "
+                "assert Path('/inputs/datos/fixture.csv').read_bytes()==b'units\\n2\\n3\\n'; "
+                "assert not Path('/work/informe.json').exists(); "
+                "Path('/work/comprobacion.json').write_bytes(b'{}')")
+        self.assertEqual(runtime.collect_report(filename='comprobacion.json')['raw'],b'{}')
+        self.assertFalse(runtime._inspect()['State']['Running'])
+
     def test_raw_file_collection_in_stopped_networkless_runtime(self):
         from decision_room.engine.client import ProtocolError
         from decision_room.engine import admission, store

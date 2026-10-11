@@ -107,7 +107,7 @@ def facts(rows):
             and r['content'].get('temporal_scope') != 'unresolved']
 
 
-def compose(*, name, description, goal, model, memory, panorama, questions=False, format='html'):
+def compose(*, name, description, goal, model, memory, panorama, questions=False, format='html', include_delivery=True):
     declared, unknown = meanings(model)
     first = [identity(name, description), DATA]
     if panorama:
@@ -126,7 +126,7 @@ def compose(*, name, description, goal, model, memory, panorama, questions=False
     fixed = FIXED.read_text()
     if format == 'blocks':
         fixed = native_fixed(fixed)
-    return '\n\n'.join(paragraphs) + '\n\n' + fixed
+    return '\n\n'.join(paragraphs) + ('\n\n' + fixed if include_delivery else '')
 
 
 def build(db, business, analysis, *, goal, panorama, name=None, description=None, profile_revision=None, questions=False, format='html'):
@@ -155,4 +155,7 @@ def build(db, business, analysis, *, goal, panorama, name=None, description=None
                       data_model=dict(analysis_id=str(analysis), revision=head['revision']) if model else None,
                       memory=sorted(r['reference'] for r in memory if facts([r])),
                       panorama=bool(panorama))
+    if format == 'blocks':
+        provenance['checker_context'] = compose(name=owner['name'],description=owner['description'],goal=goal,
+            model=model,memory=memory,panorama=False,questions=False,format=format,include_delivery=False)
     return text, provenance
