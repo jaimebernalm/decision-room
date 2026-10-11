@@ -188,10 +188,25 @@ class M5Tests(unittest.TestCase):
         code = 'herbolario-1-blocks'; self.lose(code)
         with sqlite3.connect(self.budget) as db:
             db.execute("UPDATE calls SET state='uncertain', charged=reserved WHERE id=?", (code,))
+            db.execute('INSERT INTO stopped_scopes VALUES (?)', ('engine:r-'+code,))
         r=self.result(); a=next(a for a in r['attempts'] if a['code']==code)
         self.assertEqual(a['uncertain_nano'], 358_500_000); self.assertEqual(a['pending'], 0)
         self.assertEqual(a['known_usage_nano'], 0); self.assertTrue(r['conditions']['e'])
         self.assertEqual(r['businesses']['herbolario']['arms']['blocks']['cost_n'], 5)
+
+    def test_unsafe_envelope_is_not_a_bounded_unknown_charge(self):
+        code='herbolario-1-blocks'; self.lose(code)
+        with sqlite3.connect(self.budget) as db:
+            db.execute("UPDATE calls SET state='uncertain', charged=reserved,billing=? WHERE id=?",
+                       (json.dumps({'effective_model':'unpriced-model','input':2000000}),code))
+            db.execute('UPDATE policy SET stopped=1')
+        r=self.result(); a=next(a for a in r['attempts'] if a['code']==code)
+        self.assertIsNone(a['usd']); self.assertEqual(a['charged_nano'],358_500_000)
+        self.assertIsNone(r['conditions']['e']); self.assertEqual(r['outcome'],'incompleto')
+        # Even an incompatible field erased from billing cannot appear bounded:
+        # safe uncertainty would have recorded this stopped scope.
+        with sqlite3.connect(self.budget) as db: db.execute('UPDATE calls SET billing=NULL WHERE id=?',(code,))
+        self.assertIsNone(self.result()['conditions']['e'])
 
     def test_reserved_source_is_unaccredited_and_unknown_is_not_zero(self):
         code='herbolario-1-blocks'
