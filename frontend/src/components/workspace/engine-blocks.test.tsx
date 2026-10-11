@@ -1,7 +1,8 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { it, expect } from "vitest";
-import { BlocksReport, stackTotalLabel } from "./engine-blocks";
+import { BlocksReport, judged, seriesColors, stackTotalLabel } from "./engine-blocks";
+import { CHART_SEMANTIC } from "@/lib/charts";
 import { exactDecimals, formatNumber } from "@/lib/blocks-format";
 import { ReportView } from "./report";
 import fixture from "@/test-fixtures/blocks-report.json";
@@ -202,4 +203,43 @@ it("keeps every delivered decimal for exact values", () => {
 it("shows the report's own title", () => {
   render(<BlocksReport projection={projection} />);
   expect(screen.getByRole("heading", { level: 2, name: projection.title })).toBeInTheDocument();
+});
+
+it("colors a change only when the report says which direction is good", () => {
+  expect(judged(-110, "down")).toBe("positive");
+  expect(judged(110, "down")).toBe("negative");
+  expect(judged(110, null)).toBeNull();
+  expect(judged(0, "up")).toBeNull();
+  const tones = seriesColors([{ tone: "positive" }, {}, { tone: "negative" }, {}]);
+  expect(tones[0]).toBe(CHART_SEMANTIC.positive);
+  expect(tones[2]).toBe(CHART_SEMANTIC.negative);
+  expect(tones[1]).not.toBe(tones[3]);
+});
+
+it("shows signed table changes, colored and attributed only when declared", () => {
+  const report: BlocksProjection = {
+    ...projection,
+    blocks: [
+      { id: "b1", type: "figure", label: "Cancelaciones", value: 446, unit: null, decimals: 0, period: null,
+        previous: { value: 336, period: null }, change: 110, change_pct: 32.7, note: null, good: "down" },
+      { id: "b2", type: "figure", label: "Citas", value: 5700, unit: null, decimals: 0, period: null,
+        previous: { value: 4831, period: null }, change: 869, change_pct: 18, note: null },
+      { id: "b3", type: "table", title: null, note: null,
+        columns: [{ title: "Canal", unit: null, decimals: null },
+                  { title: "Cambio", unit: null, decimals: 0, signed: true, good: "up" },
+                  { title: "Nivel", unit: null, decimals: 0, signed: true }],
+        rows: [["Web", 4951, 10], ["Distribuidores", -1187, 20]] },
+      { id: "b4", type: "notice", content: [{ kind: "paragraph", spans: [{ text: "Prioridad del trimestre", bold: false, italic: false }] }] },
+    ],
+  };
+  render(<BlocksReport projection={report} />);
+  const worse = screen.getByText(/\+110 \(\+32,7 %\)/);
+  expect(worse).toHaveAttribute("title", "Según el informe, es mejor que baje");
+  expect(worse.style.color).not.toBe("");
+  expect(screen.getByText(/\+869 \(\+18,0 %\)/).style.color).toBe("");
+  const up = screen.getByText("+4.951");
+  expect(up).toHaveAttribute("title", "Según el informe, es mejor que suba");
+  expect(screen.getByText("−1.187").style.color).not.toBe("");
+  expect(screen.getByText("+10").style.color).toBe(""); // signed but no declared meaning
+  expect(screen.getByText("Prioridad del trimestre").closest("aside")).toHaveClass("border-l-4");
 });

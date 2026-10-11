@@ -111,6 +111,27 @@ class BlocksPdfTests(unittest.TestCase):
         self.assertEqual(blocks_pdf._exact(1.123e-15, 0), 18)
         self.assertEqual(blocks.format_number(1.123e-15, blocks_pdf._exact(1.123e-15, 0)), '0,000000000000001123')
 
+    def test_declared_meaning_colors_and_signs_in_the_pdf(self):
+        from reportlab.lib import colors
+        from decision_room.chart_layout import CHART_SEMANTIC
+        projection = blocks.parse(raw(doc(
+            {'tipo': 'cifra', 'etiqueta': 'Cancelaciones', 'valor': 446, 'anterior': {'valor': 336}, 'bueno': 'bajar'},
+            {'tipo': 'tabla', 'columnas': ['Canal', {'titulo': 'Cambio', 'signo': True, 'bueno': 'subir'},
+                                           {'titulo': 'Nivel', 'signo': True}],
+             'filas': [['Web', 4951, 10], ['Distribuidores', -1187, 20]]})))
+        text = text_of(blocks_pdf.render(projection, None))
+        self.assertIn('+110', text)
+        self.assertIn('según el informe, es mejor que baje', ' '.join(text.split()))
+        self.assertIn('+4.951', text)
+        table = blocks_pdf._table(projection['blocks'][1])[-1]
+        cell = lambda r, c: table._cellvalues[r][c].style.textColor.hexval()
+        self.assertEqual(cell(1, 1), colors.HexColor(CHART_SEMANTIC['positive']).hexval())
+        self.assertEqual(cell(2, 1), colors.HexColor(CHART_SEMANTIC['negative']).hexval())
+        self.assertNotIn(cell(1, 2), (cell(1, 1), cell(2, 1)))  # signed without meaning stays neutral
+        tones = blocks_pdf._series_colors([{'tone': 'warning'}, {}, {}])
+        self.assertEqual(tones[0].hexval(), colors.HexColor(CHART_SEMANTIC['warning']).hexval())
+        self.assertNotEqual(tones[1].hexval(), tones[2].hexval())
+
     def test_series_colors_spread_from_dark_to_light(self):
         from reportlab.lib import colors
         hexes = [blocks_pdf._color(i, 3).hexval() for i in range(3)]

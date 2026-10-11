@@ -78,9 +78,30 @@ class BlocksTests(unittest.TestCase):
         self.assertEqual((p['blocks'][0]['kind'], p['blocks'][0]['fallback']), ('stacked_column', False))
         self.assertEqual(blocks.parse(raw(chart('barras_apiladas', ('a', [1, 2]), ('b', [3, 4]))))['blocks'][0]['kind'],
                          'stacked_bar')
-        self.assertEqual(p['projector'], 'bloques-proyector-3')
+        self.assertEqual(p['projector'], blocks.PROJECTOR_VERSION)
         self.assertInvalid(chart('apiladas', ('Solo', [1, 2])), 'al menos 2 series')
         self.assertInvalid(chart('apiladas', ('a', [1, -2]), ('b', [3, 4])), 'ningún valor negativo')
+
+    def test_optional_meaning_fields_color_only_when_declared(self):
+        p = blocks.parse(raw(doc(
+            {'tipo': 'cifra', 'etiqueta': 'Cancelaciones', 'valor': 446, 'anterior': {'valor': 336}, 'bueno': 'bajar'},
+            {'tipo': 'cifra', 'etiqueta': 'Citas', 'valor': 5700},
+            {'tipo': 'grafico', 'grafico': 'apiladas', 'titulo': 'Estados', 'categorias': ['ene'], 'bueno': 'subir',
+             'series': [{'nombre': 'Realizada', 'valores': [500], 'tono': 'positivo'},
+                        {'nombre': 'No presentado', 'valores': [20], 'tono': 'negativo'}, {'nombre': 'Otra', 'valores': [1]}]},
+            {'tipo': 'tabla', 'columnas': ['Canal', {'titulo': 'Cambio', 'signo': True, 'bueno': 'subir'}],
+             'filas': [['Web', 4951], ['Distribuidores', -1187]]})))
+        cancel, plain, chart, table = p['blocks']
+        self.assertEqual((cancel['good'], plain['good']), ('down', None))
+        self.assertEqual(chart['good'], 'up')
+        self.assertEqual([s['tone'] for s in chart['series']], ['positive', 'negative', None])
+        self.assertEqual(table['columns'][1], {'title': 'Cambio', 'unit': None, 'decimals': None, 'signed': True, 'good': 'up'})
+        self.assertEqual((table['columns'][0]['signed'], table['columns'][0]['good']), (False, None))
+        self.assertInvalid(doc({'tipo': 'cifra', 'etiqueta': 'X', 'valor': 1, 'bueno': 'mejor'}), '«subir» o «bajar»')
+        self.assertInvalid(doc({'tipo': 'tabla', 'columnas': [{'titulo': 'X', 'signo': 'sí'}], 'filas': [[1]]}), 'true o false')
+        self.assertInvalid(doc({'tipo': 'tabla', 'columnas': [{'titulo': 'X', 'bueno': 'subir'}], 'filas': [[1]]}), 'signo')
+        self.assertInvalid(doc({'tipo': 'grafico', 'grafico': 'barras', 'titulo': 'X', 'categorias': ['a'],
+                                'series': [{'nombre': 's', 'valores': [1], 'tono': 'rojo'}]}), '«positivo»')
 
     def assertInvalid(self, payload, fragment):
         with self.assertRaises(blocks.BlocksError) as caught:

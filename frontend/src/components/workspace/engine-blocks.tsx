@@ -5,6 +5,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   Line,
   LineChart,
   ReferenceLine,
@@ -27,13 +28,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CHART_NEUTRALS, CHART_SERIES_PALETTE } from "@/lib/charts";
+import { CHART_NEUTRALS, CHART_SEMANTIC, CHART_SERIES_PALETTE } from "@/lib/charts";
 import { Disclosure, Notice } from "./shared";
 import { ReportChartTooltip } from "./report-chart-tooltip";
 import { REPORT_LOCALE, exactDecimals, formatNumber, naturalDecimals, signed, withUnit } from "@/lib/blocks-format";
 import type {
+  BlockChartSeries,
   BlockCheck,
   BlockChecks,
+  BlockGood,
   BlockContent,
   BlockSpan,
   BlocksProjection,
@@ -43,6 +46,24 @@ import type {
 type ChartBlock = Extract<ReportBlock, { type: "chart" }>;
 type TableBlock = Extract<ReportBlock, { type: "table" }>;
 type FigureBlock = Extract<ReportBlock, { type: "figure" }>;
+
+const SEMANTIC = CHART_SEMANTIC as Record<"positive" | "negative" | "warning" | "neutral", string>;
+
+/**
+ * Favourable or unfavourable only by the report's own declaration of which direction is good;
+ * null when nothing is declared or there is no change. The platform never infers it.
+ */
+export function judged(change: number | null | undefined, good: BlockGood) {
+  if (!good || !change) return null;
+  return change > 0 === (good === "up") ? ("positive" as const) : ("negative" as const);
+}
+
+/** Accessible attribution: the color reflects the report's reading, not a platform check. */
+export function goodHint(good: BlockGood) {
+  if (good === "up") return tr("Según el informe, es mejor que suba");
+  if (good === "down") return tr("Según el informe, es mejor que baje");
+  return undefined;
+}
 type Wrap = (block: ReportBlock, node: ReactNode) => ReactNode;
 
 function Spans({ spans }: { spans: BlockSpan[] }) {
@@ -102,29 +123,24 @@ function Figure({ block }: { block: FigureBlock }) {
         {block.period && (
           <p className="text-xs text-muted-foreground">{block.period}</p>
         )}
+        {block.previous && block.change !== null && (
+          // The change is the second headline; colored only when the report says which way is good.
+          <p
+            className="text-sm font-semibold tabular-nums"
+            style={{ color: judged(block.change, block.good) ? SEMANTIC[judged(block.change, block.good)!] : undefined }}
+            title={goodHint(block.good)}
+          >
+            {signed(block.change, block.decimals, block.unit)}
+            {block.change_pct !== null &&
+              ` (${block.change_pct > 0 ? "+" : ""}${formatNumber(block.change_pct, 1)} %)`}
+            {goodHint(block.good) && <span className="sr-only"> · {goodHint(block.good)}</span>}
+          </p>
+        )}
         {block.previous && (
           <p className="text-xs text-muted-foreground tabular-nums">
             {tr("Antes")}:{" "}
             {withUnit(block.previous.value, block.decimals, block.unit)}
             {block.previous.period ? ` (${block.previous.period})` : ""}
-            {block.change !== null && (
-              <>
-                {" · "}
-                <span
-                  className={
-                    block.change < 0
-                      ? "text-destructive"
-                      : block.change > 0
-                        ? "text-foreground"
-                        : undefined
-                  }
-                >
-                  {signed(block.change, block.decimals, block.unit)}
-                  {block.change_pct !== null &&
-                    ` (${block.change_pct > 0 ? "+" : ""}${formatNumber(block.change_pct, 1)} %)`}
-                </span>
-              </>
-            )}
           </p>
         )}
         {block.note && (
@@ -143,12 +159,21 @@ function lightness(hex: string) {
   const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
   return 0.299 * r + 0.587 * g + 0.114 * b;
 }
-export function seriesColor(i: number, count: number) {
-  if (count <= 1) return CHART_SERIES_PALETTE[0];
-  if (count > BY_LIGHTNESS.length) return CHART_SERIES_PALETTE[i % CHART_SERIES_PALETTE.length];
-  // The lightest tone is kept for six series only: it is faint as a line on white.
-  const last = count >= BY_LIGHTNESS.length ? BY_LIGHTNESS.length - 1 : BY_LIGHTNESS.length - 2;
-  return BY_LIGHTNESS[Math.round((i * last) / (count - 1))];
+/**
+ * A declared tone wins; the other series share the ordinal spread, the last one darkest (a neutral
+ * style, not a claim that it is the current period). The lightest tone is kept for six series only.
+ */
+export function seriesColors(series: Pick<BlockChartSeries, "tone">[]) {
+  const plain = series.filter((s) => !s.tone).length;
+  let k = 0;
+  return series.map((s) => {
+    if (s.tone) return SEMANTIC[s.tone];
+    const position = plain - 1 - k++;
+    if (plain <= 1) return CHART_SERIES_PALETTE[0];
+    if (plain > BY_LIGHTNESS.length) return CHART_SERIES_PALETTE[position % CHART_SERIES_PALETTE.length];
+    const last = plain >= BY_LIGHTNESS.length ? BY_LIGHTNESS.length - 1 : BY_LIGHTNESS.length - 2;
+    return BY_LIGHTNESS[Math.round((position * last) / (plain - 1))];
+  });
 }
 
 function chartRows(chart: ChartBlock) {
@@ -207,7 +232,8 @@ export function stackTotalLabel(chart: ChartBlock, category: number, seriesHidde
 function BlockChartBody({ chart }: { chart: ChartBlock }) {
   useLanguage();
   const rows = chartRows(chart);
-  const color = (i: number) => seriesColor(i, chart.series.length);
+  const palette = seriesColors(chart.series);
+  const color = (i: number) => palette[i];
   const stacked = chart.kind === "stacked_column" || chart.kind === "stacked_bar";
   const horizontal = chart.kind === "bar" || chart.kind === "change" || chart.kind === "stacked_bar";
   // Series hidden from the legend; at least one always stays visible.
@@ -289,12 +315,14 @@ function BlockChartBody({ chart }: { chart: ChartBlock }) {
   const height = horizontal
     ? Math.max(240, rows.length * ((stacked ? 1 : shown.length) * 22 + 26) + 40)
     : 280;
-  const signColor = (v: number | null, i: number) =>
-    chart.kind === "change" && chart.series.length === 1
-      ? (v ?? 0) < 0
-        ? CHART_NEUTRALS.reference
-        : color(0)
-      : color(i);
+  const signColor = (v: number | null, i: number) => {
+    if (chart.kind !== "change" || chart.series.length !== 1) return color(i);
+    const verdict = judged(v, chart.good);
+    if (verdict) return SEMANTIC[verdict];
+    return (v ?? 0) < 0 ? CHART_NEUTRALS.reference : color(0);
+  };
+  // Values written on the bars when there are few, as the PDF does (stacks show totals on hover).
+  const labelled = !stacked && chart.kind !== "line" && rows.length * shown.length <= 24;
   return (
     <div className="space-y-3">
       {legend}
@@ -398,6 +426,14 @@ function BlockChartBody({ chart }: { chart: ChartBlock }) {
                 maxBarSize={horizontal ? 20 : 36}
                 isAnimationActive={false}
               >
+                {labelled && (
+                  <LabelList
+                    dataKey={`s${i}`}
+                    position={horizontal ? "right" : "top"}
+                    className="fill-muted-foreground text-[11px] tabular-nums"
+                    formatter={(v: unknown) => (typeof v === "number" ? formatNumber(v, chart.decimals) : "")}
+                  />
+                )}
                 {chart.kind === "change" &&
                   chart.series.length === 1 &&
                   rows.map((row, r) => (
@@ -419,11 +455,15 @@ export function BlockChart({ chart }: { chart: ChartBlock }) {
     <Card className="shadow-none">
       <CardHeader>
         <CardTitle>{chart.title}</CardTitle>
-        {(chart.unit || chart.value_title) && (
+        {(chart.unit || chart.value_title || (chart.kind === "change" && chart.good)) && (
           <CardDescription>
             {chart.value_title && chart.unit && chart.value_title.includes(chart.unit)
               ? chart.value_title
               : [chart.value_title, chart.unit].filter(Boolean).join(" · ")}
+            {chart.kind === "change" && chart.good && (
+              // Attribution of the green/red reading to the report itself.
+              <span className="block text-xs">{goodHint(chart.good)}</span>
+            )}
           </CardDescription>
         )}
       </CardHeader>
@@ -504,20 +544,27 @@ export function BlockTable({ block }: { block: TableBlock }) {
           <TableBody>
             {visible.map(({ row, index }) => (
               <TableRow key={index}>
-                {row.map((cell, c) => (
-                  <TableCell
-                    key={c}
-                    className={
-                      typeof cell === "number"
-                        ? "text-right font-mono tabular-nums"
-                        : undefined
-                    }
-                  >
-                    {typeof cell === "number"
-                      ? formatNumber(cell, block.columns[c].decimals ?? naturalDecimals(cell))
-                      : cell ?? "—"}
-                  </TableCell>
-                ))}
+                {row.map((cell, c) => {
+                  const column = block.columns[c];
+                  const verdict = typeof cell === "number" && column.signed ? judged(cell, column.good) : null;
+                  return (
+                    <TableCell
+                      key={c}
+                      className={
+                        typeof cell === "number"
+                          ? "text-right font-mono tabular-nums"
+                          : undefined
+                      }
+                      style={verdict ? { color: SEMANTIC[verdict] } : undefined}
+                      title={verdict ? goodHint(column.good) : undefined}
+                    >
+                      {typeof cell === "number"
+                        ? (column.signed && cell > 0 ? "+" : "") +
+                          formatNumber(cell, column.decimals ?? naturalDecimals(cell))
+                        : cell ?? "—"}
+                    </TableCell>
+                  );
+                })}
               </TableRow>
             ))}
           </TableBody>
@@ -684,11 +731,12 @@ function Block({
         </>
       );
     case "notice":
+      // The report's own callout: full contrast with an accent border, unlike platform notices.
       return wrap(
         block,
-        <Notice>
+        <aside className="rounded-r-lg border-l-4 border-primary bg-primary/5 px-4 py-3 text-foreground">
           <BlockText content={block.content} />
-        </Notice>,
+        </aside>,
       );
     case "chart":
       return (

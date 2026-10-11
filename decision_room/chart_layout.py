@@ -10,6 +10,8 @@ from pathlib import Path
 _palette = json.loads(Path(__file__).with_name("chart_palette.json").read_text())
 CHART_SERIES_PALETTE = tuple(_palette["series"])
 CHART_NEUTRALS = _palette["neutrals"]
+# Meaningful colors, used only when a native report declares a tone or which direction is good.
+CHART_SEMANTIC = _palette["semantic"]
 CHART_PALETTE = CHART_SERIES_PALETTE + tuple(CHART_NEUTRALS.values())
 
 MONTHS = 'enero febrero marzo abril mayo junio julio agosto septiembre octubre noviembre diciembre'.split()

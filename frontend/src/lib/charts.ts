@@ -4,6 +4,8 @@ import palette from "../../../decision_room/chart_palette.json";
 import type { ChartData } from "./types";
 export const CHART_SERIES_PALETTE: readonly string[] = palette.series;
 export const CHART_NEUTRALS = palette.neutrals;
+/** Meaningful colors, used only when a native report declares a tone or which direction is good. */
+export const CHART_SEMANTIC = palette.semantic;
 export const CHART_PALETTE: readonly string[] = [
   ...CHART_SERIES_PALETTE,
   ...Object.values(CHART_NEUTRALS),

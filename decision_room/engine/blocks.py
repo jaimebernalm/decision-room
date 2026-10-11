@@ -16,7 +16,7 @@ import sys
 from decimal import Decimal, ROUND_HALF_UP, localcontext
 
 VERSION = 'informe-bloques-1'
-PROJECTOR_VERSION = 'bloques-proyector-3'
+PROJECTOR_VERSION = 'bloques-proyector-4'
 MAX_BYTES = 256 * 1024
 MAX_BLOCKS = 300            # every block, nested ones included
 MAX_DEPTH = 4               # seccion > seccion > prioridad > contenido
@@ -36,6 +36,8 @@ CHART_KINDS = {'barras': 'bar', 'barras_horizontales': 'bar', 'columnas': 'colum
                'lineas': 'line', 'linea': 'line', 'cambio': 'change', 'barras_cambio': 'change',
                'apiladas': 'stacked_column', 'columnas_apiladas': 'stacked_column', 'barras_apiladas': 'stacked_bar'}
 STACKED = ('stacked_column', 'stacked_bar')
+GOOD = {'subir': 'up', 'bajar': 'down'}
+TONES = {'positivo': 'positive', 'negativo': 'negative', 'aviso': 'warning', 'neutro': 'neutral'}
 CONTROL = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\ud800-\udfff]')
 
 FORMAT_GUIDE = '''Formato de informe.json (versión informe-bloques-1)
@@ -50,19 +52,27 @@ Bloques (campo "tipo"); los marcados con ? son opcionales:
 - seccion:   {"tipo":"seccion","titulo":"...","bloques":[...]}
 - texto:     {"tipo":"texto","contenido": CONTENIDO}
 - cifra:     {"tipo":"cifra","etiqueta":"...","valor":123.4,"unidad"?:"€","decimales"?:2,
-              "periodo"?:"ene–ago 2026","anterior"?:{"valor":100,"periodo"?:"ene–ago 2025"},"nota"?:"..."}
-             Si das "anterior", la plataforma calcula la diferencia y el porcentaje.
+              "periodo"?:"ene–ago 2026","anterior"?:{"valor":100,"periodo"?:"ene–ago 2025"},"nota"?:"...",
+              "bueno"?:"subir|bajar"}
+             Si das "anterior", la plataforma calcula la diferencia y el porcentaje. "bueno" dice si
+             para el negocio es mejor que suba o que baje: solo entonces se colorea en verde o rojo.
 - grafico:   {"tipo":"grafico","grafico":"barras|columnas|lineas|cambio|apiladas|barras_apiladas","titulo":"...",
               "categorias":["ene","feb",...],
-              "series":[{"nombre":"2026","valores":[1,2,null,...],"detalles"?:["107 de 1.240",...]}],
-              "unidad"?:"%","decimales"?:1,"eje_categorias"?:"Mes","eje_valores"?:"Tasa","nota"?:"..."}
+              "series":[{"nombre":"2026","valores":[1,2,null,...],"detalles"?:["107 de 1.240",...],
+                         "tono"?:"positivo|negativo|aviso|neutro"}],
+              "unidad"?:"%","decimales"?:1,"eje_categorias"?:"Mes","eje_valores"?:"Tasa","nota"?:"...",
+              "bueno"?:"subir|bajar"}
              barras = horizontales; columnas = verticales; lineas = evolución; cambio = barras con signo
              y eje cero; apiladas = columnas con las series una encima de otra (partes de un total,
              al menos 2 series y sin negativos); barras_apiladas = lo mismo en horizontal.
              Usa null para un hueco (no es un cero). "detalles" se muestra al pasar el ratón
-             (por ejemplo, numerador y denominador). Otro tipo de gráfico se mostrará como tabla.
+             (por ejemplo, numerador y denominador). "tono" da a una serie un color con significado
+             (por ejemplo, realizadas positivo y no presentadas negativo); sin él, la plataforma elige.
+             En "cambio", "bueno" colorea en verde o rojo según el signo. Otro tipo de gráfico se
+             mostrará como tabla.
 - tabla:     {"tipo":"tabla","titulo"?:"...","columnas":["Producto",{"titulo":"Importe","unidad":"€","decimales":2}],
               "filas":[["Magnesio",1234.5],...],"nota"?:"..."}   (celdas: texto, número o null)
+             Una columna de variaciones puede llevar "signo":true (muestra +/−) y "bueno":"subir|bajar".
 - prioridad: {"tipo":"prioridad","titulo":"...","bloques":[...]}   (dentro, lo que quieras)
 - aviso:     {"tipo":"aviso","contenido": CONTENIDO}
 
@@ -173,6 +183,14 @@ class _Checker:
             self.fail(where, 'número demasiado grande')
             return None
         return value
+
+    def choice(self, where, b, key, options):
+        if key not in b:
+            return None
+        if b[key] not in options:
+            self.fail(f'{where}.{key}', 'debe ser ' + ' o '.join(f'«{o}»' for o in options))
+            return None
+        return options[b[key]]
 
     def decimals(self, where, value):
         if value is None:
@@ -288,7 +306,7 @@ class _Checker:
         return dict(id=ident, type='notice', content=self.content(f'{where}.contenido', b['contenido']))
 
     def b_cifra(self, where, b, ident, depth, in_priority):
-        if not self.keys(where, b, ('tipo', 'etiqueta', 'valor'), ('unidad', 'decimales', 'periodo', 'anterior', 'nota')):
+        if not self.keys(where, b, ('tipo', 'etiqueta', 'valor'), ('unidad', 'decimales', 'periodo', 'anterior', 'nota', 'bueno')):
             return None
         value = self.number(f'{where}.valor', b['valor'])
         previous = None
@@ -301,10 +319,10 @@ class _Checker:
         return dict(id=ident, type='figure', label=self.string(f'{where}.etiqueta', b['etiqueta'], MAX_TITLE),
                     value=value, previous=previous, unit=self.optional_string(where, b, 'unidad', 40),
                     decimals=decimals, period=self.optional_string(where, b, 'periodo', MAX_TITLE),
-                    note=self.optional_string(where, b, 'nota'))
+                    note=self.optional_string(where, b, 'nota'), good=self.choice(where, b, 'bueno', GOOD))
 
     def b_grafico(self, where, b, ident, depth, in_priority):
-        optional = ('unidad', 'decimales', 'eje_categorias', 'eje_valores', 'nota')
+        optional = ('unidad', 'decimales', 'eje_categorias', 'eje_valores', 'nota', 'bueno')
         if not self.keys(where, b, ('tipo', 'grafico', 'titulo', 'categorias', 'series'), optional):
             return None
         requested = self.string(f'{where}.grafico', b['grafico'], 40)
@@ -322,7 +340,7 @@ class _Checker:
             raw_series = []
         for i, s in enumerate(raw_series, 1):
             here = f'{where}.series[{i}]'
-            if not self.keys(here, s, ('nombre', 'valores'), ('detalles',)):
+            if not self.keys(here, s, ('nombre', 'valores'), ('detalles', 'tono')):
                 continue
             values = s['valores']
             if not isinstance(values, list) or len(values) != len(categories):
@@ -339,7 +357,8 @@ class _Checker:
                 else:
                     details = [None if d is None else self.string(f'{here}.detalles[{j}]', d, MAX_TITLE)
                                for j, d in enumerate(details, 1)]
-            series.append(dict(name=self.string(f'{here}.nombre', s['nombre'], MAX_TITLE), values=values, details=details))
+            series.append(dict(name=self.string(f'{here}.nombre', s['nombre'], MAX_TITLE), values=values, details=details,
+                               tone=self.choice(here, s, 'tono', TONES)))
         if len({s['name'] for s in series}) != len(series):
             self.fail(f'{where}.series', 'hay series con el mismo nombre')
         if series and all(v is None for s in series for v in s['values']):
@@ -353,7 +372,7 @@ class _Checker:
                     decimals=self.decimals(f'{where}.decimales', b.get('decimales')),
                     category_title=self.optional_string(where, b, 'eje_categorias', MAX_TITLE),
                     value_title=self.optional_string(where, b, 'eje_valores', MAX_TITLE),
-                    note=self.optional_string(where, b, 'nota'))
+                    note=self.optional_string(where, b, 'nota'), good=self.choice(where, b, 'bueno', GOOD))
 
     def b_tabla(self, where, b, ident, depth, in_priority):
         if not self.keys(where, b, ('tipo', 'columnas', 'filas'), ('titulo', 'nota')):
@@ -366,11 +385,16 @@ class _Checker:
         for i, c in enumerate(raw, 1):
             here = f'{where}.columnas[{i}]'
             if isinstance(c, str):
-                columns.append(dict(title=self.string(here, c, MAX_TITLE), unit=None, decimals=None))
-            elif self.keys(here, c, ('titulo',), ('unidad', 'decimales')):
+                columns.append(dict(title=self.string(here, c, MAX_TITLE), unit=None, decimals=None, signed=False, good=None))
+            elif self.keys(here, c, ('titulo',), ('unidad', 'decimales', 'signo', 'bueno')):
+                if 'signo' in c and not isinstance(c['signo'], bool):
+                    self.fail(f'{here}.signo', 'debe ser true o false')
+                if 'bueno' in c and c.get('signo') is not True:
+                    self.fail(f'{here}.bueno', 'solo en una columna de variaciones con "signo": true')
                 columns.append(dict(title=self.string(f'{here}.titulo', c['titulo'], MAX_TITLE),
                                     unit=self.optional_string(here, c, 'unidad', 40),
-                                    decimals=self.decimals(f'{here}.decimales', c.get('decimales'))))
+                                    decimals=self.decimals(f'{here}.decimales', c.get('decimales')),
+                                    signed=c.get('signo') is True, good=self.choice(here, c, 'bueno', GOOD)))
         rows = b['filas']
         if not isinstance(rows, list) or len(rows) > MAX_ROWS:
             self.fail(f'{where}.filas', f'debe ser una lista de como mucho {MAX_ROWS} filas')

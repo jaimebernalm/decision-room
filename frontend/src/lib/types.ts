@@ -462,7 +462,11 @@ export type BlockChartSeries = {
   name: string;
   values: (number | null)[];
   details: (string | null)[] | null;
+  /** Meaning declared by the report (projector 4+); absent in older stored projections. */
+  tone?: "positive" | "negative" | "warning" | "neutral" | null;
 };
+/** Which direction the report says is good for the business; color only when declared. */
+export type BlockGood = "up" | "down" | null | undefined;
 export type ReportBlock = { id: string } & (
   | { type: "section" | "priority"; title: string; blocks: ReportBlock[] }
   | { type: "text" | "notice"; content: BlockContent[] }
@@ -477,6 +481,7 @@ export type ReportBlock = { id: string } & (
       change: number | null;
       change_pct: number | null;
       note: string | null;
+      good?: BlockGood;
     }
   | {
       type: "chart";
@@ -491,11 +496,18 @@ export type ReportBlock = { id: string } & (
       category_title: string | null;
       value_title: string | null;
       note: string | null;
+      good?: BlockGood;
     }
   | {
       type: "table";
       title: string | null;
-      columns: { title: string; unit: string | null; decimals: number | null }[];
+      columns: {
+        title: string;
+        unit: string | null;
+        decimals: number | null;
+        signed?: boolean;
+        good?: BlockGood;
+      }[];
       rows: (string | number | null)[][];
       note: string | null;
     }

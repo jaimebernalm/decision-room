@@ -15,7 +15,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from ..chart_layout import CHART_NEUTRALS, CHART_SERIES_PALETTE
+from ..chart_layout import CHART_NEUTRALS, CHART_SEMANTIC, CHART_SERIES_PALETTE
 from ..engine.blocks import cell_decimals, format_number
 from ..report_pdf import BORDER, GRAY, INK, STYLES, WIDTH as PAGE_WIDTH, grid, paragraph
 
@@ -68,6 +68,30 @@ def _unit(value, decimals, unit):
     return f'{text} %' if unit == '%' else f'{text} {unit}'
 
 
+GOOD_HINT = {'up': 'según el informe, es mejor que suba', 'down': 'según el informe, es mejor que baje'}
+
+
+def judged(change, good):
+    """Favourable or unfavourable only when the report declares which direction is good."""
+    if not good or not change:
+        return None
+    return 'positive' if (change > 0) == (good == 'up') else 'negative'
+
+
+def _series_colors(series):
+    """As in the web view: a declared tone wins; the rest share the spread, the last one darkest."""
+    plain = sum(1 for s in series if not s.get('tone'))
+    out, k = [], 0
+    for s in series:
+        if s.get('tone'):
+            out.append(colors.HexColor(CHART_SEMANTIC[s['tone']]))
+            continue
+        position = plain - 1 - k
+        k += 1
+        out.append(_color(position, plain))
+    return out
+
+
 def _lightness(hex_color):
     r, g, b = (int(hex_color[i:i + 2], 16) for i in (1, 3, 5))
     return .299 * r + .587 * g + .114 * b
@@ -102,6 +126,7 @@ def chart_drawing(chart):
     if kind == 'table' or not values:
         return None
     stacked = kind in ('stacked_column', 'stacked_bar')
+    palette = _series_colors(series)
     # A gap is not a zero: a category with no values has no total, one with some gaps a partial one.
     known = [[s['values'][c] for s in series if s['values'][c] is not None] for c in range(len(cats))]
     totals = [sum(k) if k else None for k in known]
@@ -133,7 +158,7 @@ def chart_drawing(chart):
                 for i, s in enumerate(series):
                     v = s['values'][c]
                     if v:
-                        d.add(Rect(x(start), y, x(start + v) - x(start), 9, fillColor=_color(i, len(series)), strokeColor=None))
+                        d.add(Rect(x(start), y, x(start + v) - x(start), 9, fillColor=palette[i], strokeColor=None))
                         start += v
                 if totals[c] is not None:
                     d.add(String(right + 4, y + 1.5, _total_label(totals[c], partial[c], chart['decimals']),
@@ -144,7 +169,9 @@ def chart_drawing(chart):
                 if v is None:
                     continue
                 y = top - (i + 1) * 12
-                fill = (colors.HexColor(CHART_NEUTRALS['reference']) if kind == 'change' and len(series) == 1 and v < 0 else _color(i, len(series)))
+                verdict = judged(v, chart.get('good')) if kind == 'change' and len(series) == 1 else None
+                fill = (colors.HexColor(CHART_SEMANTIC[verdict]) if verdict else
+                        colors.HexColor(CHART_NEUTRALS['reference']) if kind == 'change' and len(series) == 1 and v < 0 else palette[i])
                 d.add(Rect(min(x(v), zero), y, abs(x(v) - zero) or .5, 9, fillColor=fill, strokeColor=None))
                 d.add(String(right + 4, y + 1.5, format_number(v, chart['decimals']), fontName='Helvetica', fontSize=7, fillColor=GRAY))
     else:
@@ -166,7 +193,7 @@ def chart_drawing(chart):
                 for c, v in enumerate(s['values']):
                     if v:
                         x0 = left + step * c + step * .2
-                        d.add(Rect(x0, y(base[c]), step * .6, y(base[c] + v) - y(base[c]), fillColor=_color(i, len(series)), strokeColor=None))
+                        d.add(Rect(x0, y(base[c]), step * .6, y(base[c] + v) - y(base[c]), fillColor=palette[i], strokeColor=None))
                         base[c] += v
             if len(cats) <= LABELLED_BARS:
                 for c, total in enumerate(totals):
@@ -179,7 +206,7 @@ def chart_drawing(chart):
                 for c, v in enumerate(s['values']):
                     if v is not None:
                         x0 = left + step * c + step * .15 + i * width
-                        d.add(Rect(x0, min(y(v), y(0)), width, abs(y(v) - y(0)) or .5, fillColor=_color(i, len(series)), strokeColor=None))
+                        d.add(Rect(x0, min(y(v), y(0)), width, abs(y(v) - y(0)) or .5, fillColor=palette[i], strokeColor=None))
                         if len(cats) * len(series) <= LABELLED_BARS:
                             d.add(String(x0 + width / 2, (y(v) + 3) if v >= 0 else (y(v) - 9), format_number(v, chart['decimals']),
                                          fontName='Helvetica', fontSize=6.5, fillColor=GRAY, textAnchor='middle'))
@@ -188,16 +215,16 @@ def chart_drawing(chart):
                 for c, v in enumerate(s['values'] + [None]):
                     if v is None:
                         if len(segment) >= 4:
-                            d.add(PolyLine(segment, strokeColor=_color(i, len(series)), strokeWidth=1.6))
+                            d.add(PolyLine(segment, strokeColor=palette[i], strokeWidth=1.6))
                         segment = []
                         continue
                     px, py = left + step * (c + .5), y(v)
                     segment += [px, py]
-                    d.add(Circle(px, py, 2, fillColor=_color(i, len(series)), strokeColor=None))
+                    d.add(Circle(px, py, 2, fillColor=palette[i], strokeColor=None))
     if legend:
         for i, s in enumerate(series):
             lx, ly = 10 + (i % per_row) * LEGEND_ITEM, height - 12 - (i // per_row) * 18
-            d.add(Rect(lx, ly, 8, 8, fillColor=_color(i, len(series)), strokeColor=None))
+            d.add(Rect(lx, ly, 8, 8, fillColor=palette[i], strokeColor=None))
             d.add(String(lx + 12, ly + 1, _short(s['name'], 18), fontName='Helvetica', fontSize=7.5, fillColor=INK))
     return d
 
@@ -258,12 +285,20 @@ def _right_align(table, columns):
 def _table(block):
     rows = [[c['title'] + (f" ({c['unit']})" if c['unit'] else '') for c in block['columns']]]
     for r in block['rows']:
-        rows.append(['' if v is None else v if isinstance(v, str) else format_number(v, cell_decimals(v, c['decimals']))
+        rows.append(['' if v is None else v if isinstance(v, str) else
+                     ('+' if c.get('signed') and v > 0 else '') + format_number(v, cell_decimals(v, c['decimals']))
                      for v, c in zip(r, block['columns'])])
     numeric = [c for c in range(len(block['columns']))
                if any(r[c] is not None for r in block['rows']) and all(not isinstance(r[c], str) for r in block['rows'])]
     flow = [Paragraph(_text(block['title']), SUBHEAD)] if block['title'] else []
-    flow.append(_right_align(grid(rows, [WIDTH / len(block['columns'])] * len(block['columns'])), numeric))
+    table = _right_align(grid(rows, [WIDTH / len(block['columns'])] * len(block['columns'])), numeric)
+    for r, row in enumerate(block['rows'], 1):
+        for c, (v, column) in enumerate(zip(row, block['columns'])):
+            verdict = judged(v, column.get('good')) if isinstance(v, (int, float)) and column.get('signed') else None
+            if verdict and isinstance(table._cellvalues[r][c], Paragraph):
+                table._cellvalues[r][c].style = ParagraphStyle(f'blocks-{verdict}', parent=NUMERIC_CELL,
+                                                               textColor=colors.HexColor(CHART_SEMANTIC[verdict]))
+    flow.append(table)
     if block['note']:
         flow.append(paragraph(block['note'], 'muted'))
     return flow
@@ -308,9 +343,13 @@ def _figure(block, boxed=True):
         if prev['period']:
             text += f" ({prev['period']})"
         if block['change'] is not None:
-            text += ' · ' + ('+' if block['change'] > 0 else '') + _unit(block['change'], block['decimals'], block['unit'])
+            change = ('+' if block['change'] > 0 else '') + _unit(block['change'], block['decimals'], block['unit'])
             if block['change_pct'] is not None:
-                text += f" ({'+' if block['change_pct'] > 0 else ''}{format_number(block['change_pct'], 1)} %)"
+                change += f" ({'+' if block['change_pct'] > 0 else ''}{format_number(block['change_pct'], 1)} %)"
+            verdict = judged(block['change'], block.get('good'))
+            tone = CHART_SEMANTIC[verdict] if verdict else '#1a1a1a'
+            lines.append(f"<font name='Helvetica-Bold' size=10 color='{tone}'>{_text(change)}</font>"
+                         + (f" <font size=7 color='#707070'>({_text(GOOD_HINT[block['good']])})</font>" if verdict else ''))
         lines.append(f"<font size=8 color='#707070'>{_text(text)}</font>")
     if block['note']:
         lines.append(f"<font size=8 color='#707070'>{_text(block['note'])}</font>")
