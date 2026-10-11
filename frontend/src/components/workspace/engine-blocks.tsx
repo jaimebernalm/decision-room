@@ -226,10 +226,9 @@ function BlockChartBody({ chart }: { chart: ChartBlock }) {
   const extent = Math.max(...values.map(Math.abs), 1);
   const compact = (v: number) =>
     new Intl.NumberFormat(REPORT_LOCALE, { notation: "compact" }).format(v);
-  const valueDomain: [number | ((v: number) => number), number | ((v: number) => number)] =
-    chart.kind === "change"
-      ? [-extent, extent]
-      : [(v: number) => Math.min(0, v), (v: number) => Math.max(0, v)];
+  // Round ("nice") upper bound so the last tick is not the data maximum crowding a round tick.
+  const valueDomain: [number, number | "auto"] =
+    chart.kind === "change" ? [-extent, extent] : [Math.min(0, ...values), "auto"];
   const tooltip = (
     <ChartTooltip
       allowEscapeViewBox={{ x: false, y: false }}
