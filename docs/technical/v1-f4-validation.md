@@ -30,8 +30,53 @@ Pruebas PostgreSQL: 13/13 (`test_report_derivatives`, `test_report_registry`,
 guarda entre negocios/documentos/revisiones, evaluación idempotente, dos workers,
 recuperación y fencing, rollback antes de commit, fallo sin contenido parcial.
 
+## 2. Navegador contenido (completado)
+
+`engine/report_browser/` contiene solamente fuentes del Dockerfile y del worker.
+`scripts/dev/report_browser.py --context CONTEXTO` construye un contexto temporal
+con esas fuentes y `decision_room/reports/inventory.py`; guarda un manifiesto
+local ignorado. El controlador exige imagen por SHA y los hashes exactos de las
+fuentes. La identidad del renderizador incluye el SHA de la imagen: otra imagen
+requiere otro derivado y reiniciar el worker. Una instalación sin imagen conserva
+la cola pendiente; nunca usa Chrome del host. La base Python está fijada; Chromium
+y fuentes se resuelven al construir y quedan congelados por el SHA de la imagen.
+
+Límites del contenedor: usuario 10001, raíz read-only, red `none`, capacidades
+retiradas, no-new-privileges, cero montajes del negocio/host, 1 CPU, 1 GiB de RAM y
+swap total, 256 PID, tmpfs de 512 MiB. CLI con configuración privada vacía, sin
+variables de credenciales de proveedor/BD. El sandbox interno de Chromium se
+desactiva por compatibilidad con el contenedor sin capacidades; la frontera es
+el contenedor, no se presenta como aislamiento por el sandbox de Chrome.
+
+El HTML llega por stdin, máximo 256 KiB, y solo se ejecuta dentro del contenedor.
+CDP inspecciona en un mundo aislado para que redefinir prototipos del documento
+no sustituya el inspector. URLs bloqueadas y red offline también dentro de
+Chrome. Texto estable durante un segundo, límite de diez segundos para esa
+estabilidad, 100.000 nodos y un millón de caracteres. Ningún texto visible o un
+DOM inestable falla. El controlador limita toda la ejecución a 45 segundos y la
+salida a 36 MiB; limpia por ID exacto incluso al fallar o recuperar un huérfano.
+
+La instantánea contiene únicamente HTML fijo propio y PNG data:, sin markup,
+CSS ni URLs del agente. Tras estabilizar, se desactiva JS/animaciones de la página;
+se comprueban dos capturas iguales y el mismo inventario antes/después. Imágenes
+de 1280 px en tiles de hasta 2000 px; máximo 24.000 px de alto y 20 MiB de HTML.
+Un ancho excesivo, overflow o captura incompleta falla en lugar de recortar.
+Se pierde la interacción y selección dentro de las imágenes; la vista ofrece
+el texto canónico por separado. No se declara veracidad numérica ni se reparan
+gráficos equivocados del agente.
+
+Pruebas: 38/38 (`test_report_browser`, `test_report_derivatives`, `test_engine_html`,
+`test_activity`, `test_business_migration`), incluidas seis pruebas nativas de
+Chrome dentro de Docker. JS con SVG y negativo, texto Unicode, prototipos
+redefinidos, fetch externo/file, informe largo sin recorte, navegación, UTF-8,
+DOM inestable, script infinito con límites inspeccionados y contenedor retirado.
+Se actualizan a 36 las cuatro aserciones de versión de esquema; no cambia el
+criterio de preservación de datos. Dos fallos del borrador se corrigieron:
+imports bajo Python `-I` y pausar tiempo virtual impedía la segunda captura de
+una página larga; se detienen scripts/animaciones sin pausar el compositor.
+
 ## Pasos pendientes
 
-Navegador contenido y capturas estáticas; servicio de derivación y recuperación;
+Servicio de derivación y recuperación;
 integración con la vista/chat de Claude; suite hostil y regresión completas. Este
 documento no declara F4 terminada todavía.

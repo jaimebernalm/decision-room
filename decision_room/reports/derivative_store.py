@@ -48,7 +48,7 @@ def enqueue(db, business, document, revision):
     db.execute('''INSERT INTO report_derivation_jobs
         (id,business_id,document_id,revision_id,raw_sha256,policy_version,renderer_version)
         VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING''',
-        (uuid4(), business, document, revision, row['raw_sha256'], policy.POLICY_VERSION, policy.RENDERER_VERSION))
+        (uuid4(), business, document, revision, row['raw_sha256'], policy.POLICY_VERSION, policy.renderer_version()))
 
 
 def set_presentation(db, business, document, revision, raw_sha256, state, reason, *, policy_version=policy.POLICY_VERSION):
@@ -77,7 +77,7 @@ def result(db, business, document, revision):
         ON x.business_id=r.business_id AND x.document_id=r.document_id AND x.revision_id=r.id AND x.raw_sha256=r.raw_sha256
         JOIN report_documents d ON d.business_id=r.business_id AND d.id=r.document_id
         WHERE r.business_id=%s AND r.document_id=%s AND r.id=%s AND x.policy_version=%s AND x.renderer_version=%s''',
-        (business, document, revision, policy.POLICY_VERSION, policy.RENDERER_VERSION)).fetchone()
+        (business, document, revision, policy.POLICY_VERSION, policy.renderer_version())).fetchone()
 
 
 @contextmanager
@@ -98,7 +98,7 @@ def claim(config, job_id):
                 job = db.execute('SELECT * FROM report_derivation_jobs WHERE id=%s FOR UPDATE', (job_id,)).fetchone()
                 if not job or job['status'] in ('ready', 'failed'):
                     job = None
-                elif job['policy_version'] != policy.POLICY_VERSION or job['renderer_version'] != policy.RENDERER_VERSION:
+                elif job['policy_version'] != policy.POLICY_VERSION or job['renderer_version'] != policy.renderer_version():
                     job = None
                 else:
                     job = db.execute('''UPDATE report_derivation_jobs SET status='running',claim_id=%s,
@@ -113,7 +113,7 @@ def publish(db, job, *, status, inventory=None, snapshot_html=None, issue=None):
     row = source(db, job['business_id'], job['document_id'], job['revision_id'], writing=True)
     if row['raw_sha256'] != job['raw_sha256']:
         raise ValueError('Derivative source identity differs.')
-    if status not in ('ready', 'failed') or (job['policy_version'],job['renderer_version']) != (policy.POLICY_VERSION,policy.RENDERER_VERSION):
+    if status not in ('ready', 'failed') or (job['policy_version'],job['renderer_version']) != (policy.POLICY_VERSION,policy.renderer_version()):
         raise ValueError('Derivative contract differs.')
     text = text_hash = inventory_hash = None
     if status == 'ready':
@@ -150,5 +150,5 @@ def publish(db, job, *, status, inventory=None, snapshot_html=None, issue=None):
     db.execute('''UPDATE report_document_revisions SET derived_version=%s,derive_status=%s,derive_issue=%s,
         canonical_text=%s,canonical_sha256=%s,inventory_sha256=%s,snapshot_html=%s,policy_version=%s,renderer_version=%s
         WHERE business_id=%s AND document_id=%s AND id=%s''',
-        (policy.DERIVED_VERSION,status,issue,text,text_hash,inventory_hash,snapshot_html,policy.POLICY_VERSION,policy.RENDERER_VERSION,*identity[:3]))
+        (policy.DERIVED_VERSION,status,issue,text,text_hash,inventory_hash,snapshot_html,policy.POLICY_VERSION,policy.renderer_version(),*identity[:3]))
     return saved
