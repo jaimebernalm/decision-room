@@ -29,6 +29,7 @@ def load_engine_runs(manifest):
     try:
         import psycopg
         with psycopg.connect(manifest['config']['dsn']) as db:
+            db.execute('SET TRANSACTION READ ONLY')
             return {str(job): str(run) for job, run in db.execute(
                 'SELECT id, engine_run_id FROM web_jobs WHERE engine_run_id IS NOT NULL').fetchall()}
     except Exception:  # noqa: BLE001 - an unknown source leaves (e) unaccredited
@@ -97,8 +98,8 @@ def main(trial, key_path, results, out):
                 decoy_hits=sum(j['S6'] for j in judges if j),
                 usd_mean=mean([a['usd'] for a in attempts]), usd_max=max((a['usd'] for a in attempts), default=None),
                 unsettled=sum(a['unsettled'] for a in attempts),
-                minutes_median=statistics.median([a['seconds'] / 60 for a in attempts if a['seconds'] is not None])
-                if any(a['seconds'] is not None for a in attempts) else None)
+                minutes_median=statistics.median([a['seconds'] / 60 for a in attempts])
+                if attempts and all(a['seconds'] is not None for a in attempts) else None)
         # Reading: 1 v1, 0.5 explicit tie, 0 legacy; loss rules; incomplete if any reading missing.
         reading = {}
         for role in ('owner', 'advisor'):
