@@ -1,6 +1,7 @@
 """Frozen per-run dollar envelope; never bootstrap it during a provider send."""
 from uuid import UUID
 import sqlite3
+import os
 import httpx
 
 from ..agent import api_budget
@@ -70,3 +71,28 @@ def usage(config, job):
     return {'status': 'stopped' if state['policy']['stopped'] else 'active',
             **ceiling, 'charged_nano_usd': state['charged_nano_usd'],
             'uncertain': state['uncertain'], 'attempts': len(state['calls'])}
+
+
+def ledgers(config, job):
+    """The run ceiling and optional shared trial ceiling, never a new allowance."""
+    own = ledger(config, job)
+    if own is not None:
+        yield own
+    trial = os.environ.get('DECISION_ROOM_API_BUDGET_PATH')
+    if trial:
+        yield api_budget.Ledger(trial)
+
+
+def guard(config, job, *, resolved=False):
+    identifier = 'engine:' + str(job['id'])
+    for budget in ledgers(config, job):
+        state = budget.scope_state(identifier)
+        if state['stopped'] or (resolved and state['uncertain']):
+            raise api_budget.BudgetStopped('Run provider budget stopped or unresolved.')
+
+
+def recover(config, job):
+    # Caller must first stop the controller/delegated runtime. The trial's
+    # version decides whether orphan usage blocks this attempt or the batch.
+    for budget in ledgers(config, job):
+        budget.reconcile_scope('engine:' + str(job['id']))

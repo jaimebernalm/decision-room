@@ -20,6 +20,18 @@ import httpx
 
 VERSION = 'gpt-6-luna-standard-envelope-2026-10-11'
 REJECTION_VERSION = VERSION + '-http-rejections-1'
+SCOPED_VERSION = VERSION + '-scope-uncertainty-2'
+SCOPED_REJECTION_VERSION = REJECTION_VERSION + '-scope-uncertainty-2'
+SCOPED_VERSIONS = (SCOPED_VERSION, SCOPED_REJECTION_VERSION)
+
+
+def policy_version(*, explicit_http_rejections=False, scope_uncertainty=False):
+    if any(type(v) is not bool for v in (explicit_http_rejections, scope_uncertainty)):
+        raise ValueError('Provider policies must be explicit booleans.')
+    if scope_uncertainty:
+        return SCOPED_REJECTION_VERSION if explicit_http_rejections else SCOPED_VERSION
+    return REJECTION_VERSION if explicit_http_rejections else VERSION
+
 MAX_INPUT = 1_050_000
 MAX_OUTPUT = 128_000
 # nano-USD per token: maximum cache-write/input and output catalogue prices.
@@ -83,7 +95,8 @@ class Ledger:
     @classmethod
     def create(cls, path, *, cap_micro_usd, scope_cap_micro_usd,
                input_tokens=6000000, output_tokens=128000, calls=60, seconds=1200,
-               explicit_http_rejections=False):
+               explicit_http_rejections=False, scope_uncertainty=False):
+        version = policy_version(explicit_http_rejections=explicit_http_rejections, scope_uncertainty=scope_uncertainty)
         if any(type(v) is not int or v <= 0 for v in (cap_micro_usd, scope_cap_micro_usd,input_tokens,output_tokens,calls,seconds)):
             raise ValueError('Budgets must be positive integer micro-USD.')
         if type(explicit_http_rejections) is not bool:
@@ -101,8 +114,10 @@ class Ledger:
                 output_tokens INTEGER, billing TEXT, http_status INTEGER, created_at TEXT DEFAULT CURRENT_TIMESTAMP);
                 ''')
             db.execute('INSERT INTO policy VALUES (?,?,?,0,?,?,?,?)',
-                       (REJECTION_VERSION if explicit_http_rejections else VERSION,
+                       (version,
                         cap_micro_usd*1000, scope_cap_micro_usd*1000,input_tokens,output_tokens,calls,seconds))
+            if scope_uncertainty:
+                db.execute('CREATE TABLE stopped_scopes (scope TEXT PRIMARY KEY)')
         return ledger
 
     @contextmanager
@@ -117,10 +132,16 @@ class Ledger:
             db.close()
 
     def reserve(self, identifier, digest, endpoint, output):
-        amount = MAX_INPUT*INPUT_RATE + output*OUTPUT_RATE
+        if type(output) is not int or not 1 <= output <= MAX_OUTPUT:
+            raise ValueError('Invalid output reservation.')
         with self.db() as db:
             db.execute('BEGIN IMMEDIATE')
             policy = db.execute('SELECT * FROM policy').fetchone()
+            scoped = policy['version'] in SCOPED_VERSIONS
+            if scoped:
+                output = MAX_OUTPUT  # Unknown usage retains the entire model envelope.
+            amount = MAX_INPUT*INPUT_RATE + output*OUTPUT_RATE
+            scope_stopped = scoped and db.execute('SELECT 1 FROM stopped_scopes WHERE scope=?', (identifier,)).fetchone()
             total = db.execute('SELECT coalesce(sum(charged),0) FROM calls').fetchone()[0]
             own = db.execute('SELECT coalesce(sum(charged),0) FROM calls WHERE scope=?', (identifier,)).fetchone()[0]
             limits=db.execute('''SELECT count(*) AS calls,
@@ -128,7 +149,7 @@ class Ledger:
                 coalesce(sum(coalesce(output_tokens,(reserved-?)/?)),0) AS output,
                 coalesce(cast(strftime('%s','now') as integer)-cast(strftime('%s',min(created_at)) as integer),0) AS seconds
                 FROM calls WHERE scope=?''',(MAX_INPUT,MAX_INPUT*INPUT_RATE,OUTPUT_RATE,identifier)).fetchone()
-            if (policy['version'] not in (VERSION, REJECTION_VERSION) or policy['stopped'] or total+amount > policy['cap']
+            if (policy['version'] not in (VERSION, REJECTION_VERSION, *SCOPED_VERSIONS) or policy['stopped'] or scope_stopped or total+amount > policy['cap']
                     or own+amount > policy['scope_cap'] or limits['input']+MAX_INPUT>policy['input_cap']
                     or limits['output']+output>policy['output_cap'] or limits['calls']>=policy['calls_cap']
                     or limits['seconds']>=policy['seconds_cap']):
@@ -153,7 +174,7 @@ class Ledger:
             db.execute('BEGIN IMMEDIATE')
             policy = db.execute('SELECT version FROM policy').fetchone()
             row = db.execute('SELECT state FROM calls WHERE id=?', (call,)).fetchone()
-            if policy['version'] != REJECTION_VERSION or row['state'] != 'reserved':
+            if policy['version'] not in (REJECTION_VERSION, SCOPED_REJECTION_VERSION) or row['state'] != 'reserved':
                 return False
             db.execute("UPDATE calls SET state='rejected' WHERE id=?", (call,))
             return True
@@ -167,6 +188,12 @@ class Ledger:
         valid = (isinstance(model, str) and re.fullmatch(r'gpt-6-luna(?:-\d{4}-\d{2}-\d{2})?',model) is not None
                  and tier == 'default' and type(inp) is int and type(out) is int
                  and 0 <= inp <= MAX_INPUT and 0 <= out <= MAX_OUTPUT)
+        # Missing fields are unresolved usage. A present, incompatible field
+        # invalidates the envelope and always stops globally, even in scoped mode.
+        unsafe = ((model is not None and (not isinstance(model, str) or re.fullmatch(r'gpt-6-luna(?:-\d{4}-\d{2}-\d{2})?', model) is None))
+                  or (tier is not None and tier != 'default')
+                  or any(v is not None and (type(v) is not int or not 0 <= v <= cap)
+                         for v, cap in ((inp, MAX_INPUT), (out, MAX_OUTPUT))))
         from ..engine import costs
         details=(usage.get('input_tokens_details',usage.get('prompt_tokens_details',{})) or {}) if isinstance(usage,dict) else {}
         billing=costs.capture({'model':model,'service_tier':tier,
@@ -182,7 +209,14 @@ class Ledger:
             charge = inp*(250 if inp > 272000 else 125)+out*(750 if inp > 272000 else 500) if valid else row['reserved']
             if not valid or charge > row['reserved']:
                 db.execute("UPDATE calls SET state='uncertain',billing=? WHERE id=?", (json.dumps(billing),call))
-                db.execute('UPDATE policy SET stopped=1')
+                policy = db.execute('SELECT version FROM policy').fetchone()
+                if policy['version'] in SCOPED_VERSIONS and not unsafe and not valid:
+                    db.execute('INSERT OR IGNORE INTO stopped_scopes VALUES (?)', (row['scope'],))
+                    count = db.execute("SELECT count(*) FROM calls WHERE state='uncertain'").fetchone()[0]
+                    if count >= 2:
+                        db.execute('UPDATE policy SET stopped=1')
+                else:
+                    db.execute('UPDATE policy SET stopped=1')
             else:
                 db.execute("UPDATE calls SET state='settled',charged=?,input_tokens=?,output_tokens=?,billing=? WHERE id=?",
                            (charge, inp, out, json.dumps(billing),call))
@@ -191,15 +225,45 @@ class Ledger:
         with self.db() as db:
             db.execute('UPDATE policy SET stopped=1')
 
+    def scope_state(self, identifier):
+        """Durable send/publication guard; old policies keep global uncertainty."""
+        with self.db() as db:
+            db.execute('BEGIN')
+            policy = db.execute('SELECT version,stopped FROM policy').fetchone()
+            if not policy or policy['version'] not in (VERSION, REJECTION_VERSION, *SCOPED_VERSIONS):
+                raise BudgetStopped('Unsupported provider budget policy.')
+            scoped = policy['version'] in SCOPED_VERSIONS
+            stopped = bool(policy['stopped'] or (scoped and db.execute(
+                'SELECT 1 FROM stopped_scopes WHERE scope=?', (identifier,)).fetchone()))
+            query = "SELECT 1 FROM calls WHERE state IN ('reserved','uncertain')"
+            uncertain = db.execute(query + (' AND scope=?' if scoped else '') + ' LIMIT 1',
+                                   (identifier,) if scoped else ()).fetchone() is not None
+            return {'stopped': stopped, 'uncertain': uncertain}
+
+    def reconcile_scope(self, identifier):
+        """Trusted recovery after stopping the controller, never while it sends.
+
+        Retain orphan reservations as unknown receipts. Do not reset a ledger or
+        replay a request; terminal receipts remain immutable through settle().
+        """
+        state = self.snapshot()
+        for call in state['calls']:
+            if call['scope'] == identifier and call['state'] == 'reserved':
+                self.settle(call['id'], None)
+
     def snapshot(self):
         with self.db() as db:
             policy = dict(db.execute('SELECT * FROM policy').fetchone())
             calls = [dict(r) for r in db.execute('SELECT * FROM calls ORDER BY created_at,id')]
+            stopped_scopes = [r[0] for r in db.execute('SELECT scope FROM stopped_scopes ORDER BY scope')] if policy['version'] in SCOPED_VERSIONS else []
         from ..engine import costs
         for call in calls:
             call['billing']=json.loads(call['billing']) if call['billing'] else None
             call['cost_catalog']=costs.estimate(call['billing'])
-        return {'policy': policy, 'calls': calls, 'charged_nano_usd': sum(c['charged'] for c in calls),
+        uncertain_scopes = sorted({c['scope'] for c in calls if c['state'] in ('reserved', 'uncertain')})
+        return {'policy': policy, 'calls': calls, 'stopped_scopes': stopped_scopes,
+                'uncertain_scopes': uncertain_scopes,
+                'global_uncertain': bool(uncertain_scopes) and (policy['version'] not in SCOPED_VERSIONS or bool(policy['stopped'])), 'charged_nano_usd': sum(c['charged'] for c in calls),
                 'uncertain': any(c['state'] in ('reserved', 'uncertain') for c in calls), 'cost_catalog':costs.aggregate(calls)}
 
 

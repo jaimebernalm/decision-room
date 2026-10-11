@@ -284,3 +284,99 @@ class ProductBudgetTests(unittest.TestCase):
         self.assertEqual({c['scope'] for c in calls},{'web:fixture','engine:'+str(run)})
         self.assertTrue(all(c['state']=='settled' for c in calls))
         self.assertEqual(ledger.snapshot()['charged_nano_usd'],15000)
+
+
+class ScopedBudgetTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.path = Path(self.temp.name)/'new.sqlite'
+        self.ledger = budget.Ledger.create(self.path, cap_micro_usd=2_000_000,
+            scope_cap_micro_usd=1_000_000, output_tokens=500000,
+            explicit_http_rejections=True, scope_uncertainty=True)
+
+    def reserve(self, scope):
+        return self.ledger.reserve(scope, 'hash', '/v1/responses', 1000)
+
+    def test_first_disconnect_blocks_own_scope_second_stops_everything_after_restart(self):
+        first = self.reserve('first')
+        self.ledger.settle(first, None)
+        self.ledger.settle(first, None)  # Callback/close repetition is one call.
+        self.ledger = budget.Ledger(self.path)
+        state = self.ledger.snapshot()
+        self.assertEqual(state['charged_nano_usd'], 358500000)
+        self.assertFalse(state['policy']['stopped'])
+        self.assertFalse(state['global_uncertain'])
+        self.assertEqual(state['stopped_scopes'], ['first'])
+        self.assertTrue(self.ledger.scope_state('first')['uncertain'])
+        self.assertFalse(self.ledger.scope_state('second')['uncertain'])
+        with self.assertRaises(budget.BudgetStopped): self.reserve('first')
+        second = self.reserve('second')
+        self.ledger.settle(second, None)
+        self.assertTrue(budget.Ledger(self.path).snapshot()['policy']['stopped'])
+        with self.assertRaises(budget.BudgetStopped): self.reserve('third')
+        self.assertEqual(self.ledger.snapshot()['charged_nano_usd'], 717000000)
+
+    def test_other_scope_sends_after_timeout_but_never_repeats_failed_scope(self):
+        sent = []
+        def provider(request):
+            sent.append(request)
+            if len(sent) == 1: raise httpx.ReadTimeout('Synthetic silence')
+            return httpx.Response(200, json={'model':'gpt-6-luna', 'service_tier':'default',
+                'usage':{'input_tokens':10, 'output_tokens':1}})
+        payload={'model':'gpt-6-luna', 'max_output_tokens':1000}
+        for scope in ('first', 'first', 'second'):
+            with httpx.Client(transport=budget.BudgetTransport(self.ledger, httpx.MockTransport(provider), scope)) as client:
+                try: client.post('https://api.openai.com/v1/responses',json=payload)
+                except (httpx.ReadTimeout, budget.BudgetStopped): pass
+        self.assertEqual(len(sent), 2)
+        self.assertEqual([c['state'] for c in self.ledger.snapshot()['calls']].count('settled'), 1)
+        self.assertFalse(self.ledger.snapshot()['policy']['stopped'])
+
+    def test_incompatible_known_fields_stop_globally_on_first_call(self):
+        for changes in ({'model':'other'}, {'service_tier':'flex'},
+                        {'usage':{'input_tokens':budget.MAX_INPUT+1, 'output_tokens':1}},
+                        {'usage':{'input_tokens':True, 'output_tokens':1}}):
+            with self.subTest(changes=changes):
+                path=Path(self.temp.name)/(str(len(list(Path(self.temp.name).iterdir())))+'.sqlite')
+                ledger=budget.Ledger.create(path, cap_micro_usd=1000000, scope_cap_micro_usd=1000000, scope_uncertainty=True)
+                call=ledger.reserve('a','hash','/v1/responses',1000)
+                result={'model':'gpt-6-luna', 'service_tier':'default', 'usage':{'input_tokens':10,'output_tokens':1}, **changes}
+                ledger.settle(call,result)
+                self.assertTrue(ledger.snapshot()['policy']['stopped'])
+                with self.assertRaises(budget.BudgetStopped): ledger.reserve('b','hash','/v1/responses',1000)
+
+    def test_concurrent_unknown_receipts_and_recovery_keep_all_reservations(self):
+        calls=[self.reserve('a'), self.reserve('b')]
+        barrier=threading.Barrier(2)
+        def finish(call):
+            barrier.wait()
+            self.ledger.settle(call, None)
+        workers=[threading.Thread(target=finish,args=(c,)) for c in calls]
+        for worker in workers: worker.start()
+        for worker in workers: worker.join(5); self.assertFalse(worker.is_alive())
+        state=self.ledger.snapshot()
+        self.assertTrue(state['policy']['stopped'])
+        self.assertEqual(state['stopped_scopes'], ['a','b'])
+        self.assertEqual(state['charged_nano_usd'],717000000)
+        self.ledger.reconcile_scope('a')
+        self.assertEqual(self.ledger.snapshot()['charged_nano_usd'],717000000)
+
+    def test_recovery_and_explicit_rejection_do_not_grant_another_envelope(self):
+        call=self.reserve('orphan')
+        self.ledger.reconcile_scope('orphan')
+        with self.assertRaises(budget.BudgetStopped): self.reserve('orphan')
+        rejected=self.reserve('rejected')
+        self.assertTrue(self.ledger.reject(rejected))
+        self.ledger.settle(rejected,None)
+        self.assertFalse(self.ledger.snapshot()['policy']['stopped'])
+        self.assertEqual(self.ledger.snapshot()['charged_nano_usd'],717000000)
+        self.assertFalse(self.ledger.scope_state('rejected')['uncertain'])
+
+    def test_maximum_output_reservation_does_not_widen_caps(self):
+        path=Path(self.temp.name)/'small.sqlite'
+        ledger=budget.Ledger.create(path,cap_micro_usd=300000,scope_cap_micro_usd=300000,scope_uncertainty=True)
+        with self.assertRaises(budget.BudgetStopped): ledger.reserve('a','hash','/v1/responses',1)
+        self.assertEqual(ledger.snapshot()['calls'],[])
+        with self.assertRaises(ValueError):
+            budget.Ledger.create(Path(self.temp.name)/'bad.sqlite',cap_micro_usd=1000000,scope_cap_micro_usd=1000000,scope_uncertainty=1)

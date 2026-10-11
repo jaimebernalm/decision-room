@@ -214,6 +214,8 @@ def authenticate(config, run_id, token, *, check_snapshot=True, allow_checker=Fa
                 error = 'Snapshot changed or is unavailable.'
     if error:
         raise Aborted(error)
+    from . import provider_budget
+    provider_budget.guard(config, row)
     return {**{k: row[k] for k in ('id', 'business_id', 'analysis_id', 'snapshot', 'snapshot_sha256', 'model', 'limits', 'profile')},
             'remaining_seconds': max(0.001, row['limits']['active_seconds'] - float(row['elapsed']))}
 

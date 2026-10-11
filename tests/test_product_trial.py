@@ -146,6 +146,43 @@ class ProductTrialTests(unittest.TestCase):
         with patch.object(trial.Config,'load',return_value=self.base),self.assertRaises(ValueError):
             trial.initialize(self.source,self.root/'mismatch')
 
+    def test_scoped_policy_is_frozen_and_next_attempt_survives_first_uncertainty(self):
+        self.spec.update(scope_uncertainty=True,explicit_http_rejections=True,
+            ledger_version=trial.api_budget.SCOPED_REJECTION_VERSION)
+        self.source.write_text(json.dumps(self.spec))
+        manifest=self.initialize();ledger=trial.api_budget.Ledger(manifest['budget_path'])
+        self.assertEqual(ledger.snapshot()['policy']['version'],trial.api_budget.SCOPED_REJECTION_VERSION)
+        real_workspace=trial.Workspace;called=[]
+        def workspace(config,settings):
+            ws=real_workspace(config,settings)
+            def select(business):
+                ws._scoped=True
+                ws._business_id=__import__('uuid').UUID(business)
+                return ws
+            ws.scoped=select
+            real_row=ws.row
+            def run(job):
+                called.append(job)
+                identifier='web:'+job
+                call=ledger.reserve(identifier,'hash','/v1/chat/completions',1000)
+                ledger.settle(call,None)
+            ws.run_job=run
+            ws.row=lambda job:{**real_row(job),'status':'queued'}
+            return ws
+        first=next(j for j in manifest['jobs'] if j['arm']=='legacy')
+        with patch.object(trial,'Workspace',side_effect=workspace):trial.execute(self.output,first['code'])
+        result=json.loads((self.output/'runs'/first['code']/'result.json').read_text())
+        self.assertTrue(result['budget_scope_stopped']);self.assertTrue(result['budget_scope_uncertain'])
+        self.assertEqual(len(called),1)
+        self.assertFalse(ledger.snapshot()['policy']['stopped'])
+        other=next(j for j in manifest['jobs'] if j['arm']=='opencode')
+        with patch.object(trial,'Workspace',side_effect=workspace):trial.execute(self.output,other['code'])
+        self.assertEqual(len(called),2)
+        self.assertTrue(ledger.snapshot()['policy']['stopped'])
+        self.spec['scope_uncertainty']=False;self.source.write_text(json.dumps(self.spec))
+        with patch.object(trial.Config,'load',return_value=self.base),self.assertRaises(ValueError):
+            trial.initialize(self.source,self.root/'different-policy')
+
     def test_non_terminal_jobs_continue_and_a_recorded_queued_attempt_resumes_once(self):
         manifest=self.initialize();code=next(j['code'] for j in manifest['jobs'] if j['arm']=='legacy')
         real_workspace=trial.Workspace
