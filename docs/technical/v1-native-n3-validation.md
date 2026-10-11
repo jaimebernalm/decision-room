@@ -130,3 +130,24 @@ una llamada HTTP 200 con uso desconocido. Se conservan el borrador, la llamada
 incierta y su reserva; no se promueve la revisión del run abortado ni se reabre
 el ledger. El piloto queda incompleto y la validación sembrada no se ejecutó.
 N5 no se inicia porque N4 no pasó su puerta. Legacy sigue por defecto.
+
+## Presentación posterior al lote
+
+La integración de 638b863 en eb297cd mantiene los materiales del piloto intactos.
+El PDF posterior coloca cifras cortas sin discrepancia en una rejilla; las notas
+largas y cifras disputadas conservan párrafos divisibles y su propio aviso en
+orden. Los límites de cobertura quedan accesibles en detalles y en el anexo del
+PDF. Estos ajustes no fueron evaluados por los lectores del piloto.
+
+63 pruebas focalizadas finales pasan, incluidos PDF con notas máximas y avisos
+localizados, aislamiento del renderizador, selección/vigencia, ciclo de
+comprobación y análisis. La herramienta de sembrado queda explícitamente
+inhabilitada antes de tocar ledger, entorno o proveedor porque su localización
+no está validada; sus helpers de desarrollo no acreditan la puerta retenida.
+
+La primera pasada UI de esta integración dio 319/320: una prueba de navegación
+de tablas esperaba el inicio de una consulta y accedía a la región mientras aún
+se mostraba la carga. Se corrigió para esperar esa región visible. Su batería
+focalizada pasa 8/8 y la repetición completa pasa 320/320. TypeScript, Vite y
+oxlint pasan, con las advertencias existentes. No se cambió el producto para
+resolver esa carrera del test.
