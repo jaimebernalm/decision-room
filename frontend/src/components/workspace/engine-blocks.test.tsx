@@ -195,4 +195,11 @@ it("keeps every delivered decimal for exact values", () => {
   expect(exactDecimals(12, 1)).toBe(1);
   expect(exactDecimals(1.5e-7, 0)).toBe(8);
   expect(exactDecimals(null, 2)).toBe(2);
+  expect(exactDecimals(1.123e-15, 0)).toBe(18);
+  expect(formatNumber(1.123e-15, exactDecimals(1.123e-15, 0))).toBe("0,000000000000001123");
+});
+
+it("shows the report's own title", () => {
+  render(<BlocksReport projection={projection} />);
+  expect(screen.getByRole("heading", { level: 2, name: projection.title })).toBeInTheDocument();
 });

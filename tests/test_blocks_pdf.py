@@ -108,6 +108,8 @@ class BlocksPdfTests(unittest.TestCase):
         self.assertEqual(blocks_pdf._exact(0.1234, 2), 4)
         self.assertEqual(blocks_pdf._exact(12, 1), 1)
         self.assertEqual(blocks_pdf._exact(None, 2), 2)
+        self.assertEqual(blocks_pdf._exact(1.123e-15, 0), 18)
+        self.assertEqual(blocks.format_number(1.123e-15, blocks_pdf._exact(1.123e-15, 0)), '0,000000000000001123')
 
     def test_series_colors_spread_from_dark_to_light(self):
         from reportlab.lib import colors

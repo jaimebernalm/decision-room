@@ -742,6 +742,9 @@ export function BlocksReport({
   const coverage = checks?.coverage;
   return (
     <div className="space-y-6">
+      {projection.title && (
+        <h2 className="text-2xl font-semibold tracking-tight text-balance">{projection.title}</h2>
+      )}
       <Blocks blocks={projection.blocks} depth={0} checks={byBlock} wrap={wrap} numbers={numbers} />
       {(unverifiable.length > 0 || uncovered.length > 0) && (
         // Limits of the independent check: one plain summary, folded away. The per-priority

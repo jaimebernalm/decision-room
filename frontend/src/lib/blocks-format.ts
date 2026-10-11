@@ -39,12 +39,16 @@ export function signed(value: number, decimals: number, unit: string | null) {
   return (value > 0 ? "+" : "") + withUnit(value, decimals, unit);
 }
 
-/** Every delivered decimal (up to 15): exact values on hover and in the data view, never rounded away. */
+/**
+ * Every delivered decimal: exact values on hover and in the data view, never rounded away.
+ * Counted from the value itself, so 1.123e-15 keeps its four significant figures (18 places);
+ * the format allows at most 15 significant figures and |value| ≥ 1e-15, within Intl's 100 places.
+ */
 export function exactDecimals(value: number | null, decimals: number) {
   if (value === null) return decimals;
   const text = String(Math.abs(value));
   const places = text.includes("e-")
     ? Number(text.split("e-")[1]) + (text.split("e-")[0].split(".")[1] || "").length
     : (text.split(".")[1] || "").length;
-  return Math.min(15, Math.max(decimals, places));
+  return Math.min(100, Math.max(decimals, places));
 }

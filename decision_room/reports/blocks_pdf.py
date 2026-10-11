@@ -222,11 +222,11 @@ def _chart(chart, appendix):
 
 
 def _exact(value, decimals):
-    """Every delivered decimal (up to 15) in the values table, as in the web data view."""
+    """Every delivered decimal in the values table, as in the web data view (1.123e-15 keeps 18)."""
     if value is None:
         return decimals
     exponent = Decimal(str(value)).normalize().as_tuple().exponent
-    return min(15, max(decimals, -exponent if exponent < 0 else 0))
+    return max(decimals, -exponent if exponent < 0 else 0)
 
 
 def _values(chart, note=True):
