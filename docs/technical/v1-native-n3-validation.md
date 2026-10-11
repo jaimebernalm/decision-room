@@ -118,4 +118,15 @@ La integración pasa 71 pruebas focalizadas en PostgreSQL y Docker. Una prueba
 adicional reproduce un trabajo raster residual de un documento nativo: no se
 reclama ni cambian sus intentos; los escritores directos rechazan la operación;
 la revisión queda idéntica y su vista nativa sigue disponible. Pasa. La regresión
-completa de este último conjunto se registra tras terminar su ejecución.
+completa congelada en 579a04b pasa 920 pruebas en 643,860 segundos, sin fallos,
+errores ni omitidos. Este conjunto incluye el aislamiento y la selección; los
+ajustes posteriores de presentación tienen su validación focalizada aparte.
+
+## Puerta de calidad pendiente
+
+N3 está implementado y probado como código, pero no acreditado por la validación
+retenida exigida por el plan. El lote N4 activó la parada global del ledger ante
+una llamada HTTP 200 con uso desconocido. Se conservan el borrador, la llamada
+incierta y su reserva; no se promueve la revisión del run abortado ni se reabre
+el ledger. El piloto queda incompleto y la validación sembrada no se ejecutó.
+N5 no se inicia porque N4 no pasó su puerta. Legacy sigue por defecto.
