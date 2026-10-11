@@ -106,7 +106,7 @@ class BlocksTests(unittest.TestCase):
         for _ in range(blocks.MAX_DEPTH + 1):
             deep = {'tipo': 'seccion', 'titulo': 's', 'bloques': [deep]}
         self.assertInvalid(doc(deep), 'niveles')
-        self.assertInvalid(doc({'tipo': 'cifra', 'etiqueta': 'x', 'valor': 1e16}), 'demasiado grande')
+        self.assertInvalid(doc({'tipo': 'cifra', 'etiqueta': 'x', 'valor': 1e16}), 'rango')
 
     def test_gap_is_not_zero_and_negative_formatting(self):
         p = blocks.parse(raw(doc({'tipo': 'grafico', 'grafico': 'lineas', 'titulo': 'Tasa', 'unidad': '%', 'decimales': 1,
@@ -114,6 +114,24 @@ class BlocksTests(unittest.TestCase):
                                   'series': [{'nombre': 'App', 'valores': [13.7, None, -2.25], 'detalles': ['17 de 124', None, None]}]})))
         line = blocks.canonical_text(p)
         self.assertIn('App: ene 13,7 [17 de 124]; feb —; mar −2,3', line)
+
+    def test_tiny_and_extreme_numbers(self):
+        self.assertInvalid(b'{"valor": 1e-9999}', 'rango')
+        self.assertInvalid(doc({'tipo': 'cifra', 'etiqueta': 'x', 'valor': 1e-20}), 'rango')
+        self.assertInvalid(b'{"valor": 1e999999999}', 'rango')
+        p = blocks.parse(raw(doc({'tipo': 'cifra', 'etiqueta': 'x', 'valor': 1, 'anterior': {'valor': 1e-15}})))
+        self.assertEqual(p['blocks'][0]['change'], 0.999999999999999)  # exact difference; huge percentage stays finite
+        self.assertIsNotNone(p['blocks'][0]['change_pct'])
+
+    def test_exact_values_survive_rounding(self):
+        p = blocks.parse(raw(doc({'tipo': 'cifra', 'etiqueta': 'Tasa', 'valor': 0.0001},
+                                 {'tipo': 'cifra', 'etiqueta': 'Media', 'valor': 1.25, 'decimales': 0},
+                                 {'tipo': 'tabla', 'columnas': [{'titulo': 'v', 'decimales': 0}], 'filas': [[2.5]]})))
+        self.assertEqual(p['blocks'][0]['decimals'], 4)
+        text = blocks.canonical_text(p)
+        self.assertIn('Tasa: 0,0001', text)
+        self.assertIn('Media: 1 [exacto: 1,25]', text)
+        self.assertIn('3 [exacto: 2,5]', text)
 
     def test_cli_matches_product_validation(self):
         script = Path(blocks.__file__)

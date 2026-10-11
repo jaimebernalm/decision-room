@@ -30,6 +30,7 @@ MAX_COLUMNS = 12
 MAX_ROWS = 200
 MAX_CELLS = 6_000           # table cells across the report
 MAX_NUMBER = Decimal(10) ** 15
+MIN_NUMBER = Decimal(10) ** -15
 
 CHART_KINDS = {'barras': 'bar', 'barras_horizontales': 'bar', 'columnas': 'column', 'barras_verticales': 'column',
                'lineas': 'line', 'linea': 'line', 'cambio': 'change', 'barras_cambio': 'change'}
@@ -98,8 +99,15 @@ def _decimal(lexeme):
     # Lexical bound before conversion: no huge exponents or precision reach Decimal.
     if len(lexeme) > 40:
         raise ValueError('número con demasiadas cifras')
-    number = Decimal(lexeme)
-    if number and len(number.normalize().as_tuple().digits) > 15:
+    try:
+        number = Decimal(lexeme)
+        digits = len(number.normalize().as_tuple().digits) if number else 0
+        in_range = not number or MIN_NUMBER <= abs(number) < MAX_NUMBER
+    except ArithmeticError:
+        raise ValueError('número fuera del rango admitido (entre 1e-15 y 1e15 en valor absoluto, o 0)') from None
+    if not in_range:
+        raise ValueError('número fuera del rango admitido (entre 1e-15 y 1e15 en valor absoluto, o 0)')
+    if digits > 15:
         raise ValueError('número con más de 15 cifras significativas')
     return number
 
@@ -115,7 +123,7 @@ def loads(raw):
         raise BlocksError(['el fichero empieza con una marca BOM; guárdalo como UTF-8 sin BOM'])
     try:
         return json.loads(text, object_pairs_hook=_no_duplicates, parse_constant=_constant, parse_float=_decimal, parse_int=_decimal)
-    except (ValueError, RecursionError) as exc:
+    except (ValueError, RecursionError, ArithmeticError) as exc:
         raise BlocksError([f'JSON no válido: {exc}']) from None
 
 
@@ -416,9 +424,12 @@ def _project_numbers(block):
         if previous and previous['value'] is not None and value is not None:
             change = value - previous['value']
             if previous['value'] != 0:
-                with localcontext() as ctx:
-                    ctx.prec = 40
-                    pct = (change / abs(previous['value']) * 100).quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)
+                try:
+                    with localcontext() as ctx:
+                        ctx.prec = 60
+                        pct = (change / abs(previous['value']) * 100).quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)
+                except ArithmeticError:
+                    pct = None
         decimals = block['decimals'] if block['decimals'] is not None else _default_decimals(
             [value] + ([previous['value']] if previous else []))
         block.update(value=_num(value), change=_num(change), change_pct=_num(pct), decimals=decimals,
@@ -439,8 +450,14 @@ def _project_numbers(block):
 
 
 def _default_decimals(values):
-    places = [max(0, -v.normalize().as_tuple().exponent) for v in values if isinstance(v, Decimal)]
-    return min(max(places, default=0), 2)
+    """Up to 2 decimals, or as many as needed so no nonzero value is shown as 0."""
+    numbers = [v for v in values if isinstance(v, Decimal)]
+    places = [max(0, -v.normalize().as_tuple().exponent) for v in numbers]
+    decimals = min(max(places, default=0), 2)
+    smallest = min((abs(v) for v in numbers if v), default=None)
+    if smallest is not None and smallest < Decimal(1).scaleb(-decimals) / 2:
+        decimals = min(15, max(decimals, -smallest.adjusted()))
+    return decimals
 
 
 def parse(raw):
@@ -470,8 +487,22 @@ def format_number(value, decimals):
     return ('−' if number < 0 else '') + text
 
 
-def _with_unit(value, decimals, unit):
+def exact_number(value):
+    """Every digit of the delivered value, in Spanish format."""
+    number = Decimal(str(value))
+    return format_number(value, max(0, -number.normalize().as_tuple().exponent))
+
+
+def shown(value, decimals):
+    """Visible format plus the exact value when rounding hides digits (chat and checks need it)."""
     text = format_number(value, decimals)
+    if value is not None and Decimal(str(value)) != Decimal(str(value)).quantize(Decimal(1).scaleb(-decimals), rounding=ROUND_HALF_UP):
+        text += f' [exacto: {exact_number(value)}]'
+    return text
+
+
+def _with_unit(value, decimals, unit):
+    text = shown(value, decimals)
     if unit and value is not None:
         return f'{text} %' if unit == '%' else f'{text} {unit}'
     return text
@@ -527,7 +558,7 @@ def block_lines(block):
         unit = f" ({block['unit']})" if block['unit'] else ''
         lines = [f"Gráfico: {block['title']}{unit}"]
         for s in block['series']:
-            cells = [f"{c} {format_number(v, block['decimals'])}" + (f" [{d}]" if d else '')
+            cells = [f"{c} {shown(v, block['decimals'])}" + (f" [{d}]" if d else '')
                      for c, v, d in zip(block['categories'], s['values'], s['details'] or [None] * len(s['values']))]
             lines.append(f"{s['name']}: " + '; '.join(cells))
         if block['note']:
@@ -538,7 +569,7 @@ def block_lines(block):
         heads = [c['title'] + (f" ({c['unit']})" if c['unit'] else '') for c in block['columns']]
         lines.append(' | '.join(heads))
         for row in block['rows']:
-            lines.append(' | '.join('' if v is None else v if isinstance(v, str) else format_number(v, c['decimals'])
+            lines.append(' | '.join('' if v is None else v if isinstance(v, str) else shown(v, c['decimals'])
                                     for v, c in zip(row, block['columns'])))
         if block['note']:
             lines.append(block['note'])
