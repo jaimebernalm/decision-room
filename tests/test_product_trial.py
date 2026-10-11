@@ -115,9 +115,23 @@ class ProductTrialTests(unittest.TestCase):
         manifest=self.initialize()
         policy=trial.api_budget.Ledger(manifest['budget_path']).snapshot()['policy']
         self.assertEqual((policy['input_cap'],policy['output_cap'],policy['calls_cap'],policy['seconds_cap']),(40000000,1000000,400,3600))
+        self.assertEqual(policy['version'],trial.api_budget.VERSION)
+        self.spec['explicit_http_rejections']=True;self.source.write_text(json.dumps(self.spec))
+        with patch.object(trial.Config,'load',return_value=self.base),self.assertRaises(ValueError):
+            trial.initialize(self.source,self.root/'other-policy')
+        self.spec['explicit_http_rejections']=False
         self.spec['scope_quotas']['calls']=60;self.source.write_text(json.dumps(self.spec))
         with patch.object(trial.Config,'load',return_value=self.base),self.assertRaises(ValueError):
             trial.initialize(self.source,self.root/'again')
+
+    def test_rejection_policy_ledger_is_created_with_its_version(self):
+        self.spec.update(explicit_http_rejections=True,ledger_version=trial.api_budget.REJECTION_VERSION,budget_path=str(self.root/'f5b.sqlite'))
+        self.source.write_text(json.dumps(self.spec))
+        manifest=self.initialize()
+        self.assertEqual(trial.api_budget.Ledger(manifest['budget_path']).snapshot()['policy']['version'],trial.api_budget.REJECTION_VERSION)
+        self.spec['ledger_version']=trial.api_budget.VERSION;self.source.write_text(json.dumps(self.spec))
+        with patch.object(trial.Config,'load',return_value=self.base),self.assertRaises(ValueError):
+            trial.initialize(self.source,self.root/'mismatch')
 
     def test_crash_is_preserved_and_over_cap_spec_is_rejected_before_preparation(self):
         manifest=self.initialize();code=manifest['jobs'][0]['code']

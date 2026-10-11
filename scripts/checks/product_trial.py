@@ -61,15 +61,21 @@ def initialize(spec_path, root):
     quotas={'input_tokens':6000000,'output_tokens':128000,'calls':60,'seconds':1200,**spec.get('scope_quotas',{})}
     if set(quotas)!={'input_tokens','output_tokens','calls','seconds'} or any(type(v) is not int or v<=0 for v in quotas.values()):
         raise ValueError('Scope quotas must be positive integers.')
+    rejections=spec.get('explicit_http_rejections',False)
+    if type(rejections) is not bool:
+        raise ValueError('explicit_http_rejections must be a boolean.')
+    version=api_budget.REJECTION_VERSION if rejections else api_budget.VERSION
+    if spec.get('ledger_version',version)!=version:
+        raise ValueError('The spec ledger version does not match its rejection policy.')
     if budget_path.exists():
         policy=api_budget.Ledger(budget_path).snapshot()['policy']
         expected={'input_cap':quotas['input_tokens'],'output_cap':quotas['output_tokens'],'calls_cap':quotas['calls'],'seconds_cap':quotas['seconds']}
         if (policy['cap'] != spec['cap_micro_usd']*1000 or policy['scope_cap'] != spec['scope_cap_micro_usd']*1000
-                or any(policy[k]!=v for k,v in expected.items())):
+                or policy['version'] != version or any(policy[k]!=v for k,v in expected.items())):
             raise ValueError('The shared ledger has different ceilings; never reset it.')
     else:
         api_budget.Ledger.create(budget_path,cap_micro_usd=spec['cap_micro_usd'],
-                                scope_cap_micro_usd=spec['scope_cap_micro_usd'],**quotas)
+                                scope_cap_micro_usd=spec['scope_cap_micro_usd'],explicit_http_rejections=rejections,**quotas)
     jobs=[];active=None
     for item in spec['businesses']:
         if not isinstance(item['key'],str) or not re.fullmatch(r'[a-z][a-z0-9-]{0,63}',item['key']):
