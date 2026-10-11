@@ -56,13 +56,20 @@ def initialize(spec_path, root):
         reasoning='low',max_output_tokens=spec.get('legacy_output_tokens',8192),response_language='es')
     ws=Workspace(config,settings)
     budget_path=Path(spec.get('budget_path',root/'budget.sqlite')).resolve()
+    # Per-report scope quotas of the ledger. Defaults mirror the engine's admission limits;
+    # a spec may widen them so they never bind legacy before the dollar caps do.
+    quotas={'input_tokens':6000000,'output_tokens':128000,'calls':60,'seconds':1200,**spec.get('scope_quotas',{})}
+    if set(quotas)!={'input_tokens','output_tokens','calls','seconds'} or any(type(v) is not int or v<=0 for v in quotas.values()):
+        raise ValueError('Scope quotas must be positive integers.')
     if budget_path.exists():
         policy=api_budget.Ledger(budget_path).snapshot()['policy']
-        if policy['cap'] != spec['cap_micro_usd']*1000 or policy['scope_cap'] != spec['scope_cap_micro_usd']*1000:
+        expected={'input_cap':quotas['input_tokens'],'output_cap':quotas['output_tokens'],'calls_cap':quotas['calls'],'seconds_cap':quotas['seconds']}
+        if (policy['cap'] != spec['cap_micro_usd']*1000 or policy['scope_cap'] != spec['scope_cap_micro_usd']*1000
+                or any(policy[k]!=v for k,v in expected.items())):
             raise ValueError('The shared ledger has different ceilings; never reset it.')
     else:
         api_budget.Ledger.create(budget_path,cap_micro_usd=spec['cap_micro_usd'],
-                                scope_cap_micro_usd=spec['scope_cap_micro_usd'])
+                                scope_cap_micro_usd=spec['scope_cap_micro_usd'],**quotas)
     jobs=[];active=None
     for item in spec['businesses']:
         if not isinstance(item['key'],str) or not re.fullmatch(r'[a-z][a-z0-9-]{0,63}',item['key']):
@@ -99,7 +106,8 @@ def initialize(spec_path, root):
                         head=knowledge.change(config,active,analysis,head['revision'],'table',payload)
                 jobs.append({'code':code,'job_id':job,'business_id':active,'arm':arm,'repetition':repetition+1,
                     'business_key':item['key'],'inputs':[{'name':n,'sha256':hashlib.sha256(r).hexdigest(),'bytes':len(r)} for n,r in files]})
-    owners={item['key']:{'description':item['description'],'goal':item['goal']} for item in spec['businesses']}
+    # The owner stand-in knows what any owner knows: today's date, its description and its request.
+    owners={item['key']:{'today':spec['owner_today'],'description':item['description'],'goal':item['goal']} for item in spec['businesses']}
     save(root/'manifest.json',{'version':1,'owners':owners,'config':asdict(config),'settings':asdict(settings),
         'spec_sha256':hashlib.sha256(spec_path.read_bytes()).hexdigest(),'budget_path':str(budget_path),'jobs':jobs})
     print(json.dumps({'database':database,'jobs':len(jobs),'output':str(root)}))
@@ -114,14 +122,14 @@ OWNER_PROMPT=(
     'ofrece opciones, elige la que mejor encaje con tu petición. Responde en JSON con "disposition" ("answered" si '
     'respondes, "unknown" si no lo sabes, "declined" si prefieres no responder) y "text" (tu respuesta; vacío si no '
     'respondes).\n\n'
-    'Descripción del negocio:\n{description}\n\nLo que pediste:\n{goal}\n\nPregunta de la herramienta:\n{question}')
+    'Hoy es {today}.\n\nDescripción del negocio:\n{description}\n\nLo que pediste:\n{goal}\n\nPregunta de la herramienta:\n{question}')
 
 
 def owner_answer(owner, question):
     """Owner stand-in for legacy questions. Sends only through the scoped budget transport."""
     import httpx
     shown={k:question.get(k) for k in ('text','reason','options') if question.get(k)}
-    prompt=OWNER_PROMPT.format(description=owner['description'],goal=owner['goal'],
+    prompt=OWNER_PROMPT.format(today=owner['today'],description=owner['description'],goal=owner['goal'],
                                question=json.dumps(shown,ensure_ascii=False,indent=1))
     transport=api_budget.transport()
     if transport is None:

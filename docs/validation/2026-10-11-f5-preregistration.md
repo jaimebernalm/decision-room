@@ -29,13 +29,18 @@ encargo, el contexto y el runtime.
 | Preguntas al dueño | Desactivadas por el perfil | Las responde un **dueño simulado** (abajo) |
 
 **Admisión del ensayo.**
-- El ledger de Astra impone a cada informe sus propias cuotas, con la misma política para los
-  dos brazos:
-  - 6 M de entrada, 128 k de salida, 60 envíos y 1.200 s desde el primer envío;
-  - 1,5 USD de cota por informe;
+- El ledger de Astra reserva antes de cada envío, con la misma política para los dos brazos.
+- Cuotas por informe del ledger del ensayo:
+  - 40 M de entrada, 1 M de salida, 400 envíos y 3.600 s desde el primer envío;
+  - 2,5 USD de cota;
   - antes de cada generación reserva 1,05 M de entrada.
-- Es una admisión conservadora y puede rechazar una llamada que habría cabido. No se afirma
-  paridad exacta de presupuesto de cómputo entre los brazos.
+- Por qué son tan amplias: en el piloto, la cuota anterior de 60 envíos (copiada de los
+  límites de v1) cortó un informe legacy en su revisión. Legacy no tiene ese límite en el
+  producto, así que el ensayo lo habría penalizado de forma artificial.
+- v1 sigue limitado por su propia admisión del producto (6 M, 128 k, 60 llamadas, 1.200 s),
+  que es más estricta.
+- La protección real son los techos en USD. Es una admisión conservadora. No se afirma
+  paridad exacta de cómputo entre los brazos.
 - El dueño simulado comparte la cuota del informe legacy al que responde.
 
 **Dueño simulado (solo legacy).**
@@ -118,11 +123,13 @@ El oráculo y los datos quedan fuera de Git (`.local/f5/`) y nunca llegan a un a
 - **Techo de gasto:**
   - un ledger durable reserva antes de cada envío, sea del producto, del motor o del dueño
     simulado. Una respuesta incierta conserva la reserva máxima y detiene los envíos;
-  - techo del ledger: **24 USD**. El dólar restante cubre los pilotos sin ledger: los de
-    Astra, con una cota de 0,121 USD, y los de Claude, con una cota conservadora de
-    0,701 USD. Esa cota cuenta toda la entrada como escritura de caché, y cada llamada sin
-    uso conocido a su reserva máxima;
-  - en total, ≤ 25 USD.
+  - pilotos sin ledger: los de Astra, con una cota de 0,121 USD, y los de Claude, con una
+    cota conservadora de 0,701 USD. Esa cota cuenta toda la entrada como escritura de caché, y
+    cada llamada sin uso conocido a su reserva máxima;
+  - ledger del piloto técnico (`budget.sqlite`, con la política anterior): se detiene antes
+    del ensayo con 0,609 USD de cota y se conserva;
+  - ledger del ensayo (`budget-test.sqlite`): **23 USD**, creado una sola vez;
+  - en total, ≤ 0,822 + 0,609 + 23 = 24,43 USD ≤ 25.
 
 ## Material de los evaluadores (fijado)
 
@@ -178,7 +185,8 @@ estilo puede delatar el brazo; es un límite.
    - **Se publican siempre** las tasas de cifras correctas de las prioridades y del resto,
      con sus denominadores. **Esto sustituye** a la puerta de P3 (100 % y ≥ 95 %) por la
      condición (b), que es más permisiva. No se transfiere la puerta antigua.
-3. **Señales.** Un juez (Opus) por informe, con el texto y el oráculo de su negocio:
+3. **Señales.** Un juez (Opus) por informe, con el texto, las páginas y el oráculo de su
+   negocio:
    - S1–S5 se puntúan de 0 a 2: 0 ausente, 1 parcial o vaga, 2 con la magnitud y el segmento
      correctos. Total sobre 10.
    - S6 vale 1 si el informe cae en el señuelo.
@@ -189,13 +197,12 @@ estilo puede delatar el brazo; es un límite.
      recibir para decidir?».
    - **R2, un asesor externo:** solo sabe que es un «informe para el dueño de este negocio».
      Pregunta: «¿cuál es más útil y fiable?».
-   - **Imágenes:** como mucho 8 por pareja, y cada una se lee una sola vez.
-     - Si los dos informes suman más de 8 páginas, el kit compone las páginas de cada informe
-       en paneles de dos páginas lado a lado, sin recortar ni reescalar el texto por debajo de
-       0,6× su tamaño.
-     - El texto completo de los dos informes acompaña siempre a las imágenes.
-     - La composición se fija tras el piloto, antes de congelar, según el número de páginas
-       observado.
+   - **Imágenes:** todas las páginas de los dos informes, como mucho 12 por pareja, cada una
+     leída una sola vez y sin componer ni reescalar.
+     - En el piloto, las parejas sumaban 8–9 páginas de 1280 px.
+     - Si una pareja supera 12, se registra y se le dan las 12 primeras páginas más el texto
+       completo.
+     - El texto completo acompaña siempre a las imágenes.
    - Puntuación: 1 si elige v1, 0,5 si declara un empate explícito, 0 si elige legacy.
    - Si una pareja tiene una pérdida, la regla está en (c).
    - Si un lector no responde, se repite una vez con un lector nuevo. Si vuelve a fallar, la
@@ -274,3 +281,18 @@ intentos.
 - Los datos son sintéticos y las señales las plantó quien diseña el ensayo.
 - Los evaluadores y el dueño simulado son modelos.
 - El estilo puede delatar el brazo.
+- Los evaluadores ven el **contenido publicado** de cada brazo: la instantánea del informe v1 y
+  la exportación HTML de legacy, capturadas con el mismo navegador. No ven la pantalla completa
+  del producto (cabecera, estado, fuentes alrededor). El ensayo acredita la preferencia por ese
+  contenido, no toda la experiencia de pantalla.
+- Piloto técnico con el ejecutor común (`pilot/`, `pilot2/`, sin mirar la calidad):
+  - v1 entregó en 127 y 142 s;
+  - legacy del herbolario se bloqueó en la planificación (fecha, abajo);
+  - legacy de la clínica falló en la revisión por la cuota de 60 envíos del ledger (cuotas,
+    arriba);
+  - con la fecha corregida, legacy del herbolario entregó en 243 s (`pilot2/`).
+- La fecha de hoy del dueño simulado (`owner_today`) se añadió después del primer piloto
+  técnico, en el que legacy se bloqueó porque el simulado no sabía qué año era. El intento
+  bloqueado se conserva (`pilot/`), y la nueva calibración (`pilot2/`) se declara aquí; no lo
+  sustituye en silencio. No se cambiaron los datos, las fechas ni el encargo v1 por nada de lo
+  observado.

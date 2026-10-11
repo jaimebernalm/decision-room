@@ -2,9 +2,11 @@
 
 Usage: python scripts/f5/generate.py OUT_DIR
 
-Writes OUT_DIR/<business>/datos/*.csv (what the product ingests) and OUT_DIR/oracle.json
-(planted signals with their measured magnitudes). The oracle is for the judge only and
-must never be uploaded or reach an agent. Deterministic for a fixed seed.
+Writes OUT_DIR/<business>/datos/*.csv (what the product ingests), OUT_DIR/oracle.json
+(planted signals with their measured magnitudes) and OUT_DIR/spec.json for
+scripts/checks/product_trial.py (owner description and goal from PROFILE, 6 repetitions,
+24 USD ledger). The oracle is for the judge only and must never be uploaded or reach an
+agent. Deterministic for a fixed seed.
 """
 import csv
 import json
@@ -14,6 +16,28 @@ from datetime import date, timedelta
 from pathlib import Path
 
 SEED = 20261011
+FILES = {'herbolario': ['ventas.csv', 'productos.csv', 'canales.csv'], 'clinica': ['citas.csv', 'encuestas.csv', 'profesionales.csv']}
+PROFILE = {
+    'herbolario': dict(
+        name='Herbolario Saúco',
+        description=('Herbolario Saúco es una tienda de productos naturales en Zaragoza. Vendemos en la tienda física, '
+                     'en nuestra web propia y a distribuidores (otras tiendas y farmacias que nos compran al por mayor). '
+                     'Trabajamos infusiones, aceites esenciales, suplementos, cosmética natural y miel. En ventas.csv cada '
+                     'fila es un día, un producto y un canal: unidades vendidas, precio de tarifa, el descuento aplicado en % '
+                     'y el importe neto en euros de esa fila, ya descontado. En productos.csv está el nombre, la categoría y '
+                     'el coste unitario de compra de cada producto; en canales.csv, el nombre de cada canal.'),
+        goal='Quiero saber qué ha funcionado y qué no este año frente al anterior, y en qué me debería centrar el próximo trimestre.',
+        title='Cómo va el año'),
+    'clinica': dict(
+        name='Clínica de fisioterapia Arce',
+        description=('Clínica de fisioterapia Arce, en Valladolid. Somos cuatro fisioterapeutas. En citas.csv cada fila es una '
+                     'cita: fecha y hora, profesional, tipo de sesión, por dónde se reservó (web, teléfono, nuestra app de '
+                     'reservas o derivación de una mutua), estado (realizada, cancelada o no presentado), duración en minutos '
+                     'y si es primera visita. En encuestas.csv está la puntuación de 1 a 10 que dan algunos pacientes después '
+                     'de la cita. En profesionales.csv, el nombre, las horas semanales de cada profesional y su fecha de alta.'),
+        goal='Quiero entender cómo va la clínica este año: dónde perdemos citas o pacientes, cómo está cada profesional y qué debería cambiar.',
+        title='Cómo va la clínica'),
+}
 
 
 def days(start, end):
@@ -262,6 +286,11 @@ def main(out):
     c_rows, surveys = clinica(out, rnd)
     oracle = [herbolario_oracle(h_rows, by_id), clinica_oracle(c_rows, surveys)]
     (out / 'oracle.json').write_text(json.dumps(oracle, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    spec = dict(version=1, repetitions=6, owner_today='11 de octubre de 2026', cap_micro_usd=23_000_000, scope_cap_micro_usd=2_500_000,
+                scope_quotas=dict(input_tokens=40_000_000, output_tokens=1_000_000, calls=400, seconds=3600),
+                budget_path=str((out / 'budget-test.sqlite').resolve()),
+                businesses=[dict(key=key, files=[f'{key}/datos/{name}' for name in FILES[key]], **PROFILE[key]) for key in PROFILE])
+    (out / 'spec.json').write_text(json.dumps(spec, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     print(len(h_rows), 'ventas;', len(c_rows), 'citas;', len(surveys), 'encuestas')
 
 

@@ -25,7 +25,7 @@ class ProductTrialTests(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
         self.root=Path(self.temp.name);self.output=self.root/'trial'
         (self.root/'units.csv').write_text('quantity,amount\n2,10\n3,20\n')
-        self.spec={'version':1,'repetitions':1,'cap_micro_usd':1000000,'scope_cap_micro_usd':500000,
+        self.spec={'version':1,'repetitions':1,'owner_today':'11 de octubre de 2026','cap_micro_usd':1000000,'scope_cap_micro_usd':500000,
             'businesses':[{'key':'units','name':'Synthetic workshop','description':'quantity records units per row.',
                 'goal':'Sum the units.','files':['units.csv'],
                 'meanings':[{'file':'units.csv','description':'Units registered per row.',
@@ -59,7 +59,7 @@ class ProductTrialTests(unittest.TestCase):
 
     def test_legacy_questions_get_bounded_stand_in_answers_and_are_never_retried(self):
         manifest=self.initialize();code=next(j['code'] for j in manifest['jobs'] if j['arm']=='legacy')
-        self.assertEqual(manifest['owners']['units'],{'description':'quantity records units per row.','goal':'Sum the units.'})
+        self.assertEqual(manifest['owners']['units'],{'today':'11 de octubre de 2026','description':'quantity records units per row.','goal':'Sum the units.'})
         real_workspace=trial.Workspace
         def workspace(config,settings):return real_workspace(config,settings,fixtures.WebModel)
         asked=[]
@@ -94,20 +94,30 @@ class ProductTrialTests(unittest.TestCase):
         with patch.dict('os.environ',{'DECISION_ROOM_API_BUDGET_PATH':manifest['budget_path'],'OPENAI_API_KEY':'test-only'}), \
                 patch.object(trial.api_budget.httpx,'HTTPTransport',lambda **kw:httpx.MockTransport(provider)), \
                 trial.api_budget.scope('web:job-1'):
-            text=trial.owner_answer({'description':'Una tienda.','goal':'Cómo va el año.'},
+            text=trial.owner_answer({'today':'1 de enero','description':'Una tienda.','goal':'Cómo va el año.'},
                                     {'id':'q','phase':'planning','text':'¿Qué periodos comparo?','options':['año','mes']})
-            owner={'description':'Una tienda.','goal':'Cómo va el año.'}
+            owner={'today':'1 de enero','description':'Una tienda.','goal':'Cómo va el año.'}
             self.assertEqual(trial.owner_answer(owner,{'text':'¿Margen?'}),('unknown',''))
             for _ in range(2):  # truncated, then answered without text: refused, never repaired
                 with self.assertRaises(ValueError):trial.owner_answer(owner,{'text':'¿Margen?'})
         self.assertEqual(text,('answered','Comparo con el año pasado.'))
         self.assertEqual(seen[0]['response_format']['json_schema']['strict'],True)
         self.assertEqual(seen[0]['service_tier'],'default');self.assertEqual(seen[0]['max_completion_tokens'],2000)
-        self.assertIn('Una tienda.',seen[0]['messages'][0]['content']);self.assertIn('¿Qué periodos comparo?',seen[0]['messages'][0]['content'])
+        self.assertIn('Hoy es 1 de enero.',seen[0]['messages'][0]['content']);self.assertIn('Una tienda.',seen[0]['messages'][0]['content']);self.assertIn('¿Qué periodos comparo?',seen[0]['messages'][0]['content'])
         calls=trial.api_budget.Ledger(manifest['budget_path']).snapshot()['calls']
         self.assertEqual([(c['scope'],c['state']) for c in calls],[('web:job-1','settled')]*4)
         with patch.dict('os.environ',{'DECISION_ROOM_API_BUDGET_PATH':''}),self.assertRaises(trial.api_budget.BudgetStopped):
-            trial.owner_answer({'description':'x','goal':'y'},{'text':'z'})
+            trial.owner_answer({'today':'t','description':'x','goal':'y'},{'text':'z'})
+
+    def test_scope_quotas_are_created_once_and_checked_on_reuse(self):
+        self.spec['scope_quotas']={'input_tokens':40000000,'output_tokens':1000000,'calls':400,'seconds':3600}
+        self.spec['budget_path']=str(self.root/'shared.sqlite');self.source.write_text(json.dumps(self.spec))
+        manifest=self.initialize()
+        policy=trial.api_budget.Ledger(manifest['budget_path']).snapshot()['policy']
+        self.assertEqual((policy['input_cap'],policy['output_cap'],policy['calls_cap'],policy['seconds_cap']),(40000000,1000000,400,3600))
+        self.spec['scope_quotas']['calls']=60;self.source.write_text(json.dumps(self.spec))
+        with patch.object(trial.Config,'load',return_value=self.base),self.assertRaises(ValueError):
+            trial.initialize(self.source,self.root/'again')
 
     def test_crash_is_preserved_and_over_cap_spec_is_rejected_before_preparation(self):
         manifest=self.initialize();code=manifest['jobs'][0]['code']
