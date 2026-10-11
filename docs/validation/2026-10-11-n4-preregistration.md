@@ -169,3 +169,15 @@ de ver la calidad.
   informe, 0,206 USD. Acredita infraestructura y ciclo, no exactitud. No forma parte del lote.
 - **Orden:** por repetición se alterna qué brazo va primero (impar: html-v1 primero; par: blocks
   primero), herbolario y después clínica, sin paralelismo.
+
+## Anexo 2 (2026-10-11, después de inicializar el lote y antes de ver ningún resultado)
+
+Son dos precisiones de Astra sobre la evaluación. No cambian la ejecución.
+1. **Límite de lectura:** 16 imágenes por pareja en kits y prompts. Si una pareja lo supera, no se
+   trunca y su lectura queda sin acreditar (el resultado sería incompleto).
+2. **Falsas alarmas del comprobador:**
+   - Una cifra correcta cuenta como examinada solo si tiene un item localizado `confirmed` o
+     `discrepancy`.
+   - Un item `unverifiable`, uno no localizado o un resumen de cobertura no la examinan.
+   - Se publican aparte las cifras correctas no examinadas.
+   - Si no queda ninguna examinada, esa parte de (f) queda sin acreditar.

@@ -46,7 +46,7 @@ class CrossMatchTests(unittest.TestCase):
 
 class FullRuleTests(unittest.TestCase):
     """Synthetic 2 businesses x 2 arms x 1 repetition: kits key, evaluator outputs, run files, ledger."""
-    def build(self, *, critical_cita='636 unidades', checker_hit=True, unsettled=False, blocks_pick='blocks', not_run=False):
+    def build(self, *, critical_cita='636 unidades', checker_hit=True, unsettled=False, blocks_pick='blocks', not_run=False, correct_status='confirmed'):
         import json, sqlite3, tempfile
         from pathlib import Path
         temp = tempfile.TemporaryDirectory(); self.addCleanup(temp.cleanup)
@@ -72,7 +72,7 @@ class FullRuleTests(unittest.TestCase):
                 if arm == 'blocks' and not skip:
                     (run / 'informe-bloques.json').write_text(json.dumps(PROJECTION))
                     items = [dict(block_id='b1-1', quote='Magnesio baja a 636 unidades', status='discrepancy' if checker_hit else 'confirmed', located=True),
-                             dict(block_id='b1-1', quote='Web sube 50 unidades', status='confirmed', located=True)]
+                             dict(block_id='b1-1', quote='Web sube 50 unidades', status=correct_status, located=True)]
                     (run / 'checks-full.json').write_text(json.dumps(dict(state='complete', items=items)))
             pairs[f'{business}-1'] = dict(order=['v1', 'blocks'], kits={'v1': 'x', 'blocks': None if (not_run and business == 'clinica') else 'y'})
         db.commit(); db.close()
@@ -108,6 +108,12 @@ class FullRuleTests(unittest.TestCase):
     def test_natural_counts_are_per_report_not_cumulative(self):
         natural = self.build()['checker']['natural']
         self.assertEqual((natural['critical_priority'], natural['critical_warned']), (2, 2))
+
+    def test_only_unverifiable_checks_leave_false_alarm_denominator_empty(self):
+        result = self.build(correct_status='unverifiable')
+        self.assertEqual(result['checker']['natural']['correct_checked'], 0)
+        self.assertEqual(result['checker']['natural']['correct_unexamined'], 2)
+        self.assertIsNone(result['conditions']['f'])
 
     def test_unresolved_costs_leave_e_unaccredited(self):
         result = self.build(unsettled=True)

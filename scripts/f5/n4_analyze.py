@@ -88,7 +88,7 @@ def main(key_path, results, out, seeded_path=None):
     costs(key)
     report = dict(businesses={}, conditions={}, attempts=key['attempts'], checker={})
     missing = []
-    natural = dict(correct_checked=0, false_alarms=0, critical_priority=0, critical_warned=0)
+    natural = dict(correct_checked=0, false_alarms=0, correct_unexamined=0, critical_priority=0, critical_warned=0)
     for business in BUSINESSES:
         b = dict(arms={})
         for arm in ARMS:
@@ -115,10 +115,15 @@ def main(key_path, results, out, seeded_path=None):
                 for claim in audit['claims']:
                     if claim.get('seccion') != 'prioridad' or not claim.get('calculable'):
                         continue
-                    touched = addressed(claim.get('cita'), priorities, items)
-                    if claim.get('veredicto') == 'correcta' and touched:
-                        natural['correct_checked'] += 1
-                        natural['false_alarms'] += any(i['status'] == 'discrepancy' for i in touched)
+                    # Examined = a located confirmed/discrepancy item; unverifiable is not an examination.
+                    touched = [i for i in addressed(claim.get('cita'), priorities, items)
+                               if i['status'] in ('confirmed', 'discrepancy')]
+                    if claim.get('veredicto') == 'correcta':
+                        if touched:
+                            natural['correct_checked'] += 1
+                            natural['false_alarms'] += any(i['status'] == 'discrepancy' for i in touched)
+                        else:
+                            natural['correct_unexamined'] += 1
                 for claim in criticals:
                     in_priority = claim.get('seccion') == 'prioridad' and claim.get('calculable')
                     hit = bool(in_priority and warned(claim.get('cita'), priorities, items))
