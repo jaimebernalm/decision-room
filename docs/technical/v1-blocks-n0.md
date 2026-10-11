@@ -86,8 +86,8 @@ para todos los cambios necesarios.
 
 ```json
 {"mode": "blocks", "blocks": <proyección>, "canonical_text": "...",
- "checks": {"state": "not_run|pending|done|failed|unavailable",
-            "items": [{"block_id":"b4","quote":"636 unidades","status":"discrepancy|unverifiable",
+ "checks": {"state": "unknown|pending|complete|incomplete",
+            "items": [{"block_id":"b4","quote":"636 unidades","status":"discrepancy|unverifiable","coverage":false,
                        "independent_value":"342","method":"...","message":"..."}]}}
 ```
 

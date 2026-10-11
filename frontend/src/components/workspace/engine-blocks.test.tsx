@@ -54,7 +54,8 @@ it("shows disputed figures next to their block and never a verified mark", () =>
   const priority = screen.getByRole("heading", { name: /Validar Distribuidores/ }).closest("section")!;
   expect(within(priority).getByRole("note")).toHaveTextContent("Cifra en revisión");
   expect(within(priority).getByRole("note")).toHaveTextContent("cálculo independiente: 336");
-  expect(screen.getByText("Cifras que no se pudieron comprobar")).toBeInTheDocument();
+  expect(screen.getByText("Detalles de la comprobación independiente")).toBeInTheDocument();
+  expect(screen.queryByText("Cifras que no se pudieron comprobar")).toBeNull(); // folded away
   expect(screen.queryByText(/Revisado|Verificado/)).toBeNull();
 });
 
@@ -98,7 +99,7 @@ it("renders an engine_blocks report through the common report view", () => {
   expect(screen.getByText("La web crece.")).toBeInTheDocument();
 });
 
-it("summarizes unaddressed numeric spans without quoting them as disputed", () => {
+it("summarizes unaddressed numeric spans without quoting them as disputed", async () => {
   render(
     <BlocksReport
       projection={projection}
@@ -111,7 +112,9 @@ it("summarizes unaddressed numeric spans without quoting them as disputed", () =
       }}
     />,
   );
-  expect(screen.getByText(/3 fragmentos numéricos/)).toBeInTheDocument();
+  expect(screen.queryByText(/3 fragmentos numéricos/)).toBeNull(); // inside the folded details
+  await userEvent.click(screen.getByText("Detalles de la comprobación independiente"));
+  expect(screen.getByText(/3 fragmentos numéricos/)).toBeVisible();
   expect(screen.queryByText("Cifras que no se pudieron comprobar")).toBeNull();
   expect(screen.queryByText("«2026»")).toBeNull();
 });

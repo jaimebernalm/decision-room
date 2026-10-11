@@ -304,6 +304,11 @@ function BlockChartBody({ chart }: { chart: ChartBlock }) {
                   tickLine={false}
                   axisLine={false}
                   domain={valueDomain}
+                  ticks={
+                    chart.kind === "change"
+                      ? [-extent, -extent / 2, 0, extent / 2, extent]
+                      : undefined
+                  }
                   tickFormatter={compact}
                 />
                 <YAxis
@@ -372,7 +377,9 @@ export function BlockChart({ chart }: { chart: ChartBlock }) {
         <CardTitle>{chart.title}</CardTitle>
         {(chart.unit || chart.value_title) && (
           <CardDescription>
-            {[chart.value_title, chart.unit].filter(Boolean).join(" · ")}
+            {chart.value_title && chart.unit && chart.value_title.includes(chart.unit)
+              ? chart.value_title
+              : [chart.value_title, chart.unit].filter(Boolean).join(" · ")}
           </CardDescription>
         )}
       </CardHeader>
@@ -637,22 +644,30 @@ export function BlocksReport({
   return (
     <div className="space-y-6">
       <Blocks blocks={projection.blocks} depth={0} checks={byBlock} wrap={wrap} numbers={numbers} />
-      {unverifiable.length > 0 && (
-        <Disclosure title={tr("Cifras que no se pudieron comprobar")}>
-          <ul className="space-y-1 text-sm">
-            {unverifiable.map((c, i) => (
-              <li key={i}>
-                «{c.quote}»
-                {c.message && <span className="block text-xs text-muted-foreground">{c.message}</span>}
-              </li>
-            ))}
-          </ul>
+      {(unverifiable.length > 0 || uncovered.length > 0) && (
+        // Limits of the independent check: available, but folded away (readers found them alarming).
+        <Disclosure title={tr("Detalles de la comprobación independiente")} subtle>
+          <div className="space-y-2 text-sm">
+            {unverifiable.length > 0 && (
+              <>
+                <p className="font-medium">{tr("Cifras que no se pudieron comprobar")}</p>
+                <ul className="space-y-1">
+                  {unverifiable.map((c, i) => (
+                    <li key={i}>
+                      «{c.quote}»
+                      {c.message && <span className="block text-xs text-muted-foreground">{c.message}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {uncovered.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {uncovered.map((c) => c.message).filter(Boolean).join(" ")}
+              </p>
+            )}
+          </div>
         </Disclosure>
-      )}
-      {uncovered.length > 0 && (
-        <p className="text-xs text-muted-foreground">
-          {uncovered.map((c) => c.message).filter(Boolean).join(" ")}
-        </p>
       )}
       {checks?.state === "incomplete" && (
         <Notice>

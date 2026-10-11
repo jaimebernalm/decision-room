@@ -12,7 +12,7 @@ from reportlab.graphics.shapes import Drawing, Line, PolyLine, Rect, String, Cir
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
-from reportlab.platypus import KeepTogether, Paragraph, SimpleDocTemplate, Spacer
+from reportlab.platypus import KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from ..chart_layout import CHART_NEUTRALS, CHART_SERIES_PALETTE
 from ..engine.blocks import cell_decimals, format_number
@@ -179,7 +179,34 @@ def _table(block):
     return flow
 
 
-def _figure(block):
+def _figure_cell(block):
+    """One figure as a card cell (label, value, period, comparison), for the figure grid."""
+    return _figure(block, boxed=False)[0]
+
+
+GRID_NOTE = 300  # longer notes would make an indivisible grid row taller than a page
+
+
+def gridable(block, checks):
+    """Short, undisputed figures go in the card grid; others stay standalone next to their notice."""
+    disputed = any(c.get('status') == 'discrepancy' for c in checks.get(block['id'], []))
+    return not disputed and len(block.get('note') or '') <= GRID_NOTE and len(block['label']) <= 200
+
+
+def _figure_grid(figures):
+    """Consecutive figures as a grid of cards, like the web view (3 per row)."""
+    rows = [[_figure_cell(f) for f in figures[i:i + 3]] for i in range(0, len(figures), 3)]
+    for row in rows:
+        row += [''] * (3 - len(row))
+    table = Table(rows, colWidths=[WIDTH / 3] * 3, hAlign='LEFT')
+    table.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP'), ('BOX', (0, 0), (-1, -1), .6, BORDER),
+                               ('INNERGRID', (0, 0), (-1, -1), .6, BORDER), ('LEFTPADDING', (0, 0), (-1, -1), 9),
+                               ('RIGHTPADDING', (0, 0), (-1, -1), 9), ('TOPPADDING', (0, 0), (-1, -1), 8),
+                               ('BOTTOMPADDING', (0, 0), (-1, -1), 8)]))
+    return [Spacer(1, 4), table, Spacer(1, 10)]
+
+
+def _figure(block, boxed=True):
     value = _unit(block['value'], block['decimals'], block['unit'])
     lines = [f"<font size=9 color='#707070'>{_text(block['label'])}</font>",
              f"<font name='Helvetica-Bold' size=16>{_text(value)}</font>"]
@@ -197,8 +224,9 @@ def _figure(block):
         lines.append(f"<font size=8 color='#707070'>{_text(text)}</font>")
     if block['note']:
         lines.append(f"<font size=8 color='#707070'>{_text(block['note'])}</font>")
-    style = ParagraphStyle('figure', parent=STYLES['body'], borderColor=BORDER, borderWidth=.6, borderPadding=8,
-                           spaceBefore=6, spaceAfter=12, leading=17)
+    style = (ParagraphStyle('figure', parent=STYLES['body'], borderColor=BORDER, borderWidth=.6, borderPadding=8,
+                            spaceBefore=6, spaceAfter=12, leading=17) if boxed else
+             ParagraphStyle('figure-cell', parent=STYLES['body'], leading=17, spaceAfter=0))
     return [Paragraph('<br/>'.join(lines), style)]
 
 
@@ -216,9 +244,22 @@ def _checks(items):
 
 
 def _blocks(blocks, checks, depth, numbers):
-    flow = []
+    flow, figures = [], []
+
+    def flush():
+        if figures:
+            flow.extend(_figure_grid(figures))
+            figures.clear()
     for b in blocks:
         kind = b['type']
+        if kind == 'figure' and gridable(b, checks):
+            figures.append(b)
+            continue
+        flush()
+        if kind == 'figure':
+            # Disputed or long figures stay splittable, each followed by its own notice.
+            flow += _figure(b) + _checks(checks.get(b['id'], []))
+            continue
         own = _checks(checks.get(b['id'], []))
         if kind == 'section':
             flow.append(Paragraph(_text(b['title']), STYLES['heading'] if depth == 0 else SUBHEAD))
@@ -232,14 +273,13 @@ def _blocks(blocks, checks, depth, numbers):
             flow += _content(b['content'])
         elif kind == 'notice':
             flow += _content(b['content'], NOTICE)
-        elif kind == 'figure':
-            flow += _figure(b)
         elif kind == 'chart':
             flow.append(KeepTogether(_chart(b)[:2]))
             flow += _chart(b)[2:]
         elif kind == 'table':
             flow += _table(b)
         flow += own
+    flush()
     return flow
 
 
@@ -263,14 +303,17 @@ def render(projection, checks=None, *, delivered_at=None):
                                'las cifras en revisión llevan aviso.', 'muted'))
     story += _blocks(projection['blocks'], by_block, 0, numbers)
     unverifiable = [c for c in (checks or {}).get('items', []) if c['status'] == 'unverifiable' and not c.get('coverage')]
-    for c in (checks or {}).get('items', []):
-        if c.get('coverage') and c.get('message'):
-            story.append(paragraph(c['message'], 'muted'))
-    if unverifiable:
-        story.append(Spacer(1, 8))
-        story.append(Paragraph('Cifras que no se pudieron comprobar', STYLES['heading']))
-        for c in unverifiable:
-            story.append(paragraph(f"«{c['quote']}»" + (f" — {c['message']}" if c.get('message') else ''), 'muted'))
+    coverage = [c['message'] for c in (checks or {}).get('items', []) if c.get('coverage') and c.get('message')]
+    if unverifiable or coverage:
+        # Limits of the independent check, as a discreet appendix (readers found inline notes alarming).
+        story.append(Spacer(1, 12))
+        story.append(Paragraph('Detalles de la comprobación independiente', SUBHEAD))
+        for text in coverage:
+            story.append(paragraph(text, 'muted'))
+        if unverifiable:
+            story.append(paragraph('Cifras que no se pudieron comprobar:', 'muted'))
+            for c in unverifiable:
+                story.append(paragraph(f"«{c['quote']}»" + (f" — {c['message']}" if c.get('message') else ''), 'muted'))
     if checks and checks.get('state') in ('incomplete', 'unknown'):
         story.append(Paragraph('La comprobación independiente de cifras no se pudo completar para este informe.', NOTICE))
     doc.build(story)
