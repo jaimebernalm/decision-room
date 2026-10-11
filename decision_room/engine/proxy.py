@@ -136,7 +136,8 @@ def forward(config, run_id, token, raw, *, api_key, send_headers, write, transpo
     started = time.monotonic()
     stage = 'count_input'
     try:
-        with httpx.Client(transport=transport, trust_env=False, follow_redirects=False,
+        from ..agent import api_budget
+        with httpx.Client(transport=api_budget.transport(transport, identifier='engine:'+str(run_id)), trust_env=False, follow_redirects=False,
                           http2=False, limits=httpx.Limits(max_keepalive_connections=0),
                           timeout=min(120.0, job['remaining_seconds']),
                           headers={'Authorization': 'Bearer ' + api_key, 'Content-Type': 'application/json'}) as client:
