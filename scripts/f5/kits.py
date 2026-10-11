@@ -74,6 +74,19 @@ def build(data_dir, kits, key_path, *trials):
                                  arm='v1' if job['arm'] == 'opencode' else 'legacy', delivered=delivered,
                                  status=(result or {}).get('status', 'failure' if (run / 'failure.json').exists() else 'not_run'),
                                  run=str(run)))
+    # Each business from exactly one trial, unique codes, and 6 repetitions per arm and business.
+    per_business = {}
+    for a in attempts:
+        per_business.setdefault(a['business'], set()).add(a['trial'])
+    if any(len(trials) != 1 for trials in per_business.values()):
+        raise SystemExit('A business appears in more than one trial output.')
+    if len({a['code'] for a in attempts}) != len(attempts):
+        raise SystemExit('Attempt codes are not unique across the selected trials.')
+    for business in per_business:
+        for arm in ('v1', 'legacy'):
+            reps = sorted(a['repetition'] for a in attempts if a['business'] == business and a['arm'] == arm)
+            if reps != list(range(1, 7)):
+                raise SystemExit(f'{business}/{arm} does not have exactly repetitions 1-6.')
     codes = rnd.sample(range(100, 1000), len(attempts))
     key = dict(reports={}, pairs={}, attempts=[{k: a[k] for k in ('code', 'business', 'repetition', 'arm', 'delivered', 'status', 'trial')}
                                               for a in attempts])

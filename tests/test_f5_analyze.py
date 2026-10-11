@@ -99,3 +99,46 @@ class AnalyzeTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class KitSelectionTests(unittest.TestCase):
+    """kits.py refuses overlapping or incomplete trial selections before writing anything."""
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
+        spec = importlib.util.spec_from_file_location('kits', ROOT / 'scripts/f5/kits.py')
+        self.kits = importlib.util.module_from_spec(spec); spec.loader.exec_module(self.kits)
+
+    def trial(self, name, businesses, reps=6):
+        root = Path(self.temp.name) / name
+        jobs = []
+        for business in businesses:
+            for i in range(1, reps + 1):
+                for arm in ('legacy', 'opencode'):
+                    code = f'{business}-{i}-{arm}'
+                    (root / 'runs' / code).mkdir(parents=True)
+                    (root / 'runs' / code / 'result.json').write_text(json.dumps(dict(status='blocked', delivery=False, snapshot=False)))
+                    jobs.append(dict(code=code, business_key=business, repetition=i, arm=arm, inputs=[]))
+        (root / 'manifest.json').write_text(json.dumps(dict(jobs=jobs)))
+        return root
+
+    def build(self, *trials):
+        base = Path(self.temp.name)
+        self.kits.build(base, base / 'kits', base / 'key.json', *trials)
+
+    def test_overlapping_selection_is_refused(self):
+        both = self.trial('both', ['herbolario', 'clinica'])
+        other = self.trial('other', ['herbolario'])
+        with self.assertRaises(SystemExit):
+            self.build(str(both), f'{other}:herbolario')
+        self.assertFalse((Path(self.temp.name) / 'kits').exists())
+
+    def test_missing_repetitions_are_refused(self):
+        short = self.trial('short', ['clinica'], reps=5)
+        with self.assertRaises(SystemExit):
+            self.build(f'{short}:clinica')
+
+    def test_one_business_per_trial_builds(self):
+        a, b = self.trial('a', ['herbolario', 'clinica']), self.trial('b', ['clinica'])
+        self.build(f'{a}:herbolario', f'{b}:clinica')
+        key = json.loads((Path(self.temp.name) / 'key.json').read_text())
+        self.assertEqual({(x['business'], Path(x['trial']).name) for x in key['attempts']}, {('herbolario', 'a'), ('clinica', 'b')})

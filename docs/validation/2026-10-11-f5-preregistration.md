@@ -431,6 +431,12 @@ regla congelada a esos 24 intentos.
 - Se publican además F5 y F5b incompletos, el `clinica-1-opencode` de F5b y un análisis
   acumulado con todos los intentos.
 
-**Sensibilidad declarada** (secundaria, no decide): la lectura (c) del herbolario sin las
-parejas cuya pérdida legacy causó el ensayo (`herbolario-4` y `herbolario-5`). La regla
-primaria las cuenta como preferencia por v1.
+**Sensibilidad declarada** (secundaria, no decide): la lectura (c) del herbolario sin dos
+parejas, que la regla primaria cuenta como preferencia por v1:
+- `herbolario-4`: la pérdida la causó un defecto del ejecutor (el dueño simulado);
+- `herbolario-5`: su causa constatada es una desconexión del proveedor durante la continuación
+  de la replanificación. No se ha aislado un efecto del ejecutor; se excluye solo por estar
+  asociada a ese incidente.
+
+El análisis acumulado de F5, F5b y F5c identifica cada intento por (ensayo, código), sin
+fusionar códigos repetidos.

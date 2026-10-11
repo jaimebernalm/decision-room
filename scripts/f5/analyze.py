@@ -82,10 +82,12 @@ def main(key_path, results, out):
             attempt.update(usd=sum(o['usd'] for o in own), calls=sum(o['calls'] for o in own),
                            unsettled=sum(o['unsettled'] for o in own), seconds=result.get('seconds'),
                            owner_answers=result.get('owner_answers'))
+    if len({a['code'] for a in key['attempts']}) != len(key['attempts']):
+        raise SystemExit('Attempt codes must be unique in the primary analysis.')
     for attempt in key['attempts']:
         attempt.setdefault('engine_source', 'unknown')
         attempt.setdefault('seconds', None)
-        attempt.setdefault('usd', 0.0); attempt.setdefault('unsettled', 0)
+        attempt.setdefault('usd', None); attempt.setdefault('unsettled', None)
 
     ok = {}
     for business in BUSINESSES:
@@ -112,8 +114,10 @@ def main(key_path, results, out):
                 denominators=den,
                 signal_mean=mean([sum(j[f'S{i}'] for i in range(1, 6)) for j in judges if j]),
                 decoy_hits=sum(j['S6'] for j in judges if j),
-                usd_mean=mean([a['usd'] for a in attempts]), usd_max=max((a['usd'] for a in attempts), default=None),
-                unsettled=sum(a['unsettled'] for a in attempts),
+                # Cost published only when every attempt's ledger source is known; never a partial zero.
+                usd_mean=mean([a['usd'] for a in attempts]) if all(a['usd'] is not None and a['engine_source'] != 'unknown' for a in attempts) else None,
+                usd_max=max(a['usd'] for a in attempts) if all(a['usd'] is not None and a['engine_source'] != 'unknown' for a in attempts) else None,
+                unsettled=sum(a['unsettled'] for a in attempts) if all(a['unsettled'] is not None for a in attempts) else None,
                 minutes_median=statistics.median([a['seconds'] / 60 for a in attempts])
                 if attempts and all(a['seconds'] is not None for a in attempts) else None)
         # Reading: 1 v1, 0.5 explicit tie, 0 legacy; loss rules; incomplete if any reading missing.
@@ -184,8 +188,11 @@ def main(key_path, results, out):
             d_state = False
     cond['d'] = d_state
     usd = [a['usd'] for a in key['attempts'] if a['arm'] == 'v1']
+    if None in usd or any(v['unsettled'] is None for v in v1.values()):
+        sources = ['unknown']  # forces (e) to None below
     seconds = [by_code[a['code']]['seconds'] for a in key['attempts'] if a['arm'] == 'v1']
-    sources = [by_code[a['code']]['engine_source'] for a in key['attempts'] if a['arm'] == 'v1']
+    sources = (sources if None in usd or any(v['unsettled'] is None for v in v1.values()) else
+               [by_code[a['code']]['engine_source'] for a in key['attempts'] if a['arm'] == 'v1'])
     if None in seconds or 'unknown' in sources:
         cond['e'] = None  # no zero cost and no partial median: not accredited
         unaccredited.append('e')
