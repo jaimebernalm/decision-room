@@ -35,7 +35,7 @@ import {
   SourcesContent,
 } from "@/components/ai-elements/sources";
 import { Selectable } from "./context-selection";
-import { Disclosure } from "./shared";
+import { Disclosure, Notice } from "./shared";
 import {
   CHART_PALETTE,
   groupedPoints,
@@ -422,6 +422,48 @@ export function ChartValues({ chart }: { chart: ChartData }) {
   );
 }
 
+function EngineFrame({ report }: { report: ReportData }) {
+  const view = report.view;
+  if (!view) return null;
+  const text = view.canonical_text ? (
+    <Disclosure title={tr("Texto del informe")}>
+      <p className="whitespace-pre-wrap text-sm">{view.canonical_text}</p>
+    </Disclosure>
+  ) : null;
+  if (view.mode === "snapshot")
+    return (
+      <>
+        {/* Renderer snapshot (platform HTML with images): no scripts, forms, popups or parent access. */}
+        <iframe
+          title={tr("Informe")}
+          sandbox={view.sandbox ?? ""}
+          srcDoc={view.srcdoc}
+          referrerPolicy="no-referrer"
+          className="h-[80vh] w-full rounded-md border bg-white"
+        />
+        {text}
+      </>
+    );
+  return (
+    <>
+      <Notice error={view.mode === "blocked"}>
+        {view.mode === "pending"
+          ? tr(
+              "Preparando la vista del informe. Conservamos su entrega; puedes descargar el HTML original.",
+            )
+          : view.mode === "unavailable"
+            ? tr(
+                "La vista del informe no está disponible en esta instalación. Puedes descargar el HTML original.",
+              )
+            : tr(
+                "Presentación bloqueada: este informe contiene elementos que no podemos mostrar con seguridad. Conservamos su entrega y puedes descargar el HTML original.",
+              )}
+      </Notice>
+      {text}
+    </>
+  );
+}
+
 function EngineReportView({ report }: { report: ReportData }) {
   const metadata = report.engine_report!;
   const labels = {
@@ -434,7 +476,7 @@ function EngineReportView({ report }: { report: ReportData }) {
     <div className="space-y-6">
       <Badge variant="outline">{tr(labels[metadata.state])}</Badge>
       <h2 className="text-2xl font-semibold tracking-tight">{report.title}</h2>
-      <p>{tr(report.summary || "")}</p>
+      {report.summary && <p>{tr(report.summary)}</p>}
       {metadata.state === "withdrawn" && (
         <p>
           {tr(
@@ -442,6 +484,7 @@ function EngineReportView({ report }: { report: ReportData }) {
           )}
         </p>
       )}
+      <EngineFrame report={report} />
       <Disclosure title={tr("Detalles técnicos")}>
         <Disclosure title={tr("Registro de entrega")}>
           <p className="mb-2 text-sm">

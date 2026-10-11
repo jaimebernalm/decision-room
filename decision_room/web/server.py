@@ -75,6 +75,12 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def send_raw(self, raw):
+        # Untrusted agent bytes: a download, never a document in the product origin.
+        self.send(200, raw, 'application/octet-stream',
+                  headers={'Content-Disposition': 'attachment; filename="decision-room-informe-original.html"',
+                           'Content-Security-Policy': 'sandbox'})
+
     def send_pdf(self, report):
         from ..report_pdf import render_pdf
         self.send(200, render_pdf(report), 'application/pdf',
@@ -294,6 +300,9 @@ class Handler(BaseHTTPRequestHandler):
                 if not mutation and len(parts) == 5 and parts[3] == 'pdf':
                     self.send_pdf(chats.report(chat_id, parts[4], structured=True,purpose='pdf'))
                     return
+                if not mutation and len(parts) == 5 and parts[3] == 'raw':
+                    self.send_raw(chats.report(chat_id, parts[4], structured=True, purpose='raw'))
+                    return
                 if not mutation and len(parts) == 5 and parts[3] == 'report':
                     self.send(200,chats.report(chat_id,parts[4]),'text/html; charset=utf-8')
                     return
@@ -464,6 +473,9 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 if not mutation and action == 'pdf':
                     self.send_pdf(ws.report(job_id, structured=True,purpose='pdf'))
+                    return
+                if not mutation and action == 'raw':
+                    self.send_raw(ws.report(job_id, structured=True, purpose='raw'))
                     return
                 if not mutation and action == 'report':
                     self.send(200, ws.report(job_id), 'text/html; charset=utf-8')

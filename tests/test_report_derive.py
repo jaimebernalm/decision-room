@@ -136,7 +136,10 @@ derive(replace(Config.load(),storage=Path(sys.argv[4])),sys.argv[1],sys.argv[2],
 '''
         process=subprocess.Popen([sys.executable,'-c',script,str(self.business),str(document),str(revision),str(self.config.storage),str(ready)],
             env={**os.environ,'DECISION_ROOM_DATABASE_URL':self.config.dsn,'OPENAI_API_KEY':'','PYTHONDONTWRITEBYTECODE':'1'})
-        self.addCleanup(lambda:process.poll() is None and process.kill())
+        def stop():
+            if process.poll() is None: process.kill()
+            process.wait(timeout=5)
+        self.addCleanup(stop)
         deadline=time.monotonic()+8
         while not ready.exists() and time.monotonic()<deadline: time.sleep(.03)
         self.assertTrue(ready.exists());self.assertEqual(ready.read_text(),str(job['id']))
@@ -161,3 +164,14 @@ derive(replace(Config.load(),storage=Path(sys.argv[4])),sys.argv[1],sys.argv[2],
             self.assertEqual(row['canonical_sha256'],output['canonical_sha256'])
             self.assertEqual(row['inventory_sha256'],output['inventory_sha256'])
             self.assertEqual(row['presentation_state'],'allowed')
+            from decision_room.reports import reading
+            from decision_room.memory import retrieval
+            opened=reading.chat_document(db,self.business,document)
+            self.assertEqual(opened['text'],output['canonical_text'])
+            self.assertIn(str(revision),opened['version'])
+            self.assertIn(output['canonical_sha256'],opened['version'])
+            self.assertEqual(retrieval.engine_current(db,self.business,dict(id=str(document),version=opened['version'])),True)
+            self.assertIsNone(reading.chat_document(db,uuid4(),document))
+            shown=reading.view(db,dict(business_id=self.business,id=document),dict(id=revision,raw=row['raw']))
+            self.assertEqual((shown['mode'],shown['canonical_text']),('snapshot',output['canonical_text']))
+            self.assertNotIn('<h1>',shown['srcdoc'])

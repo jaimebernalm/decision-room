@@ -145,6 +145,7 @@ export type EngineReportMetadata = {
 export type Report = {
   origin?: "engine_html";
   engine_report?: EngineReportMetadata;
+  view?: EngineReportView | null;
   presentation?: Presentation;
   partial?: boolean;
   report_id?: string;
@@ -446,4 +447,14 @@ export type SetupSession = {
   publishable?: boolean;
   job_status?: string;
   context_stale?: boolean;
+};
+
+export type EngineReportView = {
+  mode: "snapshot" | "pending" | "blocked" | "unavailable";
+  policy_version: string;
+  receipt: "allowed" | "blocked";
+  reason: string | null;
+  canonical_text: string | null;
+  sandbox?: string;
+  srcdoc?: string;
 };

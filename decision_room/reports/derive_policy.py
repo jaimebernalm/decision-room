@@ -6,8 +6,7 @@ import re
 
 from ..config import ROOT
 
-# Kept equal to presentation.POLICY_VERSION until the two F4 branches integrate.
-POLICY_VERSION = 'v1-snapshot-only-1'
+from .presentation import POLICY_VERSION
 RENDERER_VERSION = 'v1-container-raster-1'
 DERIVED_VERSION = 1
 MAX_TEXT = 1_000_000

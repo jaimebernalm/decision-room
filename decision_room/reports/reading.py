@@ -1,4 +1,4 @@
-"""Business/document/revision guard and metadata-only HTML read model."""
+"""Business/document/revision guard. Only a trusted raster snapshot is framed."""
 from contextlib import contextmanager
 
 from ..database import connect
@@ -40,6 +40,7 @@ def read(config, business, document, *, revision=None, deleted=False):
         if not raw or store.admission.sha(bytes(raw['raw'])) != selected['raw_sha256'] or raw['raw_sha256'] != selected['raw_sha256']:
             raise WebError('No podemos recuperar la integridad de esta revisión.',409)
         selected['delivery_via'] = raw['delivery_via']
+        selected['raw'] = bytes(raw['raw'])
         yield db,row,selected
 
 
@@ -68,13 +69,94 @@ def blocked_content():
     raise WebError('La presentación de este informe todavía no está disponible. Conservamos su entrega y sus metadatos.',409)
 
 
-def presentation(document, revision, value):
+def pdf_unavailable():
+    raise WebError('PDF no disponible todavía. Puedes descargar el HTML original.',409)
+
+
+def derived_for(db, document, revision):
+    """The isolated renderer's result for this exact revision, or None. Never renders here."""
+    from .derive import derived
+    return derived(db, document['business_id'], document['id'], revision['id'])
+
+
+def view(db, document, revision):
+    from . import presentation as policy
+    return policy.view(revision['raw'], derived_for(db, document, revision))
+
+
+def presentation(document, revision, value, view=None):
     """Typed metadata envelope; empty evidence cannot be mistaken for extraction."""
-    summaries = {'current':'La entrega está guardada. Su presentación todavía no está disponible.',
+    shown = bool(view and view['mode'] == 'snapshot')
+    summaries = {'current':'' if shown else 'La entrega está guardada. Su presentación todavía no está disponible.',
                  'withdrawn':'Los datos o la memoria aplicable han cambiado. Conservamos esta entrega como histórico.',
                  'historical':'Esta revisión es histórica. Conservamos sus metadatos y su hash.',
                  'incomplete':'La ejecución no completó un informe actual. Conservamos las entregas recibidas.'}
     return dict(origin='engine_html',engine_report=value,report_id=str(document['id']),report_version=revision['raw_sha256'],
-                title=document.get('title') or 'Informe',summary=summaries[value['state']],
+                title=document.get('title') or 'Informe',summary=summaries[value['state']],view=view,
                 scope=dict(period='',coverage='',question=document.get('goal') or ''),
                 claims=[],highlights=[],charts=[],limitations=[])
+
+
+CHAT_TEXT_LIMIT = 40000
+
+
+def chat_version(revision, derived):
+    """Exact identity of what the chat read: revision, bytes, canonical text, policy, renderer."""
+    return ':'.join(('engine', str(revision['id']), revision['raw_sha256'], derived['canonical_sha256'],
+                     derived['policy_version'], derived['renderer_version']))
+
+
+def chat_documents(db, business, analysis=None):
+    """Current engine reports whose canonical text is ready. Cheap; never renders."""
+    rows = db.execute('''SELECT d.*,r.status AS run_status,w.title,w.goal,w.deleted_at AS job_deleted_at
+        FROM report_documents d JOIN engine_runs r ON r.business_id=d.business_id AND r.id=d.source_run_id
+        LEFT JOIN web_jobs w ON w.business_id=d.business_id AND w.report_document_id=d.id AND w.engine_run_id=d.source_run_id
+        WHERE d.business_id=%s AND d.deleted_at IS NULL AND d.current_revision_id IS NOT NULL
+        AND (%s::uuid IS NULL OR d.analysis_id=%s) ORDER BY d.created_at DESC,d.id LIMIT 1001''',
+        (business, analysis, analysis)).fetchall()
+    if len(rows) > 1000:
+        raise ValueError('Report corpus exceeds 1000 objects. Narrow the source scope.')
+    result = []
+    for row in rows:
+        item = chat_document(db, business, row['id'])
+        if item:
+            result.append(item)
+    return result
+
+
+def chat_document(db, business, document_id, *, row=None):
+    """Under the same memory -> document(shared) order as owner reads; revalidated each call."""
+    document_id = identifier(document_id)
+    with db.transaction():
+        if not db.execute('SELECT 1 FROM report_documents WHERE business_id=%s AND id=%s', (business, document_id)).fetchone():
+            return None
+        memory.lock(db, business)
+        store.lock(db, document_id, shared=True)
+        return _chat_document(db, business, document_id)
+
+
+def _chat_document(db, business, document_id, *, row=None):
+    if row is None:
+        row = db.execute('''SELECT d.*,r.status AS run_status,w.title,w.goal,w.deleted_at AS job_deleted_at
+            FROM report_documents d JOIN engine_runs r ON r.business_id=d.business_id AND r.id=d.source_run_id
+            LEFT JOIN web_jobs w ON w.business_id=d.business_id AND w.report_document_id=d.id AND w.engine_run_id=d.source_run_id
+            WHERE d.business_id=%s AND d.id=%s''', (business, document_id)).fetchone()
+    if not row or row['deleted_at'] or row['job_deleted_at']:
+        return None
+    row['stale_reason'] = store.reason(db, row)
+    revision = db.execute('''SELECT * FROM report_document_revisions WHERE business_id=%s AND document_id=%s AND id=%s''',
+                          (business, row['id'], row['current_revision_id'])).fetchone() if row['current_revision_id'] else None
+    if not store.is_current(row, revision, row['run_status']):
+        return None
+    if revision['presentation_state'] == 'blocked':
+        # Blocked receipts keep canonical text for the owner, but the chat does not
+        # quote a report whose presentation could not be shown safely.
+        return None
+    derived = derived_for(db, row, revision)
+    if not derived or derived.get('status') != 'ready' or not derived.get('canonical_text'):
+        return None
+    text = derived['canonical_text']
+    return dict(id=str(row['id']), version=chat_version(revision, derived), origin='engine_html',
+                title=row.get('title') or 'Informe', analysis_id=str(row['analysis_id']),
+                created_at=revision['created_at'].isoformat(), text=text[:CHAT_TEXT_LIMIT],
+                truncated=len(text) > CHAT_TEXT_LIMIT, canonical_sha256=derived['canonical_sha256'])

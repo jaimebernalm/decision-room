@@ -12,10 +12,20 @@ import { Notice } from "./shared";
 export function ReportDownload({
   url,
   disabled = false,
+  kind = "pdf",
 }: {
   url: string;
   disabled?: boolean;
+  kind?: "pdf" | "html";
 }) {
+  const expected =
+    kind === "pdf" ? "application/pdf" : "application/octet-stream";
+  const filename =
+    kind === "pdf"
+      ? "decision-room-informe.pdf"
+      : "decision-room-informe-original.html";
+  const label =
+    kind === "pdf" ? tr("Descargar informe") : tr("Descargar HTML original");
   useLanguage();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -31,13 +41,17 @@ export function ReportDownload({
           body.error || tr("No se ha podido descargar el informe."),
         );
       }
-      if (!response.headers.get("Content-Type")?.startsWith("application/pdf"))
-        throw new Error(tr("La descarga no contiene un PDF válido."));
+      if (!response.headers.get("Content-Type")?.startsWith(expected))
+        throw new Error(
+          kind === "pdf"
+            ? tr("La descarga no contiene un PDF válido.")
+            : tr("La descarga no contiene el archivo esperado."),
+        );
       const blob = await response.blob();
       const href = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = href;
-      link.download = "decision-room-informe.pdf";
+      link.download = filename;
       document.body.append(link);
       link.click();
       link.remove();
@@ -60,7 +74,7 @@ export function ReportDownload({
             <Button
               variant="outline"
               size="icon"
-              aria-label={tr("Descargar informe")}
+              aria-label={label}
               disabled={disabled || busy}
               onClick={download}
             >
@@ -75,7 +89,7 @@ export function ReportDownload({
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            {busy ? tr("Preparando descarga…") : tr("Descargar informe")}
+            {busy ? tr("Preparando descarga…") : label}
           </TooltipContent>
         </Tooltip>
         {busy && (

@@ -152,9 +152,16 @@ export function Presentation({
     <>
       <Heading title={tr("Informe del negocio")}>
         {data?.origin === "engine_html" ? (
-          <p className="text-sm text-muted-foreground">
-            {tr("PDF no disponible todavía")}
-          </p>
+          <div className="flex items-center gap-3">
+            <p className="text-sm text-muted-foreground">
+              {tr("PDF no disponible todavía")}
+            </p>
+            <ReportDownload
+              url={exportUrl.replace(/\/pdf(\/|$)/, "/raw$1")}
+              kind="html"
+              disabled={Boolean(error)}
+            />
+          </div>
         ) : (
           <ReportDownload url={exportUrl} disabled={!data || Boolean(error)} />
         )}

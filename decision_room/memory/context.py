@@ -252,6 +252,10 @@ def reason(db, session_id, seen=None):
             elif dep['kind'] == 'table':
                 if table_version(db, m['business_id'], dep['id']) != dep['metadata_version']:
                     return 'Retrieved dataset changed; replan.'
+            elif dep['kind'] == 'engine_report':
+                from .retrieval import engine_current
+                if not engine_current(db, m['business_id'], dep):
+                    return 'Retrieved report is no longer valid; replan.'
             elif dep['kind'] == 'report':
                 row = db.execute('''SELECT r.*,s.superseded_by FROM agent_reviews r JOIN agent_sessions s ON s.id=r.session_id
                     WHERE r.id=%s AND r.business_id=%s''', (dep['id'], m['business_id'])).fetchone()
