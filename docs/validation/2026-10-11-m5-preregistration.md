@@ -187,7 +187,10 @@ caído usa una consulta PostgreSQL de solo lectura). Comprueba un único ledger
 conjunto de 5 USD y el ledger P4 de cada run; no suma P4 otra vez al coste. Los
 importes se comparan en nano-USD enteros. `uncertain` y `rejected` son cobros
 terminales a reserva, publicados por separado; `reserved` permanece pendiente.
-Un coste desconocido conserva, si existe, solo su cota inferior conocida.
+Un coste desconocido conserva, si existe, solo su cota inferior conocida. Un
+sobre invalidado por modelo/tier o uso fuera de rango no acredita el coste
+aunque la reserva siga cobrada; se distingue de la incertidumbre acotada por
+`billing` y la parada de ámbito registrada.
 
 La verificación de los sellos de kits y resultados es un paso previo separado;
 el analizador no convierte un sello válido en prueba de cobertura o exactitud.
@@ -196,12 +199,12 @@ los materiales y críticos distintos se cuentan desde los grupos, conservando
 ambos denominadores. Si falta un requisito o alguna condición queda en None,
 el veredicto es incompleto aunque se publiquen otras condiciones True o False.
 
-Validación previa a M5: **22 fixtures de lotes completos**, sin API, cubren las
+Validación previa a M5: **23 fixtures de lotes completos**, sin API, cubren las
 pérdidas, intentos sin iniciar, entrega única y doble pérdida, empates y umbrales,
 críticos avisados, medias por negocio, auditorías y jueces ausentes, citas
 ambiguas, denominadores vacíos, falsas alarmas, reservas inciertas y pendientes,
 rechazos, fuentes desconocidas, P4, topes y esquemas inválidos. Con los tests
-existentes de N4, F5 y verificación estructural: **53 pruebas OK**. Esta validación
+existentes de N4, F5 y verificación estructural: **54 pruebas OK**. Esta validación
 acredita la aplicación de la regla a fixtures, no la calidad de los modelos.
 
 ## Anexo de congelación (pendiente)

@@ -9,6 +9,7 @@ not known usage; a pending reservation or unavailable source is never zero.
 import copy
 import json
 import math
+import re
 import sqlite3
 import sys
 from collections import Counter
@@ -80,14 +81,16 @@ def ledger(path, version, cap, scope_cap):
     with sqlite3.connect(Path(path).resolve().as_uri() + '?mode=ro', uri=True) as db:
         db.row_factory = sqlite3.Row
         policy = dict(db.execute('SELECT * FROM policy').fetchone())
-        rows = [dict(r) for r in db.execute('SELECT scope, state, reserved, charged FROM calls')]
+        rows = [dict(r) for r in db.execute('SELECT scope, state, reserved, charged, billing FROM calls')]
+        scoped = policy['version'] in api_budget.SCOPED_VERSIONS
+        stopped_scopes = {r[0] for r in db.execute('SELECT scope FROM stopped_scopes')} if scoped else set()
     scopes = {}
     for row in rows:
         if (any(type(row[k]) is not int or row[k] < 0 for k in ('reserved', 'charged'))
                 or row['charged'] > row['reserved']):
             raise ValueError('Invalid ledger amount.')
         entry = scopes.setdefault(row['scope'], dict(nano=0, calls=0, pending=0, known_usage_nano=0,
-                                                     uncertain_nano=0, rejected_nano=0, uncertain_calls=0))
+                                                     uncertain_nano=0, rejected_nano=0, uncertain_calls=0, unsafe_calls=0))
         state = row['state']
         if state not in ('settled', 'rejected', 'uncertain', 'reserved'):
             raise ValueError('Unknown ledger call state.')
@@ -96,6 +99,17 @@ def ledger(path, version, cap, scope_cap):
         entry['nano'] += row['charged']; entry['calls'] += 1
         entry['pending'] += state == 'reserved'
         entry['uncertain_calls'] += state == 'uncertain'
+        if state == 'uncertain':
+            billing = json.loads(row['billing']) if row['billing'] else {}
+            model, tier = billing.get('effective_model'), billing.get('effective_tier')
+            unsafe = ((model is not None and (not isinstance(model, str) or re.fullmatch(r'gpt-6-luna(?:-\d{4}-\d{2}-\d{2})?', model) is None))
+                      or tier is not None and tier != 'default'
+                      or any(v is not None and (type(v) is not int or not 0 <= v <= maximum)
+                             for v, maximum in ((billing.get('input'), api_budget.MAX_INPUT), (billing.get('output'), api_budget.MAX_OUTPUT)))
+                      or scoped and row['scope'] not in stopped_scopes)
+            # Invalid present fields can be erased by billing.capture. In the scoped
+            # policy only bounded unknown usage records stopped_scopes, so require it.
+            entry['unsafe_calls'] += unsafe
         field = {'settled': 'known_usage_nano', 'uncertain': 'uncertain_nano', 'rejected': 'rejected_nano'}.get(state)
         if field:
             entry[field] += row['charged']
@@ -127,7 +141,7 @@ def account(key, missing):
                 ledgers_seen.add(source)
             else:
                 data = ledger(source, api_budget.SCOPED_REJECTION_VERSION, BATCH_NANO, RUN_NANO)
-        except (OSError, sqlite3.Error, ValueError, TypeError, KeyError):
+        except (OSError, sqlite3.Error, ValueError, TypeError, KeyError, AttributeError):
             data = None
             missing.append('ledger:' + trial.name)
         # Only crashes need a live read-only DB lookup; never replace a recorded run id.
@@ -174,9 +188,13 @@ def account(key, missing):
                         raise ValueError('A ledger scope belongs to multiple attempts.')
                     scopes_seen.add(pair)
                 if run_id:
-                    for field in ('nano', 'calls', 'pending', 'known_usage_nano', 'uncertain_nano', 'rejected_nano', 'uncertain_calls'):
+                    for field in ('nano', 'calls', 'pending', 'known_usage_nano', 'uncertain_nano', 'rejected_nano', 'uncertain_calls', 'unsafe_calls'):
                         a[field] = sum(s[field] for s in entries)
                     a['usd'] = a['nano'] / 1e9
+                    a['charged_nano'] = a['nano']
+                    if a['unsafe_calls']:
+                        a['nano'] = a['usd'] = None
+                        missing.append('unsafe_envelope:' + a['code'])
             if run_id:
                 try:
                     path = Path(manifest['config']['storage']) / str(job['business_id']) / 'provider-budgets' / (str(run_id) + '.sqlite')
@@ -184,9 +202,12 @@ def account(key, missing):
                     a['p4_limits'] = p4['limits']
                     # P4 verifies the same sends; it is never added a second time to cost.
                     a['p4_charged_nano'] = p4['charged_nano']
+                    if any(s['unsafe_calls'] for s in p4['scopes'].values()):
+                        a['nano'] = a['usd'] = None
+                        missing.append('unsafe_p4_envelope:' + a['code'])
                     if p4['pending']:
                         a['pending'] = (a['pending'] or 0) + p4['pending']
-                except (OSError, sqlite3.Error, ValueError, TypeError, KeyError):
+                except (OSError, sqlite3.Error, ValueError, TypeError, KeyError, AttributeError):
                     missing.append('p4_source:' + a['code'])
             if a['nano'] is None:
                 missing.append('cost_source:' + a['code'])
@@ -200,7 +221,7 @@ def account(key, missing):
             data = ledger(path, api_budget.SCOPED_REJECTION_VERSION, BATCH_NANO, RUN_NANO)
             if any((path, s) not in scopes_seen for s in data['scopes']):
                 missing.append('unattributed_scope:' + Path(trial_name).name)
-        except (OSError, sqlite3.Error, ValueError, TypeError, KeyError):
+        except (OSError, sqlite3.Error, ValueError, TypeError, KeyError, AttributeError):
             pass  # already reported above
     # A separate 5 USD ledger per business would enlarge the preregistered cap.
     if len(ledgers_seen) != 1:
