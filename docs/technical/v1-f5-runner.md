@@ -55,3 +55,19 @@ El primer registro html-v1 capturó el contador de salida antes de que el hilo d
 La pasada completa inicial ejecutó 813 tests Python: 812 pasaron y uno falló. Era una regresión del ejecutor: pasar `transport=None` a todos los clientes interfería con un mock legacy que ya suministraba su transporte. Se corrigió pasando ese argumento solo cuando existe el transporte presupuestado. Después, 72 tests focalizados pasaron, incluidos lenguaje, proveedor compartido, cuotas, reinicio, runner, costes, admisión y formatos del modelo.
 
 Regresión completa de `e35d33e`, el 11-10-2026: **815/815 Python**, cero fallos y cero omitidos, con PostgreSQL desechable y las imágenes nativas configuradas; sin clave ni llamadas reales al proveedor. Duración: 634,9 segundos. Incluye los nuevos tests de cuotas y catálogo. El cambio no modifica la UI; la base F4 había pasado sus 313 tests UI, TypeScript, Vite y oxlint. Las ampliaciones posteriores del simulador y del preregistro se revisan por separado en la rama de F5.
+
+## Comprobación independiente de evaluaciones
+
+`scripts/checks/product_trial_verify.py KITS RESULTS` solo lee el material ciego: verifica
+el conjunto exacto de archivos sellados, los hashes y las identidades. Recalcula los
+denominadores desde las afirmaciones del auditor; exige que cada error material o crítico
+esté en exactamente un grupo, conserva la gravedad máxima y cuenta los críticos dentro
+de los materiales. Comprueba también los rangos de S1–S6 y las elecciones de lectores.
+Un lector ausente o sin elección válida no se convierte en empate. Los JSON con claves
+duplicadas o números no finitos se rechazan.
+
+No abre la clave de brazos, no ejecuta HTML, no cambia la rúbrica ni confirma la corrección
+semántica de un juicio. Tampoco sustituye el sellado separado de las evaluaciones antes
+de desvelar. Siete tests nuevos comprueban cobertura repetida o ausente, pérdida de
+gravedad, denominadores incorrectos, lectores incompletos, puntuaciones inválidas y
+alteraciones del kit. Estos tests son posteriores a la pasada completa de 815 indicada arriba.
