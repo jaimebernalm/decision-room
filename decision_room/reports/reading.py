@@ -98,3 +98,55 @@ def presentation(document, revision, value, view=None):
                 title=document.get('title') or 'Informe',summary=summaries[value['state']],view=view,
                 scope=dict(period='',coverage='',question=document.get('goal') or ''),
                 claims=[],highlights=[],charts=[],limitations=[])
+
+
+CHAT_TEXT_LIMIT = 40000
+
+
+def chat_version(revision, derived):
+    """Exact identity of what the chat read: bytes, canonical text, policy and renderer."""
+    return ':'.join(('engine', revision['raw_sha256'], derived['canonical_sha256'],
+                     derived['policy_version'], derived['renderer_version']))
+
+
+def chat_documents(db, business, analysis=None):
+    """Current engine reports whose canonical text is ready. Cheap; never renders."""
+    rows = db.execute('''SELECT d.*,r.status AS run_status,w.title,w.goal,w.deleted_at AS job_deleted_at
+        FROM report_documents d JOIN engine_runs r ON r.business_id=d.business_id AND r.id=d.source_run_id
+        LEFT JOIN web_jobs w ON w.business_id=d.business_id AND w.report_document_id=d.id AND w.engine_run_id=d.source_run_id
+        WHERE d.business_id=%s AND d.deleted_at IS NULL AND d.current_revision_id IS NOT NULL
+        AND (%s::uuid IS NULL OR d.analysis_id=%s) ORDER BY d.created_at DESC,d.id LIMIT 1001''',
+        (business, analysis, analysis)).fetchall()
+    result = []
+    for row in rows:
+        item = chat_document(db, business, row['id'], row=row)
+        if item:
+            result.append(item)
+    return result
+
+
+def chat_document(db, business, document_id, *, row=None):
+    if row is None:
+        row = db.execute('''SELECT d.*,r.status AS run_status,w.title,w.goal,w.deleted_at AS job_deleted_at
+            FROM report_documents d JOIN engine_runs r ON r.business_id=d.business_id AND r.id=d.source_run_id
+            LEFT JOIN web_jobs w ON w.business_id=d.business_id AND w.report_document_id=d.id AND w.engine_run_id=d.source_run_id
+            WHERE d.business_id=%s AND d.id=%s''', (business, identifier(document_id))).fetchone()
+    if not row or row['deleted_at'] or row['job_deleted_at']:
+        return None
+    row['stale_reason'] = store.reason(db, row)
+    revision = db.execute('''SELECT * FROM report_document_revisions WHERE business_id=%s AND document_id=%s AND id=%s''',
+                          (business, row['id'], row['current_revision_id'])).fetchone() if row['current_revision_id'] else None
+    if not store.is_current(row, revision, row['run_status']):
+        return None
+    if revision['presentation_state'] == 'blocked':
+        # Blocked receipts keep canonical text for the owner, but the chat does not
+        # quote a report whose presentation could not be shown safely.
+        return None
+    derived = derived_for(db, row, revision)
+    if not derived or derived.get('status') != 'ready' or not derived.get('canonical_text'):
+        return None
+    text = derived['canonical_text']
+    return dict(id=str(row['id']), version=chat_version(revision, derived), origin='engine_html',
+                title=row.get('title') or 'Informe', analysis_id=str(row['analysis_id']),
+                created_at=revision['created_at'].isoformat(), text=text[:CHAT_TEXT_LIMIT],
+                truncated=len(text) > CHAT_TEXT_LIMIT, canonical_sha256=derived['canonical_sha256'])

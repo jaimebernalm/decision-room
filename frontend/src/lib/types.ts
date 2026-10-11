@@ -450,7 +450,7 @@ export type SetupSession = {
 };
 
 export type EngineReportView = {
-  mode: "snapshot" | "pending" | "blocked";
+  mode: "snapshot" | "pending" | "blocked" | "unavailable";
   policy_version: string;
   receipt: "allowed" | "blocked";
   reason: string | null;

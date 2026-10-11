@@ -269,6 +269,10 @@ def dependencies_current(config, db, saved, events):
                 and ctx.watch(ctx.effective(db, saved['business_id']), dep['selection']) != dep['watch']
             ):
                 return False
+            if dep['kind'] == 'engine_report':
+                from .memory.retrieval import engine_current
+                if not engine_current(db, saved['business_id'], dep):
+                    return False
             if dep['kind'] == 'report':
                 result = reviewed(config, saved['business_id'], dep['id'], db)
                 row = db.execute(
@@ -1032,7 +1036,8 @@ class Conversations:
             response['onboarding'] = action.onboarding.model_dump(mode='json')
         # An optional evidence attachment retains report export and version checks.
         opened = [e['response'] for i, e in enumerate(context['retrievals'])
-                  if f'tool/{e.get("ordinal", i)}' in cited and e['request']['tool'] == 'open_report' and 'error' not in e['response']]
+                  if f'tool/{e.get("ordinal", i)}' in cited and e['request']['tool'] == 'open_report' and 'error' not in e['response']
+                  and e['response'].get('origin') != 'engine_html']  # v1 text has no reviewed evidence to attach
         if opened and action.include_report:
             ref = context['message'].get('finding_reference')
             report = next((r for r in opened if ref and r['id'] == ref['report_id']), opened[-1])

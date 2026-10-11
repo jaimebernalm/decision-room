@@ -122,7 +122,8 @@ def view(raw, derived=None):
 
     1. Receipt blocked: blocked (with canonical text if the renderer produced it).
     2. A ready static snapshot: shown in the script-free frame, with the canonical text.
-    3. Rendering failed or produced no snapshot: blocked. Otherwise pending.
+    3. Rendering failed or produced no snapshot: blocked.
+    4. No renderer configured in this installation: unavailable. Otherwise pending.
     The agent's own markup is never returned as frame content.
     """
     checked = inspect(raw)
@@ -135,4 +136,6 @@ def view(raw, derived=None):
         return dict(base, mode='snapshot', sandbox=SANDBOX, srcdoc=frame_document(derived['snapshot_html'].encode('utf-8')))
     if ready or (derived and derived.get('status') == 'failed'):
         return dict(base, mode='blocked', reason='render_failed')
+    if derived and derived.get('status') == 'unavailable':
+        return dict(base, mode='unavailable')
     return dict(base, mode='pending')

@@ -451,9 +451,13 @@ function EngineFrame({ report }: { report: ReportData }) {
           ? tr(
               "Preparando la vista del informe. Conservamos su entrega; puedes descargar el HTML original.",
             )
-          : tr(
-              "Presentación bloqueada: este informe contiene elementos que no podemos mostrar con seguridad. Conservamos su entrega y puedes descargar el HTML original.",
-            )}
+          : view.mode === "unavailable"
+            ? tr(
+                "La vista del informe no está disponible en esta instalación. Puedes descargar el HTML original.",
+              )
+            : tr(
+                "Presentación bloqueada: este informe contiene elementos que no podemos mostrar con seguridad. Conservamos su entrega y puedes descargar el HTML original.",
+              )}
       </Notice>
       {text}
     </>

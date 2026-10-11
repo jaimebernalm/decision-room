@@ -37,7 +37,9 @@ origen, queda en la rama de Astra.
 2. Si hay una instantánea lista: la instantánea en el marco sin scripts y, debajo, «Texto del
    informe» (texto canónico, seleccionable).
 3. Si el renderizado terminó sin instantánea o falló: «Presentación bloqueada».
-4. En otro caso: «Preparando la vista».
+4. Si la instalación no tiene renderizador configurado: «La vista del informe no está disponible
+   en esta instalación», con la descarga del original.
+5. En otro caso: «Preparando la vista».
 
 El marco lleva su propia CSP antes de cualquier contenido:
 `default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:; base-uri 'none';
@@ -85,4 +87,26 @@ La vista la calcula al leer. Al integrar, el worker de Astra la registra con `se
 - Frontend: `engine-report.test.tsx` comprueba el iframe con `sandbox=""` y `srcdoc`, el texto
   canónico, y que ni «pending» ni «blocked» se enmarcan.
 
-Pendiente en esta rama: el chat fase 1 y el cierre.
+## Chat, fase 1
+
+- `search_reports` añade los informes v1 vigentes cuyo texto canónico está listo
+  (`reading.chat_documents`). Cada uno lleva `origin: engine_html`, título, resumen (primeros
+  300 caracteres del texto) y una advertencia: es el texto del agente, sin afirmaciones
+  estructuradas, evidencias ni verificación.
+- `open_report` sobre un documento v1 devuelve el texto canónico, hasta 40.000 caracteres con
+  `truncated` si se corta, sin `evidence_ids` y nunca el marcado bruto.
+- **Versión exacta de lo leído:**
+  - `engine:<raw_sha256>:<canonical_sha256>:<policy>:<renderer>`;
+  - la dependencia `engine_report` se comprueba al reanudar (`context.reason`) y al
+    reutilizar (`conversations.fresh`);
+  - una retirada, otro texto canónico (otro renderizador) o un borrado invalidan lo leído.
+- **Qué no se ofrece:** informes no vigentes, sin texto listo o con recepción bloqueada.
+- Las respuestas que citan un informe v1 no adjuntan evidencias revisadas.
+- La fuente se etiqueta «Informe» (y en la actividad, «Informe consultado»), nunca «Informe
+  revisado».
+- `investigate` ya lanzaba v1 en trabajos `opencode` desde F0: el trabajo del chat usa el motor
+  por defecto configurado.
+- `tests/test_engine_chat.py` (4) cubre búsqueda y apertura con versión exacta, invalidación por
+  cambio de texto o de memoria, informes no listos y etiquetas.
+- Regresión: `test_conversations`, `test_presentation_chat` y `test_context_memory` dan la misma
+  lista de fallos que `9bd7469` (de entorno, sin el sandbox local construido), sin fallos nuevos.

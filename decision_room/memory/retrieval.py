@@ -185,8 +185,36 @@ def _reports(config, db, m, scope, request):
         items.append(dict(id=key, version=run['approved_sha256'], title=data['report']['title'],
                           summary=data['report']['summary'], scope=data['report']['scope'], analysis_id=str(run['analysis_id']), **_report_dates(db, run)))
         dependencies.append(dict(kind='report', id=key, version=run['approved_sha256']))
+    engine_items, engine_dependencies = _engine_reports(config, db, m, scope, request)
+    items += engine_items
+    dependencies += engine_dependencies
     return dict(items=items, candidate_scan_limit=semantic.MAX_DOCUMENTS,
                 more_possible=len(docs) > len(keys), search=search), dependencies
+
+
+ENGINE_EVIDENCE = ('Informe del motor v1: texto del informe tal como lo escribió el agente. '
+                   'No tiene afirmaciones estructuradas, evidencias ni verificación automática; '
+                   'no lo presentes como resultado comprobado.')
+
+
+def _engine_reports(config, db, m, scope, request):
+    from ..reports import reading
+    rows = reading.chat_documents(db, m['business_id'], scope['analysis_id'] if request.id else None)
+    if request.query.strip() and rows:
+        docs = [dict(key=r['id'], version=r['version'], text=r['text'][:20000]) for r in rows]
+        keys, _ = semantic.rank(config, db, m['business_id'], 'report', docs, request.query, request.limit)
+        rows = [r for key in keys for r in rows if r['id'] == key]
+    rows = rows[:request.limit]
+    items = [dict(id=r['id'], version=r['version'], origin='engine_html', title=r['title'],
+                  summary=r['text'][:300], analysis_id=r['analysis_id'], delivered_at=r['created_at'],
+                  evidence_class=ENGINE_EVIDENCE) for r in rows]
+    return items, [dict(kind='engine_report', id=r['id'], version=r['version']) for r in rows]
+
+
+def engine_current(db, business, dependency):
+    from ..reports import reading
+    current = reading.chat_document(db, business, dependency['id'])
+    return bool(current and current['version'] == dependency['version'])
 
 
 def retrieve(config, db, session_id, request, *, manifest=None, opened=None):
@@ -248,6 +276,14 @@ def retrieve(config, db, session_id, request, *, manifest=None, opened=None):
     elif r.tool == 'search_reports':
         scope = _scope(db, m, r.id)
         result, dependencies = _reports(config, db, m, scope, r)
+    elif r.tool == 'open_report' and db.execute('SELECT 1 FROM report_documents WHERE business_id=%s AND id=%s',
+                                                (m['business_id'], UUID(r.id))).fetchone():
+        from ..reports import reading
+        value = reading.chat_document(db, m['business_id'], r.id)
+        if not value:
+            raise ValueError('This report is not current or its text is not ready yet.')
+        result = dict(value, evidence_ids=[], evidence_class=ENGINE_EVIDENCE)
+        dependencies.append(dict(kind='engine_report', id=r.id, version=value['version']))
     elif r.tool == 'open_report':
         run, data = _report(config, db, m, r.id)
         evidence_ids = sorted({ref['execution_id'] for c in data['report']['claims'] for ref in c['evidence']})

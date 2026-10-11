@@ -63,6 +63,9 @@ class ReceiptPolicyTests(unittest.TestCase):
                 self.assertEqual((ready['mode'], ready['canonical_text']), ('snapshot', 'Ventas 12'))
                 self.assertNotIn('draw()', ready['srcdoc'])
 
+    def test_missing_renderer_is_unavailable_not_pending_forever(self):
+        self.assertEqual(policy.view(CLEAN, {'status': 'unavailable'})['mode'], 'unavailable')
+
     def test_snapshot_wins_over_raw_and_blocked_receipts_keep_canonical_text(self):
         ready = {'status': 'ready', 'canonical_text': 'Texto', 'snapshot_html': '<p>captura</p>'}
         self.assertEqual(policy.view(CLEAN, ready)['mode'], 'snapshot')

@@ -42,7 +42,10 @@ Search metadata can support titles and report timestamps; conclusions still requ
 Set include_report=false for short answers, greetings and administrative questions.
 Set include_report=true only if a full evidence attachment helps a requested report summary
 or explanation; citations remain available either way.
-open_report uses a report id returned by search_reports/recent_reviewed_results.
+open_report uses a report id returned by search_reports/recent_reviewed_results. Items with
+origin=engine_html are v1 reports: open_report returns their text as written by the agent,
+with no structured claims, evidence or verification. Quote them as that report's statements,
+never as reviewed or verified results, and never as a new calculation.
 Report search excerpts locate evidence; open the original report before explaining its findings.
 Reuse successful results already in retrievals; never repeat an identical lookup.
 If a lookup fails, correct its arguments or explain the limitation. Search with fewer
@@ -373,10 +376,11 @@ def sources_for(context):
     for index, event in enumerate(context['retrievals']):
         if 'error' not in event['response']:
             req = event['request']
+            engine = event['response'].get('origin') == 'engine_html'
             sources[f'tool/{event.get("ordinal", index)}'] = dict(label={
                 'inspect_dataset': 'Contenido del archivo', 'search_datasets': 'Archivos disponibles',
                 'search_memory': 'Contexto del negocio', 'search_reports': 'Informes disponibles',
-                'open_report': 'Informe revisado', 'open_evidence': 'Evidencia del informe',
+                'open_report': 'Informe' if engine else 'Informe revisado', 'open_evidence': 'Evidencia del informe',
                 'search_chats': 'Antecedentes de conversación', 'open_chat': 'Conversación seleccionada',
             }[req['tool']], content=event['response'],
                 discovery_only=req['tool'] == 'search_reports')
