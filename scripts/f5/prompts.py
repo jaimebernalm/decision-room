@@ -1,8 +1,10 @@
 """Fill the fixed evaluator prompts (scripts/f5/prompts/*.md) for every sealed kit.
 
-Usage: python scripts/f5/prompts.py KITS_DIR DATA_DIR OUT_DIR [--quotes]
+Usage: python scripts/f5/prompts.py KITS_DIR DATA_DIR OUT_DIR [--quotes] [--web[=MAX_IMAGES]]
 
 --quotes (N4 onward) asks the auditor for an exact quote per claim, for the auditor-checker cross-match.
+--web (M5): readers get only the web view captures of A and B (no text), with the image limit
+fixed in the preregistration (default 20).
 
 Writes OUT_DIR/<role>/<id>.md (auditor, grouper, judge, reader_owner, reader_advisor) and
 OUT_DIR/<role>/<id>.out.json as each evaluator's required output path. The judge prompt
@@ -20,7 +22,7 @@ def render(name, **values):
     return (HERE / 'prompts' / f'{name}.md').read_text().format(**values)
 
 
-def main(kits, data, out, quotes=False):
+def main(kits, data, out, quotes=False, web=None):
     kits, data, out = Path(kits).resolve(), Path(data).resolve(), Path(out).resolve()
     spec = json.loads((data / 'spec.json').read_text())
     owners = {b['key']: f"{b['name']}. {b['description']}\nPetición: {b['goal']}" for b in spec['businesses']}
@@ -43,15 +45,19 @@ def main(kits, data, out, quotes=False):
         business = pair.rsplit('-', 1)[0]
         slots = {s: kits / 'read' / pair / s for s in 'AB'}
         files = {f'{s.lower()}_pages': ', '.join(str(p) for p in sorted(slots[s].glob('page-*.png'))) for s in 'AB'}
-        if sum(len(list(slots[s].glob('page-*.png'))) for s in 'AB') > 16:
-            raise SystemExit(f'{pair} exceeds the 16-image reading limit; it must be marked incomplete, never truncated.')
-        files.update({f'{s.lower()}_text': str(slots[s] / 'report.txt') for s in 'AB'})
+        limit = web or 16
+        if sum(len(list(slots[s].glob('page-*.png'))) for s in 'AB') > limit:
+            raise SystemExit(f'{pair} exceeds the {limit}-image reading limit; it must be marked incomplete, never truncated.')
+        if not web:
+            files.update({f'{s.lower()}_text': str(slots[s] / 'report.txt') for s in 'AB'})
+        suffix = '_web' if web else ''
         (out / 'reader_owner' / f'{pair}.md').write_text(render(
-            'reader_owner', owner=owners[business], pair=pair, out_path=out / 'results' / f'owner-{pair}.json', **files))
+            'reader_owner' + suffix, owner=owners[business], pair=pair, out_path=out / 'results' / f'owner-{pair}.json', **files))
         (out / 'reader_advisor' / f'{pair}.md').write_text(render(
-            'reader_advisor', pair=pair, out_path=out / 'results' / f'advisor-{pair}.json', **files))
+            'reader_advisor' + suffix, pair=pair, out_path=out / 'results' / f'advisor-{pair}.json', **files))
     print(len(index['reports']), 'reports;', len(index['pairs']), 'pairs')
 
 
 if __name__ == '__main__':
-    main(*sys.argv[1:4], quotes='--quotes' in sys.argv[4:])
+    web = next((int(a.split('=', 1)[1]) if '=' in a else 20 for a in sys.argv[4:] if a.startswith('--web')), None)
+    main(*sys.argv[1:4], quotes='--quotes' in sys.argv[4:], web=web)
