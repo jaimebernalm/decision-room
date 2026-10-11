@@ -123,6 +123,56 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(len(sent),1)
         self.assertEqual(provider_budget.ledger(self.config,api._row(self.config,self.business,run)).snapshot()['charged_nano_usd'],358500000)
 
+    def test_non_sales_checker_reads_independent_csv_and_preserves_recalculated_discrepancy(self):
+        import csv,io
+        from decision_room.service import import_batch
+        source=self.root/'observations.csv'
+        source.write_text('observed_at,group,state,score\n2026-01-01,A,done,10\n2026-01-02,A,open,6\n2026-02-01,B,done,8\n2026-02-02,B,open,4\n')
+        batch=import_batch(self.config,self.business,[source])
+        raw=json.dumps(dict(version=blocks.VERSION,titulo='Observaciones',bloques=[
+            dict(tipo='prioridad',titulo='Seguimiento',bloques=[dict(tipo='texto',
+                contenido='Hay 4 observaciones, 2 completadas y una media de 9 puntos.')])])).encode()
+        FakeRuntime.sessions={};FakeClient.config=self.config
+        class NonSalesClient(IndependentClient):
+            def submit(inner,session,**kwargs):
+                files=inner.state['files']
+                rows=[]
+                for name,data in files.items():
+                    if name.startswith('datos/'):
+                        rows.extend(csv.DictReader(io.StringIO(data.decode())))
+                self.assertEqual(len(rows),4)
+                self.assertNotIn('contexto/panorama.md',files)
+                self.assertNotIn('resultados',str(list(files)))
+                priority=json.loads(files['prioridades.json'])
+                p=priority['priorities'][0];text=p['text'];items=[]
+                computed=[('4 observaciones',len(rows)),('2 completadas',sum(r['state']=='done' for r in rows)),
+                          ('9 puntos',sum(int(r['score']) for r in rows)/len(rows))]
+                for quote,value in computed:
+                    start=text.index(quote)
+                    items.append(dict(priority_id=p['block_id'],quote=quote,start=start,end=start+len(quote),
+                        status='discrepancy' if quote=='9 puntos' else 'confirmed',independent_value=str(value),
+                        method='CSV: count(rows), count(state=done), sum(score)/count(non-null score).',
+                        message='La media calculada es distinta.' if quote=='9 puntos' else ''))
+                inner.runtime.payload=json.dumps(dict(version=contract.VERSION,
+                    revision_sha256=priority['revision_sha256'],items=items,coverage_notes='')).encode()
+                FakeClient.submit(inner,session,**kwargs)
+        class NonSalesRuntime(IndependentRuntime):
+            def start(inner):return NonSalesClient(inner)
+        run,token=admission.create_run(self.config,self.business,batch['analysis']['id'],
+            table_ids=[batch['files'][0]['table_id']],owner_context='One observation per row; state done means completed; score is points.',
+            request_key=uuid4().hex,model='gpt-6-luna',engine_config=profile.configuration(
+                format='blocks',usd_cap_micro=400000,image='sha256:'+'a'*64))
+        with patch.object(api,'Runtime',NonSalesRuntime),patch.object(api,'DockerBackend',lambda:object()),             patch.object(api,'JobTunnel',FakeTunnel),patch.object(api,'_service',lambda *a:SimpleNamespace(origin='http://127.0.0.1:1')):
+            result=checks.run_standalone(self.config,self.business,run,token,raw)
+        self.assertEqual(result['coverage']['addressed_spans'],3)
+        self.assertEqual([i['status'] for i in result['items']],['confirmed','confirmed','discrepancy'])
+        self.assertEqual(result['items'][-1]['independent_value'],'7.0')
+        self.assertEqual(contract.visible(result)['items'][0]['quote'],'9 puntos')
+        with connect(self.config) as db:
+            frozen=db.execute('SELECT profile FROM engine_runs WHERE id=%s',(run,)).fetchone()['profile']
+            self.assertEqual(frozen['checks']['prompt_sha256'],admission.sha(contract.PROMPT.encode()))
+            self.assertFalse(db.execute('SELECT 1 FROM report_documents WHERE source_run_id=%s',(run,)).fetchone())
+
     def test_standalone_retained_check_has_no_writer_cycle_or_publication_and_no_replay(self):
         raw=json.dumps(example()).encode();FakeRuntime.sessions={};FakeClient.config=self.config
         IndependentRuntime.payloads=[];IndependentClient.checker_results=[]
