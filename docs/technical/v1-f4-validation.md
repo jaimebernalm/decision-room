@@ -106,11 +106,6 @@ se recupera el mismo job con un nuevo claim y se publica una vez. Los tests de
 registro también cubren muerte lógica antes del commit y fencing de un worker
 anterior. Prueba nativa del servicio verifica texto, píxeles y proyección juntos.
 
-## Pasos pendientes
-
-integración con la vista/chat de Claude; suite hostil y regresión completas. Este
-documento no declara F4 terminada todavía.
-
 ## 4. Puerta del marco y recuperación adicional
 
 El candidato que servía el bruto en un `iframe sandbox=""` se descarta. En Chrome
@@ -125,12 +120,12 @@ el marco. `tests/synthetic_browser.py` es exclusivamente un arnés de prueba del
 origen con fixtures escritos a mano; no carga archivos ni informes, y no es una
 dependencia del producto. Toda ejecución de HTML del agente sigue dentro de Docker.
 
-Las dos pruebas de `test_report_frame_native` pasan contra la política del commit
-de vista `a4c7e09`, cargada en el runner hasta integrar las ramas. Reproducen el
+Las dos pruebas de `test_report_frame_native` pasaron primero contra la política
+de vista `a4c7e09` y después contra la rama integrada. Reproducen el
 fallo del candidato y prueban que instantánea/recepción dejan el padre intacto y
 no generan peticiones al sumidero para SMIL y diez fixtures de scripts, fetch,
 URL construida, base, refresh, JavaScript URL, URL relativa, formulario y tamaño.
-La misma suite se repetirá sobre la rama integrada.
+El marco del producto nunca recibe el HTML sintético del candidato rechazado.
 
 Ocho pruebas adicionales de servicio y recuperación pasan: recuperación del
 contenedor huérfano por ID exacto y rechazo del contenedor con otra etiqueta,
@@ -138,3 +133,86 @@ además del servicio. Sin imagen configurada, la lectura distingue `unavailable`
 de `pending`, respeta negocio/documento/revisión y conserva la cola; no inspecciona
 el bruto ni intenta Chrome. El borrador del test de etiqueta tenía un índice de
 argumento erróneo; se corrigió antes de comprobarlo y guardar este commit.
+
+## 5. Integración de vista y chat
+
+Fusión local autorizada de `claude/v1-view` (`ac7e870`) en
+`codex/v1-engine-path`: commit `1f96719`. No se modifica master. Las versiones
+de política tienen una sola constante, en `decision_room/reports/presentation.py`.
+La vista no tiene fallback a marcado bruto. Raw es un adjunto octet-stream con
+Content-Disposition y CSP sandbox; PDF responde 409. La vista no concede una
+aprobación ni muestra «Revisado» para informes v1.
+
+El chat solo descubre documentos vigentes con texto canónico listo. Cada lectura
+toma memoria → documento compartido; su dependencia contiene ID de revisión,
+hash bruto, hash canónico, política y renderizador. La búsqueda revalida tras el
+ranking; una retirada o cambio de derivado invalida los resultados usados al
+reanudar o reutilizar una conversación. No inventa evidence_ids ni claims y no
+adjunta evidencia revisada a los textos v1. El texto está limitado a 40.000
+caracteres con indicador de recorte. Corpus mayor de 1.000 se rechaza explícitamente.
+
+Una búsqueda mixta respeta un límite total. Sin consulta ordena legacy y v1 por
+fecha de aprobación/entrega; con consulta reserva los huecos restantes tras los
+resultados legacy para v1, que se ordena por separado. Ese orden está declarado
+en la respuesta (`engine_order=ranked_separately_after_reviewed`); no representa
+un ranking semántico global de ambas fuentes. Un fixture mixto comprueba los
+límites 1 y 2 y las dependencias correspondientes.
+
+Sobre la rama integrada: 27/27 focalizadas de chat, vista, servicio y marco nativo.
+Un smoke nativo adicional une render real en Docker → publicación en PostgreSQL
+→ lectura del chat y vista, sin doble de derived: texto, revisión y hashes iguales,
+rechazo del negocio ajeno, y solo instantánea en el marco. UI 313/313, TypeScript,
+Vite y oxlint pasan. Se mantienen advertencias existentes de Fast Refresh y bundle.
+
+La primera regresión completa preintegración terminó con 779 pruebas y un fallo:
+se cambió la política durante la pasada, de modo que el proceso hijo del test
+SIGKILL cargó otra política y encoló un ID diferente del esperado por el padre.
+No se acredita esa pasada; la limpieza del test recoge también el proceso si falla.
+La pasada integrada de `1f96719` terminó con 801 pruebas y un error en el fixture
+antiguo de `test_report_metadata`: el doble de BD no devolvía una lista vacía de
+documentos del motor. Se corrige el fixture manteniendo el criterio de fechas y
+la prueba mixta con documento real.
+
+La revisión cruzada encontró un fallo del turno completo del chat: tras recuperar
+un informe v1, `conversations.run` intentaba decorarlo con la presentación legacy,
+que exige un informe revisado. El commit `37a6fb4` excluye `engine_html` de esa
+decoración. Una prueba de búsqueda → apertura → respuesta con modelos falsos
+reproduce el fallo antes del arreglo y pasa después: usa el texto canónico, no
+adjunta `evidence` ni `report_id` y etiqueta la fuente como «Informe», sin «revisado».
+
+Ese commit fija también la versión del renderizador en los tests offline,
+incluido el proceso hijo del SIGKILL; el smoke nativo conserva la configuración
+real. Las 27 focalizadas pasan con imagen configurada. Desde una exportación
+limpia de Git, sin manifiesto local ni imagen configurada, pasan 26 y se omite
+solo el smoke nativo. Claude reproduce esos resultados en su checkout limpio.
+
+Commits enfocados de F4:
+
+- `df9602f`: migración 36, registro inmutable y cola en adopción.
+- `2c22747`: navegador contenido, inventario y captura PNG.
+- `d2260ab`: servicio de derivados, worker independiente y recuperación.
+- `2d1c910`: cierre del bruto en el marco, unavailable y prueba de navegación SMIL.
+- `78d792d`, `a4c7e09`, `8b3fc4b`, `ac7e870` (Claude): recepción, vista,
+  instantánea obligatoria y chat con referencias por revisión.
+- `1f96719`: integración local, límite mixto de búsqueda y smoke conjunto.
+- `37a6fb4`: turno completo del chat y pruebas independientes de la imagen local.
+
+## Validación final y alcance
+
+Regresión completa congelada de `37a6fb4`: **802/802 Python**, cero fallos,
+errores u omitidas, 591,539 segundos. PostgreSQL y almacenamiento desechables,
+modelos falsos y clave de proveedor vacía; imágenes nativas fijadas del motor,
+sandbox y renderizador. Incluye la migración repetida y preservación legacy,
+recuperación/locks, navegador real contenido y suite sintética del marco.
+UI **313/313**; TypeScript, Vite y oxlint pasan. Las correcciones posteriores a
+esa pasada de UI afectan únicamente a Python y sus pruebas.
+
+Claude revisó los commits de núcleo y vista, y comprobó `37a6fb4` en un checkout
+limpio sin configuración de imagen. El resultado integrado se registra en el
+Bridge para la revisión de su versión exacta. Las dos pasadas completas anteriores
+con fallo están declaradas arriba; solo la pasada congelada final se acredita.
+
+F5 requiere su propio preregistro y autorización de gasto; legacy sigue por
+defecto. PDF permanece aplazado. F4 no certifica la exactitud de los informes,
+no modifica los datos/encargos del run ni vuelve a ejecutarlo. No se gastó API,
+no se enviaron cambios a GitHub y no se modificó master.
