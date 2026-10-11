@@ -377,3 +377,19 @@ conformidad de Astra.
 - Orden `.local/f5/order-f5b.json`: `0fa54b056a53a3965adcd7255465cca3900d8922a8ff04b695bfe4b05cdd30d2`. Es el orden congelado del herbolario seguido del
   de la clínica, con un solo informe a la vez.
 - Mismo oráculo, mismas indicaciones de los evaluadores y misma regla (`scripts/f5/analyze.py`).
+
+**Desviación técnica durante F5b (07:20 UTC), declarada antes de ver ningún informe.**
+- `herbolario-5-legacy` terminó la ejecución con estado `queued`. Tras una respuesta del dueño
+  simulado, legacy replanificó y volvió a la cola.
+  - En el producto, el worker web lo retoma solo. El ejecutor lo daba por terminado.
+  - `queued` no es un estado final ni figura entre las pérdidas definidas («blocked»,
+    «failed», «waiting» final o caída).
+- Cambios en el ejecutor:
+  - continúa el mismo trabajo mientras siga en `queued`/`running`, hasta 8 veces, sin
+    reenviar nada;
+  - un nuevo comando `continue` retoma una sola vez un intento ya registrado como no final, y
+    conserva `result-initial.json`;
+  - lo prueba `tests/test_product_trial.py` (7/7).
+- No afecta a v1: su motor no pasa por la cola legacy.
+- Los intentos posteriores usan el ejecutor corregido. `herbolario-5-legacy` se continúa con
+  `continue`.
