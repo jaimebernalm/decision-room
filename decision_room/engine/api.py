@@ -65,6 +65,8 @@ def _finish(config, business, run, status, reason=None):
             return
         db.execute('''UPDATE engine_runs SET status=%s,abort_reason=%s,credential_revoked=true,
             active_seconds=%s,active_started_at=NULL WHERE id=%s''', (status, reason, row['elapsed'], run))
+        if row['profile'].get('format')=='blocks' and status!='delivered':
+            db.execute("UPDATE engine_native_cycles SET stage='incomplete',issue=%s WHERE run_id=%s AND stage NOT IN ('complete','incomplete')", (reason or 'run_incomplete',run))
         admission._event(db, run, 'controller_finished', {'status': status, 'reason': reason})
 
 
@@ -158,6 +160,11 @@ def _completed_turn(messages, user_id):
 def _drive(config, business, run, *, new_token=None, answer=None):
     with control.controller_lock(config, business, run):
         row = _row(config, business, run)
+        if row['profile'].get('format') == 'blocks':
+            from . import native_checks
+            if native_checks.recover(config, row) and row['status'] not in ('delivered','aborted','failed'):
+                _finish(config,business,run,'failed','checker_recovery_uncertain')
+                row = _row(config,business,run)
         if row['status'] in ('delivered', 'aborted', 'failed'):
             # A process may have died between the terminal DB commit and finally.
             meta_path = folder(config, business, run) / 'control.json'
@@ -336,7 +343,20 @@ def _drive(config, business, run, *, new_token=None, answer=None):
                         file_collected = True
                         receipt = store.read_document(config, business, run)
                         status = 'delivered' if receipt and receipt['raw'].strip() else 'failed'
-                        _finish(config, business, run, status, None if status == 'delivered' else 'no_delivered_document')
+                        if status == 'delivered' and row['profile'].get('format') == 'blocks':
+                            from . import native_checks
+                            action = native_checks.draft(config,row,receipt)
+                            if action == 'correct':
+                                # File collection stopped the writer. Restart its
+                                # same state/session, replace the dead relay, and
+                                # dispatch only the durable correction outbox.
+                                tunnel.close(); client.close()
+                                client = runtime.start()
+                                tunnel = JobTunnel(backend,runtime.container_id,run,server.origin).start()
+                                file_collected = False
+                                continue
+                            status = action
+                        _finish(config, business, run, status, None if status == 'delivered' else 'native_check_incomplete' if row['profile'].get('format') == 'blocks' else 'no_delivered_document')
                         break
                 time.sleep(0.1)
             if _row(config, business, run)['status'] != 'waiting':

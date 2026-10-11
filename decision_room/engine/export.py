@@ -27,6 +27,7 @@ def snapshot(config, business_id, run_id):
     with connect(config) as db, db.transaction():
         row = control._run(db, business_id, run_id)
         events = db.execute("SELECT kind,payload FROM engine_events WHERE run_id=%s AND kind IN ('controller_issue','proxy_issue','aborted','controller_finished') ORDER BY id", (run_id,)).fetchall()
+        cycle=db.execute('SELECT stage,draft_revision_id,selected_revision_id,correction_used,issue FROM engine_native_cycles WHERE business_id=%s AND run_id=%s', (business_id,run_id)).fetchone() if row['profile'].get('format')=='blocks' else None
     issues = [r for r in events if r['kind'] in ('controller_issue', 'proxy_issue')]
     details = []
     for event in events:
@@ -55,6 +56,7 @@ def snapshot(config, business_id, run_id):
               'usage': {k: sum(u[k] for u in known) for k in ('input', 'cached', 'output')},
               'issues': [r['payload']['code'] for r in issues],
               'diagnostics': details}
+    if row['profile'].get('format')=='blocks':result['native_cycle']=cycle
     if row['abort_reason']:
         result['issues'].append(row['abort_reason'])
     result['usage'].update(calls=row['calls'], seconds=float(row['elapsed']),
@@ -95,6 +97,15 @@ def export_run(config, business_id, engine_run_id, dest):
         except (ValueError, OSError):
             result['issues'].append('session_export_partial')
     native = result['profile_config'].get('format') == 'blocks'
+    if native:
+        with connect(config) as db:
+            checks=db.execute('''SELECT id,revision_id,raw_sha256,version,status,input_sha256,
+                session_id,message_id,dispatched,calls,started_at,finished_at,result,result_sha256,issue,observations
+                FROM engine_native_checks WHERE business_id=%s AND run_id=%s ORDER BY started_at,id''',
+                (business_id,engine_run_id)).fetchall()
+        # All outcomes (including confirmed figures) for offline auditing;
+        # owner-facing reading deliberately exposes only warnings. No tokens.
+        write('native-checks.json',checks)
     filename = 'informe.raw.json' if native else 'informe.raw.html'
     if received:
         write(filename, received['raw'], raw=True)

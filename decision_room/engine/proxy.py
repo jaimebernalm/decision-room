@@ -116,7 +116,7 @@ def forward(config, run_id, token, raw, *, api_key, send_headers, write, transpo
     No retries are performed. `transport` exists for offline integration tests;
     the HTTP service never accepts it from the agent.
     """
-    job = admission.authenticate(config, run_id, token)
+    job = admission.authenticate(config, run_id, token, allow_checker=True)
     request, count_request = prepare(raw, job)
     if not api_key:
         raise admission.Denied('Provider service is not configured.')
@@ -158,7 +158,7 @@ def forward(config, run_id, token, raw, *, api_key, send_headers, write, transpo
                            (time.monotonic() - started, call_id))
             stage = 'reserve_tokens'
             admission.reserve(config, run_id, token, call_id, value, request['max_output_tokens'])
-            current = admission.authenticate(config, run_id, token)
+            current = admission.authenticate(config, run_id, token, allow_checker=True)
             stage = 'open_provider_response'
             with client.stream('POST', UPSTREAM + '/responses', json=request,
                                extensions={'trace': generation_trace},
@@ -178,7 +178,7 @@ def forward(config, run_id, token, raw, *, api_key, send_headers, write, transpo
                 for chunk in response.iter_bytes():
                     if time.monotonic() - checked >= 1:
                         stage = 'check_stream_job'
-                        admission.authenticate(config, run_id, token, check_snapshot=False)
+                        admission.authenticate(config, run_id, token, check_snapshot=False, allow_checker=True)
                         checked = time.monotonic()
                     stage = 'parse_provider_stream'
                     if is_sse:

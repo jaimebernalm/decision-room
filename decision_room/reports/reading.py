@@ -26,6 +26,8 @@ def read(config, business, document, *, revision=None, deleted=False):
         if not row or not deleted and (row['deleted_at'] or row['job_deleted_at']):
             raise WebError('Informe no encontrado.',404)
         row['stale_reason'] = store.reason(db,row,config=config)
+        if revision is None and row['origin']=='engine_blocks' and row['current_revision_id']:
+            revision=row['current_revision_id']
         params = [business,document]
         where = ''
         if revision:
@@ -77,7 +79,19 @@ def derived_for(db, document, revision):
     """The isolated renderer's result for this exact revision, or None. Never renders here."""
     if document['origin'] == 'engine_blocks':
         from .native_store import result
-        return result(db, document['business_id'], document['id'], revision['id'])
+        value=result(db, document['business_id'], document['id'], revision['id'])
+        if value and value['status']=='ready':
+            from ..engine import native_checks, admission
+            checks=native_checks.read(db,document['business_id'],document['source_run_id'],revision['id'])
+            value['checks']=checks
+            value['check_sha256']=admission.sha(admission.canonical(checks))
+            from ..engine import check_contract
+            warnings=check_contract.visible(checks)
+            value['canonical_text'] += '\nComprobación independiente: '+checks['state']+'\n'+'\n'.join(
+                i['message'] if i.get('coverage') else 'Cifra en revisión: '+i['quote']+' — '+i['message']
+                for i in warnings['items'])
+            value['canonical_sha256']=admission.sha(value['canonical_text'].encode())
+        return value
     from .derive import derived
     return derived(db, document['business_id'], document['id'], revision['id'])
 
@@ -86,8 +100,10 @@ def view(db, document, revision):
     if document['origin'] == 'engine_blocks':
         derived = derived_for(db, document, revision)
         if derived and derived['status'] == 'ready':
+            from ..engine import native_checks, check_contract
+            checks=native_checks.read(db,document['business_id'],document['source_run_id'],revision['id'])
             return dict(mode='blocks', blocks=derived['document'], canonical_text=derived['canonical_text'],
-                        checks=dict(state='unknown', items=[]))
+                        checks=check_contract.visible(checks))
         return dict(mode='blocked', reason='invalid_native_report', canonical_text='')
     from . import presentation as policy
     return policy.view(revision['raw'], derived_for(db, document, revision))
@@ -112,7 +128,7 @@ CHAT_TEXT_LIMIT = 40000
 def chat_version(revision, derived):
     """Exact identity of what the chat read: revision, bytes, canonical text, policy, renderer."""
     return ':'.join(('engine', str(revision['id']), revision['raw_sha256'], derived['canonical_sha256'],
-                     derived['policy_version'], derived['renderer_version']))
+                     derived['policy_version'], derived['renderer_version'])) + (':'+derived['check_sha256'] if derived.get('check_sha256') else '')
 
 
 def chat_documents(db, business, analysis=None):

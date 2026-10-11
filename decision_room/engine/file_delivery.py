@@ -29,7 +29,7 @@ with os.fdopen(fd,'rb') as f:
 
 
 def script(filename='informe.html'):
-    if filename not in ('informe.html', 'informe.json'):
+    if filename not in ('informe.html', 'informe.json', 'comprobacion.json'):
         raise ValueError('Unsupported report filename.')
     return SCRIPT.replace("p='/work/informe.html'", "p='/work/" + filename + "'")
 

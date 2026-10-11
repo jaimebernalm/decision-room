@@ -80,6 +80,13 @@ def adopt(config, business, run):
         if not native and revisions and source['status'] == 'delivered' and revisions[-1]['raw'] and baseline:
             db.execute('''UPDATE report_documents SET current_revision_id=%s
                 WHERE id=%s AND business_id=%s AND stale_reason IS NULL''', (revisions[-1]['id'], document, business))
+        if native and source['status'] == 'delivered' and baseline:
+            chosen=db.execute("SELECT selected_revision_id FROM engine_native_cycles WHERE business_id=%s AND run_id=%s AND stage IN ('complete','incomplete') AND selected_revision_id IS NOT NULL",(business,run)).fetchone()
+            if chosen:
+                checked=db.execute("SELECT 1 FROM report_document_revisions WHERE business_id=%s AND document_id=%s AND id=%s AND derive_status='ready'",(business,document,chosen['selected_revision_id'])).fetchone()
+                if checked:
+                    db.execute('UPDATE report_documents SET current_revision_id=%s WHERE business_id=%s AND id=%s AND stale_reason IS NULL AND deleted_at IS NULL',
+                               (chosen['selected_revision_id'],business,document))
         # This link is metadata only. It never grants content access or replaces a review.
         db.execute('''UPDATE web_jobs SET report_document_id=%s
             WHERE business_id=%s AND engine_run_id=%s AND engine_kind='opencode'

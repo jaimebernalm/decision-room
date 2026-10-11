@@ -152,7 +152,7 @@ def _event(db, run_id, kind, payload):
                (run_id, kind, Jsonb(payload)))
 
 
-def _locked(db, run_id, token):
+def _locked(db, run_id, token, *, allow_checker=False):
     try:
         run_id = UUID(str(run_id))
     except (ValueError, TypeError, AttributeError):
@@ -162,9 +162,16 @@ def _locked(db, run_id, token):
             ELSE EXTRACT(EPOCH FROM clock_timestamp()-active_started_at) END AS elapsed
         FROM engine_runs WHERE id=%s FOR UPDATE''', (run_id,)).fetchone()
     if (not row or not isinstance(token, str) or len(token) > 256
-            or not hmac.compare_digest(row['credential_sha256'], sha(token.encode()))
             or row['credential_revoked'] or row['credential_expires_at'] <= row['checked_at']):
         raise Denied('Invalid job credential.')
+    if not hmac.compare_digest(row['credential_sha256'], sha(token.encode())):
+        delegated = db.execute('''SELECT * FROM engine_native_checks WHERE run_id=%s
+            AND credential_sha256=%s AND status='running' AND started_at>clock_timestamp()-interval '300 seconds' ''',
+            (run_id,sha(token.encode()))).fetchone() if allow_checker else None
+        if not delegated:
+            raise Denied('Invalid job credential.')
+        row['checker_id'] = delegated['id']
+        row['checker_calls'] = delegated['calls']
     return row
 
 
@@ -185,16 +192,16 @@ def _active(db, row):
     return None
 
 
-def check_credential(config, run_id, token):
+def check_credential(config, run_id, token, *, allow_checker=False):
     """HTTP precheck only; each operation still enforces its allowed job state."""
     with connect(config) as db, db.transaction():
-        _locked(db, run_id, token)
+        _locked(db, run_id, token, allow_checker=allow_checker)
 
 
-def authenticate(config, run_id, token, *, check_snapshot=True):
+def authenticate(config, run_id, token, *, check_snapshot=True, allow_checker=False):
     """Validate every operation. Never allow a caller-supplied business override."""
     with connect(config) as db, db.transaction():
-        row = _locked(db, run_id, token)
+        row = _locked(db, run_id, token, allow_checker=allow_checker)
         error = _active(db, row)
         if not error and check_snapshot:
             try:
@@ -224,15 +231,21 @@ def revoke(config, business_id, run_id):
 
 def begin_call(config, run_id, token, request_sha256, *, requested_model=None, requested_tier=None):
     """Persist a counted attempt before token-count preflight; never auto-replay."""
-    authenticate(config, run_id, token)
+    authenticate(config, run_id, token, allow_checker=True)
     call_id = uuid4()
     with connect(config) as db, db.transaction():
-        row = _locked(db, run_id, token)
+        row = _locked(db, run_id, token, allow_checker=True)
         error = _active(db, row)
         if not error and row['calls'] >= row['limits']['calls']:
             _abort(db, row['id'], 'call_limit', stage='begin_model_call')
             error = 'Call limit reached.'
+        if not error and row.get('checker_id') and row['checker_calls'] >= 20:
+            # The checker ceiling ends only this check. Parent admission limits
+            # above still abort the whole analysis and are never reopened.
+            raise Denied('Checker call limit reached.')
         if not error:
+            if row.get('checker_id'):
+                db.execute('UPDATE engine_native_checks SET calls=calls+1 WHERE id=%s', (row['checker_id'],))
             db.execute('UPDATE engine_runs SET calls=calls+1 WHERE id=%s', (run_id,))
             db.execute('''INSERT INTO engine_model_calls(id,run_id,request_sha256,state)
                 VALUES (%s,%s,%s,'counting')''', (call_id, run_id, request_sha256))
@@ -246,9 +259,9 @@ def reserve(config, run_id, token, call_id, input_tokens, output_tokens):
     """Serial admission includes all concurrent outstanding reservations."""
     if any(type(n) is not int or n < 0 for n in (input_tokens, output_tokens)) or not output_tokens:
         raise ValueError('Invalid token reservation.')
-    authenticate(config, run_id, token)
+    authenticate(config, run_id, token, allow_checker=True)
     with connect(config) as db, db.transaction():
-        row = _locked(db, run_id, token)
+        row = _locked(db, run_id, token, allow_checker=True)
         error = _active(db, row)
         call = db.execute('SELECT * FROM engine_model_calls WHERE run_id=%s AND id=%s FOR UPDATE',
                           (run_id, call_id)).fetchone()
