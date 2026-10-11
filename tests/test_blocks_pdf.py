@@ -31,6 +31,15 @@ class BlocksPdfTests(unittest.TestCase):
         self.assertNotIn('Revisado', text)
         self.assertNotIn('Verificado', text)
 
+    def test_coverage_summary_is_not_a_quote(self):
+        projection = blocks.parse(raw(FULL))
+        text = text_of(blocks_pdf.render(projection, {'state': 'complete', 'items': [
+            {'block_id': 'b4', 'quote': '2026', 'status': 'unverifiable', 'coverage': True,
+             'message': '3 fragmentos numéricos de esta prioridad quedaron sin comprobación explícita.'}]}))
+        self.assertIn('3 fragmentos numéricos', text)
+        self.assertNotIn('Cifras que no se pudieron comprobar', text)
+        self.assertNotIn('«2026»', text)
+
     def test_extreme_sizes_paginate_without_loss(self):
         cats = [f'Categoría con una etiqueta bastante larga {i}' for i in range(blocks.MAX_CATEGORIES)]
         series = [{'nombre': f'S{j}', 'valores': [((-1) ** i) * (i + j + 0.5) for i in range(len(cats))]}

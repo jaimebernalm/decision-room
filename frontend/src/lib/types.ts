@@ -512,6 +512,8 @@ export type BlockCheck = {
   independent_value?: string | null;
   method?: string | null;
   message?: string | null;
+  /** Summary of numeric spans the checker did not address explicitly (not a quote). */
+  coverage?: boolean;
 };
 export type BlockChecks = {
   state: "unknown" | "pending" | "complete" | "incomplete";

@@ -260,7 +260,10 @@ def render(projection, checks=None, *, delivered_at=None):
         story.append(paragraph(f'Informe entregado el {stamp}. Texto escrito por el motor de informes; '
                                'las cifras en revisión llevan aviso.', 'muted'))
     story += _blocks(projection['blocks'], by_block, 0, numbers)
-    unverifiable = [c for c in (checks or {}).get('items', []) if c['status'] == 'unverifiable']
+    unverifiable = [c for c in (checks or {}).get('items', []) if c['status'] == 'unverifiable' and not c.get('coverage')]
+    for c in (checks or {}).get('items', []):
+        if c.get('coverage') and c.get('message'):
+            story.append(paragraph(c['message'], 'muted'))
     if unverifiable:
         story.append(Spacer(1, 8))
         story.append(Paragraph('Cifras que no se pudieron comprobar', STYLES['heading']))
