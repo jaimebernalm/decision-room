@@ -1163,3 +1163,139 @@ INSERT INTO schema_versions(version) VALUES (34) ON CONFLICT DO NOTHING;
 -- Migration 35: provenance of the generated v1 brief and panorama (F2). Existing runs keep '{}'.
 ALTER TABLE engine_runs ADD COLUMN IF NOT EXISTS brief jsonb NOT NULL DEFAULT '{}';
 INSERT INTO schema_versions(version) VALUES (35) ON CONFLICT DO NOTHING;
+
+-- Migration 36: versioned, immutable derivatives; original receipts remain immutable.
+ALTER TABLE report_document_revisions DROP CONSTRAINT IF EXISTS report_document_revisions_presentation_state_check;
+ALTER TABLE report_document_revisions DROP CONSTRAINT IF EXISTS report_document_revisions_derived_version_check;
+ALTER TABLE report_document_revisions DROP CONSTRAINT IF EXISTS report_document_revisions_canonical_text_check;
+ALTER TABLE report_document_revisions DROP CONSTRAINT IF EXISTS report_document_revisions_canonical_sha256_check;
+ALTER TABLE report_document_revisions ADD COLUMN IF NOT EXISTS presentation_reason text;
+ALTER TABLE report_document_revisions ADD COLUMN IF NOT EXISTS derive_status text NOT NULL DEFAULT 'pending';
+ALTER TABLE report_document_revisions ADD COLUMN IF NOT EXISTS derive_issue text;
+ALTER TABLE report_document_revisions ADD COLUMN IF NOT EXISTS policy_version text;
+ALTER TABLE report_document_revisions ADD COLUMN IF NOT EXISTS renderer_version text;
+ALTER TABLE report_document_revisions ADD COLUMN IF NOT EXISTS inventory_sha256 text;
+ALTER TABLE report_document_revisions ADD COLUMN IF NOT EXISTS snapshot_html text;
+CREATE UNIQUE INDEX IF NOT EXISTS report_revision_raw_identity ON report_document_revisions(business_id,document_id,id,raw_sha256);
+CREATE TABLE IF NOT EXISTS report_presentation_checks (
+    business_id uuid NOT NULL,
+    document_id uuid NOT NULL,
+    revision_id uuid NOT NULL,
+    raw_sha256 text NOT NULL,
+    policy_version text NOT NULL,
+    state text NOT NULL CHECK(state IN ('allowed','blocked')),
+    reason text,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    PRIMARY KEY(business_id,document_id,revision_id,raw_sha256,policy_version),
+    FOREIGN KEY(business_id,document_id,revision_id,raw_sha256)
+        REFERENCES report_document_revisions(business_id,document_id,id,raw_sha256)
+);
+CREATE TABLE IF NOT EXISTS report_derivatives (
+    business_id uuid NOT NULL,
+    document_id uuid NOT NULL,
+    revision_id uuid NOT NULL,
+    raw_sha256 text NOT NULL,
+    policy_version text NOT NULL,
+    renderer_version text NOT NULL,
+    derived_version integer NOT NULL CHECK(derived_version>0),
+    status text NOT NULL CHECK(status IN ('ready','failed')),
+    canonical_text text,
+    canonical_sha256 text CHECK(canonical_sha256 ~ '^[0-9a-f]{64}$'),
+    inventory jsonb,
+    inventory_sha256 text CHECK(inventory_sha256 ~ '^[0-9a-f]{64}$'),
+    snapshot_html text CHECK(octet_length(snapshot_html)<=20971520),
+    issue text,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    PRIMARY KEY(business_id,document_id,revision_id,raw_sha256,policy_version,renderer_version),
+    FOREIGN KEY(business_id,document_id,revision_id,raw_sha256)
+        REFERENCES report_document_revisions(business_id,document_id,id,raw_sha256),
+    CHECK ((status='ready' AND canonical_text IS NOT NULL AND canonical_sha256 IS NOT NULL
+        AND inventory IS NOT NULL AND inventory_sha256 IS NOT NULL AND issue IS NULL)
+        OR (status='failed' AND canonical_text IS NULL AND canonical_sha256 IS NULL
+        AND inventory IS NULL AND inventory_sha256 IS NULL AND snapshot_html IS NULL AND issue IS NOT NULL)),
+    CHECK(octet_length(canonical_text)<=4000000 AND octet_length(inventory::text)<=16777216)
+);
+CREATE TABLE IF NOT EXISTS report_derivation_jobs (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    document_id uuid NOT NULL,
+    revision_id uuid NOT NULL,
+    raw_sha256 text NOT NULL,
+    policy_version text NOT NULL,
+    renderer_version text NOT NULL,
+    status text NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','running','ready','failed')),
+    claim_id uuid,
+    attempts integer NOT NULL DEFAULT 0 CHECK(attempts>=0),
+    started_at timestamptz,
+    finished_at timestamptz,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    UNIQUE(business_id,document_id,revision_id,raw_sha256,policy_version,renderer_version),
+    FOREIGN KEY(business_id,document_id,revision_id,raw_sha256)
+        REFERENCES report_document_revisions(business_id,document_id,id,raw_sha256)
+);
+DROP TRIGGER IF EXISTS report_presentation_immutable ON report_presentation_checks;
+CREATE TRIGGER report_presentation_immutable BEFORE UPDATE OR DELETE ON report_presentation_checks
+    FOR EACH ROW EXECUTE FUNCTION keep_report_revision();
+DROP TRIGGER IF EXISTS report_derivative_immutable ON report_derivatives;
+CREATE TRIGGER report_derivative_immutable BEFORE UPDATE OR DELETE ON report_derivatives
+    FOR EACH ROW EXECUTE FUNCTION keep_report_revision();
+CREATE OR REPLACE FUNCTION keep_report_projection() RETURNS trigger AS $$
+BEGIN
+    IF TG_OP='DELETE' THEN RAISE EXCEPTION 'Report revision cannot be deleted'; END IF;
+    IF (NEW.id,NEW.business_id,NEW.document_id,NEW.ordinal,NEW.raw_sha256,NEW.raw_bytes,
+        NEW.profile_version,NEW.verification_state,NEW.created_at)
+       IS DISTINCT FROM (OLD.id,OLD.business_id,OLD.document_id,OLD.ordinal,OLD.raw_sha256,OLD.raw_bytes,
+        OLD.profile_version,OLD.verification_state,OLD.created_at) THEN
+        RAISE EXCEPTION 'Report source and revision are immutable';
+    END IF;
+    IF NEW.presentation_state NOT IN ('not_evaluated','allowed','blocked') OR
+       NEW.derive_status NOT IN ('pending','ready','failed') THEN
+        RAISE EXCEPTION 'Unknown report projection state';
+    END IF;
+    IF NEW.presentation_state<>'not_evaluated' AND NOT EXISTS (
+        SELECT 1 FROM report_presentation_checks p WHERE
+        (p.business_id,p.document_id,p.revision_id,p.raw_sha256,p.policy_version,p.state,p.reason)
+        IS NOT DISTINCT FROM (NEW.business_id,NEW.document_id,NEW.id,NEW.raw_sha256,
+            NEW.policy_version,NEW.presentation_state,NEW.presentation_reason)) THEN
+        RAISE EXCEPTION 'Presentation projection needs its immutable assessment';
+    END IF;
+    IF NEW.derived_version=0 THEN
+        IF NEW.derive_status<>'pending' OR NEW.canonical_text IS NOT NULL OR NEW.canonical_sha256 IS NOT NULL
+            OR NEW.inventory_sha256 IS NOT NULL OR NEW.snapshot_html IS NOT NULL OR NEW.derive_issue IS NOT NULL THEN
+            RAISE EXCEPTION 'Pending projection cannot contain derivatives';
+        END IF;
+    ELSIF NOT EXISTS (SELECT 1 FROM report_derivatives d WHERE
+        (d.business_id,d.document_id,d.revision_id,d.raw_sha256,d.policy_version,d.renderer_version,
+         d.derived_version,d.status,d.canonical_text,d.canonical_sha256,d.inventory_sha256,d.snapshot_html,d.issue)
+        IS NOT DISTINCT FROM (NEW.business_id,NEW.document_id,NEW.id,NEW.raw_sha256,NEW.policy_version,NEW.renderer_version,
+         NEW.derived_version,NEW.derive_status,NEW.canonical_text,NEW.canonical_sha256,NEW.inventory_sha256,NEW.snapshot_html,NEW.derive_issue)) THEN
+        RAISE EXCEPTION 'Derivative projection needs its immutable result';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS report_revision_immutable ON report_document_revisions;
+CREATE TRIGGER report_revision_immutable BEFORE UPDATE OR DELETE ON report_document_revisions
+    FOR EACH ROW EXECUTE FUNCTION keep_report_projection();
+INSERT INTO schema_versions(version) VALUES (36) ON CONFLICT DO NOTHING;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='report_projection_states') THEN
+        ALTER TABLE report_document_revisions ADD CONSTRAINT report_projection_states CHECK(
+            presentation_state IN ('not_evaluated','allowed','blocked') AND derived_version>=0
+            AND derive_status IN ('pending','ready','failed')
+            AND (derived_version>0 OR (derive_status='pending' AND canonical_text IS NULL
+                AND canonical_sha256 IS NULL AND inventory_sha256 IS NULL AND snapshot_html IS NULL AND derive_issue IS NULL)));
+    END IF;
+END $$;
+CREATE OR REPLACE FUNCTION keep_derivation_job_identity() RETURNS trigger AS $$
+BEGIN
+    IF (NEW.id,NEW.business_id,NEW.document_id,NEW.revision_id,NEW.raw_sha256,NEW.policy_version,NEW.renderer_version,NEW.created_at)
+       IS DISTINCT FROM (OLD.id,OLD.business_id,OLD.document_id,OLD.revision_id,OLD.raw_sha256,OLD.policy_version,OLD.renderer_version,OLD.created_at) THEN
+        RAISE EXCEPTION 'Render job source identity is immutable';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS report_derivation_job_source ON report_derivation_jobs;
+CREATE TRIGGER report_derivation_job_source BEFORE UPDATE ON report_derivation_jobs
+    FOR EACH ROW EXECUTE FUNCTION keep_derivation_job_identity();

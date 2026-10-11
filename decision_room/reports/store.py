@@ -62,6 +62,9 @@ def adopt(config, business, run):
                 (row['id'], business, document, row['ordinal'], row['raw_sha256'], len(raw),
                  source['profile']['version'], row['created_at']))
             added = added or inserted.rowcount > 0
+            # Durable work only; adoption/metadata requests never launch Chrome.
+            from .derivative_store import enqueue
+            enqueue(db, business, document, row['id'])
         registered = db.execute('SELECT * FROM report_documents WHERE id=%s', (document,)).fetchone()
         if added:
             retire(db,registered,config=config,deep=True)
