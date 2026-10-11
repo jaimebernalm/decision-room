@@ -180,6 +180,32 @@ class KitSelectionTests(unittest.TestCase):
         self.assertTrue((base / 'kits' / 'audit' / code / 'page-01.png').exists())
         self.assertEqual({a['arm'] for a in key['attempts']}, {'v1', 'blocks'})
 
+    def test_web_captures_feed_kits_with_balanced_order_and_auditor_views(self):
+        root = self.trial('m5', ['herbolario', 'clinica'], reps=2, arms=('opencode', 'blocks'))
+        base = Path(self.temp.name)
+        captures = base / 'captures'
+        for code in (p.name for p in (root / 'runs').iterdir()):
+            run = root / 'runs' / code
+            (run / 'informe.txt').write_text('texto')
+            (run / 'result.json').write_text(json.dumps(dict(status='completed', delivery=True, snapshot=True)))
+            for mode in ('reader', 'auditor'):
+                (captures / mode / code).mkdir(parents=True)
+                (captures / mode / code / 'page-01.png').write_bytes(mode.encode())
+        for business in ('herbolario', 'clinica'):
+            (base / business / 'datos').mkdir(parents=True)
+        self.kits.CAPTURES = captures
+        self.addCleanup(setattr, self.kits, 'CAPTURES', None)
+        self.kits.build(base, base / 'kits', base / 'key.json', str(root), repetitions=2, balanced=True)
+        key = json.loads((base / 'key.json').read_text())
+        orders = {name: tuple(p['order']) for name, p in key['pairs'].items()}
+        self.assertNotEqual(orders['clinica-1'], orders['clinica-2'])
+        self.assertNotEqual(orders['herbolario-1'], orders['herbolario-2'])
+        self.assertNotEqual(orders['clinica-1'], orders['herbolario-1'])
+        code = next(iter(key['reports']))
+        self.assertEqual((base / 'kits' / 'audit' / code / 'page-01.png').read_bytes(), b'auditor')
+        self.assertEqual((base / 'kits' / 'judge' / code / 'page-01.png').read_bytes(), b'auditor')
+        self.assertEqual((base / 'kits' / 'read' / 'clinica-1' / 'A' / 'page-01.png').read_bytes(), b'reader')
+
     def test_one_business_per_trial_builds(self):
         a, b = self.trial('a', ['herbolario', 'clinica']), self.trial('b', ['clinica'])
         self.build(f'{a}:herbolario', f'{b}:clinica')

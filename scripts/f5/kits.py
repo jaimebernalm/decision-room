@@ -1,6 +1,12 @@
 """Blind, role-separated evaluation kits for the F5 test batch.
 
-Usage: python scripts/f5/kits.py [--allow-not-run] [--repetitions=N] DATA_DIR KITS_DIR KEY_PATH TRIAL_OUTPUT[:business] ...
+Usage: python scripts/f5/kits.py [--allow-not-run] [--repetitions=N] [--captures=DIR] [--max-pair-images=N]
+       [--balanced] DATA_DIR KITS_DIR KEY_PATH TRIAL_OUTPUT[:business] ...
+
+--captures=DIR (M5): page images come from web view captures made by web_captures.py,
+DIR/reader/<attempt code>/ for readers and DIR/auditor/<attempt code>/ (no check notices) for
+auditors and judges, instead of the PDF or raster snapshot. --balanced alternates the A/B order
+across each business's pairs instead of drawing it at random.
 
 Each business's attempts come from exactly one trial output (one init, one ledger).
 
@@ -37,16 +43,33 @@ def pages(snapshot_html):
 
 
 def page_count(run):
+    if CAPTURES:
+        return len(captured(run, auditor=False))
     if (run / 'informe.pdf').exists():  # native blocks: the platform PDF
         from pypdf import PdfReader
         return len(PdfReader(str(run / 'informe.pdf')).pages)
     return len(pages((run / 'informe.html').read_text()))
 
 
+CAPTURES = None  # set by --captures
+
+
+def captured(run, auditor):
+    folder = CAPTURES / ('auditor' if auditor else 'reader') / run.name
+    images = sorted(folder.glob('page-*.png'))
+    if not images:
+        raise SystemExit(f'{run.name}: no web capture in {folder}.')
+    return images
+
+
 def write_report(target, run, with_pages=True, auditor=False):
     target.mkdir(parents=True)
     shutil.copyfile(run / 'informe.txt', target / 'report.txt')
     if not with_pages:
+        return
+    if CAPTURES:
+        for image in captured(run, auditor):
+            shutil.copyfile(image, target / image.name)
         return
     if (run / 'informe.pdf').exists():
         # Auditors get the copy without check notices, so accuracy stays independent of the checker.
@@ -57,7 +80,7 @@ def write_report(target, run, with_pages=True, auditor=False):
         (target / f'page-{i:02d}.png').write_bytes(data)
 
 
-def build(data_dir, kits, key_path, *trials, allow_not_run=False, repetitions=6):
+def build(data_dir, kits, key_path, *trials, allow_not_run=False, repetitions=6, balanced=False, max_pair_images=MAX_PAIR_IMAGES):
     data_dir, kits, key_path = Path(data_dir), Path(kits), Path(key_path)
     sources = []
     for item in trials:
@@ -87,7 +110,7 @@ def build(data_dir, kits, key_path, *trials, allow_not_run=False, repetitions=6)
                 attempts.append(dict(code=job['code'], business=job['business_key'], repetition=job['repetition'], trial=str(trial),
                                      arm=ARM_LABEL[job['arm']], delivered=False, status='not_run', run=str(run)))
                 continue
-            presented = (run / 'informe.pdf') if job['arm'] == 'blocks' else (run / 'informe.html')
+            presented = (run / 'informe.txt') if CAPTURES else (run / 'informe.pdf') if job['arm'] == 'blocks' else (run / 'informe.html')
             delivered = bool(result and result.get('delivery') and result.get('snapshot')
                              and presented.exists() and (run / 'informe.txt').exists())
             if delivered and not page_count(run):
@@ -123,7 +146,7 @@ def build(data_dir, kits, key_path, *trials, allow_not_run=False, repetitions=6)
         attempt['kit'] = code
         run = Path(attempt['run'])
         write_report(kits / 'audit' / code, run, auditor=True)
-        write_report(kits / 'judge' / code, run)
+        write_report(kits / 'judge' / code, run, auditor=bool(CAPTURES))
         key['reports'][code] = {k: attempt[k] for k in ('code', 'business', 'repetition', 'arm')}
     for business in sorted({a['business'] for a in attempts}):
         data = kits / 'audit' / 'data' / business
@@ -134,16 +157,21 @@ def build(data_dir, kits, key_path, *trials, allow_not_run=False, repetitions=6)
             if hashlib.sha256(source.read_bytes()).hexdigest() != expected:
                 raise SystemExit(f'{business}/{name} differs from the CSV the trial ran on.')
             shutil.copyfile(source, data / name)
-        for repetition in sorted({a['repetition'] for a in attempts if a['business'] == business}):
+        for index, repetition in enumerate(sorted({a['repetition'] for a in attempts if a['business'] == business})):
             pair = {a['arm']: a for a in attempts if a['business'] == business and a['repetition'] == repetition}
             order = list(arms)
-            rnd.shuffle(order)
+            if balanced:
+                # Alternate per pair, starting differently per business, fixed before any reading.
+                start = sorted({a['business'] for a in attempts}).index(business) % 2
+                order = order if (index + start) % 2 == 0 else order[::-1]
+            else:
+                rnd.shuffle(order)
             name = f'{business}-{repetition}'
             key['pairs'][name] = dict(order=order, kits={arm: pair[arm].get('kit') for arm in order})
             if all(pair[arm].get('kit') for arm in order):
                 total = sum(page_count(Path(pair[arm]['run'])) for arm in order)
                 key['pairs'][name]['images'] = total
-                if total > MAX_PAIR_IMAGES:
+                if total > max_pair_images:
                     # Never truncate: dropped pages would depend on the random A/B position.
                     key['pairs'][name]['reading'] = 'incomplete_over_image_limit'
                     continue
@@ -172,6 +200,9 @@ def build(data_dir, kits, key_path, *trials, allow_not_run=False, repetitions=6)
 if __name__ == '__main__':
     args = sys.argv[1:]
     flag = '--allow-not-run' in args
-    reps = [int(a.split('=', 1)[1]) for a in args if a.startswith('--repetitions=')]
-    args = [a for a in args if a != '--allow-not-run' and not a.startswith('--repetitions=')]
-    build(*args, allow_not_run=flag, repetitions=reps[0] if reps else 6)
+    option = lambda name: next((a.split('=', 1)[1] for a in args if a.startswith(name + '=')), None)
+    reps, captures, limit = option('--repetitions'), option('--captures'), option('--max-pair-images')
+    CAPTURES = Path(captures) if captures else None
+    args = [a for a in args if not a.startswith('--')]
+    build(*args, allow_not_run=flag, repetitions=int(reps) if reps else 6, balanced='--balanced' in sys.argv,
+          max_pair_images=int(limit) if limit else MAX_PAIR_IMAGES)
