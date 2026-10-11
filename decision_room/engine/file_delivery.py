@@ -28,6 +28,12 @@ with os.fdopen(fd,'rb') as f:
 '''
 
 
+def script(filename='informe.html'):
+    if filename not in ('informe.html', 'informe.json'):
+        raise ValueError('Unsupported report filename.')
+    return SCRIPT.replace("p='/work/informe.html'", "p='/work/" + filename + "'")
+
+
 def decode(value):
     result = json.loads(value)
     if result == {'status': 'missing'}:

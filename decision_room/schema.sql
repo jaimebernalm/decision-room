@@ -1299,3 +1299,9 @@ $$ LANGUAGE plpgsql;
 DROP TRIGGER IF EXISTS report_derivation_job_source ON report_derivation_jobs;
 CREATE TRIGGER report_derivation_job_source BEFORE UPDATE ON report_derivation_jobs
     FOR EACH ROW EXECUTE FUNCTION keep_derivation_job_identity();
+
+-- Migration 37: native reports are additional sources; historical HTML identities remain unchanged.
+ALTER TABLE report_documents DROP CONSTRAINT IF EXISTS report_documents_origin_check;
+ALTER TABLE report_documents ADD CONSTRAINT report_documents_origin_check
+    CHECK(origin IN ('engine_html','engine_blocks'));
+INSERT INTO schema_versions(version) VALUES (37) ON CONFLICT DO NOTHING;

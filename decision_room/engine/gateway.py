@@ -37,6 +37,10 @@ def dispatch(config, run_id, token, message, *, backend=None):
         if method == 'notifications/initialized':
             return None
         raise ValueError('Unsupported MCP notification.')
+    from ..database import connect
+    with connect(config) as db:
+        settings = db.execute('SELECT profile FROM engine_runs WHERE id=%s', (run_id,)).fetchone()['profile']
+    native = settings.get('format') == 'blocks'
     response = {'jsonrpc': '2.0', 'id': message['id']}
     if method == 'initialize':
         result = {'protocolVersion': params.get('protocolVersion') if params.get('protocolVersion') in VERSIONS else '2025-06-18',
@@ -48,7 +52,7 @@ def dispatch(config, run_id, token, message, *, backend=None):
         from ..database import connect
         with connect(config) as db:
             enabled = db.execute('SELECT profile FROM engine_runs WHERE id=%s', (run_id,)).fetchone()['profile'].get('questions')
-        result = {'tools': TOOLS + ([QUESTION_TOOL] if enabled else [])}
+        result = {'tools': ([] if native else TOOLS) + ([QUESTION_TOOL] if enabled else [])}
     elif method == 'tools/call':
         try:
             args = params.get('arguments', {})
@@ -56,7 +60,7 @@ def dispatch(config, run_id, token, message, *, backend=None):
                 if not isinstance(args, dict) or set(args) - {'request_key', 'text', 'reason', 'options'} or not {'request_key', 'text', 'reason'} <= set(args):
                     raise ValueError('Invalid owner question.')
                 value = questions.request(config, run_id, token, **args)
-            elif params.get('name') != 'entregar_informe' or not isinstance(args, dict) or set(args) != {'request_key', 'html'} or not isinstance(args['html'], str):
+            elif native or params.get('name') != 'entregar_informe' or not isinstance(args, dict) or set(args) != {'request_key', 'html'} or not isinstance(args['html'], str):
                 raise ValueError('Invalid HTML delivery.')
             else:
                 value = store.receive_document(config, run_id, token, **args)

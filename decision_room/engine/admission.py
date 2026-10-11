@@ -101,13 +101,13 @@ def create_run(config, business_id, analysis_id, *, table_ids, owner_context, re
     if ceiling is not None and (not isinstance(ceiling, dict) or 'cap_micro_usd' not in ceiling):
         raise ValueError('Unsupported engine ceiling.')
     expected = profile.configuration(model=model, image=settings.get("image_id", ""), questions=settings.get("questions", False),
-                                     usd_cap_micro=ceiling['cap_micro_usd'] if ceiling is not None else None)
+                                     usd_cap_micro=ceiling['cap_micro_usd'] if ceiling is not None else None, format=settings.get('format', 'html'))
     if settings != expected:
         raise ValueError("Unsupported engine configuration.")
     if builder is not None and (frozen_prompt is not None or brief is not None):
         raise ValueError('Use either a brief builder or a frozen prompt.')
     if builder is None:
-        prompt, brief = _frozen(profile.prompt(owner_context) if frozen_prompt is None else frozen_prompt, brief)
+        prompt, brief = _frozen(profile.prompt(owner_context, format=settings.get('format', 'html')) if frozen_prompt is None else frozen_prompt, brief)
     if not 1 <= len(table_ids) <= 64 or not isinstance(limits, Limits):
         raise ValueError('Select 1–64 tables and valid limits.')
     if not isinstance(request_key, str) or not 1 <= len(request_key) <= 128:

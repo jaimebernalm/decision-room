@@ -11,7 +11,9 @@ RUNTIME_ENV = {'XDG_DATA_HOME': '/state', 'OPENCODE_DISABLE_AUTOUPDATE': '1',
                'OPENCODE_DISABLE_PROJECT_CONFIG': '1', 'OPENCODE_DISABLE_DEFAULT_PLUGINS': '1'}
 
 
-def configuration(*, model=None, image=None, questions=False, usd_cap_micro=None):
+def configuration(*, model=None, image=None, questions=False, usd_cap_micro=None, format="html"):
+    if format not in ("html", "blocks"):
+        raise ValueError("Unknown report format.")
     if type(questions) is not bool:
         raise ValueError("Questions must be an explicit boolean.")
     result = {'version': 'html-v1-questions-1' if questions else VERSION, 'model': model or MODEL, 'variant': 'low',
@@ -29,12 +31,25 @@ def configuration(*, model=None, image=None, questions=False, usd_cap_micro=None
         result['version'] = 'html-v1-questions-budget-1' if questions else 'html-v1-budget-1'
         result['usd_ceiling'] = {'version': api_budget.VERSION, 'cap_micro_usd': usd_cap_micro,
                                 'reservation': 'model-maxima'}
+    if format == 'blocks':
+        from . import blocks
+        import hashlib
+        version = 'blocks-v1-questions-1' if questions else 'blocks-v1-1'
+        if usd_cap_micro is not None:
+            version = 'blocks-v1-questions-budget-1' if questions else 'blocks-v1-budget-1'
+        result.update(version=version,
+                      format='blocks', schema_version=blocks.VERSION, report_filename='informe.json',
+                      validator_sha256=hashlib.sha256(Path(blocks.__file__).read_bytes()).hexdigest(),
+                      guide_sha256=hashlib.sha256(blocks.FORMAT_GUIDE.encode()).hexdigest())
     return result
 
 
-def prompt(owner_context):
+def prompt(owner_context, *, format='html'):
     """Direct API fallback. Web jobs build the generated v1 brief in engine.brief instead."""
     fixed = (Path(__file__).resolve().parents[2] / 'engine/opencode/prompts/informe.md').read_text()
+    if format == 'blocks':
+        from .brief import native_fixed
+        fixed = native_fixed(fixed)
     return owner_context.strip() + '\n\n' + fixed
 
 

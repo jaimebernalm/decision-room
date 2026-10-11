@@ -54,7 +54,7 @@ def metadata(db, document, revision, *, history=True):
         ON s.business_id=r.business_id AND s.document_id=r.document_id AND s.id=r.id
         WHERE r.business_id=%s AND r.document_id=%s ORDER BY r.ordinal''',
         (document['business_id'],document['id'])).fetchall() if history else []
-    return dict(origin='engine_html',document_id=str(document['id']),revision_id=str(revision['id']),
+    return dict(origin=document['origin'],document_id=str(document['id']),revision_id=str(revision['id']),
                 business_id=str(document['business_id']),analysis_id=str(document['analysis_id']),
                 source_run_id=str(document['source_run_id']),raw_sha256=revision['raw_sha256'],raw_bytes=revision['raw_bytes'],
                 profile_version=revision['profile_version'],presentation_state=revision['presentation_state'],
@@ -75,23 +75,32 @@ def pdf_unavailable():
 
 def derived_for(db, document, revision):
     """The isolated renderer's result for this exact revision, or None. Never renders here."""
+    if document['origin'] == 'engine_blocks':
+        from .native_store import result
+        return result(db, document['business_id'], document['id'], revision['id'])
     from .derive import derived
     return derived(db, document['business_id'], document['id'], revision['id'])
 
 
 def view(db, document, revision):
+    if document['origin'] == 'engine_blocks':
+        derived = derived_for(db, document, revision)
+        if derived and derived['status'] == 'ready':
+            return dict(mode='blocks', blocks=derived['document'], canonical_text=derived['canonical_text'],
+                        checks=dict(state='unknown', items=[]))
+        return dict(mode='blocked', reason='invalid_native_report', canonical_text='')
     from . import presentation as policy
     return policy.view(revision['raw'], derived_for(db, document, revision))
 
 
 def presentation(document, revision, value, view=None):
     """Typed metadata envelope; empty evidence cannot be mistaken for extraction."""
-    shown = bool(view and view['mode'] == 'snapshot')
+    shown = bool(view and view['mode'] in ('snapshot', 'blocks'))
     summaries = {'current':'' if shown else 'La entrega está guardada. Su presentación todavía no está disponible.',
                  'withdrawn':'Los datos o la memoria aplicable han cambiado. Conservamos esta entrega como histórico.',
                  'historical':'Esta revisión es histórica. Conservamos sus metadatos y su hash.',
                  'incomplete':'La ejecución no completó un informe actual. Conservamos las entregas recibidas.'}
-    return dict(origin='engine_html',engine_report=value,report_id=str(document['id']),report_version=revision['raw_sha256'],
+    return dict(origin=document['origin'],engine_report=value,report_id=str(document['id']),report_version=revision['raw_sha256'],
                 title=document.get('title') or 'Informe',summary=summaries[value['state']],view=view,
                 scope=dict(period='',coverage='',question=document.get('goal') or ''),
                 claims=[],highlights=[],charts=[],limitations=[])
@@ -156,7 +165,7 @@ def _chat_document(db, business, document_id, *, row=None):
     if not derived or derived.get('status') != 'ready' or not derived.get('canonical_text'):
         return None
     text = derived['canonical_text']
-    return dict(id=str(row['id']), version=chat_version(revision, derived), origin='engine_html',
+    return dict(id=str(row['id']), version=chat_version(revision, derived), origin=row['origin'],
                 title=row.get('title') or 'Informe', analysis_id=str(row['analysis_id']),
                 created_at=revision['created_at'].isoformat(), text=text[:CHAT_TEXT_LIMIT],
                 truncated=len(text) > CHAT_TEXT_LIMIT, canonical_sha256=derived['canonical_sha256'])
