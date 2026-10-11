@@ -264,8 +264,12 @@ def _execute(root, code, resume=False):
                 # Native blocks: the platform projection, its checks and the platform PDF; no browser.
                 from decision_room.reports import blocks_pdf, reading
                 from decision_room.engine.blocks import canonical_text as blocks_text
+                from decision_room.engine import native_checks
                 with reading.read(config,job['business_id'],row['report_document_id']) as (db,document,selected):
                     view=reading.view(db,document,selected)
+                    # Full checker result of the published revision (confirmed items included), for evaluation only.
+                    full=native_checks.read(db,job['business_id'],row['engine_run_id'],selected['id'])
+                save(target/'checks-full.json',full)
                 if view.get('mode')=='blocks':
                     save(target/'informe-bloques.json',view['blocks'])
                     save(target/'checks.json',view.get('checks'))
