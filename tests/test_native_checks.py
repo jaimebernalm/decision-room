@@ -253,6 +253,34 @@ class ProductCycleTests(unittest.TestCase):
             check=db.execute('SELECT * FROM engine_native_checks WHERE run_id=%s',(row['engine_run_id'],)).fetchone()
             self.assertEqual(check['status'],'incomplete');self.assertIsNotNone(check['raw_result'])
 
+    def test_format_repair_consumes_only_correction_then_runs_final_checker(self):
+        self.runtime();IndependentRuntime.payloads=[b'{"cut":',json.dumps(example()).encode()]
+        IndependentClient.checker_results=[self.discrepancy]
+        job=self.create(engine_kind='opencode',engine_format='blocks');self.ws.run_job(job);row=self.ws.row(job)
+        self.assertEqual(row['status'],'completed',row['issue'])
+        with connect(self.config) as db:
+            cycle=db.execute('SELECT * FROM engine_native_cycles WHERE run_id=%s',(row['engine_run_id'],)).fetchone()
+            self.assertTrue(cycle['correction_used']);self.assertEqual(cycle['stage'],'complete')
+            check=db.execute('SELECT * FROM engine_native_checks WHERE run_id=%s',(row['engine_run_id'],)).fetchone()
+            self.assertEqual(check['version'],contract.VERSION+'-final')
+            self.assertTrue(any(i['status']=='discrepancy' for i in check['result']['items']))
+            outbox=db.execute('SELECT * FROM engine_prompt_outbox WHERE run_id=%s ORDER BY created_at',(row['engine_run_id'],)).fetchall()
+            self.assertEqual([p['request_key'] for p in outbox],['initial','native-format-repair'])
+            self.assertTrue(any('JSON no válido' in p for p in json.loads(outbox[1]['prompt'][len(contract.FORMAT_REPAIR):])))
+            receipts=db.execute('SELECT raw FROM engine_document_revisions WHERE business_id=%s AND document_id=%s ORDER BY ordinal',(row['business_id'],row['report_document_id'])).fetchall()
+            self.assertEqual(len(receipts),2);self.assertEqual(bytes(receipts[0]['raw']),b'{"cut":')
+
+    def test_second_invalid_format_keeps_both_receipts_without_publication(self):
+        self.runtime();IndependentRuntime.payloads=[b'{"first":',b'{"second":']
+        job=self.create(engine_kind='opencode',engine_format='blocks');self.ws.run_job(job);row=self.ws.row(job)
+        self.assertEqual(row['status'],'failed')
+        with connect(self.config) as db:
+            doc=db.execute('SELECT * FROM report_documents WHERE id=%s',(row['report_document_id'],)).fetchone()
+            self.assertIsNone(doc['current_revision_id'])
+            self.assertEqual(db.execute('SELECT count(*) AS n FROM engine_document_revisions WHERE document_id=%s',(doc['id'],)).fetchone()['n'],2)
+            self.assertFalse(db.execute('SELECT 1 FROM engine_native_checks WHERE run_id=%s',(row['engine_run_id'],)).fetchone())
+            self.assertEqual(db.execute('SELECT count(*) AS n FROM engine_prompt_outbox WHERE run_id=%s',(row['engine_run_id'],)).fetchone()['n'],2)
+
     def test_global_budget_stop_never_promotes_an_incomplete_checker(self):
         from decision_room.engine import provider_budget
         self.runtime()

@@ -42,7 +42,8 @@ def configuration(*, model=None, image=None, questions=False, usd_cap_micro=None
                       validator_sha256=hashlib.sha256(Path(blocks.__file__).read_bytes()).hexdigest(),
                       guide_sha256=hashlib.sha256(blocks.FORMAT_GUIDE.encode()).hexdigest(),
                       checks=dict(version=check_contract.VERSION,prompt_sha256=hashlib.sha256(check_contract.PROMPT.encode()).hexdigest(),
-                                  correction_sha256=hashlib.sha256(check_contract.CORRECTION.encode()).hexdigest(),calls=20,seconds=300))
+                                  correction_sha256=hashlib.sha256(check_contract.CORRECTION.encode()).hexdigest(),
+                                  format_repair_sha256=hashlib.sha256(check_contract.FORMAT_REPAIR.encode()).hexdigest(),calls=20,seconds=300))
     return result
 
 
