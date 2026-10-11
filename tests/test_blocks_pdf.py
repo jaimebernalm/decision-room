@@ -26,7 +26,7 @@ class BlocksPdfTests(unittest.TestCase):
         self.assertIn('<b>Informe</b> & <script>', text)  # shown literally, never interpreted
         for expected in ('39.918,54 €', '+4.918,54 € (+14,1 %)', '6.936,74 €', '15.630,29 €', 'Magnesio', '342',
                          'Prioridad 01', 'Cifra en revisión', 'cálculo independiente: 336',
-                         'Cifras que no se pudieron comprobar', 'Faltan registros'):
+                         'Detalles de la comprobación independiente', 'Cifras que no se pudieron comprobar', 'Faltan registros'):
             self.assertIn(expected, text)
         self.assertNotIn('Revisado', text)
         self.assertNotIn('Verificado', text)
@@ -37,6 +37,7 @@ class BlocksPdfTests(unittest.TestCase):
             {'block_id': 'b4', 'quote': '2026', 'status': 'unverifiable', 'coverage': True,
              'message': '3 fragmentos numéricos de esta prioridad quedaron sin comprobación explícita.'}]}))
         self.assertIn('3 fragmentos numéricos', text)
+        self.assertIn('Detalles de la comprobación independiente', text)
         self.assertNotIn('Cifras que no se pudieron comprobar', text)
         self.assertNotIn('«2026»', text)
 
