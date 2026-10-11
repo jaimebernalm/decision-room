@@ -104,8 +104,8 @@ CHAT_TEXT_LIMIT = 40000
 
 
 def chat_version(revision, derived):
-    """Exact identity of what the chat read: bytes, canonical text, policy and renderer."""
-    return ':'.join(('engine', revision['raw_sha256'], derived['canonical_sha256'],
+    """Exact identity of what the chat read: revision, bytes, canonical text, policy, renderer."""
+    return ':'.join(('engine', str(revision['id']), revision['raw_sha256'], derived['canonical_sha256'],
                      derived['policy_version'], derived['renderer_version']))
 
 
@@ -117,20 +117,33 @@ def chat_documents(db, business, analysis=None):
         WHERE d.business_id=%s AND d.deleted_at IS NULL AND d.current_revision_id IS NOT NULL
         AND (%s::uuid IS NULL OR d.analysis_id=%s) ORDER BY d.created_at DESC,d.id LIMIT 1001''',
         (business, analysis, analysis)).fetchall()
+    if len(rows) > 1000:
+        raise ValueError('Report corpus exceeds 1000 objects. Narrow the source scope.')
     result = []
     for row in rows:
-        item = chat_document(db, business, row['id'], row=row)
+        item = chat_document(db, business, row['id'])
         if item:
             result.append(item)
     return result
 
 
 def chat_document(db, business, document_id, *, row=None):
+    """Under the same memory -> document(shared) order as owner reads; revalidated each call."""
+    document_id = identifier(document_id)
+    with db.transaction():
+        if not db.execute('SELECT 1 FROM report_documents WHERE business_id=%s AND id=%s', (business, document_id)).fetchone():
+            return None
+        memory.lock(db, business)
+        store.lock(db, document_id, shared=True)
+        return _chat_document(db, business, document_id)
+
+
+def _chat_document(db, business, document_id, *, row=None):
     if row is None:
         row = db.execute('''SELECT d.*,r.status AS run_status,w.title,w.goal,w.deleted_at AS job_deleted_at
             FROM report_documents d JOIN engine_runs r ON r.business_id=d.business_id AND r.id=d.source_run_id
             LEFT JOIN web_jobs w ON w.business_id=d.business_id AND w.report_document_id=d.id AND w.engine_run_id=d.source_run_id
-            WHERE d.business_id=%s AND d.id=%s''', (business, identifier(document_id))).fetchone()
+            WHERE d.business_id=%s AND d.id=%s''', (business, document_id)).fetchone()
     if not row or row['deleted_at'] or row['job_deleted_at']:
         return None
     row['stale_reason'] = store.reason(db, row)

@@ -96,7 +96,12 @@ La vista la calcula al leer. Al integrar, el worker de Astra la registra con `se
 - `open_report` sobre un documento v1 devuelve el texto canónico, hasta 40.000 caracteres con
   `truncated` si se corta, sin `evidence_ids` y nunca el marcado bruto.
 - **Versión exacta de lo leído:**
-  - `engine:<raw_sha256>:<canonical_sha256>:<policy>:<renderer>`;
+  - `engine:<revision_id>:<raw_sha256>:<canonical_sha256>:<policy>:<renderer>`;
+  - cada lectura toma los locks memoria → documento (compartido) de las lecturas del dueño;
+  - la búsqueda vuelve a comprobar la versión después de ordenar los resultados, como en los
+    informes revisados;
+  - si hay más de 1.000 informes, la búsqueda falla de forma explícita en vez de recortar en
+    silencio;
   - la dependencia `engine_report` se comprueba al reanudar (`context.reason`) y al
     reutilizar (`conversations.fresh`);
   - una retirada, otro texto canónico (otro renderizador) o un borrado invalidan lo leído.
@@ -106,7 +111,8 @@ La vista la calcula al leer. Al integrar, el worker de Astra la registra con `se
   revisado».
 - `investigate` ya lanzaba v1 en trabajos `opencode` desde F0: el trabajo del chat usa el motor
   por defecto configurado.
-- `tests/test_engine_chat.py` (4) cubre búsqueda y apertura con versión exacta, invalidación por
-  cambio de texto o de memoria, informes no listos y etiquetas.
+- `tests/test_engine_chat.py` (5) cubre búsqueda y apertura con versión exacta, invalidación por
+  cambio de texto o de memoria, informes no listos, etiquetas y un cambio durante la ordenación de
+  la búsqueda.
 - Regresión: `test_conversations`, `test_presentation_chat` y `test_context_memory` dan la misma
   lista de fallos que `9bd7469` (de entorno, sin el sandbox local construido), sin fallos nuevos.

@@ -50,6 +50,9 @@ class EngineChatTests(unittest.TestCase):
         self.assertEqual(items[0]['origin'], 'engine_html')
         version = items[0]['version']
         self.assertTrue(version.startswith('engine:') and 'c' * 64 in version and DERIVED['renderer_version'] in version)
+        with connect(self.config) as db:
+            current = db.execute('SELECT current_revision_id FROM report_documents WHERE id=%s', (document,)).fetchone()
+        self.assertEqual(version.split(':')[1], str(current['current_revision_id']))
         self.assertEqual(opened['text'], DERIVED['canonical_text'])
         self.assertEqual(opened['evidence_ids'], [])
         self.assertIn('sin verificación', opened['evidence_class'].replace('verificación automática', 'sin verificación'))
@@ -89,3 +92,17 @@ class EngineChatTests(unittest.TestCase):
         sources = chat_agent.sources_for(context)
         self.assertEqual(sources['tool/0']['label'], 'Informe')
         self.assertEqual(sources['tool/1']['label'], 'Informe revisado')
+
+    def test_a_withdrawal_during_ranking_is_detected_after_it(self):
+        row = self.delivered(); business = row['business_id']
+        from decision_room.memory import context as ctx
+        original = retrieval.semantic.rank
+
+        def rank_then_change(*args, **kwargs):
+            result = original(*args, **kwargs)
+            self.derived = dict(DERIVED, canonical_sha256='f' * 64)  # rendered again while ranking
+            return result
+        with patch.object(retrieval.semantic, 'rank', rank_then_change), connect(self.config) as db:
+            with self.assertRaises(ctx.StaleContext):
+                retrieval._engine_reports(self.config, db, {'business_id': business}, {'analysis_id': None},
+                                          self.request(query='ventas'))
