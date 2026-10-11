@@ -35,26 +35,25 @@ def overlap(a, b):
     return bool(a and b and (a in b or b in a))
 
 
-def warned(cita, priorities, items):
-    """Conservative cross-match: unique quote in one priority + overlapping final discrepancy there."""
-    if not cita:
-        return False
-    hits = [(pid, ids) for pid, (text, ids) in priorities.items() if text.count(cita) == 1]
-    if len(hits) != 1 or sum(text.count(cita) for text, _ in priorities.values()) != 1:
-        return False
-    _, ids = hits[0]
-    return any(i.get('status') == 'discrepancy' and not i.get('coverage') and i.get('block_id') in ids
-               and overlap(i.get('quote'), cita) for i in items)
+def unique_priority(cita, priorities):
+    """Block ids of the single priority whose text contains the quote exactly once, else None."""
+    if not cita or sum(text.count(cita) for text, _ in priorities.values()) != 1:
+        return None
+    return next(ids for text, ids in priorities.values() if cita in text)
 
 
 def addressed(cita, priorities, items):
-    """Checker items (any status, no coverage summaries) overlapping this quote in its unique priority."""
-    if not cita:
+    """Located checker items (no coverage summaries) overlapping this quote in its unique priority."""
+    ids = unique_priority(cita, priorities)
+    if ids is None:
         return []
-    hits = [ids for text, ids in priorities.values() if text.count(cita) == 1]
-    if len(hits) != 1:
-        return []
-    return [i for i in items if not i.get('coverage') and i.get('block_id') in hits[0] and overlap(i.get('quote'), cita)]
+    return [i for i in items if i.get('located') is True and not i.get('coverage')
+            and i.get('block_id') in ids and overlap(i.get('quote'), cita)]
+
+
+def warned(cita, priorities, items):
+    """Conservative cross-match: unique quote in one priority + overlapping located final discrepancy."""
+    return any(i.get('status') == 'discrepancy' for i in addressed(cita, priorities, items))
 
 
 def costs(key):
@@ -75,10 +74,11 @@ def costs(key):
             own = [o for o in (scopes.get('web:' + job['job_id']), scopes.get('engine:' + str(run_id)) if run_id else None) if o]
             known = bool(run_id) or engine_runs is not None
             if attempt['status'] == 'not_run':
-                attempt.update(usd=None, seconds=None)
+                attempt.update(usd=None, seconds=None, unsettled=None)
                 continue
+            # An unknown engine source publishes no cost; (e) is then not accredited.
             attempt.update(usd=sum(o['usd'] for o in own) if known else None, seconds=result.get('seconds'),
-                           unsettled=sum(o['unsettled'] for o in own))
+                           unsettled=sum(o['unsettled'] for o in own) if known else None)
 
 
 def main(key_path, results, out, seeded_path=None):
@@ -101,6 +101,7 @@ def main(key_path, results, out, seeded_path=None):
             if delivered and not (all(groups) and all(audits) and all(judges)):
                 missing.append(f'evaluations:{business}:{arm}')
             unwarned = warned_critical = 0
+            unresolved = any(a.get('unsettled') is None or a['unsettled'] > 0 for a in ran)
             for attempt, audit in zip(delivered, audits):
                 if not audit:
                     continue
@@ -118,13 +119,14 @@ def main(key_path, results, out, seeded_path=None):
                     if claim.get('veredicto') == 'correcta' and touched:
                         natural['correct_checked'] += 1
                         natural['false_alarms'] += any(i['status'] == 'discrepancy' for i in touched)
-                    if claim.get('veredicto') == 'critico':
-                        natural['critical_priority'] += 1
                 for claim in criticals:
-                    hit = claim.get('seccion') == 'prioridad' and warned(claim.get('cita'), priorities, items)
+                    in_priority = claim.get('seccion') == 'prioridad' and claim.get('calculable')
+                    hit = bool(in_priority and warned(claim.get('cita'), priorities, items))
+                    # Same set (calculable priority criticals) for the natural denominator and numerator.
+                    natural['critical_priority'] += bool(in_priority)
+                    natural['critical_warned'] += hit
                     warned_critical += hit
                     unwarned += not hit
-                natural['critical_warned'] += warned_critical
             b['arms'][arm] = dict(
                 planned=len(attempts), started=len(ran), delivered=len(delivered),
                 not_run=sum(a['status'] == 'not_run' for a in attempts),
@@ -134,6 +136,7 @@ def main(key_path, results, out, seeded_path=None):
                 critical_unwarned=unwarned, critical_warned=warned_critical,
                 signal_mean=mean([sum(j[f'S{i}'] for i in range(1, 6)) for j in judges if j]) if delivered else None,
                 decoy_hits=sum(j['S6'] for j in judges if j),
+                unresolved_costs=unresolved,
                 usd=[a['usd'] for a in ran], minutes=[a['seconds'] / 60 if a.get('seconds') is not None else None for a in ran])
         decisions, incomplete = [], False
         repetitions = sorted({a['repetition'] for a in key['attempts'] if a['business'] == business})
@@ -180,7 +183,8 @@ def main(key_path, results, out, seeded_path=None):
     cond['d'] = d_state
     usd = [u for x in arms['blocks'] for u in x['usd']]
     minutes = {arm: [m for x in arms[arm] for m in x['minutes']] for arm in ARMS}
-    if not usd or None in usd or None in minutes['blocks'] or None in minutes['v1'] or not minutes['v1']:
+    unresolved = any(x['unresolved_costs'] for arm in ARMS for x in arms[arm])
+    if unresolved or not usd or None in usd or None in minutes['blocks'] or None in minutes['v1'] or not minutes['v1']:
         cond['e'] = None
     else:
         cond['e'] = (max(usd) <= P4_USD and statistics.median(usd) <= 0.30
