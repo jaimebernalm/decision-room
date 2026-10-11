@@ -11,10 +11,10 @@ RUNTIME_ENV = {'XDG_DATA_HOME': '/state', 'OPENCODE_DISABLE_AUTOUPDATE': '1',
                'OPENCODE_DISABLE_PROJECT_CONFIG': '1', 'OPENCODE_DISABLE_DEFAULT_PLUGINS': '1'}
 
 
-def configuration(*, model=None, image=None, questions=False):
+def configuration(*, model=None, image=None, questions=False, usd_cap_micro=None):
     if type(questions) is not bool:
         raise ValueError("Questions must be an explicit boolean.")
-    return {'version': 'html-v1-questions-1' if questions else VERSION, 'model': model or MODEL, 'variant': 'low',
+    result = {'version': 'html-v1-questions-1' if questions else VERSION, 'model': model or MODEL, 'variant': 'low',
             'image_tag': IMAGE_TAG,
             'image_id': image if image is not None else os.environ.get('DECISION_ROOM_ENGINE_IMAGE_ID', ''),
             'opencode_version': '1.18.34', 'autoupdate': False, 'share': False,
@@ -22,6 +22,14 @@ def configuration(*, model=None, image=None, questions=False):
             'runtime_environment': RUNTIME_ENV.copy(),
             'permissions': {'*': 'allow', 'external_directory': {'*': 'deny', '/inputs/*': 'allow'},
                             'webfetch': 'deny', 'websearch': 'deny', 'question': 'deny'}}
+    if usd_cap_micro is not None:
+        from ..agent import api_budget
+        if type(usd_cap_micro) is not int or not 0 < usd_cap_micro <= (2**63-1)//1000 or result['model'] != MODEL:
+            raise ValueError('A positive ceiling and the frozen priced model are required.')
+        result['version'] = 'html-v1-questions-budget-1' if questions else 'html-v1-budget-1'
+        result['usd_ceiling'] = {'version': api_budget.VERSION, 'cap_micro_usd': usd_cap_micro,
+                                'reservation': 'model-maxima'}
+    return result
 
 
 def prompt(owner_context):

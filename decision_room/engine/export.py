@@ -60,6 +60,7 @@ def snapshot(config, business_id, run_id):
     result['usage'].update(calls=row['calls'], seconds=float(row['elapsed']),
                           incomplete=len(known) != len(calls['model_calls']),
                           charged_input=row['charged_input'], charged_output=row['charged_output'],
+                          provider_budget=calls['provider_budget'],
                           cost_catalog=costs.aggregate(calls['model_calls']))
     return jsonable(result)
 

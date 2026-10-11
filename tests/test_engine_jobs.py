@@ -31,7 +31,7 @@ class EngineJobTests(unittest.TestCase):
         job = self.create(engine_kind='opencode', engine_questions=True)
         row = self.ws.row(job)
         self.assertTrue(row['engine_config']['profile']['questions'])
-        self.assertEqual(row['engine_config']['profile']['version'], 'html-v1-questions-1')
+        self.assertEqual(row['engine_config']['profile']['version'], 'html-v1-questions-budget-1')
         with self.assertRaises(WebError):
             self.create(engine_kind='opencode', engine_questions=False)
         with self.assertRaises(WebError):
@@ -51,6 +51,7 @@ class EngineJobTests(unittest.TestCase):
             row = self.ws.row(job); settings = row['engine_config']
             self.assertEqual(settings['profile']['model'], 'gpt-6-luna')
             self.assertEqual(settings['profile']['variant'], 'low')
+            self.assertEqual(settings['profile']['usd_ceiling']['cap_micro_usd'], self.config.engine_usd_cap_micro)
             self.assertEqual(settings['owner_sha256'], admission.sha(admission.canonical([settings['owner_context'], settings['goal']])))
             self.assertNotIn('prompt', settings)  # The brief is generated at run creation from prepared data.
             self.assertEqual(settings['input_request_sha256'], row['request_sha256'])

@@ -240,8 +240,11 @@ class _Stream(httpx.SyncByteStream):
 
 
 class BudgetTransport(httpx.BaseTransport):
-    def __init__(self, ledger, inner, identifier):
+    def __init__(self, ledger, inner, identifier, *, reserve_model_output=False):
+        if type(reserve_model_output) is not bool:
+            raise ValueError('The output reservation mode must be an explicit boolean.')
         self.ledger, self.inner, self.identifier = ledger, inner, str(identifier)
+        self.reserve_model_output = reserve_model_output
 
     def handle_request(self, request):
         if (request.method != 'POST' or request.url.scheme != 'https' or request.url.host != 'api.openai.com'
@@ -265,7 +268,8 @@ class BudgetTransport(httpx.BaseTransport):
         headers = dict(request.headers); headers['content-length'] = str(len(body))
         headers['accept-encoding'] = 'identity'
         request = httpx.Request(request.method, request.url, headers=headers, content=body, extensions=request.extensions)
-        call = self.ledger.reserve(self.identifier, hashlib.sha256(body).hexdigest(), request.url.path, output)
+        reserved_output = MAX_OUTPUT if self.reserve_model_output else output
+        call = self.ledger.reserve(self.identifier, hashlib.sha256(body).hexdigest(), request.url.path, reserved_output)
         try:
             response = self.inner.handle_request(request)
             self.ledger.http_status(call, response.status_code)

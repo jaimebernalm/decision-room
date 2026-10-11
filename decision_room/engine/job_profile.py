@@ -23,13 +23,16 @@ def selection(config, data, old=None):
         if questions:
             raise ValueError('Engine questions require an engine job.')
         return kind, {}
-    settings = profile.configuration(questions=questions)
+    settings = profile.configuration(questions=questions, usd_cap_micro=config.engine_usd_cap_micro)
     if not re.fullmatch(r'sha256:[0-9a-f]{64}', settings['image_id']):
         raise ValueError('Configure a pinned engine image before creating engine jobs.')
     limits = admission.Limits(input_tokens=config.engine_input_tokens,
                              output_tokens=config.engine_output_tokens,
                              output_per_call=config.engine_output_per_call,
                              calls=config.engine_calls, active_seconds=config.engine_seconds)
+    from ..agent import api_budget
+    if config.engine_usd_cap_micro * 1000 < api_budget.MAX_INPUT * api_budget.INPUT_RATE + api_budget.MAX_OUTPUT * api_budget.OUTPUT_RATE:
+        raise ValueError('The engine USD ceiling cannot reserve one bounded provider call.')
     return kind, {'profile': settings, 'limits': asdict(limits)}
 
 

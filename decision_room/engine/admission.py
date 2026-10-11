@@ -97,7 +97,11 @@ def create_run(config, business_id, analysis_id, *, table_ids, owner_context, re
     if engine_config is not None and not isinstance(engine_config, dict):
         raise ValueError('Unsupported engine configuration.')
     settings = profile.configuration(model=model) if engine_config is None else engine_config
-    expected = profile.configuration(model=model, image=settings.get("image_id", ""), questions=settings.get("questions", False))
+    ceiling = settings.get('usd_ceiling')
+    if ceiling is not None and (not isinstance(ceiling, dict) or 'cap_micro_usd' not in ceiling):
+        raise ValueError('Unsupported engine ceiling.')
+    expected = profile.configuration(model=model, image=settings.get("image_id", ""), questions=settings.get("questions", False),
+                                     usd_cap_micro=ceiling['cap_micro_usd'] if ceiling is not None else None)
     if settings != expected:
         raise ValueError("Unsupported engine configuration.")
     if builder is not None and (frozen_prompt is not None or brief is not None):
@@ -128,6 +132,8 @@ def create_run(config, business_id, analysis_id, *, table_ids, owner_context, re
                 raise ValueError('Engine request key already used with different input.')
             return previous['id'], None
         run_id, token = uuid4(), secrets.token_urlsafe(32)
+        from . import provider_budget
+        provider_budget.create(config, business_id, run_id, settings, limits)
         db.execute('''INSERT INTO engine_runs
             (id,business_id,analysis_id,request_key,request_sha256,owner_context,model,
              snapshot,snapshot_sha256,limits,credential_sha256,profile,prompt,prompt_sha256,input_context,input_sha256,brief)
@@ -201,7 +207,7 @@ def authenticate(config, run_id, token, *, check_snapshot=True):
                 error = 'Snapshot changed or is unavailable.'
     if error:
         raise Aborted(error)
-    return {**{k: row[k] for k in ('id', 'business_id', 'analysis_id', 'snapshot', 'snapshot_sha256', 'model', 'limits')},
+    return {**{k: row[k] for k in ('id', 'business_id', 'analysis_id', 'snapshot', 'snapshot_sha256', 'model', 'limits', 'profile')},
             'remaining_seconds': max(0.001, row['limits']['active_seconds'] - float(row['elapsed']))}
 
 
@@ -312,7 +318,7 @@ def inspect_run(config, business_id, run_id):
     """Trusted export source. Secret hashes and owner text are not usage metadata."""
     with connect(config) as db:
         row = db.execute('''SELECT id,business_id,analysis_id,status,abort_reason,calls,
-            charged_input,charged_output,snapshot_sha256 FROM engine_runs
+            charged_input,charged_output,snapshot_sha256,profile FROM engine_runs
             WHERE business_id=%s AND id=%s''', (business_id, run_id)).fetchone()
         if not row:
             raise Denied('Job not found for this business.')
@@ -339,4 +345,7 @@ def inspect_run(config, business_id, run_id):
             call['transport'] = metadata_for_call.pop('transport', None)
             call['billing'] = metadata_for_call or None
             call['cost_catalog'] = costs.estimate(call['billing'])
+        from . import provider_budget
+        row['provider_budget'] = provider_budget.usage(config, row)
+        row.pop('profile')
         return row
