@@ -40,6 +40,18 @@ class BlocksPdfTests(unittest.TestCase):
         self.assertNotIn('Cifras que no se pudieron comprobar', text)
         self.assertNotIn('«2026»', text)
 
+    def test_eight_series_legend_stays_inside_the_drawing(self):
+        series = [{'nombre': f'Serie número {j}', 'valores': [j + 1, j + 2]} for j in range(blocks.MAX_SERIES)]
+        projection = blocks.parse(raw(doc({'tipo': 'grafico', 'grafico': 'columnas', 'titulo': 'Ocho', 'categorias': ['a', 'b'], 'series': series})))
+        drawing = blocks_pdf.chart_drawing(projection['blocks'][0])
+        from reportlab.graphics.shapes import String
+        labels = [x for x in drawing.contents if isinstance(x, String) and x.text.startswith('Serie')]
+        self.assertEqual(len(labels), blocks.MAX_SERIES)
+        for label in labels:
+            self.assertLessEqual(label.x + 90, drawing.width)
+            self.assertLessEqual(label.y, drawing.height)
+            self.assertGreaterEqual(label.y, 0)
+
     def test_extreme_sizes_paginate_without_loss(self):
         cats = [f'Categoría con una etiqueta bastante larga {i}' for i in range(blocks.MAX_CATEGORIES)]
         series = [{'nombre': f'S{j}', 'valores': [((-1) ** i) * (i + j + 0.5) for i in range(len(cats))]}

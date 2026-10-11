@@ -105,28 +105,58 @@ def resolve_source(reference, db, business):
                 report_title='Mi negocio', href='#my-business', **details)
 
 
+def related(block_id, other):
+    """The same block, an ancestor (its notice covers it) or a descendant (its text is included)."""
+    return block_id == other or block_id.startswith(other + '-') or other.startswith(block_id + '-')
+
+
 def resolve_engine_block(reference, db, business):
-    """One block of the current revision of a native v1 report: agent text, never reviewed evidence."""
+    """One block of the current revision of a native v1 report: agent text, never reviewed evidence.
+
+    Under the caller's memory lock, takes the document's shared lock, rechecks currency (frozen
+    dependencies, run status, revision) and reads the stored projection of that exact revision,
+    never reparsing with the installed projector. Check notices that apply are appended as limits.
+    """
     from .engine import blocks
+    from .reports import reading, store
     document, revision = identifier(reference['source_id']), identifier(reference['source_version'])
-    row = db.execute('''SELECT d.current_revision_id,d.deleted_at,d.stale_reason,r.raw,w.id AS job_id,w.deleted_at AS job_deleted_at
-        FROM report_documents d JOIN engine_document_revisions r
-          ON r.business_id=d.business_id AND r.document_id=d.id AND r.id=%s
+    if not db.execute('SELECT 1 FROM report_documents WHERE business_id=%s AND id=%s', (business, document)).fetchone():
+        raise WebError('El elemento seleccionado no pertenece a este negocio.', 409)
+    store.lock(db, document, shared=True)
+    row = db.execute('''SELECT d.*,r.status AS run_status,w.id AS job_id,w.deleted_at AS job_deleted_at
+        FROM report_documents d JOIN engine_runs r ON r.business_id=d.business_id AND r.id=d.source_run_id
         LEFT JOIN web_jobs w ON w.business_id=d.business_id AND w.report_document_id=d.id
-        WHERE d.business_id=%s AND d.id=%s''', (revision, business, document)).fetchone()
-    if (not row or row['deleted_at'] or row['job_deleted_at'] or row['stale_reason']
-            or row['current_revision_id'] != revision):
+        WHERE d.business_id=%s AND d.id=%s''', (business, document)).fetchone()
+    selected = db.execute('''SELECT * FROM report_document_revisions
+        WHERE business_id=%s AND document_id=%s AND id=%s''', (business, document, revision)).fetchone()
+    stale = store.reason(db, row) if row else 'missing'
+    if (not row or row['origin'] != 'engine_blocks' or row['job_deleted_at'] or stale
+            or not store.is_current(row, selected, row['run_status'])):
         raise WebError('El fragmento del informe ha cambiado o se ha retirado. Vuelve a seleccionarlo.', 409)
-    try:
-        projection = blocks.parse(bytes(row['raw']))
-    except blocks.BlocksError:
-        raise WebError('El elemento seleccionado no pertenece a este informe.', 409) from None
+    view = reading.view(db, row, selected)
+    if view.get('mode') != 'blocks':
+        raise WebError('El elemento seleccionado no pertenece a este informe.', 409)
+    projection = view['blocks']
     block = next((b for b in blocks.walk(projection['blocks']) if b['id'] == reference['element_key']), None)
     if block is None:
         raise WebError('El elemento seleccionado no pertenece a este informe.', 409)
     lines = blocks.block_lines(block)
+    checks = view.get('checks') or {}
+    notices = []
+    for c in checks.get('items', []):
+        if not related(block['id'], c['block_id']):
+            continue
+        if c.get('coverage'):
+            notices.append('Límite de la comprobación: ' + (c.get('message') or ''))
+        elif c.get('status') == 'discrepancy':
+            notices.append(f"Cifra en revisión: una comprobación independiente no obtuvo «{c['quote']}»"
+                           + (f" (cálculo independiente: {c['independent_value']})" if c.get('independent_value') else '') + '.')
+        elif c.get('status') == 'unverifiable':
+            notices.append(f"No comprobada: «{c['quote']}»" + (f" — {c['message']}" if c.get('message') else '') + '.')
+    if checks.get('state') != 'complete':
+        notices.append('La comprobación independiente de cifras no se completó para este informe.')
     title = block.get('title') or block.get('label') or lines[0][:100]
-    return dict(**reference, title=title, content=dict(key=block['id'], title=title, statement='\n'.join(lines)),
+    return dict(**reference, title=title, content=dict(key=block['id'], title=title, statement='\n'.join(lines + notices)),
                 status='available', report_title=projection['title'], href=f"#report/{row['job_id']}" if row['job_id'] else None,
                 authority='engine_report', selection_scope='report_element')
 

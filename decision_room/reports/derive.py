@@ -47,6 +47,10 @@ def derive(config, business, document_id, revision_id, *, renderer=None, inspect
     business, document_id, revision_id = map(lambda v:UUID(str(v)), (business,document_id,revision_id))
     with connect(config) as db, db.transaction():
         ds.source(db,business,document_id,revision_id)  # reject foreign identity before any write
+        # Native block reports have their own platform projection; never render them as HTML.
+        origin=db.execute('SELECT origin FROM report_documents WHERE business_id=%s AND id=%s',(business,document_id)).fetchone()
+        if not origin or origin['origin']!='engine_html':
+            raise ValueError('Only HTML engine reports use the isolated renderer.')
         saved=derived(db,business,document_id,revision_id)
         if saved: return saved
         ds.enqueue(db,business,document_id,revision_id)
@@ -105,7 +109,7 @@ def refresh(config):
         candidates=db.execute('''SELECT r.business_id,r.document_id,r.id FROM report_document_revisions r
             JOIN report_documents d ON d.business_id=r.business_id AND d.id=r.document_id
             LEFT JOIN web_jobs w ON w.business_id=d.business_id AND w.report_document_id=d.id
-            WHERE d.deleted_at IS NULL AND w.deleted_at IS NULL AND NOT EXISTS
+            WHERE d.origin='engine_html' AND d.deleted_at IS NULL AND w.deleted_at IS NULL AND NOT EXISTS
             (SELECT 1 FROM report_derivation_jobs j WHERE j.business_id=r.business_id AND j.document_id=r.document_id
              AND j.revision_id=r.id AND j.raw_sha256=r.raw_sha256 AND j.policy_version=%s AND j.renderer_version=%s)
             ORDER BY r.created_at LIMIT 16''',(policy.POLICY_VERSION,policy.renderer_version())).fetchall()
@@ -119,7 +123,7 @@ def work_once(config):
         job=db.execute('''SELECT j.* FROM report_derivation_jobs j JOIN report_documents d
             ON d.business_id=j.business_id AND d.id=j.document_id
             WHERE j.status IN ('pending','running') AND j.policy_version=%s AND j.renderer_version=%s
-            AND d.deleted_at IS NULL ORDER BY j.created_at LIMIT 1''',(policy.POLICY_VERSION,policy.renderer_version())).fetchone()
+            AND d.origin='engine_html' AND d.deleted_at IS NULL ORDER BY j.created_at LIMIT 1''',(policy.POLICY_VERSION,policy.renderer_version())).fetchone()
     if not job: return False
     outcome=derive(config,job['business_id'],job['document_id'],job['revision_id'])
     return outcome['status']!='pending'
