@@ -70,6 +70,18 @@ class BlocksTests(unittest.TestCase):
         self.assertEqual((chart['kind'], chart['fallback'], chart['requested_kind']), ('table', True, 'dispersión'))
         self.assertEqual(chart['series'][0]['values'], [1, None])
 
+    def test_stacked_charts_need_parts_of_a_total(self):
+        def chart(kind, *series):
+            return doc({'tipo': 'grafico', 'grafico': kind, 'titulo': 'Citas por estado', 'categorias': ['ene', 'feb'],
+                        'series': [{'nombre': n, 'valores': v} for n, v in series]})
+        p = blocks.parse(raw(chart('apiladas', ('Realizadas', [100, 120]), ('Canceladas', [10, None]))))
+        self.assertEqual((p['blocks'][0]['kind'], p['blocks'][0]['fallback']), ('stacked_column', False))
+        self.assertEqual(blocks.parse(raw(chart('barras_apiladas', ('a', [1, 2]), ('b', [3, 4]))))['blocks'][0]['kind'],
+                         'stacked_bar')
+        self.assertEqual(p['projector'], 'bloques-proyector-3')
+        self.assertInvalid(chart('apiladas', ('Solo', [1, 2])), 'al menos 2 series')
+        self.assertInvalid(chart('apiladas', ('a', [1, -2]), ('b', [3, 4])), 'ningún valor negativo')
+
     def assertInvalid(self, payload, fragment):
         with self.assertRaises(blocks.BlocksError) as caught:
             blocks.parse(payload if isinstance(payload, bytes) else raw(payload))

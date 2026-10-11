@@ -480,7 +480,7 @@ export type ReportBlock = { id: string } & (
     }
   | {
       type: "chart";
-      kind: "bar" | "column" | "line" | "change" | "table";
+      kind: "bar" | "column" | "line" | "change" | "stacked_column" | "stacked_bar" | "table";
       requested_kind: string;
       fallback: boolean;
       title: string;

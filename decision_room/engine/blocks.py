@@ -16,7 +16,7 @@ import sys
 from decimal import Decimal, ROUND_HALF_UP, localcontext
 
 VERSION = 'informe-bloques-1'
-PROJECTOR_VERSION = 'bloques-proyector-2'
+PROJECTOR_VERSION = 'bloques-proyector-3'
 MAX_BYTES = 256 * 1024
 MAX_BLOCKS = 300            # every block, nested ones included
 MAX_DEPTH = 4               # seccion > seccion > prioridad > contenido
@@ -33,7 +33,9 @@ MAX_NUMBER = Decimal(10) ** 15
 MIN_NUMBER = Decimal(10) ** -15
 
 CHART_KINDS = {'barras': 'bar', 'barras_horizontales': 'bar', 'columnas': 'column', 'barras_verticales': 'column',
-               'lineas': 'line', 'linea': 'line', 'cambio': 'change', 'barras_cambio': 'change'}
+               'lineas': 'line', 'linea': 'line', 'cambio': 'change', 'barras_cambio': 'change',
+               'apiladas': 'stacked_column', 'columnas_apiladas': 'stacked_column', 'barras_apiladas': 'stacked_bar'}
+STACKED = ('stacked_column', 'stacked_bar')
 CONTROL = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\ud800-\udfff]')
 
 FORMAT_GUIDE = '''Formato de informe.json (versión informe-bloques-1)
@@ -50,12 +52,14 @@ Bloques (campo "tipo"); los marcados con ? son opcionales:
 - cifra:     {"tipo":"cifra","etiqueta":"...","valor":123.4,"unidad"?:"€","decimales"?:2,
               "periodo"?:"ene–ago 2026","anterior"?:{"valor":100,"periodo"?:"ene–ago 2025"},"nota"?:"..."}
              Si das "anterior", la plataforma calcula la diferencia y el porcentaje.
-- grafico:   {"tipo":"grafico","grafico":"barras|columnas|lineas|cambio","titulo":"...",
+- grafico:   {"tipo":"grafico","grafico":"barras|columnas|lineas|cambio|apiladas|barras_apiladas","titulo":"...",
               "categorias":["ene","feb",...],
               "series":[{"nombre":"2026","valores":[1,2,null,...],"detalles"?:["107 de 1.240",...]}],
               "unidad"?:"%","decimales"?:1,"eje_categorias"?:"Mes","eje_valores"?:"Tasa","nota"?:"..."}
              barras = horizontales; columnas = verticales; lineas = evolución; cambio = barras con signo
-             y eje cero. Usa null para un hueco (no es un cero). "detalles" se muestra al pasar el ratón
+             y eje cero; apiladas = columnas con las series una encima de otra (partes de un total,
+             al menos 2 series y sin negativos); barras_apiladas = lo mismo en horizontal.
+             Usa null para un hueco (no es un cero). "detalles" se muestra al pasar el ratón
              (por ejemplo, numerador y denominador). Otro tipo de gráfico se mostrará como tabla.
 - tabla:     {"tipo":"tabla","titulo"?:"...","columnas":["Producto",{"titulo":"Importe","unidad":"€","decimales":2}],
               "filas":[["Magnesio",1234.5],...],"nota"?:"..."}   (celdas: texto, número o null)
@@ -341,6 +345,8 @@ class _Checker:
         if series and all(v is None for s in series for v in s['values']):
             self.fail(f'{where}.series', 'no hay ningún valor numérico')
         kind = CHART_KINDS.get(requested.strip().lower())
+        if kind in STACKED and (len(series) < 2 or any(v is not None and v < 0 for s in series for v in s['values'])):
+            self.fail(f'{where}.grafico', 'un gráfico apilado necesita al menos 2 series y ningún valor negativo')
         return dict(id=ident, type='chart', kind=kind or 'table', requested_kind=requested, fallback=kind is None,
                     title=self.string(f'{where}.titulo', b['titulo'], MAX_TITLE), categories=categories, series=series,
                     unit=self.optional_string(where, b, 'unidad', 40),

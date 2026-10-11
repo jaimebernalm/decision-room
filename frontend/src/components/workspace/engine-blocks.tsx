@@ -1,5 +1,5 @@
 import { translate as tr, useLanguage, locale } from "@/lib/i18n";
-import { Fragment, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import {
   Bar,
   BarChart,
@@ -188,10 +188,21 @@ function ChartValues({ chart }: { chart: ChartBlock }) {
 function BlockChartBody({ chart }: { chart: ChartBlock }) {
   useLanguage();
   const rows = chartRows(chart);
-  const horizontal = chart.kind === "bar" || chart.kind === "change";
-  const values = chart.series.flatMap((s) =>
-    s.values.filter((v): v is number => v !== null),
-  );
+  const stacked = chart.kind === "stacked_column" || chart.kind === "stacked_bar";
+  const horizontal = chart.kind === "bar" || chart.kind === "change" || chart.kind === "stacked_bar";
+  // Series hidden from the legend; at least one always stays visible.
+  const [hidden, setHidden] = useState<ReadonlySet<number>>(new Set());
+  const shown = chart.series.map((s, i) => ({ s, i })).filter(({ i }) => !hidden.has(i));
+  const toggle = (i: number) =>
+    setHidden((current) => {
+      const next = new Set(current);
+      if (next.has(i)) next.delete(i);
+      else if (shown.length > 1) next.add(i);
+      return next;
+    });
+  const values = stacked
+    ? chart.categories.map((_, c) => shown.reduce((sum, { s }) => sum + (s.values[c] ?? 0), 0))
+    : shown.flatMap(({ s }) => s.values.filter((v): v is number => v !== null));
   const extent = Math.max(...values.map(Math.abs), 1);
   const compact = (v: number) =>
     new Intl.NumberFormat(locale(), { notation: "compact" }).format(v);
@@ -207,35 +218,45 @@ function BlockChartBody({ chart }: { chart: ChartBlock }) {
         if (!active || !payload?.length) return null;
         const category = String(payload[0].payload.category);
         const c = chart.categories.indexOf(category);
-        return (
-          <ReportChartTooltip
-            title={category}
-            unit={chart.unit || ""}
-            items={chart.series
-              .map((s, i) => ({ s, i }))
-              .filter(({ s }) => s.values[c] !== null)
-              .map(({ s, i }) => ({
-                label: s.name,
-                value:
-                  withUnit(s.values[c], chart.decimals, chart.unit) +
-                  (s.details?.[c] ? ` · ${s.details[c]}` : ""),
-                color: color(i),
-              }))}
-          />
-        );
+        const present = shown.filter(({ s }) => s.values[c] !== null);
+        const items: { label: string; value: string; color?: string }[] = present.map(({ s, i }) => ({
+          label: s.name,
+          value:
+            withUnit(s.values[c], chart.decimals, chart.unit) +
+            (s.details?.[c] ? ` · ${s.details[c]}` : ""),
+          color: color(i),
+        }));
+        if (stacked && present.length > 1)
+          items.push({
+            label: tr("Total"),
+            value: withUnit(
+              present.reduce((sum, { s }) => sum + (s.values[c] ?? 0), 0),
+              chart.decimals,
+              chart.unit,
+            ),
+          });
+        return <ReportChartTooltip title={category} unit={chart.unit || ""} items={items} />;
       }}
     />
   );
   const legend = chart.series.length > 1 && (
-    <ul className="flex flex-wrap gap-x-5 gap-y-2 text-xs" aria-label={tr("Leyenda")}>
+    <ul className="flex flex-wrap gap-x-2 gap-y-1 text-xs" aria-label={tr("Leyenda")}>
       {chart.series.map((s, i) => (
-        <li key={s.name} className="flex items-center gap-2">
-          <span
-            aria-hidden
-            className="size-2.5 rounded-sm"
-            style={{ background: color(i) }}
-          />
-          {s.name}
+        <li key={s.name}>
+          <button
+            type="button"
+            aria-pressed={!hidden.has(i)}
+            title={hidden.has(i) ? tr("Mostrar serie") : tr("Ocultar serie")}
+            onClick={() => toggle(i)}
+            className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-muted aria-[pressed=false]:text-muted-foreground aria-[pressed=false]:line-through"
+          >
+            <span
+              aria-hidden
+              className="size-2.5 rounded-sm"
+              style={{ background: hidden.has(i) ? "var(--muted-foreground)" : color(i) }}
+            />
+            {s.name}
+          </button>
         </li>
       ))}
     </ul>
@@ -244,7 +265,7 @@ function BlockChartBody({ chart }: { chart: ChartBlock }) {
     chart.series.map((s, i) => [`s${i}`, { label: s.name, color: color(i) }]),
   );
   const height = horizontal
-    ? Math.max(240, rows.length * (chart.series.length * 22 + 26) + 40)
+    ? Math.max(240, rows.length * ((stacked ? 1 : shown.length) * 22 + 26) + 40)
     : 280;
   const signColor = (v: number | null, i: number) =>
     chart.kind === "change" && chart.series.length === 1
@@ -274,7 +295,7 @@ function BlockChartBody({ chart }: { chart: ChartBlock }) {
             />
             <ReferenceLine y={0} stroke="var(--border)" />
             {tooltip}
-            {chart.series.map((s, i) => (
+            {shown.map(({ s, i }) => (
               <Line
                 key={s.name}
                 dataKey={`s${i}`}
@@ -344,13 +365,14 @@ function BlockChartBody({ chart }: { chart: ChartBlock }) {
               </>
             )}
             {tooltip}
-            {chart.series.map((s, i) => (
+            {shown.map(({ s, i }) => (
               <Bar
                 key={s.name}
                 dataKey={`s${i}`}
                 name={s.name}
                 fill={color(i)}
-                radius={3}
+                stackId={stacked ? "total" : undefined}
+                radius={stacked ? 0 : 3}
                 maxBarSize={horizontal ? 20 : 36}
                 isAnimationActive={false}
               >

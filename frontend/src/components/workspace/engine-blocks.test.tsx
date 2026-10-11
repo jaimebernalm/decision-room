@@ -123,3 +123,31 @@ it("summarizes the check in one plain sentence instead of repeating technical no
   expect(screen.queryByText("Cifras que no se pudieron recalcular")).toBeNull();
   expect(screen.queryByText("«2026»")).toBeNull();
 });
+
+it("stacks parts of a total and lets the reader hide a series from the legend", async () => {
+  const stacked: BlocksProjection = {
+    ...projection,
+    blocks: [
+      {
+        id: "b1", type: "chart", kind: "stacked_column", requested_kind: "apiladas", fallback: false,
+        title: "Citas por estado", categories: ["ene", "feb"],
+        series: [
+          { name: "Realizadas", values: [100, 120], details: null },
+          { name: "Canceladas", values: [10, 12], details: null },
+        ],
+        unit: null, decimals: 0, category_title: null, value_title: null, note: null,
+      },
+    ],
+  };
+  render(<BlocksReport projection={stacked} />);
+  const hide = screen.getByRole("button", { name: "Canceladas" });
+  expect(hide).toHaveAttribute("aria-pressed", "true");
+  await userEvent.click(hide);
+  expect(hide).toHaveAttribute("aria-pressed", "false");
+  // The last visible series cannot be hidden.
+  const keep = screen.getByRole("button", { name: "Realizadas" });
+  await userEvent.click(keep);
+  expect(keep).toHaveAttribute("aria-pressed", "true");
+  await userEvent.click(screen.getByText("Ver valores"));
+  expect(screen.getByText("120")).toBeVisible();
+});

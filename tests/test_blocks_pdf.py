@@ -55,6 +55,20 @@ class BlocksPdfTests(unittest.TestCase):
             self.assertLessEqual(label.y, drawing.height)
             self.assertGreaterEqual(label.y, 0)
 
+    def test_stacked_charts_stack_segments_proportionally(self):
+        from reportlab.graphics.shapes import Rect, String
+        series = [{'nombre': 'Realizadas', 'valores': [100, 50]}, {'nombre': 'Canceladas', 'valores': [20, None]}]
+        for kind, axis in (('apiladas', 'height'), ('barras_apiladas', 'width')):
+            projection = blocks.parse(raw(doc({'tipo': 'grafico', 'grafico': kind, 'titulo': 'Citas',
+                                                'categorias': ['ene', 'feb'], 'series': series})))
+            drawing = blocks_pdf.chart_drawing(projection['blocks'][0])
+            bars = [getattr(r, axis) for r in drawing.contents if isinstance(r, Rect) and r.width > 8 and r.height > 0.6]
+            segments = sorted(bars)[-3:]  # 100, 50 and 20 units (legend squares are 8×8)
+            self.assertAlmostEqual(segments[-1] / segments[0], 5, places=3)  # 100 vs 20
+            self.assertAlmostEqual(segments[1] / segments[0], 2.5, places=3)  # 50 vs 20
+            if kind == 'barras_apiladas':
+                self.assertIn('120', [x.text for x in drawing.contents if isinstance(x, String)])
+
     def test_long_figure_notes_paginate_and_disputed_figures_keep_their_notice(self):
         figures = [{'tipo': 'cifra', 'etiqueta': f'Total {i}', 'valor': 1, 'nota': 'palabra ' * 490} for i in range(3)]
         projection = blocks.parse(raw(doc(*figures, {'tipo': 'cifra', 'etiqueta': 'A', 'valor': 2},

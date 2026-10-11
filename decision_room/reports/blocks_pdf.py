@@ -75,11 +75,15 @@ def _short(text, n=24):
 
 
 def chart_drawing(chart):
-    """Vector drawing for bar, column, line and change charts (None for tables)."""
+    """Vector drawing for bar, column, line, change and stacked charts (None for tables)."""
     kind, cats, series = chart['kind'], chart['categories'], chart['series']
     values = [v for s in series for v in s['values'] if v is not None]
     if kind == 'table' or not values:
         return None
+    stacked = kind in ('stacked_column', 'stacked_bar')
+    totals = [sum(s['values'][c] or 0 for s in series) for c in range(len(cats))]
+    if stacked:
+        values = totals
     low, high = min(0, min(values)), max(0, max(values))
     if kind == 'change':
         extent = max(abs(low), abs(high)) or 1
@@ -87,8 +91,8 @@ def chart_drawing(chart):
     span = (high - low) or 1
     per_row = max(1, int(WIDTH // LEGEND_ITEM))
     legend = 18 * -(-len(series) // per_row) if len(series) > 1 else 0  # wrapped rows, height reserved
-    if kind in ('bar', 'change'):
-        row = len(series) * 12 + 10
+    if kind in ('bar', 'change', 'stacked_bar'):
+        row = (1 if stacked else len(series)) * 12 + 10
         height = legend + len(cats) * row + 20
         if height > MAX_DRAWING_HEIGHT:
             return 'dense'
@@ -100,6 +104,15 @@ def chart_drawing(chart):
         for c, cat in enumerate(cats):
             top = height - legend - c * row - 6
             d.add(String(left - 6, top - row / 2, _short(cat), fontName='Helvetica', fontSize=7.5, fillColor=INK, textAnchor='end'))
+            if stacked:
+                start, y = 0, top - 12
+                for i, s in enumerate(series):
+                    v = s['values'][c]
+                    if v:
+                        d.add(Rect(x(start), y, x(start + v) - x(start), 9, fillColor=_color(i), strokeColor=None))
+                        start += v
+                d.add(String(right + 4, y + 1.5, format_number(totals[c], chart['decimals']), fontName='Helvetica', fontSize=7, fillColor=GRAY))
+                continue
             for i, s in enumerate(series):
                 v = s['values'][c]
                 if v is None:
@@ -121,7 +134,15 @@ def chart_drawing(chart):
         for c, cat in enumerate(cats):
             if c % every == 0:
                 d.add(String(left + step * (c + .5), 12, _short(cat, 10), fontName='Helvetica', fontSize=7, fillColor=INK, textAnchor='middle'))
-        for i, s in enumerate(series):
+        if kind == 'stacked_column':
+            base = [0] * len(cats)
+            for i, s in enumerate(series):
+                for c, v in enumerate(s['values']):
+                    if v:
+                        x0 = left + step * c + step * .2
+                        d.add(Rect(x0, y(base[c]), step * .6, y(base[c] + v) - y(base[c]), fillColor=_color(i), strokeColor=None))
+                        base[c] += v
+        for i, s in enumerate(series if kind != 'stacked_column' else []):
             if kind == 'column':
                 width = step * .7 / len(series)
                 for c, v in enumerate(s['values']):
