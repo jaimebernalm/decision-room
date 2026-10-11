@@ -85,3 +85,16 @@ discrepancia con la media afirmada, ligada a la cita de la revisión exacta.
 Esto acredita transporte, aislamiento y contrato; no acredita que el modelo
 real encuentre todas las cifras ni que sus cálculos sean correctos. Esa
 comprobación de calidad sigue pendiente de los ensayos.
+
+## Regresión completa
+
+Sobre el código de `8221149`, con PostgreSQL desechable, almacenamiento temporal,
+sin clave del proveedor y con la imagen nativa de OpenCode configurada: **935
+pruebas Python, 648,414 s, OK**, sin omitidas. El único cambio durante la pasada
+fue el borrador documental de M5 (`74a2bf4`); no se cambiaron el código, las pruebas
+ni los manifiestos del runtime. No hubo gasto de API.
+
+La revisión independiente de los cambios de presentación de Claude en `7854a7b`
+pasó `test_blocks_pdf` (10) y `engine-blocks.test.tsx` (9). Esas pruebas pertenecen
+a su rama; no se presentan como parte de la regresión anterior. M4 y M5 aún no
+acreditan calidad ni preferencia de lectores.
