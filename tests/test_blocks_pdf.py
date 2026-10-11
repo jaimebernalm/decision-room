@@ -26,19 +26,21 @@ class BlocksPdfTests(unittest.TestCase):
         self.assertIn('<b>Informe</b> & <script>', text)  # shown literally, never interpreted
         for expected in ('39.918,54 €', '+4.918,54 € (+14,1 %)', '6.936,74 €', '15.630,29 €', 'Magnesio', '342',
                          'Prioridad 01', 'Cifra en revisión', 'cálculo independiente: 336',
-                         'Detalles de la comprobación independiente', 'Cifras que no se pudieron comprobar', 'Faltan registros'):
+                         'Detalles de la comprobación independiente', 'Cifras que no se pudieron recalcular', 'Faltan registros'):
             self.assertIn(expected, text)
         self.assertNotIn('Revisado', text)
         self.assertNotIn('Verificado', text)
 
     def test_coverage_summary_is_not_a_quote(self):
         projection = blocks.parse(raw(FULL))
-        text = text_of(blocks_pdf.render(projection, {'state': 'complete', 'items': [
+        text = text_of(blocks_pdf.render(projection, {'state': 'complete',
+            'coverage': {'numeric_spans': 31, 'addressed_spans': 26, 'confirmed_spans': 26}, 'items': [
             {'block_id': 'b4', 'quote': '2026', 'status': 'unverifiable', 'coverage': True,
-             'message': '3 fragmentos numéricos de esta prioridad quedaron sin comprobación explícita.'}]}))
-        self.assertIn('3 fragmentos numéricos', text)
+             'message': '3 cifras de esta prioridad no se recalcularon de forma independiente.'}]}))
+        self.assertIn('Se recalcularon con los datos 26 de las 31 cifras', text)
+        self.assertNotIn('no se recalcularon de forma independiente', text)
         self.assertIn('Detalles de la comprobación independiente', text)
-        self.assertNotIn('Cifras que no se pudieron comprobar', text)
+        self.assertNotIn('Cifras que no se pudieron recalcular', text)
         self.assertNotIn('«2026»', text)
 
     def test_eight_series_legend_stays_inside_the_drawing(self):

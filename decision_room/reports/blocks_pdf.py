@@ -303,15 +303,22 @@ def render(projection, checks=None, *, delivered_at=None):
                                'las cifras en revisión llevan aviso.', 'muted'))
     story += _blocks(projection['blocks'], by_block, 0, numbers)
     unverifiable = [c for c in (checks or {}).get('items', []) if c['status'] == 'unverifiable' and not c.get('coverage')]
-    coverage = [c['message'] for c in (checks or {}).get('items', []) if c.get('coverage') and c.get('message')]
-    if unverifiable or coverage:
-        # Limits of the independent check, as a discreet appendix (readers found inline notes alarming).
+    uncovered = [c for c in (checks or {}).get('items', []) if c.get('coverage')]
+    if unverifiable or uncovered:
+        # Limits of the independent check: one plain summary in a discreet appendix, never the
+        # repeated per-priority coverage messages (no extra text).
         story.append(Spacer(1, 12))
         story.append(Paragraph('Detalles de la comprobación independiente', SUBHEAD))
-        for text in coverage:
-            story.append(paragraph(text, 'muted'))
+        summary = (checks or {}).get('coverage') or {}
+        text = ''
+        if summary.get('numeric_spans'):
+            text = (f"Se recalcularon con los datos {format_number(summary['addressed_spans'], 0)} de las "
+                    f"{format_number(summary['numeric_spans'], 0)} cifras de las prioridades; "
+                    f"{format_number(summary['confirmed_spans'], 0)} coinciden con el informe. ")
+        story.append(paragraph(text + 'Una cifra sin recalcular no está marcada como errónea; '
+                               'solo no se revisó por separado.', 'muted'))
         if unverifiable:
-            story.append(paragraph('Cifras que no se pudieron comprobar:', 'muted'))
+            story.append(paragraph('Cifras que no se pudieron recalcular:', 'muted'))
             for c in unverifiable:
                 story.append(paragraph(f"«{c['quote']}»" + (f" — {c['message']}" if c.get('message') else ''), 'muted'))
     if checks and checks.get('state') in ('incomplete', 'unknown'):

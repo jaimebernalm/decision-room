@@ -83,6 +83,15 @@ class BriefTextTests(unittest.TestCase):
         for absent in ('sintétic', 'entregar_informe', 'márgenes', 'retorno de marketing', 'Albor', 'Bruma'):
             self.assertNotIn(absent, text)
 
+    def test_native_brief_adds_generic_narrative_guidance_only_to_blocks(self):
+        native = self.compose(format='blocks')
+        self.assertIn(brief.NARRATIVE, native)
+        self.assertNotIn(brief.NARRATIVE, self.compose())
+        self.assertNotIn('producto, canal y fechas', native)
+        self.assertIn('magnitudes correctas y tengan etiquetas legibles.', native)
+        for absent in ('informe.html', 'interacción', 'Saúco', 'Arce', 'profesional', 'encuesta', 'cita'):
+            self.assertNotIn(absent, native.split(brief.REQUEST)[-1])
+
     def test_grain_metrics_and_same_named_columns_keep_their_table(self):
         model = dict(tables=[
             dict(id='t1', name='ventas', description='', grain='un día y un producto', semantic_status='owner_declared',

@@ -641,16 +641,31 @@ export function BlocksReport({
     (c) => c.status === "unverifiable" && !c.coverage,
   );
   const uncovered = (checks?.items ?? []).filter((c) => c.coverage);
+  const coverage = checks?.coverage;
   return (
     <div className="space-y-6">
       <Blocks blocks={projection.blocks} depth={0} checks={byBlock} wrap={wrap} numbers={numbers} />
       {(unverifiable.length > 0 || uncovered.length > 0) && (
-        // Limits of the independent check: available, but folded away (readers found them alarming).
+        // Limits of the independent check: one plain summary, folded away. The per-priority
+        // coverage messages stay in the data and the chat, never repeated here (no extra text).
         <Disclosure title={tr("Detalles de la comprobación independiente")} subtle>
           <div className="space-y-2 text-sm">
+            <p className="text-muted-foreground">
+              {coverage && coverage.numeric_spans > 0
+                ? tr(
+                    "Se recalcularon con los datos {0} de las {1} cifras de las prioridades; {2} coinciden con el informe.",
+                    {
+                      "0": formatNumber(coverage.addressed_spans, 0),
+                      "1": formatNumber(coverage.numeric_spans, 0),
+                      "2": formatNumber(coverage.confirmed_spans, 0),
+                    },
+                  )
+                : null}{" "}
+              {tr("Una cifra sin recalcular no está marcada como errónea; solo no se revisó por separado.")}
+            </p>
             {unverifiable.length > 0 && (
               <>
-                <p className="font-medium">{tr("Cifras que no se pudieron comprobar")}</p>
+                <p className="font-medium">{tr("Cifras que no se pudieron recalcular")}</p>
                 <ul className="space-y-1">
                   {unverifiable.map((c, i) => (
                     <li key={i}>
@@ -660,11 +675,6 @@ export function BlocksReport({
                   ))}
                 </ul>
               </>
-            )}
-            {uncovered.length > 0 && (
-              <p className="text-xs text-muted-foreground">
-                {uncovered.map((c) => c.message).filter(Boolean).join(" ")}
-              </p>
             )}
           </div>
         </Disclosure>

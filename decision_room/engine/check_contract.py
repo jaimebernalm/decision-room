@@ -123,7 +123,7 @@ def parse(raw, projection, revision_sha256):
             span=uncovered[0]
             items.append(dict(priority_id=pid,block_id=pid,quote=span.group(),start=span.start(),end=span.end(),
                               located=True,status='unverifiable',independent_value=None,method='',coverage=True,
-                              message=f'{len(uncovered)} fragmentos numéricos de esta prioridad quedaron sin comprobación explícita.'))
+                              message=f'{len(uncovered)} cifras de esta prioridad no se recalcularon de forma independiente.'))
     return dict(version=VERSION,revision_sha256=revision_sha256,state='complete',items=items,
                 coverage=dict(numeric_spans=total,addressed_spans=covered,confirmed_spans=confirmed,
                               priorities=len(priorities)),coverage_notes=notes)

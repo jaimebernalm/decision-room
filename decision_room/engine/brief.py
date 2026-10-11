@@ -27,9 +27,23 @@ def native_fixed(fixed):
         'el orden y la cantidad de bloques: la guía explica la entrega, no es una plantilla. '
         'No crees HTML, CSS ni código para presentarlo. Puedes comprobar el formato con '
         'python3 /inputs/herramientas/comprobar_informe.py /work/informe.json; corrige los errores antes de terminar.')
-    paragraphs[-1] = paragraphs[-1].replace(' y se abran correctamente', '').replace(
+    paragraphs[1] = paragraphs[1].replace('qué combinaciones de producto, canal y fechas',
+                                          'qué combinaciones de las dimensiones de los datos y de fechas')
+    paragraphs[-1] = paragraphs[-1].replace(', tengan etiquetas legibles y se abran correctamente', ' y tengan etiquetas legibles').replace(
         ' Añade interacción para consultar valores exactos cuando ayude a leerlos.', '')
+    paragraphs.insert(2, NARRATIVE)
     return '\n\n'.join(paragraphs)
+
+
+# Generic analysis and writing guidance for native reports (plan M, M2). Nothing here may
+# name a business, a column or a finding of the trial data.
+NARRATIVE = ('Compara cada segmento relevante con su propia evolución en el tiempo, por meses cuando los datos '
+             'lo permitan, y di desde cuándo empieza un cambio, no solo cuánto difiere de otros segmentos. Si una '
+             'cifra suma partes que se comportan de forma distinta, sepáralas. Cuenta el análisis en texto: en cada '
+             'prioridad, explica primero qué pasa y por qué importa, después muestra la evidencia con una cifra, un '
+             'gráfico o una tabla, y termina con qué comprobar y qué hacer según el resultado. Usa una tabla solo '
+             'cuando su detalle ayude a decidir, no repitas en el texto lo que ya muestra un gráfico o una tabla y '
+             'no añadas notas técnicas sobre cómo has calculado si no cambian la lectura.')
 
 
 DATA = 'Los CSV están en la carpeta /inputs/datos; /inputs/manifest.json indica qué tabla es cada archivo.'
@@ -151,7 +165,7 @@ def build(db, business, analysis, *, goal, panorama, name=None, description=None
     memory = context.scoped(context.effective(db, business), selection)
     text = compose(name=owner['name'], description=owner['description'], goal=goal,
                    model=model, memory=memory, panorama=panorama, questions=questions, format=format)
-    provenance = dict(version=('blocks-brief-1q' if questions else 'blocks-brief-1') if format == 'blocks' else (QUESTIONS_VERSION if questions else VERSION), profile='job' if frozen else 'current', profile_revision=owner['profile_revision'],
+    provenance = dict(version=('blocks-brief-2q' if questions else 'blocks-brief-2') if format == 'blocks' else (QUESTIONS_VERSION if questions else VERSION), profile='job' if frozen else 'current', profile_revision=owner['profile_revision'],
                       data_model=dict(analysis_id=str(analysis), revision=head['revision']) if model else None,
                       memory=sorted(r['reference'] for r in memory if facts([r])),
                       panorama=bool(panorama))

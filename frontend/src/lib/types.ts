@@ -519,6 +519,8 @@ export type BlockCheck = {
 export type BlockChecks = {
   state: "unknown" | "pending" | "complete" | "incomplete";
   items: BlockCheck[];
+  /** Numeric spans of the priorities and how many the checker recalculated and matched. */
+  coverage?: { numeric_spans: number; addressed_spans: number; confirmed_spans: number } | null;
 };
 export type EngineReportView = {
   blocks?: BlocksProjection;

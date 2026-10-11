@@ -197,7 +197,7 @@ class ProductCycleTests(unittest.TestCase):
             self.assertTrue(all(i['status']=='unverifiable' for i in view['checks']['items']))
             chat=reading.chat_document(db,row['business_id'],doc['id'])
             self.assertEqual(chat['origin'],'engine_blocks')
-            self.assertIn('quedaron sin comprobación explícita',chat['text'])
+            self.assertIn('no se recalcularon de forma independiente',chat['text'])
             checks_rows=db.execute('SELECT * FROM engine_native_checks WHERE run_id=%s',(row['engine_run_id'],)).fetchall()
             self.assertEqual(len(checks_rows),1)
             self.assertEqual(checks_rows[0]['status'],'complete')

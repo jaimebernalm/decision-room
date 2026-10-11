@@ -55,7 +55,7 @@ it("shows disputed figures next to their block and never a verified mark", () =>
   expect(within(priority).getByRole("note")).toHaveTextContent("Cifra en revisión");
   expect(within(priority).getByRole("note")).toHaveTextContent("cálculo independiente: 336");
   expect(screen.getByText("Detalles de la comprobación independiente")).toBeInTheDocument();
-  expect(screen.queryByText("Cifras que no se pudieron comprobar")).toBeNull(); // folded away
+  expect(screen.queryByText("Cifras que no se pudieron recalcular")).toBeNull(); // folded away
   expect(screen.queryByText(/Revisado|Verificado/)).toBeNull();
 });
 
@@ -99,22 +99,27 @@ it("renders an engine_blocks report through the common report view", () => {
   expect(screen.getByText("La web crece.")).toBeInTheDocument();
 });
 
-it("summarizes unaddressed numeric spans without quoting them as disputed", async () => {
+it("summarizes the check in one plain sentence instead of repeating technical notes", async () => {
   render(
     <BlocksReport
       projection={projection}
       checks={{
         state: "complete",
+        coverage: { numeric_spans: 31, addressed_spans: 26, confirmed_spans: 26 },
         items: [
           { block_id: "b4", quote: "2026", status: "unverifiable", coverage: true,
-            message: "3 fragmentos numéricos de esta prioridad quedaron sin comprobación explícita." },
+            message: "3 cifras de esta prioridad no se recalcularon de forma independiente." },
+          { block_id: "b2", quote: "2025", status: "unverifiable", coverage: true,
+            message: "2 cifras de esta prioridad no se recalcularon de forma independiente." },
         ],
       }}
     />,
   );
-  expect(screen.queryByText(/3 fragmentos numéricos/)).toBeNull(); // inside the folded details
+  expect(screen.queryByText(/Se recalcularon/)).toBeNull(); // inside the folded details
   await userEvent.click(screen.getByText("Detalles de la comprobación independiente"));
-  expect(screen.getByText(/3 fragmentos numéricos/)).toBeVisible();
-  expect(screen.queryByText("Cifras que no se pudieron comprobar")).toBeNull();
+  expect(screen.getByText(/Se recalcularon con los datos 26 de las 31 cifras/)).toBeVisible();
+  expect(screen.getByText(/no está marcada como errónea/)).toBeVisible();
+  expect(screen.queryByText(/no se recalcularon de forma independiente/)).toBeNull();
+  expect(screen.queryByText("Cifras que no se pudieron recalcular")).toBeNull();
   expect(screen.queryByText("«2026»")).toBeNull();
 });
