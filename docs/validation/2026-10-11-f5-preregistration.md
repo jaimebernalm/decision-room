@@ -365,3 +365,15 @@ conformidad de Astra.
 - `scripts/f5/analyze.py` se corrigió antes de ver ningún resultado. Una comparación sin
   entregas legacy queda sin acreditar, no fallida. Una evaluación o lectura ausente da
   incompleto. Lo prueba `tests/test_f5_analyze.py`.
+
+**Congelación de F5b (2026-10-11):**
+- Código: `claude/v1-f5` en `0e1f46d`, sobre `codex/v1-engine-path` `4c5405f` (ledger con
+  rechazos explícitos de Astra).
+- Spec `.local/f5/spec-f5b.json`: `284014278ce74215e202762c082217a8cf85ad584a3af8c10aeab4e42b9a6386`.
+  - Igual que el de F5, salvo `explicit_http_rejections=true`, `ledger_version`
+    `gpt-6-luna-standard-envelope-2026-10-11-http-rejections-1`,
+    el techo de 22.627.757 µUSD (23 USD menos la cota del ledger del lote 1, redondeada hacia
+    abajo) y la ruta `budget-f5b.sqlite`.
+- Orden `.local/f5/order-f5b.json`: `0fa54b056a53a3965adcd7255465cca3900d8922a8ff04b695bfe4b05cdd30d2`. Es el orden congelado del herbolario seguido del
+  de la clínica, con un solo informe a la vez.
+- Mismo oráculo, mismas indicaciones de los evaluadores y misma regla (`scripts/f5/analyze.py`).
