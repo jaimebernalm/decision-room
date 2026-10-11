@@ -97,3 +97,25 @@ cero fallos de aserción y un error. El smoke del renderizador HTML usaba un fix
 sin origin al llamar a reading.view. Se corrigió indicando engine_html en el
 fixture; no se cambia el despacho del producto para ocultar ese error. Esta pasada
 no se declara exitosa; la repetición sobre el conjunto corregido se registra aparte.
+
+## Regresión e integración del trabajador de derivados
+
+La repetición congelada en bdb5063 pasa 911 pruebas Python en 729,474 segundos,
+sin fallos, errores ni omitidos. También pasan 320 pruebas de UI, TypeScript,
+Vite y oxlint, con las advertencias existentes. Esta cifra corresponde al código
+anterior al arreglo de aislamiento que se describe a continuación.
+
+La revisión visual de Claude sobre una copia desechable del smoke encontró que
+el trabajador HTML encolaba revisiones nativas y cambiaba sus versiones de
+derivación. El arreglo de 513b674 filtra los documentos engine_html en refresco,
+selección de trabajo, ejecución, encolado, reclamación y ambos escritores raster.
+La lectura nativa rechaza inventarios ajenos. La selección del chat revalida
+vigencia bajo el lock compartido del documento, después del lock de memoria del
+envío, y usa la proyección guardada con avisos propios, de antecesores y de
+descendientes. No reinterpreta revisiones históricas con otro proyector.
+
+La integración pasa 71 pruebas focalizadas en PostgreSQL y Docker. Una prueba
+adicional reproduce un trabajo raster residual de un documento nativo: no se
+reclama ni cambian sus intentos; los escritores directos rechazan la operación;
+la revisión queda idéntica y su vista nativa sigue disponible. Pasa. La regresión
+completa de este último conjunto se registra tras terminar su ejecución.
