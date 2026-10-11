@@ -37,5 +37,20 @@ class SeededTests(unittest.TestCase):
         self.assertNotIn('de 985', text)
 
 
+    def test_entry_point_is_disabled_without_side_effects(self):
+        import os, tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {}, clear=False):
+            ledger = Path(temp) / 'seeded.sqlite'
+            before = os.environ.get('DECISION_ROOM_API_BUDGET_PATH')
+            with patch('decision_room.engine.native_checks.run_standalone') as standalone, \
+                    self.assertRaises(seeded.Unavailable):
+                seeded.main(temp, temp, temp, ledger, Path(temp) / 'out.json')
+            standalone.assert_not_called()
+            self.assertFalse(ledger.exists())
+            self.assertEqual(os.environ.get('DECISION_ROOM_API_BUDGET_PATH'), before)
+
+
 if __name__ == '__main__':
     unittest.main()

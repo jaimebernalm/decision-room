@@ -84,7 +84,13 @@ def seed_document(raw, cita, token, rnd):
     return json.dumps(changed, ensure_ascii=False).encode(), original, seeded
 
 
+class Unavailable(RuntimeError):
+    pass
+
+
 def main(trial_root, key_path, results, ledger_path, out, seed=20261012):
+    # Disabled until the seeding gaps above are fixed: no ledger, environment or provider call.
+    raise Unavailable('Validación retenida no disponible hasta corregir el sembrado (ver STATUS).')
     from decision_room.agent import api_budget
     from decision_room.config import Config
     from decision_room.database import connect
