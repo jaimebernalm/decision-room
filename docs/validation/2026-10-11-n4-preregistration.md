@@ -1,7 +1,6 @@
 # N4: piloto v1 en bloques nativos frente a v1 en HTML. Preregistro
 
-**Estado:** borrador de Claude para que Astra lo revise. Se congela antes de inicializar el lote
-y no hay datos de este lote.
+**Estado:** **congelado** antes de inicializar el lote (anexo al final). Revisado por Astra.
 
 **Autorización.** El dueño (11-oct-2026) autorizó implementar el plan del informe nativo
 completo, de N0 a N5, con todos los cambios necesarios. El presupuesto de N4 y su tope los fija
@@ -153,3 +152,20 @@ Ninguna decisión de valor por defecto sale de N4.
 
 Cualquier cambio después de congelar el preregistro se anota en un anexo con su motivo, antes
 de ver la calidad.
+
+## Anexo de congelación (2026-10-11, antes de inicializar el lote)
+
+- **Código:** `claude/v1-blocks` en `75c194a`. Integra N0–N3 de Claude y Astra, la reparación de
+  formato (`fba8fc4`), el hash literal del comprobador y el estado en español (`d03a949`), y el
+  análisis `scripts/f5/n4_analyze.py`.
+- **Revisión de Astra:** de acuerdo con este preregistro (bbe5fe6), con `auditor_quotes`, el cruce
+  corregido y el análisis 8c3adb7.
+- **Spec:** `.local/n4/spec.json` (privado):
+  - brazos `opencode` y `blocks`, 3 repeticiones;
+  - herbolario y clínica de F5, sin significados declarados, igual que F5b y F5c;
+  - ledger `.local/n4/budget.sqlite` con 3,00 USD de tope y 1,00 USD por informe, política de
+    rechazos explícitos.
+- **Smoke técnico previo** (variante `688ab50`, sin reparación de formato ni hash literal): 1
+  informe, 0,206 USD. Acredita infraestructura y ciclo, no exactitud. No forma parte del lote.
+- **Orden:** por repetición se alterna qué brazo va primero (impar: html-v1 primero; par: blocks
+  primero), herbolario y después clínica, sin paralelismo.
