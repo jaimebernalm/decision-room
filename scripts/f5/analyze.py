@@ -24,6 +24,17 @@ def mean(values):
     return sum(values) / len(values) if values else None
 
 
+def load_engine_runs(manifest):
+    """Read-only job -> engine run map (for attempts that crashed before result.json), or None."""
+    try:
+        import psycopg
+        with psycopg.connect(manifest['config']['dsn']) as db:
+            return {str(job): str(run) for job, run in db.execute(
+                'SELECT id, engine_run_id FROM web_jobs WHERE engine_run_id IS NOT NULL').fetchall()}
+    except Exception:  # noqa: BLE001 - an unknown source leaves (e) unaccredited
+        return None
+
+
 def extra_v1_losses_allowed(_):
     return 1  # (a): v1 loses at most 1 of its 12 attempts
 
@@ -43,12 +54,16 @@ def main(trial, key_path, results, out):
         entry = scopes.setdefault(scope, dict(usd=0.0, calls=0, unsettled=0))
         entry['usd'] += charged / 1e9
         entry['calls'] += 1
-        entry['unsettled'] += state != 'settled'
+        entry['unsettled'] += state not in ('settled', 'rejected')  # rejected is terminal, fully charged
+    engine_runs = load_engine_runs(manifest)
     for job in manifest['jobs']:
         result = load(trial / 'runs' / job['code'] / 'result.json') or {}
         own = [scopes.get('web:' + job['job_id'])]
-        if result.get('engine_run_id'):
-            own.append(scopes.get('engine:' + str(result['engine_run_id'])))
+        run_id = result.get('engine_run_id') or (engine_runs or {}).get(job['job_id'])
+        if run_id:
+            own.append(scopes.get('engine:' + str(run_id)))
+        by_code[job['code']]['engine_source'] = ('result' if result.get('engine_run_id') else
+                                                  'database' if run_id else 'unknown' if engine_runs is None else 'none')
         own = [o for o in own if o]
         by_code[job['code']].update(
             usd=sum(o['usd'] for o in own), calls=sum(o['calls'] for o in own),
@@ -152,9 +167,14 @@ def main(trial, key_path, results, out):
             d_state = False
     cond['d'] = d_state
     usd = [a['usd'] for a in key['attempts'] if a['arm'] == 'v1']
-    seconds = [by_code[a['code']]['seconds'] for a in key['attempts'] if a['arm'] == 'v1' and by_code[a['code']]['seconds'] is not None]
-    cond['e'] = (mean(usd) <= 0.50 and max(usd) <= 1.00 and sum(v['unsettled'] for v in v1.values()) == 0
-                 and bool(seconds) and statistics.median(seconds) / 60 <= 15)
+    seconds = [by_code[a['code']]['seconds'] for a in key['attempts'] if a['arm'] == 'v1']
+    sources = [by_code[a['code']]['engine_source'] for a in key['attempts'] if a['arm'] == 'v1']
+    if None in seconds or 'unknown' in sources:
+        cond['e'] = None  # no zero cost and no partial median: not accredited
+        unaccredited.append('e')
+    else:
+        cond['e'] = (mean(usd) <= 0.50 and max(usd) <= 1.00 and sum(v['unsettled'] for v in v1.values()) == 0
+                     and statistics.median(seconds) / 60 <= 15)
     attempted = all(a['status'] in ('completed', 'blocked', 'failed', 'waiting', 'failure') for a in key['attempts'])
     complete = attempted and not missing and not key.get('incomplete_pairs') and not any(
         p.get('reading') for p in key['pairs'].values())
@@ -163,7 +183,7 @@ def main(trial, key_path, results, out):
         outcome = 'incompleto'  # never candidato, never decided on a subset
     elif not cond['a'] or len(failed_bcd) >= 2:
         outcome = 'no_candidato'
-    elif failed_bcd or not cond['e'] or any(cond[c] is None for c in 'bcd'):
+    elif failed_bcd or cond['e'] is not True or any(cond[c] is None for c in 'bcd'):
         outcome = 'mixto'
     else:
         outcome = 'candidato'

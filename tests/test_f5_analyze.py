@@ -4,6 +4,7 @@ import json
 import sqlite3
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 from decision_room.config import ROOT
@@ -13,8 +14,8 @@ analyze = importlib.util.module_from_spec(spec); spec.loader.exec_module(analyze
 
 
 class AnalyzeTests(unittest.TestCase):
-    def build(self, *, legacy_delivered=True, drop=None, owner_pick='v1', material=0, signals=(2, 2, 2, 2, 2)):
-        root = Path(self.temp.name)
+    def build(self, *, legacy_delivered=True, drop=None, owner_pick='v1', material=0, signals=(2, 2, 2, 2, 2), rejected=False, crash=False):
+        root = Path(tempfile.mkdtemp(dir=self.temp.name))
         trial, results = root / 'trial', root / 'results'
         (trial / 'runs').mkdir(parents=True); results.mkdir()
         ledger = root / 'ledger.sqlite'
@@ -50,7 +51,12 @@ class AnalyzeTests(unittest.TestCase):
                     for role in ('owner', 'advisor'):
                         (results / f'{role}-{name}.json').write_text(json.dumps(dict(eleccion='A' if owner_pick == 'v1' else 'B')))
         db.commit(); db.close()
-        (trial / 'manifest.json').write_text(json.dumps(dict(budget_path=str(ledger), jobs=jobs)))
+        if rejected:
+            db = sqlite3.connect(ledger); db.execute('INSERT INTO calls VALUES (?,?,?)', ('web:job-100', 268_644_000, 'rejected')); db.commit(); db.close()
+        if crash:
+            (trial / 'runs' / 'herbolario-1-opencode' / 'result.json').unlink()
+            (trial / 'runs' / 'herbolario-1-opencode' / 'failure.json').write_text('{}')
+        (trial / 'manifest.json').write_text(json.dumps(dict(budget_path=str(ledger), jobs=jobs, config=dict(dsn='dbname=f5_analyze_absent connect_timeout=1'))))
         key = root / 'key.json'; key.write_text(json.dumps(dict(attempts=attempts, reports=reports, pairs=pairs)))
         out = root / 'out.json'
         analyze.main(trial, key, results, out)
@@ -59,8 +65,22 @@ class AnalyzeTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
 
-    def test_all_conditions_met_is_candidate(self):
-        self.assertEqual(self.build()['outcome'], 'candidato')
+    def test_all_conditions_met_is_candidate_unless_cost_sources_are_unknown(self):
+        # The fixture database is absent, so engine runs cannot be confirmed: (e) is not accredited.
+        result = self.build()
+        self.assertIsNone(result['e']); self.assertEqual(result['outcome'], 'mixto')
+        with unittest.mock.patch.object(analyze, 'load_engine_runs', return_value={}):
+            self.assertEqual(self.build()['outcome'], 'candidato')
+
+    def test_terminal_rejection_is_charged_but_not_uncertain(self):
+        with unittest.mock.patch.object(analyze, 'load_engine_runs', return_value={}):
+            result = self.build(rejected=True)
+        self.assertTrue(result['e'])
+
+    def test_crash_without_result_has_no_duration_and_is_not_accredited(self):
+        with unittest.mock.patch.object(analyze, 'load_engine_runs', return_value={}):
+            result = self.build(crash=True)
+        self.assertIsNone(result['e'])
 
     def test_no_legacy_delivery_leaves_comparisons_unaccredited_not_failed(self):
         result = self.build(legacy_delivered=False)
