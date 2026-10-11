@@ -111,7 +111,9 @@ OWNER_PROMPT=(
     'descripción y con lo que pediste. Puedes expresar preferencias razonables que se deduzcan de tu petición (qué periodos '
     'comparar, qué te importa más). No inventes hechos que no estén en la descripción: causas, cifras, acontecimientos o '
     'significados de columnas que no se explican. Si te preguntan algo así, di con naturalidad que no lo sabes. Si la pregunta '
-    'ofrece opciones, elige la que mejor encaje con tu petición. Devuelve solo tu respuesta.\n\n'
+    'ofrece opciones, elige la que mejor encaje con tu petición. Responde en JSON con "disposition" ("answered" si '
+    'respondes, "unknown" si no lo sabes, "declined" si prefieres no responder) y "text" (tu respuesta; vacío si no '
+    'respondes).\n\n'
     'Descripción del negocio:\n{description}\n\nLo que pediste:\n{goal}\n\nPregunta de la herramienta:\n{question}')
 
 
@@ -124,14 +126,25 @@ def owner_answer(owner, question):
     transport=api_budget.transport()
     if transport is None:
         raise api_budget.BudgetStopped('The owner stand-in requires the trial budget.')
+    schema={'type':'object','additionalProperties':False,'required':['disposition','text'],
+            'properties':{'disposition':{'type':'string','enum':['answered','unknown','declined']},'text':{'type':'string'}}}
     with httpx.Client(transport=transport,trust_env=False,timeout=120) as client:
         response=client.post('https://api.openai.com/v1/chat/completions',
             headers={'Authorization':'Bearer '+os.environ['OPENAI_API_KEY']},
             json={'model':'gpt-6-luna','reasoning_effort':'low','store':False,'max_completion_tokens':2000,
+                  'response_format':{'type':'json_schema','json_schema':{'name':'owner_answer','strict':True,'schema':schema}},
                   'messages':[{'role':'user','content':prompt}]})
         response.raise_for_status()
-        text=response.json()['choices'][0]['message']['content'].strip()[:1500]
-    return text or 'No lo sé.'
+        choice=response.json()['choices'][0]
+    # A truncated or malformed answer is not an owner declaration: refuse it, never repair it.
+    if choice.get('finish_reason')!='stop' or not isinstance(choice['message'].get('content'),str):
+        raise ValueError('The owner stand-in did not finish a complete answer.')
+    value=json.loads(choice['message']['content'])
+    if (not isinstance(value,dict) or set(value)!={'disposition','text'} or value['disposition'] not in ('answered','unknown','declined')
+            or not isinstance(value['text'],str) or len(value['text'])>1500
+            or (value['disposition']=='answered')!=bool(value['text'].strip())):
+        raise ValueError('The owner stand-in answer is invalid.')
+    return value['disposition'],value['text'].strip() if value['disposition']=='answered' else ''
 
 
 def _execute(root, code):
@@ -166,12 +179,11 @@ def _execute(root, code):
             if any(a['question_id']==attempt['question_id'] and a['phase']==attempt['phase'] for a in answers):
                 break  # never send the same question twice; the wait stays a loss
             answers.append(attempt);save(target/'answers.json',answers)  # durable before the send
-            text=owner_answer(manifest['owners'][job['business_key']],question)
-            unknown=text.strip().rstrip('.').lower() in ('no lo sé','no lo se','no sé','no se')
-            attempt.update(answer=text,disposition='unknown' if unknown else 'answered',state='answered')
+            disposition,text=owner_answer(manifest['owners'][job['business_key']],question)
+            attempt.update(answer=text,disposition=disposition,state='answered')
             save(target/'answers.json',answers)  # durable before the reply; a failed reply is not resent
             ws.reply(job['job_id'],{'request_key':str(uuid4()),'question_id':question['id'],'phase':question['phase'],
-                                    'text':'' if unknown else text,'disposition':attempt['disposition']})
+                                    'text':text,'disposition':disposition})
             attempt['state']='replied';save(target/'answers.json',answers)
             ws.run_job(job['job_id'])
     row=ws.row(job['job_id'])

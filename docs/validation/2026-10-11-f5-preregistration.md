@@ -130,6 +130,14 @@ Todos los roles usan el **mismo material para los dos brazos**: la instantánea 
 aislado (`informe.html` → páginas PNG) y su texto (`informe.txt`: el texto canónico en v1 y el
 inventario del mismo navegador en legacy). No se usa el PDF paginado de legacy.
 
+**Presentación congelada:**
+- política `v1-snapshot-only-1`;
+- renderizador `v1-container-raster-1` con la imagen
+  `sha256:a6a51acbee08be2dfef6cdc578b78dd83c3f5e123dab5dbf32a5ce2945ce1b8a` y las fuentes
+  incluidas en esa imagen;
+- ancho de 1280 px, páginas de hasta 2000 px de alto y como mucho 24.000 px en total;
+- legacy usa `Workspace.report` con la presentación del producto.
+
 Antes de que empiece cualquier evaluador:
 - los materiales completos se copian a kits con códigos aleatorios y se sellan con un hash;
 - el mapa para desvelar los brazos queda fuera de los kits;
@@ -154,6 +162,17 @@ estilo puede delatar el brazo; es un límite.
        entiende o decide. También lo es una causa presentada como hecho sin base en los datos
        ni en la descripción.
      - Crítico: un error material en una prioridad o recomendación principal.
+   - **Esquema del auditor** (JSON por informe), con una entrada por afirmación:
+     - `texto`;
+     - `seccion`: prioridad o resto;
+     - `tipo`: cifra, comparación, causa o recomendación;
+     - `calculable`: si se puede comprobar con los CSV;
+     - `veredicto`;
+     - `valor_correcto`;
+     - `nota`.
+
+     Las afirmaciones no calculables (por ejemplo, recomendaciones) no entran en el
+     denominador de las tasas de cifras, salvo que afirmen un hecho falso.
    - Un subagente nuevo agrupa, a ciegas y antes de desvelar, los errores materiales
      distintos de cada informe.
    - **Se publican siempre** las tasas de cifras correctas de las prioridades y del resto,
@@ -170,6 +189,13 @@ estilo puede delatar el brazo; es un límite.
      recibir para decidir?».
    - **R2, un asesor externo:** solo sabe que es un «informe para el dueño de este negocio».
      Pregunta: «¿cuál es más útil y fiable?».
+   - **Imágenes:** como mucho 8 por pareja, y cada una se lee una sola vez.
+     - Si los dos informes suman más de 8 páginas, el kit compone las páginas de cada informe
+       en paneles de dos páginas lado a lado, sin recortar ni reescalar el texto por debajo de
+       0,6× su tamaño.
+     - El texto completo de los dos informes acompaña siempre a las imágenes.
+     - La composición se fija tras el piloto, antes de congelar, según el número de páginas
+       observado.
    - Puntuación: 1 si elige v1, 0,5 si declara un empate explícito, 0 si elige legacy.
    - Si una pareja tiene una pérdida, la regla está en (c).
    - Si un lector no responde, se repite una vez con un lector nuevo. Si vuelve a fallar, la
@@ -199,6 +225,8 @@ estilo puede delatar el brazo; es un límite.
 - **(d) Señales:**
   - en cada negocio, la media del juez en v1 es ≥ la de legacy menos 1 (sobre 10);
   - y v1 no cae en el señuelo en más informes que legacy + 1.
+- Si legacy no entrega ningún informe en un negocio, las comparaciones de (b) y (d) en ese
+  negocio quedan **sin acreditar**; nunca se ponen a 0.
 - **(e) Coste y tiempo:**
   - cota media por informe v1 ≤ 0,50 USD y máxima ≤ 1,00 USD, sin llamadas inciertas;
   - mediana de tiempo de v1 ≤ 15 min.
@@ -217,7 +245,11 @@ subconjunto.
 - Antes de cada envío se registra el intento, con el ID de la pregunta y su hash.
 - La respuesta se guarda antes de enviarla al producto. Si el envío falla después de tener la
   respuesta, no se vuelve a pedir otra.
-- Una respuesta «No lo sé» se envía como `unknown`.
+- El dueño simulado responde en JSON estricto: `disposition`, que puede ser `answered`,
+  `unknown` o `declined`, y `text`.
+  - Solo `answered` lleva texto.
+  - Una respuesta truncada, malformada o de más de 1.500 caracteres se rechaza, nunca se
+    repara. El intento cuenta como fallo de ese informe.
 - Al llegar a 6 respuestas se detiene el ciclo. Una espera que queda sin salida es una
   pérdida y no cambia los denominadores.
 

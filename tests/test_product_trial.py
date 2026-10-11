@@ -64,7 +64,7 @@ class ProductTrialTests(unittest.TestCase):
         def workspace(config,settings):return real_workspace(config,settings,fixtures.WebModel)
         asked=[]
         def answer(owner,question):
-            asked.append((owner,question['text']));return 'Prefiero sumar todas las filas.'
+            asked.append((owner,question['text']));return 'answered','Prefiero sumar todas las filas.'
         with patch.object(trial,'Workspace',side_effect=workspace),patch.object(trial,'owner_answer',side_effect=answer):
             trial.execute(self.output,code)
         result=json.loads((self.output/'runs'/code/'result.json').read_text())
@@ -81,21 +81,31 @@ class ProductTrialTests(unittest.TestCase):
         import httpx
         manifest=self.initialize()
         seen=[]
+        replies=[('stop',json.dumps({'disposition':'answered','text':' Comparo con el año pasado. '})),
+                 ('stop',json.dumps({'disposition':'unknown','text':''})),
+                 ('length','{"disposition":"answ'),
+                 ('stop',json.dumps({'disposition':'answered','text':''}))]
         def provider(request):
             body=json.loads(request.content);seen.append(body)
+            content=replies.pop(0)
             return httpx.Response(200,json={'model':'gpt-6-luna','service_tier':'default',
-                'choices':[{'message':{'content':' Comparo con el año pasado. '}}],
+                'choices':[{'finish_reason':content[0],'message':{'content':content[1]}}],
                 'usage':{'prompt_tokens':900,'completion_tokens':40}})
         with patch.dict('os.environ',{'DECISION_ROOM_API_BUDGET_PATH':manifest['budget_path'],'OPENAI_API_KEY':'test-only'}), \
                 patch.object(trial.api_budget.httpx,'HTTPTransport',lambda **kw:httpx.MockTransport(provider)), \
                 trial.api_budget.scope('web:job-1'):
             text=trial.owner_answer({'description':'Una tienda.','goal':'Cómo va el año.'},
                                     {'id':'q','phase':'planning','text':'¿Qué periodos comparo?','options':['año','mes']})
-        self.assertEqual(text,'Comparo con el año pasado.')
+            owner={'description':'Una tienda.','goal':'Cómo va el año.'}
+            self.assertEqual(trial.owner_answer(owner,{'text':'¿Margen?'}),('unknown',''))
+            for _ in range(2):  # truncated, then answered without text: refused, never repaired
+                with self.assertRaises(ValueError):trial.owner_answer(owner,{'text':'¿Margen?'})
+        self.assertEqual(text,('answered','Comparo con el año pasado.'))
+        self.assertEqual(seen[0]['response_format']['json_schema']['strict'],True)
         self.assertEqual(seen[0]['service_tier'],'default');self.assertEqual(seen[0]['max_completion_tokens'],2000)
         self.assertIn('Una tienda.',seen[0]['messages'][0]['content']);self.assertIn('¿Qué periodos comparo?',seen[0]['messages'][0]['content'])
         calls=trial.api_budget.Ledger(manifest['budget_path']).snapshot()['calls']
-        self.assertEqual([(c['scope'],c['state']) for c in calls],[('web:job-1','settled')])
+        self.assertEqual([(c['scope'],c['state']) for c in calls],[('web:job-1','settled')]*4)
         with patch.dict('os.environ',{'DECISION_ROOM_API_BUDGET_PATH':''}),self.assertRaises(trial.api_budget.BudgetStopped):
             trial.owner_answer({'description':'x','goal':'y'},{'text':'z'})
 
