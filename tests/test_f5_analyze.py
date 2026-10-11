@@ -98,6 +98,23 @@ class AnalyzeTests(unittest.TestCase):
     def test_missing_evaluation_is_incomplete_never_candidate(self):
         self.assertEqual(self.build(drop='R100')['outcome'], 'incompleto')
 
+    def test_never_started_pair_makes_reading_incomplete_not_a_tie(self):
+        root = None
+        with unittest.mock.patch.object(analyze, 'load_engine_runs', return_value={}):
+            self.build()
+        key = self.last / 'key.json'
+        data = json.loads(key.read_text())
+        for a in data['attempts']:
+            if a['business'] == 'clinica' and a['repetition'] == 6:
+                a.update(status='not_run', delivered=False)
+        data['pairs']['clinica-6']['kits'] = {'v1': None, 'legacy': None}
+        key.write_text(json.dumps(data))
+        with unittest.mock.patch.object(analyze, 'load_engine_runs', return_value={}):
+            analyze.main(key, self.last / 'results', self.last / 'out2.json')
+        result = json.loads((self.last / 'out2.json').read_text())
+        self.assertTrue(result['businesses']['clinica']['reading']['owner']['incomplete'])
+        self.assertEqual(result['conditions']['outcome'], 'incompleto')
+
     def test_two_failed_conditions_is_not_a_candidate(self):
         self.assertEqual(self.build(owner_pick='legacy', material=2)['outcome'], 'no_candidato')
 

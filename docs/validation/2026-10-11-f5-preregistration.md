@@ -440,3 +440,33 @@ parejas, que la regla primaria cuenta como preferencia por v1:
 
 El análisis acumulado de F5, F5b y F5c identifica cada intento por (ensayo, código), sin
 fusionar códigos repetidos.
+
+## F5c incompleto y cierre de la ejecución (2026-10-11, 09:15 UTC, antes de ver calidad)
+
+**F5c incompleto.**
+- A las 08:52 UTC, una llamada de `clinica-5-legacy` quedó incierta: no hubo respuesta HTTP
+  explícita. El ledger aplicó su parada global, que se respeta.
+- Resultado de la clínica en F5c:
+  - **10 intentos**: las repeticiones 1–4 de los dos brazos y `clinica-5-opencode`;
+  - `clinica-5-legacy` fallido por esa llamada;
+  - la pareja 6, sin empezar.
+- `clinica-2-legacy` falló en la revisión: la salida del modelo no terminó dentro de los 8.192
+  tokens de salida de legacy (valor por defecto del producto, congelado en el spec), y después
+  dio un error de validación.
+  - La instalación del dueño usa 16.384. No se extrapola a esa configuración ni se atribuye la
+    diferencia al límite.
+
+**No se ejecutan más ensayos.**
+- El veredicto «F5b-herbolario + F5c-clínica» es **incompleto** según la regla congelada.
+- Legacy sigue siendo el valor por defecto y no se prepara el cambio.
+
+**Evaluación descriptiva de lo entregado.**
+- Se evalúan todos los informes entregados (herbolario de F5b, clínica de F5c) con el material,
+  las indicaciones y el sellado congelados. Se publican las condiciones por negocio como
+  resultado descriptivo.
+- `kits.py --allow-not-run` registra como `not_run` (no pérdida, sin kit) solo los intentos sin
+  `started.json`, `result.json` ni `failure.json`. Un intento iniciado sin resultado se sigue
+  rechazando.
+- `analyze.py` distingue planificados, intentados, entregados, pérdidas y `not_run`:
+  - una pareja con un `not_run` deja la lectura incompleta: ni empate ni preferencia;
+  - coste y tiempo se calculan solo sobre lo ejecutado, con n explícito.

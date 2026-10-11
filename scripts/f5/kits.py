@@ -1,6 +1,6 @@
 """Blind, role-separated evaluation kits for the F5 test batch.
 
-Usage: python scripts/f5/kits.py DATA_DIR KITS_DIR KEY_PATH TRIAL_OUTPUT[:business] ...
+Usage: python scripts/f5/kits.py [--allow-not-run] DATA_DIR KITS_DIR KEY_PATH TRIAL_OUTPUT[:business] ...
 
 Each business's attempts come from exactly one trial output (one init, one ledger).
 
@@ -41,7 +41,7 @@ def write_report(target, run, with_pages=True):
             (target / f'page-{i:02d}.png').write_bytes(data)
 
 
-def build(data_dir, kits, key_path, *trials):
+def build(data_dir, kits, key_path, *trials, allow_not_run=False):
     data_dir, kits, key_path = Path(data_dir), Path(kits), Path(key_path)
     sources = []
     for item in trials:
@@ -65,7 +65,12 @@ def build(data_dir, kits, key_path, *trials):
             run = trial / 'runs' / job['code']
             result = json.loads((run / 'result.json').read_text()) if (run / 'result.json').exists() else None
             if result is None and not (run / 'failure.json').exists():
-                raise SystemExit(f"{job['code']} has no result or failure record; finish or reconcile it before building kits.")
+                if not (allow_not_run and not (run / 'started.json').exists()):
+                    raise SystemExit(f"{job['code']} has no result or failure record; finish or reconcile it before building kits.")
+                # Never started (the trial stopped before it): recorded as not_run, not as a loss.
+                attempts.append(dict(code=job['code'], business=job['business_key'], repetition=job['repetition'], trial=str(trial),
+                                     arm='v1' if job['arm'] == 'opencode' else 'legacy', delivered=False, status='not_run', run=str(run)))
+                continue
             delivered = bool(result and result.get('delivery') and result.get('snapshot')
                              and (run / 'informe.html').exists() and (run / 'informe.txt').exists())
             if delivered and not pages((run / 'informe.html').read_text()):
@@ -144,4 +149,6 @@ def build(data_dir, kits, key_path, *trials):
 
 
 if __name__ == '__main__':
-    build(*sys.argv[1:])
+    args = sys.argv[1:]
+    flag = args[:1] == ['--allow-not-run']
+    build(*args[flag:], allow_not_run=flag)

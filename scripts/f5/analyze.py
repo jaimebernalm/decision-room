@@ -98,6 +98,7 @@ def main(key_path, results, out):
         for arm in ('v1', 'legacy'):
             attempts = [a for a in key['attempts'] if a['business'] == business and a['arm'] == arm]
             delivered = [a for a in attempts if a['delivered']]
+            ran = [a for a in attempts if a['status'] != 'not_run']
             groups = [load(results / f"group-{kit_of[a['code']]}.json") for a in delivered]
             audits = [load(results / f"audit-{kit_of[a['code']]}.json") for a in delivered]
             judges = [load(results / f"judge-{kit_of[a['code']]}.json") for a in delivered]
@@ -110,19 +111,24 @@ def main(key_path, results, out):
                         den[section + '_calculables'] += 1
                         den[section + '_correctas'] += claim['veredicto'] == 'correcta'
             b['arms'][arm] = dict(
-                attempts=len(attempts), delivered=len(delivered), losses=len(attempts) - len(delivered),
+                planned=len(attempts), attempts=len(ran), delivered=len(delivered),
+                not_run=sum(a['status'] == 'not_run' for a in attempts),
+                losses=sum(a['status'] != 'not_run' and not a['delivered'] for a in attempts),
                 evaluations_complete=complete,
                 material_mean=mean([g['material_distintos'] for g in groups if g]),
                 critical_total=sum(g['criticos_distintos'] for g in groups if g),
                 denominators=den,
                 signal_mean=mean([sum(j[f'S{i}'] for i in range(1, 6)) for j in judges if j]),
                 decoy_hits=sum(j['S6'] for j in judges if j),
-                # Cost published only when every attempt's ledger source is known; never a partial zero.
-                usd_mean=mean([a['usd'] for a in attempts]) if all(a['usd'] is not None and a['engine_source'] != 'unknown' for a in attempts) else None,
-                usd_max=max(a['usd'] for a in attempts) if all(a['usd'] is not None and a['engine_source'] != 'unknown' for a in attempts) else None,
-                unsettled=sum(a['unsettled'] for a in attempts) if all(a['unsettled'] is not None for a in attempts) else None,
-                minutes_median=statistics.median([a['seconds'] / 60 for a in attempts])
-                if attempts and all(a['seconds'] is not None for a in attempts) else None)
+                # Over executed attempts only (n explicit); never-started attempts carry no cost or time.
+                # Cost published only when every executed attempt's ledger source is known.
+                executed=len(ran),
+                usd_mean=mean([a['usd'] for a in ran]) if ran and all(a['usd'] is not None and a['engine_source'] != 'unknown' for a in ran) else None,
+                usd_max=max(a['usd'] for a in ran) if ran and all(a['usd'] is not None and a['engine_source'] != 'unknown' for a in ran) else None,
+                usd_sum=sum(a['usd'] for a in ran) if ran and all(a['usd'] is not None for a in ran) else None,
+                unsettled=sum(a['unsettled'] for a in ran) if ran and all(a['unsettled'] is not None for a in ran) else None,
+                minutes_median=statistics.median([a['seconds'] / 60 for a in ran])
+                if ran and all(a['seconds'] is not None for a in ran) else None)
         # Reading: 1 v1, 0.5 explicit tie, 0 legacy; loss rules; incomplete if any reading missing.
         reading = {}
         for role in ('owner', 'advisor'):
@@ -131,7 +137,9 @@ def main(key_path, results, out):
                 name = f'{business}-{i}'
                 pair = key['pairs'][name]
                 kits = pair['kits']
-                if not kits['v1'] and not kits['legacy']:
+                if any(a['status'] == 'not_run' for a in key['attempts'] if a['business'] == business and a['repetition'] == i):
+                    incomplete = True  # never started: not a loss, and the reading cannot be completed
+                elif not kits['v1'] and not kits['legacy']:
                     scores.append(0.5)
                 elif not kits['legacy']:
                     scores.append(1.0)
@@ -190,12 +198,12 @@ def main(key_path, results, out):
         if not (v1[k]['signal_mean'] >= lg[k]['signal_mean'] - 1 and v1[k]['decoy_hits'] <= lg[k]['decoy_hits'] + 1):
             d_state = False
     cond['d'] = d_state
-    usd = [a['usd'] for a in key['attempts'] if a['arm'] == 'v1']
+    usd = [a['usd'] for a in key['attempts'] if a['arm'] == 'v1' and a['status'] != 'not_run']
     if None in usd or any(v['unsettled'] is None for v in v1.values()):
         sources = ['unknown']  # forces (e) to None below
-    seconds = [by_code[a['code']]['seconds'] for a in key['attempts'] if a['arm'] == 'v1']
+    seconds = [by_code[a['code']]['seconds'] for a in key['attempts'] if a['arm'] == 'v1' and a['status'] != 'not_run']
     sources = (sources if None in usd or any(v['unsettled'] is None for v in v1.values()) else
-               [by_code[a['code']]['engine_source'] for a in key['attempts'] if a['arm'] == 'v1'])
+               [by_code[a['code']]['engine_source'] for a in key['attempts'] if a['arm'] == 'v1' and a['status'] != 'not_run'])
     if None in seconds or 'unknown' in sources:
         cond['e'] = None  # no zero cost and no partial median: not accredited
         unaccredited.append('e')
