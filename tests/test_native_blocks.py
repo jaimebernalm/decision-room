@@ -109,6 +109,11 @@ class NativeProductTests(unittest.TestCase):
             self.assertEqual(reading.view(db, document, revision)['checks']['state'], 'unknown')
         self.ws.run_job(job)
         self.assertEqual(self.ws.row(job)['engine_run_id'], row['engine_run_id'])
+        pdf = self.ws.report(job, structured=True, purpose='pdf')
+        self.assertTrue(pdf.startswith(b'%PDF-'))
+        attachment = self.ws.report(job, structured=True, purpose='raw')
+        self.assertEqual(attachment, raw)
+        self.assertTrue(attachment.native)
         self.assertEqual(len([m for m in FakeRuntime.sessions[str(row['engine_run_id'])]['messages'] if m['info']['role']=='user']), 1)
 
     def test_format_immutable_on_all_creation_paths_and_legacy_unchanged(self):

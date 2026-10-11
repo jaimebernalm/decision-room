@@ -169,3 +169,11 @@ def _chat_document(db, business, document_id, *, row=None):
                 title=row.get('title') or 'Informe', analysis_id=str(row['analysis_id']),
                 created_at=revision['created_at'].isoformat(), text=text[:CHAT_TEXT_LIMIT],
                 truncated=len(text) > CHAT_TEXT_LIMIT, canonical_sha256=derived['canonical_sha256'])
+
+
+class RawAttachment(bytes):
+    """Raw receipt plus a trusted format; still compared/exported as exact bytes."""
+    def __new__(cls, raw, *, native=False):
+        value = super().__new__(cls, raw)
+        value.native = native
+        return value

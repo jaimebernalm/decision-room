@@ -77,13 +77,14 @@ class Handler(BaseHTTPRequestHandler):
 
     def send_raw(self, raw):
         # Untrusted agent bytes: a download, never a document in the product origin.
-        self.send(200, raw, 'application/octet-stream',
-                  headers={'Content-Disposition': 'attachment; filename="decision-room-informe-original.html"',
+        native = getattr(raw, 'native', False)
+        self.send(200, raw, 'application/json' if native else 'application/octet-stream',
+                  headers={'Content-Disposition': 'attachment; filename="informe.json"' if native else 'attachment; filename="decision-room-informe-original.html"',
                            'Content-Security-Policy': 'sandbox'})
 
     def send_pdf(self, report):
         from ..report_pdf import render_pdf
-        self.send(200, render_pdf(report), 'application/pdf',
+        self.send(200, report if isinstance(report, bytes) else render_pdf(report), 'application/pdf',
                   headers={'Content-Disposition': 'attachment; filename="decision-room-informe.pdf"'})
 
     def send_file(self, path, name):
