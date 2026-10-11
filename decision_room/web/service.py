@@ -780,10 +780,16 @@ class Workspace:
             from ..reports import reading
             with read_job(self,job_id,revision=revision) as (db,_,pair):
                 if purpose == 'pdf':
+                    if pair[0]['origin'] == 'engine_blocks':
+                        view = reading.view(db, *pair)
+                        if view['mode'] != 'blocks':
+                            reading.blocked_content()
+                        from ..reports.blocks_pdf import render
+                        return render(view['blocks'], view['checks'], delivered_at=pair[1]['created_at'])
                     reading.pdf_unavailable()
                 if purpose == 'raw':
                     # Kept bytes as an attachment, never opened as a page or called sanitized.
-                    return pair[1]['raw']
+                    return reading.RawAttachment(pair[1]['raw'], native=pair[0]['origin']=='engine_blocks')
                 if not structured or purpose != 'view':
                     reading.blocked_content()
                 value = reading.metadata(db,*pair)
