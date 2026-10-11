@@ -173,6 +173,8 @@ export type Report = {
     original_unit?: string;
     unit_customizable?: boolean;
     unit_origin?: "analysis" | "owner";
+    /** v1 figure cards on Home: an independent check disputes this figure. */
+    disputed?: boolean;
   }[];
   charts: ChartData[];
   limitations: string[];
@@ -390,6 +392,8 @@ export type HomeSource = {
   analysis_id: string;
   limitations: string[];
   href: string;
+  origin?: "engine_blocks";
+  reviewed?: boolean;
 };
 export type HomeItem = { id: string; title: string; source: HomeSource } & (
   | { kind: "metric"; content: Report["highlights"][number] }

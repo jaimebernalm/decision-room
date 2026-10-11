@@ -46,7 +46,19 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 
-const selection = (item: HomeItem): ContextAttachment => ({
+const selection = (item: HomeItem): ContextAttachment =>
+  item.source.origin === "engine_blocks"
+    ? {
+        source_id: item.source.report_id,
+        source_version: item.source.version,
+        kind: "engine_block",
+        element_key: item.content.key || item.id.split(":").at(-1)!,
+        title: item.title,
+        period: item.source.period,
+        report_title: item.source.title,
+        href: item.source.href,
+      }
+    : {
   report_id: item.source.report_id,
   report_version: item.source.version,
   kind: item.kind,
@@ -56,7 +68,7 @@ const selection = (item: HomeItem): ContextAttachment => ({
   report_title: item.source.title,
   href: item.source.href,
   content: item.content,
-});
+};
 const labels = {
   metric: "Indicadores",
   chart: "Gráficos",
@@ -68,9 +80,20 @@ function Source({ item, reason }: { item: HomeItem; reason?: string }) {
   return (
     <div className="mt-5 text-xs text-muted-foreground">
       <p className="mb-2 leading-relaxed">
-        <span>{item.source.period}</span> ·{" "}
-        {tr("Revisión {0}", { "0": item.source.version })}
+        {item.source.period && (
+          <>
+            <span>{item.source.period}</span> ·{" "}
+          </>
+        )}
+        {item.source.origin === "engine_blocks"
+          ? tr("Informe v1 · cifra sin revisión")
+          : tr("Revisión {0}", { "0": item.source.version })}
       </p>
+      {item.kind === "metric" && item.content.disputed && (
+          <p className="mb-2 rounded-md bg-amber-500/10 px-2 py-1 text-amber-900 dark:text-amber-200">
+            {tr("Cifra en revisión: una comprobación independiente obtuvo otro resultado.")}
+          </p>
+        )}
       <Collapsible>
         <CollapsibleTrigger className="group inline-flex items-center gap-1 rounded-sm py-1 text-xs hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           {tr("Periodo y fuente")}{" "}
@@ -233,7 +256,7 @@ export function Home() {
         eyebrow={workspace.business?.name}
         title={tr("Tu negocio, de un vistazo")}
         description={tr(
-          "Indicadores y señales de tus datos revisados. Cada tarjeta muestra el periodo al que pertenece.",
+          "Indicadores y señales de tus informes. Cada tarjeta muestra su periodo y su origen.",
         )}
       >
         {data && data.items.length > 0 && (
