@@ -6,6 +6,9 @@ from . import admission, profile
 
 
 def selection(config, data, old=None):
+    format = data.get('engine_format', 'html')
+    if format not in ('html', 'blocks'):
+        raise ValueError('Unknown report format.')
     questions = data.get('engine_questions', False)
     if type(questions) is not bool:
         raise ValueError('Questions must be an explicit boolean.')
@@ -13,6 +16,8 @@ def selection(config, data, old=None):
     if 'engine_kind' in data and explicit not in ('legacy', 'opencode'):
         raise ValueError('Unknown report engine.')
     if old:
+        if 'engine_format' in data and format != old['engine_config'].get('profile', {}).get('format', 'html'):
+            raise ValueError('The job format is already fixed.')
         if explicit is not None and explicit != old['engine_kind']:
             raise ValueError('The job engine is already fixed.')
         if 'engine_questions' in data and questions != bool(old['engine_config'].get('profile', {}).get('questions')):
@@ -20,10 +25,12 @@ def selection(config, data, old=None):
         return old['engine_kind'], old['engine_config']
     kind = explicit if explicit is not None else config.report_engine
     if kind == 'legacy':
+        if format != 'html':
+            raise ValueError('Native reports require an engine job.')
         if questions:
             raise ValueError('Engine questions require an engine job.')
         return kind, {}
-    settings = profile.configuration(questions=questions, usd_cap_micro=config.engine_usd_cap_micro)
+    settings = profile.configuration(questions=questions, usd_cap_micro=config.engine_usd_cap_micro, format=format)
     if not re.fullmatch(r'sha256:[0-9a-f]{64}', settings['image_id']):
         raise ValueError('Configure a pinned engine image before creating engine jobs.')
     limits = admission.Limits(input_tokens=config.engine_input_tokens,

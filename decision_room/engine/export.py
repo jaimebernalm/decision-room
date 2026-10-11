@@ -76,7 +76,7 @@ def export_run(config, business_id, engine_run_id, dest):
     result = snapshot(config, business_id, engine_run_id)  # Authorize before touching dest.
     target = Path(dest); target.mkdir(parents=True, exist_ok=True, mode=0o700)
     # Prevent a failed rerender from leaving an older revision looking current.
-    for name in ('draft.raw', 'informe.raw.html'):
+    for name in ('draft.raw', 'informe.raw.html', 'informe.raw.json'):
         (target / name).unlink(missing_ok=True)
     def write(name, value, raw=False):
         store._write_atomic(target / name, value if raw else admission.canonical(jsonable(value)))
@@ -94,13 +94,16 @@ def export_run(config, business_id, engine_run_id, dest):
             write('session-export.json', {'durable_root': state, 'observed_sessions': json.loads(observations.read_text())})
         except (ValueError, OSError):
             result['issues'].append('session_export_partial')
+    native = result['profile_config'].get('format') == 'blocks'
+    filename = 'informe.raw.json' if native else 'informe.raw.html'
     if received:
-        write('informe.raw.html', received['raw'], raw=True)
+        write(filename, received['raw'], raw=True)
         result.update(raw_sha256=received['raw_sha256'],
                       delivery_via=received['delivery_via'])
     else:
-        (target / 'informe.raw.html').unlink(missing_ok=True)
+        (target / filename).unlink(missing_ok=True)
         result['issues'].append('no_generated_report_content')
-    result.update(profile='html-v1', presentation='not_evaluated', verification='not_requested')
+    result.update(profile='blocks-v1' if native else 'html-v1', mime_type='application/json' if native else 'text/html',
+                  presentation='not_evaluated', verification='not_requested')
     write('run.json', result)
     return result

@@ -205,14 +205,14 @@ class Runtime:
         if info and info['State']['Running']:
             raise ProtocolError('Runtime has not stopped.')
 
-    def collect_report(self):
+    def collect_report(self, *, filename='informe.html'):
         self.stop()
         result = self._docker('run', '--rm', '--pull=never', '--network', 'none', '--read-only',
                              '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges',
                              '--user', '10001:10001', '--memory', '128m', '--pids-limit', '16',
                              '--cpus', '1', '--log-driver', 'none',
                              '--mount', f'type=volume,src={self.volumes["work"]},dst=/work,readonly',
-                             '--entrypoint', 'python', self.image, '-I', '-S', '-c', file_delivery.SCRIPT,
+                             '--entrypoint', 'python', self.image, '-I', '-S', '-c', file_delivery.script(filename),
                              timeout=30)
         return file_delivery.decode(result.stdout)
 

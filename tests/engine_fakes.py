@@ -16,7 +16,7 @@ class FakeRuntime:
         assert part == 'inputs' and 'manifest.json' in files
         self.state['files'] = files
     def stop(self): pass
-    def collect_report(self):
+    def collect_report(self, *, filename='informe.html'):
         from decision_room.engine import file_delivery
         import base64, hashlib
         raw = self.state.get('raw')

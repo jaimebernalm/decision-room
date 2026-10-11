@@ -1,4 +1,4 @@
-"""HTML-only gradual registry. No legacy backfill, parsing or publication consent."""
+"""Gradual HTML/native registry. No legacy backfill, parsing or publication consent."""
 from uuid import UUID
 
 from psycopg.types.json import Jsonb
@@ -44,9 +44,11 @@ def adopt(config, business, run):
             return None
         memory.lock(db, business)
         document = source['id']; lock(db, document)
+        native = source['profile'].get('format') == 'blocks'
+        origin = 'engine_blocks' if native else 'engine_html'
         db.execute('''INSERT INTO report_documents(id,business_id,analysis_id,origin,source_run_id)
-            VALUES (%s,%s,%s,'engine_html',%s) ON CONFLICT(id) DO NOTHING''',
-            (document, business, source['analysis_id'], run))
+            VALUES (%s,%s,%s,%s,%s) ON CONFLICT(id) DO NOTHING''',
+            (document, business, source['analysis_id'], origin, run))
         revisions = db.execute('''SELECT * FROM engine_document_revisions
             WHERE business_id=%s AND document_id=%s ORDER BY ordinal''', (business, document)).fetchall()
         added = False
@@ -63,15 +65,19 @@ def adopt(config, business, run):
                  source['profile']['version'], row['created_at']))
             added = added or inserted.rowcount > 0
             # Durable work only; adoption/metadata requests never launch Chrome.
-            from .derivative_store import enqueue
-            enqueue(db, business, document, row['id'])
+            if native:
+                from .native_store import derive
+                derive(db, business, document, row['id'])
+            else:
+                from .derivative_store import enqueue
+                enqueue(db, business, document, row['id'])
         registered = db.execute('SELECT * FROM report_documents WHERE id=%s', (document,)).fetchone()
         if added:
             retire(db,registered,config=config,deep=True)
         baseline = db.execute('SELECT 1 FROM engine_report_contexts WHERE run_id=%s AND business_id=%s', (run,business)).fetchone()
         if not baseline:
             db.execute("UPDATE report_documents SET stale_reason=coalesce(stale_reason,'missing_context') WHERE id=%s", (document,))
-        if revisions and source['status'] == 'delivered' and revisions[-1]['raw'] and baseline:
+        if not native and revisions and source['status'] == 'delivered' and revisions[-1]['raw'] and baseline:
             db.execute('''UPDATE report_documents SET current_revision_id=%s
                 WHERE id=%s AND business_id=%s AND stale_reason IS NULL''', (revisions[-1]['id'], document, business))
         # This link is metadata only. It never grants content access or replaces a review.

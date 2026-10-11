@@ -17,6 +17,21 @@ QUESTIONS = ('Si te falta un dato que solo yo puedo darte y que cambiaría una c
              'calculando mientras esperas. Si respondo «no lo sé» o prefiero no responder, mantén la conclusión parcial '
              'y dilo como límite. Mi respuesta es una declaración mía, no una cifra comprobada.')
 FIXED = Path(__file__).resolve().parents[2] / 'engine/opencode/prompts/informe.md'
+
+
+def native_fixed(fixed):
+    paragraphs = fixed.split('\n\n')
+    paragraphs[0] = ('Incluye gráficos y tablas; elige los que mejor ayuden a entender los resultados. '
+        'Entrega el informe como datos JSON UTF-8 en /work/informe.json, usando el formato '
+        'informe-bloques-1 descrito en /inputs/contexto/formato-informe.txt. Tú decides qué contar, '
+        'el orden y la cantidad de bloques: la guía explica la entrega, no es una plantilla. '
+        'No crees HTML, CSS ni código para presentarlo. Puedes comprobar el formato con '
+        'python3 /inputs/herramientas/comprobar_informe.py /work/informe.json; corrige los errores antes de terminar.')
+    paragraphs[-1] = paragraphs[-1].replace(' y se abran correctamente', '').replace(
+        ' Añade interacción para consultar valores exactos cuando ayude a leerlos.', '')
+    return '\n\n'.join(paragraphs)
+
+
 DATA = 'Los CSV están en la carpeta /inputs/datos; /inputs/manifest.json indica qué tabla es cada archivo.'
 PANORAMA = ('En la carpeta /inputs/contexto tienes panorama.md, un resumen calculado automáticamente a partir de '
             'los CSV (totales, comparación con el periodo anterior, mayores cambios y huecos de registros). '
@@ -92,7 +107,7 @@ def facts(rows):
             and r['content'].get('temporal_scope') != 'unresolved']
 
 
-def compose(*, name, description, goal, model, memory, panorama, questions=False):
+def compose(*, name, description, goal, model, memory, panorama, questions=False, format='html'):
     declared, unknown = meanings(model)
     first = [identity(name, description), DATA]
     if panorama:
@@ -108,10 +123,13 @@ def compose(*, name, description, goal, model, memory, panorama, questions=False
     if remembered:
         paragraphs.append(MEMORY + '\n' + '\n'.join('- ' + f for f in remembered))
     paragraphs.append(sentence(goal or '') + ' ' + REQUEST if (goal or '').strip() else DEFAULT_GOAL + ' ' + REQUEST)
-    return '\n\n'.join(paragraphs) + '\n\n' + FIXED.read_text()
+    fixed = FIXED.read_text()
+    if format == 'blocks':
+        fixed = native_fixed(fixed)
+    return '\n\n'.join(paragraphs) + '\n\n' + fixed
 
 
-def build(db, business, analysis, *, goal, panorama, name=None, description=None, profile_revision=None, questions=False):
+def build(db, business, analysis, *, goal, panorama, name=None, description=None, profile_revision=None, questions=False, format='html'):
     """Read the product inputs once, under the caller's transaction, and return text + provenance.
 
     ``name``/``description`` come from the job when it froze them at creation; otherwise
@@ -132,8 +150,8 @@ def build(db, business, analysis, *, goal, panorama, name=None, description=None
     selection = dict(analysis_id=str(analysis), source_ids=sources, period=context.period())
     memory = context.scoped(context.effective(db, business), selection)
     text = compose(name=owner['name'], description=owner['description'], goal=goal,
-                   model=model, memory=memory, panorama=panorama, questions=questions)
-    provenance = dict(version=QUESTIONS_VERSION if questions else VERSION, profile='job' if frozen else 'current', profile_revision=owner['profile_revision'],
+                   model=model, memory=memory, panorama=panorama, questions=questions, format=format)
+    provenance = dict(version=('blocks-brief-1q' if questions else 'blocks-brief-1') if format == 'blocks' else (QUESTIONS_VERSION if questions else VERSION), profile='job' if frozen else 'current', profile_revision=owner['profile_revision'],
                       data_model=dict(analysis_id=str(analysis), revision=head['revision']) if model else None,
                       memory=sorted(r['reference'] for r in memory if facts([r])),
                       panorama=bool(panorama))

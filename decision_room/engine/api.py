@@ -51,6 +51,13 @@ def _issue(config, run, code, *, error=None, stage=None):
         admission._event(db, run, 'controller_issue', {'code': code, **detail})
 
 
+def _collect(config, business, run, runtime):
+    settings = _row(config, business, run)['profile']
+    if settings.get('format') == 'blocks':
+        return runtime.collect_report(filename='informe.json')
+    return runtime.collect_report()
+
+
 def _finish(config, business, run, status, reason=None):
     with connect(config) as db, db.transaction():
         row = control._run(db, business, run)
@@ -81,6 +88,14 @@ def _inputs(config, row):
             if sum(map(len, files.values())) > 128*1024*1024:
                 raise ValueError('CSV inputs exceed the runtime bound.')
             manifest.append({**table, 'file': '/inputs/datos/' + name})
+    if row['profile'].get('format') == 'blocks':
+        from . import blocks
+        tool = Path(blocks.__file__).read_bytes()
+        guide = blocks.FORMAT_GUIDE.encode()
+        if admission.sha(tool) != row['profile']['validator_sha256'] or admission.sha(guide) != row['profile']['guide_sha256']:
+            raise ValueError('The frozen native validator is unavailable.')
+        files['herramientas/comprobar_informe.py'] = tool
+        files['contexto/formato-informe.txt'] = guide
     files['manifest.json'] = json.dumps(manifest, ensure_ascii=False, indent=2, allow_nan=False).encode()
     for name, text in row['input_context'].items():
         files['contexto/' + name] = text.encode()
@@ -317,7 +332,7 @@ def _drive(config, business, run, *, new_token=None, answer=None):
                     finished = _completed_turn(messages, latest_user)
                     if not busy and finished:
                         stage = 'collect_report'
-                        store.receive_file(config, business, run, runtime.collect_report())
+                        store.receive_file(config, business, run, _collect(config, business, run, runtime))
                         file_collected = True
                         receipt = store.read_document(config, business, run)
                         status = 'delivered' if receipt and receipt['raw'].strip() else 'failed'
@@ -336,7 +351,7 @@ def _drive(config, business, run, *, new_token=None, answer=None):
             cleanup_errors = []
             if runtime is not None and not file_collected:
                 try:
-                    store.receive_file(config, business, run, runtime.collect_report())
+                    store.receive_file(config, business, run, _collect(config, business, run, runtime))
                 except Exception as error:
                     cleanup_errors.append(('file_collection_unconfirmed', error, 'collect_partial'))
             for resource, action, code, cleanup_stage in (
