@@ -19,7 +19,7 @@ def normalize(values):
             raise WebError('La selección no es válida.')
         identity, version = fields[:2]
         item = dict(value, **{identity: str(identifier(value[identity]))})
-        kinds = ('business', 'memory', 'conversation', 'data_model') if fields == SOURCE_FIELDS else ('chart', 'metric', 'insight', 'section', 'report')
+        kinds = ('business', 'memory', 'conversation', 'data_model', 'engine_block') if fields == SOURCE_FIELDS else ('chart', 'metric', 'insight', 'section', 'report')
         if (item['kind'] not in kinds or
             any(not isinstance(item[k], str) or not 0 < len(item[k]) <= 180
                 for k in (version, 'element_key'))):
@@ -74,6 +74,8 @@ def resolve_source(reference, db, business):
         return attachment(db, business, reference)
     if reference['kind'] == 'data_model':
         return resolve_data_model(reference, db, business)
+    if reference['kind'] == 'engine_block':
+        return resolve_engine_block(reference, db, business)
     kind, key = reference['kind'], reference['element_key']
     if kind == 'business' and key == 'profile' and reference['source_id'] == str(business):
         row = profile(db, business)
@@ -101,6 +103,32 @@ def resolve_source(reference, db, business):
         raise WebError('La información seleccionada ha cambiado. Vuelve a seleccionarla.', 409)
     return dict(**reference, title=title, content=content, status='available',
                 report_title='Mi negocio', href='#my-business', **details)
+
+
+def resolve_engine_block(reference, db, business):
+    """One block of the current revision of a native v1 report: agent text, never reviewed evidence."""
+    from .engine import blocks
+    document, revision = identifier(reference['source_id']), identifier(reference['source_version'])
+    row = db.execute('''SELECT d.current_revision_id,d.deleted_at,d.stale_reason,r.raw,w.id AS job_id,w.deleted_at AS job_deleted_at
+        FROM report_documents d JOIN engine_document_revisions r
+          ON r.business_id=d.business_id AND r.document_id=d.id AND r.id=%s
+        LEFT JOIN web_jobs w ON w.business_id=d.business_id AND w.report_document_id=d.id
+        WHERE d.business_id=%s AND d.id=%s''', (revision, business, document)).fetchone()
+    if (not row or row['deleted_at'] or row['job_deleted_at'] or row['stale_reason']
+            or row['current_revision_id'] != revision):
+        raise WebError('El fragmento del informe ha cambiado o se ha retirado. Vuelve a seleccionarlo.', 409)
+    try:
+        projection = blocks.parse(bytes(row['raw']))
+    except blocks.BlocksError:
+        raise WebError('El elemento seleccionado no pertenece a este informe.', 409) from None
+    block = next((b for b in blocks.walk(projection['blocks']) if b['id'] == reference['element_key']), None)
+    if block is None:
+        raise WebError('El elemento seleccionado no pertenece a este informe.', 409)
+    lines = blocks.block_lines(block)
+    title = block.get('title') or block.get('label') or lines[0][:100]
+    return dict(**reference, title=title, content=dict(key=block['id'], title=title, statement='\n'.join(lines)),
+                status='available', report_title=projection['title'], href=f"#report/{row['job_id']}" if row['job_id'] else None,
+                authority='engine_report', selection_scope='report_element')
 
 
 def resolve_data_model(reference, db, business):

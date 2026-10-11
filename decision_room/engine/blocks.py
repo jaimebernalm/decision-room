@@ -481,23 +481,29 @@ def format_number(value, decimals):
     if value is None:
         return '—'
     with localcontext() as ctx:
-        ctx.prec = 60
+        ctx.prec = 80  # derived values (differences, percentages) can exceed 15 digits
         number = Decimal(str(value)).quantize(Decimal(1).scaleb(-decimals), rounding=ROUND_HALF_UP)
-    text = f'{abs(number):,.{decimals}f}'.translate(str.maketrans({',': '.', '.': ','}))
+        text = f'{abs(number):,.{decimals}f}'.translate(str.maketrans({',': '.', '.': ','}))
     return ('−' if number < 0 else '') + text
 
 
 def exact_number(value):
     """Every digit of the delivered value, in Spanish format."""
-    number = Decimal(str(value))
-    return format_number(value, max(0, -number.normalize().as_tuple().exponent))
+    with localcontext() as ctx:
+        ctx.prec = 80
+        places = max(0, -Decimal(str(value)).normalize().as_tuple().exponent)
+    return format_number(value, places)
 
 
 def shown(value, decimals):
     """Visible format plus the exact value when rounding hides digits (chat and checks need it)."""
     text = format_number(value, decimals)
-    if value is not None and Decimal(str(value)) != Decimal(str(value)).quantize(Decimal(1).scaleb(-decimals), rounding=ROUND_HALF_UP):
-        text += f' [exacto: {exact_number(value)}]'
+    if value is not None:
+        with localcontext() as ctx:
+            ctx.prec = 80
+            hidden = Decimal(str(value)) != Decimal(str(value)).quantize(Decimal(1).scaleb(-decimals), rounding=ROUND_HALF_UP)
+        if hidden:
+            text += f' [exacto: {exact_number(value)}]'
     return text
 
 
