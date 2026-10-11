@@ -81,13 +81,20 @@ el mismo ancho de 1.440 píxeles, escala 1, tipografía disponible y zoom 100 %.
 Serie completa visible, tablas en su estado inicial y detalles de comprobación
 cerrados; las discrepancias y la comprobación incompleta siguen visibles (D1).
 
-**Propuesta pendiente de revisión técnica de M4:** ocho capturas consecutivas de
-3.000 píxeles de alto por informe, con el mismo ancho: 16 imágenes por pareja.
-Se captura la página completa; los tramos sobrantes son blancos. No se corta
-contenido para caber, se compone a menor escala ni se eligen páginas por calidad.
-Si un informe excede 24.000 píxeles, se conserva entero y la lectura queda sin
-acreditar; no se reemplaza el informe. El anexo debe fijar el protocolo que M4
-haya probado, incluida cualquier sustitución de esta propuesta, antes del lote.
+Protocolo probado en M4: página completa a 1.440 píxeles de ancho, cortada en
+tramos consecutivos de 1.500 píxeles de alto (el último puede ser menor), sin
+reducir escala. En ambos brazos se ocultan la barra lateral, el compositor y los
+avisos de la copia local; no los avisos del informe. El marco de la instantánea
+HTML se amplía a la altura de todas sus páginas. Las tablas permanecen en su
+estado inicial: las de más de ocho filas están plegadas, como las vería el dueño.
+No se fuerza un número de capturas con relleno blanco ni se eligen tramos por
+calidad. Los cortes cubren toda la página y conservan su orden.
+
+El límite se fija en **16 imágenes por pareja**, antes del lote. Si el contenido
+completo excede ese límite, se conserva entero, sin truncarlo ni componerlo a
+menor escala; la lectura de esa pareja queda sin acreditar y el veredicto es
+incompleto. Se conserva la entrega: no se reemplaza el informe. El anexo fija los
+scripts y hashes de la captura, y la altura y el número de cortes de cada vista.
 
 El lector recibe solo las capturas web completas de A y B y la pregunta
 congelada. El auditor recibe CSV y el texto canónico sin el estado del comprobador,
@@ -166,10 +173,36 @@ y latencia con denominadores, como resultados descriptivos que no deciden.
 - **Mejor:** a–f son True y (c) ≥12/20.
 - **No peor:** a–f son True y (c) está entre 10 y 11,5 puntos, por los empates.
 - **No pasa:** el lote y evaluaciones están completos y alguna condición es False.
-- Un denominador vacío que impida decidir no se convierte en True por ausencia de errores.
+- Un denominador vacío que impida decidir no se convierte en True por ausencia de errores; deja el veredicto incompleto.
 
 Solo «mejor» abre M6, con preregistro y gasto propios dentro del saldo conjunto.
 Los 20 intentos, incluso los fallidos, permanecen en el registro público agregado.
+
+## Analizador preparado antes del lote
+
+`scripts/f5/m5_analyze.py KEY RESULTS OUT` aplica esta regla. Exige 20 códigos
+únicos y las diez parejas, valida los esquemas de auditor/agrupador/juez/lector,
+y lee los ledgers con SQLite `mode=ro` (la recuperación de un run de un intento
+caído usa una consulta PostgreSQL de solo lectura). Comprueba un único ledger
+conjunto de 5 USD y el ledger P4 de cada run; no suma P4 otra vez al coste. Los
+importes se comparan en nano-USD enteros. `uncertain` y `rejected` son cobros
+terminales a reserva, publicados por separado; `reserved` permanece pendiente.
+Un coste desconocido conserva, si existe, solo su cota inferior conocida.
+
+La verificación de los sellos de kits y resultados es un paso previo separado;
+el analizador no convierte un sello válido en prueba de cobertura o exactitud.
+Las métricas del cruce con el comprobador cuentan afirmaciones del auditor;
+los materiales y críticos distintos se cuentan desde los grupos, conservando
+ambos denominadores. Si falta un requisito o alguna condición queda en None,
+el veredicto es incompleto aunque se publiquen otras condiciones True o False.
+
+Validación previa a M5: **22 fixtures de lotes completos**, sin API, cubren las
+pérdidas, intentos sin iniciar, entrega única y doble pérdida, empates y umbrales,
+críticos avisados, medias por negocio, auditorías y jueces ausentes, citas
+ambiguas, denominadores vacíos, falsas alarmas, reservas inciertas y pendientes,
+rechazos, fuentes desconocidas, P4, topes y esquemas inválidos. Con los tests
+existentes de N4, F5 y verificación estructural: **53 pruebas OK**. Esta validación
+acredita la aplicación de la regla a fixtures, no la calidad de los modelos.
 
 ## Anexo de congelación (pendiente)
 
