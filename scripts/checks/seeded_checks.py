@@ -1,5 +1,12 @@
 """Seeded-error validation of the independent checker (N4 annexes), on copies of delivered reports.
 
+STATUS: development tool, NOT validated and never run. Known gaps (Astra's review, 2026-10-11):
+seed_document may match the number in another priority or a title (an empty fragment of the quote
+matches any string); it must pin the exact priority block, change one unambiguous occurrence there,
+verify that only that span changed in the canonical projection, mark quotes from numeric fields as
+not seedable, forbid overlapping picks and record missing seeds in the denominator. Fix with
+adversarial fixtures before any use; its two format tests accredit nothing.
+
 Usage: python scripts/checks/seeded_checks.py TRIAL_ROOT KEY_PATH RESULTS_DIR LEDGER OUT_JSON [--seed N]
 
 For each delivered blocks-v1 attempt, picks 2 priority figures the blind auditor judged correct
