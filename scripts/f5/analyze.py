@@ -210,6 +210,10 @@ def main(key_path, results, out):
     else:
         cond['e'] = (mean(usd) <= 0.50 and max(usd) <= 1.00 and sum(v['unsettled'] for v in v1.values()) == 0
                      and statistics.median(seconds) / 60 <= 15)
+    if any(a['status'] == 'not_run' for a in key['attempts']):
+        # Incomplete coverage never certifies (a) or (e); executed-only figures stay descriptive.
+        cond['a'] = None; cond['e'] = None
+        unaccredited += ['a', 'e']
     attempted = all(a['status'] in ('completed', 'blocked', 'failed', 'waiting', 'failure') for a in key['attempts'])
     complete = attempted and not missing and not key.get('incomplete_pairs') and not any(
         p.get('reading') for p in key['pairs'].values())
