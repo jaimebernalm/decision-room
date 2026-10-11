@@ -22,4 +22,3 @@ export function withUnit(value: number | null, decimals: number, unit: string | 
 export function signed(value: number, decimals: number, unit: string | null) {
   return (value > 0 ? "+" : "") + withUnit(value, decimals, unit);
 }
-
