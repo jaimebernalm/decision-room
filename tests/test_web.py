@@ -70,7 +70,8 @@ class WebTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='dr-web-test-')
         self.addCleanup(self.temp.cleanup)
-        self.config = replace(self.base, dsn=self.dsn, storage=Path(self.temp.name))
+        # These web suites exercise legacy and HTML engine jobs; the native default is covered in test_native_default.
+        self.config = replace(self.base, dsn=self.dsn, storage=Path(self.temp.name), report_engine='legacy', report_format='html')
         with connect(self.config) as db, db.transaction():
             db.execute('DELETE FROM web_replies')
             db.execute('DELETE FROM web_onboarding')

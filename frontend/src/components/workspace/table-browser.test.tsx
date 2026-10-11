@@ -217,7 +217,7 @@ it("keeps the end of filtered results after evicting and reloading earlier block
       true,
     ),
   );
-  const viewport = screen.getByRole("region", { name: "Filas del archivo" });
+  const viewport = await screen.findByRole("region", { name: "Filas del archivo" });
   for (const row of [45, 95, 145, 195, 245, 295, 345, 395]) {
     fireEvent.scroll(viewport, { target: { scrollTop: row * 40 } });
     await screen.findByText(`value-${row + 10}-0`);

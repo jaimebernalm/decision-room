@@ -185,8 +185,52 @@ def _reports(config, db, m, scope, request):
         items.append(dict(id=key, version=run['approved_sha256'], title=data['report']['title'],
                           summary=data['report']['summary'], scope=data['report']['scope'], analysis_id=str(run['analysis_id']), **_report_dates(db, run)))
         dependencies.append(dict(kind='report', id=key, version=run['approved_sha256']))
+    engine_limit = request.limit - len(items) if request.query.strip() else request.limit
+    engine_items, engine_dependencies = _engine_reports(config, db, m, scope, request.model_copy(update={'limit':engine_limit})) if engine_limit else ([], [])
+    items += engine_items
+    dependencies += engine_dependencies
+    if request.query.strip():
+        search = {**search, 'engine_order':'ranked_separately_after_reviewed', 'combined_limit':request.limit}
+    else:
+        from datetime import datetime, timezone
+        floor = datetime.min.replace(tzinfo=timezone.utc)
+        items.sort(key=lambda r:(datetime.fromisoformat(r.get('approved_at') or r.get('delivered_at'))
+                                 if r.get('approved_at') or r.get('delivered_at') else floor, r['id']), reverse=True)
+        items = items[:request.limit]
+        selected = {r['id'] for r in items}
+        dependencies = [d for d in dependencies if d['id'] in selected]
+        search = {**search, 'order':'approved_or_delivered_at_desc', 'combined_limit':request.limit}
     return dict(items=items, candidate_scan_limit=semantic.MAX_DOCUMENTS,
                 more_possible=len(docs) > len(keys), search=search), dependencies
+
+
+ENGINE_EVIDENCE = ('Informe del motor v1: texto del informe tal como lo escribió el agente. '
+                   'No tiene afirmaciones estructuradas, evidencias ni verificación automática; '
+                   'no lo presentes como resultado comprobado.')
+
+
+def _engine_reports(config, db, m, scope, request):
+    from ..reports import reading
+    rows = reading.chat_documents(db, m['business_id'], scope['analysis_id'] if request.id else None)
+    if request.query.strip() and rows:
+        docs = [dict(key=r['id'], version=r['version'], text=r['text'][:20000]) for r in rows]
+        keys, _ = semantic.rank(config, db, m['business_id'], 'report', docs, request.query, request.limit)
+        rows = [r for key in keys for r in rows if r['id'] == key]
+    rows = rows[:request.limit]
+    for r in rows:  # Recheck after unlocked ranking calls, as for reviewed reports.
+        current = reading.chat_document(db, m['business_id'], r['id'])
+        if not current or current['version'] != r['version']:
+            raise ctx.StaleContext('Report changed during search; retry.')
+    items = [dict(id=r['id'], version=r['version'], origin=r.get('origin', 'engine_html'), title=r['title'],
+                  summary=r['text'][:300], analysis_id=r['analysis_id'], delivered_at=r['created_at'],
+                  evidence_class=ENGINE_EVIDENCE) for r in rows]
+    return items, [dict(kind='engine_report', id=r['id'], version=r['version']) for r in rows]
+
+
+def engine_current(db, business, dependency):
+    from ..reports import reading
+    current = reading.chat_document(db, business, dependency['id'])
+    return bool(current and current['version'] == dependency['version'])
 
 
 def retrieve(config, db, session_id, request, *, manifest=None, opened=None):
@@ -248,6 +292,14 @@ def retrieve(config, db, session_id, request, *, manifest=None, opened=None):
     elif r.tool == 'search_reports':
         scope = _scope(db, m, r.id)
         result, dependencies = _reports(config, db, m, scope, r)
+    elif r.tool == 'open_report' and db.execute('SELECT 1 FROM report_documents WHERE business_id=%s AND id=%s',
+                                                (m['business_id'], UUID(r.id))).fetchone():
+        from ..reports import reading
+        value = reading.chat_document(db, m['business_id'], r.id)
+        if not value:
+            raise ValueError('This report is not current or its text is not ready yet.')
+        result = dict(value, evidence_ids=[], evidence_class=ENGINE_EVIDENCE)
+        dependencies.append(dict(kind='engine_report', id=r.id, version=value['version']))
     elif r.tool == 'open_report':
         run, data = _report(config, db, m, r.id)
         evidence_ids = sorted({ref['execution_id'] for c in data['report']['claims'] for ref in c['evidence']})

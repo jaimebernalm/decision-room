@@ -101,6 +101,8 @@ export const statuses: Record<string, string> = {
   running: "En curso",
   waiting: "Necesita tu respuesta",
   completed: "Informe disponible",
+  saved: "Entrega guardada",
+  incomplete: "Entrega incompleta",
   failed: "Interrumpido",
   blocked: "Necesita atención",
   outdated: "Contexto cambiado",
@@ -126,7 +128,7 @@ export const analysisHref = (item: {
   presentation_status?: string;
   data_version?: { superseded_by?: string };
 }) =>
-  `#${["completed", "historical"].includes(reportState(item)) ? "report" : "analysis"}/${item.id}`;
+  `#${["completed", "historical", "saved"].includes(reportState(item)) ? "report" : "analysis"}/${item.id}`;
 export const contextKey = (business: string) =>
   `dr-question-context-${business}`;
 export const homeDraftKey = (business: string) => `dr-home-prompt-${business}`;

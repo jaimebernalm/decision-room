@@ -35,7 +35,7 @@ import {
   SourcesContent,
 } from "@/components/ai-elements/sources";
 import { Selectable } from "./context-selection";
-import { Disclosure } from "./shared";
+import { Disclosure, Notice } from "./shared";
 import {
   CHART_PALETTE,
   groupedPoints,
@@ -48,11 +48,13 @@ import { findingTarget } from "@/lib/report-navigation";
 import { PresentationEditor } from "./presentation-editor";
 import { ReportSection } from "./report-section";
 import { ReportChartTooltip } from "./report-chart-tooltip";
+import { BlocksReport } from "./engine-blocks";
 import type {
   ChartData,
   ChartPanel,
   Report as ReportData,
   ContextAttachment,
+  ReportBlock,
 } from "@/lib/types";
 const config = { value: { label: "Valor", color: CHART_PALETTE[0] } };
 function GroupedBars({
@@ -422,6 +424,135 @@ export function ChartValues({ chart }: { chart: ChartData }) {
   );
 }
 
+function EngineFrame({ report }: { report: ReportData }) {
+  const view = report.view;
+  if (!view) return null;
+  const text = view.canonical_text ? (
+    <Disclosure title={tr("Texto del informe")}>
+      <p className="whitespace-pre-wrap text-sm">{view.canonical_text}</p>
+    </Disclosure>
+  ) : null;
+  if (view.mode === "blocks" && view.blocks) {
+    const meta = report.engine_report;
+    // Chat selection by block id on the current revision only; agent text, never evidence.
+    const wrap = (block: ReportBlock, node: ReactNode) =>
+      meta?.is_current && block.type !== "section" ? (
+        <Selectable
+          item={{
+            source_id: meta.document_id,
+            source_version: meta.revision_id,
+            kind: "engine_block",
+            element_key: block.id,
+            title:
+              "title" in block
+                ? block.title || block.id
+                : "label" in block
+                  ? block.label
+                  : report.title,
+            report_title: report.title,
+            href: location.hash,
+          }}
+        >
+          {node}
+        </Selectable>
+      ) : (
+        node
+      );
+    return (
+      <>
+        <BlocksReport projection={view.blocks} checks={view.checks} wrap={wrap} />
+        {text}
+      </>
+    );
+  }
+  if (view.mode === "snapshot")
+    return (
+      <>
+        {/* Renderer snapshot (platform HTML with images): no scripts, forms, popups or parent access. */}
+        <iframe
+          title={tr("Informe")}
+          sandbox={view.sandbox ?? ""}
+          srcDoc={view.srcdoc}
+          referrerPolicy="no-referrer"
+          className="h-[80vh] w-full rounded-md border bg-white"
+        />
+        {text}
+      </>
+    );
+  return (
+    <>
+      <Notice error={view.mode === "blocked"}>
+        {view.mode === "pending"
+          ? tr(
+              "Preparando la vista del informe. Conservamos su entrega; puedes descargar el HTML original.",
+            )
+          : view.mode === "unavailable"
+            ? tr(
+                "La vista del informe no está disponible en esta instalación. Puedes descargar el HTML original.",
+              )
+            : tr(
+                "Presentación bloqueada: este informe contiene elementos que no podemos mostrar con seguridad. Conservamos su entrega y puedes descargar el HTML original.",
+              )}
+      </Notice>
+      {text}
+    </>
+  );
+}
+
+function EngineReportView({ report }: { report: ReportData }) {
+  const metadata = report.engine_report!;
+  const labels = {
+    current: "Entrega guardada",
+    withdrawn: "Informe retirado",
+    historical: "Revisión anterior",
+    incomplete: "Entrega incompleta",
+  };
+  return (
+    <div className="space-y-6">
+      <Badge variant="outline">{tr(labels[metadata.state])}</Badge>
+      <h2 className="text-2xl font-semibold tracking-tight">{report.title}</h2>
+      {report.summary && <p>{tr(report.summary)}</p>}
+      {metadata.state === "withdrawn" && (
+        <p>
+          {tr(
+            "Crea un análisis nuevo para usar los datos y definiciones actuales.",
+          )}
+        </p>
+      )}
+      <EngineFrame report={report} />
+      <Disclosure title={tr("Detalles técnicos")}>
+        <Disclosure title={tr("Registro de entrega")}>
+          <p className="mb-2 text-sm">
+            {tr("Revisión")}: {metadata.revision_id}
+          </p>
+          <p className="break-all font-mono text-xs">
+            SHA-256: {metadata.raw_sha256}
+          </p>
+          <p className="mt-2 text-sm">{metadata.raw_bytes} bytes</p>
+        </Disclosure>
+        <Disclosure title={tr("Historial de entregas")}>
+          <ul className="space-y-4">
+            {metadata.history.map((revision) => (
+              <li key={revision.id} className="text-sm">
+                <p>
+                  {tr("Revisión")} {revision.ordinal} · {revision.raw_bytes}{" "}
+                  bytes ·{" "}
+                  {revision.delivery_via === "file"
+                    ? tr("Archivo final")
+                    : tr("Entrega directa")}
+                </p>
+                <p className="break-all font-mono text-xs">
+                  {revision.raw_sha256}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </Disclosure>
+      </Disclosure>
+    </div>
+  );
+}
+
 export function ReportView({
   report,
   compact = false,
@@ -514,6 +645,12 @@ export function ReportView({
       ))}{" "}
     </div>
   );
+  if (report.origin === "engine_html" || report.origin === "engine_blocks")
+    return report.engine_report ? (
+      <EngineReportView report={report} />
+    ) : (
+      <p>{tr("Registro de entrega no disponible")}</p>
+    );
   return (
     <div ref={root} className="space-y-6">
       <div>

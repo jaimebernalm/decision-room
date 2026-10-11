@@ -34,6 +34,8 @@ export type Analysis = {
   created_at: string;
   status: string;
   presentation_status?: string;
+  engine_kind?: "legacy" | "opencode";
+  engine_report?: EngineReportMetadata;
   conversation_id?: string;
   data_version?: Dataset;
 };
@@ -122,7 +124,28 @@ export type Presentation = {
     created_at: string | null;
   }[];
 };
+export type EngineReportMetadata = {
+  document_id: string;
+  revision_id: string;
+  state: "current" | "withdrawn" | "historical" | "incomplete";
+  is_current: boolean;
+  run_status: string;
+  raw_sha256: string;
+  raw_bytes: number;
+  profile_version: string;
+  history: {
+    id: string;
+    ordinal: number;
+    raw_sha256: string;
+    raw_bytes: number;
+    delivery_via: string;
+    created_at: string;
+  }[];
+};
 export type Report = {
+  origin?: "engine_html" | "engine_blocks";
+  engine_report?: EngineReportMetadata;
+  view?: EngineReportView | null;
   presentation?: Presentation;
   partial?: boolean;
   report_id?: string;
@@ -150,6 +173,9 @@ export type Report = {
     original_unit?: string;
     unit_customizable?: boolean;
     unit_origin?: "analysis" | "owner";
+    /** v1 figure cards on Home: an independent check disputes this figure. */
+    disputed?: boolean;
+    check_incomplete?: boolean;
   }[];
   charts: ChartData[];
   limitations: string[];
@@ -176,7 +202,7 @@ export type ContextReference =
   | {
       source_id: string;
       source_version: string;
-      kind: "business" | "memory" | "conversation" | "data_model";
+      kind: "business" | "memory" | "conversation" | "data_model" | "engine_block";
       element_key: string;
     };
 export type ContextAttachment = ContextReference & {
@@ -202,6 +228,7 @@ export type QuestionContext = {
   label?: string;
 };
 export type Question = {
+  run_id?: string;
   references?: { kind: string; id: string; column: string }[];
   previous_text?: string;
   id: string;
@@ -318,6 +345,9 @@ export type ChatDetail = {
   context_changed_after?: boolean;
 };
 export type Job = Analysis & {
+  engine_run_id?: string;
+  engine_state?: string;
+  answer_pending?: boolean;
   can_retry?: boolean;
   analysis_id?: string;
   unresolved_questions?: Question[];
@@ -363,6 +393,8 @@ export type HomeSource = {
   analysis_id: string;
   limitations: string[];
   href: string;
+  origin?: "engine_blocks";
+  reviewed?: boolean;
 };
 export type HomeItem = { id: string; title: string; source: HomeSource } & (
   | { kind: "metric"; content: Report["highlights"][number] }
@@ -370,6 +402,12 @@ export type HomeItem = { id: string; title: string; source: HomeSource } & (
   | { kind: "insight"; content: Claim }
 );
 export type HomeDashboard = {
+  report_accesses?: {
+    id: string;
+    title: string;
+    href: string;
+    state: string;
+  }[];
   business_id: string;
   revision: number;
   fingerprint: string;
@@ -414,4 +452,96 @@ export type SetupSession = {
   publishable?: boolean;
   job_status?: string;
   context_stale?: boolean;
+};
+
+export type BlockSpan = { text: string; bold: boolean; italic: boolean };
+export type BlockContent =
+  | { kind: "paragraph"; spans: BlockSpan[] }
+  | { kind: "list"; ordered: boolean; items: BlockSpan[][] };
+export type BlockChartSeries = {
+  name: string;
+  values: (number | null)[];
+  details: (string | null)[] | null;
+  /** Meaning declared by the report (projector 4+); absent in older stored projections. */
+  tone?: "positive" | "negative" | "warning" | "neutral" | null;
+};
+/** Which direction the report says is good for the business; color only when declared. */
+export type BlockGood = "up" | "down" | null | undefined;
+export type ReportBlock = { id: string } & (
+  | { type: "section" | "priority"; title: string; blocks: ReportBlock[] }
+  | { type: "text" | "notice"; content: BlockContent[] }
+  | {
+      type: "figure";
+      label: string;
+      value: number;
+      unit: string | null;
+      decimals: number;
+      period: string | null;
+      previous: { value: number; period: string | null } | null;
+      change: number | null;
+      change_pct: number | null;
+      note: string | null;
+      good?: BlockGood;
+    }
+  | {
+      type: "chart";
+      kind: "bar" | "column" | "line" | "change" | "stacked_column" | "stacked_bar" | "table";
+      requested_kind: string;
+      fallback: boolean;
+      title: string;
+      categories: string[];
+      series: BlockChartSeries[];
+      unit: string | null;
+      decimals: number;
+      category_title: string | null;
+      value_title: string | null;
+      note: string | null;
+      good?: BlockGood;
+    }
+  | {
+      type: "table";
+      title: string | null;
+      columns: {
+        title: string;
+        unit: string | null;
+        decimals: number | null;
+        signed?: boolean;
+        good?: BlockGood;
+      }[];
+      rows: (string | number | null)[][];
+      note: string | null;
+    }
+);
+export type BlocksProjection = {
+  schema: string;
+  projector: string;
+  title: string;
+  blocks: ReportBlock[];
+};
+export type BlockCheck = {
+  block_id: string;
+  quote: string;
+  status: "discrepancy" | "unverifiable";
+  independent_value?: string | null;
+  method?: string | null;
+  message?: string | null;
+  /** Summary of numeric spans the checker did not address explicitly (not a quote). */
+  coverage?: boolean;
+};
+export type BlockChecks = {
+  state: "unknown" | "pending" | "complete" | "incomplete";
+  items: BlockCheck[];
+  /** Numeric spans of the priorities and how many the checker recalculated and matched. */
+  coverage?: { numeric_spans: number; addressed_spans: number; confirmed_spans: number } | null;
+};
+export type EngineReportView = {
+  blocks?: BlocksProjection;
+  checks?: BlockChecks;
+  mode: "snapshot" | "pending" | "blocked" | "unavailable" | "blocks";
+  policy_version: string;
+  receipt: "allowed" | "blocked";
+  reason: string | null;
+  canonical_text: string | null;
+  sandbox?: string;
+  srcdoc?: string;
 };

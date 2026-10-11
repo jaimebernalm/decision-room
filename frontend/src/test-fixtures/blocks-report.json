@@ -1,0 +1,284 @@
+{
+ "schema": "informe-bloques-1",
+ "projector": "bloques-proyector-4",
+ "title": "Cómo va el año",
+ "blocks": [
+  {
+   "id": "b1",
+   "type": "text",
+   "content": [
+    {
+     "kind": "paragraph",
+     "spans": [
+      {
+       "text": "La web crece.",
+       "bold": false,
+       "italic": false
+      }
+     ]
+    },
+    {
+     "kind": "paragraph",
+     "spans": [
+      {
+       "text": "Distribuidores cae.",
+       "bold": false,
+       "italic": false
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "b2",
+   "type": "figure",
+   "label": "Importe neto",
+   "value": 39918.54,
+   "previous": {
+    "value": 35000,
+    "period": "ene–ago 2025"
+   },
+   "unit": "€",
+   "decimals": 2,
+   "period": "ene–ago 2026",
+   "note": null,
+   "change": 4918.54,
+   "change_pct": 14.1
+  },
+  {
+   "id": "b3",
+   "type": "section",
+   "title": "Canales",
+   "blocks": [
+    {
+     "id": "b3-1",
+     "type": "chart",
+     "kind": "change",
+     "requested_kind": "cambio",
+     "fallback": false,
+     "title": "Cambio por canal",
+     "categories": [
+      "Web",
+      "Tienda",
+      "Distribuidores"
+     ],
+     "series": [
+      {
+       "name": "Cambio",
+       "values": [
+        6936.74,
+        120,
+        -15630.29
+       ],
+       "details": null
+      }
+     ],
+     "unit": "€",
+     "decimals": 2,
+     "category_title": null,
+     "value_title": null,
+     "note": null
+    },
+    {
+     "id": "b3-2",
+     "type": "table",
+     "title": "Detalle",
+     "columns": [
+      {
+       "title": "Producto",
+       "unit": null,
+       "decimals": null
+      },
+      {
+       "title": "Unidades",
+       "unit": null,
+       "decimals": 0
+      }
+     ],
+     "rows": [
+      [
+       "Magnesio",
+       342
+      ],
+      [
+       "Colágeno",
+       null
+      ]
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "id": "b4",
+   "type": "priority",
+   "title": "Validar Distribuidores",
+   "blocks": [
+    {
+     "id": "b4-1",
+     "type": "text",
+     "content": [
+      {
+       "kind": "paragraph",
+       "spans": [
+        {
+         "text": "Magnesio cae a ",
+         "bold": false,
+         "italic": false
+        },
+        {
+         "text": "342 unidades",
+         "bold": true,
+         "italic": false
+        }
+       ]
+      },
+      {
+       "kind": "list",
+       "ordered": true,
+       "items": [
+        [
+         {
+          "text": "Revisar pedidos",
+          "bold": false,
+          "italic": false
+         }
+        ],
+        [
+         {
+          "text": "Comparar con ",
+          "bold": false,
+          "italic": false
+         },
+         {
+          "text": "facturas",
+          "bold": false,
+          "italic": true
+         }
+        ]
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "b5",
+   "type": "notice",
+   "content": [
+    {
+     "kind": "paragraph",
+     "spans": [
+      {
+       "text": "Faltan registros del 4 al 26 de julio.",
+       "bold": false,
+       "italic": false
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "b6",
+   "type": "chart",
+   "kind": "line",
+   "requested_kind": "lineas",
+   "fallback": false,
+   "title": "Tasa mensual",
+   "categories": [
+    "ene",
+    "feb",
+    "mar"
+   ],
+   "series": [
+    {
+     "name": "App",
+     "values": [
+      13.7,
+      null,
+      18.2
+     ],
+     "details": [
+      "17 de 124",
+      null,
+      "20 de 110"
+     ]
+    },
+    {
+     "name": "Resto",
+     "values": [
+      11.6,
+      10.3,
+      13.5
+     ],
+     "details": null
+    }
+   ],
+   "unit": "%",
+   "decimals": 1,
+   "category_title": null,
+   "value_title": null,
+   "note": null
+  },
+  {
+   "id": "b7",
+   "type": "chart",
+   "kind": "column",
+   "requested_kind": "columnas",
+   "fallback": false,
+   "title": "Unidades por mes",
+   "categories": [
+    "ene",
+    "feb"
+   ],
+   "series": [
+    {
+     "name": "2025",
+     "values": [
+      100,
+      120
+     ],
+     "details": null
+    },
+    {
+     "name": "2026",
+     "values": [
+      130,
+      90
+     ],
+     "details": null
+    }
+   ],
+   "unit": null,
+   "decimals": 0,
+   "category_title": null,
+   "value_title": null,
+   "note": null
+  },
+  {
+   "id": "b8",
+   "type": "chart",
+   "kind": "table",
+   "requested_kind": "dispersión",
+   "fallback": true,
+   "title": "Sin tipo",
+   "categories": [
+    "a"
+   ],
+   "series": [
+    {
+     "name": "s",
+     "values": [
+      1
+     ],
+     "details": null
+    }
+   ],
+   "unit": null,
+   "decimals": 0,
+   "category_title": null,
+   "value_title": null,
+   "note": null
+  }
+ ]
+}

@@ -16,6 +16,7 @@ from psycopg.types.json import Jsonb
 
 from .database import connect
 from . import chat_agent, context_references as selections, conversation_context
+from .chat_agent import ENGINE_ORIGINS
 from .greetings import is_greeting, salutation
 from .agent.model import ModelSettings, ModelRequestUncertain, record_transport
 from .agent import review
@@ -269,6 +270,10 @@ def dependencies_current(config, db, saved, events):
                 and ctx.watch(ctx.effective(db, saved['business_id']), dep['selection']) != dep['watch']
             ):
                 return False
+            if dep['kind'] == 'engine_report':
+                from .memory.retrieval import engine_current
+                if not engine_current(db, saved['business_id'], dep):
+                    return False
             if dep['kind'] == 'report':
                 result = reviewed(config, saved['business_id'], dep['id'], db)
                 row = db.execute(
@@ -613,15 +618,26 @@ class Conversations:
                 "SELECT * FROM chat_turns WHERE conversation_id=%s AND status='waiting' ORDER BY ordinal LIMIT 1", (chat_id,)
             ).fetchone()
             setup = onboarding.before_message(db, self.business, chat, previous)
-            job, question, phase = None, '', None
+            job, question, phase, engine_run_id = None, '', None, None
             if setup and setup['question']:
                 question = setup['question']['text']
             if waiting:
-                questions = self.ws.detail(waiting['job_id'])['questions']
+                waiting_job = db.execute('SELECT * FROM web_jobs WHERE business_id=%s AND id=%s AND deleted_at IS NULL',
+                                         (self.business, waiting['job_id'])).fetchone()
+                if waiting_job and waiting_job['engine_kind'] == 'opencode':
+                    # Selected context can already hold the memory head here.
+                    # Read only wait metadata: full detail opens a second report
+                    # read lock and could wait on this transaction's own lock.
+                    from .web.engine_wait import detail as wait_detail
+                    questions = wait_detail(self.config, waiting_job).get('questions', [])
+                else:
+                    questions = self.ws.detail(waiting['job_id'])['questions']
                 chosen = next((q for q in questions if str(q['id']) == question_id), None)
                 if not chosen:
                     raise WebError('Selecciona una aclaración pendiente.', 409)
                 job, question, phase = waiting['job_id'], chosen['text'], chosen['phase']
+                if phase == 'engine':
+                    engine_run_id = chosen['run_id']
             elif question_id:
                 raise WebError('Esa aclaración ya no está pendiente.', 409)
             elif previous and previous['response'] and previous['response'].get('kind') == 'clarification':
@@ -650,6 +666,8 @@ class Conversations:
                 text=text, question_id=question_id, disposition=disposition, question=question, phase=phase,
                 memory_deferred=defer_memory,
             )
+            if engine_run_id:
+                payload['run_id'] = engine_run_id
             if entry_intent is not None:
                 payload['entry_intent'] = entry_intent
             if setup:
@@ -746,7 +764,14 @@ class Conversations:
                     ):
                         value['context_changed_before'] = True
                     previous_snapshot = t['snapshot']
-                if t['response'] and t['response'].get('report_id'):
+                if t['response'] and t['response'].get('kind')=='report_status':
+                    try:
+                        job=self.ws.row(t['job_id'])
+                        engine_metadata=self.ws.engine_metadata(job,revision=t['response']['revision_id'])
+                        valid=bool(engine_metadata and engine_metadata['is_current'] and engine_metadata['document_id']==t['response']['report_document_id'])
+                    except WebError:
+                        valid=False
+                elif t['response'] and t['response'].get('report_id'):
                     r = reviewed(self.config, self.business, t['response']['report_id'])
                     valid = r['publishable'] and r['approved_sha256'] == t['response'].get('report_version')
                     if valid and t['response']['kind'] == 'evidence':
@@ -781,6 +806,9 @@ class Conversations:
                     detail = self.ws.detail(t['job_id'])
                     if detail.get('context_stale'):
                         value.update(status='stale', response=None, issue=detail['issue'])
+                    elif detail.get('engine_kind') == 'opencode' and detail['status'] != 'waiting':
+                        value.update(status=detail['status'] if detail['status'] in ('blocked','failed') else 'processing',
+                                     response=None, questions=[], issue=detail.get('issue'))
                     else:
                         value['questions'] = detail['questions']
                 result.append(value)
@@ -863,9 +891,17 @@ class Conversations:
         self.ws.wake.set()
         return {'saved': True}
 
-    def report(self, chat_id, turn_id, data=None, *, structured=False):
+    def report(self, chat_id, turn_id, data=None, *, structured=False, purpose='view'):
         if data is not None:
             self.guard(data)
+        with connect(self.config) as lookup:
+            found = self.turn(lookup,chat_id,turn_id)
+            job = lookup.execute('SELECT id,engine_kind FROM web_jobs WHERE id=%s AND business_id=%s',
+                                 (found['job_id'],self.business)).fetchone() if found['job_id'] else None
+        if job and job['engine_kind']=='opencode':
+            return self.ws.report(job['id'],structured=structured,purpose=purpose)
+        if purpose == 'raw':
+            raise WebError('Este informe no tiene un HTML original descargable.', 409)
         with connect(self.config) as db, db.transaction():
             t = self.turn(db, chat_id, turn_id)
             memory.lock(db, self.business)
@@ -1001,7 +1037,8 @@ class Conversations:
             response['onboarding'] = action.onboarding.model_dump(mode='json')
         # An optional evidence attachment retains report export and version checks.
         opened = [e['response'] for i, e in enumerate(context['retrievals'])
-                  if f'tool/{e.get("ordinal", i)}' in cited and e['request']['tool'] == 'open_report' and 'error' not in e['response']]
+                  if f'tool/{e.get("ordinal", i)}' in cited and e['request']['tool'] == 'open_report' and 'error' not in e['response']
+                  and e['response'].get('origin') not in ENGINE_ORIGINS]  # v1 text has no reviewed evidence to attach
         if opened and action.include_report:
             ref = context['message'].get('finding_reference')
             report = next((r for r in opened if ref and r['id'] == ref['report_id']), opened[-1])
@@ -1128,10 +1165,14 @@ class Conversations:
                 ),
                 dependencies=dependencies,
             )
+            from .engine.job_profile import selection, freeze
+            kind, engine_settings = selection(self.config, {})
+            engine_settings = freeze(engine_settings, context=memory.encoded(continuation),
+                                     goal=turn['payload']['text'], input_hash=memory.digest(turn['payload']))
             job = uuid4()
             db.execute(
-                """INSERT INTO web_jobs(id,request_key,request_sha256,business_id,analysis_id,title,context,goal,filename,upload_key,byte_count,model_settings,status,phase,business_name,origin)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'','',0,%s,'queued','planning',%s,'chat')""",
+                """INSERT INTO web_jobs(id,request_key,request_sha256,business_id,analysis_id,title,context,goal,filename,upload_key,byte_count,model_settings,status,phase,business_name,origin,engine_kind,engine_config)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'','',0,%s,'queued','planning',%s,'chat',%s,%s)""",
                 (
                     job,
                     turn['id'],
@@ -1143,6 +1184,7 @@ class Conversations:
                     turn['payload']['text'],
                     Jsonb(turn['model_settings']),
                     turn['snapshot']['profile']['name'],
+                    kind, Jsonb(engine_settings),
                 ),
             )
             db.execute("UPDATE chat_turns SET job_id=%s,status='processing' WHERE id=%s", (job, turn['id']))
@@ -1189,6 +1231,7 @@ class Conversations:
                         self.ws.reply(
                             turn['job_id'],
                             dict(
+                                **({'business_id': str(self.business), 'run_id': a['run_id']} if a['phase'] == 'engine' else {}),
                                 request_key=str(turn['id']),
                                 question_id=a['question_id'],
                                 phase=a['phase'],
@@ -1202,7 +1245,14 @@ class Conversations:
                     # Snapshot captures the clarification's current memory; history is still labelled as a quote.
                     saved = snapshot(db, self.business, chat['analysis_id'], turn['payload']['text'])
                     db.execute('UPDATE chat_turns SET snapshot=%s WHERE id=%s', (Jsonb(saved), turn_id))
-                    if job['publishable']:
+                    if job.get('engine_kind')=='opencode' and job['status']=='completed' and job.get('engine_report'):
+                        value=job['engine_report']
+                        self._save(db,turn,'completed',dict(kind='report_status',
+                            text='La entrega del informe está guardada. Abre el informe para consultar su vista o su estado.',
+                            report_document_id=value['document_id'],revision_id=value['revision_id'],raw_sha256=value['raw_sha256']))
+                        if self._entry_intent(db,turn)=='analysis':
+                            db.execute('UPDATE chat_turns SET report_requested=true WHERE id=%s',(turn['id'],))
+                    elif job['publishable']:
                         row = self.ws.row(turn['job_id'])
                         delivery = brief(self.ws.review_state(row), ws=self.ws, db=db)
                         setup = db.execute('SELECT 1 FROM onboarding_sessions WHERE business_id=%s AND job_id=%s',
@@ -1423,7 +1473,8 @@ class Conversations:
                                             and 'error' not in e['response']
                                         ],
                                     )
-                                if action.retrieval.tool == 'open_report' and 'error' not in response:
+                                if (action.retrieval.tool == 'open_report' and 'error' not in response
+                                        and response.get('origin') not in ENGINE_ORIGINS):
                                     from .web.presentation_editing import view
                                     current = view(self.ws, response['id'], db=db)
                                     response['display'] = {k:current[k] for k in ('title','highlights','charts','claims','presentation')}

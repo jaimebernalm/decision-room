@@ -1,0 +1,7 @@
+*
+!Dockerfile
+!vendor.py
+!LICENSE.opencode
+!vendor/
+!vendor/opencode-linux-arm64-1.18.34.tgz
+!vendor/ripgrep-15.1.0-aarch64-unknown-linux-gnu.tar.gz

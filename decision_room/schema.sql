@@ -845,3 +845,543 @@ INSERT INTO schema_versions(version) VALUES (29) ON CONFLICT DO NOTHING;
 -- Historical inputs remain available to reports while leaving the everyday library.
 ALTER TABLE analyses ADD COLUMN IF NOT EXISTS library_hidden boolean NOT NULL DEFAULT false;
 INSERT INTO schema_versions(version) VALUES (30) ON CONFLICT DO NOTHING;
+
+-- F0: HTML engine control and receipts; preserve master version 30.
+-- Engine P2 admission foundation; legacy sessions and report FKs are unchanged.
+CREATE TABLE IF NOT EXISTS engine_runs (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    analysis_id uuid NOT NULL,
+    request_key text NOT NULL,
+    request_sha256 text NOT NULL,
+    owner_context text NOT NULL,
+    profile jsonb NOT NULL,
+    prompt text NOT NULL CHECK(octet_length(prompt)<=262144),
+    prompt_sha256 text NOT NULL,
+    input_context jsonb NOT NULL,
+    input_sha256 text NOT NULL,
+    model text NOT NULL,
+    snapshot jsonb NOT NULL,
+    snapshot_sha256 text NOT NULL,
+    limits jsonb NOT NULL,
+    status text NOT NULL DEFAULT 'running'
+        CHECK(status IN ('running','pausing','waiting','delivered','failed','aborted')),
+    abort_reason text,
+    credential_sha256 text NOT NULL,
+    credential_revoked boolean NOT NULL DEFAULT false,
+    credential_expires_at timestamptz NOT NULL DEFAULT clock_timestamp()+interval '7 days',
+    active_started_at timestamptz DEFAULT clock_timestamp(),
+    active_seconds double precision NOT NULL DEFAULT 0 CHECK(active_seconds>=0),
+    calls integer NOT NULL DEFAULT 0 CHECK(calls>=0),
+    charged_input bigint NOT NULL DEFAULT 0 CHECK(charged_input>=0),
+    charged_output bigint NOT NULL DEFAULT 0 CHECK(charged_output>=0),
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    FOREIGN KEY(business_id,analysis_id) REFERENCES analyses(business_id,id),
+    UNIQUE(business_id,request_key),
+    UNIQUE(business_id,id)
+);
+CREATE TABLE IF NOT EXISTS engine_events (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    run_id uuid NOT NULL REFERENCES engine_runs(id),
+    kind text NOT NULL,
+    payload jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp()
+);
+CREATE INDEX IF NOT EXISTS engine_events_run ON engine_events(run_id,id);
+CREATE TABLE IF NOT EXISTS engine_model_calls (
+    id uuid PRIMARY KEY,
+    run_id uuid NOT NULL REFERENCES engine_runs(id),
+    request_sha256 text NOT NULL,
+    state text NOT NULL CHECK(state IN ('counting','admitted','settled','uncertain')),
+    reserved_input bigint NOT NULL DEFAULT 0 CHECK(reserved_input>=0),
+    reserved_output bigint NOT NULL DEFAULT 0 CHECK(reserved_output>=0),
+    usage jsonb,
+    issue text,
+    settlement_sha256 text,
+    count_seconds double precision,
+    started_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    admitted_at timestamptz,
+    finished_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS engine_model_calls_run ON engine_model_calls(run_id,started_at,id);
+
+-- Engine drafts are independent of legacy approvals and retain exact raw bytes.
+CREATE TABLE IF NOT EXISTS engine_documents (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    run_id uuid NOT NULL UNIQUE,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    FOREIGN KEY(business_id,run_id) REFERENCES engine_runs(business_id,id),
+    UNIQUE(business_id,id)
+);
+CREATE TABLE IF NOT EXISTS engine_document_revisions (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    document_id uuid NOT NULL,
+    ordinal integer NOT NULL CHECK(ordinal>0),
+    request_key text NOT NULL,
+    raw bytea NOT NULL CHECK(octet_length(raw)<=262144),
+    raw_sha256 text NOT NULL,
+    delivery_via text NOT NULL CHECK(delivery_via IN ('mcp','file')),
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    FOREIGN KEY(business_id,document_id) REFERENCES engine_documents(business_id,id),
+    UNIQUE(document_id,request_key),
+    UNIQUE(document_id,ordinal),
+    UNIQUE(business_id,id)
+);
+
+-- Engine control-plane state. Outbox admission precedes every prompt submission.
+CREATE TABLE IF NOT EXISTS engine_sessions (
+    run_id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    session_id text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    FOREIGN KEY(business_id,run_id) REFERENCES engine_runs(business_id,id),
+    UNIQUE(run_id,session_id)
+);
+CREATE TABLE IF NOT EXISTS engine_prompt_outbox (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    run_id uuid NOT NULL,
+    session_id text NOT NULL,
+    request_key text NOT NULL,
+    request_sha256 text NOT NULL,
+    message_id text NOT NULL,
+    prompt text NOT NULL CHECK(octet_length(prompt)<=262144),
+    state text NOT NULL DEFAULT 'queued' CHECK(state IN ('queued','dispatching','confirmed')),
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    dispatched_at timestamptz,
+    confirmed_at timestamptz,
+    FOREIGN KEY(business_id,run_id) REFERENCES engine_runs(business_id,id),
+    FOREIGN KEY(run_id,session_id) REFERENCES engine_sessions(run_id,session_id),
+    UNIQUE(run_id,request_key),
+    UNIQUE(run_id,message_id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS engine_prompt_outbox_pending
+    ON engine_prompt_outbox(run_id) WHERE state<>'confirmed';
+CREATE TABLE IF NOT EXISTS engine_message_versions (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    business_id uuid NOT NULL,
+    run_id uuid NOT NULL,
+    session_id text NOT NULL,
+    message_id text NOT NULL,
+    content jsonb NOT NULL,
+    content_sha256 text NOT NULL,
+    observed_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    FOREIGN KEY(business_id,run_id) REFERENCES engine_runs(business_id,id),
+    FOREIGN KEY(run_id,session_id) REFERENCES engine_sessions(run_id,session_id),
+    UNIQUE(run_id,message_id,content_sha256)
+);
+
+-- Durable owner questions; pausing and receipt of an answer do not run a model.
+CREATE TABLE IF NOT EXISTS engine_owner_questions (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    run_id uuid NOT NULL,
+    request_key text NOT NULL,
+    request_sha256 text NOT NULL,
+    body jsonb NOT NULL,
+    state text NOT NULL DEFAULT 'pausing' CHECK(state IN ('pausing','waiting','resumed')),
+    checkpoint_key text,
+    checkpoint_sha256 text,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    waiting_at timestamptz,
+    expires_at timestamptz,
+    resumed_at timestamptz,
+    FOREIGN KEY(business_id,run_id) REFERENCES engine_runs(business_id,id),
+    UNIQUE(run_id,request_key),
+    UNIQUE(run_id,id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS engine_owner_question_pending
+    ON engine_owner_questions(run_id) WHERE state<>'resumed';
+CREATE TABLE IF NOT EXISTS engine_owner_answers (
+    question_id uuid PRIMARY KEY,
+    run_id uuid NOT NULL,
+    request_key text NOT NULL,
+    request_sha256 text NOT NULL,
+    body jsonb NOT NULL,
+    message_id text,
+    resumed_credential_sha256 text,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    FOREIGN KEY(run_id,question_id) REFERENCES engine_owner_questions(run_id,id),
+    FOREIGN KEY(run_id,message_id) REFERENCES engine_prompt_outbox(run_id,message_id),
+    UNIQUE(run_id,request_key)
+);
+
+
+INSERT INTO schema_versions(version) VALUES (31) ON CONFLICT DO NOTHING;
+
+-- F0 immutable engine selection: existing jobs stay legacy and are never replayed.
+ALTER TABLE web_jobs ADD COLUMN IF NOT EXISTS engine_kind text NOT NULL DEFAULT 'legacy'
+    CHECK(engine_kind IN ('legacy','opencode'));
+ALTER TABLE web_jobs ADD COLUMN IF NOT EXISTS engine_config jsonb NOT NULL DEFAULT '{}';
+ALTER TABLE web_jobs ADD COLUMN IF NOT EXISTS engine_run_id uuid;
+ALTER TABLE web_jobs ADD COLUMN IF NOT EXISTS report_document_id uuid;
+ALTER TABLE web_jobs DROP CONSTRAINT IF EXISTS web_jobs_phase_check;
+ALTER TABLE web_jobs ADD CONSTRAINT web_jobs_phase_check
+    CHECK(phase IN ('upload','planning','research','review','done','engine'));
+ALTER TABLE web_jobs DROP CONSTRAINT IF EXISTS web_jobs_engine_run_fk;
+ALTER TABLE web_jobs ADD CONSTRAINT web_jobs_engine_run_fk
+    FOREIGN KEY(business_id,engine_run_id) REFERENCES engine_runs(business_id,id);
+ALTER TABLE web_jobs DROP CONSTRAINT IF EXISTS web_jobs_engine_legacy_ids_check;
+ALTER TABLE web_jobs ADD CONSTRAINT web_jobs_engine_legacy_ids_check
+    CHECK(engine_kind='legacy' OR (session_id IS NULL AND research_id IS NULL AND review_id IS NULL));
+CREATE UNIQUE INDEX IF NOT EXISTS web_jobs_engine_run_unique ON web_jobs(engine_run_id);
+CREATE OR REPLACE FUNCTION keep_web_job_engine() RETURNS trigger AS $$
+BEGIN
+    IF NEW.engine_kind IS DISTINCT FROM OLD.engine_kind OR NEW.engine_config IS DISTINCT FROM OLD.engine_config THEN
+        RAISE EXCEPTION 'Job engine configuration is immutable';
+    END IF;
+    IF OLD.engine_run_id IS NOT NULL AND NEW.engine_run_id IS DISTINCT FROM OLD.engine_run_id THEN
+        RAISE EXCEPTION 'Job engine run identity is immutable';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS web_job_engine_immutable ON web_jobs;
+CREATE TRIGGER web_job_engine_immutable BEFORE UPDATE ON web_jobs
+    FOR EACH ROW EXECUTE FUNCTION keep_web_job_engine();
+INSERT INTO schema_versions(version) VALUES (32) ON CONFLICT DO NOTHING;
+
+-- F1 gradual registry: HTML only. Legacy IDs, tables and presentation FKs stay intact.
+CREATE TABLE IF NOT EXISTS engine_report_contexts (
+    run_id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    selection jsonb NOT NULL,
+    memories jsonb NOT NULL,
+    data_models jsonb NOT NULL,
+    table_versions jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    FOREIGN KEY(business_id,run_id) REFERENCES engine_runs(business_id,id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS engine_documents_source ON engine_documents(business_id,id,run_id);
+CREATE UNIQUE INDEX IF NOT EXISTS engine_revisions_source ON engine_document_revisions(business_id,document_id,id);
+CREATE TABLE IF NOT EXISTS report_documents (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    analysis_id uuid NOT NULL,
+    origin text NOT NULL CHECK(origin='engine_html'),
+    source_run_id uuid NOT NULL UNIQUE,
+    current_revision_id uuid,
+    stale_reason text,
+    deleted_at timestamptz,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    FOREIGN KEY(business_id,analysis_id) REFERENCES analyses(business_id,id),
+    FOREIGN KEY(business_id,id,source_run_id) REFERENCES engine_documents(business_id,id,run_id),
+    UNIQUE(business_id,id),
+    UNIQUE(business_id,source_run_id,id)
+);
+CREATE TABLE IF NOT EXISTS report_document_revisions (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    document_id uuid NOT NULL,
+    ordinal integer NOT NULL CHECK(ordinal>0),
+    raw_sha256 text NOT NULL CHECK(raw_sha256 ~ '^[0-9a-f]{64}$'),
+    raw_bytes integer NOT NULL CHECK(raw_bytes BETWEEN 0 AND 262144),
+    profile_version text NOT NULL,
+    presentation_state text NOT NULL CHECK(presentation_state='not_evaluated'),
+    verification_state text NOT NULL CHECK(verification_state='not_requested'),
+    derived_version integer NOT NULL CHECK(derived_version=0),
+    canonical_text text CHECK(canonical_text IS NULL),
+    canonical_sha256 text CHECK(canonical_sha256 IS NULL),
+    created_at timestamptz NOT NULL,
+    FOREIGN KEY(business_id,document_id) REFERENCES report_documents(business_id,id),
+    FOREIGN KEY(business_id,document_id,id) REFERENCES engine_document_revisions(business_id,document_id,id),
+    UNIQUE(document_id,ordinal),
+    UNIQUE(business_id,document_id,id)
+);
+ALTER TABLE report_documents DROP CONSTRAINT IF EXISTS report_document_head;
+ALTER TABLE report_documents ADD CONSTRAINT report_document_head
+    FOREIGN KEY(business_id,id,current_revision_id) REFERENCES report_document_revisions(business_id,document_id,id);
+ALTER TABLE web_jobs DROP CONSTRAINT IF EXISTS web_jobs_report_document_fk;
+ALTER TABLE web_jobs ADD CONSTRAINT web_jobs_report_document_fk
+    FOREIGN KEY(business_id,engine_run_id,report_document_id) REFERENCES report_documents(business_id,source_run_id,id);
+ALTER TABLE web_jobs DROP CONSTRAINT IF EXISTS web_jobs_report_document_kind;
+ALTER TABLE web_jobs ADD CONSTRAINT web_jobs_report_document_kind
+    CHECK(report_document_id IS NULL OR (engine_kind='opencode' AND engine_run_id IS NOT NULL));
+CREATE UNIQUE INDEX IF NOT EXISTS web_jobs_report_document_unique ON web_jobs(report_document_id);
+CREATE OR REPLACE FUNCTION keep_report_revision() RETURNS trigger AS $$
+BEGIN
+    RAISE EXCEPTION 'Report source and revision are immutable';
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS engine_report_context_immutable ON engine_report_contexts;
+CREATE TRIGGER engine_report_context_immutable BEFORE UPDATE OR DELETE ON engine_report_contexts
+    FOR EACH ROW EXECUTE FUNCTION keep_report_revision();
+DROP TRIGGER IF EXISTS engine_report_raw_immutable ON engine_document_revisions;
+CREATE TRIGGER engine_report_raw_immutable BEFORE UPDATE OR DELETE ON engine_document_revisions
+    FOR EACH ROW EXECUTE FUNCTION keep_report_revision();
+DROP TRIGGER IF EXISTS report_revision_immutable ON report_document_revisions;
+CREATE TRIGGER report_revision_immutable BEFORE UPDATE OR DELETE ON report_document_revisions
+    FOR EACH ROW EXECUTE FUNCTION keep_report_revision();
+CREATE OR REPLACE FUNCTION keep_report_document_source() RETURNS trigger AS $$
+BEGIN
+    IF (NEW.id,NEW.business_id,NEW.analysis_id,NEW.origin,NEW.source_run_id,NEW.created_at)
+        IS DISTINCT FROM (OLD.id,OLD.business_id,OLD.analysis_id,OLD.origin,OLD.source_run_id,OLD.created_at) THEN
+        RAISE EXCEPTION 'Report source is immutable';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS report_document_source_immutable ON report_documents;
+CREATE TRIGGER report_document_source_immutable BEFORE UPDATE ON report_documents
+    FOR EACH ROW EXECUTE FUNCTION keep_report_document_source();
+CREATE OR REPLACE FUNCTION keep_web_job_engine() RETURNS trigger AS $$
+BEGIN
+    IF NEW.engine_kind IS DISTINCT FROM OLD.engine_kind OR NEW.engine_config IS DISTINCT FROM OLD.engine_config THEN
+        RAISE EXCEPTION 'Job engine configuration is immutable';
+    END IF;
+    IF OLD.engine_run_id IS NOT NULL AND NEW.engine_run_id IS DISTINCT FROM OLD.engine_run_id THEN
+        RAISE EXCEPTION 'Job engine run identity is immutable';
+    END IF;
+    IF OLD.report_document_id IS NOT NULL AND NEW.report_document_id IS DISTINCT FROM OLD.report_document_id THEN
+        RAISE EXCEPTION 'Job report identity is immutable';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+INSERT INTO schema_versions(version) VALUES (33) ON CONFLICT DO NOTHING;
+
+-- Migration 34: bind registry and job analysis to the exact source run.
+CREATE UNIQUE INDEX IF NOT EXISTS engine_runs_analysis_source ON engine_runs(business_id,id,analysis_id);
+CREATE UNIQUE INDEX IF NOT EXISTS report_documents_analysis_source ON report_documents(business_id,source_run_id,id,analysis_id);
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='report_documents_run_analysis') THEN
+        ALTER TABLE report_documents ADD CONSTRAINT report_documents_run_analysis
+            FOREIGN KEY(business_id,source_run_id,analysis_id) REFERENCES engine_runs(business_id,id,analysis_id);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='web_jobs_report_analysis') THEN
+        ALTER TABLE web_jobs ADD CONSTRAINT web_jobs_report_analysis
+            FOREIGN KEY(business_id,engine_run_id,report_document_id,analysis_id)
+            REFERENCES report_documents(business_id,source_run_id,id,analysis_id);
+        ALTER TABLE web_jobs ADD CONSTRAINT web_jobs_report_analysis_required
+            CHECK(report_document_id IS NULL OR analysis_id IS NOT NULL);
+    END IF;
+END $$;
+INSERT INTO schema_versions(version) VALUES (34) ON CONFLICT DO NOTHING;
+
+-- Migration 35: provenance of the generated v1 brief and panorama (F2). Existing runs keep '{}'.
+ALTER TABLE engine_runs ADD COLUMN IF NOT EXISTS brief jsonb NOT NULL DEFAULT '{}';
+INSERT INTO schema_versions(version) VALUES (35) ON CONFLICT DO NOTHING;
+
+-- Migration 36: versioned, immutable derivatives; original receipts remain immutable.
+ALTER TABLE report_document_revisions DROP CONSTRAINT IF EXISTS report_document_revisions_presentation_state_check;
+ALTER TABLE report_document_revisions DROP CONSTRAINT IF EXISTS report_document_revisions_derived_version_check;
+ALTER TABLE report_document_revisions DROP CONSTRAINT IF EXISTS report_document_revisions_canonical_text_check;
+ALTER TABLE report_document_revisions DROP CONSTRAINT IF EXISTS report_document_revisions_canonical_sha256_check;
+ALTER TABLE report_document_revisions ADD COLUMN IF NOT EXISTS presentation_reason text;
+ALTER TABLE report_document_revisions ADD COLUMN IF NOT EXISTS derive_status text NOT NULL DEFAULT 'pending';
+ALTER TABLE report_document_revisions ADD COLUMN IF NOT EXISTS derive_issue text;
+ALTER TABLE report_document_revisions ADD COLUMN IF NOT EXISTS policy_version text;
+ALTER TABLE report_document_revisions ADD COLUMN IF NOT EXISTS renderer_version text;
+ALTER TABLE report_document_revisions ADD COLUMN IF NOT EXISTS inventory_sha256 text;
+ALTER TABLE report_document_revisions ADD COLUMN IF NOT EXISTS snapshot_html text;
+CREATE UNIQUE INDEX IF NOT EXISTS report_revision_raw_identity ON report_document_revisions(business_id,document_id,id,raw_sha256);
+CREATE TABLE IF NOT EXISTS report_presentation_checks (
+    business_id uuid NOT NULL,
+    document_id uuid NOT NULL,
+    revision_id uuid NOT NULL,
+    raw_sha256 text NOT NULL,
+    policy_version text NOT NULL,
+    state text NOT NULL CHECK(state IN ('allowed','blocked')),
+    reason text,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    PRIMARY KEY(business_id,document_id,revision_id,raw_sha256,policy_version),
+    FOREIGN KEY(business_id,document_id,revision_id,raw_sha256)
+        REFERENCES report_document_revisions(business_id,document_id,id,raw_sha256)
+);
+CREATE TABLE IF NOT EXISTS report_derivatives (
+    business_id uuid NOT NULL,
+    document_id uuid NOT NULL,
+    revision_id uuid NOT NULL,
+    raw_sha256 text NOT NULL,
+    policy_version text NOT NULL,
+    renderer_version text NOT NULL,
+    derived_version integer NOT NULL CHECK(derived_version>0),
+    status text NOT NULL CHECK(status IN ('ready','failed')),
+    canonical_text text,
+    canonical_sha256 text CHECK(canonical_sha256 ~ '^[0-9a-f]{64}$'),
+    inventory jsonb,
+    inventory_sha256 text CHECK(inventory_sha256 ~ '^[0-9a-f]{64}$'),
+    snapshot_html text CHECK(octet_length(snapshot_html)<=20971520),
+    issue text,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    PRIMARY KEY(business_id,document_id,revision_id,raw_sha256,policy_version,renderer_version),
+    FOREIGN KEY(business_id,document_id,revision_id,raw_sha256)
+        REFERENCES report_document_revisions(business_id,document_id,id,raw_sha256),
+    CHECK ((status='ready' AND canonical_text IS NOT NULL AND canonical_sha256 IS NOT NULL
+        AND inventory IS NOT NULL AND inventory_sha256 IS NOT NULL AND issue IS NULL)
+        OR (status='failed' AND canonical_text IS NULL AND canonical_sha256 IS NULL
+        AND inventory IS NULL AND inventory_sha256 IS NULL AND snapshot_html IS NULL AND issue IS NOT NULL)),
+    CHECK(octet_length(canonical_text)<=4000000 AND octet_length(inventory::text)<=16777216)
+);
+CREATE TABLE IF NOT EXISTS report_derivation_jobs (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    document_id uuid NOT NULL,
+    revision_id uuid NOT NULL,
+    raw_sha256 text NOT NULL,
+    policy_version text NOT NULL,
+    renderer_version text NOT NULL,
+    status text NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','running','ready','failed')),
+    claim_id uuid,
+    attempts integer NOT NULL DEFAULT 0 CHECK(attempts>=0),
+    started_at timestamptz,
+    finished_at timestamptz,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    UNIQUE(business_id,document_id,revision_id,raw_sha256,policy_version,renderer_version),
+    FOREIGN KEY(business_id,document_id,revision_id,raw_sha256)
+        REFERENCES report_document_revisions(business_id,document_id,id,raw_sha256)
+);
+DROP TRIGGER IF EXISTS report_presentation_immutable ON report_presentation_checks;
+CREATE TRIGGER report_presentation_immutable BEFORE UPDATE OR DELETE ON report_presentation_checks
+    FOR EACH ROW EXECUTE FUNCTION keep_report_revision();
+DROP TRIGGER IF EXISTS report_derivative_immutable ON report_derivatives;
+CREATE TRIGGER report_derivative_immutable BEFORE UPDATE OR DELETE ON report_derivatives
+    FOR EACH ROW EXECUTE FUNCTION keep_report_revision();
+CREATE OR REPLACE FUNCTION keep_report_projection() RETURNS trigger AS $$
+BEGIN
+    IF TG_OP='DELETE' THEN RAISE EXCEPTION 'Report revision cannot be deleted'; END IF;
+    IF (NEW.id,NEW.business_id,NEW.document_id,NEW.ordinal,NEW.raw_sha256,NEW.raw_bytes,
+        NEW.profile_version,NEW.verification_state,NEW.created_at)
+       IS DISTINCT FROM (OLD.id,OLD.business_id,OLD.document_id,OLD.ordinal,OLD.raw_sha256,OLD.raw_bytes,
+        OLD.profile_version,OLD.verification_state,OLD.created_at) THEN
+        RAISE EXCEPTION 'Report source and revision are immutable';
+    END IF;
+    IF NEW.presentation_state NOT IN ('not_evaluated','allowed','blocked') OR
+       NEW.derive_status NOT IN ('pending','ready','failed') THEN
+        RAISE EXCEPTION 'Unknown report projection state';
+    END IF;
+    IF NEW.presentation_state<>'not_evaluated' AND NOT EXISTS (
+        SELECT 1 FROM report_presentation_checks p WHERE
+        (p.business_id,p.document_id,p.revision_id,p.raw_sha256,p.policy_version,p.state,p.reason)
+        IS NOT DISTINCT FROM (NEW.business_id,NEW.document_id,NEW.id,NEW.raw_sha256,
+            NEW.policy_version,NEW.presentation_state,NEW.presentation_reason)) THEN
+        RAISE EXCEPTION 'Presentation projection needs its immutable assessment';
+    END IF;
+    IF NEW.derived_version=0 THEN
+        IF NEW.derive_status<>'pending' OR NEW.canonical_text IS NOT NULL OR NEW.canonical_sha256 IS NOT NULL
+            OR NEW.inventory_sha256 IS NOT NULL OR NEW.snapshot_html IS NOT NULL OR NEW.derive_issue IS NOT NULL THEN
+            RAISE EXCEPTION 'Pending projection cannot contain derivatives';
+        END IF;
+    ELSIF NOT EXISTS (SELECT 1 FROM report_derivatives d WHERE
+        (d.business_id,d.document_id,d.revision_id,d.raw_sha256,d.policy_version,d.renderer_version,
+         d.derived_version,d.status,d.canonical_text,d.canonical_sha256,d.inventory_sha256,d.snapshot_html,d.issue)
+        IS NOT DISTINCT FROM (NEW.business_id,NEW.document_id,NEW.id,NEW.raw_sha256,NEW.policy_version,NEW.renderer_version,
+         NEW.derived_version,NEW.derive_status,NEW.canonical_text,NEW.canonical_sha256,NEW.inventory_sha256,NEW.snapshot_html,NEW.derive_issue)) THEN
+        RAISE EXCEPTION 'Derivative projection needs its immutable result';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS report_revision_immutable ON report_document_revisions;
+CREATE TRIGGER report_revision_immutable BEFORE UPDATE OR DELETE ON report_document_revisions
+    FOR EACH ROW EXECUTE FUNCTION keep_report_projection();
+INSERT INTO schema_versions(version) VALUES (36) ON CONFLICT DO NOTHING;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='report_projection_states') THEN
+        ALTER TABLE report_document_revisions ADD CONSTRAINT report_projection_states CHECK(
+            presentation_state IN ('not_evaluated','allowed','blocked') AND derived_version>=0
+            AND derive_status IN ('pending','ready','failed')
+            AND (derived_version>0 OR (derive_status='pending' AND canonical_text IS NULL
+                AND canonical_sha256 IS NULL AND inventory_sha256 IS NULL AND snapshot_html IS NULL AND derive_issue IS NULL)));
+    END IF;
+END $$;
+CREATE OR REPLACE FUNCTION keep_derivation_job_identity() RETURNS trigger AS $$
+BEGIN
+    IF (NEW.id,NEW.business_id,NEW.document_id,NEW.revision_id,NEW.raw_sha256,NEW.policy_version,NEW.renderer_version,NEW.created_at)
+       IS DISTINCT FROM (OLD.id,OLD.business_id,OLD.document_id,OLD.revision_id,OLD.raw_sha256,OLD.policy_version,OLD.renderer_version,OLD.created_at) THEN
+        RAISE EXCEPTION 'Render job source identity is immutable';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS report_derivation_job_source ON report_derivation_jobs;
+CREATE TRIGGER report_derivation_job_source BEFORE UPDATE ON report_derivation_jobs
+    FOR EACH ROW EXECUTE FUNCTION keep_derivation_job_identity();
+
+-- Migration 37: native reports are additional sources; historical HTML identities remain unchanged.
+ALTER TABLE report_documents DROP CONSTRAINT IF EXISTS report_documents_origin_check;
+ALTER TABLE report_documents ADD CONSTRAINT report_documents_origin_check
+    CHECK(origin IN ('engine_html','engine_blocks'));
+INSERT INTO schema_versions(version) VALUES (37) ON CONFLICT DO NOTHING;
+
+-- Native preterminal checks share the parent run's proxy, quotas and USD ledger.
+CREATE TABLE IF NOT EXISTS engine_native_cycles (
+    run_id UUID PRIMARY KEY REFERENCES engine_runs(id),
+    business_id UUID NOT NULL REFERENCES businesses(id),
+    stage TEXT NOT NULL CHECK(stage IN ('checking','correcting','final_checking','complete','incomplete')),
+    draft_revision_id UUID NOT NULL REFERENCES engine_document_revisions(id),
+    selected_revision_id UUID REFERENCES engine_document_revisions(id),
+    correction_used BOOLEAN NOT NULL DEFAULT false,
+    issue TEXT,
+    CHECK(stage IN ('complete','incomplete') OR selected_revision_id IS NULL),
+    CHECK(stage<>'complete' OR selected_revision_id IS NOT NULL)
+);
+CREATE TABLE IF NOT EXISTS engine_native_checks (
+    id UUID PRIMARY KEY,
+    run_id UUID NOT NULL REFERENCES engine_runs(id),
+    business_id UUID NOT NULL REFERENCES businesses(id),
+    revision_id UUID NOT NULL REFERENCES engine_document_revisions(id),
+    raw_sha256 TEXT NOT NULL CHECK(raw_sha256 ~ '^[0-9a-f]{64}$'),
+    version TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'running' CHECK(status IN ('running','complete','incomplete')),
+    credential_sha256 TEXT NOT NULL,
+    instance_id UUID NOT NULL,
+    session_id TEXT,
+    message_id TEXT NOT NULL,
+    dispatched BOOLEAN NOT NULL DEFAULT false,
+    input_sha256 TEXT NOT NULL,
+    calls INTEGER NOT NULL DEFAULT 0 CHECK(calls BETWEEN 0 AND 20),
+    started_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+    finished_at TIMESTAMPTZ,
+    observations JSONB,
+    raw_result BYTEA CHECK(octet_length(raw_result)<=262144),
+    result JSONB,
+    result_sha256 TEXT,
+    issue TEXT,
+    UNIQUE(run_id,revision_id,version),
+    CHECK((status='complete')=(result IS NOT NULL)),
+    CHECK((result IS NULL)=(result_sha256 IS NULL))
+);
+CREATE OR REPLACE FUNCTION guard_native_check() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF TG_OP='DELETE' THEN RAISE EXCEPTION 'Native check history is immutable'; END IF;
+    IF TG_OP='UPDATE' AND (OLD.status<>'running' OR
+        (OLD.id,OLD.run_id,OLD.business_id,OLD.revision_id,OLD.raw_sha256,OLD.version,
+         OLD.credential_sha256,OLD.instance_id,OLD.message_id,OLD.input_sha256,OLD.started_at)
+         IS DISTINCT FROM
+        (NEW.id,NEW.run_id,NEW.business_id,NEW.revision_id,NEW.raw_sha256,NEW.version,
+         NEW.credential_sha256,NEW.instance_id,NEW.message_id,NEW.input_sha256,NEW.started_at))
+        THEN RAISE EXCEPTION 'Native check identity/result is immutable'; END IF;
+    IF NOT EXISTS(SELECT 1 FROM engine_document_revisions r JOIN engine_documents d ON d.id=r.document_id
+        WHERE r.id=NEW.revision_id AND r.business_id=NEW.business_id AND d.run_id=NEW.run_id
+        AND d.business_id=NEW.business_id AND r.raw_sha256=NEW.raw_sha256)
+        THEN RAISE EXCEPTION 'Native check source mismatch'; END IF;
+    RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS native_check_guard ON engine_native_checks;
+CREATE TRIGGER native_check_guard BEFORE INSERT OR UPDATE OR DELETE ON engine_native_checks FOR EACH ROW EXECUTE FUNCTION guard_native_check();
+INSERT INTO schema_versions(version) VALUES (38) ON CONFLICT DO NOTHING;
+CREATE OR REPLACE FUNCTION guard_native_cycle() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF TG_OP='DELETE' THEN RAISE EXCEPTION 'Native cycle history is retained'; END IF;
+    IF TG_OP='UPDATE' AND (OLD.stage IN ('complete','incomplete') OR OLD.run_id<>NEW.run_id OR OLD.business_id<>NEW.business_id
+        OR OLD.correction_used AND NOT NEW.correction_used) THEN RAISE EXCEPTION 'Native cycle cannot be reopened'; END IF;
+    IF NOT EXISTS(SELECT 1 FROM engine_document_revisions r JOIN engine_documents d ON d.id=r.document_id
+        WHERE r.id=NEW.draft_revision_id AND d.run_id=NEW.run_id AND d.business_id=NEW.business_id AND r.business_id=NEW.business_id)
+        THEN RAISE EXCEPTION 'Native cycle source mismatch'; END IF;
+    IF NEW.selected_revision_id IS NOT NULL AND (NEW.selected_revision_id<>NEW.draft_revision_id OR NOT EXISTS(
+        SELECT 1 FROM engine_document_revisions r JOIN engine_documents d ON d.id=r.document_id
+        WHERE r.id=NEW.selected_revision_id AND r.business_id=NEW.business_id
+        AND d.run_id=NEW.run_id AND d.business_id=NEW.business_id))
+        THEN RAISE EXCEPTION 'Native selection source mismatch'; END IF;
+    IF NEW.selected_revision_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM engine_native_checks c
+        WHERE c.run_id=NEW.run_id AND c.business_id=NEW.business_id AND c.revision_id=NEW.selected_revision_id
+        AND c.version='priority-check-1-' || CASE WHEN NEW.correction_used THEN 'final' ELSE 'initial' END
+        AND c.status=CASE WHEN NEW.stage='complete' THEN 'complete' ELSE 'incomplete' END)
+        THEN RAISE EXCEPTION 'Native selection requires final check'; END IF;
+    RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS native_cycle_guard ON engine_native_cycles;
+CREATE TRIGGER native_cycle_guard BEFORE INSERT OR UPDATE OR DELETE ON engine_native_cycles FOR EACH ROW EXECUTE FUNCTION guard_native_cycle();

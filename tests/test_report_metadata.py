@@ -12,6 +12,7 @@ class ReportMetadataTests(unittest.TestCase):
                    'newer':datetime.fromisoformat('2026-09-28T10:00:00-04:00')}
         db=Mock()
         def execute(sql,params):
+            if 'FROM report_documents' in sql:return Mock(fetchall=lambda:[])
             if 'SELECT id FROM' in sql:return Mock(fetchall=lambda:rows)
             return Mock(fetchone=lambda:{'created_at':approvals[params[0]]})
         db.execute.side_effect=execute

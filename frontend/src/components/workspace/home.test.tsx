@@ -313,3 +313,23 @@ it("connects charts only to findings from the same report and review and links t
   expect(screen.getAllByText("Abril de 2025")[0]).toBeVisible();
   expect(screen.getByText("Marzo")).toBeVisible();
 });
+it("labels v1 figure cards as unreviewed and shows disputed figures", async () => {
+  const v1: HomeDashboard = {
+    ...data,
+    items: [
+      {
+        ...data.items[0],
+        content: { ...data.items[0].content, disputed: true },
+        source: { ...data.items[0].source, origin: "engine_blocks", reviewed: false },
+      } as HomeDashboard["items"][number],
+    ],
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => ({ ok: true, json: async () => v1 })),
+  );
+  mount();
+  expect(await screen.findByText(/Informe v1 · cifra sin revisión/)).toBeInTheDocument();
+  expect(screen.queryByText(/Revisión v/)).toBeNull();
+  expect(screen.getByText(/Cifra en revisión/)).toBeInTheDocument();
+});

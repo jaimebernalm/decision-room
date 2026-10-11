@@ -1,0 +1,54 @@
+/**
+ * Native reports are written in Spanish, so their numbers follow the report's language
+ * (and the canonical text and PDF), not the interface language: 7,89 next to 8,43.
+ */
+export const REPORT_LOCALE = "es-ES";
+
+/** Platform formatting of agent numbers; the agent never supplies formatted strings. */
+export function formatNumber(value: number | null, decimals: number) {
+  if (value === null || value === undefined) return "—";
+  return new Intl.NumberFormat(REPORT_LOCALE, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+    // Same grouping as the canonical text: 4.918, not 4918 (Spanish default).
+    useGrouping: "always",
+  } as Intl.NumberFormatOptions)
+    .format(value)
+    .replace("-", "−");
+}
+
+/** Up to 2 decimals as delivered, or more so a nonzero value never shows as 0 (same rule as the projector). */
+export function naturalDecimals(value: number) {
+  const text = String(value);
+  const places = text.includes("e-")
+    ? Number(text.split("e-")[1])
+    : (text.split(".")[1] || "").length;
+  let decimals = Math.min(places, 2);
+  if (value !== 0 && Math.abs(value) < 0.5 * 10 ** -decimals)
+    decimals = Math.min(15, Math.ceil(-Math.log10(Math.abs(value))));
+  return decimals;
+}
+
+export function withUnit(value: number | null, decimals: number, unit: string | null) {
+  const text = formatNumber(value, decimals);
+  if (value === null || !unit) return text;
+  return unit === "%" ? `${text} %` : `${text} ${unit}`;
+}
+
+export function signed(value: number, decimals: number, unit: string | null) {
+  return (value > 0 ? "+" : "") + withUnit(value, decimals, unit);
+}
+
+/**
+ * Every delivered decimal: exact values on hover and in the data view, never rounded away.
+ * Counted from the value itself, so 1.123e-15 keeps its four significant figures (18 places);
+ * the format allows at most 15 significant figures and |value| ≥ 1e-15, within Intl's 100 places.
+ */
+export function exactDecimals(value: number | null, decimals: number) {
+  if (value === null) return decimals;
+  const text = String(Math.abs(value));
+  const places = text.includes("e-")
+    ? Number(text.split("e-")[1]) + (text.split("e-")[0].split(".")[1] || "").length
+    : (text.split(".")[1] || "").length;
+  return Math.min(100, Math.max(decimals, places));
+}

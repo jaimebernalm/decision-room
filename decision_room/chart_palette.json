@@ -11,5 +11,11 @@
     "reference": "#7d8792",
     "secondary": "#a8b0b9",
     "muted": "#c8cdd3"
+  },
+  "semantic": {
+    "positive": "#2f855a",
+    "negative": "#c0392b",
+    "warning": "#c77c12",
+    "neutral": "#7d8792"
   }
 }

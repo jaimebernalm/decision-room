@@ -7,7 +7,10 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 from .memory.retrieval import Request
 
-PROMPT_VERSION = 'conversation-v16'
+# v1 engine reports (agent text, no reviewed evidence): snapshot HTML or native blocks.
+ENGINE_ORIGINS = ('engine_html', 'engine_blocks')
+
+PROMPT_VERSION = 'conversation-v17'
 SYSTEM = '''You are Decision Room, a helpful personal business assistant. Converse naturally
 in the owner's language. Understand the CURRENT message in the context of both sides of
 the conversation. Resolve references such as "them" to the last discussed files/results.
@@ -42,7 +45,10 @@ Search metadata can support titles and report timestamps; conclusions still requ
 Set include_report=false for short answers, greetings and administrative questions.
 Set include_report=true only if a full evidence attachment helps a requested report summary
 or explanation; citations remain available either way.
-open_report uses a report id returned by search_reports/recent_reviewed_results.
+open_report uses a report id returned by search_reports/recent_reviewed_results. Items with
+origin=engine_html or origin=engine_blocks are v1 reports: open_report returns their text as written by the agent,
+with no structured claims, evidence or verification. Quote them as that report's statements,
+never as reviewed or verified results, and never as a new calculation.
 Report search excerpts locate evidence; open the original report before explaining its findings.
 Reuse successful results already in retrievals; never repeat an identical lookup.
 If a lookup fails, correct its arguments or explain the limitation. Search with fewer
@@ -136,6 +142,10 @@ cardinality, semantic status, technical verification and discovery limits. Expla
 selected elements directly; they are model metadata, NOT reviewed analytical results. A proposed or
 rejected relationship is not confirmed business meaning, and technical coverage cannot confirm it.
 Do not open_report for these selections. A withdrawn model selection is no longer current.
+kind=engine_block selections are blocks of a v1 report (origin=engine_blocks), identified by
+source_id (report document) and source_version (its current revision). selection/N contains that
+block's text exactly as the report agent wrote it, with platform number formatting. Quote it as
+that report's statement, never as reviewed or verified, and never as a new calculation.
 A kind=report selection is the WHOLE report chosen from the library, identified by report_title
 and report_id, not a standalone summary. Open that exact report to compare its full content.
 When a user asks whether selected business facts came from a selected report, answer about
@@ -373,10 +383,11 @@ def sources_for(context):
     for index, event in enumerate(context['retrievals']):
         if 'error' not in event['response']:
             req = event['request']
+            engine = event['response'].get('origin') in ENGINE_ORIGINS
             sources[f'tool/{event.get("ordinal", index)}'] = dict(label={
                 'inspect_dataset': 'Contenido del archivo', 'search_datasets': 'Archivos disponibles',
                 'search_memory': 'Contexto del negocio', 'search_reports': 'Informes disponibles',
-                'open_report': 'Informe revisado', 'open_evidence': 'Evidencia del informe',
+                'open_report': 'Informe' if engine else 'Informe revisado', 'open_evidence': 'Evidencia del informe',
                 'search_chats': 'Antecedentes de conversación', 'open_chat': 'Conversación seleccionada',
             }[req['tool']], content=event['response'],
                 discovery_only=req['tool'] == 'search_reports')

@@ -182,6 +182,12 @@ def decorate(ws, reviewed, result, *, db=None):
 
 
 def approved(ws, report_id, db):
+    document=db.execute('SELECT id FROM report_documents WHERE business_id=%s AND id=%s',
+                        (ws.business_id(),identifier(report_id))).fetchone()
+    if document:
+        from ..reports import store, reading
+        store.lock(db,document['id'],shared=True)
+        reading.blocked_content()
     try:
         result = review.show(ws.config, ws.business_id(), identifier(report_id), _db=db)
     except ValueError:

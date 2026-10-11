@@ -1,4 +1,4 @@
-"""Owner-controlled home dashboard over current, reviewed evidence only."""
+"""Owner-controlled home dashboard over current reviewed evidence and, labelled as unreviewed, current v1 figures."""
 import hashlib
 import json
 
@@ -36,6 +36,8 @@ Un indicador resumen y un gráfico de su evolución se complementan, no son dupl
 Si hay indicadores útiles, incluye de 3 a 10, o los que existan si hay menos. Acompáñalos con
 1 o 2 gráficos y solo los hallazgos que añadan información útil; respeta siempre los ocultos.
 Prefiere tendencias temporales cuando existan. Máximo 10 metric, 2 chart, 3 insight, contando los fijados.
+Los candidatos con reviewed=false son cifras de informes v1 sin revisión: puedes escogerlos,
+pero tu razón nunca debe presentarlos como revisados o verificados.
 Conserva todos los IDs fijados y no escojas los ocultos. Puedes escoger menos o ninguno si no hay
 contenido útil. Devuelve solo IDs existentes y una breve razón en español para cada elección.
 La razón explica utilidad; no inventes cifras, comparaciones, alertas ni conclusiones nuevas.
@@ -53,7 +55,9 @@ def collect(ws):
     listing = ws.listing()
     items, sources = [], []
     # Bounded catalogue; unlike the report viewer, home can combine reviewed sources.
-    eligible = [x for x in listing if x['status'] == 'completed']
+    accesses = [dict(id=str(x['id']),title=x['title'],href='#report/'+str(x['id']),state=x['engine_report']['state'])
+                for x in listing if x.get('engine_report') and x['engine_report']['is_current']]
+    eligible = [x for x in listing if x['status'] == 'completed' and x.get('engine_kind')!='opencode']
     pinned_sources = {x.split(':', 1)[0] for x in load(ws)['layout'].get('pinned', [])}
     candidates = eligible[:20] + [x for x in eligible[20:] if str(x['id']) in pinned_sources]
     for item in candidates:
@@ -85,15 +89,58 @@ def collect(ws):
                                           content=content, source=source))
         except ValueError:
             continue
+    items += engine_figures(ws, [x for x in listing if (x.get('engine_report') or {}).get('is_current')
+                                 and x['engine_report'].get('origin') == 'engine_blocks'][:20])
     with connect(ws.config) as db, db.transaction():
         memory.lock(db, business)
         profile = business_store.profile(db, business)
         facts = [f['content']
                  for f in memory.current(db, business) if f['status'] == 'declared'][:30]
     context = {'name': profile['name'], 'description': profile['description'], 'facts': facts}
-    return dict(items=items, sources=sources, context=context,
+    return dict(items=items, sources=sources, report_accesses=accesses, context=context,
                 fingerprint=signature([items, context]), activity=ws.daily_activity(listing),
                 limited=len(eligible) > 20)
+
+
+def disputed(block_id, items):
+    """A discrepancy on this block or on an ancestor (unlocated quote in its priority or section)."""
+    return any(c.get('status') == 'discrepancy' and (block_id == c['block_id'] or block_id.startswith(c['block_id'] + '-'))
+               for c in items)
+
+
+def engine_figures(ws, listing):
+    """Figure blocks of current native v1 reports: agent figures with platform formatting, never reviewed."""
+    from ..engine import blocks
+    from ..reports import reading
+    from .report_access import read_job
+    items = []
+    for entry in listing:
+        try:
+            with read_job(ws, entry['id'], revision=entry['engine_report']['revision_id']) as (db, job, (document, revision)):
+                # The listing may be stale: recheck currency under the same read lock.
+                if not reading.metadata(db, document, revision, history=False)['is_current']:
+                    continue
+                view = reading.view(db, document, revision)
+        except WebError:
+            continue
+        if view.get('mode') != 'blocks':
+            continue
+        checks = view.get('checks') or {}
+        incomplete = checks.get('state') != 'complete'
+        source = dict(job_id=str(job['id']), report_id=str(document['id']), version=str(revision['id']),
+                      title=view['blocks']['title'], presentation=None, coverage='', filename=job['filename'],
+                      created_at=job['created_at'], data_version=entry.get('data_version'), analysis_id=str(job['analysis_id']),
+                      limitations=[], href='#report/' + str(job['id']), origin='engine_blocks', reviewed=False)
+        for block in blocks.walk(view['blocks']['blocks']):
+            if block['type'] != 'figure' or block['value'] is None:
+                continue
+            content = dict(key=block['id'], label=block['label'], value=blocks.format_number(block['value'], block['decimals']),
+                           unit=block['unit'] or '', claim_key=block['id'], decimals=block['decimals'],
+                           period=block['period'], disputed=disputed(block['id'], checks.get('items', [])),
+                           check_incomplete=incomplete)
+            items.append(dict(id=f"{job['id']}:metric:{block['id']}", kind='metric', title=block['label'],
+                              content=content, source={**source, 'period': block['period'] or ''}))
+    return items
 
 
 def load(ws):
@@ -122,6 +169,7 @@ def view(ws, catalogue=None, saved_row=None):
     available = {x['id'] for x in data['items']}
     saved = layout.get('selected', initial(data['items']))
     return {**{k: data[k] for k in ('items', 'sources', 'fingerprint', 'activity', 'limited')},
+            'report_accesses': data.get('report_accesses',[]),
             'business_id': str(ws.business_id()), 'revision': row['revision'],
             'selected': [x for x in saved if x in available],
             'pinned': [x for x in layout.get('pinned', []) if x in available],
@@ -194,7 +242,7 @@ def suggest(ws, body):
     candidates = [dict(id=x['id'], kind=x['kind'], title=x['title'], period=x['source']['period'],
                        coverage=x['source']['coverage'], unit=x['content'].get('unit'),
                        chart_kind=x['content'].get('kind'), summary=x['content'].get('statement', x['content'].get('caption')),
-                       value=x['content'].get('value')) for x in data['items']]
+                       value=x['content'].get('value'), reviewed=x['source'].get('reviewed', True)) for x in data['items']]
     context = dict(business=data['context'], candidates=candidates, pinned=current['pinned'], hidden=current['hidden'])
     try:
         model = ws.model_factory(ws.settings)

@@ -177,6 +177,8 @@ def upload_paths(ws, data, paths, *, names=None, original_signature=None):
                 if old:
                     db.execute('UPDATE dataset_versions SET superseded_by=%s,corrected=%s WHERE analysis_id=%s',
                                (analysis, mode == 'correction', previous))
+                    from ..reports.store import invalidate as invalidate_reports
+                    invalidate_reports(db, business)
                     if mode == 'correction':
                         context.invalidate(db, business)
             result['message'] = ('Este archivo ya estaba guardado; conserva su conjunto, periodo y versión.' if result['reused'] else

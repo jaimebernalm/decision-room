@@ -2,8 +2,14 @@
 from ..database import connect
 
 
-def view(ws, job_id):
+def view(ws, job_id, *, revision=None):
     job = ws.row(job_id)  # Enforces the active business, including deleted reports.
+    if job['engine_kind']=='opencode':
+        from .report_access import read_job
+        with read_job(ws,job_id,revision=revision) as (_,document, pair):
+            doc,version=pair
+            return {'tables':[{'id':t['id'],'name':t['original_names'][0]} for t in doc['snapshot']],
+                    'added_tables':[], 'document_id':str(doc['id']), 'revision_id':str(version['id'])}
     with connect(ws.config) as db, db.transaction():
         session = db.execute('''SELECT source_snapshot,created_at FROM agent_sessions
             WHERE id=%s AND business_id=%s''', (job['session_id'], job['business_id'])).fetchone()

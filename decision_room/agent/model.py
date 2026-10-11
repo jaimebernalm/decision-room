@@ -627,7 +627,10 @@ class ModelClient:
             # Only explicit rejections are retried, within one logical call.
             # Read interruptions remain uncertain and need deliberate recovery.
             deadline = time.monotonic() + self.settings.timeout_seconds
-            with httpx.Client(timeout=self.settings.timeout_seconds, trust_env=False) as client:
+            from . import api_budget
+            budget_transport = api_budget.transport() if self.settings.protocol == 'openai' else None
+            transport_options = {'transport': budget_transport} if budget_transport is not None else {}
+            with httpx.Client(timeout=self.settings.timeout_seconds, trust_env=False, **transport_options) as client:
                 attempts = []
                 for attempt in range(3):
                     remaining = deadline - time.monotonic()

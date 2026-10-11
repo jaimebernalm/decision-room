@@ -75,9 +75,16 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def send_raw(self, raw):
+        # Untrusted agent bytes: a download, never a document in the product origin.
+        native = getattr(raw, 'native', False)
+        self.send(200, raw, 'application/json' if native else 'application/octet-stream',
+                  headers={'Content-Disposition': 'attachment; filename="informe.json"' if native else 'attachment; filename="decision-room-informe-original.html"',
+                           'Content-Security-Policy': 'sandbox'})
+
     def send_pdf(self, report):
         from ..report_pdf import render_pdf
-        self.send(200, render_pdf(report), 'application/pdf',
+        self.send(200, report if isinstance(report, bytes) else render_pdf(report), 'application/pdf',
                   headers={'Content-Disposition': 'attachment; filename="decision-room-informe.pdf"'})
 
     def send_file(self, path, name):
@@ -292,7 +299,10 @@ class Handler(BaseHTTPRequestHandler):
                     self.send(200, chats.report(chat_id, parts[4], structured=True))
                     return
                 if not mutation and len(parts) == 5 and parts[3] == 'pdf':
-                    self.send_pdf(chats.report(chat_id, parts[4], structured=True))
+                    self.send_pdf(chats.report(chat_id, parts[4], structured=True,purpose='pdf'))
+                    return
+                if not mutation and len(parts) == 5 and parts[3] == 'raw':
+                    self.send_raw(chats.report(chat_id, parts[4], structured=True, purpose='raw'))
                     return
                 if not mutation and len(parts) == 5 and parts[3] == 'report':
                     self.send(200,chats.report(chat_id,parts[4]),'text/html; charset=utf-8')
@@ -366,6 +376,9 @@ class Handler(BaseHTTPRequestHandler):
             if mutation and path == '/api/memory/retry':
                 self.send(202, {'memory': ws.retry_memory(self.json_body())})
                 return
+            if not mutation and path == '/api/reports':
+                self.send(200, {'items':ws.listing(query=parse_qs(urlsplit(self.path).query).get('q',[''])[0])})
+                return
             if path.startswith('/api/presentation/'):
                 from . import presentation_editing
                 report_id = path.rsplit('/', 1)[-1]
@@ -426,7 +439,7 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 if not mutation and action == 'sources':
                     from . import report_sources
-                    self.send(200, report_sources.view(ws, job_id))
+                    self.send(200, report_sources.view(ws, job_id,revision=parse_qs(urlsplit(self.path).query).get('revision',[None])[0]))
                     return
                 if not mutation and action == 'activity':
                     from . import activity
@@ -457,10 +470,13 @@ class Handler(BaseHTTPRequestHandler):
                     self.send(202, ws.retry(job_id))
                     return
                 if not mutation and action == 'presentation':
-                    self.send(200, ws.report(job_id, structured=True))
+                    self.send(200, ws.report(job_id, structured=True, revision=parse_qs(urlsplit(self.path).query).get('revision',[None])[0]))
                     return
                 if not mutation and action == 'pdf':
-                    self.send_pdf(ws.report(job_id, structured=True))
+                    self.send_pdf(ws.report(job_id, structured=True,purpose='pdf'))
+                    return
+                if not mutation and action == 'raw':
+                    self.send_raw(ws.report(job_id, structured=True, purpose='raw'))
                     return
                 if not mutation and action == 'report':
                     self.send(200, ws.report(job_id), 'text/html; charset=utf-8')

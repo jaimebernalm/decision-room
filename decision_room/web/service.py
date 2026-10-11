@@ -218,6 +218,17 @@ class Workspace:
         finally:
             Path(temporary).unlink(missing_ok=True)
 
+    def engine_selection(self, data, old=None):
+        from ..engine.job_profile import selection
+        try:
+            return selection(self.config, data, old)
+        except ValueError:
+            raise WebError('El motor solicitado no está disponible o ya quedó fijado para este trabajo.', 409) from None
+
+    def engine_snapshot(self, settings, context, goal, signature):
+        from ..engine.job_profile import freeze
+        return freeze(settings, context=context, goal=goal, input_hash=signature)
+
     @created('job')
     def create_batch(self, data):
         if not isinstance(data, dict) or not isinstance(data.get('files'), list) or not data['files']:
@@ -240,6 +251,7 @@ class Workspace:
                 raise WebError('El negocio activo ha cambiado. Recarga la página.', 409)
             db.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s, 7))', (str(key),))
             old = db.execute('SELECT * FROM web_jobs WHERE request_key=%s', (key,)).fetchone()
+            kind, engine_settings = self.engine_selection(data, old)
             current = business_store.profile(db, business)
             name, context = (old['business_name'], old['context']) if old else (current['name'], current['description'])
             rows = db.execute('SELECT * FROM web_job_files WHERE id=ANY(%s) AND business_id=%s FOR UPDATE', (ids, business)).fetchall()
@@ -266,7 +278,7 @@ class Workspace:
                     raise WebError('Completa o retoma el primer informe antes de crear otro análisis.', 409)
             elif data.get('onboarding') is True:
                 raise WebError('Este negocio no tiene un onboarding pendiente.', 409)
-            if self.settings is None:
+            if self.settings is None and kind == 'legacy':
                 raise WebError('Falta configurar el modelo local. El borrador está guardado; podrás enviarlo cuando esté disponible.', 503)
             # Verify exact staged bytes before the job becomes visible to the worker.
             storage = Storage(self.config.storage)
@@ -277,8 +289,8 @@ class Workspace:
             job_id = uuid4()
             first = files[0]
             db.execute('''INSERT INTO web_jobs(id,request_key,request_sha256,business_id,business_name,business_revision,title,context,goal,
-                filename,upload_key,byte_count,model_settings,status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'queued')''',
-                (job_id, key, signature, business, name, revision, title, context, goal, first['filename'], first['upload_key'], total, Jsonb(asdict(self.settings))))
+                filename,upload_key,byte_count,model_settings,engine_kind,engine_config,status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'queued')''',
+                (job_id, key, signature, business, name, revision, title, context, goal, first['filename'], first['upload_key'], total, Jsonb(asdict(self.settings) if self.settings else {}), kind, Jsonb(self.engine_snapshot(engine_settings, context, goal, signature))))
             for position, item in enumerate(ids):
                 db.execute('UPDATE web_job_files SET job_id=%s,position=%s WHERE id=%s', (job_id, position, item))
             if data.get('onboarding') is True:
@@ -320,6 +332,7 @@ class Workspace:
                 raise WebError('El negocio activo ha cambiado. Vuelve a abrir el formulario.', 409)
             db.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s, 7))', (str(key),))
             old = db.execute('SELECT * FROM web_jobs WHERE request_key=%s', (key,)).fetchone()
+            kind, engine_settings = self.engine_selection(data, old)
             current = business_store.profile(db, business)
             name, context = (old['business_name'], old['context']) if old else (current['name'], current['description'])
             signature = hashlib.sha256(json.dumps([name, context, goal, title, filename], ensure_ascii=False).encode() + content).hexdigest()
@@ -336,7 +349,7 @@ class Workspace:
                     raise WebError('Completa o retoma el primer informe antes de crear otro análisis.', 409)
             elif data.get('onboarding') is True:
                 raise WebError('Este negocio no tiene un onboarding pendiente.', 409)
-            if self.settings is None:
+            if self.settings is None and kind == 'legacy':
                 raise WebError('Falta configurar el modelo local. El borrador está guardado; podrás enviarlo cuando esté disponible.', 503)
             job_id = uuid4()
             upload_key = f'{business}/web/{job_id}/{filename}'
@@ -346,8 +359,8 @@ class Workspace:
             path.chmod(0o600)
             try:
                 db.execute('''INSERT INTO web_jobs(id,request_key,request_sha256,business_id,business_name,business_revision,title,context,goal,
-                    filename,upload_key,byte_count,model_settings,status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'queued')''',
-                    (job_id, key, signature, business, name, revision, title, context, goal, filename, upload_key, len(content), Jsonb(asdict(self.settings))))
+                    filename,upload_key,byte_count,model_settings,engine_kind,engine_config,status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'queued')''',
+                    (job_id, key, signature, business, name, revision, title, context, goal, filename, upload_key, len(content), Jsonb(asdict(self.settings) if self.settings else {}), kind, Jsonb(self.engine_snapshot(engine_settings, context, goal, signature))))
                 if data.get('onboarding') is True:
                     db.execute('UPDATE web_onboarding SET job_id=%s WHERE business_id=%s', (job_id, business))
                 db.execute("UPDATE web_businesses SET onboarding_status='analysis_started',updated_at=now() WHERE business_id=%s", (business,))
@@ -379,7 +392,8 @@ class Workspace:
             if selected['active_business_id'] != business:
                 raise WebError('El negocio activo ha cambiado. Recarga la página.', 409)
             db.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s, 7))', (str(key),))
-            old = db.execute('SELECT id,business_id,request_sha256 FROM web_jobs WHERE request_key=%s', (key,)).fetchone()
+            old = db.execute('SELECT * FROM web_jobs WHERE request_key=%s', (key,)).fetchone()
+            kind, engine_settings = self.engine_selection(data, old)
             if old:
                 if old['business_id'] != business or old['request_sha256'] != signature:
                     raise WebError('Este envío ya se guardó con otros datos.', 409)
@@ -390,15 +404,15 @@ class Workspace:
             from .dossier import available
             if not available(db, business, analysis_id):
                 raise WebError('Los archivos de esta entrega aún no están preparados.', 409)
-            if self.settings is None:
+            if self.settings is None and kind == 'legacy':
                 raise WebError('Falta configurar el modelo local. Tus datos están guardados.', 503)
             job_id = uuid4()
             db.execute('''INSERT INTO web_jobs(id,request_key,request_sha256,business_id,analysis_id,
                 business_name,business_revision,title,context,goal,filename,upload_key,byte_count,
-                model_settings,status,phase,origin)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'Carpeta de datos','',0,%s,'queued','planning','upload')''',
+                model_settings,engine_kind,engine_config,status,phase,origin)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'Carpeta de datos','',0,%s,%s,%s,'queued','planning','upload')''',
                 (job_id, key, signature, business, analysis_id, current['name'], revision,
-                 title, current['description'], goal, Jsonb(asdict(self.settings))))
+                 title, current['description'], goal, Jsonb(asdict(self.settings) if self.settings else {}), kind, Jsonb(self.engine_snapshot(engine_settings, current['description'], goal, signature))))
             db.execute("UPDATE web_businesses SET onboarding_status='analysis_started',updated_at=now() WHERE business_id=%s", (business,))
         self.wake.set()
         return {'id': str(job_id)}
@@ -412,7 +426,7 @@ class Workspace:
         return job
 
     def update(self, job_id, **values):
-        allowed = {'status', 'phase', 'issue', 'pending_answer', 'retry_uncertain', 'analysis_id', 'session_id', 'research_id', 'review_id'}
+        allowed = {'status', 'phase', 'issue', 'pending_answer', 'retry_uncertain', 'analysis_id', 'session_id', 'research_id', 'review_id', 'engine_run_id'}
         assert values.keys() <= allowed
         with connect(self.config) as db:
             row = db.execute('UPDATE web_jobs SET ' + ','.join(f'{key}=%s' for key in values) + ',updated_at=now() WHERE id=%s AND business_id=%s RETURNING id',
@@ -423,6 +437,9 @@ class Workspace:
     def sync(self, job_id):
         """Discover durable child IDs even if the process died before a call returned."""
         j = self.row(job_id)
+        if j['engine_kind'] == 'opencode':
+            from .engine_jobs import reconcile
+            return reconcile(self, j)
         # The imported batch is recovered by its content/preparation identity in
         # run_job, never by "latest analysis" now that businesses can have many.
         with connect(self.config) as db:
@@ -449,9 +466,26 @@ class Workspace:
                     return self.sync(job_id)
         return j
 
+    def engine_metadata(self, job, *, revision=None, deleted=False, history=False):
+        if not job['report_document_id']:
+            return None
+        from .report_access import read_job
+        from ..reports.reading import metadata
+        with read_job(self,job['id'],revision=revision,deleted=deleted) as (db,_,pair):
+            return metadata(db,*pair,history=history)
+
     def public(self, j):
         fields = ('id', 'business_id', 'analysis_id', 'title', 'business', 'context', 'goal', 'filename', 'byte_count', 'status', 'phase', 'created_at', 'updated_at', 'issue', 'origin')
         result = {key: j[key] for key in fields}
+        result['engine_kind'] = j['engine_kind']
+        result['report_document_id'] = j['report_document_id']
+        if j['engine_kind']=='opencode':
+            value = self.engine_metadata(j,deleted=True)
+            result['engine_report'] = value
+            if value:
+                result['presentation_status'] = 'saved' if value['is_current'] else value['state']
+                if j['status']=='completed' and not value['is_current']:
+                    result.update(status='blocked',issue='Esta entrega se conserva como registro y no es un informe vigente.')
         from ..observability.store import linked
         with connect(self.config) as db:
             trace=linked(db,j['business_id'],'job',j['id'])
@@ -486,7 +520,7 @@ class Workspace:
             LOG.exception('Cannot read evidence for web job %s', j['id'])
             return {'publishable': False, 'pending_questions': [], 'unavailable': True}
 
-    def listing(self, *, deleted=False):
+    def listing(self, *, deleted=False, query=''):
         with connect(self.config) as db:
             rows = db.execute("SELECT w.*,w.business_name AS business FROM web_jobs w WHERE w.business_id=%s AND (w.deleted_at IS NOT NULL)=%s AND (w.origin='upload' OR EXISTS (SELECT 1 FROM chat_turns t WHERE t.business_id=w.business_id AND (t.job_id=w.id OR t.response->>'report_id'=w.review_id::text) AND t.report_requested)) ORDER BY w.created_at DESC",
                               (self.business_id(), deleted)).fetchall()
@@ -502,13 +536,25 @@ class Workspace:
                 else:
                     item.update(status='blocked', presentation_status='withdrawn', phase='review', issue='Informe retirado: necesita un nuevo cálculo y revisión.')
             result.append(item)
-        return result
+        if not isinstance(query,str) or len(query)>300:
+            raise WebError('La búsqueda no es válida.')
+        from ..conversations import library_query
+        term=library_query(query.strip())
+        return [item for item in result if not term or term in library_query(' '.join(str(item.get(k) or '') for k in ('title','goal','filename')))]
 
     def delete_report(self, job_id, data, *, restore=False):
         from .dossier import guard
         business = guard(self, data)
+        initial = self.row(job_id)
         with connect(self.config) as db, db.transaction():
-            job = db.execute('SELECT status FROM web_jobs WHERE id=%s AND business_id=%s FOR UPDATE',
+            if initial['engine_kind']=='opencode':
+                memory.lock(db,business)
+                from ..reports import store as documents
+                linked = db.execute('SELECT report_document_id FROM web_jobs WHERE business_id=%s AND id=%s',
+                                    (business,initial['id'])).fetchone()['report_document_id']
+                if linked:
+                    documents.lock(db,linked)
+            job = db.execute('SELECT status,report_document_id FROM web_jobs WHERE id=%s AND business_id=%s FOR UPDATE',
                              (identifier(job_id), business)).fetchone()
             if not job:
                 raise WebError('Informe no encontrado.', 404)
@@ -516,6 +562,11 @@ class Workspace:
                 raise WebError('Espera a que termine el informe antes de eliminarlo.', 409)
             db.execute('UPDATE web_jobs SET deleted_at=' + ('NULL' if restore else 'coalesce(deleted_at,now())') +
                        ' WHERE id=%s AND business_id=%s', (job_id, business))
+            if initial['engine_kind']=='opencode' and job['report_document_id']:
+                # The head lock prevents adoption from changing the link mid-delete.
+                db.execute('UPDATE report_documents SET deleted_at=' + ('NULL' if restore else 'coalesce(deleted_at,now())') +
+                           ' WHERE business_id=%s AND id=%s AND source_run_id=%s',
+                           (business,job['report_document_id'],initial['engine_run_id']))
         return {'saved': True}
 
     def daily_activity(self, listing):
@@ -554,7 +605,10 @@ class Workspace:
         """One currently publishable revision, scoped to the active business."""
         listing = self.listing()
         activity = self.daily_activity(listing)
-        reports = [item for item in listing if item['status'] == 'completed']
+        accesses = [dict(id=str(item['id']),title=item['title'],href='#report/'+str(item['id']),
+                         state=item['engine_report']['state']) for item in listing
+                    if item.get('engine_report',{} ) and item['engine_report']['is_current']]
+        reports = [item for item in listing if item['status'] == 'completed' and item.get('engine_kind')!='opencode']
         choices = [{'id': str(item['id']), 'title': item['title'],
                     'created_at': item['created_at']} for item in reports]
         requested = identifier(selected) if selected else None
@@ -571,7 +625,7 @@ class Workspace:
                     reviewed = self.review_state(job, _db=db)
                     content = dashboard_projection(reviewed)
                     if content:
-                        return {'reports': choices, 'activity': activity, 'report_id': str(reviewed['id']),
+                        return {'reports': choices, 'report_accesses': accesses, 'activity': activity, 'report_id': str(reviewed['id']),
                                 'report_version': reviewed['approved_sha256'], 'analysis_id': str(job['analysis_id']),
                                 'selected_id': str(job['id']),
                                 'report': content, 'created_at': job['created_at'],
@@ -579,7 +633,7 @@ class Workspace:
             except ValueError:
                 # The review may be running or changing. Show no stale content.
                 continue
-        return {'reports': choices, 'activity': activity, 'selected_id': None, 'report': None}
+        return {'reports': choices, 'report_accesses': accesses, 'activity': activity, 'selected_id': None, 'report': None}
 
     def detail(self, job_id):
         j = self.sync(job_id)
@@ -590,6 +644,12 @@ class Workspace:
         if j['analysis_id']:
             data = ingestion.describe(self.config, b, j['analysis_id'])
             result['files'] = [{k: f[k] for k in ('original_names', 'status', 'row_count', 'column_count')} for f in data['files']]
+        if j['engine_kind']=='opencode':
+            result['engine_report'] = self.engine_metadata(j,deleted=True,history=True)
+            result['can_retry'] = False
+            from . import engine_wait
+            result.update(engine_wait.detail(self.config, j))
+            return result
         if j['session_id']:
             plan = planning.show(self.config, b, j['session_id'])
             result['questions'] = [{'id': q['id'], 'phase': 'planning', 'text': q['text'], 'reason': q['reason'], 'options': q['options'], 'references': q.get('references', [])} for q in plan['questions']]
@@ -635,7 +695,7 @@ class Workspace:
         if (result.get('data_version') or {}).get('corrected'):
             result.update(status='blocked', publishable=False, questions=[],
                           issue='Esta versión de datos se ha corregido. Abre Mi negocio y pregunta con la versión actual; el informe anterior se conserva como registro, pero no como resultado válido.')
-        result['can_retry'] = bool(not (result.get('data_version') or {}).get('corrected') and (
+        result['can_retry'] = bool(j['engine_kind'] == 'legacy' and not (result.get('data_version') or {}).get('corrected') and (
             result['status'] == 'failed' or result.get('context_stale') or
             (j['status'] == 'blocked' and j['review_id'] and self.review_retryable(j))))
         return result
@@ -659,6 +719,9 @@ class Workspace:
             raise WebError('Has escrito una respuesta. Guárdala o borra el texto antes de indicar que no dispones del dato.')
         answer = {'id': str(data.get('question_id', '')), 'phase': data.get('phase'), 'text': text,
                   'disposition': disposition, 'request_key': str(key)}
+        if self.row(job_id)['engine_kind'] == 'opencode':
+            from . import engine_wait
+            return engine_wait.reply(self, job_id, data, answer)
         questions = self.detail(job_id)['questions']
         with connect(self.config) as db, db.transaction():
             job = db.execute('SELECT * FROM web_jobs WHERE id=%s AND business_id=%s FOR UPDATE',
@@ -681,6 +744,8 @@ class Workspace:
 
     def retry(self, job_id, *, _db=None):
         j = self.row(job_id)
+        if j['engine_kind'] == 'opencode':
+            raise WebError('Este motor conserva el trabajo detenido; crea otro análisis para iniciar una ejecución nueva.', 409)
         from .dossier import available
         with connect(self.config) as db:
             if j['analysis_id'] and not available(db, j['business_id'], j['analysis_id']):
@@ -707,13 +772,35 @@ class Workspace:
         self.wake.set()
         return {'saved': True}
 
-    def report(self, job_id, *, structured=False):
+    def report(self, job_id, *, structured=False, revision=None, purpose='view'):
         j = self.row(job_id)
+        if j['engine_kind']=='opencode':
+            j = self.sync(job_id)
+            from .report_access import read_job
+            from ..reports import reading
+            with read_job(self,job_id,revision=revision) as (db,_,pair):
+                if purpose == 'pdf':
+                    if pair[0]['origin'] == 'engine_blocks':
+                        view = reading.view(db, *pair)
+                        if view['mode'] != 'blocks':
+                            reading.blocked_content()
+                        from ..reports.blocks_pdf import render
+                        return render(view['blocks'], view['checks'], delivered_at=pair[1]['created_at'])
+                    reading.pdf_unavailable()
+                if purpose == 'raw':
+                    # Kept bytes as an attachment, never opened as a page or called sanitized.
+                    return reading.RawAttachment(pair[1]['raw'], native=pair[0]['origin']=='engine_blocks')
+                if not structured or purpose != 'view':
+                    reading.blocked_content()
+                value = reading.metadata(db,*pair)
+                return reading.presentation(*pair,value,reading.view(db,*pair))
+        if purpose == 'raw':
+            raise WebError('Este informe no tiene un HTML original descargable.', 409)
         if not j['review_id']:
             raise WebError('El informe todavía no está disponible.', 409)
         # Export uses the same parent lock; approval is rechecked on every request.
-        from .report_access import read_lock
-        with read_lock(self.config, j['business_id'], j['session_id']) as (db, _), db.transaction():
+        from .report_access import read_job
+        with read_job(self,job_id,revision=revision) as (db,_,_), db.transaction():
             memory.lock(db, j['business_id'])
             data = self.review_state(j, _db=db)
             if not data['publishable']:
@@ -792,9 +879,49 @@ class Workspace:
                 'offset': offset, 'has_more': len(rows) > 30,
                 'cell_limit': 200, 'files': files, 'file_index': file_index}
 
+    def ingest_job(self, j):
+        """Shared deterministic ingestion, without any model or legacy preludio."""
+        job_id, b = j['id'], j['business_id']
+        if not j['analysis_id']:
+            self.update(job_id, phase='upload')
+            _, files = self.file_rows(job_id)
+            storage = Storage(self.config.storage)
+            if files:
+                paths = [storage.path(b, item['upload_key']) for item in files]
+                hashes = []
+                for item, path in zip(files, paths):
+                    if not path.is_file() or path.stat().st_size != item['byte_count'] or digest(path) != item['sha256']:
+                        raise WebError('Uno de los CSV guardados ha cambiado y no coincide con el original enviado.', 409)
+                    hashes.append(item['sha256'])
+            else:
+                content = self.upload(job_id)[1]  # Legacy single-file identity.
+                paths = [storage.path(b, j['upload_key'])]
+                hashes = [hashlib.sha256(content).hexdigest()]
+            batch_hash, _ = ingestion.batch_metadata(hashes)
+            with connect(self.config) as db:
+                existing = db.execute('SELECT id FROM analyses WHERE business_id=%s AND batch_sha256=%s',
+                                      (b, batch_hash)).fetchone()
+            # Reuse and verify the exact batch without changing the names
+            # in previous source snapshots. This upload keeps its own name.
+            data = (ingestion.resume(self.config, b, existing['id']) if existing else
+                    ingestion.import_batch(self.config, b, paths, title=j['title'],
+                                           original_names=[item['filename'] for item in files] if files else None))
+        else:
+            data = ingestion.describe(self.config, b, j['analysis_id'])
+            if data['analysis']['status'] == 'importing':
+                data = ingestion.resume(self.config, b, j['analysis_id'])
+        self.update(job_id, analysis_id=data['analysis']['id'])
+        if data['analysis']['status'] not in ('ready', 'partial'):
+            self.update(job_id, status='blocked', issue='No hemos podido preparar archivos útiles para este análisis. Corrige los archivos y crea otra entrega.')
+            return None
+        return data
+
     @tracked('job')
     def run_job(self, job_id):
         j = self.sync(job_id)
+        if j['engine_kind'] == 'opencode':
+            from .engine_jobs import run
+            return run(self, job_id)
         b, key = j['business_id'], 'web:' + str(j['id'])
         model = self.model_factory(ModelSettings(**j['model_settings']))
         retry = j['retry_uncertain']
@@ -826,37 +953,7 @@ class Workspace:
                 abandoned = db.execute("SELECT 1 FROM executions WHERE business_id=%s AND status IN ('preparing','running') LIMIT 1", (b,)).fetchone()
             if abandoned:
                 recover_executions(self.config, b)
-            if not j['analysis_id']:
-                self.update(job_id, phase='upload')
-                _, files = self.file_rows(job_id)
-                storage = Storage(self.config.storage)
-                if files:
-                    paths = [storage.path(b, item['upload_key']) for item in files]
-                    hashes = []
-                    for item, path in zip(files, paths):
-                        if not path.is_file() or path.stat().st_size != item['byte_count'] or digest(path) != item['sha256']:
-                            raise WebError('Uno de los CSV guardados ha cambiado y no coincide con el original enviado.', 409)
-                        hashes.append(item['sha256'])
-                else:
-                    content = self.upload(job_id)[1]  # Legacy single-file identity.
-                    paths = [storage.path(b, j['upload_key'])]
-                    hashes = [hashlib.sha256(content).hexdigest()]
-                batch_hash, _ = ingestion.batch_metadata(hashes)
-                with connect(self.config) as db:
-                    existing = db.execute('SELECT id FROM analyses WHERE business_id=%s AND batch_sha256=%s',
-                                          (b, batch_hash)).fetchone()
-                # Reuse and verify the exact batch without changing the names
-                # in previous source snapshots. This upload keeps its own name.
-                data = (ingestion.resume(self.config, b, existing['id']) if existing else
-                        ingestion.import_batch(self.config, b, paths, title=j['title'],
-                                               original_names=[item['filename'] for item in files] if files else None))
-            else:
-                data = ingestion.describe(self.config, b, j['analysis_id'])
-                if data['analysis']['status'] == 'importing':
-                    data = ingestion.resume(self.config, b, j['analysis_id'])
-            self.update(job_id, analysis_id=data['analysis']['id'])
-            if data['analysis']['status'] not in ('ready', 'partial'):
-                self.update(job_id, status='blocked', issue='No hemos podido preparar archivos útiles para este análisis. Corrige los archivos y crea otra entrega.')
+            if self.ingest_job(j) is None:
                 return
             j = self.sync(job_id)
             # Once review exists it owns continuity, including answers that invalidate research.
@@ -945,7 +1042,9 @@ class Workspace:
     def worker(self):
         while not self.stop.is_set():
             try:
-                if self.settings and memory_extraction.work_once(self.config, self.model_factory, self.settings):
+                with connect(self.config) as db:
+                    pending = db.execute("SELECT engine_kind FROM web_jobs WHERE status IN ('queued','running') ORDER BY created_at LIMIT 1").fetchone()
+                if (not pending or pending['engine_kind'] == 'legacy') and self.settings and memory_extraction.work_once(self.config, self.model_factory, self.settings):
                     continue
                 if self.work_once():
                     continue
