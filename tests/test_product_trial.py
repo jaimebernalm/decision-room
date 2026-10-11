@@ -82,7 +82,7 @@ class ProductTrialTests(unittest.TestCase):
         manifest=self.initialize()
         seen=[]
         replies=[('stop',json.dumps({'disposition':'answered','text':' Comparo con el año pasado. '})),
-                 ('stop',json.dumps({'disposition':'unknown','text':''})),
+                 ('stop',json.dumps({'disposition':'unknown','text':'No conozco cambios de ese tipo.'})),
                  ('length','{"disposition":"answ'),
                  ('stop',json.dumps({'disposition':'answered','text':''}))]
         def provider(request):

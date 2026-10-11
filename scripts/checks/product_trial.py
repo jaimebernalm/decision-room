@@ -157,8 +157,10 @@ def owner_answer(owner, question):
     value=json.loads(choice['message']['content'])
     if (not isinstance(value,dict) or set(value)!={'disposition','text'} or value['disposition'] not in ('answered','unknown','declined')
             or not isinstance(value['text'],str) or len(value['text'])>1500
-            or (value['disposition']=='answered')!=bool(value['text'].strip())):
+            or (value['disposition']=='answered' and not value['text'].strip())):
         raise ValueError('The owner stand-in answer is invalid.')
+    # unknown/declined is sent without text, as the product's «No lo sé» button does; an
+    # explanatory text alongside it is dropped, not treated as an invalid declaration.
     return value['disposition'],value['text'].strip() if value['disposition']=='answered' else ''
 
 

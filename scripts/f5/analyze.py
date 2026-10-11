@@ -1,10 +1,11 @@
 """Apply the frozen F5 decision rule (docs/validation/2026-10-11-f5-preregistration.md).
 
-Usage: python scripts/f5/analyze.py TRIAL_OUTPUT KEY_PATH RESULTS_DIR OUT_JSON
+Usage: python scripts/f5/analyze.py KEY_PATH RESULTS_DIR OUT_JSON
 
-Reads the unblinding key (kits.py), the sealed evaluator outputs (RESULTS_DIR/audit-, group-,
-judge-, owner-, advisor-*.json), result.json of every attempt and the trial ledger. Prints
-and writes every condition per business. Written before any result was seen.
+Reads the unblinding key (kits.py; each attempt names its trial output), the sealed evaluator
+outputs (RESULTS_DIR/audit-, group-, judge-, owner-, advisor-*.json), result.json of every
+attempt and each trial's own ledger, read-only. Prints and writes every condition per
+business. Written before any result was seen.
 """
 import json
 import sqlite3
@@ -40,36 +41,51 @@ def extra_v1_losses_allowed(_):
     return 1  # (a): v1 loses at most 1 of its 12 attempts
 
 
-def main(trial, key_path, results, out):
-    trial, results = Path(trial), Path(results)
-    key = load(key_path)
-    manifest = load(trial / 'manifest.json')
-    by_code = {a['code']: a for a in key['attempts']}
-    kit_of = {v['code']: k for k, v in key['reports'].items()}
-    report = dict(businesses={}, conditions={}, attempts=key['attempts'])
-
-    # Cost bound per attempt from the trial ledger: the job's web scope plus its engine scope.
-    ledger = sqlite3.connect(Path(manifest['budget_path']).resolve().as_uri() + '?mode=ro', uri=True)
+def ledger_scopes(path):
+    """Cost bound per scope from one ledger, read-only. Rejected calls are terminal and charged."""
     scopes = {}
+    ledger = sqlite3.connect(Path(path).resolve().as_uri() + '?mode=ro', uri=True)
     for scope, charged, state in ledger.execute('SELECT scope, charged, state FROM calls'):
         entry = scopes.setdefault(scope, dict(usd=0.0, calls=0, unsettled=0))
         entry['usd'] += charged / 1e9
         entry['calls'] += 1
-        entry['unsettled'] += state not in ('settled', 'rejected')  # rejected is terminal, fully charged
-    engine_runs = load_engine_runs(manifest)
-    for job in manifest['jobs']:
-        result = load(trial / 'runs' / job['code'] / 'result.json') or {}
-        own = [scopes.get('web:' + job['job_id'])]
-        run_id = result.get('engine_run_id') or (engine_runs or {}).get(job['job_id'])
-        if run_id:
-            own.append(scopes.get('engine:' + str(run_id)))
-        by_code[job['code']]['engine_source'] = ('result' if result.get('engine_run_id') else
-                                                  'database' if run_id else 'unknown' if engine_runs is None else 'none')
-        own = [o for o in own if o]
-        by_code[job['code']].update(
-            usd=sum(o['usd'] for o in own), calls=sum(o['calls'] for o in own),
-            unsettled=sum(o['unsettled'] for o in own), seconds=result.get('seconds'),
-            owner_answers=result.get('owner_answers'))
+        entry['unsettled'] += state not in ('settled', 'rejected')
+    ledger.close()
+    return scopes
+
+
+def main(key_path, results, out):
+    results = Path(results)
+    key = load(key_path)
+    by_code = {a['code']: a for a in key['attempts']}
+    kit_of = {v['code']: k for k, v in key['reports'].items()}
+    report = dict(businesses={}, conditions={}, attempts=key['attempts'])
+
+    # Each attempt's cost bound comes from its own trial's ledger: web scope plus engine scope.
+    for trial in sorted({a['trial'] for a in key['attempts']}):
+        trial = Path(trial)
+        manifest = load(trial / 'manifest.json')
+        scopes = ledger_scopes(manifest['budget_path'])
+        engine_runs = load_engine_runs(manifest)
+        for job in manifest['jobs']:
+            attempt = by_code.get(job['code'])
+            if attempt is None or Path(attempt['trial']) != trial:
+                continue
+            result = load(trial / 'runs' / job['code'] / 'result.json') or {}
+            own = [scopes.get('web:' + job['job_id'])]
+            run_id = result.get('engine_run_id') or (engine_runs or {}).get(job['job_id'])
+            if run_id:
+                own.append(scopes.get('engine:' + str(run_id)))
+            attempt['engine_source'] = ('result' if result.get('engine_run_id') else
+                                        'database' if run_id else 'unknown' if engine_runs is None else 'none')
+            own = [o for o in own if o]
+            attempt.update(usd=sum(o['usd'] for o in own), calls=sum(o['calls'] for o in own),
+                           unsettled=sum(o['unsettled'] for o in own), seconds=result.get('seconds'),
+                           owner_answers=result.get('owner_answers'))
+    for attempt in key['attempts']:
+        attempt.setdefault('engine_source', 'unknown')
+        attempt.setdefault('seconds', None)
+        attempt.setdefault('usd', 0.0); attempt.setdefault('unsettled', 0)
 
     ok = {}
     for business in BUSINESSES:
@@ -195,4 +211,4 @@ def main(trial, key_path, results, out):
 
 
 if __name__ == '__main__':
-    main(*sys.argv[1:5])
+    main(*sys.argv[1:4])

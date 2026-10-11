@@ -393,3 +393,44 @@ conformidad de Astra.
 - No afecta a v1: su motor no pasa por la cola legacy.
 - Los intentos posteriores usan el ejecutor corregido. `herbolario-5-legacy` se continúa con
   `continue`.
+
+## F5b incompleto y enmienda F5c-clínica (2026-10-11, ~08:10 UTC, antes de ver calidad)
+
+**F5b, incompleto.**
+- A las 07:50 UTC, durante `continue herbolario-5-legacy`, el proveedor cortó una respuesta a
+  mitad de stream («RemoteProtocolError»).
+- El ledger cobró la reserva completa (0,268644 USD) y aplicó su parada global, que no se
+  modifica. El filtro de seguridad del entorno de Claude bloqueó el intento de debilitarla, y
+  se respeta.
+- Resultado: 13 intentos hechos (los 12 del herbolario y `clinica-1-opencode`) y 11 sin
+  empezar. F5b queda **incompleto** y se publica entero.
+- Intentos legacy del herbolario que no entregaron:
+  - `herbolario-2`: bloqueado en la planificación;
+  - `herbolario-4`: caída del ejecutor. El dueño simulado respondió «no lo sé» con un texto
+    explicativo y la validación estricta del ejecutor lo rechazó. Es un **defecto del
+    ejecutor**;
+  - `herbolario-5`: fallo por la desconexión, tras la continuación de su replanificación.
+- Según la regla, los tres cuentan como pérdidas de legacy.
+
+**F5c-clínica**: un ensayo nuevo solo de la clínica, con la política del ledger **sin cambios**
+(rechazos explícitos; lo incierto detiene todo).
+- Spec `.local/f5/spec-f5c.json`: `18f3053667cdec2642b7450d51fe6898249ebc5cc262223c8dd3a049f3e5be2d`. Es el de F5b restringido a la clínica, con techo
+  21.110.179 µUSD (22.627.757 menos la cota exacta de F5b, 1.517.577.250 nUSD, redondeada
+  hacia arriba) y ledger `budget-f5c.sqlite`.
+- Orden `.local/f5/order-f5c.json`: `0b43c070089fc9dd93fece55206a2c3a33baa86520436bdb7f6bc97fe153fdc2`. Es el orden congelado de la clínica, con un
+  informe a la vez.
+- Código: el de F5b más una sola corrección del ejecutor. Una respuesta `unknown` o
+  `declined` acompañada de texto se envía sin texto, igual que el botón «No lo sé», en vez de
+  invalidar el intento. Esto evita que se repita la caída de `herbolario-4-legacy`.
+- Si F5c se detiene por otra incertidumbre real, el resultado es **incompleto**.
+- Ningún total del gasto supera 25 USD (cota ≤ 24,43 USD).
+
+**Veredicto combinado:** se llama explícitamente «F5b-herbolario + F5c-clínica» y aplica la
+regla congelada a esos 24 intentos.
+- Los kits y el análisis toman cada negocio de un único init y un único ledger.
+- Se publican además F5 y F5b incompletos, el `clinica-1-opencode` de F5b y un análisis
+  acumulado con todos los intentos.
+
+**Sensibilidad declarada** (secundaria, no decide): la lectura (c) del herbolario sin las
+parejas cuya pérdida legacy causó el ensayo (`herbolario-4` y `herbolario-5`). La regla
+primaria las cuenta como preferencia por v1.

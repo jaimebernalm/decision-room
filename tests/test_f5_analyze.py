@@ -35,7 +35,7 @@ class AnalyzeTests(unittest.TestCase):
                         dict(status='completed' if delivered else 'blocked', seconds=120, engine_run_id=None)))
                     db.execute('INSERT INTO calls VALUES (?,?,?)', ('web:' + job, 100_000_000, 'settled'))
                     attempts.append(dict(code=code, business=business, repetition=i, arm=arm, delivered=delivered,
-                                         status='completed' if delivered else 'blocked'))
+                                         status='completed' if delivered else 'blocked', trial=str(trial)))
                     kit = None
                     if delivered:
                         kit = f'R{number}'; reports[kit] = dict(code=code, business=business, repetition=i, arm=arm)
@@ -59,7 +59,7 @@ class AnalyzeTests(unittest.TestCase):
         (trial / 'manifest.json').write_text(json.dumps(dict(budget_path=str(ledger), jobs=jobs, config=dict(dsn='dbname=f5_analyze_absent connect_timeout=1'))))
         key = root / 'key.json'; key.write_text(json.dumps(dict(attempts=attempts, reports=reports, pairs=pairs)))
         out = root / 'out.json'
-        analyze.main(trial, key, results, out)
+        analyze.main(key, results, out)
         return json.loads(out.read_text())['conditions']
 
     def setUp(self):

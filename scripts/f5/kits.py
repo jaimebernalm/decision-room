@@ -1,6 +1,8 @@
 """Blind, role-separated evaluation kits for the F5 test batch.
 
-Usage: python scripts/f5/kits.py TRIAL_OUTPUT DATA_DIR KITS_DIR KEY_PATH
+Usage: python scripts/f5/kits.py DATA_DIR KITS_DIR KEY_PATH TRIAL_OUTPUT[:business] ...
+
+Each business's attempts come from exactly one trial output (one init, one ledger).
 
 Reads TRIAL_OUTPUT/manifest.json and runs/<code>/ (result.json, informe.html snapshot,
 informe.txt) written by scripts/checks/product_trial.py. Writes:
@@ -39,30 +41,41 @@ def write_report(target, run, with_pages=True):
             (target / f'page-{i:02d}.png').write_bytes(data)
 
 
-def build(trial, data_dir, kits, key_path):
-    trial, data_dir, kits, key_path = Path(trial), Path(data_dir), Path(kits), Path(key_path)
+def build(data_dir, kits, key_path, *trials):
+    data_dir, kits, key_path = Path(data_dir), Path(kits), Path(key_path)
+    sources = []
+    for item in trials:
+        path, _, business = item.partition(':')
+        sources.append((Path(path), business or None))
+    covered = [b for _, b in sources]
+    if len(set(covered)) != len(covered):
+        raise SystemExit('Each business must come from exactly one trial output.')
     if kits.exists() or key_path.exists():
         raise SystemExit('Kits or key already exist; refusing to overwrite.')
     if key_path.resolve().is_relative_to(kits.resolve()):
         raise SystemExit('The key must live outside the kits.')
-    manifest = json.loads((trial / 'manifest.json').read_text())
     rnd = random.Random(SEED)
-    attempts = []
-    for job in manifest['jobs']:
-        run = trial / 'runs' / job['code']
-        result = json.loads((run / 'result.json').read_text()) if (run / 'result.json').exists() else None
-        if result is None and not (run / 'failure.json').exists():
-            raise SystemExit(f"{job['code']} has no result or failure record; finish or reconcile it before building kits.")
-        delivered = bool(result and result.get('delivery') and result.get('snapshot')
-                         and (run / 'informe.html').exists() and (run / 'informe.txt').exists())
-        if delivered and not pages((run / 'informe.html').read_text()):
-            raise SystemExit(f"{job['code']} has a snapshot without page images.")
-        attempts.append(dict(code=job['code'], business=job['business_key'], repetition=job['repetition'],
-                             arm='v1' if job['arm'] == 'opencode' else 'legacy', delivered=delivered,
-                             status=(result or {}).get('status', 'failure' if (run / 'failure.json').exists() else 'not_run'),
-                             run=str(run)))
+    attempts, manifests = [], {}
+    for trial, only in sources:
+        manifest = json.loads((trial / 'manifest.json').read_text())
+        for job in manifest['jobs']:
+            if only and job['business_key'] != only:
+                continue
+            manifests[job['business_key']] = manifest
+            run = trial / 'runs' / job['code']
+            result = json.loads((run / 'result.json').read_text()) if (run / 'result.json').exists() else None
+            if result is None and not (run / 'failure.json').exists():
+                raise SystemExit(f"{job['code']} has no result or failure record; finish or reconcile it before building kits.")
+            delivered = bool(result and result.get('delivery') and result.get('snapshot')
+                             and (run / 'informe.html').exists() and (run / 'informe.txt').exists())
+            if delivered and not pages((run / 'informe.html').read_text()):
+                raise SystemExit(f"{job['code']} has a snapshot without page images.")
+            attempts.append(dict(code=job['code'], business=job['business_key'], repetition=job['repetition'], trial=str(trial),
+                                 arm='v1' if job['arm'] == 'opencode' else 'legacy', delivered=delivered,
+                                 status=(result or {}).get('status', 'failure' if (run / 'failure.json').exists() else 'not_run'),
+                                 run=str(run)))
     codes = rnd.sample(range(100, 1000), len(attempts))
-    key = dict(reports={}, pairs={}, attempts=[{k: a[k] for k in ('code', 'business', 'repetition', 'arm', 'delivered', 'status')}
+    key = dict(reports={}, pairs={}, attempts=[{k: a[k] for k in ('code', 'business', 'repetition', 'arm', 'delivered', 'status', 'trial')}
                                               for a in attempts])
     for attempt, number in zip(attempts, codes):
         if not attempt['delivered']:
@@ -76,7 +89,7 @@ def build(trial, data_dir, kits, key_path):
     for business in sorted({a['business'] for a in attempts}):
         data = kits / 'audit' / 'data' / business
         data.mkdir(parents=True)
-        inputs = {i['name']: i['sha256'] for job in manifest['jobs'] if job['business_key'] == business for i in job['inputs']}
+        inputs = {i['name']: i['sha256'] for job in manifests[business]['jobs'] if job['business_key'] == business for i in job['inputs']}
         for name, expected in sorted(inputs.items()):
             source = data_dir / business / 'datos' / name
             if hashlib.sha256(source.read_bytes()).hexdigest() != expected:
@@ -118,4 +131,4 @@ def build(trial, data_dir, kits, key_path):
 
 
 if __name__ == '__main__':
-    build(*sys.argv[1:5])
+    build(*sys.argv[1:])
