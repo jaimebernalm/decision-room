@@ -613,15 +613,26 @@ class Conversations:
                 "SELECT * FROM chat_turns WHERE conversation_id=%s AND status='waiting' ORDER BY ordinal LIMIT 1", (chat_id,)
             ).fetchone()
             setup = onboarding.before_message(db, self.business, chat, previous)
-            job, question, phase = None, '', None
+            job, question, phase, engine_run_id = None, '', None, None
             if setup and setup['question']:
                 question = setup['question']['text']
             if waiting:
-                questions = self.ws.detail(waiting['job_id'])['questions']
+                waiting_job = db.execute('SELECT * FROM web_jobs WHERE business_id=%s AND id=%s AND deleted_at IS NULL',
+                                         (self.business, waiting['job_id'])).fetchone()
+                if waiting_job and waiting_job['engine_kind'] == 'opencode':
+                    # Selected context can already hold the memory head here.
+                    # Read only wait metadata: full detail opens a second report
+                    # read lock and could wait on this transaction's own lock.
+                    from .web.engine_wait import detail as wait_detail
+                    questions = wait_detail(self.config, waiting_job).get('questions', [])
+                else:
+                    questions = self.ws.detail(waiting['job_id'])['questions']
                 chosen = next((q for q in questions if str(q['id']) == question_id), None)
                 if not chosen:
                     raise WebError('Selecciona una aclaración pendiente.', 409)
                 job, question, phase = waiting['job_id'], chosen['text'], chosen['phase']
+                if phase == 'engine':
+                    engine_run_id = chosen['run_id']
             elif question_id:
                 raise WebError('Esa aclaración ya no está pendiente.', 409)
             elif previous and previous['response'] and previous['response'].get('kind') == 'clarification':
@@ -650,6 +661,8 @@ class Conversations:
                 text=text, question_id=question_id, disposition=disposition, question=question, phase=phase,
                 memory_deferred=defer_memory,
             )
+            if engine_run_id:
+                payload['run_id'] = engine_run_id
             if entry_intent is not None:
                 payload['entry_intent'] = entry_intent
             if setup:
@@ -788,6 +801,9 @@ class Conversations:
                     detail = self.ws.detail(t['job_id'])
                     if detail.get('context_stale'):
                         value.update(status='stale', response=None, issue=detail['issue'])
+                    elif detail.get('engine_kind') == 'opencode' and detail['status'] != 'waiting':
+                        value.update(status=detail['status'] if detail['status'] in ('blocked','failed') else 'processing',
+                                     response=None, questions=[], issue=detail.get('issue'))
                     else:
                         value['questions'] = detail['questions']
                 result.append(value)
@@ -1207,6 +1223,7 @@ class Conversations:
                         self.ws.reply(
                             turn['job_id'],
                             dict(
+                                **({'business_id': str(self.business), 'run_id': a['run_id']} if a['phase'] == 'engine' else {}),
                                 request_key=str(turn['id']),
                                 question_id=a['question_id'],
                                 phase=a['phase'],

@@ -15,7 +15,14 @@ from tests.engine_fakes import FakeRuntime
 class EngineWaitTests(unittest.TestCase):
     setUpClass = classmethod(fixtures.WebTests.setUpClass.__func__)
     tearDownClass = classmethod(fixtures.WebTests.tearDownClass.__func__)
-    setUp = fixtures.WebTests.setUp
+    def setUp(self):
+        from dataclasses import replace
+        # This fixture also creates chat-linked jobs; remove those references
+        # before the web fixture clears its jobs in this disposable database.
+        with connect(replace(self.base, dsn=self.dsn)) as db:
+            db.execute('DELETE FROM chat_turns')
+            db.execute('DELETE FROM chat_conversations')
+        fixtures.WebTests.setUp(self)
     create = fixtures.WebTests.create
     pinned = job_fixtures.EngineJobTests.pinned
     fake_runtime = job_fixtures.EngineJobTests.fake_runtime
@@ -286,3 +293,35 @@ with patch.object(api,'Runtime',FakeRuntime),patch.object(api,'DockerBackend',la
             self.ws.run_job(job)
             self.assertEqual(self.ws.row(job)['status'],'completed')
             self.assertIsNone(self.ws.row(job)['pending_answer'])
+
+    def test_chat_answer_freezes_run_identity_and_never_captures_business_memory(self):
+        from dataclasses import asdict,replace
+        from psycopg.types.json import Jsonb
+        from decision_room.conversations import Conversations
+        from psycopg.conninfo import make_conninfo
+        from decision_room.engine import admission,store
+        from decision_room.reports.store import adopt
+        self.config=replace(self.config,dsn=make_conninfo(self.config.dsn,options='-c statement_timeout=3000'));self.ws.config=self.config
+        job,data=self.wait();row=self.ws.row(job)
+        raw=b'<h1>Partial work</h1>'
+        store.receive_file(self.config,row['business_id'],row['engine_run_id'],dict(status='received',raw=raw,bytes=len(raw),sha256=admission.sha(raw)))
+        adopt(self.config,row['business_id'],row['engine_run_id'])
+        chats=Conversations(self.ws.scoped(row['business_id']))
+        chat=chats.create(dict(business_id=str(row['business_id']),request_key=str(uuid4()),analysis_id=str(row['analysis_id'])))['id']
+        parent=uuid4()
+        with connect(self.config) as db:
+            db.execute('''INSERT INTO chat_turns(id,business_id,conversation_id,ordinal,request_key,payload,status,model_settings,job_id,response)
+                VALUES(%s,%s,%s,1,%s,%s,'waiting',%s,%s,%s)''',
+                (parent,row['business_id'],chat,uuid4(),Jsonb({'text':'Analiza mis datos','disposition':'answered'}),Jsonb(asdict(self.ws.settings)),job,Jsonb({'kind':'questions','questions':self.ws.detail(job)['questions']})))
+            before=db.execute('SELECT revision FROM memory_heads WHERE business_id=%s',(row['business_id'],)).fetchone()['revision']
+        answer=chats.send(chat,dict(business_id=str(row['business_id']),request_key=str(uuid4()),question_id=data['question_id'],text='No lo sé',disposition='unknown',context_references=[dict(kind='business',source_id=str(row['business_id']),source_version=str(self.business['profile_revision']),element_key='profile')]))['id']
+        with connect(self.config) as db:
+            turn=db.execute('SELECT * FROM chat_turns WHERE id=%s',(answer,)).fetchone()
+            self.assertEqual(turn['payload']['run_id'],data['run_id'])
+            self.assertIsNone(turn['memory_source_id'])
+        chats.run(answer)
+        self.assertEqual(self.ws.row(job)['pending_answer']['run_id'],data['run_id'])
+        self.ws.run_job(job);chats.run(answer)
+        with connect(self.config) as db:
+            self.assertEqual(db.execute('SELECT revision FROM memory_heads WHERE business_id=%s',(row['business_id'],)).fetchone()['revision'],before)
+            self.assertEqual(db.execute('SELECT status FROM chat_turns WHERE id=%s',(answer,)).fetchone()['status'],'completed')

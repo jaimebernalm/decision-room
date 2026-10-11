@@ -224,6 +224,7 @@ export type QuestionContext = {
   label?: string;
 };
 export type Question = {
+  run_id?: string;
   references?: { kind: string; id: string; column: string }[];
   previous_text?: string;
   id: string;
@@ -340,6 +341,9 @@ export type ChatDetail = {
   context_changed_after?: boolean;
 };
 export type Job = Analysis & {
+  engine_run_id?: string;
+  engine_state?: string;
+  answer_pending?: boolean;
   can_retry?: boolean;
   analysis_id?: string;
   unresolved_questions?: Question[];

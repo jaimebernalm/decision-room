@@ -79,6 +79,13 @@ export function JobPage({
         />
       </Heading>
       <Notice error>{resource.error || action.error || job.issue}</Notice>
+      {job.engine_kind === "opencode" && job.answer_pending && (
+        <Notice>
+          {tr(
+            "Tu respuesta está guardada. La conservaremos aunque la reanudación no pueda completarse.",
+          )}
+        </Notice>
+      )}
       {job.engine_report && (
         <Card className="mb-6 shadow-none">
           <CardHeader>
@@ -118,11 +125,13 @@ export function JobPage({
       />
       {job.status === "waiting" && !job.context_stale && (
         <div className="mb-6 space-y-4">
-          <DataPreview
-            key={job.questions.map((q) => q.id).join(":")}
-            jobId={id}
-            questions={job.questions}
-          />
+          {job.engine_kind !== "opencode" && (
+            <DataPreview
+              key={job.questions.map((q) => q.id).join(":")}
+              jobId={id}
+              questions={job.questions}
+            />
+          )}
           {job.questions.map((q) => (
             <QuestionForm
               key={q.id}
@@ -136,34 +145,38 @@ export function JobPage({
           ))}
         </div>
       )}
-      {(job.can_retry || job.status === "failed" || job.context_stale) && (
-        <Button
-          className="mb-6"
-          disabled={action.busy}
-          onClick={() =>
-            action.run(async () => {
-              await api(`/api/jobs/${id}/retry`, {});
-              resource.refresh();
-              refresh();
-            })
-          }
-        >
-          <RotateCcw />
-          {job.context_stale
-            ? tr("Recalcular con el contexto actual")
-            : tr("Reintentar informe")}
-        </Button>
-      )}
+      {job.engine_kind !== "opencode" &&
+        (job.can_retry || job.status === "failed" || job.context_stale) && (
+          <Button
+            className="mb-6"
+            disabled={action.busy}
+            onClick={() =>
+              action.run(async () => {
+                await api(`/api/jobs/${id}/retry`, {});
+                resource.refresh();
+                refresh();
+              })
+            }
+          >
+            <RotateCcw />
+            {job.context_stale
+              ? tr("Recalcular con el contexto actual")
+              : tr("Reintentar informe")}
+          </Button>
+        )}
       {canClarify && (
         <ClarificationRecovery key={id} job={job} onboarding={onboarding} />
       )}
-      {job.status === "blocked" && !canClarify && !job.can_retry && (
-        <Button asChild className="mb-6" variant="outline">
-          <a href={onboarding ? `#onboarding/${job.business_id}` : "#new"}>
-            {onboarding ? tr("Revisar mis datos") : tr("Crear otro informe")}
-          </a>
-        </Button>
-      )}
+      {(job.status === "blocked" ||
+        (job.engine_kind === "opencode" && job.status === "failed")) &&
+        !canClarify &&
+        !job.can_retry && (
+          <Button asChild className="mb-6" variant="outline">
+            <a href={onboarding ? `#onboarding/${job.business_id}` : "#new"}>
+              {onboarding ? tr("Revisar mis datos") : tr("Crear otro informe")}
+            </a>
+          </Button>
+        )}
       <div className="grid gap-4">
         <Disclosure title={tr("Contexto y archivos")} defaultOpen>
           <p className="font-medium">{job.business}</p>
@@ -221,7 +234,11 @@ export function JobPage({
                   {typeof a.question === "string" ? a.question : ""}
                 </p>
                 <p className="whitespace-pre-wrap">
-                  {a.disposition === "unknown" ? tr("No disponible") : a.text}
+                  {a.disposition === "unknown"
+                    ? tr("No disponible")
+                    : a.disposition === "declined"
+                      ? tr("Prefiero no responder")
+                      : a.text}
                 </p>
               </div>
             ))}
@@ -261,6 +278,7 @@ function QuestionForm({
         business_id: job.business_id,
         request_key: pending.current.key,
         question_id: question.id,
+        ...(question.phase === "engine" ? { run_id: question.run_id } : {}),
         phase: question.phase || job.phase,
         text: disposition === "answered" ? text : "",
         disposition,
@@ -275,6 +293,13 @@ function QuestionForm({
         <p className="text-sm text-muted-foreground">{question.reason}</p>
       </CardHeader>
       <CardContent>
+        {question.phase === "engine" && (
+          <p className="mb-4 text-sm text-muted-foreground">
+            {tr(
+              "El análisis está detenido mientras espera tu respuesta; conserva sus datos y su trabajo. Tu respuesta es una declaración tuya, no una cifra comprobada. Si no respondes en siete días, la espera vence y tendrás que iniciar otro análisis.",
+            )}
+          </p>
+        )}
         <form
           className="space-y-4"
           onSubmit={(e) => {
@@ -326,6 +351,16 @@ function QuestionForm({
             >
               {tr("No dispongo de ese dato")}
             </Button>
+            {question.phase === "engine" && (
+              <Button
+                disabled={action.busy || Boolean(text.trim())}
+                type="button"
+                variant="ghost"
+                onClick={() => submit("declined")}
+              >
+                {tr("Prefiero no responder")}
+              </Button>
+            )}
           </div>
         </form>
       </CardContent>

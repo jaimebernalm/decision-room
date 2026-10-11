@@ -64,7 +64,9 @@ def detail(config, job):
         problem = reason(db, dict(source_run_id=run['id'], business_id=run['business_id'],
                                  analysis_id=run['analysis_id'], stale_reason=None), config=config)
     result = dict(engine_run_id=str(run['id']), engine_state=run['status'],
-                  answer_pending=bool(job['pending_answer']), answers=[r['body'] for r in answers])
+                  answer_pending=bool(job['pending_answer']), answers=[{
+                      **r['body'], 'question': next(q['body']['text'] for q in rows if q['id'] == r['question_id'])
+                  } for r in answers])
     q = next((r for r in rows if r['state'] != 'resumed'), None)
     expired = bool(q and q['expires_at'] and q['expires_at'] <= run['checked_at'])
     if run['status'] == 'waiting' and (expired or problem or run['credential_revoked']):

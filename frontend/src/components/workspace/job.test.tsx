@@ -37,7 +37,15 @@ const preview = {
   page_columns: 12,
   cell_characters: 500,
 };
-function mockFetch(current = job) {
+function mockFetch(
+  current: Omit<typeof job, "questions"> & {
+    [key: string]: unknown;
+    questions: (typeof question & { run_id?: string })[];
+    engine_kind?: string;
+    answer_pending?: boolean;
+    can_retry?: boolean;
+  } = job,
+) {
   const writes: { url: string; body: Record<string, unknown> }[] = [];
   const fetch = vi.fn(async (url: string, options: RequestInit) => {
     let data: unknown;
@@ -178,4 +186,91 @@ it.each(["planning", "research"])("opens the referenced data for a %s question i
       name: "importe (mencionada en la pregunta)",
     }),
   ).toBeVisible();
+});
+
+it.each(["answered", "unknown", "declined"])(
+  "sends a run-scoped owner declaration (%s) while the engine is stopped",
+  async (disposition) => {
+    location.hash = "analysis/job";
+    const { writes, fetch } = mockFetch({
+      ...job,
+      engine_kind: "opencode",
+      phase: "engine",
+      questions: [{ ...question, phase: "engine", run_id: "run" }],
+    });
+    render(<App />);
+    const user = userEvent.setup();
+    expect(
+      await screen.findByText(/El análisis está detenido mientras espera/),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Cambia el cálculo.")).toBeInTheDocument();
+    if (disposition === "answered") {
+      await user.click(screen.getByRole("button", { name: "Total de fila" }));
+      await user.click(
+        screen.getByRole("button", { name: "Guardar respuesta" }),
+      );
+    } else
+      await user.click(
+        screen.getByRole("button", {
+          name:
+            disposition === "unknown"
+              ? "No dispongo de ese dato"
+              : "Prefiero no responder",
+        }),
+      );
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0].body).toMatchObject({
+      business_id: "business",
+      question_id: "q",
+      run_id: "run",
+      phase: "engine",
+      disposition,
+      text: disposition === "answered" ? "Total de fila" : "",
+    });
+    expect(fetch.mock.calls.some(([url]) => url.includes("/data?"))).toBe(
+      false,
+    );
+  },
+);
+
+it.each(["failed", "blocked"])(
+  "keeps an engine answer without offering legacy retry when %s",
+  async (status) => {
+    location.hash = "analysis/job";
+    mockFetch({
+      ...job,
+      engine_kind: "opencode",
+      status,
+      phase: "engine",
+      answer_pending: true,
+      questions: [],
+      can_retry: false,
+    });
+    render(<App />);
+    expect(
+      await screen.findByText(/Tu respuesta está guardada/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Reintentar informe" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Crear otro informe" }),
+    ).toBeInTheDocument();
+  },
+);
+
+it("shows the saved owner answer as a declaration with its question", async () => {
+  location.hash = "analysis/job";
+  mockFetch({
+    ...job,
+    engine_kind: "opencode",
+    status: "blocked",
+    phase: "engine",
+    questions: [],
+    answers: [{ question: "¿Unidad?", text: "", disposition: "declined" }],
+  } as unknown as typeof job);
+  render(<App />);
+  await userEvent.setup().click(await screen.findByText("Tus aclaraciones"));
+  expect(screen.getByText("¿Unidad?")).toBeInTheDocument();
+  expect(screen.getByText("Prefiero no responder")).toBeInTheDocument();
 });
