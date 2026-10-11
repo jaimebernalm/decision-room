@@ -74,6 +74,20 @@ class DeriveTests(unittest.TestCase):
         renderer=FakeRenderer();self.assertEqual(self.derive(document,revision,renderer=renderer)['status'],'failed')
         self.assertEqual(renderer.calls,0)
 
+    def test_unconfigured_renderer_reports_unavailable_with_scoped_read_and_preserves_queue(self):
+        _,document,revision,job=self.document()
+        with patch.object(policy,'renderer_version',return_value=policy.RENDERER_VERSION+':unconfigured'):
+            with connect(self.config) as db, patch.object(ds,'source',side_effect=AssertionError('read checked raw')):
+                self.assertEqual(derive.derived(db,self.business,document,revision)['status'],'unavailable')
+                self.assertIsNone(derive.derived(db,uuid4(),document,revision))
+                self.assertIsNone(derive.derived(db,self.business,document,uuid4()))
+            with patch.object(rb.Renderer,'render',side_effect=AssertionError('unconfigured render')):
+                self.assertEqual(self.derive(document,revision)['status'],'unavailable')
+                self.assertFalse(derive.work_once(self.config))
+        with connect(self.config) as db:
+            self.assertEqual(db.execute('SELECT status FROM report_derivation_jobs WHERE id=%s',(job['id'],)).fetchone()['status'],'pending')
+            self.assertIsNone(ds.result(db,self.business,document,revision))
+
     def test_different_image_or_policy_needs_new_result_old_receipts_survive(self):
         _,document,revision,job=self.document();renderer=FakeRenderer()
         first=self.derive(document,revision,renderer=renderer)

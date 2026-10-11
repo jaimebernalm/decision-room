@@ -9,10 +9,17 @@ from .render_browser import Renderer, validate_snapshot
 
 LOG = logging.getLogger(__name__)
 ISSUE = 'No podemos preparar la vista de esta revisión. Conservamos el HTML original.'
+UNAVAILABLE = dict(status='unavailable', canonical_text=None, snapshot_html=None, issue=None)
 
 
 def derived(db, business, document_id, revision_id):
     """Exact policy/image/revision read only; caller still holds owner access guards."""
+    if policy.renderer_version().endswith(':unconfigured'):
+        exists = db.execute('''SELECT 1 FROM report_document_revisions r JOIN report_documents d
+            ON d.business_id=r.business_id AND d.id=r.document_id
+            WHERE r.business_id=%s AND r.document_id=%s AND r.id=%s''',
+            (business,document_id,revision_id)).fetchone()
+        return dict(UNAVAILABLE) if exists else None
     row = ds.result(db, business, document_id, revision_id)
     if row:
         return {k: row[k] for k in ('status','raw_sha256','policy_version','renderer_version','derived_version',
@@ -47,7 +54,7 @@ def derive(config, business, document_id, revision_id, *, renderer=None, inspect
             AND revision_id=%s AND policy_version=%s AND renderer_version=%s''',
             (business,document_id,revision_id,policy.POLICY_VERSION,policy.renderer_version())).fetchone()
     if renderer is None and policy.renderer_version().endswith(':unconfigured'):
-        return dict(status='pending', canonical_text=None, snapshot_html=None, issue=None)
+        return dict(UNAVAILABLE)
     with _slot(config) as available:
         if not available: return dict(status='pending', canonical_text=None, snapshot_html=None, issue=None)
         with ds.claim(config,job['id']) as claimed:

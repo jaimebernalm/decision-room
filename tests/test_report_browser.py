@@ -99,3 +99,19 @@ class NativeBrowserTests(unittest.TestCase):
             self.assertFalse(any('OPENAI' in v or 'DATABASE' in v for v in row['Config']['Env']))
             with self.assertRaises((ValueError,RuntimeError,TimeoutError)): future.result(timeout=55)
         self.assertNotEqual(renderer.control('container','inspect',name,check=False).returncode,0)
+
+    def test_orphan_recovery_uses_exact_job_identity_and_refuses_foreign_labels(self):
+        renderer=rb.Renderer();identity=uuid4();name='dr-render-'+str(identity)
+        args=['create','--name',name,'--label','decision-room.report-render='+str(identity),
+              '--network','none','--read-only','--cap-drop','ALL','--security-opt','no-new-privileges',
+              '--user','10001:10001','--memory','64m','--pids-limit','16','--cpus','1','--entrypoint','python',
+              renderer.manifest['image'],'-I','-c','import time;time.sleep(60)']
+        renderer.control(*args);self.addCleanup(lambda:renderer.control('rm','-f',name,check=False))
+        renderer.control('start',name)
+        result=renderer.render(b'<h1>Recovered 5</h1>',identity)
+        self.assertIn('Recovered 5',result['inventory']['text'])
+        self.assertNotEqual(renderer.control('container','inspect',name,check=False).returncode,0)
+        args[4]='decision-room.report-render='+str(uuid4())
+        renderer.control(*args)
+        with self.assertRaises(ValueError): renderer.render(b'<h1>Foreign</h1>',identity)
+        self.assertEqual(renderer.control('container','inspect',name).returncode,0)

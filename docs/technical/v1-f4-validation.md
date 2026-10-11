@@ -110,3 +110,31 @@ anterior. Prueba nativa del servicio verifica texto, píxeles y proyección junt
 
 integración con la vista/chat de Claude; suite hostil y regresión completas. Este
 documento no declara F4 terminada todavía.
+
+## 4. Puerta del marco y recuperación adicional
+
+El candidato que servía el bruto en un `iframe sandbox=""` se descarta. En Chrome
+real, con HTML sintético y la CSP del producto, un enlace SVG con animación SMIL
+cambia su destino a una ruta del mismo origen. Al pulsarlo se registra la petición
+en el sumidero; el padre conserva su título. Desactivar scripts no impide esa
+navegación. La comprobación de meta refresh no produjo navegación.
+
+La política acordada es `v1-snapshot-only-1`: solo HTML propio con PNG del navegador
+aislado, acompañado de texto canónico. Nunca se introduce marcado del agente en
+el marco. `tests/synthetic_browser.py` es exclusivamente un arnés de prueba del
+origen con fixtures escritos a mano; no carga archivos ni informes, y no es una
+dependencia del producto. Toda ejecución de HTML del agente sigue dentro de Docker.
+
+Las dos pruebas de `test_report_frame_native` pasan contra la política del commit
+de vista `a4c7e09`, cargada en el runner hasta integrar las ramas. Reproducen el
+fallo del candidato y prueban que instantánea/recepción dejan el padre intacto y
+no generan peticiones al sumidero para SMIL y diez fixtures de scripts, fetch,
+URL construida, base, refresh, JavaScript URL, URL relativa, formulario y tamaño.
+La misma suite se repetirá sobre la rama integrada.
+
+Ocho pruebas adicionales de servicio y recuperación pasan: recuperación del
+contenedor huérfano por ID exacto y rechazo del contenedor con otra etiqueta,
+además del servicio. Sin imagen configurada, la lectura distingue `unavailable`
+de `pending`, respeta negocio/documento/revisión y conserva la cola; no inspecciona
+el bruto ni intenta Chrome. El borrador del test de etiqueta tenía un índice de
+argumento erróneo; se corrigió antes de comprobarlo y guardar este commit.
