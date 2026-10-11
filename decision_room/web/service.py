@@ -779,10 +779,17 @@ class Workspace:
             from .report_access import read_job
             from ..reports import reading
             with read_job(self,job_id,revision=revision) as (db,_,pair):
-                if not structured or purpose!='view':
+                if purpose == 'pdf':
+                    reading.pdf_unavailable()
+                if purpose == 'raw':
+                    # Kept bytes as an attachment, never opened as a page or called sanitized.
+                    return pair[1]['raw']
+                if not structured or purpose != 'view':
                     reading.blocked_content()
                 value = reading.metadata(db,*pair)
-                return reading.presentation(*pair,value)
+                return reading.presentation(*pair,value,reading.view(db,*pair))
+        if purpose == 'raw':
+            raise WebError('Este informe no tiene un HTML original descargable.', 409)
         if not j['review_id']:
             raise WebError('El informe todavía no está disponible.', 409)
         # Export uses the same parent lock; approval is rechecked on every request.

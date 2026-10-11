@@ -77,3 +77,55 @@ it("missing engine metadata cannot fall through to the reviewed legacy view", ()
   ).toBeInTheDocument();
   expect(screen.queryByText("Revisado")).not.toBeInTheDocument();
 });
+it("frames an allowed report without scripts and offers its canonical text", async () => {
+  const { container } = render(
+    <ReportView
+      report={{
+        ...report,
+        summary: "",
+        view: {
+          mode: "frame",
+          policy_version: "v1-frame-noscript-1",
+          receipt: "allowed",
+          reason: null,
+          canonical_text: "Ventas por canal",
+          sandbox: "",
+          srcdoc: "<h1>Ventas</h1>",
+        },
+      }}
+    />,
+  );
+  const frame = container.querySelector("iframe")!;
+  expect(frame.getAttribute("sandbox")).toBe("");
+  expect(frame.getAttribute("srcdoc")).toBe("<h1>Ventas</h1>");
+  expect(frame.getAttribute("referrerpolicy")).toBe("no-referrer");
+  expect(container.querySelector("script")).toBeNull();
+  await userEvent.click(screen.getByText("Texto del informe"));
+  expect(screen.getByText("Ventas por canal")).toBeVisible();
+  expect(screen.queryByText("Revisado")).not.toBeInTheDocument();
+});
+it("never frames pending or blocked reports", () => {
+  for (const mode of ["pending", "blocked"] as const) {
+    const { container, unmount } = render(
+      <ReportView
+        report={{
+          ...report,
+          view: {
+            mode,
+            policy_version: "v1-frame-noscript-1",
+            receipt: mode === "blocked" ? "blocked" : "allowed",
+            reason: mode === "blocked" ? "element:base" : null,
+            canonical_text: null,
+          },
+        }}
+      />,
+    );
+    expect(container.querySelector("iframe")).toBeNull();
+    expect(
+      screen.getByText(
+        mode === "pending" ? /Preparando la vista/ : /Presentación bloqueada/,
+      ),
+    ).toBeInTheDocument();
+    unmount();
+  }
+});

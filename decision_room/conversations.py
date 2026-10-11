@@ -895,6 +895,8 @@ class Conversations:
                                  (found['job_id'],self.business)).fetchone() if found['job_id'] else None
         if job and job['engine_kind']=='opencode':
             return self.ws.report(job['id'],structured=structured,purpose=purpose)
+        if purpose == 'raw':
+            raise WebError('Este informe no tiene un HTML original descargable.', 409)
         with connect(self.config) as db, db.transaction():
             t = self.turn(db, chat_id, turn_id)
             memory.lock(db, self.business)

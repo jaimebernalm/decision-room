@@ -1,4 +1,4 @@
-"""Business/document/revision guard and metadata-only HTML read model."""
+"""Business/document/revision guard and HTML read model. Agent HTML is only ever shown framed."""
 from contextlib import contextmanager
 
 from ..database import connect
@@ -40,6 +40,7 @@ def read(config, business, document, *, revision=None, deleted=False):
         if not raw or store.admission.sha(bytes(raw['raw'])) != selected['raw_sha256'] or raw['raw_sha256'] != selected['raw_sha256']:
             raise WebError('No podemos recuperar la integridad de esta revisión.',409)
         selected['delivery_via'] = raw['delivery_via']
+        selected['raw'] = bytes(raw['raw'])
         yield db,row,selected
 
 
@@ -68,13 +69,32 @@ def blocked_content():
     raise WebError('La presentación de este informe todavía no está disponible. Conservamos su entrega y sus metadatos.',409)
 
 
-def presentation(document, revision, value):
+def pdf_unavailable():
+    raise WebError('PDF no disponible todavía. Puedes descargar el HTML original.',409)
+
+
+def derived_for(db, document, revision):
+    """The isolated renderer's result for this exact revision, or None. Never renders here."""
+    try:
+        from .derive import derived
+    except ImportError:  # F4 integration: the renderer lands on the worker branch.
+        return None
+    return derived(db, document['business_id'], document['id'], revision['id'])
+
+
+def view(db, document, revision):
+    from . import presentation as policy
+    return policy.view(revision['raw'], derived_for(db, document, revision))
+
+
+def presentation(document, revision, value, view=None):
     """Typed metadata envelope; empty evidence cannot be mistaken for extraction."""
-    summaries = {'current':'La entrega está guardada. Su presentación todavía no está disponible.',
+    shown = bool(view and view['mode'] in ('frame', 'snapshot'))
+    summaries = {'current':'' if shown else 'La entrega está guardada. Su presentación todavía no está disponible.',
                  'withdrawn':'Los datos o la memoria aplicable han cambiado. Conservamos esta entrega como histórico.',
                  'historical':'Esta revisión es histórica. Conservamos sus metadatos y su hash.',
                  'incomplete':'La ejecución no completó un informe actual. Conservamos las entregas recibidas.'}
     return dict(origin='engine_html',engine_report=value,report_id=str(document['id']),report_version=revision['raw_sha256'],
-                title=document.get('title') or 'Informe',summary=summaries[value['state']],
+                title=document.get('title') or 'Informe',summary=summaries[value['state']],view=view,
                 scope=dict(period='',coverage='',question=document.get('goal') or ''),
                 claims=[],highlights=[],charts=[],limitations=[])
