@@ -59,6 +59,7 @@ class AnalyzeTests(unittest.TestCase):
         (trial / 'manifest.json').write_text(json.dumps(dict(budget_path=str(ledger), jobs=jobs, config=dict(dsn='dbname=f5_analyze_absent connect_timeout=1'))))
         key = root / 'key.json'; key.write_text(json.dumps(dict(attempts=attempts, reports=reports, pairs=pairs)))
         out = root / 'out.json'
+        self.last = root
         analyze.main(key, results, out)
         return json.loads(out.read_text())['conditions']
 
@@ -76,6 +77,13 @@ class AnalyzeTests(unittest.TestCase):
         with unittest.mock.patch.object(analyze, 'load_engine_runs', return_value={}):
             result = self.build(rejected=True)
         self.assertTrue(result['e'])
+
+    def test_unknown_engine_source_publishes_no_zero_cost(self):
+        result = self.build()  # fixture database absent: every engine source is unknown
+        out = json.loads((self.last / 'out.json').read_text())
+        self.assertTrue(all(a['usd'] is None and a['unsettled'] is None for a in out['attempts']))
+        self.assertTrue(all(arm['usd_mean'] is None and arm['unsettled'] is None
+                            for b in out['businesses'].values() for arm in b['arms'].values()))
 
     def test_crash_without_result_has_no_duration_and_is_not_accredited(self):
         with unittest.mock.patch.object(analyze, 'load_engine_runs', return_value={}):
@@ -142,3 +150,36 @@ class KitSelectionTests(unittest.TestCase):
         self.build(f'{a}:herbolario', f'{b}:clinica')
         key = json.loads((Path(self.temp.name) / 'key.json').read_text())
         self.assertEqual({(x['business'], Path(x['trial']).name) for x in key['attempts']}, {('herbolario', 'a'), ('clinica', 'b')})
+
+
+class CumulativeTests(unittest.TestCase):
+    def test_same_code_in_two_roots_stays_separate_and_duplicates_are_refused(self):
+        temp = tempfile.TemporaryDirectory(); self.addCleanup(temp.cleanup)
+        spec = importlib.util.spec_from_file_location('cumulative', ROOT / 'scripts/f5/cumulative.py')
+        cumulative = importlib.util.module_from_spec(spec); spec.loader.exec_module(cumulative)
+        roots = []
+        for name, crash in (('one', False), ('two', True)):
+            root = Path(temp.name) / name / 'trial'
+            (root / 'runs' / 'clinica-1-legacy').mkdir(parents=True)
+            ledger = root / 'ledger.sqlite'
+            db = sqlite3.connect(ledger)
+            db.executescript("CREATE TABLE calls (scope TEXT, charged INTEGER, state TEXT); CREATE TABLE policy (stopped INTEGER); INSERT INTO policy VALUES (0);")
+            db.execute('INSERT INTO calls VALUES (?,?,?)', ('web:j-' + name, 100_000_000, 'settled')); db.commit(); db.close()
+            run = root / 'runs' / 'clinica-1-legacy'
+            (run / 'started.json').write_text('{}')
+            if crash:
+                (run / 'failure.json').write_text('{}')
+            else:
+                (run / 'result.json').write_text(json.dumps(dict(status='completed', delivery=True, snapshot=True, seconds=60)))
+            (root / 'manifest.json').write_text(json.dumps(dict(budget_path=str(ledger), name=name,
+                jobs=[dict(code='clinica-1-legacy', job_id='j-' + name, arm='legacy')])))
+            roots.append(str(root))
+        out = Path(temp.name) / 'cumulative.json'
+        cumulative.main(out, *roots)
+        rows = json.loads(out.read_text())
+        self.assertEqual(len(rows), 2)
+        self.assertEqual({r['status'] for r in rows}, {'completed', 'failure'})
+        crashed = next(r for r in rows if r['status'] == 'failure')
+        self.assertIsNone(crashed['usd_bound']); self.assertFalse(crashed['delivered'])
+        with self.assertRaises(SystemExit):
+            cumulative.main(out, roots[0], roots[0])

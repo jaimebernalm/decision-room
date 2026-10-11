@@ -6,6 +6,7 @@ Reads each trial's manifest, run records and its own ledger(s), read-only. Publi
 delivery, duration and ledger cost bound per attempt; never merges repeated codes and never
 reports an unknown cost as zero. No evaluation content.
 """
+import hashlib
 import json
 import sqlite3
 import sys
@@ -13,9 +14,11 @@ from pathlib import Path
 
 
 def main(out, *trials):
-    rows = []
-    for trial in map(Path, trials):
-        manifest = json.loads((trial / 'manifest.json').read_text())
+    rows, seen = [], set()
+    for trial in (Path(t).resolve() for t in trials):
+        manifest_bytes = (trial / 'manifest.json').read_bytes()
+        manifest = json.loads(manifest_bytes)
+        identity = hashlib.sha256(manifest_bytes).hexdigest()[:16]
         ledger = sqlite3.connect(Path(manifest['budget_path']).resolve().as_uri() + '?mode=ro', uri=True)
         scopes = {}
         for scope, charged, state in ledger.execute('SELECT scope, charged, state FROM calls'):
@@ -31,7 +34,10 @@ def main(out, *trials):
             if result and result.get('engine_run_id'):
                 own.append(scopes.get('engine:' + str(result['engine_run_id'])))
             known = result is not None or state == 'not_started'
-            rows.append(dict(trial=trial.name, code=job['code'], arm=job['arm'], status=state,
+            if (identity, job['code']) in seen:
+                raise SystemExit(f'Duplicate attempt {trial}:{job["code"]}.')
+            seen.add((identity, job['code']))
+            rows.append(dict(trial=str(trial), manifest=identity, code=job['code'], arm=job['arm'], status=state,
                              delivered=bool(result and result.get('delivery') and result.get('snapshot')),
                              seconds=(result or {}).get('seconds'), resumed=bool((result or {}).get('resumed')),
                              usd_bound=sum(o['usd'] for o in own if o) if known else None,
@@ -40,7 +46,7 @@ def main(out, *trials):
     Path(out).write_text(json.dumps(rows, indent=2) + '\n')
     for r in rows:
         if r['status'] != 'not_started':
-            print(r['trial'], r['code'], r['status'], r['delivered'], r['seconds'] and round(r['seconds']), r['usd_bound'] and round(r['usd_bound'], 4))
+            print(Path(r['trial']).name, r['code'], r['status'], r['delivered'], r['seconds'] and round(r['seconds']), r['usd_bound'] and round(r['usd_bound'], 4))
 
 
 if __name__ == '__main__':

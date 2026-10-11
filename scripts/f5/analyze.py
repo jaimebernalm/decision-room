@@ -79,9 +79,12 @@ def main(key_path, results, out):
             attempt['engine_source'] = ('result' if result.get('engine_run_id') else
                                         'database' if run_id else 'unknown' if engine_runs is None else 'none')
             own = [o for o in own if o]
-            attempt.update(usd=sum(o['usd'] for o in own), calls=sum(o['calls'] for o in own),
-                           unsettled=sum(o['unsettled'] for o in own), seconds=result.get('seconds'),
-                           owner_answers=result.get('owner_answers'))
+            known = attempt['engine_source'] != 'unknown'
+            lower = dict(usd=sum(o['usd'] for o in own), calls=sum(o['calls'] for o in own), unsettled=sum(o['unsettled'] for o in own))
+            # An unknown engine source never publishes a complete cost: the known part is a lower bound.
+            attempt.update(usd=lower['usd'] if known else None, calls=lower['calls'] if known else None,
+                           unsettled=lower['unsettled'] if known else None, usd_lower_bound=lower['usd'],
+                           seconds=result.get('seconds'), owner_answers=result.get('owner_answers'))
     if len({a['code'] for a in key['attempts']}) != len(key['attempts']):
         raise SystemExit('Attempt codes must be unique in the primary analysis.')
     for attempt in key['attempts']:
