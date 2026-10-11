@@ -420,8 +420,35 @@ export function BlockChart({ chart }: { chart: ChartBlock }) {
   );
 }
 
+const TABLE_PREVIEW_ROWS = 8;
+
 export function BlockTable({ block }: { block: TableBlock }) {
   useLanguage();
+  // Reader-side sorting and folding only; the author's order is the default.
+  const [sort, setSort] = useState<{ column: number; descending: boolean } | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const rows = block.rows.map((row, index) => ({ row, index }));
+  if (sort)
+    rows.sort((a, b) => {
+      const x = a.row[sort.column];
+      const y = b.row[sort.column];
+      if (x === null || y === null) return x === y ? a.index - b.index : x === null ? 1 : -1;
+      const order =
+        typeof x === "number" && typeof y === "number"
+          ? x - y
+          : String(x).localeCompare(String(y), locale(), { numeric: true });
+      return (sort.descending ? -order : order) || a.index - b.index;
+    });
+  const folded = !expanded && rows.length > TABLE_PREVIEW_ROWS;
+  const visible = folded ? rows.slice(0, TABLE_PREVIEW_ROWS) : rows;
+  const cycle = (column: number) =>
+    setSort((current) =>
+      current?.column !== column
+        ? { column, descending: block.rows.some((r) => typeof r[column] === "number") }
+        : current.descending === block.rows.some((r) => typeof r[column] === "number")
+          ? { column, descending: !current.descending }
+          : null,
+    );
   return (
     <div className="space-y-2">
       {block.title && <h4 className="text-sm font-medium">{block.title}</h4>}
@@ -430,16 +457,31 @@ export function BlockTable({ block }: { block: TableBlock }) {
           <TableHeader>
             <TableRow>
               {block.columns.map((c, i) => (
-                <TableHead key={i}>
-                  {c.title}
-                  {c.unit ? ` (${c.unit})` : ""}
+                <TableHead
+                  key={i}
+                  aria-sort={
+                    sort?.column === i ? (sort.descending ? "descending" : "ascending") : undefined
+                  }
+                >
+                  <button
+                    type="button"
+                    onClick={() => cycle(i)}
+                    title={tr("Ordenar por esta columna")}
+                    className="inline-flex items-center gap-1 rounded hover:text-foreground"
+                  >
+                    {c.title}
+                    {c.unit ? ` (${c.unit})` : ""}
+                    <span aria-hidden className="text-[10px] text-muted-foreground">
+                      {sort?.column === i ? (sort.descending ? "▼" : "▲") : ""}
+                    </span>
+                  </button>
                 </TableHead>
               ))}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {block.rows.map((row, r) => (
-              <TableRow key={r}>
+            {visible.map(({ row, index }) => (
+              <TableRow key={index}>
                 {row.map((cell, c) => (
                   <TableCell
                     key={c}
@@ -459,6 +501,18 @@ export function BlockTable({ block }: { block: TableBlock }) {
           </TableBody>
         </Table>
       </div>
+      {rows.length > TABLE_PREVIEW_ROWS && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          className="text-xs font-medium text-primary hover:underline"
+        >
+          {expanded
+            ? tr("Ver menos filas")
+            : tr("Ver las {0} filas", { "0": formatNumber(rows.length, 0) })}
+        </button>
+      )}
       {block.note && (
         <p className="text-xs text-muted-foreground">{block.note}</p>
       )}

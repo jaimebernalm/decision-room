@@ -151,3 +151,25 @@ it("stacks parts of a total and lets the reader hide a series from the legend", 
   await userEvent.click(screen.getByText("Ver valores"));
   expect(screen.getByText("120")).toBeVisible();
 });
+
+it("lets the reader sort a table and unfold long ones, keeping the author's order by default", async () => {
+  const rows = Array.from({ length: 10 }, (_, i) => [`Producto ${i + 1}`, (i * 7) % 10] as (string | number)[]);
+  const table: BlocksProjection = {
+    ...projection,
+    blocks: [
+      {
+        id: "b1", type: "table", title: "Ventas por producto", note: null, rows,
+        columns: [{ title: "Producto", unit: null, decimals: null }, { title: "Unidades", unit: null, decimals: 0 }],
+      },
+    ],
+  };
+  render(<BlocksReport projection={table} />);
+  const firstCells = () => screen.getAllByRole("row").slice(1).map((r) => within(r).getAllByRole("cell")[0].textContent);
+  expect(firstCells()).toHaveLength(8);
+  expect(firstCells()[0]).toBe("Producto 1");
+  await userEvent.click(screen.getByRole("button", { name: /Unidades/ }));
+  expect(screen.getByRole("columnheader", { name: /Unidades/ })).toHaveAttribute("aria-sort", "descending");
+  expect(firstCells()[0]).toBe("Producto 8"); // 49 % 10 = 9, the largest
+  await userEvent.click(screen.getByRole("button", { name: "Ver las 10 filas" }));
+  expect(firstCells()).toHaveLength(10);
+});
