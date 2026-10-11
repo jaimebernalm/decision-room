@@ -1,7 +1,6 @@
 # N4: piloto v1 en bloques nativos frente a v1 en HTML. Preregistro
 
-**Estado:** borrador de Claude para que Astra lo revise. Se congela antes de inicializar el lote
-y no hay datos de este lote.
+**Estado:** **congelado** antes de inicializar el lote (anexo al final). Revisado por Astra.
 
 **Autorización.** El dueño (11-oct-2026) autorizó implementar el plan del informe nativo
 completo, de N0 a N5, con todos los cambios necesarios. El presupuesto de N4 y su tope los fija
@@ -153,3 +152,61 @@ Ninguna decisión de valor por defecto sale de N4.
 
 Cualquier cambio después de congelar el preregistro se anota en un anexo con su motivo, antes
 de ver la calidad.
+
+## Anexo de congelación (2026-10-11, antes de inicializar el lote)
+
+- **Código:** `claude/v1-blocks` en `75c194a`. Integra N0–N3 de Claude y Astra, la reparación de
+  formato (`fba8fc4`), el hash literal del comprobador y el estado en español (`d03a949`), y el
+  análisis `scripts/f5/n4_analyze.py`.
+- **Revisión de Astra:** de acuerdo con este preregistro (bbe5fe6), con `auditor_quotes`, el cruce
+  corregido y el análisis 8c3adb7.
+- **Spec:** `.local/n4/spec.json` (privado):
+  - brazos `opencode` y `blocks`, 3 repeticiones;
+  - herbolario y clínica de F5, sin significados declarados, igual que F5b y F5c;
+  - ledger `.local/n4/budget.sqlite` con 3,00 USD de tope y 1,00 USD por informe, política de
+    rechazos explícitos.
+- **Smoke técnico previo** (variante `688ab50`, sin reparación de formato ni hash literal): 1
+  informe, 0,206 USD. Acredita infraestructura y ciclo, no exactitud. No forma parte del lote.
+- **Orden:** por repetición se alterna qué brazo va primero (impar: html-v1 primero; par: blocks
+  primero), herbolario y después clínica, sin paralelismo.
+
+## Anexo 2 (2026-10-11, después de inicializar el lote y antes de ver ningún resultado)
+
+Son dos precisiones de Astra sobre la evaluación. No cambian la ejecución.
+1. **Límite de lectura:** 16 imágenes por pareja en kits y prompts. Si una pareja lo supera, no se
+   trunca y su lectura queda sin acreditar (el resultado sería incompleto).
+2. **Falsas alarmas del comprobador:**
+   - Una cifra correcta cuenta como examinada solo si tiene un item localizado `confirmed` o
+     `discrepancy`.
+   - Un item `unverifiable`, uno no localizado o un resumen de cobertura no la examinan.
+   - Se publican aparte las cifras correctas no examinadas.
+   - Si no queda ninguna examinada, esa parte de (f) queda sin acreditar.
+
+## Anexo 3: código por intento (2026-10-11, durante el lote y antes de ver ningún resultado)
+
+**Qué pasó.** El ejecutor lanza un proceso por informe e importaba el código de la rama de
+desarrollo. Mientras corría el lote, Claude editó en esa rama varios archivos:
+- la guarda del renderizador para documentos nativos (`reports/derive.py`,
+  `derivative_store.py`, `native_store.py`);
+- la selección para el chat (`context_references.py`);
+- la leyenda del PDF (`reports/blocks_pdf.py`).
+
+**Medida.** A las 15:03:32 UTC el lanzador pasó a un worktree congelado en `fc27549` (el código del
+anexo de congelación). Los informes siguientes usan exactamente ese código.
+
+**Intentos afectados**, deducidos de las horas de modificación y de importación:
+- `herbolario-1-opencode` (14:57:46–15:00:52): importó todo antes de las ediciones, así que corrió
+  con el código congelado. La guarda de `derive.py` (15:00:02) no afecta a un documento HTML.
+- `herbolario-1-blocks` (desde 15:00:53):
+  - el agente, el comprobador y la recepción no cambiaron (ni `blocks.py` ni `native_checks` ni
+    `check_contract`);
+  - al capturar importó `native_store.py` con la defensa ante inventarios ajenos, que no cambia
+    nada para un inventario nativo;
+  - importó `blocks_pdf.py` con la leyenda en filas, así que su PDF es de otra versión.
+
+**Materiales de lectura.** Para no mezclar versiones, antes de crear los kits se vuelven a generar
+los PDF de **todos** los informes blocks-v1 (`informe.pdf` e `informe-auditor.pdf`):
+- con el `blocks_pdf.py` del worktree congelado `fc27549`;
+- a partir de los `informe-bloques.json` y `checks.json` guardados, sin tocar bytes ni
+  comprobaciones;
+- los originales se conservan con el sufijo `.orig`.

@@ -42,9 +42,17 @@ def source(db, business, document, revision, *, writing=False):
     return row
 
 
+def html(db, business, document):
+    """True for engine_html documents: the only ones the raster renderer may touch."""
+    row = db.execute('SELECT origin FROM report_documents WHERE business_id=%s AND id=%s', (business, document)).fetchone()
+    return bool(row and row['origin'] == 'engine_html')
+
+
 def enqueue(db, business, document, revision):
     """Called in adoption's transaction; queueing cannot grant publication."""
     row = source(db, business, document, revision)
+    if not html(db, business, document):
+        raise ValueError('Only HTML engine reports use the isolated renderer.')
     db.execute('''INSERT INTO report_derivation_jobs
         (id,business_id,document_id,revision_id,raw_sha256,policy_version,renderer_version)
         VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING''',
@@ -54,6 +62,8 @@ def enqueue(db, business, document, revision):
 def set_presentation(db, business, document, revision, raw_sha256, state, reason, *, policy_version=None):
     policy_version = policy.POLICY_VERSION if policy_version is None else policy_version
     row = source(db, business, document, revision, writing=True)
+    if not html(db, business, document):
+        raise ValueError('Only HTML engine reports use the isolated renderer.')
     if row['raw_sha256'] != raw_sha256 or policy_version != policy.POLICY_VERSION or state not in ('allowed', 'blocked'):
         raise ValueError('Presentation assessment identity differs.')
     if reason is not None and (not isinstance(reason, str) or len(reason)>256):
@@ -104,6 +114,8 @@ def claim(config, job_id):
         try:
             with db.transaction():
                 job = db.execute('SELECT * FROM report_derivation_jobs WHERE id=%s FOR UPDATE', (job_id,)).fetchone()
+                if job and not html(db, job['business_id'], job['document_id']):
+                    job = None  # a stray job never renders or publishes over a native report
                 if not job or job['status'] in ('ready', 'failed'):
                     job = None
                 elif job['policy_version'] != policy.POLICY_VERSION or job['renderer_version'] != policy.renderer_version():
@@ -119,6 +131,8 @@ def claim(config, job_id):
 def publish(db, job, *, status, inventory=None, snapshot_html=None, issue=None):
     """One terminal receipt per key, followed by its projection, in one transaction."""
     row = source(db, job['business_id'], job['document_id'], job['revision_id'], writing=True)
+    if not html(db, job['business_id'], job['document_id']):
+        raise ValueError('Only HTML engine reports use the isolated renderer.')
     if row['raw_sha256'] != job['raw_sha256']:
         raise ValueError('Derivative source identity differs.')
     if status not in ('ready', 'failed') or (job['policy_version'],job['renderer_version']) != (policy.POLICY_VERSION,policy.renderer_version()):

@@ -20,6 +20,7 @@ from ..report_pdf import BORDER, GRAY, INK, STYLES, WIDTH as PAGE_WIDTH, grid, p
 
 WIDTH = PAGE_WIDTH - 12  # frame padding
 MAX_DRAWING_HEIGHT = 620
+LEGEND_ITEM = 110  # points per legend entry
 
 AMBER = colors.HexColor('#fff7e6')
 AMBER_LINE = colors.HexColor('#e0a33a')
@@ -84,7 +85,8 @@ def chart_drawing(chart):
         extent = max(abs(low), abs(high)) or 1
         low, high = -extent, extent
     span = (high - low) or 1
-    legend = 18 if len(series) > 1 else 0
+    per_row = max(1, int(WIDTH // LEGEND_ITEM))
+    legend = 18 * -(-len(series) // per_row) if len(series) > 1 else 0  # wrapped rows, height reserved
     if kind in ('bar', 'change'):
         row = len(series) * 12 + 10
         height = legend + len(cats) * row + 20
@@ -139,9 +141,9 @@ def chart_drawing(chart):
                     d.add(Circle(px, py, 2, fillColor=_color(i), strokeColor=None))
     if legend:
         for i, s in enumerate(series):
-            lx = 10 + i * 110
-            d.add(Rect(lx, height - 12, 8, 8, fillColor=_color(i), strokeColor=None))
-            d.add(String(lx + 12, height - 11, _short(s['name'], 18), fontName='Helvetica', fontSize=7.5, fillColor=INK))
+            lx, ly = 10 + (i % per_row) * LEGEND_ITEM, height - 12 - (i // per_row) * 18
+            d.add(Rect(lx, ly, 8, 8, fillColor=_color(i), strokeColor=None))
+            d.add(String(lx + 12, ly + 1, _short(s['name'], 18), fontName='Helvetica', fontSize=7.5, fillColor=INK))
     return d
 
 

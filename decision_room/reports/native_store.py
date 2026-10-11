@@ -48,6 +48,10 @@ def result(db, business, document, revision):
         AND x.policy_version=r.policy_version AND x.renderer_version=r.renderer_version''',
         (business,document,revision)).fetchone()
     if not row: return None
+    # Fail closed on a foreign (e.g. raster) inventory instead of reinterpreting it.
+    if row['status']=='ready' and not (isinstance(row['inventory'],dict) and 'document' in row['inventory']
+                                       and 'schema_version' in row['inventory']):
+        return None
     return {**row, 'document': row['inventory']['document'] if row['status']=='ready' else None,
             'schema_version': row['inventory']['schema_version'] if row['inventory'] else None,
             'projector_version': row['renderer_version']}
