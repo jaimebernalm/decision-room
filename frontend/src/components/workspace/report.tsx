@@ -54,6 +54,7 @@ import type {
   ChartPanel,
   Report as ReportData,
   ContextAttachment,
+  ReportBlock,
 } from "@/lib/types";
 const config = { value: { label: "Valor", color: CHART_PALETTE[0] } };
 function GroupedBars({
@@ -431,13 +432,39 @@ function EngineFrame({ report }: { report: ReportData }) {
       <p className="whitespace-pre-wrap text-sm">{view.canonical_text}</p>
     </Disclosure>
   ) : null;
-  if (view.mode === "blocks" && view.blocks)
+  if (view.mode === "blocks" && view.blocks) {
+    const meta = report.engine_report;
+    // Chat selection by block id on the current revision only; agent text, never evidence.
+    const wrap = (block: ReportBlock, node: ReactNode) =>
+      meta?.is_current && block.type !== "section" ? (
+        <Selectable
+          item={{
+            source_id: meta.document_id,
+            source_version: meta.revision_id,
+            kind: "engine_block",
+            element_key: block.id,
+            title:
+              "title" in block
+                ? block.title || block.id
+                : "label" in block
+                  ? block.label
+                  : report.title,
+            report_title: report.title,
+            href: location.hash,
+          }}
+        >
+          {node}
+        </Selectable>
+      ) : (
+        node
+      );
     return (
       <>
-        <BlocksReport projection={view.blocks} checks={view.checks} />
+        <BlocksReport projection={view.blocks} checks={view.checks} wrap={wrap} />
         {text}
       </>
     );
+  }
   if (view.mode === "snapshot")
     return (
       <>

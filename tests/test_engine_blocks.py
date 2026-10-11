@@ -123,6 +123,12 @@ class BlocksTests(unittest.TestCase):
         self.assertEqual(p['blocks'][0]['change'], 0.999999999999999)  # exact difference; huge percentage stays finite
         self.assertIsNotNone(p['blocks'][0]['change_pct'])
 
+    def test_huge_derived_percentage_formats(self):
+        p = blocks.parse(raw(doc({'tipo': 'cifra', 'etiqueta': 'x', 'valor': 999999999999999, 'anterior': {'valor': 1e-15}})))
+        self.assertIn('cambio +999.999.999.999.999', blocks.canonical_text(p))
+        from decision_room.reports import blocks_pdf
+        self.assertTrue(blocks_pdf.render(p).startswith(b'%PDF-'))
+
     def test_exact_values_survive_rounding(self):
         p = blocks.parse(raw(doc({'tipo': 'cifra', 'etiqueta': 'Tasa', 'valor': 0.0001},
                                  {'tipo': 'cifra', 'etiqueta': 'Media', 'valor': 1.25, 'decimales': 0},

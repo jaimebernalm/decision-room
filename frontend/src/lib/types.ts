@@ -199,7 +199,7 @@ export type ContextReference =
   | {
       source_id: string;
       source_version: string;
-      kind: "business" | "memory" | "conversation" | "data_model";
+      kind: "business" | "memory" | "conversation" | "data_model" | "engine_block";
       element_key: string;
     };
 export type ContextAttachment = ContextReference & {
