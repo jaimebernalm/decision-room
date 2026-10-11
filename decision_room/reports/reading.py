@@ -87,7 +87,8 @@ def derived_for(db, document, revision):
             value['check_sha256']=admission.sha(admission.canonical(checks))
             from ..engine import check_contract
             warnings=check_contract.visible(checks)
-            value['canonical_text'] += '\nComprobación independiente: '+checks['state']+'\n'+'\n'.join(
+            state={'complete':'completada','incomplete':'no completada','pending':'en curso','unknown':'no completada'}[checks['state']]
+            value['canonical_text'] += '\nComprobación independiente de cifras: '+state+'\n'+'\n'.join(
                 i['message'] if i.get('coverage') else 'Cifra en revisión: '+i['quote']+' — '+i['message']
                 for i in warnings['items'])
             value['canonical_sha256']=admission.sha(value['canonical_text'].encode())
