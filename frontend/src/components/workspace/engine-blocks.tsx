@@ -304,6 +304,11 @@ function BlockChartBody({ chart }: { chart: ChartBlock }) {
                   tickLine={false}
                   axisLine={false}
                   domain={valueDomain}
+                  ticks={
+                    chart.kind === "change"
+                      ? [-extent, -extent / 2, 0, extent / 2, extent]
+                      : undefined
+                  }
                   tickFormatter={compact}
                 />
                 <YAxis
@@ -372,7 +377,9 @@ export function BlockChart({ chart }: { chart: ChartBlock }) {
         <CardTitle>{chart.title}</CardTitle>
         {(chart.unit || chart.value_title) && (
           <CardDescription>
-            {[chart.value_title, chart.unit].filter(Boolean).join(" · ")}
+            {chart.value_title && chart.unit && chart.value_title.includes(chart.unit)
+              ? chart.value_title
+              : [chart.value_title, chart.unit].filter(Boolean).join(" · ")}
           </CardDescription>
         )}
       </CardHeader>
