@@ -589,6 +589,90 @@ export function BlockTable({ block }: { block: TableBlock }) {
   );
 }
 
+type CoverBlock = Extract<ReportBlock, { type: "cover" }>;
+type CardsBlock = Extract<ReportBlock, { type: "cards" }>;
+type ActionBlock = Extract<ReportBlock, { type: "action" }>;
+
+/**
+ * The report's headline and summary first. A deep panel in the light theme (white text, AA contrast);
+ * in the dark theme an elevated card with an accent edge rather than an inverted light block.
+ */
+function Cover({ block, eyebrow }: { block: CoverBlock; eyebrow: string }) {
+  return (
+    <header className="space-y-4 rounded-xl bg-[#173b52] px-6 py-7 text-white sm:px-8 sm:py-9 dark:border-l-4 dark:border-primary dark:bg-card dark:text-card-foreground">
+      {eyebrow && (
+        <p className="text-xs font-semibold uppercase tracking-wider text-white/75 dark:text-muted-foreground">
+          {eyebrow}
+        </p>
+      )}
+      <h2 className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">{block.title}</h2>
+      <div className="max-w-3xl [&_.text-sm]:text-base">
+        <BlockText content={block.content} />
+      </div>
+    </header>
+  );
+}
+
+/** Side-by-side cards; color only from a tone the report declares, never inferred from the wording. */
+function Cards({ block }: { block: CardsBlock }) {
+  return (
+    <div className={`grid gap-4 md:grid-cols-2 ${block.cards.length === 3 ? "lg:grid-cols-3" : ""}`}>
+      {block.cards.map((card, i) => {
+        const color = card.tone ? SEMANTIC[card.tone] : undefined;
+        return (
+          <Card
+            key={i}
+            className="gap-3 border-t-4 shadow-none"
+            style={
+              color
+                ? { borderTopColor: color, background: `color-mix(in oklab, ${color} 7%, var(--card))` }
+                : undefined
+            }
+          >
+            <CardHeader className="pb-0">
+              <CardTitle className="flex items-center gap-2 text-base">
+                {color && <span aria-hidden className="size-2.5 shrink-0 rounded-full" style={{ background: color }} />}
+                {card.title}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <BlockText content={card.content} />
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+/** What to check next and how the reaction depends on the result; labels are the platform's. */
+function Action({ block }: { block: ActionBlock }) {
+  useLanguage();
+  const label = "text-xs font-semibold uppercase tracking-wide text-muted-foreground";
+  const branches = [
+    { title: tr("Si se confirma"), content: block.if_confirmed },
+    { title: tr("Si no"), content: block.if_not },
+  ].filter((b): b is { title: string; content: BlockContent[] } => !!b.content);
+  return (
+    <div className="space-y-3 rounded-lg border bg-muted/40 p-4">
+      <div className="space-y-1">
+        <p className={label}>{tr("Qué comprobar")}</p>
+        <BlockText content={block.check} />
+      </div>
+      {branches.length > 0 && (
+        <div className={`grid gap-3 ${branches.length === 2 ? "sm:grid-cols-2" : ""}`}>
+          {branches.map((b) => (
+            <div key={b.title} className="space-y-1 rounded-md border bg-background p-3">
+              <p className={label}>{b.title}</p>
+              <BlockText content={b.content} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Independent-check outcome for one block. Never a confirmation mark (P5). */
 function CheckNotices({ items }: { items: BlockCheck[] }) {
   useLanguage();
@@ -759,6 +843,27 @@ function Block({
           {notices}
         </>
       );
+    case "cover":
+      return (
+        <>
+          {wrap(block, <Cover block={block} eyebrow="" />)}
+          {notices}
+        </>
+      );
+    case "cards":
+      return (
+        <>
+          {wrap(block, <Cards block={block} />)}
+          {notices}
+        </>
+      );
+    case "action":
+      return (
+        <>
+          {wrap(block, <Action block={block} />)}
+          {notices}
+        </>
+      );
   }
 }
 
@@ -788,12 +893,23 @@ export function BlocksReport({
   );
   const uncovered = (checks?.items ?? []).filter((c) => c.coverage);
   const coverage = checks?.coverage;
+  // A cover opens the report and carries the report title as its label; without one, the title heads it.
+  const [first, ...rest] = projection.blocks;
+  const cover = first?.type === "cover" ? first : null;
+  const coverChecks = cover ? (byBlock.get(cover.id) ?? []) : [];
   return (
     <div className="space-y-6">
-      {projection.title && (
-        <h2 className="text-2xl font-semibold tracking-tight text-balance">{projection.title}</h2>
+      {cover ? (
+        <>
+          {wrap(cover, <Cover block={cover} eyebrow={projection.title} />)}
+          {coverChecks.length > 0 && <CheckNotices items={coverChecks} />}
+        </>
+      ) : (
+        projection.title && (
+          <h2 className="text-2xl font-semibold tracking-tight text-balance">{projection.title}</h2>
+        )
       )}
-      <Blocks blocks={projection.blocks} depth={0} checks={byBlock} wrap={wrap} numbers={numbers} />
+      <Blocks blocks={cover ? rest : projection.blocks} depth={0} checks={byBlock} wrap={wrap} numbers={numbers} />
       {(unverifiable.length > 0 || uncovered.length > 0) && (
         // Limits of the independent check: one plain summary, folded away. The per-priority
         // coverage messages stay in the data and the chat, never repeated here (no extra text).

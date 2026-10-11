@@ -1,0 +1,214 @@
+{
+ "schema": "informe-bloques-1",
+ "projector": "bloques-proyector-5",
+ "title": "Cómo va el trimestre",
+ "blocks": [
+  {
+   "id": "b1",
+   "type": "cover",
+   "title": "Crece la tienda online; la recogida en local pide revisión",
+   "content": [
+    {
+     "kind": "paragraph",
+     "spans": [
+      {
+       "text": "Las ventas suben un ",
+       "bold": false,
+       "italic": false
+      },
+      {
+       "text": "8,2 %",
+       "bold": true,
+       "italic": false
+      },
+      {
+       "text": " frente al mismo trimestre del año anterior, sobre todo por la tienda online.",
+       "bold": false,
+       "italic": false
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "b2",
+   "type": "cards",
+   "cards": [
+    {
+     "title": "Qué ha funcionado",
+     "content": [
+      {
+       "kind": "paragraph",
+       "spans": [
+        {
+         "text": "La tienda online aporta 1.240 pedidos más.",
+         "bold": false,
+         "italic": false
+        }
+       ]
+      }
+     ],
+     "tone": "positive"
+    },
+    {
+     "title": "Qué no",
+     "content": [
+      {
+       "kind": "paragraph",
+       "spans": [
+        {
+         "text": "La recogida en local cae un 12 %.",
+         "bold": false,
+         "italic": false
+        }
+       ]
+      }
+     ],
+     "tone": "negative"
+    }
+   ]
+  },
+  {
+   "id": "b3",
+   "type": "priority",
+   "title": "Revisar la recogida en local",
+   "blocks": [
+    {
+     "id": "b3-1",
+     "type": "text",
+     "content": [
+      {
+       "kind": "paragraph",
+       "spans": [
+        {
+         "text": "La caída empieza en marzo y se mantiene.",
+         "bold": false,
+         "italic": false
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "id": "b3-2",
+     "type": "action",
+     "check": [
+      {
+       "kind": "paragraph",
+       "spans": [
+        {
+         "text": "Si los pedidos de recogida pasaron a envío a domicilio.",
+         "bold": false,
+         "italic": false
+        }
+       ]
+      }
+     ],
+     "if_confirmed": [
+      {
+       "kind": "paragraph",
+       "spans": [
+        {
+         "text": "Mantener el horario y revisar el coste de envío.",
+         "bold": false,
+         "italic": false
+        }
+       ]
+      }
+     ],
+     "if_not": [
+      {
+       "kind": "paragraph",
+       "spans": [
+        {
+         "text": "Revisar la atención en el local.",
+         "bold": false,
+         "italic": false
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "b4",
+   "type": "cards",
+   "cards": [
+    {
+     "title": "A",
+     "content": [
+      {
+       "kind": "paragraph",
+       "spans": [
+        {
+         "text": "Uno.",
+         "bold": false,
+         "italic": false
+        }
+       ]
+      }
+     ],
+     "tone": null
+    },
+    {
+     "title": "B",
+     "content": [
+      {
+       "kind": "paragraph",
+       "spans": [
+        {
+         "text": "Dos.",
+         "bold": false,
+         "italic": false
+        }
+       ]
+      }
+     ],
+     "tone": "warning"
+    },
+    {
+     "title": "C",
+     "content": [
+      {
+       "kind": "paragraph",
+       "spans": [
+        {
+         "text": "Tres.",
+         "bold": false,
+         "italic": false
+        }
+       ]
+      }
+     ],
+     "tone": "neutral"
+    }
+   ]
+  },
+  {
+   "id": "b5",
+   "type": "priority",
+   "title": "Seguir la tienda online",
+   "blocks": [
+    {
+     "id": "b5-1",
+     "type": "action",
+     "check": [
+      {
+       "kind": "paragraph",
+       "spans": [
+        {
+         "text": "Si el crecimiento se mantiene en abril.",
+         "bold": false,
+         "italic": false
+        }
+       ]
+      }
+     ],
+     "if_confirmed": null,
+     "if_not": null
+    }
+   ]
+  }
+ ]
+}

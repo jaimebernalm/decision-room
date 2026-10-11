@@ -6,6 +6,7 @@ import { CHART_SEMANTIC } from "@/lib/charts";
 import { exactDecimals, formatNumber } from "@/lib/blocks-format";
 import { ReportView } from "./report";
 import fixture from "@/test-fixtures/blocks-report.json";
+import presentationFixture from "@/test-fixtures/blocks-presentation.json";
 import type { BlocksProjection, Report } from "@/lib/types";
 
 const projection = fixture as unknown as BlocksProjection;
@@ -242,4 +243,64 @@ it("shows signed table changes, colored and attributed only when declared", () =
   expect(screen.getByText("−1.187").style.color).not.toBe("");
   expect(screen.getByText("+10").style.color).toBe(""); // signed but no declared meaning
   expect(screen.getByText("Prioridad del trimestre").closest("aside")).toHaveClass("border-l-4");
+});
+
+const presentation = presentationFixture as unknown as BlocksProjection;
+
+it("opens with the cover, the report title as its label and no second heading", () => {
+  render(<BlocksReport projection={presentation} />);
+  const headline = screen.getByRole("heading", { level: 2 });
+  expect(headline).toHaveTextContent("Crece la tienda online; la recogida en local pide revisión");
+  expect(screen.getAllByRole("heading", { level: 2 })).toHaveLength(1);
+  const cover = headline.closest("header")!;
+  expect(within(cover).getByText("Cómo va el trimestre")).toBeInTheDocument();
+  expect(within(cover).getByText("8,2 %").tagName).toBe("STRONG");
+});
+
+it("colors cards only by declared tone and keeps two or three side by side", () => {
+  render(<BlocksReport projection={presentation} />);
+  const worked = screen.getByText("Qué ha funcionado").closest("[data-slot=card]") as HTMLElement;
+  expect(worked.style.borderTopColor).not.toBe("");
+  const plain = screen.getByText("A").closest("[data-slot=card]") as HTMLElement;
+  expect(plain.style.borderTopColor).toBe("");
+  expect(worked.parentElement!.className).toContain("md:grid-cols-2");
+  expect(worked.parentElement!.className).not.toContain("lg:grid-cols-3");
+  expect(plain.parentElement!.className).toContain("lg:grid-cols-3");
+});
+
+it("lays out the action with platform labels and only the branches the report gives", () => {
+  render(<BlocksReport projection={presentation} />);
+  const first = screen.getByRole("heading", { name: /Revisar la recogida en local/ }).closest("section")!;
+  expect(within(first).getByText("Qué comprobar")).toBeInTheDocument();
+  expect(within(first).getByText("Si se confirma")).toBeInTheDocument();
+  expect(within(first).getByText("Si no")).toBeInTheDocument();
+  expect(within(first).getByText("Revisar la atención en el local.")).toBeInTheDocument();
+  const second = screen.getByRole("heading", { name: /Seguir la tienda online/ }).closest("section")!;
+  expect(within(second).getByText("Qué comprobar")).toBeInTheDocument();
+  expect(within(second).queryByText("Si se confirma")).toBeNull();
+  // Priority numbering ignores cards and the cover.
+  expect(within(second).getByText("02")).toBeInTheDocument();
+});
+
+it("attaches disputed figures to the new blocks and lets the chat cite them", () => {
+  const seen: string[] = [];
+  render(
+    <BlocksReport
+      projection={presentation}
+      checks={{ state: "complete", items: [{ block_id: "b3-2", quote: "Si los pedidos", status: "discrepancy" }] }}
+      wrap={(block, node) => {
+        seen.push(block.id);
+        return node;
+      }}
+    />,
+  );
+  expect(seen).toEqual(expect.arrayContaining(["b1", "b2", "b3-2", "b4", "b5-1"]));
+  const first = screen.getByRole("heading", { name: /Revisar la recogida en local/ }).closest("section")!;
+  expect(within(first).getByRole("note")).toHaveTextContent("Cifra en revisión");
+});
+
+it("keeps reports without the new blocks headed by their title", () => {
+  render(<BlocksReport projection={projection} />);
+  expect(screen.getByRole("heading", { level: 2, name: "Cómo va el año" })).toBeInTheDocument();
+  expect(document.querySelector("header")).toBeNull();
 });
