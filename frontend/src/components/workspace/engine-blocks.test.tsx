@@ -1,13 +1,17 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { it, expect } from "vitest";
+import { it, expect, vi } from "vitest";
+import type { ReactNode } from "react";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { WorkspaceState, type WorkspaceContext } from "@/lib/workspace";
+import { AssistantProvider, blockId, useAssistant } from "@/lib/assistant";
 import { BlocksReport, judged, seriesColors, stackTotalLabel } from "./engine-blocks";
 import { CHART_SEMANTIC } from "@/lib/charts";
 import { exactDecimals, formatNumber } from "@/lib/blocks-format";
 import { ReportView } from "./report";
 import fixture from "@/test-fixtures/blocks-report.json";
 import presentationFixture from "@/test-fixtures/blocks-presentation.json";
-import type { BlocksProjection, Report } from "@/lib/types";
+import type { BlocksProjection, ContextAttachment, Report } from "@/lib/types";
 
 const projection = fixture as unknown as BlocksProjection;
 
@@ -303,4 +307,116 @@ it("keeps reports without the new blocks headed by their title", () => {
   render(<BlocksReport projection={projection} />);
   expect(screen.getByRole("heading", { level: 2, name: "Cómo va el año" })).toBeInTheDocument();
   expect(document.querySelector("header")).toBeNull();
+});
+
+function presentationReport(isCurrent: boolean): Report {
+  return {
+    origin: "engine_blocks",
+    title: "Cómo va el trimestre",
+    scope: { period: "", coverage: "" },
+    claims: [],
+    charts: [],
+    highlights: [],
+    limitations: [],
+    engine_report: {
+      document_id: "d",
+      revision_id: "r",
+      state: "current",
+      is_current: isCurrent,
+      run_status: "delivered",
+      raw_sha256: "a".repeat(64),
+      raw_bytes: 10,
+      profile_version: "blocks-v1",
+      history: [],
+    },
+    view: {
+      mode: "blocks",
+      policy_version: "blocks-escaped-1",
+      receipt: "allowed",
+      reason: null,
+      canonical_text: "Cómo va el trimestre",
+      blocks: presentation,
+      checks: { state: "complete", items: [] },
+    },
+  };
+}
+
+function SelectionProbe() {
+  const assistant = useAssistant()!;
+  return (
+    <>
+      <button type="button" onClick={() => assistant.setSelecting(true)}>
+        Empezar selección
+      </button>
+      <output data-testid="selected">{JSON.stringify(assistant.selected)}</output>
+    </>
+  );
+}
+
+function withAssistant(node: ReactNode) {
+  const workspace = {
+    workspace: { business: { id: "a", name: "Negocio", description: "", profile_revision: 1 }, businesses: [], analyses: [], configured: true, memory: {} },
+    listing: { business_id: "a", reports: [], conversations: [], datasets: { items: [], more: false } },
+    route: "report/d",
+    refresh: vi.fn(),
+    removeChat: vi.fn(),
+  } as unknown as WorkspaceContext;
+  return (
+    <TooltipProvider>
+      <WorkspaceState.Provider value={workspace}>
+        <AssistantProvider>
+          <SelectionProbe />
+          {node}
+        </AssistantProvider>
+      </WorkspaceState.Provider>
+    </TooltipProvider>
+  );
+}
+
+it("selects cover, cards and action from the report view and finds them again by reference", async () => {
+  const user = userEvent.setup();
+  render(withAssistant(<ReportView report={presentationReport(true)} />));
+  await user.click(screen.getByRole("button", { name: "Empezar selección" }));
+  await user.click(
+    screen.getByRole("button", { name: "Seleccionar: Crece la tienda online; la recogida en local pide revisión" }),
+  );
+  await user.click(screen.getByRole("button", { name: "Seleccionar: Qué ha funcionado · Qué no" }));
+  await user.click(screen.getAllByRole("button", { name: "Seleccionar: Qué comprobar" })[0]);
+  const selected = JSON.parse(screen.getByTestId("selected").textContent!) as ContextAttachment[];
+  expect(selected.map((s) => [s.kind, s.element_key])).toEqual([
+    ["engine_block", "b1"],
+    ["engine_block", "b2"],
+    ["engine_block", "b3-2"],
+  ]);
+  for (const s of selected) {
+    expect(s).toMatchObject({ source_id: "d", source_version: "r", report_title: "Cómo va el trimestre" });
+    // Opening a reference scrolls to this element id.
+    expect(document.getElementById(blockId(s))).not.toBeNull();
+  }
+});
+
+it("never offers blocks of an older revision for the chat", async () => {
+  const user = userEvent.setup();
+  render(withAssistant(<ReportView report={presentationReport(false)} />));
+  await user.click(screen.getByRole("button", { name: "Empezar selección" }));
+  expect(screen.queryByRole("button", { name: /Seleccionar: Qué ha funcionado/ })).toBeNull();
+});
+
+it("shows disputed figures under the cover and the cards", () => {
+  render(
+    <BlocksReport
+      projection={presentation}
+      checks={{
+        state: "complete",
+        items: [
+          { block_id: "b1", quote: "8,2 %", status: "discrepancy", independent_value: "7,9 %" },
+          { block_id: "b2", quote: "1.240 pedidos", status: "discrepancy", independent_value: "1.180" },
+        ],
+      }}
+    />,
+  );
+  const notes = screen.getAllByRole("note");
+  expect(notes).toHaveLength(2);
+  expect(notes[0]).toHaveTextContent("cálculo independiente: 7,9 %");
+  expect(notes[1]).toHaveTextContent("cálculo independiente: 1.180");
 });
