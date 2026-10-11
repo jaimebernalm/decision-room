@@ -46,6 +46,10 @@ def initialize(spec_path, root):
         raise ValueError('Expected version 1 and 1–12 repetitions.')
     if type(spec.get('cap_micro_usd')) is not int or not 1 <= spec['cap_micro_usd'] <= 25_000_000:
         raise ValueError('This trial requires a ceiling of at most 25 USD.')
+    # Arms: legacy, opencode (html-v1 snapshot) and blocks (v1 delivering native blocks).
+    arms=spec.get('arms',['legacy','opencode'])
+    if not arms or len(set(arms))!=len(arms) or any(a not in ARMS for a in arms):
+        raise ValueError('Arms must be distinct values among legacy, opencode and blocks.')
     root.mkdir(mode=0o700)  # Refuse to overwrite or manufacture an old run.
     base=Config.load();database='dr_product_trial_'+uuid4().hex
     with connect(base) as db:db.execute(sql.SQL('CREATE DATABASE {}').format(sql.Identifier(database)))
@@ -90,7 +94,7 @@ def initialize(spec_path, root):
         # Independent business IDs prevent sequential learning/memory or history
         # in one run from contaminating the following run in either arm.
         for repetition in range(spec['repetitions']):
-            for arm in ('legacy','opencode'):
+            for arm in arms:
                 code=f"{item['key']}-{repetition+1}-{arm}"
                 business=ws.save_business({'request_key':str(uuid4()),'name':item['name'],
                     'description':item['description'],'expected_active_id':active})
@@ -98,7 +102,7 @@ def initialize(spec_path, root):
                 staged=[ws.stage_upload(name,io.BytesIO(raw),len(raw))['id'] for name,raw in files]
                 job=ws.create_batch({'request_key':str(uuid4()),'business_id':active,
                     'profile_revision':business['profile_revision'],'title':item.get('title',item['goal'])[:160],
-                    'goal':item['goal'],'files':staged,'engine_kind':arm})['id']
+                    'goal':item['goal'],'files':staged,**ARMS[arm]})['id']
                 if item.get('meanings'):
                     from decision_room.data_knowledge import service as knowledge
                     ws.ingest_job(ws.row(job))
@@ -118,6 +122,8 @@ def initialize(spec_path, root):
         'spec_sha256':hashlib.sha256(spec_path.read_bytes()).hexdigest(),'budget_path':str(budget_path),'jobs':jobs})
     print(json.dumps({'database':database,'jobs':len(jobs),'output':str(root)}))
 
+ARMS={'legacy':{'engine_kind':'legacy'},'opencode':{'engine_kind':'opencode'},
+      'blocks':{'engine_kind':'opencode','engine_format':'blocks'}}
 MAX_ANSWERS=6
 MAX_RERUNS=8
 OWNER_PROMPT=(
@@ -246,14 +252,26 @@ def _execute(root, code, resume=False):
         state=admission.inspect_run(config,job['business_id'],row['engine_run_id'])
         save(target/'engine.json',state)
         receipt=engine_store.read_document(config,job['business_id'],row['engine_run_id'])
+        native=job['arm']=='blocks'
         if receipt:
-            (target/'informe-agente.html').write_bytes(receipt['raw'])
+            (target/('informe-agente.json' if native else 'informe-agente.html')).write_bytes(receipt['raw'])
             result['delivery']=True;result['raw_sha256']=hashlib.sha256(receipt['raw']).hexdigest()
         if row['report_document_id']:
             with connect(config) as db:
                 revision=db.execute('SELECT current_revision_id FROM report_documents WHERE id=%s',
                                     (row['report_document_id'],)).fetchone()['current_revision_id']
-            if revision:
+            if revision and native:
+                # Native blocks: the platform projection, its checks and the platform PDF; no browser.
+                from decision_room.reports import blocks_pdf, reading
+                with reading.read(config,job['business_id'],row['report_document_id']) as (db,document,selected):
+                    view=reading.view(db,document,selected)
+                if view.get('mode')=='blocks':
+                    save(target/'informe-bloques.json',view['blocks'])
+                    save(target/'checks.json',view.get('checks'))
+                    (target/'informe.txt').write_text(view['canonical_text'])
+                    (target/'informe.pdf').write_bytes(blocks_pdf.render(view['blocks'],view.get('checks')))
+                    result['snapshot']=True
+            elif revision:
                 output=derive.derive(config,job['business_id'],row['report_document_id'],revision)
                 save(target/'derivative.json',output)
                 if output.get('snapshot_html'):

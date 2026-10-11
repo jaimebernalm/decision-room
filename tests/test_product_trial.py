@@ -57,6 +57,19 @@ class ProductTrialTests(unittest.TestCase):
         self.assertEqual(manifest['settings']['model'],'gpt-6-luna')
         self.assertEqual(manifest['settings']['reasoning'],'low')
 
+    def test_blocks_arm_freezes_the_native_format(self):
+        self.spec['arms']=['opencode','blocks'];self.source.write_text(json.dumps(self.spec))
+        manifest=self.initialize()
+        self.assertEqual([j['arm'] for j in manifest['jobs']],['opencode','blocks'])
+        config=trial.Config(**{**manifest['config'],'storage':Path(manifest['config']['storage'])})
+        with connect(config) as db:
+            formats={str(r['id']):r['engine_config']['profile'].get('format','html')
+                     for r in db.execute('SELECT id,engine_config FROM web_jobs').fetchall()}
+        self.assertEqual([formats[j['job_id']] for j in manifest['jobs']],['html','blocks'])
+        self.spec['arms']=['blocks','blocks'];self.source.write_text(json.dumps(self.spec))
+        with self.assertRaises(ValueError), patch.object(trial.Config,'load',return_value=self.base):
+            trial.initialize(self.source,self.root/'other')
+
     def test_legacy_questions_get_bounded_stand_in_answers_and_are_never_retried(self):
         manifest=self.initialize();code=next(j['code'] for j in manifest['jobs'] if j['arm']=='legacy')
         self.assertEqual(manifest['owners']['units'],{'today':'11 de octubre de 2026','description':'quantity records units per row.','goal':'Sum the units.'})
