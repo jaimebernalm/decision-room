@@ -1,5 +1,6 @@
 """Fixed html-v1 runtime profile. The generated brief and panorama live in engine.brief and engine.panorama_v1."""
 import os
+import re
 from pathlib import Path
 
 VERSION = 'html-v1'
@@ -9,6 +10,11 @@ RUNTIME_ENV = {'XDG_DATA_HOME': '/state', 'OPENCODE_DISABLE_AUTOUPDATE': '1',
                'OPENCODE_DISABLE_SHARE': '1', 'OPENCODE_DISABLE_CLAUDE_CODE': '1',
                'OPENCODE_DISABLE_EXTERNAL_SKILLS': '1', 'OPENCODE_DISABLE_MODELS_FETCH': '1',
                'OPENCODE_DISABLE_PROJECT_CONFIG': '1', 'OPENCODE_DISABLE_DEFAULT_PLUGINS': '1'}
+
+
+def configured():
+    """Whether this machine has the pinned engine image; without it jobs use the legacy engine."""
+    return bool(re.fullmatch(r'sha256:[0-9a-f]{64}', os.environ.get('DECISION_ROOM_ENGINE_IMAGE_ID', '')))
 
 
 def configuration(*, model=None, image=None, questions=False, usd_cap_micro=None, format="html"):

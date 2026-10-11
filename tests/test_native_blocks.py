@@ -33,7 +33,9 @@ class FormatTests(unittest.TestCase):
         kwargs=dict(name='Fixture',description='Data',goal='Compare',model=None,memory=[],panorama=False)
         native=compose(**kwargs,format='blocks'); html=compose(**kwargs)
         self.assertIn('informe.json',native); self.assertNotIn('informe.html',native)
-        self.assertIn(FIXED.read_text().split('\n\n')[1],native)
+        # blocks-brief-2 keeps the analytic paragraph but names data dimensions generically, not sales ones.
+        analytic=FIXED.read_text().split('\n\n')[1]
+        self.assertIn(analytic.replace('producto, canal y fechas','las dimensiones de los datos y de fechas'),native)
         self.assertIn('informe.html',html)
 
 

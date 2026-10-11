@@ -39,7 +39,7 @@ class Limits:
     input_tokens: int = 6_000_000
     output_tokens: int = 128_000
     output_per_call: int = 16_000
-    calls: int = 60
+    calls: int = 90
     active_seconds: int = 1_200
 
     def __post_init__(self):

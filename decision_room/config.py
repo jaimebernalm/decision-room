@@ -21,17 +21,20 @@ class Config:
     semantic_search: bool = False
     embedding_model: str = 'text-embedding-3-small'
     embedding_dimensions: int = 1536
-    report_engine: str = 'legacy'
+    report_engine: str = 'opencode'
+    report_format: str = 'blocks'
     engine_input_tokens: int = 6_000_000
     engine_output_tokens: int = 128_000
     engine_output_per_call: int = 16_000
-    engine_calls: int = 60
+    engine_calls: int = 90
     engine_seconds: int = 1_200
     engine_usd_cap_micro: int = 1_000_000
 
     def __post_init__(self):
         if self.report_engine not in ('legacy', 'opencode'):
             raise ValueError('Unsupported report engine.')
+        if self.report_format not in ('html', 'blocks'):
+            raise ValueError('Unsupported report format.')
         if any(type(v) is not int or v <= 0 for v in (self.engine_input_tokens, self.engine_output_tokens, self.engine_output_per_call, self.engine_calls, self.engine_seconds)) or self.engine_output_per_call > self.engine_output_tokens:
             raise ValueError('Invalid report engine limits.')
         if type(self.engine_usd_cap_micro) is not int or not 0 < self.engine_usd_cap_micro <= (2**63-1)//1000:
@@ -61,10 +64,11 @@ class Config:
                    semantic_search=os.environ.get('DECISION_ROOM_SEMANTIC_SEARCH', 'false').lower() == 'true',
                    embedding_model=os.environ.get('DECISION_ROOM_EMBEDDING_MODEL', 'text-embedding-3-small'),
                    embedding_dimensions=int(os.environ.get('DECISION_ROOM_EMBEDDING_DIMENSIONS', '1536')),
-                   report_engine=os.environ.get('DECISION_ROOM_REPORT_ENGINE', 'legacy'),
+                   report_engine=os.environ.get('DECISION_ROOM_REPORT_ENGINE', 'opencode'),
+                   report_format=os.environ.get('DECISION_ROOM_REPORT_FORMAT', 'blocks'),
                    engine_input_tokens=int(os.environ.get('DECISION_ROOM_ENGINE_INPUT_TOKENS', '6000000')),
                    engine_output_tokens=int(os.environ.get('DECISION_ROOM_ENGINE_OUTPUT_TOKENS', '128000')),
                    engine_output_per_call=int(os.environ.get('DECISION_ROOM_ENGINE_OUTPUT_PER_CALL', '16000')),
-                   engine_calls=int(os.environ.get('DECISION_ROOM_ENGINE_CALLS', '60')),
+                   engine_calls=int(os.environ.get('DECISION_ROOM_ENGINE_CALLS', '90')),
                    engine_seconds=int(os.environ.get('DECISION_ROOM_ENGINE_SECONDS', '1200')),
                    engine_usd_cap_micro=usd_cap)

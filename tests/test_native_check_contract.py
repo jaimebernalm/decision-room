@@ -45,3 +45,13 @@ class ContractTests(unittest.TestCase):
     def test_hostile_text_and_oversized_json_refused(self):
         for raw in [self.output(message='\x00'),b'a'*(blocks.MAX_BYTES+1),self.output(independent_value=5),self.output(end=True)]:
             with self.subTest(raw=raw[:80]),self.assertRaises(checks.CheckError):checks.parse(raw,self.projection,self.sha)
+
+    def test_long_explanations_are_shortened_without_discarding_checked_items(self):
+        result=checks.parse(self.output(independent_value='5 unidades. '+'x'*1500,method='m'*5000,message='n'*4500),self.projection,self.sha)
+        item=result['items'][0]
+        self.assertEqual(result['state'],'complete')
+        self.assertEqual(item['status'],'confirmed')
+        self.assertEqual((len(item['independent_value']),len(item['method']),len(item['message'])),(1000,4000,4000))
+        self.assertTrue(item['independent_value'].endswith('…'))
+        self.assertIn('como máximo 200 caracteres',checks.PROMPT)
+        with self.assertRaises(checks.CheckError):checks.parse(self.output(quote='5 unidades'+'x'*4000),self.projection,self.sha)

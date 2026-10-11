@@ -123,7 +123,7 @@ def initialize(spec_path, root):
         'spec_sha256':hashlib.sha256(spec_path.read_bytes()).hexdigest(),'budget_path':str(budget_path),'jobs':jobs})
     print(json.dumps({'database':database,'jobs':len(jobs),'output':str(root)}))
 
-ARMS={'legacy':{'engine_kind':'legacy'},'opencode':{'engine_kind':'opencode'},
+ARMS={'legacy':{'engine_kind':'legacy'},'opencode':{'engine_kind':'opencode','engine_format':'html'},
       'blocks':{'engine_kind':'opencode','engine_format':'blocks'}}
 MAX_ANSWERS=6
 MAX_RERUNS=8

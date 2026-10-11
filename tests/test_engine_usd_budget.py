@@ -164,7 +164,7 @@ with httpx.Client(transport=api_budget.BudgetTransport(ledger,httpx.MockTranspor
 
     def test_creation_cap_is_fixed_and_impossible_configuration_is_refused(self):
         with patch.dict('os.environ',{'DECISION_ROOM_ENGINE_IMAGE_ID':'sha256:'+'a'*64}):
-            kind,settings=job_profile.selection(self.config,{'engine_kind':'opencode'})
+            kind,settings=job_profile.selection(self.config,{'engine_kind':'opencode','engine_format':'html'})
             self.assertEqual(settings['profile']['version'],'html-v1-budget-1')
             self.assertEqual(settings['profile']['usd_ceiling']['cap_micro_usd'],1000000)
             old={'engine_kind':kind,'engine_config':settings}

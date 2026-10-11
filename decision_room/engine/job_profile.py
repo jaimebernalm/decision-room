@@ -6,13 +6,16 @@ from . import admission, profile
 
 
 def selection(config, data, old=None):
-    format = data.get('engine_format', 'html')
+    explicit = data.get('engine_kind')
+    kind = explicit if explicit is not None else config.report_engine
+    if explicit is None and kind != 'legacy' and not old and not profile.configured():
+        kind = 'legacy'  # The configured default needs the pinned engine image; see web startup notice.
+    format = data.get('engine_format', config.report_format if kind != 'legacy' else 'html')
     if format not in ('html', 'blocks'):
         raise ValueError('Unknown report format.')
     questions = data.get('engine_questions', False)
     if type(questions) is not bool:
         raise ValueError('Questions must be an explicit boolean.')
-    explicit = data.get('engine_kind')
     if 'engine_kind' in data and explicit not in ('legacy', 'opencode'):
         raise ValueError('Unknown report engine.')
     if old:
@@ -23,7 +26,6 @@ def selection(config, data, old=None):
         if 'engine_questions' in data and questions != bool(old['engine_config'].get('profile', {}).get('questions')):
             raise ValueError('The job question profile is already fixed.')
         return old['engine_kind'], old['engine_config']
-    kind = explicit if explicit is not None else config.report_engine
     if kind == 'legacy':
         if format != 'html':
             raise ValueError('Native reports require an engine job.')

@@ -40,8 +40,10 @@ Escribe /work/comprobacion.json UTF-8, sin markdown, con este objeto exacto:
 {"version":"priority-check-1","revision_sha256":"VALOR_DEL_CAMPO_revision_sha256",
  "items":[{"priority_id":"b...","quote":"fragmento literal del texto",
  "start":0,"end":12,"status":"confirmed|discrepancy|unverifiable",
- "independent_value":"resultado y unidad, o null","method":"cómo se calculó",
+ "independent_value":"solo resultado y unidad, o null","method":"cómo se calculó",
  "message":"limitación o discrepancia"}],"coverage_notes":"incertidumbre y límites"}
+independent_value tiene como máximo 200 caracteres: las explicaciones van en method
+o message, cada uno de como máximo 4000 caracteres.
 start/end son posiciones de caracteres Unicode del texto de esa prioridad,
 comienzo incluido y fin excluido. quote debe ser el fragmento exacto. Si no puedes
 localizarlo, usa start/end null, conservando priority_id; nunca confirmes algo sin
@@ -76,6 +78,13 @@ def _text(value, limit, *, nullable=False):
     return value
 
 
+def _clipped(value, limit, *, nullable=False):
+    # Explanatory text past its limit is shortened, never a reason to discard checked items.
+    if isinstance(value, str) and len(value) > limit:
+        value = value[:limit - 1] + '…'
+    return _text(value, limit, nullable=nullable)
+
+
 def parse(raw, projection, revision_sha256):
     try:
         value = blocks.loads(raw)
@@ -85,7 +94,7 @@ def parse(raw, projection, revision_sha256):
         raise CheckError('Invalid check fields.')
     if value['version'] != VERSION or value['revision_sha256'] != revision_sha256:
         raise CheckError('Check does not match the frozen draft.')
-    notes = _text(value['coverage_notes'], 4000)
+    notes = _clipped(value['coverage_notes'], 4000)
     if not isinstance(value['items'], list) or len(value['items']) > MAX_ITEMS:
         raise CheckError('Check item limit.')
     priorities = {p['block_id']:p for p in blocks.priorities(projection)}
@@ -111,7 +120,7 @@ def parse(raw, projection, revision_sha256):
             raise CheckError('Invalid quote offsets.')
         if item['status'] == 'confirmed' and not located:
             raise CheckError('Unlocated claim cannot be confirmed.')
-        method = _text(item['method'], 4000)
+        method = _clipped(item['method'], 4000)
         if item['status'] != 'unverifiable' and not method.strip():
             raise CheckError('A calculation method is required.')
         identity = (item['priority_id'], start, end, quote)
@@ -122,8 +131,8 @@ def parse(raw, projection, revision_sha256):
                       and quote in '\n'.join(blocks.block_lines(b))]
         if located and len(candidates)==1: block_id = candidates[0]['id']
         items.append(dict(priority_id=item['priority_id'],block_id=block_id,quote=quote,start=start,end=end,
-                          located=located,status=item['status'],independent_value=_text(item['independent_value'],1000,nullable=True),
-                          method=method,message=_text(item['message'],4000)))
+                          located=located,status=item['status'],independent_value=_clipped(item['independent_value'],1000,nullable=True),
+                          method=method,message=_clipped(item['message'],4000)))
     total = covered = confirmed = 0
     for pid, priority in priorities.items():
         numbers = list(NUMBERS.finditer(priority['text'])); total += len(numbers)

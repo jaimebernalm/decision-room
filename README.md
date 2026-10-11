@@ -105,6 +105,14 @@ The web workspace does not automatically import historical CLI evaluations.
 The agent's known analytical errors remain open; delivery 2 does not accept
 or certify the analytical quality of delivery 1.
 
+New analyses produce native reports by default: the pinned OpenCode engine writes
+structured blocks that the platform draws, checks priority figures independently and
+exports to PDF. This needs the engine image from
+[engine/opencode](engine/opencode/README.md) set as `DECISION_ROOM_ENGINE_IMAGE_ID` in
+`.env`; without it, new analyses use the legacy engine and the launcher says so.
+`DECISION_ROOM_REPORT_ENGINE=legacy` or `DECISION_ROOM_REPORT_FORMAT=html` opt out.
+Validation: [M5 results](docs/validation/2026-10-11-m5-results.md).
+
 Shared business context now supports optional hybrid retrieval using OpenAI
 embeddings and PostgreSQL's `vector` extension. Schema 11 requires pgvector on
 the PostgreSQL server (the bundled Postgres.app includes it). To enable retrieval,
