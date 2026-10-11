@@ -2,7 +2,7 @@
 
 Private spec/CSV/storage/ledgers live outside Git. No evaluation shell, repaired
 report, automatic retry, browser on the host or model call during initialization.
-Use init SPEC OUTPUT, run OUTPUT CODE, status OUTPUT, or stop OUTPUT.
+Use init SPEC OUTPUT, run OUTPUT CODE, accounting OUTPUT CODE, status OUTPUT, or stop OUTPUT.
 """
 import argparse
 from dataclasses import asdict, replace
@@ -10,6 +10,7 @@ import hashlib
 import io
 import json
 import os
+import re
 from pathlib import Path
 import sys
 import time
@@ -64,6 +65,10 @@ def initialize(spec_path, root):
                                 scope_cap_micro_usd=spec['scope_cap_micro_usd'])
     jobs=[];active=None
     for item in spec['businesses']:
+        if not isinstance(item['key'],str) or not re.fullmatch(r'[a-z][a-z0-9-]{0,63}',item['key']):
+            raise ValueError('Business keys must be simple lowercase identifiers.')
+        if any(j['business_key']==item['key'] for j in jobs):
+            raise ValueError('Duplicate business key.')
         files=[]
         for name in item['files']:
             source=(spec_path.parent/name).resolve()
@@ -117,6 +122,16 @@ def _execute(root, code):
     with api_budget.scope('web:'+job['job_id']):
         ws.run_job(job['job_id'])
     row=ws.row(job['job_id'])
+    # OpenCode can acknowledge a terminal turn before the provider stream's
+    # final settlement commits on the server thread. Export after that boundary
+    # rather than reporting a transient reservation as final token consumption.
+    identifier=('engine:'+str(row['engine_run_id'])) if row['engine_run_id'] else 'web:'+job['job_id']
+    deadline=time.monotonic()+15
+    while any(c['scope']==identifier and c['state']=='reserved' for c in ledger.snapshot()['calls']):
+        if time.monotonic()>=deadline:
+            ledger.stop()
+            break
+        time.sleep(0.1)
     result={'job':job,'status':row['status'],'phase':row['phase'],'issue':row['issue'],
         'seconds':time.monotonic()-start,'engine_run_id':row['engine_run_id'],
         'session_id':row['session_id'],'research_id':row['research_id'],'review_id':row['review_id'],
@@ -169,13 +184,28 @@ def execute(root, code):
         raise
 
 
+def accounting(root, code):
+    """Reconcile bookkeeping after controller/server settlement, without a send."""
+    root=Path(root).resolve();manifest=json.loads((root/'manifest.json').read_text())
+    job=next(j for j in manifest['jobs'] if j['code']==code)
+    config=Config(**{**manifest['config'],'storage':Path(manifest['config']['storage'])})
+    row=Workspace(config,ModelSettings(**manifest['settings'])).scoped(job['business_id']).row(job['job_id'])
+    result={'job_id':job['job_id'],'status':row['status'],'budget':api_budget.Ledger(manifest['budget_path']).snapshot()}
+    if row['engine_run_id']:
+        result['engine']=admission.inspect_run(config,job['business_id'],row['engine_run_id'])
+    save(root/'runs'/code/'accounting-final.json',result)
+    print(json.dumps({'status':row['status'],'charged_nano_usd':result['budget']['charged_nano_usd'],
+                      'uncertain':result['budget']['uncertain']}))
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command',choices=('init','run','status','stop'))
+    parser.add_argument('command',choices=('init','run','accounting','status','stop'))
     parser.add_argument('path');parser.add_argument('argument',nargs='?')
     args=parser.parse_args()
     if args.command=='init':initialize(args.path,args.argument)
     elif args.command=='run':execute(args.path,args.argument)
+    elif args.command=='accounting':accounting(args.path,args.argument)
     else:
         manifest=json.loads((Path(args.path)/'manifest.json').read_text())
         ledger=api_budget.Ledger(manifest['budget_path'])

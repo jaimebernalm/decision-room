@@ -1,6 +1,6 @@
 # F5: ruta del producto y techo compartido
 
-Estado: ejecutor y control de gasto en preparación. No acredita F5 ni cambia el motor por defecto.
+Estado: ejecutor y control de gasto comprobados con proveedores falsos y un piloto técnico real. No acredita F5 ni cambia el motor por defecto.
 
 `scripts/checks/product_trial.py` crea los trabajos con `Workspace.create_batch` y los ejecuta con `Workspace.run_job`. Usa el dispatch real de legacy o de html-v1 (serve + MCP), la recepción durable, la adopción y `reports.derive`. El HTML legacy se exporta por `Workspace.report` y se captura con el mismo navegador contenido. Ningún HTML de informe se ejecuta en el navegador del host.
 
@@ -11,6 +11,7 @@ Comandos (desde el worktree de implementación):
 ```sh
 python scripts/checks/product_trial.py init SPEC OUTPUT
 python scripts/checks/product_trial.py run OUTPUT CODE
+python scripts/checks/product_trial.py accounting OUTPUT CODE
 python scripts/checks/product_trial.py status OUTPUT
 python scripts/checks/product_trial.py stop OUTPUT
 ```
@@ -38,3 +39,17 @@ Tarifas comprobadas el 11-10-2026: [modelo](https://developers.openai.com/api/do
 - Spec/CSV/códigos del piloto técnico se fijan antes de enviarlo; solo se comprueban entrega, ruta, derivado y consumo. La calidad se evalúa en el ensayo preregistrado.
 
 El preregistro de F5 debe fijar la muestra, orden, denominador de todos los intentos, respuestas a preguntas (si hubiera), límites, pérdidas, lectores y regla de decisión antes del ensayo. La comparación no separará encargo, contexto y runtime como efectos independientes. Legacy sigue por defecto.
+
+## Cuotas y liquidación
+
+El ledger conserva el recibo normalizado y publica el catálogo separado de la cota. Cada scope tiene límites persistidos de 6 M de entrada, 128 k de salida, 60 envíos y 1.200 segundos desde su primer envío. Antes de enviar reserva el máximo de entrada; una llamada confirmada libera la parte no usada. Esta admisión puede rechazar una llamada que después habría cabido por sus tokens reales. El límite temporal impide nuevos envíos; no interrumpe por sí solo una llamada ya en vuelo. El controlador html-v1 conserva sus límites propios. Un simulador del dueño debe compartir el scope del job legacy para no obtener otro presupuesto.
+
+El ejecutor espera hasta 15 segundos a la liquidación del stream al terminar el controlador. Si no acaba, detiene nuevas llamadas. `accounting` lee los contadores sin enviar ni regenerar el informe y guarda un registro adicional; no sustituye el resultado original.
+
+## Piloto técnico y regresión del ejecutor
+
+Un negocio sintético pequeño, independiente de la muestra comparativa, se ejecutó una vez por brazo. Ambos terminaron y guardaron entrega e instantánea: html-v1 en 84,7 segundos y legacy en 289,3 segundos. Cotas respectivas: 0,019558625 y 0,101760625 USD; total 0,12131925 USD, con todos los envíos liquidados y ninguna incertidumbre. Estas cotas cuentan contra el techo total de F5. No se evaluó la calidad del contenido.
+
+El primer registro html-v1 capturó el contador de salida antes de que el hilo del servidor terminase de liquidar el stream. La lectura posterior confirmó 8.297 tokens de salida y conserva el resultado inicial junto al registro final; motivó la espera descrita arriba. Los pilotos preceden a las nuevas cuotas del ledger: no se presentan como validación real de esas cuotas, que tienen pruebas con proveedor falso.
+
+La pasada completa inicial ejecutó 813 tests Python: 812 pasaron y uno falló. Era una regresión del ejecutor: pasar `transport=None` a todos los clientes interfería con un mock legacy que ya suministraba su transporte. Se corrigió pasando ese argumento solo cuando existe el transporte presupuestado. Después, 72 tests focalizados pasaron, incluidos lenguaje, proveedor compartido, cuotas, reinicio, runner, costes, admisión y formatos del modelo. La pasada completa de la revisión final se registra al cerrar F5.

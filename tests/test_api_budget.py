@@ -124,6 +124,27 @@ class BudgetTests(unittest.TestCase):
         self.assertTrue(ledger.snapshot()['policy']['stopped'])
         self.assertEqual(ledger.snapshot()['charged_nano_usd'],263250000)
 
+    def test_scope_token_call_and_elapsed_limits_are_durable(self):
+        for kind,limits in [('input',{'input_tokens':1050000}),('output',{'output_tokens':1000}),
+                            ('calls',{'calls':1}),('seconds',{'seconds':1})]:
+            with self.subTest(kind=kind):
+                ledger=budget.Ledger.create(Path(self.temp.name)/(kind+'.sqlite'),
+                    cap_micro_usd=1000000,scope_cap_micro_usd=1000000,**limits)
+                call=ledger.reserve('same','digest','/v1/responses',1000)
+                ledger.settle(call,{'model':'gpt-6-luna','service_tier':'default',
+                    'usage':{'input_tokens':1000,'output_tokens':1000}})
+                if kind=='seconds':
+                    with ledger.db() as db:db.execute("UPDATE calls SET created_at=datetime('now','-2 seconds')")
+                with self.assertRaises(budget.BudgetStopped):ledger.reserve('same','digest','/v1/responses',1000)
+
+    def test_catalog_receipt_is_separate_from_conservative_envelope(self):
+        call=self.ledger.reserve('same','digest','/v1/responses',1000)
+        self.ledger.settle(call,{'model':'gpt-6-luna','service_tier':'default',
+            'usage':{'input_tokens':1000,'output_tokens':100,'input_tokens_details':{'cached_tokens':200,'cache_write_tokens':0}}})
+        snapshot=self.ledger.snapshot()
+        self.assertEqual(snapshot['charged_nano_usd'],175000)
+        self.assertEqual(snapshot['cost_catalog']['cost'],'0.000132')
+
 
 class ProductBudgetTests(unittest.TestCase):
     from tests import test_engine_admission as fixtures

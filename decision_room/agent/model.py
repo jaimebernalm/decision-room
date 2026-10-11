@@ -629,7 +629,8 @@ class ModelClient:
             deadline = time.monotonic() + self.settings.timeout_seconds
             from . import api_budget
             budget_transport = api_budget.transport() if self.settings.protocol == 'openai' else None
-            with httpx.Client(timeout=self.settings.timeout_seconds, trust_env=False, transport=budget_transport) as client:
+            transport_options = {'transport': budget_transport} if budget_transport is not None else {}
+            with httpx.Client(timeout=self.settings.timeout_seconds, trust_env=False, **transport_options) as client:
                 attempts = []
                 for attempt in range(3):
                     remaining = deadline - time.monotonic()
