@@ -94,6 +94,51 @@ class EngineChatTests(unittest.TestCase):
         self.assertEqual(sources['tool/0']['label'], 'Informe')
         self.assertEqual(sources['tool/1']['label'], 'Informe revisado')
 
+    def test_complete_turn_opens_canonical_report_without_legacy_decoration_or_evidence(self):
+        from decision_room.conversations import Conversations
+        from decision_room.memory import extraction
+        from tests.test_conversations import action
+
+        # The engine fixture prohibits legacy extraction. Restore the real chat
+        # preparation here, with a fake model that declares no new memories.
+        prepare = extraction.prepare
+        row = self.delivered(); business = row['business_id']
+
+        class Model(web.WebModel):
+            def generate_chat(model, context, correction=None):
+                events = context['retrievals']
+                if events and 'error' in events[-1]['response']:
+                    raise AssertionError(events[-1]['response'])
+                opened = next((e for e in events if e['request']['tool'] == 'open_report'), None)
+                if opened:
+                    self.assertEqual(opened['response']['text'], DERIVED['canonical_text'])
+                    self.assertNotIn('display', opened['response'])
+                    return action('answer', text='El informe señala un crecimiento de 12 unidades.',
+                                  sources=['tool/' + str(opened['ordinal'])], include_report=True), {}
+                found = next((e for e in events if e['request']['tool'] == 'search_reports'), None)
+                return action('retrieve', retrieval=dict(tool='open_report' if found else 'search_reports',
+                              query='', id=found['response']['items'][0]['id'] if found else '', limit=1)), {}
+
+            def review_chat_answer(model, context):
+                return dict(approved=True, issues=[]), {}
+
+        self.ws.model_factory = Model
+        chats = Conversations(self.ws.scoped(business))
+        with patch.object(extraction, 'prepare', prepare):
+            chat = chats.create(dict(business_id=str(business), request_key=str(uuid4()),
+                                     analysis_id=str(row['analysis_id'])))['id']
+            turn = chats.send(chat, dict(business_id=str(business), request_key=str(uuid4()),
+                                        text='Explícame el informe'))
+            chats.run(turn['id'])
+            shown = chats.detail(chat)['turns'][-1]
+        self.assertEqual(shown['status'], 'completed', shown)
+        response = shown['response']
+        self.assertEqual(response['kind'], 'grounded_answer')
+        self.assertNotIn('evidence', response)
+        self.assertNotIn('report_id', response)
+        self.assertEqual([s['label'] for s in response['sources']], ['Informe'])
+        self.assertNotIn('revisado', str(response).lower())
+
     def test_a_withdrawal_during_ranking_is_detected_after_it(self):
         row = self.delivered(); business = row['business_id']
         from decision_room.memory import context as ctx

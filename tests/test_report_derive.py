@@ -19,6 +19,9 @@ from decision_room.database import connect
 from decision_room.reports import derive, derive_policy as policy, derivative_store as ds, inventory, render_browser as rb
 from tests import test_report_derivatives as fixtures
 
+FIXTURE_RENDERER = policy.RENDERER_VERSION + ':sha256:' + 'a' * 64
+NATIVE_RENDERER_VERSION = policy.renderer_version
+
 
 def inspection(raw):
     return dict(state='blocked' if b'<base' in raw else 'allowed',reason='element:base' if b'<base' in raw else None)
@@ -40,9 +43,13 @@ class FakeRenderer:
 class DeriveTests(unittest.TestCase):
     setUpClass=classmethod(fixtures.DerivativeTests.setUpClass.__func__)
     tearDownClass=classmethod(fixtures.DerivativeTests.tearDownClass.__func__)
-    setUp=fixtures.DerivativeTests.setUp
     create=fixtures.DerivativeTests.create
     document=fixtures.DerivativeTests.document
+
+    def setUp(self):
+        fixtures.DerivativeTests.setUp(self)
+        renderer = patch.object(policy, 'renderer_version', return_value=FIXTURE_RENDERER)
+        renderer.start(); self.addCleanup(renderer.stop)
 
     def derive(self,document,revision,**kwargs):
         return derive.derive(self.config,self.business,document,revision,inspector=inspection,**kwargs)
@@ -129,12 +136,14 @@ from pathlib import Path
 from dataclasses import replace
 from decision_room.config import Config
 from decision_room.reports.derive import derive
+from decision_room.reports import derive_policy as policy
+policy.renderer_version=lambda:sys.argv[6]
 class Render:
  def render(self,raw,job):
   Path(sys.argv[5]).write_text(str(job));time.sleep(60)
 derive(replace(Config.load(),storage=Path(sys.argv[4])),sys.argv[1],sys.argv[2],sys.argv[3],renderer=Render(),inspector=lambda raw:dict(state='allowed',reason=None))
 '''
-        process=subprocess.Popen([sys.executable,'-c',script,str(self.business),str(document),str(revision),str(self.config.storage),str(ready)],
+        process=subprocess.Popen([sys.executable,'-c',script,str(self.business),str(document),str(revision),str(self.config.storage),str(ready),FIXTURE_RENDERER],
             env={**os.environ,'DECISION_ROOM_DATABASE_URL':self.config.dsn,'OPENAI_API_KEY':'','PYTHONDONTWRITEBYTECODE':'1'})
         def stop():
             if process.poll() is None: process.kill()
@@ -153,6 +162,8 @@ derive(replace(Config.load(),storage=Path(sys.argv[4])),sys.argv[1],sys.argv[2],
 
     @unittest.skipUnless((rb.ROOT/'.local/report-browser-runtime.json').is_file(),'Build the contained report browser for native tests.')
     def test_native_service_publishes_exact_text_pixels_and_version(self):
+        native = patch.object(policy, 'renderer_version', NATIVE_RENDERER_VERSION)
+        native.start(); self.addCleanup(native.stop)
         _,document,revision,job=self.document(b'<h1>Units 5</h1><p>Delta -2</p>')
         output=self.derive(document,revision)
         self.assertEqual(output['status'],'ready')

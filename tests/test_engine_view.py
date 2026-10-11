@@ -1,7 +1,9 @@
 """F4 view: receipt policy, script-free frame, raw attachment and deferred PDF."""
 import unittest
+from unittest.mock import patch
 
 from decision_room.reports import presentation as policy
+from decision_room.reports import derive_policy
 from tests import test_engine_report_surfaces as surfaces
 
 CLEAN = '<!doctype html><html><head><meta charset="utf-8"><style>h1{color:#123}</style></head><body><h1>Ventas</h1><svg width="10"><rect width="5" height="5"/></svg></body></html>'.encode()
@@ -74,6 +76,11 @@ class ReceiptPolicyTests(unittest.TestCase):
 
 
 class ViewSurfaceTests(surfaces.HtmlSurfaceTests):
+    def setUp(self):
+        super().setUp()
+        renderer = patch.object(derive_policy, 'renderer_version', return_value=derive_policy.RENDERER_VERSION + ':sha256:' + 'a' * 64)
+        renderer.start(); self.addCleanup(renderer.stop)
+
     def delivered_clean(self):
         self.fake_runtime()
         from tests.engine_fakes import FakeRuntime

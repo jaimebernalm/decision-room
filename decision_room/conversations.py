@@ -1472,7 +1472,8 @@ class Conversations:
                                             and 'error' not in e['response']
                                         ],
                                     )
-                                if action.retrieval.tool == 'open_report' and 'error' not in response:
+                                if (action.retrieval.tool == 'open_report' and 'error' not in response
+                                        and response.get('origin') != 'engine_html'):
                                     from .web.presentation_editing import view
                                     current = view(self.ws, response['id'], db=db)
                                     response['display'] = {k:current[k] for k in ('title','highlights','charts','claims','presentation')}
