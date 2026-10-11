@@ -26,12 +26,19 @@ class Config:
     engine_output_per_call: int = 16_000
     engine_calls: int = 60
     engine_seconds: int = 1_200
+    engine_usd_cap: str = '1.00'
 
     def __post_init__(self):
         if self.report_engine not in ('legacy', 'opencode'):
             raise ValueError('Unsupported report engine.')
         if any(type(v) is not int or v <= 0 for v in (self.engine_input_tokens, self.engine_output_tokens, self.engine_output_per_call, self.engine_calls, self.engine_seconds)) or self.engine_output_per_call > self.engine_output_tokens:
             raise ValueError('Invalid report engine limits.')
+        from decimal import Decimal, InvalidOperation
+        try:
+            if not Decimal(self.engine_usd_cap) > 0:
+                raise ValueError('The engine dollar ceiling must be positive.')
+        except InvalidOperation:
+            raise ValueError('The engine dollar ceiling must be a decimal amount.') from None
         maximum = {'text-embedding-3-small': 1536, 'text-embedding-3-large': 3072}
         if self.embedding_model not in maximum or not 256 <= self.embedding_dimensions <= maximum[self.embedding_model]:
             raise ValueError('Unsupported embedding model or dimensions.')
@@ -50,4 +57,5 @@ class Config:
                    engine_output_tokens=int(os.environ.get('DECISION_ROOM_ENGINE_OUTPUT_TOKENS', '128000')),
                    engine_output_per_call=int(os.environ.get('DECISION_ROOM_ENGINE_OUTPUT_PER_CALL', '16000')),
                    engine_calls=int(os.environ.get('DECISION_ROOM_ENGINE_CALLS', '60')),
-                   engine_seconds=int(os.environ.get('DECISION_ROOM_ENGINE_SECONDS', '1200')))
+                   engine_seconds=int(os.environ.get('DECISION_ROOM_ENGINE_SECONDS', '1200')),
+                   engine_usd_cap=os.environ.get('DECISION_ROOM_ENGINE_USD_CAP', '1.00'))

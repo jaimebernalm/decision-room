@@ -1,4 +1,8 @@
-"""Versioned public-price estimates, never invoices or automatic dollar caps."""
+"""Versioned public-price estimates and the conservative per-run dollar ceiling.
+
+Estimates are never invoices. The ceiling is a proven upper bound, not an estimate: every
+token a run may be charged is priced at the most expensive rate of the catalogue.
+"""
 from decimal import Decimal
 
 VERSION = 'openai-standard-2026-10-07'
@@ -55,3 +59,33 @@ def aggregate(calls):
             'cost': str(sum(known, Decimal(0))) if complete else None,
             'known_cost': str(sum(known, Decimal(0))), 'unpriced_calls': len(calls)-len(known),
             'sources': SOURCES, 'assumptions': ['Catalogue estimate, not an invoice or a dollar cap.']}
+
+
+# Most expensive rate per token class in this catalogue (long context; cache writes cost
+# more than plain input). Admission charges reservations, retries and uncertain calls
+# against the token limits, so pricing those limits at these rates bounds a run in USD.
+CEILING_MODELS = ('gpt-6-luna',)
+WORST_INPUT, WORST_OUTPUT = Decimal('0.25'), Decimal('0.75')
+
+
+def ceiling(limits):
+    """USD upper bound of a run under its token limits."""
+    return (Decimal(limits['input_tokens']) * WORST_INPUT + Decimal(limits['output_tokens']) * WORST_OUTPUT) / 1000000
+
+
+def fit(limits, cap, model):
+    """Token limits whose ceiling is within ``cap`` USD; input is reduced first. Raises if impossible."""
+    cap = Decimal(str(cap))
+    if model not in CEILING_MODELS:
+        raise ValueError('The model has no versioned price for a dollar ceiling.')
+    if cap <= 0:
+        raise ValueError('The dollar ceiling must be positive.')
+    limits = dict(limits)
+    room = cap * 1000000 - Decimal(limits['output_tokens']) * WORST_OUTPUT
+    if room <= 0:
+        raise ValueError('The output limit alone exceeds the dollar ceiling.')
+    limits['input_tokens'] = min(limits['input_tokens'], int(room / WORST_INPUT))
+    if limits['input_tokens'] <= 0 or ceiling(limits) > cap:
+        raise ValueError('No positive token limits fit the dollar ceiling.')
+    return limits, {'cap_usd': str(cap), 'bound_usd': str(ceiling(limits)), 'catalogue': VERSION, 'model': model,
+                    'worst_rates_per_million': {'input': str(WORST_INPUT), 'output': str(WORST_OUTPUT)}}

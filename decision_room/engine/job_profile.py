@@ -2,7 +2,7 @@
 import re
 from dataclasses import asdict
 
-from . import admission, profile
+from . import admission, costs, profile
 
 
 def selection(config, data, old=None):
@@ -30,7 +30,10 @@ def selection(config, data, old=None):
                              output_tokens=config.engine_output_tokens,
                              output_per_call=config.engine_output_per_call,
                              calls=config.engine_calls, active_seconds=config.engine_seconds)
-    return kind, {'profile': settings, 'limits': asdict(limits)}
+    # Hard dollar ceiling (P4): the token limits are fitted so that every token priced at
+    # the catalogue's worst rate stays within the cap. Frozen with the job.
+    fitted, ceiling = costs.fit(asdict(limits), config.engine_usd_cap, settings['model'])
+    return kind, {'profile': settings, 'limits': asdict(admission.Limits(**fitted)), 'usd_ceiling': ceiling}
 
 
 def freeze(settings, *, context, goal, input_hash):
