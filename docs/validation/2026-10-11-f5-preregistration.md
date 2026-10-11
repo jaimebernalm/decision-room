@@ -1,7 +1,7 @@
 # F5: ensayo comparativo v1 contra legacy por la ruta del producto. Preregistro
 
-Estado: **borrador** para la revisión previa de Astra, sin datos del lote de ensayo. Se
-congela con un anexo al final antes de crear el primer informe del ensayo.
+Estado: **congelado** el 2026-10-11 antes de inicializar el ensayo (anexo al final). Antes
+era un borrador revisado por Astra, sin datos del lote de ensayo.
 
 - Autor y conducción de la ejecución y las evaluaciones: Claude.
 - Ejecutor (`product_trial.py`) y ledger de gasto: Astra, que además revisa.
@@ -298,3 +298,18 @@ intentos.
   bloqueado se conserva (`pilot/`), y la nueva calibración (`pilot2/`) se declara aquí; no lo
   sustituye en silencio. No se cambiaron los datos, las fechas ni el encargo v1 por nada de lo
   observado.
+
+## Anexo de congelación (2026-10-11)
+
+- Código del ensayo: `claude/v1-f5` en `74ccb21`, sobre `codex/v1-engine-path` `e35d33e`, que
+  incluye F0–F4, el ledger y el ejecutor.
+- Spec privado (`.local/f5/spec.json`): `a3d196040ba7874609f4532bd7150a92e78ab933ffdb41aa9d24cf4380d31d5b`.
+- Orden (`.local/f5/order.json`): `f3f453963bfe9f31fc1a5be51dee63d7a1246cabf1e3376cb4cf424e6f8f7db0`.
+- Oráculo (`.local/f5/oracle.json`): `4780fc6274f0e03d62867c71f92b56668918580dbb554b0d79f00a2b93997463`.
+- Ledger del piloto `budget.sqlite`: detenido, 127 llamadas liquidadas, cota 0,609275750 USD.
+  Ledger del ensayo: `budget-test.sqlite`, que crea `init`.
+- Revisión de Astra: conformidad técnica con los cambios del piloto (cuotas ampliadas, ledger
+  nuevo de 23 USD, kits, juez y agrupador, esquema del auditor). Su última condición (no
+  truncar parejas de más de 12 imágenes) está aplicada en `74ccb21`.
+- Comprobación ciega posterior: `scripts/checks/product_trial_verify.py` de Astra (`f95638d`),
+  que no cambia la rúbrica.
