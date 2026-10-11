@@ -1,6 +1,6 @@
 # M5: piloto nativo frente a HTML. Borrador de preregistro
 
-**Estado: borrador.** No autoriza iniciar el lote. Claude revisa este documento;
+**Estado: congelado** (anexo al final). Antes era un borrador que no autorizaba iniciar el lote. Claude revisa este documento;
 solo se congela después de cerrar M3 y superar M4, antes de inicializar M5 y antes
 de observar sus informes. La implementación del análisis debe probarse con
 fixtures sintéticos antes de lanzar. No se adapta ninguna regla al resultado.
@@ -219,3 +219,70 @@ Después: hashes y sello de kits, hashes y sello de resultados antes de desvelar
 lista completa de los 20 códigos, resultado de verificación estructural, tablas
 a–f con denominadores, veredicto y límites. Cualquier desviación se declara con
 hora y alcance; no se presenta como el preregistro original sin cambios.
+
+## Anexo de congelación (11 de octubre de 2026)
+
+Congelado antes de inicializar M5 y antes de ver ningún informe de M5. El lote corre desde un
+worktree desacoplado en el commit de este anexo (código idéntico a `d19f96f` salvo este documento),
+con la configuración local del contenedor copiada de N4. Imagen del motor: `sha256:cf6973da73ec313f00143801f38b30e3a2020488341ab7045e0339fc85921459`.
+
+**Gasto acumulado antes de M5:** 0,905103750 USD de 15 (N4 con su smoke: 0,796747250; smoke técnico
+de M5: 0,108356500). **Saldo:** 14,094896250 USD. M5 asigna 5 USD con un ledger nuevo.
+
+**Ledger:** gpt-6-luna-standard-envelope-2026-10-11-http-rejections-1-scope-uncertainty-2; tope 5.000.000 micro-USD, por ámbito 1.000.000; cuotas por ámbito
+40.000.000 tokens de entrada, 1.000.000 de salida, 400 llamadas y 3.600 s.
+
+**Orden de ejecución** (un único job a la vez; 5 parejas con HTML primero y 5 con el nativo primero, negocios alternos):
+
+`herbolario-1-opencode → herbolario-1-blocks → clinica-1-blocks → clinica-1-opencode → herbolario-2-blocks → herbolario-2-opencode → clinica-2-opencode → clinica-2-blocks → herbolario-3-opencode → herbolario-3-blocks → clinica-3-blocks → clinica-3-opencode → herbolario-4-blocks → herbolario-4-opencode → clinica-4-opencode → clinica-4-blocks → herbolario-5-opencode → herbolario-5-blocks → clinica-5-blocks → clinica-5-opencode`
+
+**Lectura:** kits con `kits.py --captures --balanced --max-pair-images=16`; instrucciones con `prompts.py --quotes --web=16`.
+Capturas con `web_captures.py`: modo lector para los lectores y modo auditor (sin avisos del comprobador)
+para auditor y juez.
+
+| Fichero | sha256 |
+|---|---|
+| `scripts/f5/m5_analyze.py` | `cfb63f2dcea8f2e9ce0b69763acef1c466ec5ca0e2453e1daced3fa20817b15b` |
+| `scripts/f5/web_captures.py` | `63990a6d65c8f0c55effb89252f6428319080a06225e4af00c63491e0a94e9f4` |
+| `scripts/f5/kits.py` | `07341b76d2985fdd051545de4e51e7911dc42dec6e64720b87a133ba3c931794` |
+| `scripts/f5/prompts.py` | `d75da47bf359e75a439637614d8e1c6aa77fe546d364ee9e7e9d090a4f35ac20` |
+| `scripts/checks/product_trial.py` | `5a8d524679264ef11775d34eca487c751e8dcbfd9cbbd8770b6ca286a8f0f570` |
+| `scripts/checks/product_trial_verify.py` | `d0187d476419205c3d14c5622dd5acc1e279be45e9377e282c2b0267b35a014c` |
+| `engine/opencode/prompts/informe.md` | `c91844485cfe856f2273bdfb8abd7a2452e578505c5c00670eddbf90e321a6ba` |
+| `decision_room/engine/blocks.py` | `1eb22628e49e45a02aba70a1544185be611386b2610f446385fbcb913e2e2a69` |
+| `decision_room/engine/brief.py` | `684d7b03ea9d7115a8653da9723d5d045d8239c72bf8dd57fd0a1d1995b0e55a` |
+| `decision_room/engine/check_contract.py` | `32c6106327c511884e2bb70dc0286d91e0ef397fe0be5d26b6b0dfa0c86f07b0` |
+| `decision_room/agent/api_budget.py` | `227df334421938f77f197779aabec998d28bbbb7220bf1aed035eada2955432f` |
+| `decision_room/engine/proxy.py` | `5e6bdfb735c107ae19f7af3af71f31cdd5dc86b50b434b4a5ae302164d34d9a1` |
+| `decision_room/chart_palette.json` | `8d46db3a7561a8ccdb2693c47d00704d7f654276b97830a668eb125b80560e68` |
+| `scripts/f5/prompts/auditor.md` | `5e69788d76055c351fc9bb84456ab3b112fe95c683c65fbc06e4e0752d1e42f4` |
+| `scripts/f5/prompts/auditor_quotes.md` | `aec2a95d5f14d3d350fac4b2ee50a154582b0a5995ba2f28b4173a3ab8292541` |
+| `scripts/f5/prompts/grouper.md` | `c0a8b1f3be16fcb9463e6d2590e6e02be4f451ea6ebccda8b866f52c08dd1744` |
+| `scripts/f5/prompts/judge.md` | `50e28212a5b55cfc1624185b50a1e83e57eab1ef66cfa039a4b37c75db27a094` |
+| `scripts/f5/prompts/reader_advisor.md` | `2f3f518b94a5b8191eb03eda4ed73a4ea0434025ab69b2a525304c7c6d4e0456` |
+| `scripts/f5/prompts/reader_advisor_web.md` | `f3acc3402bf638b234309381e0a121f1d68054ea6ff0b595685ffaba57ab4462` |
+| `scripts/f5/prompts/reader_owner.md` | `da1b03a325ad32f58771888173aa9a50f5fd961c03d08c51f7cb8d2175f4b795` |
+| `scripts/f5/prompts/reader_owner_web.md` | `f74b5b72e000361626109ec72d83d43a2b84a5fc2655f803c188daa4fa7568dd` |
+
+| Dato | sha256 |
+|---|---|
+| `spec.json (privado)` | `ba61263a3e9f1a7d1fee0707b4c78206bd021808cd5b025b91459ce70c0b628e` |
+| `order.txt (privado)` | `cf3d39aec65de22e652ee8ccefcccf7b36cb078cd6d0976ec0cb3c2cffa27ed0` |
+| `oracle.json (privado)` | `4780fc6274f0e03d62867c71f92b56668918580dbb554b0d79f00a2b93997463` |
+| `herbolario/ventas.csv` | `88ca0b155e80a1c7d061f24cbeb8c140e75e6a3dfc5966bf1f67d0a2f12c9c59` |
+| `herbolario/productos.csv` | `be97db6b4682ef5201feb4d7c6533f3c522f7ecaae4ad64bf26d95d0e5694c81` |
+| `herbolario/canales.csv` | `6e941a6fcfff38185fbb55003fce7cce033a267195e15630f098da4150a2e8f8` |
+| `clinica/citas.csv` | `7ebd3bd66c94457b3f7632b4a1ff45ce002f72a70dc0c1e786ae13385d6e8c26` |
+| `clinica/encuestas.csv` | `4219480bfa61c4e75256ed67b84127cd0fcb235a9205d762e34440619b5f9488` |
+| `clinica/profesionales.csv` | `5a538408df96f9ee40c2a70f47de0957543e7b9f97e0cff59d09aae7f44feffb` |
+
+| Valor derivado | Valor |
+|---|---|
+| PROJECTOR_VERSION | `bloques-proyector-4` |
+| FORMAT_GUIDE | `b6c34addc58ae4af03b887c50f1843aed212507523b5e99f39a8398896ea57c3` |
+| encargo nativo (native_fixed) | `07c86b6bae0c7a6f82241f5cbf3b7c7d3b25e660e0c81a6c51a5497cc58c965b` |
+| PROMPT del comprobador | `44d1ae12684f3510fdc2f45bfa71dacb9b28142ac5fa61337b2af72f068bdf70` |
+| ledger_version | `gpt-6-luna-standard-envelope-2026-10-11-http-rejections-1-scope-uncertainty-2` |
+
+**Después del lote:** se publican los hashes y el sello de las capturas, los kits y las instrucciones antes
+de abrir evaluadores, y el sello de resultados antes de desvelar los brazos.
