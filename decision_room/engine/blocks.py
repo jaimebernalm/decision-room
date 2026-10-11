@@ -33,7 +33,7 @@ MAX_NUMBER = Decimal(10) ** 15
 
 CHART_KINDS = {'barras': 'bar', 'barras_horizontales': 'bar', 'columnas': 'column', 'barras_verticales': 'column',
                'lineas': 'line', 'linea': 'line', 'cambio': 'change', 'barras_cambio': 'change'}
-CONTROL = re.compile(r'[\x00-\x08\x0b-\x1f\x7f]')
+CONTROL = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\ud800-\udfff]')
 
 FORMAT_GUIDE = '''Formato de informe.json (versión informe-bloques-1)
 
@@ -67,7 +67,8 @@ CONTENIDO es un texto (los párrafos se separan con una línea en blanco) o una 
 FRAGMENTO es "texto" o {"texto":"...","negrita"?:true,"cursiva"?:true}.
 
 Números: valores numéricos de JSON (1234.5), sin separadores de miles ni símbolos; la unidad va
-en "unidad". La plataforma da formato español a los números.
+en "unidad". Con "unidad": "%" el valor ya está en porcentaje (13.7 es 13,7 %). La plataforma da
+formato español a los números. Como mucho 15 cifras significativas.
 Límites: 256 KB, 300 bloques, 4 niveles, 60 categorías y 8 series por gráfico, 12 columnas y
 200 filas por tabla.
 Comprueba el fichero con: python3 /inputs/herramientas/comprobar_informe.py /work/informe.json
@@ -93,6 +94,16 @@ def _constant(name):
     raise ValueError(f'valor no permitido {name}')
 
 
+def _decimal(lexeme):
+    # Lexical bound before conversion: no huge exponents or precision reach Decimal.
+    if len(lexeme) > 40:
+        raise ValueError('número con demasiadas cifras')
+    number = Decimal(lexeme)
+    if number and len(number.normalize().as_tuple().digits) > 15:
+        raise ValueError('número con más de 15 cifras significativas')
+    return number
+
+
 def loads(raw):
     if len(raw) > MAX_BYTES:
         raise BlocksError([f'el fichero ocupa {len(raw)} bytes; el máximo es {MAX_BYTES}'])
@@ -103,7 +114,7 @@ def loads(raw):
     if text.startswith('﻿'):
         raise BlocksError(['el fichero empieza con una marca BOM; guárdalo como UTF-8 sin BOM'])
     try:
-        return json.loads(text, object_pairs_hook=_no_duplicates, parse_constant=_constant, parse_float=Decimal, parse_int=Decimal)
+        return json.loads(text, object_pairs_hook=_no_duplicates, parse_constant=_constant, parse_float=_decimal, parse_int=_decimal)
     except (ValueError, RecursionError) as exc:
         raise BlocksError([f'JSON no válido: {exc}']) from None
 
