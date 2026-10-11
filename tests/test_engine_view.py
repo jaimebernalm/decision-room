@@ -8,12 +8,17 @@ CLEAN = '<!doctype html><html><head><meta charset="utf-8"><style>h1{color:#123}<
 
 
 class ReceiptPolicyTests(unittest.TestCase):
-    def test_clean_report_is_framed_without_scripts_and_with_its_own_policy_first(self):
-        view = policy.view(CLEAN)
-        self.assertEqual((view['mode'], view['sandbox']), ('frame', ''))
+    def test_agent_markup_is_never_frame_content(self):
+        self.assertEqual(policy.view(CLEAN)['mode'], 'pending')
+        self.assertNotIn('srcdoc', policy.view(CLEAN))
+        snapshot = '<!doctype html><img alt="" src="data:image/png;base64,AA">'
+        view = policy.view(CLEAN, {'status': 'ready', 'canonical_text': 'Ventas', 'snapshot_html': snapshot})
+        self.assertEqual((view['mode'], view['sandbox']), ('snapshot', ''))
         self.assertTrue(view['srcdoc'].startswith('<!doctype html><meta http-equiv="Content-Security-Policy"'))
         self.assertIn("default-src 'none'", view['srcdoc'])
-        self.assertNotIn('allow-', view['sandbox'])
+        self.assertNotIn('Ventas</h1>', view['srcdoc'])
+        no_snapshot = policy.view(CLEAN, {'status': 'ready', 'canonical_text': 'Ventas', 'snapshot_html': None})
+        self.assertEqual((no_snapshot['mode'], no_snapshot['canonical_text']), ('blocked', 'Ventas'))
 
     def test_forbidden_elements_urls_and_encodings_are_blocked(self):
         cases = {
@@ -27,6 +32,13 @@ class ReceiptPolicyTests(unittest.TestCase):
             b'<style>p{background:url(/x)}</style>': 'css:url', b'<p srcdoc="x">': 'attribute:srcdoc',
             b'\xff\xfe': 'not_utf8', b'': 'empty', b'a\x00b': 'nul_byte',
             b'<p>' + b'x' * (policy.MAX_BYTES + 1): 'too_large',
+            b'<meta name="viewport" http-equiv="refresh" content="0;url=/api/business">': 'element:meta',
+            b'<meta name="viewport" content="x" charset="utf-8">': 'element:meta',
+            b'<a href="/api/business">x</a>': 'url:href', b'<a href="api/business">x</a>': 'url:href',
+            b'<a href="ja\tvascript:alert(1)">x</a>': 'url:href', b'<a href=" https://x">x</a>': 'url:href',
+            b'<img src="java\nscript:x">': 'url:src', b'<img srcset="data:image/png;base64,AA 1x">': 'url:srcset',
+            b'<a ping="#x" href="#x">x</a>': 'url:ping', b'<img src="data:text/html,<p>x">': 'url:src',
+            b'<svg><image xlink:href="/x.png"/></svg>': 'url:xlink:href',
         }
         for raw, reason in cases.items():
             with self.subTest(raw=raw[:40]):
@@ -34,7 +46,8 @@ class ReceiptPolicyTests(unittest.TestCase):
                 self.assertEqual(policy.view(raw)['mode'], 'blocked')
 
     def test_inline_images_anchors_and_viewport_are_allowed(self):
-        for raw in (b'<img src="data:image/png;base64,AAAA">', b'<a href="#tabla">ir</a>',
+        for raw in (b'<img src="data:image/png;base64,AAAA">', b'<a href="#tabla">ir</a>', b'<a href="#">arriba</a>',
+                    b'<img src="data:image/svg+xml;utf8,<svg/>">',
                     b'<meta name="viewport" content="width=device-width">', b'<p style="color:red">x</p>'):
             with self.subTest(raw=raw):
                 self.assertEqual(policy.receive(raw), ('allowed', None))
@@ -66,13 +79,13 @@ class ViewSurfaceTests(surfaces.HtmlSurfaceTests):
         self.ws.run_job(job)
         return job
 
-    def test_presentation_frames_the_report_and_the_raw_is_only_an_attachment(self):
+    def test_presentation_waits_for_the_snapshot_and_the_raw_is_only_an_attachment(self):
         job = self.delivered_clean()
         client, server = self.http(); client.post('/api/login', json={'token': server.token})
         display = client.get(f'/api/jobs/{job}/presentation').json()
-        self.assertEqual(display['view']['mode'], 'frame')
-        self.assertEqual(display['view']['sandbox'], '')
-        self.assertEqual(display['summary'], '')
+        self.assertEqual(display['view']['mode'], 'pending')
+        self.assertNotIn('srcdoc', display['view'])
+        self.assertNotIn('Ventas</h1>', str(display))
         self.assertNotIn('Revisado', str(display))
         raw = client.get(f'/api/jobs/{job}/raw')
         self.assertEqual(raw.status_code, 200)

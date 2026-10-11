@@ -1,16 +1,17 @@
-"""Presentation policy for engine HTML: receipt checks and the script-free isolated frame.
+"""Presentation policy for engine HTML: receipt checks and what the owner is shown.
 
-The agent's HTML is untrusted. It is shown only inside ``<iframe sandbox="">`` (no
-scripts, forms, popups or navigation of the parent) with ``srcdoc``, so it inherits the
-platform CSP (``frame-src 'self'``) and adds a stricter one of its own. Scripts never run
-in the product view: the trial readers judged static renderings, inline SVG charts draw
-without them, and a script-drawn chart can be shown from the isolated renderer's static
-snapshot instead. The raw bytes are always kept and downloadable as an attachment.
+The agent's HTML is untrusted and is never rendered in the product origin, not even in
+a sandboxed frame: without scripts, markup alone (SVG animation of a link target, relative
+URLs under ``frame-src 'self'``) can still navigate a frame. The owner sees the isolated
+renderer's static snapshot (platform HTML with images, no agent markup) in a script-free
+sandboxed frame, plus the canonical text. Until the snapshot exists the view is pending.
+The trial readers judged static renderings too. The raw bytes are always kept and
+downloadable as an attachment.
 """
 import re
 from html.parser import HTMLParser
 
-POLICY_VERSION = 'v1-frame-noscript-1'
+POLICY_VERSION = 'v1-snapshot-only-1'
 MAX_BYTES = 256 * 1024
 SANDBOX = ''
 CSP = ("default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:; "
@@ -18,8 +19,12 @@ CSP = ("default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src d
 FORBIDDEN_TAGS = {'base', 'iframe', 'frame', 'frameset', 'object', 'embed', 'applet', 'link', 'portal', 'meta'}
 URL_ATTRIBUTES = {'href', 'src', 'action', 'formaction', 'data', 'poster', 'background', 'srcset',
                   'xlink:href', 'ping', 'cite', 'longdesc', 'manifest', 'codebase', 'lowsrc', 'dynsrc'}
-REMOTE = re.compile(r'^\s*(?:[a-z][a-z0-9+.-]*:|//|\\\\)', re.I)
-ALLOWED_SCHEMES = re.compile(r'^\s*(?:data:image/|#)', re.I)
+# Browsers drop ASCII tab/newline and trim C0 controls/space before parsing a URL.
+URL_NOISE = re.compile(r'[\x00-\x20\x7f]')
+# Only an in-document fragment or an inline raster/vector image. Relative paths would
+# let the framed document navigate itself to product routes (frame-src 'self').
+LOCAL_URL = re.compile(r'^(?:#[^#]*|data:image/(?:png|jpeg|gif|webp|svg\+xml)(?:;[a-z0-9=._-]+)*,.*)$', re.I | re.S)
+LIST_URL_ATTRIBUTES = {'srcset', 'ping'}
 CSS_REMOTE = re.compile(r'(?:@import|url\(\s*[\'"]?\s*(?![\'"]?\s*(?:data:|#)))', re.I)
 CHARSET = re.compile(r'^\s*(?:<!--.*?-->\s*)*', re.S)
 DOCTYPE = re.compile(r'^\s*<!doctype[^>]*>', re.I)
@@ -40,8 +45,9 @@ class _Scan(HTMLParser):
         tag = tag.lower()
         if tag in FORBIDDEN_TAGS:
             # Charset declarations are harmless but meta also carries refresh and CSP.
-            if not (tag == 'meta' and {k.lower() for k, _ in attrs} <= {'charset'}
-                    or tag == 'meta' and dict((k.lower(), (v or '').lower()) for k, v in attrs).get('name') == 'viewport'):
+            names = {k.lower() for k, _ in attrs}
+            viewport = names == {'name', 'content'} and dict((k.lower(), (v or '').lower()) for k, v in attrs)['name'] == 'viewport'
+            if not (tag == 'meta' and (names == {'charset'} or viewport)):
                 self.problems.append(f'element:{tag}')
         self.style = tag == 'style'
         if tag == 'script':
@@ -52,7 +58,9 @@ class _Scan(HTMLParser):
                 self.scripted = True
             if name == 'srcdoc':
                 self.problems.append('attribute:srcdoc')
-            elif name in URL_ATTRIBUTES and REMOTE.match(value) and not ALLOWED_SCHEMES.match(value):
+            elif name in LIST_URL_ATTRIBUTES:
+                self.problems.append(f'url:{name}')
+            elif name in URL_ATTRIBUTES and not LOCAL_URL.match(URL_NOISE.sub('', value)):
                 self.problems.append(f'url:{name}')
             elif name == 'style' and CSS_REMOTE.search(value):
                 self.problems.append('css:url')
@@ -112,10 +120,10 @@ def frame_document(raw):
 def view(raw, derived=None):
     """Choose what the owner sees. ``derived`` is the isolated renderer's result or None.
 
-    1. A ready static snapshot (platform HTML with images, no agent markup).
-    2. Otherwise, a script-free allowed revision without scripts or handlers, provisionally.
-    3. Scripted revisions wait for the snapshot, or are blocked if rendering failed.
-    The canonical text accompanies every mode when it is ready.
+    1. Receipt blocked: blocked (with canonical text if the renderer produced it).
+    2. A ready static snapshot: shown in the script-free frame, with the canonical text.
+    3. Rendering failed or produced no snapshot: blocked. Otherwise pending.
+    The agent's own markup is never returned as frame content.
     """
     checked = inspect(raw)
     ready = bool(derived and derived.get('status') == 'ready')
@@ -125,8 +133,6 @@ def view(raw, derived=None):
         return dict(base, mode='blocked')
     if ready and derived.get('snapshot_html'):
         return dict(base, mode='snapshot', sandbox=SANDBOX, srcdoc=frame_document(derived['snapshot_html'].encode('utf-8')))
-    if not checked['scripted']:
-        return dict(base, mode='frame', sandbox=SANDBOX, srcdoc=frame_document(raw))
-    if derived and derived.get('status') == 'failed':
+    if ready or (derived and derived.get('status') == 'failed'):
         return dict(base, mode='blocked', reason='render_failed')
     return dict(base, mode='pending')

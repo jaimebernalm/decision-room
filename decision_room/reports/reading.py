@@ -89,7 +89,7 @@ def view(db, document, revision):
 
 def presentation(document, revision, value, view=None):
     """Typed metadata envelope; empty evidence cannot be mistaken for extraction."""
-    shown = bool(view and view['mode'] in ('frame', 'snapshot'))
+    shown = bool(view and view['mode'] == 'snapshot')
     summaries = {'current':'' if shown else 'La entrega está guardada. Su presentación todavía no está disponible.',
                  'withdrawn':'Los datos o la memoria aplicable han cambiado. Conservamos esta entrega como histórico.',
                  'historical':'Esta revisión es histórica. Conservamos sus metadatos y su hash.',

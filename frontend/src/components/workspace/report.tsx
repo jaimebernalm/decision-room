@@ -430,10 +430,10 @@ function EngineFrame({ report }: { report: ReportData }) {
       <p className="whitespace-pre-wrap text-sm">{view.canonical_text}</p>
     </Disclosure>
   ) : null;
-  if (view.mode === "frame" || view.mode === "snapshot")
+  if (view.mode === "snapshot")
     return (
       <>
-        {/* Untrusted agent HTML: no scripts, forms, popups or parent access. */}
+        {/* Renderer snapshot (platform HTML with images): no scripts, forms, popups or parent access. */}
         <iframe
           title={tr("Informe")}
           sandbox={view.sandbox ?? ""}

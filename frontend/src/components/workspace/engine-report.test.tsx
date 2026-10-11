@@ -77,15 +77,15 @@ it("missing engine metadata cannot fall through to the reviewed legacy view", ()
   ).toBeInTheDocument();
   expect(screen.queryByText("Revisado")).not.toBeInTheDocument();
 });
-it("frames an allowed report without scripts and offers its canonical text", async () => {
+it("frames only the renderer snapshot without scripts and offers its canonical text", async () => {
   const { container } = render(
     <ReportView
       report={{
         ...report,
         summary: "",
         view: {
-          mode: "frame",
-          policy_version: "v1-frame-noscript-1",
+          mode: "snapshot",
+          policy_version: "v1-snapshot-only-1",
           receipt: "allowed",
           reason: null,
           canonical_text: "Ventas por canal",
@@ -112,7 +112,7 @@ it("never frames pending or blocked reports", () => {
           ...report,
           view: {
             mode,
-            policy_version: "v1-frame-noscript-1",
+            policy_version: "v1-snapshot-only-1",
             receipt: mode === "blocked" ? "blocked" : "allowed",
             reason: mode === "blocked" ? "element:base" : null,
             canonical_text: null,
