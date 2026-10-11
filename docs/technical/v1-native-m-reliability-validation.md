@@ -63,3 +63,25 @@ Validación de integración: 97 pruebas de ledger, techo P4, admisión, ciclo de
 comprobador, ejecutor, jobs y lifecycle con PostgreSQL desechable y proveedores
 simulados. No hubo gasto de API. La revisión pública del commit no incluye datos
 privados, credenciales, rutas personales ni archivos de runtime.
+
+## M2: comprobación de datos no monetarios
+
+El prompt congelado del comprobador exige inspeccionar todos los CSV y sus
+columnas antes de clasificar una cifra como no comprobable. Incluye recuentos,
+estados, duraciones, puntuaciones, medias, tasas y agrupaciones por persona,
+categoría y periodo. Pide ejecutar el recálculo independiente y documentar
+población, nulos, numerador, denominador, filtros y ventanas. Conserva los límites
+cuando falta una definición; no infiere unidades ni atribuye causalidad.
+
+El esquema de salida `priority-check-1` no cambia. El nuevo hash del prompt se
+congela en el perfil de los nuevos runs. Los resultados históricos no se
+reinterpretan; una ejecución con otro prompt congelado no puede iniciar una
+comprobación con este código.
+
+64 pruebas de comprobador, contrato, bloques, recepción y brief pasan. La prueba
+no monetaria proporciona al runtime simulado solo su CSV de observaciones,
+estados y puntuaciones: recalcula dos recuentos y una media y conserva la
+discrepancia con la media afirmada, ligada a la cita de la revisión exacta.
+Esto acredita transporte, aislamiento y contrato; no acredita que el modelo
+real encuentre todas las cifras ni que sus cálculos sean correctos. Esa
+comprobación de calidad sigue pendiente de los ensayos.
