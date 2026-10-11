@@ -15,7 +15,7 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import KeepTogether, Paragraph, SimpleDocTemplate, Spacer
 
 from ..chart_layout import CHART_NEUTRALS, CHART_SERIES_PALETTE
-from ..engine.blocks import format_number
+from ..engine.blocks import cell_decimals, format_number
 from ..report_pdf import BORDER, GRAY, INK, STYLES, WIDTH as PAGE_WIDTH, grid, paragraph
 
 WIDTH = PAGE_WIDTH - 12  # frame padding
@@ -168,7 +168,7 @@ def _chart(chart):
 def _table(block):
     rows = [[c['title'] + (f" ({c['unit']})" if c['unit'] else '') for c in block['columns']]]
     for r in block['rows']:
-        rows.append(['' if v is None else v if isinstance(v, str) else format_number(v, c['decimals'])
+        rows.append(['' if v is None else v if isinstance(v, str) else format_number(v, cell_decimals(v, c['decimals']))
                      for v, c in zip(r, block['columns'])])
     flow = [Paragraph(_text(block['title']), SUBHEAD)] if block['title'] else []
     flow.append(grid(rows, [WIDTH / len(block['columns'])] * len(block['columns'])))

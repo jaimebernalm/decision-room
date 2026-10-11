@@ -16,7 +16,7 @@ import sys
 from decimal import Decimal, ROUND_HALF_UP, localcontext
 
 VERSION = 'informe-bloques-1'
-PROJECTOR_VERSION = 'bloques-proyector-1'
+PROJECTOR_VERSION = 'bloques-proyector-2'
 MAX_BYTES = 256 * 1024
 MAX_BLOCKS = 300            # every block, nested ones included
 MAX_DEPTH = 4               # seccion > seccion > prioridad > contenido
@@ -441,9 +441,7 @@ def _project_numbers(block):
         for s in block['series']:
             s['values'] = [_num(v) for v in s['values']]
     elif block['type'] == 'table':
-        for c, column in enumerate(block['columns']):
-            if column['decimals'] is None:
-                column['decimals'] = _default_decimals([r[c] for r in block['rows'] if isinstance(r[c], Decimal)])
+        # Without explicit decimals each cell keeps its own (tables often mix units and amounts per row).
         block['rows'] = [[_num(c) if isinstance(c, Decimal) else c for c in row] for row in block['rows']]
     for child in block.get('blocks', ()):
         _project_numbers(child)
@@ -575,12 +573,16 @@ def block_lines(block):
         heads = [c['title'] + (f" ({c['unit']})" if c['unit'] else '') for c in block['columns']]
         lines.append(' | '.join(heads))
         for row in block['rows']:
-            lines.append(' | '.join('' if v is None else v if isinstance(v, str) else shown(v, c['decimals'])
+            lines.append(' | '.join('' if v is None else v if isinstance(v, str) else shown(v, cell_decimals(v, c['decimals']))
                                     for v, c in zip(row, block['columns'])))
         if block['note']:
             lines.append(block['note'])
         return lines
     raise ValueError(f'Unknown projected block {kind}')
+
+
+def cell_decimals(value, decimals):
+    return decimals if decimals is not None else _default_decimals([Decimal(str(value))])
 
 
 def canonical_text(projection):

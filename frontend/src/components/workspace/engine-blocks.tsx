@@ -30,7 +30,7 @@ import {
 import { CHART_NEUTRALS, CHART_SERIES_PALETTE } from "@/lib/charts";
 import { Disclosure, Notice } from "./shared";
 import { ReportChartTooltip } from "./report-chart-tooltip";
-import { formatNumber, signed, withUnit } from "@/lib/blocks-format";
+import { formatNumber, naturalDecimals, signed, withUnit } from "@/lib/blocks-format";
 import type {
   BlockCheck,
   BlockChecks,
@@ -421,7 +421,7 @@ export function BlockTable({ block }: { block: TableBlock }) {
                     }
                   >
                     {typeof cell === "number"
-                      ? formatNumber(cell, block.columns[c].decimals)
+                      ? formatNumber(cell, block.columns[c].decimals ?? naturalDecimals(cell))
                       : cell ?? "—"}
                   </TableCell>
                 ))}

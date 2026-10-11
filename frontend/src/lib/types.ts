@@ -495,7 +495,7 @@ export type ReportBlock = { id: string } & (
   | {
       type: "table";
       title: string | null;
-      columns: { title: string; unit: string | null; decimals: number }[];
+      columns: { title: string; unit: string | null; decimals: number | null }[];
       rows: (string | number | null)[][];
       note: string | null;
     }

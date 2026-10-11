@@ -123,6 +123,13 @@ class BlocksTests(unittest.TestCase):
         self.assertEqual(p['blocks'][0]['change'], 0.999999999999999)  # exact difference; huge percentage stays finite
         self.assertIsNotNone(p['blocks'][0]['change_pct'])
 
+    def test_table_cells_keep_their_own_decimals_unless_the_column_sets_them(self):
+        p = blocks.parse(raw(doc({'tipo': 'tabla', 'columnas': ['Indicador', '2025', {'titulo': 'Fijo', 'decimales': 1}],
+                                  'filas': [['Unidades', 36644, 2], ['Importe', 504162.69, 2.25]]})))
+        text = blocks.canonical_text(p)
+        self.assertIn('Unidades | 36.644 | 2,0', text)
+        self.assertIn('Importe | 504.162,69 | 2,3 [exacto: 2,25]', text)
+
     def test_huge_derived_percentage_formats(self):
         p = blocks.parse(raw(doc({'tipo': 'cifra', 'etiqueta': 'x', 'valor': 999999999999999, 'anterior': {'valor': 1e-15}})))
         self.assertIn('cambio +999.999.999.999.999', blocks.canonical_text(p))

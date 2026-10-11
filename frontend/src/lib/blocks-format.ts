@@ -13,6 +13,18 @@ export function formatNumber(value: number | null, decimals: number) {
     .replace("-", "−");
 }
 
+/** Up to 2 decimals as delivered, or more so a nonzero value never shows as 0 (same rule as the projector). */
+export function naturalDecimals(value: number) {
+  const text = String(value);
+  const places = text.includes("e-")
+    ? Number(text.split("e-")[1])
+    : (text.split(".")[1] || "").length;
+  let decimals = Math.min(places, 2);
+  if (value !== 0 && Math.abs(value) < 0.5 * 10 ** -decimals)
+    decimals = Math.min(15, Math.ceil(-Math.log10(Math.abs(value))));
+  return decimals;
+}
+
 export function withUnit(value: number | null, decimals: number, unit: string | null) {
   const text = formatNumber(value, decimals);
   if (value === null || !unit) return text;

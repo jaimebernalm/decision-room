@@ -1,6 +1,6 @@
 {
  "schema": "informe-bloques-1",
- "projector": "bloques-proyector-1",
+ "projector": "bloques-proyector-2",
  "title": "Cómo va el año",
  "blocks": [
   {
@@ -87,7 +87,7 @@
       {
        "title": "Producto",
        "unit": null,
-       "decimals": 0
+       "decimals": null
       },
       {
        "title": "Unidades",
