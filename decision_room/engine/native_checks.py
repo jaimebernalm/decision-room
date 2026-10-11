@@ -84,7 +84,8 @@ def _finish_check(config,run,check,*,raw=None,result=None,issue=None,observation
 def run_check(config,run,receipt,projection, *, final=False):
     from . import api
     expected=dict(version=contract.VERSION,prompt_sha256=admission.sha(contract.PROMPT.encode()),
-                  correction_sha256=admission.sha(contract.CORRECTION.encode()),calls=20,seconds=300)
+                  correction_sha256=admission.sha(contract.CORRECTION.encode()),
+                  format_repair_sha256=admission.sha(contract.FORMAT_REPAIR.encode()),calls=20,seconds=300)
     if run['profile'].get('checks')!=expected:
         raise ValueError('Frozen checker policy is unavailable.')
     files=inputs(config,run,receipt,projection)
@@ -175,8 +176,27 @@ def draft(config,run,receipt):
     """Return correct/delivered/failed; never reopen a terminal engine run."""
     try:
         projection=blocks.parse(receipt['raw'])
-    except blocks.BlocksError:
-        return 'failed'
+    except blocks.BlocksError as error:
+        with connect(config) as db,db.transaction():
+            locked=_context(db,config,run)
+            _resolved_usage(db,config,locked)
+            cycle=db.execute('SELECT * FROM engine_native_cycles WHERE run_id=%s FOR UPDATE',(run['id'],)).fetchone()
+            if cycle and (cycle['correction_used'] or cycle['stage'] in ('complete','incomplete')):
+                return 'failed'
+            if locked['profile'].get('checks',{}).get('format_repair_sha256')!=admission.sha(contract.FORMAT_REPAIR.encode()):
+                return 'failed'
+            # Causes contain paths and field names, not values. Bound each entry
+            # even when an unknown key itself is arbitrarily long.
+            problems=[str(p)[:1000] for p in error.problems]
+            text=contract.FORMAT_REPAIR+json.dumps(problems,ensure_ascii=True)
+            control._enqueue_prompt(db,locked,request_key='native-format-repair',text=text,
+                                    fingerprint=admission.sha(admission.canonical(text)))
+            if cycle:
+                db.execute("UPDATE engine_native_cycles SET stage='correcting',correction_used=true,draft_revision_id=%s WHERE run_id=%s",(receipt['revision_id'],run['id']))
+            else:
+                db.execute("INSERT INTO engine_native_cycles(run_id,business_id,stage,draft_revision_id,correction_used) VALUES (%s,%s,'correcting',%s,true)",
+                           (run['id'],run['business_id'],receipt['revision_id']))
+        return 'correct'
     with connect(config) as db,db.transaction():
         _context(db,config,run)
         cycle=db.execute('SELECT * FROM engine_native_cycles WHERE run_id=%s FOR UPDATE',(run['id'],)).fetchone()

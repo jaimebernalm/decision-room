@@ -59,3 +59,21 @@ La comprobación profunda del contexto ocurre en eventos del ciclo y mantiene el
 lock de memoria mientras lee hashes; el polling usa la comprobación barata. El
 renderizador HTML no participa en la ruta nativa. Las superficies y los avisos
 de N2 se integran desde la rama de la vista antes del cierre del conjunto.
+
+## Reparación de formato antes de N4
+
+Un borrador recibido con formato inválido puede consumir la misma vuelta única
+para repararlo. El outbox conserva un texto fijo y una lista limitada de rutas y
+causas del validador; no reproduce valores del informe. Se usa la misma sesión,
+los mismos límites y las mismas guardas al enviar. Después se ejecuta la
+comprobación final: una discrepancia restante lleva aviso, sin un tercer turno.
+Un segundo borrador inválido termina sin publicación y conserva ambos recibos.
+El hash de las instrucciones de reparación queda congelado en el perfil.
+
+57 pruebas de contrato/ciclo/recepción/brief/techo monetario pasan tras este
+cambio, incluidas reparación válida con discrepancia final y dos borradores
+inválidos. La integración anterior pasa 57 pruebas de superficies/ejecutor/PDF y
+320 de UI, TypeScript, Vite y oxlint (con advertencias ya existentes). La pasada
+completa inicial se interrumpió al integrar cambios durante su ejecución; la
+repetición congelada encontró montajes de sandbox no visibles en la VM. Ninguna
+se presenta como una regresión completa exitosa de esta variante.

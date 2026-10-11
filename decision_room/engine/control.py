@@ -180,7 +180,7 @@ def dispatch_prompt(config, business_id, run_id, message_id, client):
         # the durable queue. Lock memory before the run, as in activation.
         owner_turn = db.execute('SELECT question_id FROM engine_owner_answers WHERE run_id=%s AND message_id=%s',
                                 (run_id, message_id)).fetchone()
-        native_turn = db.execute("SELECT 1 FROM engine_prompt_outbox WHERE run_id=%s AND message_id=%s AND request_key='native-correction'", (run_id,message_id)).fetchone()
+        native_turn = db.execute("SELECT 1 FROM engine_prompt_outbox WHERE run_id=%s AND message_id=%s AND request_key IN ('native-correction','native-format-repair')", (run_id,message_id)).fetchone()
         if owner_turn or native_turn:
             from ..memory import service as memory
             memory.lock(db, business_id)
