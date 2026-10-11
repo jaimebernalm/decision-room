@@ -2,6 +2,8 @@
 
 An integer USD envelope at frozen Standard catalogue rates, not an invoice.
 Unknown/interrupted attempts retain their full reservation and stop new sends.
+The separately versioned rejection policy retains explicit HTTP errors at the
+full bound, without introducing a retry or changing an older ledger's policy.
 The ledger stores hashes and usage only, never prompts, responses or credentials.
 """
 import hashlib
@@ -17,11 +19,33 @@ from uuid import uuid4
 import httpx
 
 VERSION = 'gpt-6-luna-standard-envelope-2026-10-11'
+REJECTION_VERSION = VERSION + '-http-rejections-1'
 MAX_INPUT = 1_050_000
 MAX_OUTPUT = 128_000
 # nano-USD per token: maximum cache-write/input and output catalogue prices.
 INPUT_RATE, OUTPUT_RATE = 250, 750
 _SCOPE = ContextVar('api_budget_scope', default='unattributed')
+
+
+def _error_body(body):
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            if key in result:
+                raise ValueError('Duplicate error field.')
+            result[key] = value
+        return result
+
+    def constant(value):
+        raise ValueError('Non-finite error field.')
+
+    try:
+        error = json.loads(body, object_pairs_hook=pairs, parse_constant=constant)
+    except (ValueError, UnicodeError, RecursionError):
+        return False
+    return (isinstance(error, dict) and isinstance(error.get('error'), dict)
+            and bool(error['error']) and 'usage' not in error and 'usage' not in error['error']
+            and not any(k in error for k in ('choices', 'output')))
 
 
 class BudgetStopped(ValueError):
@@ -48,6 +72,8 @@ class Ledger:
             columns={r[1] for r in db.execute('PRAGMA table_info(calls)')}
             if columns and 'billing' not in columns:
                 db.execute('ALTER TABLE calls ADD COLUMN billing TEXT')
+            if columns and 'http_status' not in columns:
+                db.execute('ALTER TABLE calls ADD COLUMN http_status INTEGER')
             if columns:
                 policy_columns={r[1] for r in db.execute('PRAGMA table_info(policy)')}
                 for name,default in [('input_cap',6000000),('output_cap',128000),('calls_cap',60),('seconds_cap',1200)]:
@@ -56,9 +82,12 @@ class Ledger:
 
     @classmethod
     def create(cls, path, *, cap_micro_usd, scope_cap_micro_usd,
-               input_tokens=6000000, output_tokens=128000, calls=60, seconds=1200):
+               input_tokens=6000000, output_tokens=128000, calls=60, seconds=1200,
+               explicit_http_rejections=False):
         if any(type(v) is not int or v <= 0 for v in (cap_micro_usd, scope_cap_micro_usd,input_tokens,output_tokens,calls,seconds)):
             raise ValueError('Budgets must be positive integer micro-USD.')
+        if type(explicit_http_rejections) is not bool:
+            raise ValueError('The rejection policy must be an explicit boolean.')
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
@@ -69,10 +98,11 @@ class Ledger:
                 input_cap INTEGER, output_cap INTEGER, calls_cap INTEGER, seconds_cap INTEGER);
                 CREATE TABLE calls (id TEXT PRIMARY KEY, scope TEXT, request_sha256 TEXT,
                 endpoint TEXT, state TEXT, reserved INTEGER, charged INTEGER, input_tokens INTEGER,
-                output_tokens INTEGER, billing TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP);
+                output_tokens INTEGER, billing TEXT, http_status INTEGER, created_at TEXT DEFAULT CURRENT_TIMESTAMP);
                 ''')
             db.execute('INSERT INTO policy VALUES (?,?,?,0,?,?,?,?)',
-                       (VERSION, cap_micro_usd*1000, scope_cap_micro_usd*1000,input_tokens,output_tokens,calls,seconds))
+                       (REJECTION_VERSION if explicit_http_rejections else VERSION,
+                        cap_micro_usd*1000, scope_cap_micro_usd*1000,input_tokens,output_tokens,calls,seconds))
         return ledger
 
     @contextmanager
@@ -98,7 +128,7 @@ class Ledger:
                 coalesce(sum(coalesce(output_tokens,(reserved-?)/?)),0) AS output,
                 coalesce(cast(strftime('%s','now') as integer)-cast(strftime('%s',min(created_at)) as integer),0) AS seconds
                 FROM calls WHERE scope=?''',(MAX_INPUT,MAX_INPUT*INPUT_RATE,OUTPUT_RATE,identifier)).fetchone()
-            if (policy['version'] != VERSION or policy['stopped'] or total+amount > policy['cap']
+            if (policy['version'] not in (VERSION, REJECTION_VERSION) or policy['stopped'] or total+amount > policy['cap']
                     or own+amount > policy['scope_cap'] or limits['input']+MAX_INPUT>policy['input_cap']
                     or limits['output']+output>policy['output_cap'] or limits['calls']>=policy['calls_cap']
                     or limits['seconds']>=policy['seconds_cap']):
@@ -107,6 +137,26 @@ class Ledger:
             db.execute('INSERT INTO calls(id,scope,request_sha256,endpoint,state,reserved,charged) VALUES (?,?,?,?,?,?,?)',
                        (call, identifier, digest, endpoint, 'reserved', amount, amount))
             return call
+
+    def http_status(self, call, status):
+        """Only the response status is stored; error bodies remain in memory."""
+        with self.db() as db:
+            db.execute('UPDATE calls SET http_status=? WHERE id=? AND http_status IS NULL', (status, call))
+
+    def reject(self, call):
+        """A complete explicit HTTP error retains the envelope under the new policy.
+
+        This is not proof of zero cost. Old policies still stop, and neither
+        method changes a historical terminal receipt or releases its charge.
+        """
+        with self.db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            policy = db.execute('SELECT version FROM policy').fetchone()
+            row = db.execute('SELECT state FROM calls WHERE id=?', (call,)).fetchone()
+            if policy['version'] != REJECTION_VERSION or row['state'] != 'reserved':
+                return False
+            db.execute("UPDATE calls SET state='rejected' WHERE id=?", (call,))
+            return True
 
     def settle(self, call, result):
         usage = result.get('usage', {}) if isinstance(result, dict) else {}
@@ -150,7 +200,7 @@ class Ledger:
             call['billing']=json.loads(call['billing']) if call['billing'] else None
             call['cost_catalog']=costs.estimate(call['billing'])
         return {'policy': policy, 'calls': calls, 'charged_nano_usd': sum(c['charged'] for c in calls),
-                'uncertain': any(c['state'] != 'settled' for c in calls), 'cost_catalog':costs.aggregate(calls)}
+                'uncertain': any(c['state'] in ('reserved', 'uncertain') for c in calls), 'cost_catalog':costs.aggregate(calls)}
 
 
 class _Stream(httpx.SyncByteStream):
@@ -218,7 +268,23 @@ class BudgetTransport(httpx.BaseTransport):
         call = self.ledger.reserve(self.identifier, hashlib.sha256(body).hexdigest(), request.url.path, output)
         try:
             response = self.inner.handle_request(request)
+            self.ledger.http_status(call, response.status_code)
             if response.status_code != 200:
+                # Accept only an entirely received bounded JSON error. A broken
+                # error stream is still uncertain and stops every future send.
+                if response.status_code >= 400:
+                    body = bytearray()
+                    try:
+                        for chunk in response.iter_bytes():
+                            body.extend(chunk)
+                            if len(body) > 64*1024:
+                                raise ValueError('Provider error response exceeds the limit.')
+                    finally:
+                        response.close()
+                    response = httpx.Response(response.status_code, headers=response.headers,
+                                              extensions=response.extensions, content=bytes(body))
+                    if _error_body(body) and self.ledger.reject(call):
+                        return response
                 self.ledger.settle(call, None)
                 return response
             return httpx.Response(response.status_code, headers=response.headers, extensions=response.extensions,

@@ -145,12 +145,117 @@ class BudgetTests(unittest.TestCase):
         self.assertEqual(snapshot['charged_nano_usd'],175000)
         self.assertEqual(snapshot['cost_catalog']['cost'],'0.000132')
 
+    def test_explicit_rejection_is_opt_in_keeps_charge_and_allows_a_separate_attempt(self):
+        for enabled in (False, True):
+            with self.subTest(enabled=enabled):
+                ledger=budget.Ledger.create(Path(self.temp.name)/(str(enabled)+'.sqlite'),
+                    cap_micro_usd=1000000,scope_cap_micro_usd=1000000,
+                    explicit_http_rejections=enabled)
+                error={'error':{'message':'Synthetic rate limit','code':'rate_limit'}}
+                with httpx.Client(transport=budget.BudgetTransport(ledger,
+                    httpx.MockTransport(lambda r:httpx.Response(429,json=error)),'j')) as client:
+                    response=client.post('https://api.openai.com/v1/chat/completions',json=self.payload)
+                    self.assertEqual(response.json(),error)
+                state=ledger.snapshot()
+                call=state['calls'][0]
+                self.assertEqual(call['http_status'],429)
+                self.assertEqual(call['state'],'rejected' if enabled else 'uncertain')
+                self.assertEqual(call['charged'],call['reserved'])
+                self.assertEqual(call['charged'],263250000)
+                self.assertEqual(bool(state['policy']['stopped']),not enabled)
+                self.assertEqual(state['uncertain'],not enabled)
+                self.assertIsNone(call['cost_catalog']['cost'])
+                if enabled:
+                    with httpx.Client(transport=budget.BudgetTransport(ledger,
+                        httpx.MockTransport(self.response),'j')) as client:
+                        client.post('https://api.openai.com/v1/chat/completions',json=self.payload)
+                    self.assertEqual(len(ledger.snapshot()['calls']),2)
+                    # A later callback cannot invent usage or release the rejection.
+                    ledger.settle(call['id'],{'model':'gpt-6-luna','service_tier':'default',
+                        'usage':{'input_tokens':0,'output_tokens':0}})
+                    self.assertEqual(ledger.snapshot()['charged_nano_usd'],265000000)
+
+    def test_rejected_attempt_counts_against_quotas_and_restart_does_not_reset_it(self):
+        path=Path(self.temp.name)/'rejection-cap.sqlite'
+        ledger=budget.Ledger.create(path,cap_micro_usd=1000000,scope_cap_micro_usd=1000000,
+            explicit_http_rejections=True,calls=1)
+        with httpx.Client(transport=budget.BudgetTransport(ledger,
+            httpx.MockTransport(lambda r:httpx.Response(503,json={'error':{'message':'Unavailable'}})),'j')) as client:
+            client.post('https://api.openai.com/v1/chat/completions',json=self.payload)
+        reopened=budget.Ledger(path)
+        with self.assertRaises(budget.BudgetStopped):reopened.reserve('j','sha','/v1/responses',1000)
+        self.assertEqual(reopened.snapshot()['policy']['version'],budget.REJECTION_VERSION)
+        self.assertEqual(reopened.snapshot()['charged_nano_usd'],263250000)
+
+    def test_error_requires_complete_strict_json_and_unknown_success_still_stops(self):
+        cases=[(503,b'not json'),(503,b'{"error":{}}'),
+            (503,b'{"error":{"message":"bad"},"usage":null}'),
+            (503,b'{"error":{"message":"bad","usage":0}}'),
+            (503,b'{"error":{"message":"bad"},"output":[]}'),
+            (503,b'{"error":{"message":"bad"},"error":{"message":"other"}}'),
+            (503,b'{"error":{"message":"bad","number":NaN}}'),
+            (302,b'{"error":{"message":"redirect"}}'),
+            (200,b'{"error":{"message":"bad"}}'),
+            (503,b'{"error":{"message":"'+b'a'*65536+b'"}}')]
+        for index,(status,body) in enumerate(cases):
+            with self.subTest(index=index):
+                ledger=budget.Ledger.create(Path(self.temp.name)/f'bad-{index}.sqlite',
+                    cap_micro_usd=1000000,scope_cap_micro_usd=1000000,explicit_http_rejections=True)
+                with httpx.Client(transport=budget.BudgetTransport(ledger,
+                    httpx.MockTransport(lambda r:httpx.Response(status,content=body)),'j')) as client:
+                    try:client.post('https://api.openai.com/v1/chat/completions',json=self.payload)
+                    except ValueError:pass
+                state=ledger.snapshot()
+                self.assertEqual(state['calls'][0]['http_status'],status)
+                self.assertEqual(state['calls'][0]['state'],'uncertain')
+                self.assertTrue(state['policy']['stopped'])
+
+    def test_interrupted_http_error_is_uncertain_even_with_complete_json_prefix(self):
+        class Interrupted(httpx.SyncByteStream):
+            def __iter__(self):
+                yield b'{"error":{"message":"Unavailable"}}'
+                raise httpx.ReadError('Synthetic interruption')
+        ledger=budget.Ledger.create(Path(self.temp.name)/'interrupted.sqlite',
+            cap_micro_usd=1000000,scope_cap_micro_usd=1000000,explicit_http_rejections=True)
+        with httpx.Client(transport=budget.BudgetTransport(ledger,
+            httpx.MockTransport(lambda r:httpx.Response(503,stream=Interrupted())),'j')) as client:
+            with self.assertRaises(httpx.ReadError):
+                client.post('https://api.openai.com/v1/chat/completions',json=self.payload)
+        state=ledger.snapshot()
+        self.assertEqual(state['calls'][0]['http_status'],503)
+        self.assertTrue(state['policy']['stopped'])
+        self.assertEqual(state['calls'][0]['state'],'uncertain')
+
 
 class ProductBudgetTests(unittest.TestCase):
     from tests import test_engine_admission as fixtures
     setUpClass = classmethod(fixtures.EngineTests.setUpClass.__func__)
     tearDownClass = classmethod(fixtures.EngineTests.tearDownClass.__func__)
     setUp = fixtures.EngineTests.setUp
+
+    def test_product_retry_reserves_each_http_attempt_without_changing_old_policy(self):
+        from decision_room.agent.model import ModelClient,ModelSettings
+        path=self.config.storage/'http-rejection-budget.sqlite'
+        ledger=budget.Ledger.create(path,cap_micro_usd=1000000,scope_cap_micro_usd=1000000,
+            explicit_http_rejections=True)
+        sent=[]
+        def provider(request):
+            sent.append(request)
+            if len(sent)==1:return httpx.Response(429,json={'error':{'message':'Synthetic rate limit'}})
+            return httpx.Response(200,json={'model':'gpt-6-luna','service_tier':'default',
+                'usage':{'prompt_tokens':20,'completion_tokens':10},
+                'choices':[{'finish_reason':'stop','message':{'content':'{"action":"inspect"}'}}]})
+        with patch.dict('os.environ',{'DECISION_ROOM_API_BUDGET_PATH':str(path),'OPENAI_API_KEY':'test-only'}):
+            actual=budget.transport
+            with budget.scope('web:fixture'),patch.object(budget,'transport',side_effect=lambda *a,**kw:actual(httpx.MockTransport(provider),**kw)),patch('decision_room.agent.model.time.sleep'):
+                action,usage=ModelClient(ModelSettings('gpt-6-luna',protocol='openai',base_url='https://api.openai.com/v1',reasoning='low')).generate({})
+        self.assertEqual(action['action'],'inspect')
+        self.assertEqual([a['status'] for a in usage['transport_attempts']],[429,200])
+        state=ledger.snapshot()
+        self.assertEqual({c['http_status']:c['state'] for c in state['calls']},{429:'rejected',200:'settled'})
+        rejected=next(c for c in state['calls'] if c['http_status']==429)
+        self.assertEqual(state['charged_nano_usd'],rejected['reserved']+7500)
+        self.assertFalse(state['policy']['stopped'])
 
     def test_both_real_model_boundaries_share_one_durable_ledger(self):
         from decision_room.agent.model import ModelClient,ModelSettings

@@ -76,3 +76,32 @@ Una ampliación posterior aplica también la regla congelada de parejas que supe
 límite de imágenes: si `index.incomplete_pairs` contiene alguna, el resultado de la
 comprobación es incompleto aunque el subconjunto evaluado sea válido. Ocho tests focalizados
 pasan; este control no cambia los materiales ni la regla de decisión del ensayo.
+
+## Política separada de rechazos HTTP explícitos
+
+El primer lote F5 se detuvo con uso incierto. Su ledger y su resultado incompleto se
+conservan; no se conoce el código HTTP del intento original, porque no se registraba.
+No se reclasifica ese intento ni se libera su reserva.
+
+Para un nuevo lote preregistrado, `Ledger.create(explicit_http_rejections=True)` crea
+la política distinta `gpt-6-luna-standard-envelope-2026-10-11-http-rejections-1`.
+Solo una respuesta HTTP de error (400 o superior), recibida por completo, de hasta
+64 KiB, con JSON estricto y un objeto `error` no vacío sin uso ni salida declarados,
+puede quedar `rejected`. Conserva la reserva completa en dólares y tokens y cuenta
+como una llamada. No detiene globalmente otros envíos ni añade reintentos: se aplica
+el tratamiento habitual del producto, que puede reintentar 429/503 dentro de sus
+límites. Cada nuevo intento necesita otra reserva. El catálogo sigue sin acreditar
+el coste exacto del rechazo; no se presenta como coste cero.
+
+La política original mantiene su parada ante cualquier HTTP fallido. Una respuesta
+interrumpida, JSON inválido o ambiguo, éxito sin uso, o modelo/tier distinto siguen
+reteniendo su cota y deteniendo los envíos en ambas políticas. Se registra el código
+HTTP cuando se reciben las cabeceras, sin guardar el cuerpo. El esquema se amplía
+de forma aditiva, sin cambiar la política ni el saldo de un ledger existente.
+
+Pruebas con proveedor falso: política original frente a la nueva; respuesta y
+cuota conservadas tras reinicio; segunda reserva para el reintento real de
+`ModelClient`; error interrumpido, duplicación de claves, valores no finitos, error
+con uso y cuerpos demasiado grandes. Ninguna de estas pruebas gasta API. La nueva
+política requiere un ledger nuevo y su versión debe fijarse en el nuevo preregistro;
+no habilita una continuación del F5 detenido.
