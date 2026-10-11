@@ -52,6 +52,10 @@ def main():
     reconcile_pending(config)
     thread = threading.Thread(target=workspace.worker, name='decision-room-worker', daemon=True)
     thread.start()
+    from ..reports.derive import worker as derivative_worker
+    rendering = threading.Thread(target=derivative_worker, args=(config, workspace.stop),
+                                 name='decision-room-report-renderer', daemon=True)
+    rendering.start()
     print(f'Decision Room: {server.origin}', flush=True)
     print('Local access key is stored privately in the configured storage directory (.web-access-key).', flush=True)
     if args.internal_monitor:

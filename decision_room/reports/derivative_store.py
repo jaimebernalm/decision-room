@@ -51,7 +51,8 @@ def enqueue(db, business, document, revision):
         (uuid4(), business, document, revision, row['raw_sha256'], policy.POLICY_VERSION, policy.renderer_version()))
 
 
-def set_presentation(db, business, document, revision, raw_sha256, state, reason, *, policy_version=policy.POLICY_VERSION):
+def set_presentation(db, business, document, revision, raw_sha256, state, reason, *, policy_version=None):
+    policy_version = policy.POLICY_VERSION if policy_version is None else policy_version
     row = source(db, business, document, revision, writing=True)
     if row['raw_sha256'] != raw_sha256 or policy_version != policy.POLICY_VERSION or state not in ('allowed', 'blocked'):
         raise ValueError('Presentation assessment identity differs.')
@@ -67,8 +68,15 @@ def set_presentation(db, business, document, revision, raw_sha256, state, reason
         raise ValueError('A presentation policy cannot change its assessment for the same source.')
     # A future policy may require a new renderer projection. Never silently attach
     # an old result to that policy; this F4 setter only accepts the current policy.
-    db.execute('''UPDATE report_document_revisions SET presentation_state=%s,presentation_reason=%s,policy_version=%s
-        WHERE business_id=%s AND document_id=%s AND id=%s''', (state, reason, policy_version, business, document, revision))
+    if (row['policy_version'],row['renderer_version']) != (policy_version,policy.renderer_version()):
+        db.execute('''UPDATE report_document_revisions SET presentation_state=%s,presentation_reason=%s,policy_version=%s,
+            renderer_version=%s,derived_version=0,derive_status='pending',derive_issue=NULL,canonical_text=NULL,
+            canonical_sha256=NULL,inventory_sha256=NULL,snapshot_html=NULL
+            WHERE business_id=%s AND document_id=%s AND id=%s''',
+            (state,reason,policy_version,policy.renderer_version(),business,document,revision))
+    else:
+        db.execute('''UPDATE report_document_revisions SET presentation_state=%s,presentation_reason=%s
+            WHERE business_id=%s AND document_id=%s AND id=%s''', (state,reason,business,document,revision))
 
 
 def result(db, business, document, revision):

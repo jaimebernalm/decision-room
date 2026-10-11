@@ -75,8 +75,38 @@ criterio de preservación de datos. Dos fallos del borrador se corrigieron:
 imports bajo Python `-I` y pausar tiempo virtual impedía la segunda captura de
 una página larga; se detienen scripts/animaciones sin pausar el compositor.
 
+## 3. Servicio y recuperación (completado)
+
+`decision_room/reports/derive.py` expone las firmas acordadas `derive` y `derived`.
+`derived` solo hace un SELECT por negocio/documento/revisión/política/imagen y
+devuelve los hashes exactos; nunca hashea CSV ni arranca un navegador. El worker
+se ejecuta en un hilo independiente del motor/modelo. Un único slot PostgreSQL
+global limita a un navegador, además del claim por tarea. No mantiene los locks
+de memoria/documento ni una transacción durante Chrome.
+
+Antes de renderizar registra la decisión de recepción con el módulo puro de
+presentación y hace la inspección profunda de dependencias como evento de
+contenido; una retirada no cambia el run ni lo vuelve a ejecutar. Un HTML bloqueado
+con UTF-8 válido puede generar texto canónico dentro del contenedor: permanece
+bloqueado en la vista. UTF-8 inválido y vacío fallan antes de Chrome. La publicación
+vuelve a verificar identidad y borrado bajo memoria → documento, y descarta un
+resultado si se borró mientras se calculaba. No concede vigencia ni verificación.
+
+Si cambia la imagen/política, `refresh` encola la nueva clave en el worker, nunca
+al leer; los derivados anteriores se conservan. La proyección se vuelve pending
+para la nueva clave y solo cambia al publicarla. Resultados terminales de una
+clave no se recalculan al leer ni se reintentan automáticamente.
+
+Pruebas PostgreSQL: 16/16 (`test_report_derive`, `test_report_derivatives`,
+`test_report_registry`), sin omitidas. Idempotencia de servicio, lectura sin Chrome, hashes exactos,
+fallo privado sin texto parcial, bloqueado con texto, UTF-8 sin llamada al render,
+nueva imagen y política, borrado concurrente y ausencia de locks durante render.
+SIGKILL real del controlador después de entrar al render: se liberan slot/claim,
+se recupera el mismo job con un nuevo claim y se publica una vez. Los tests de
+registro también cubren muerte lógica antes del commit y fencing de un worker
+anterior. Prueba nativa del servicio verifica texto, píxeles y proyección juntos.
+
 ## Pasos pendientes
 
-Servicio de derivación y recuperación;
 integración con la vista/chat de Claude; suite hostil y regresión completas. Este
 documento no declara F4 terminada todavía.
