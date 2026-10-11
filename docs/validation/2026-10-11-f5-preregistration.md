@@ -3,8 +3,8 @@
 Estado: **borrador** para la revisión previa de Astra, sin datos del lote de ensayo. Se
 congela con un anexo al final antes de crear el primer informe del ensayo.
 
-- Autor: Claude.
-- Ejecutor y techo de gasto: Astra.
+- Autor y conducción de la ejecución y las evaluaciones: Claude.
+- Ejecutor (`product_trial.py`) y ledger de gasto: Astra, que además revisa.
 - Autorización del dueño (2026-10-11): F5 y lo posterior sin más permisos. Gasto máximo:
   «Autorizo gastar hasta 25 USD en la API para F5».
 
@@ -75,8 +75,8 @@ Dos negocios sintéticos nuevos, distintos de Albor y Bruma (`scripts/f5/generat
 
 - La descripción explica las columnas como lo haría un dueño. El objetivo es una petición
   abierta («qué ha funcionado y qué no este año…», «dónde perdemos citas…»).
-- Los textos están en `scripts/f5/runner.py` (`PROFILE`) y se copian al spec privado del
-  ejecutor.
+- Los textos están en `scripts/f5/generate.py` (`PROFILE`), que también escribe el spec
+  privado del ejecutor.
 - No se declara un modelo de datos (`meanings`) ni memoria: es la experiencia por defecto.
 - Cada repetición y cada brazo tienen un negocio propio en la base de datos del ensayo, con
   el mismo perfil y los mismos CSV, para que ningún informe herede memoria ni historial de
@@ -200,8 +200,10 @@ estilo puede delatar el brazo; es un límite.
    - **Imágenes:** todas las páginas de los dos informes, como mucho 12 por pareja, cada una
      leída una sola vez y sin componer ni reescalar.
      - En el piloto, las parejas sumaban 8–9 páginas de 1280 px.
-     - Si una pareja supera 12, se registra y se le dan las 12 primeras páginas más el texto
-       completo.
+     - Si una pareja supera 12, no se trunca, porque las páginas quitadas dependerían de la
+       posición A/B aleatoria. Su lectura queda **incompleta**: (c) no se acredita en ese
+       negocio y el ensayo no puede ser candidato. Lo aplican `kits.py` y `prompts.py`, no
+       solo esta prosa.
      - El texto completo acompaña siempre a las imágenes.
    - Puntuación: 1 si elige v1, 0,5 si declara un empate explícito, 0 si elige legacy.
    - Si una pareja tiene una pérdida, la regla está en (c).

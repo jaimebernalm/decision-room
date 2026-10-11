@@ -41,6 +41,8 @@ def main(kits, data, out):
         business = pair.rsplit('-', 1)[0]
         slots = {s: kits / 'read' / pair / s for s in 'AB'}
         files = {f'{s.lower()}_pages': ', '.join(str(p) for p in sorted(slots[s].glob('page-*.png'))) for s in 'AB'}
+        if sum(len(list(slots[s].glob('page-*.png'))) for s in 'AB') > 12:
+            raise SystemExit(f'{pair} exceeds the 12-image reading limit; it must be marked incomplete, never truncated.')
         files.update({f'{s.lower()}_text': str(slots[s] / 'report.txt') for s in 'AB'})
         (out / 'reader_owner' / f'{pair}.md').write_text(render(
             'reader_owner', owner=owners[business], pair=pair, out_path=out / 'results' / f'owner-{pair}.json', **files))

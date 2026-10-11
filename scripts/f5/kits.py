@@ -23,6 +23,7 @@ import sys
 from pathlib import Path
 
 SEED = 5110
+MAX_PAIR_IMAGES = 12  # each read once by one fresh reader session per pair
 DATA_URI = re.compile(r'src="data:image/png;base64,([A-Za-z0-9+/=]+)"')
 
 
@@ -88,11 +89,18 @@ def build(trial, data_dir, kits, key_path):
             name = f'{business}-{repetition}'
             key['pairs'][name] = dict(order=order, kits={arm: pair[arm].get('kit') for arm in order})
             if all(pair[arm].get('kit') for arm in order):
+                total = sum(len(pages((Path(pair[arm]['run']) / 'informe.html').read_text())) for arm in order)
+                key['pairs'][name]['images'] = total
+                if total > MAX_PAIR_IMAGES:
+                    # Never truncate: dropped pages would depend on the random A/B position.
+                    key['pairs'][name]['reading'] = 'incomplete_over_image_limit'
+                    continue
                 for slot, arm in zip('AB', order):
                     write_report(kits / 'read' / name / slot, Path(pair[arm]['run']))
     # Business per kit code (not secret; the arm is never written in the kits).
     index = dict(reports={code: value['business'] for code, value in key['reports'].items()},
-                 pairs=sorted(name for name, pair in key['pairs'].items() if all(pair['kits'].values())))
+                 pairs=sorted(name for name, pair in key['pairs'].items() if all(pair['kits'].values()) and 'reading' not in pair),
+                 incomplete_pairs=sorted(name for name, pair in key['pairs'].items() if pair.get('reading')))
     (kits / 'index.json').write_text(json.dumps(index, indent=2) + '\n')
     digest = []
     for path in sorted(p for p in kits.rglob('*') if p.is_file()):
