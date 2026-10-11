@@ -79,6 +79,11 @@ def main(key_path, results, out):
             attempt['engine_source'] = ('result' if result.get('engine_run_id') else
                                         'database' if run_id else 'unknown' if engine_runs is None else 'none')
             own = [o for o in own if o]
+            if attempt.get('status') == 'not_run':
+                # Never started: no cost or time is published, only that nothing was recorded as sent.
+                attempt.update(usd=None, calls=None, unsettled=None, usd_lower_bound=None, seconds=None,
+                               owner_answers=None, no_send_recorded=not own)
+                continue
             known = attempt['engine_source'] != 'unknown'
             lower = dict(usd=sum(o['usd'] for o in own), calls=sum(o['calls'] for o in own), unsettled=sum(o['unsettled'] for o in own))
             # An unknown engine source never publishes a complete cost: the known part is a lower bound.
