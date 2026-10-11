@@ -181,3 +181,32 @@ Son dos precisiones de Astra sobre la evaluación. No cambian la ejecución.
    - Un item `unverifiable`, uno no localizado o un resumen de cobertura no la examinan.
    - Se publican aparte las cifras correctas no examinadas.
    - Si no queda ninguna examinada, esa parte de (f) queda sin acreditar.
+
+## Anexo 3: código por intento (2026-10-11, durante el lote y antes de ver ningún resultado)
+
+**Qué pasó.** El ejecutor lanza un proceso por informe e importaba el código de la rama de
+desarrollo. Mientras corría el lote, Claude editó en esa rama varios archivos:
+- la guarda del renderizador para documentos nativos (`reports/derive.py`,
+  `derivative_store.py`, `native_store.py`);
+- la selección para el chat (`context_references.py`);
+- la leyenda del PDF (`reports/blocks_pdf.py`).
+
+**Medida.** A las 15:03:32 UTC el lanzador pasó a un worktree congelado en `fc27549` (el código del
+anexo de congelación). Los informes siguientes usan exactamente ese código.
+
+**Intentos afectados**, deducidos de las horas de modificación y de importación:
+- `herbolario-1-opencode` (14:57:46–15:00:52): importó todo antes de las ediciones, así que corrió
+  con el código congelado. La guarda de `derive.py` (15:00:02) no afecta a un documento HTML.
+- `herbolario-1-blocks` (desde 15:00:53):
+  - el agente, el comprobador y la recepción no cambiaron (ni `blocks.py` ni `native_checks` ni
+    `check_contract`);
+  - al capturar importó `native_store.py` con la defensa ante inventarios ajenos, que no cambia
+    nada para un inventario nativo;
+  - importó `blocks_pdf.py` con la leyenda en filas, así que su PDF es de otra versión.
+
+**Materiales de lectura.** Para no mezclar versiones, antes de crear los kits se vuelven a generar
+los PDF de **todos** los informes blocks-v1 (`informe.pdf` e `informe-auditor.pdf`):
+- con el `blocks_pdf.py` del worktree congelado `fc27549`;
+- a partir de los `informe-bloques.json` y `checks.json` guardados, sin tocar bytes ni
+  comprobaciones;
+- los originales se conservan con el sufijo `.orig`.
