@@ -49,6 +49,21 @@ de los mismos bloques, con la misma paleta y el mismo diseño.
   independiente.
 - El orden de ejecución se alterna por pareja, igual que en F5.
 
+## Presupuesto (fijado)
+
+Del tope de 15 USD autorizado por el dueño:
+
+| Concepto | Tope (USD) |
+|---|---|
+| Smoke técnico de 1 informe, ya ejecutado (0,206 cobrado) | 0,60 |
+| N4, lote de 12 informes | 3,00 |
+| N4, validación sembrada (solo comprobador, ledger propio) | 0,60 |
+| N5, lote de 24 informes | 8,00 |
+| Reserva no asignada | 2,80 |
+
+Cada lote tiene su propio ledger durable. Tras una parada global nunca se continúa ni se crea otro
+ledger para el mismo lote.
+
 ## Ejecución y gasto
 
 - **Ejecutor:** `scripts/checks/product_trial.py`, `arms: ["opencode", "blocks"]`.
@@ -68,8 +83,21 @@ Opus nueva.
   menores, materiales y críticos, como en F5.
   - En blocks-v1 el auditor recibe una copia **sin avisos** (`informe-auditor.pdf`), para que su
     exactitud sea independiente del comprobador.
-  - Después se cruza cada error con los items del comprobador por bloque y cita, de forma
-    mecánica, para saber si la cifra errónea llevaba aviso en el informe que vio el dueño.
+  - El texto que recibe (`report.txt`) es el texto canónico de los bloques, sin el estado de la
+    comprobación.
+  - Para N4, el auditor añade a cada afirmación un campo `cita`: el fragmento literal de
+    `report.txt` que contiene la cifra.
+  - **Cruce auditor ↔ comprobador** (fijado antes del lote, conservador):
+    - Un error del auditor cuenta como **avisado** solo si se cumplen las tres condiciones:
+      1. su `cita` aparece exactamente una vez en el texto de una única prioridad de la revisión
+         publicada;
+      2. existe un item `discrepancy` del comprobador final en esa prioridad o en un bloque
+         descendiente;
+      3. la cita del comprobador y la del auditor se solapan como subcadenas.
+    - Una coincidencia ambigua, una cita no localizada o una cifra fuera de las prioridades
+      cuentan como **no avisado**.
+    - Los avisos generales (`coverage`, comprobación `incomplete` o `unknown`) nunca cuentan como
+      detección ni como aviso de una cifra.
 - **Juez:** oráculo, señales S1–S5 y señuelo, como en F5.
 - **Lectores:** uno como dueño y otro como asesor, por pareja (orden A/B aleatorio), con la misma
   pregunta que en F5.
@@ -107,6 +135,8 @@ Opus nueva.
   - detecta al menos el 70 % de **todos** los errores sembrados (denominador: todos, incluidos los
     que no llegó a comprobar);
   - la cobertura se informa además aparte;
+  - si un denominador queda vacío (ninguna cifra correcta examinada o ningún sembrado
+    elegible), esa parte de (f) queda **sin acreditar**: nunca pasa por estar vacía;
   - detecta todo error crítico natural presente en las prioridades de blocks-v1, si lo hay.
 
 **Resultado:**

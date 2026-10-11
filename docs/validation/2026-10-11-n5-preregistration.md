@@ -9,7 +9,9 @@ La misma que en F5: ¿es v1, ahora en la variante blocks-v1 (bloques nativos, co
 independiente y una corrección), lo bastante fiable, exacto y preferido frente a legacy como para
 ser el motor por defecto de los informes nuevos?
 
-La regla de decisión es la de F5 con tres cambios, todos fijados antes de ver datos.
+La regla de decisión es la de F5 tal como está en
+`docs/validation/2026-10-11-f5-preregistration.md`, en el commit `99aafa8`: regla, enmiendas F5b
+y F5c y cierre. Se aplica con tres cambios, todos fijados antes de ver datos.
 
 ## Cambios respecto a F5
 
@@ -17,11 +19,11 @@ La regla de decisión es la de F5 con tres cambios, todos fijados antes de ver d
    `html-v1`.
 2. **Legacy:** usa 16.384 tokens de salida por llamada (decisión D3 del dueño: la configuración
    de su instalación), en lugar de 8.192.
-3. **Exactitud (b):** solo se exigen cero errores críticos **sin aviso visible**. Un error
-   crítico que la plataforma marca con el aviso de cifra en revisión cuenta como error material,
-   no como crítico.
+3. **Exactitud (b):** la puerta exige cero errores críticos **sin aviso visible**.
+   - La gravedad no se rebaja: un crítico avisado sigue siendo crítico.
+   - El aviso es un eje aparte (`avisado`) y se determina con el cruce conservador de N4.
+   - Los totales publicados incluyen todos los críticos, con y sin aviso.
    - Motivo: la decisión D1 del dueño acepta entregar con aviso lo que no se pudo resolver.
-   - Se informa aparte cuántos críticos llevaban aviso.
 
 **Lo que no cambia respecto a F5:**
 - los negocios, los datos, el oráculo y las 6 repeticiones (24 informes);

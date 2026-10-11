@@ -263,12 +263,14 @@ def _execute(root, code, resume=False):
             if revision and native:
                 # Native blocks: the platform projection, its checks and the platform PDF; no browser.
                 from decision_room.reports import blocks_pdf, reading
+                from decision_room.engine.blocks import canonical_text as blocks_text
                 with reading.read(config,job['business_id'],row['report_document_id']) as (db,document,selected):
                     view=reading.view(db,document,selected)
                 if view.get('mode')=='blocks':
                     save(target/'informe-bloques.json',view['blocks'])
                     save(target/'checks.json',view.get('checks'))
-                    (target/'informe.txt').write_text(view['canonical_text'])
+                    # Report text without the check state, so text-only evaluators stay blind to the checker.
+                    (target/'informe.txt').write_text(blocks_text(view['blocks']))
                     (target/'informe.pdf').write_bytes(blocks_pdf.render(view['blocks'],view.get('checks')))
                     # The auditor reads the same report without check notices (independent accuracy).
                     (target/'informe-auditor.pdf').write_bytes(blocks_pdf.render(view['blocks'],None))
