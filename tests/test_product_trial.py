@@ -57,15 +57,47 @@ class ProductTrialTests(unittest.TestCase):
         self.assertEqual(manifest['settings']['model'],'gpt-6-luna')
         self.assertEqual(manifest['settings']['reasoning'],'low')
 
-    def test_waiting_is_recorded_once_and_not_replied_to_or_retried(self):
-        manifest=self.initialize();code=manifest['jobs'][0]['code']
+    def test_legacy_questions_get_bounded_stand_in_answers_and_are_never_retried(self):
+        manifest=self.initialize();code=next(j['code'] for j in manifest['jobs'] if j['arm']=='legacy')
+        self.assertEqual(manifest['owners']['units'],{'description':'quantity records units per row.','goal':'Sum the units.'})
         real_workspace=trial.Workspace
         def workspace(config,settings):return real_workspace(config,settings,fixtures.WebModel)
-        with patch.object(trial,'Workspace',side_effect=workspace):trial.execute(self.output,code)
+        asked=[]
+        def answer(owner,question):
+            asked.append((owner,question['text']));return 'Prefiero sumar todas las filas.'
+        with patch.object(trial,'Workspace',side_effect=workspace),patch.object(trial,'owner_answer',side_effect=answer):
+            trial.execute(self.output,code)
         result=json.loads((self.output/'runs'/code/'result.json').read_text())
-        self.assertEqual(result['status'],'waiting')
-        self.assertFalse(result['delivery']);self.assertFalse(result['snapshot'])
+        answers=json.loads((self.output/'runs'/code/'answers.json').read_text())
+        self.assertGreaterEqual(len(answers),1);self.assertLessEqual(len(answers),trial.MAX_ANSWERS)
+        self.assertEqual(result['owner_answers'],len(answers));self.assertEqual(len(asked),len(answers))
+        self.assertTrue(all(owner==manifest['owners']['units'] for owner,_ in asked))
+        self.assertEqual(answers[0]['answer'],'Prefiero sumar todas las filas.')
+        self.assertTrue(all(a['state']=='replied' and a['disposition']=='answered' and len(a['question_sha256'])==64 for a in answers))
+        self.assertEqual(len({(a['question_id'],a['phase']) for a in answers}),len(answers))
         with self.assertRaises(ValueError):trial.execute(self.output,code)
+
+    def test_stand_in_sends_only_through_the_job_budget_scope(self):
+        import httpx
+        manifest=self.initialize()
+        seen=[]
+        def provider(request):
+            body=json.loads(request.content);seen.append(body)
+            return httpx.Response(200,json={'model':'gpt-6-luna','service_tier':'default',
+                'choices':[{'message':{'content':' Comparo con el año pasado. '}}],
+                'usage':{'prompt_tokens':900,'completion_tokens':40}})
+        with patch.dict('os.environ',{'DECISION_ROOM_API_BUDGET_PATH':manifest['budget_path'],'OPENAI_API_KEY':'test-only'}), \
+                patch.object(trial.api_budget.httpx,'HTTPTransport',lambda **kw:httpx.MockTransport(provider)), \
+                trial.api_budget.scope('web:job-1'):
+            text=trial.owner_answer({'description':'Una tienda.','goal':'Cómo va el año.'},
+                                    {'id':'q','phase':'planning','text':'¿Qué periodos comparo?','options':['año','mes']})
+        self.assertEqual(text,'Comparo con el año pasado.')
+        self.assertEqual(seen[0]['service_tier'],'default');self.assertEqual(seen[0]['max_completion_tokens'],2000)
+        self.assertIn('Una tienda.',seen[0]['messages'][0]['content']);self.assertIn('¿Qué periodos comparo?',seen[0]['messages'][0]['content'])
+        calls=trial.api_budget.Ledger(manifest['budget_path']).snapshot()['calls']
+        self.assertEqual([(c['scope'],c['state']) for c in calls],[('web:job-1','settled')])
+        with patch.dict('os.environ',{'DECISION_ROOM_API_BUDGET_PATH':''}),self.assertRaises(trial.api_budget.BudgetStopped):
+            trial.owner_answer({'description':'x','goal':'y'},{'text':'z'})
 
     def test_crash_is_preserved_and_over_cap_spec_is_rejected_before_preparation(self):
         manifest=self.initialize();code=manifest['jobs'][0]['code']
