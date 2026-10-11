@@ -159,3 +159,13 @@ class BlocksTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class HomeFigureTests(unittest.TestCase):
+    def test_disputes_cover_the_block_and_its_ancestors(self):
+        from decision_room.web.home import disputed
+        items = [{'block_id': 'b5-1', 'status': 'discrepancy'}, {'block_id': 'b2', 'status': 'unverifiable'}]
+        self.assertTrue(disputed('b5-1-3', items))
+        self.assertTrue(disputed('b5-1', items))
+        self.assertFalse(disputed('b5-10', items))
+        self.assertFalse(disputed('b2', items))

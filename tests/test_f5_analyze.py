@@ -133,12 +133,12 @@ class KitSelectionTests(unittest.TestCase):
         spec = importlib.util.spec_from_file_location('kits', ROOT / 'scripts/f5/kits.py')
         self.kits = importlib.util.module_from_spec(spec); spec.loader.exec_module(self.kits)
 
-    def trial(self, name, businesses, reps=6):
+    def trial(self, name, businesses, reps=6, arms=('legacy', 'opencode')):
         root = Path(self.temp.name) / name
         jobs = []
         for business in businesses:
             for i in range(1, reps + 1):
-                for arm in ('legacy', 'opencode'):
+                for arm in arms:
                     code = f'{business}-{i}-{arm}'
                     (root / 'runs' / code).mkdir(parents=True)
                     (root / 'runs' / code / 'result.json').write_text(json.dumps(dict(status='blocked', delivery=False, snapshot=False)))
@@ -161,6 +161,24 @@ class KitSelectionTests(unittest.TestCase):
         short = self.trial('short', ['clinica'], reps=5)
         with self.assertRaises(SystemExit):
             self.build(f'{short}:clinica')
+
+    def test_blocks_arm_reads_platform_pdf_pages(self):
+        from decision_room.engine import blocks
+        from decision_room.reports import blocks_pdf
+        from tests.test_engine_blocks import FULL, raw
+        root = self.trial('n4', ['clinica'], reps=1, arms=('opencode', 'blocks'))
+        run = root / 'runs' / 'clinica-1-blocks'
+        projection = blocks.parse(raw(FULL))
+        (run / 'informe.pdf').write_bytes(blocks_pdf.render(projection))
+        (run / 'informe.txt').write_text(blocks.canonical_text(projection))
+        (run / 'result.json').write_text(json.dumps(dict(status='completed', delivery=True, snapshot=True)))
+        (Path(self.temp.name) / 'clinica' / 'datos').mkdir(parents=True)
+        base = Path(self.temp.name)
+        self.kits.build(base, base / 'kits', base / 'key.json', str(root), repetitions=1)
+        key = json.loads((base / 'key.json').read_text())
+        code = next(c for c, r in key['reports'].items() if r['arm'] == 'blocks')
+        self.assertTrue((base / 'kits' / 'audit' / code / 'page-01.png').exists())
+        self.assertEqual({a['arm'] for a in key['attempts']}, {'v1', 'blocks'})
 
     def test_one_business_per_trial_builds(self):
         a, b = self.trial('a', ['herbolario', 'clinica']), self.trial('b', ['clinica'])

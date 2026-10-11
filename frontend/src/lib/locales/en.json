@@ -389,7 +389,7 @@
   "Idioma de la aplicación": "App language",
   "Incluye pausas y reintentos. Espera del cliente:": "Includes pauses and retries. Owner wait:",
   "Indicadores": "Metrics",
-  "Indicadores y señales de tus datos revisados. Cada tarjeta muestra el periodo al que pertenece.": "Metrics and signals from your reviewed data. Each card shows its period.",
+  "Indicadores y señales de tus informes. Cada tarjeta muestra su periodo y su origen.": "Metrics and signals from your reports. Each card shows its period and origin.",
   "Información": "Information",
   "Información guardada": "Saved information",
   "Informe": "Report",
@@ -1381,5 +1381,18 @@
   "Ese objetivo todavía no está disponible.": "That goal is not available yet.",
   "Objetivo elegido": "Selected goal",
   "Cambiar": "Change",
-  "Continuar como pregunta": "Continue as a question"
+  "Continuar como pregunta": "Continue as a question",
+  "Informe v1 · cifra sin revisión": "v1 report · unreviewed figure",
+  "Cifra en revisión: una comprobación independiente obtuvo otro resultado.": "Figure under review: an independent check got a different result.",
+  "Cifra en revisión: una comprobación independiente no obtuvo el mismo resultado. Revísala antes de decidir.": "Figure under review: an independent check did not get the same result. Check it before deciding.",
+  "cálculo independiente": "independent calculation",
+  "Cifras que no se pudieron comprobar": "Figures that could not be checked",
+  "La comprobación independiente de cifras no se pudo completar para este informe.": "The independent figure check could not be completed for this report.",
+  "La comprobación independiente de cifras está en curso.": "The independent figure check is in progress.",
+  "Antes": "Before",
+  "Leyenda": "Legend",
+  "Ver valores": "Show values",
+  "Categoría": "Category",
+  "Texto del informe": "Report text",
+  "La comprobación independiente de cifras no se completó para este informe.": "The independent figure check was not completed for this report."
 }

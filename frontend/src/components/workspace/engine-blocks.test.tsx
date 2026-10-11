@@ -97,3 +97,21 @@ it("renders an engine_blocks report through the common report view", () => {
   expect(container.querySelector("iframe")).toBeNull();
   expect(screen.getByText("La web crece.")).toBeInTheDocument();
 });
+
+it("summarizes unaddressed numeric spans without quoting them as disputed", () => {
+  render(
+    <BlocksReport
+      projection={projection}
+      checks={{
+        state: "complete",
+        items: [
+          { block_id: "b4", quote: "2026", status: "unverifiable", coverage: true,
+            message: "3 fragmentos numéricos de esta prioridad quedaron sin comprobación explícita." },
+        ],
+      }}
+    />,
+  );
+  expect(screen.getByText(/3 fragmentos numéricos/)).toBeInTheDocument();
+  expect(screen.queryByText("Cifras que no se pudieron comprobar")).toBeNull();
+  expect(screen.queryByText("«2026»")).toBeNull();
+});

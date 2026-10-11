@@ -630,7 +630,10 @@ export function BlocksReport({
     }
   };
   number(projection.blocks);
-  const unverifiable = (checks?.items ?? []).filter((c) => c.status === "unverifiable");
+  const unverifiable = (checks?.items ?? []).filter(
+    (c) => c.status === "unverifiable" && !c.coverage,
+  );
+  const uncovered = (checks?.items ?? []).filter((c) => c.coverage);
   return (
     <div className="space-y-6">
       <Blocks blocks={projection.blocks} depth={0} checks={byBlock} wrap={wrap} numbers={numbers} />
@@ -645,6 +648,11 @@ export function BlocksReport({
             ))}
           </ul>
         </Disclosure>
+      )}
+      {uncovered.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {uncovered.map((c) => c.message).filter(Boolean).join(" ")}
+        </p>
       )}
       {checks?.state === "incomplete" && (
         <Notice>

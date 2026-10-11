@@ -1,6 +1,6 @@
 """Blind, role-separated evaluation kits for the F5 test batch.
 
-Usage: python scripts/f5/kits.py [--allow-not-run] DATA_DIR KITS_DIR KEY_PATH TRIAL_OUTPUT[:business] ...
+Usage: python scripts/f5/kits.py [--allow-not-run] [--repetitions=N] DATA_DIR KITS_DIR KEY_PATH TRIAL_OUTPUT[:business] ...
 
 Each business's attempts come from exactly one trial output (one init, one ledger).
 
@@ -21,11 +21,14 @@ import json
 import random
 import re
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
 SEED = 5110
-MAX_PAIR_IMAGES = 12  # each read once by one fresh reader session per pair
+MAX_PAIR_IMAGES = 16  # each read once by one fresh reader session per pair
+ARM_LABEL = {'opencode': 'v1', 'legacy': 'legacy', 'blocks': 'blocks'}
+SWIFT = Path(__file__).with_name('pdf_pages.swift')
 DATA_URI = re.compile(r'src="data:image/png;base64,([A-Za-z0-9+/=]+)"')
 
 
@@ -33,15 +36,28 @@ def pages(snapshot_html):
     return [base64.b64decode(m) for m in DATA_URI.findall(snapshot_html)]
 
 
-def write_report(target, run, with_pages=True):
+def page_count(run):
+    if (run / 'informe.pdf').exists():  # native blocks: the platform PDF
+        from pypdf import PdfReader
+        return len(PdfReader(str(run / 'informe.pdf')).pages)
+    return len(pages((run / 'informe.html').read_text()))
+
+
+def write_report(target, run, with_pages=True, auditor=False):
     target.mkdir(parents=True)
     shutil.copyfile(run / 'informe.txt', target / 'report.txt')
-    if with_pages:
-        for i, data in enumerate(pages((run / 'informe.html').read_text()), 1):
-            (target / f'page-{i:02d}.png').write_bytes(data)
+    if not with_pages:
+        return
+    if (run / 'informe.pdf').exists():
+        # Auditors get the copy without check notices, so accuracy stays independent of the checker.
+        pdf = run / 'informe-auditor.pdf' if auditor and (run / 'informe-auditor.pdf').exists() else run / 'informe.pdf'
+        subprocess.run(['swift', str(SWIFT), str(pdf), str(target), '1.5'], check=True, capture_output=True)
+        return
+    for i, data in enumerate(pages((run / 'informe.html').read_text()), 1):
+        (target / f'page-{i:02d}.png').write_bytes(data)
 
 
-def build(data_dir, kits, key_path, *trials, allow_not_run=False):
+def build(data_dir, kits, key_path, *trials, allow_not_run=False, repetitions=6):
     data_dir, kits, key_path = Path(data_dir), Path(kits), Path(key_path)
     sources = []
     for item in trials:
@@ -69,14 +85,15 @@ def build(data_dir, kits, key_path, *trials, allow_not_run=False):
                     raise SystemExit(f"{job['code']} has no result or failure record; finish or reconcile it before building kits.")
                 # Never started (the trial stopped before it): recorded as not_run, not as a loss.
                 attempts.append(dict(code=job['code'], business=job['business_key'], repetition=job['repetition'], trial=str(trial),
-                                     arm='v1' if job['arm'] == 'opencode' else 'legacy', delivered=False, status='not_run', run=str(run)))
+                                     arm=ARM_LABEL[job['arm']], delivered=False, status='not_run', run=str(run)))
                 continue
+            presented = (run / 'informe.pdf') if job['arm'] == 'blocks' else (run / 'informe.html')
             delivered = bool(result and result.get('delivery') and result.get('snapshot')
-                             and (run / 'informe.html').exists() and (run / 'informe.txt').exists())
-            if delivered and not pages((run / 'informe.html').read_text()):
+                             and presented.exists() and (run / 'informe.txt').exists())
+            if delivered and not page_count(run):
                 raise SystemExit(f"{job['code']} has a snapshot without page images.")
             attempts.append(dict(code=job['code'], business=job['business_key'], repetition=job['repetition'], trial=str(trial),
-                                 arm='v1' if job['arm'] == 'opencode' else 'legacy', delivered=delivered,
+                                 arm=ARM_LABEL[job['arm']], delivered=delivered,
                                  status=(result or {}).get('status', 'failure' if (run / 'failure.json').exists() else 'not_run'),
                                  run=str(run)))
     # Each business from exactly one trial, unique codes, and 6 repetitions per arm and business.
@@ -87,11 +104,15 @@ def build(data_dir, kits, key_path, *trials, allow_not_run=False):
         raise SystemExit('A business appears in more than one trial output.')
     if len({a['code'] for a in attempts}) != len(attempts):
         raise SystemExit('Attempt codes are not unique across the selected trials.')
+    arms = sorted({a['arm'] for a in attempts})
+    if len(arms) != 2:
+        raise SystemExit('Kits compare exactly two arms.')
     for business in per_business:
-        for arm in ('v1', 'legacy'):
+        expected = list(range(1, repetitions + 1))
+        for arm in arms:
             reps = sorted(a['repetition'] for a in attempts if a['business'] == business and a['arm'] == arm)
-            if reps != list(range(1, 7)):
-                raise SystemExit(f'{business}/{arm} does not have exactly repetitions 1-6.')
+            if reps != expected:
+                raise SystemExit(f'{business}/{arm} does not have exactly repetitions 1-{len(expected)}.')
     codes = rnd.sample(range(100, 1000), len(attempts))
     key = dict(reports={}, pairs={}, attempts=[{k: a[k] for k in ('code', 'business', 'repetition', 'arm', 'delivered', 'status', 'trial')}
                                               for a in attempts])
@@ -101,7 +122,7 @@ def build(data_dir, kits, key_path, *trials, allow_not_run=False):
         code = f'R{number}'
         attempt['kit'] = code
         run = Path(attempt['run'])
-        write_report(kits / 'audit' / code, run)
+        write_report(kits / 'audit' / code, run, auditor=True)
         write_report(kits / 'judge' / code, run)
         key['reports'][code] = {k: attempt[k] for k in ('code', 'business', 'repetition', 'arm')}
     for business in sorted({a['business'] for a in attempts}):
@@ -115,12 +136,12 @@ def build(data_dir, kits, key_path, *trials, allow_not_run=False):
             shutil.copyfile(source, data / name)
         for repetition in sorted({a['repetition'] for a in attempts if a['business'] == business}):
             pair = {a['arm']: a for a in attempts if a['business'] == business and a['repetition'] == repetition}
-            order = ['v1', 'legacy']
+            order = list(arms)
             rnd.shuffle(order)
             name = f'{business}-{repetition}'
             key['pairs'][name] = dict(order=order, kits={arm: pair[arm].get('kit') for arm in order})
             if all(pair[arm].get('kit') for arm in order):
-                total = sum(len(pages((Path(pair[arm]['run']) / 'informe.html').read_text())) for arm in order)
+                total = sum(page_count(Path(pair[arm]['run'])) for arm in order)
                 key['pairs'][name]['images'] = total
                 if total > MAX_PAIR_IMAGES:
                     # Never truncate: dropped pages would depend on the random A/B position.
@@ -150,5 +171,7 @@ def build(data_dir, kits, key_path, *trials, allow_not_run=False):
 
 if __name__ == '__main__':
     args = sys.argv[1:]
-    flag = args[:1] == ['--allow-not-run']
-    build(*args[flag:], allow_not_run=flag)
+    flag = '--allow-not-run' in args
+    reps = [int(a.split('=', 1)[1]) for a in args if a.startswith('--repetitions=')]
+    args = [a for a in args if a != '--allow-not-run' and not a.startswith('--repetitions=')]
+    build(*args, allow_not_run=flag, repetitions=reps[0] if reps else 6)
