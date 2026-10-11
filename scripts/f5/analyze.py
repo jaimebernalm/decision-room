@@ -24,6 +24,10 @@ def mean(values):
     return sum(values) / len(values) if values else None
 
 
+def extra_v1_losses_allowed(_):
+    return 1  # (a): v1 loses at most 1 of its 12 attempts
+
+
 def main(trial, key_path, results, out):
     trial, results = Path(trial), Path(results)
     key = load(key_path)
@@ -113,48 +117,58 @@ def main(trial, key_path, results, out):
     v1 = {k: report['businesses'][k]['arms']['v1'] for k in BUSINESSES}
     lg = {k: report['businesses'][k]['arms']['legacy'] for k in BUSINESSES}
     v1_losses, lg_losses = sum(v['losses'] for v in v1.values()), sum(v['losses'] for v in lg.values())
-    unaccredited = []
-    cond = {}
-    cond['a'] = v1_losses <= 1 and v1_losses <= lg_losses
-    b_ok = sum(v['critical_total'] for v in v1.values()) == 0
+    # Each condition is True (met), False (failed) or None (not accredited). Missing evaluations
+    # make the trial incomplete; a comparison without legacy deliveries is not accredited.
+    unaccredited, missing = [], []
+    cond = {'a': v1_losses <= extra_v1_losses_allowed(v1_losses) and v1_losses <= lg_losses}
     for k in BUSINESSES:
-        if not v1[k]['evaluations_complete'] or not lg[k]['evaluations_complete'] or v1[k]['material_mean'] is None or lg[k]['material_mean'] is None:
-            unaccredited.append(f'b:{k}'); b_ok = False
+        for arm in (v1[k], lg[k]):
+            if arm['delivered'] and not arm['evaluations_complete']:
+                missing.append(f'evaluations:{k}')
+    b_state = sum(v['critical_total'] for v in v1.values()) == 0
+    for k in BUSINESSES:
+        if v1[k]['material_mean'] is None or lg[k]['material_mean'] is None:
+            unaccredited.append(f'b:{k}'); b_state = None if b_state is not False else False
             continue
-        b_ok = b_ok and v1[k]['material_mean'] <= 0.5 and v1[k]['material_mean'] - lg[k]['material_mean'] <= 0.25
-    cond['b'] = b_ok
-    c_ok = True
+        if not (v1[k]['material_mean'] <= 0.5 and v1[k]['material_mean'] - lg[k]['material_mean'] <= 0.25):
+            b_state = False
+    cond['b'] = b_state
+    c_state = True
     for k in BUSINESSES:
         r = report['businesses'][k]['reading']
         if r['owner']['incomplete'] or r['advisor']['incomplete']:
-            unaccredited.append(f'c:{k}'); c_ok = False
+            missing.append(f'reading:{k}')
+            c_state = None if c_state is not False else False
             continue
-        c_ok = c_ok and r['owner']['mean'] > 0.5 and r['advisor']['mean'] >= 0.5
-    cond['c'] = c_ok
-    d_ok = True
+        if not (r['owner']['mean'] > 0.5 and r['advisor']['mean'] >= 0.5):
+            c_state = False
+    cond['c'] = c_state
+    d_state = True
     for k in BUSINESSES:
         if v1[k]['signal_mean'] is None or lg[k]['signal_mean'] is None:
-            unaccredited.append(f'd:{k}'); d_ok = False
+            unaccredited.append(f'd:{k}'); d_state = None if d_state is not False else False
             continue
-        d_ok = d_ok and v1[k]['signal_mean'] >= lg[k]['signal_mean'] - 1 and v1[k]['decoy_hits'] <= lg[k]['decoy_hits'] + 1
-    cond['d'] = d_ok
+        if not (v1[k]['signal_mean'] >= lg[k]['signal_mean'] - 1 and v1[k]['decoy_hits'] <= lg[k]['decoy_hits'] + 1):
+            d_state = False
+    cond['d'] = d_state
     usd = [a['usd'] for a in key['attempts'] if a['arm'] == 'v1']
     seconds = [by_code[a['code']]['seconds'] for a in key['attempts'] if a['arm'] == 'v1' and by_code[a['code']]['seconds'] is not None]
     cond['e'] = (mean(usd) <= 0.50 and max(usd) <= 1.00 and sum(v['unsettled'] for v in v1.values()) == 0
                  and bool(seconds) and statistics.median(seconds) / 60 <= 15)
-    complete = (all(a['status'] in ('completed', 'blocked', 'failed', 'waiting', 'failure') for a in key['attempts'])
-                and not any(u.startswith(('b:', 'c:', 'd:')) for u in unaccredited))
-    failed_bcd = [c for c in 'bcd' if not cond[c]]
-    if not cond['a'] or len(failed_bcd) >= 2:
+    attempted = all(a['status'] in ('completed', 'blocked', 'failed', 'waiting', 'failure') for a in key['attempts'])
+    complete = attempted and not missing and not key.get('incomplete_pairs') and not any(
+        p.get('reading') for p in key['pairs'].values())
+    failed_bcd = [c for c in 'bcd' if cond[c] is False]
+    if not complete:
+        outcome = 'incompleto'  # never candidato, never decided on a subset
+    elif not cond['a'] or len(failed_bcd) >= 2:
         outcome = 'no_candidato'
-    elif failed_bcd or not cond['e'] or unaccredited:
+    elif failed_bcd or not cond['e'] or any(cond[c] is None for c in 'bcd'):
         outcome = 'mixto'
     else:
         outcome = 'candidato'
-    if not complete and outcome == 'candidato':
-        outcome = 'incompleto'
-    report['conditions'] = dict(cond, unaccredited=unaccredited, v1_losses=v1_losses, legacy_losses=lg_losses,
-                                complete=complete, outcome=outcome)
+    report['conditions'] = dict(cond, unaccredited=unaccredited, missing=missing, v1_losses=v1_losses,
+                                legacy_losses=lg_losses, complete=complete, outcome=outcome)
     Path(out).write_text(json.dumps(report, indent=2, ensure_ascii=False, default=str) + '\n')
     print(json.dumps(report['conditions'], ensure_ascii=False))
 

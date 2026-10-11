@@ -313,3 +313,55 @@ intentos.
   truncar parejas de más de 12 imágenes) está aplicada en `74ccb21`.
 - Comprobación ciega posterior: `scripts/checks/product_trial_verify.py` de Astra (`f95638d`),
   que no cambia la rúbrica.
+
+## Incidente del lote 1 y enmienda F5b (2026-10-11, antes de ver calidad)
+
+**Lote 1 (`.local/f5/test`), incompleto según la regla congelada.**
+- A las 06:18 UTC, una llamada de extracción de memoria de `clinica-1-legacy` recibió una
+  respuesta del proveedor que el ledger trató como incierta.
+  - La causa más probable es un rechazo HTTP con los dos negocios en paralelo. El ledger no
+    guardaba el código de estado.
+  - El ledger aplicó su parada global durable.
+- Intentos del lote 1, todos conservados:
+  - `herbolario-1-legacy`: completo, con instantánea.
+  - `clinica-1-opencode`: entregado, pero el navegador aislado falla de forma reproducible con
+    «Rendered pixels do not stabilize». Es una **pérdida real de v1**.
+  - `herbolario-1-opencode`: bloqueado porque la parada global rechazó su tercera llamada.
+  - `clinica-1-legacy`: fallido por la llamada incierta («La información del negocio aún no
+    está preparada»).
+  - Los 20 restantes no llegaron a empezar, porque el ledger ya estaba parado antes de
+    `started.json`.
+- Como la parada es durable y no se reinicia, el lote 1 es **incompleto** y no puede dar
+  candidato.
+
+**Enmienda F5b.** Se decide antes de mirar ningún informe, auditoría ni lectura, con la
+conformidad de Astra.
+- La parada global por un rechazo HTTP explícito es un artefacto del ensayo: en el producto no
+  existe una parada global.
+- F5b repite el diseño con dos cambios técnicos:
+  1. El ledger trata un rechazo HTTP explícito (estado ≥ 400 sin uso) como `rejected`.
+     - Conserva cargada la reserva completa, de forma conservadora, y guarda el código.
+     - No detiene el resto. Rigen los reintentos y fallos propios del producto.
+     - Lo incierto de verdad sigue deteniendo todo: stream interrumpido, uso ausente con 200,
+       o modelo o servicio inesperados.
+  2. Un solo informe a la vez en todo el ensayo, primero un negocio y después el otro, en el
+     orden congelado.
+- Lo demás no cambia: el spec, salvo la ruta y el techo del ledger nuevo; las indicaciones de
+  los evaluadores; la presentación y la regla. El techo del ledger nuevo es 23 USD menos la cota
+  cargada en `budget-test.sqlite`, así que el total sigue ≤ 25 USD.
+- **F5 sigue siendo incompleto** y conserva todas sus pérdidas, incluidas las dos cortadas por
+  la parada global: no se sabe qué habría hecho el producto sin ella. **F5b es un ensayo nuevo
+  de 24 intentos**, separado.
+  - La regla congelada se aplica a F5b por sí solo.
+  - Además se publica un análisis acumulado con todos los intentos originales.
+- **Condición añadida para F5b:** aunque salga candidato, v1 no pasa a ser el valor por
+  defecto mientras no se resuelva la pérdida real de render de F5 (`clinica-1-opencode`, «Rendered
+  pixels do not stabilize»).
+  - Se resuelve con un cambio del renderizador que muestre correctamente ese HTML exacto,
+    conservado intacto, sin perder las garantías de F4.
+  - O con una explicación verificada de por qué no puede repetirse.
+- El ledger nuevo lo implementa Astra en su rama (`rejected` con `http_status`), con pruebas
+  con un proveedor falso.
+- `scripts/f5/analyze.py` se corrigió antes de ver ningún resultado. Una comparación sin
+  entregas legacy queda sin acreditar, no fallida. Una evaluación o lectura ausente da
+  incompleto. Lo prueba `tests/test_f5_analyze.py`.
