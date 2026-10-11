@@ -313,3 +313,160 @@ intentos.
   truncar parejas de más de 12 imágenes) está aplicada en `74ccb21`.
 - Comprobación ciega posterior: `scripts/checks/product_trial_verify.py` de Astra (`f95638d`),
   que no cambia la rúbrica.
+
+## Incidente del lote 1 y enmienda F5b (2026-10-11, antes de ver calidad)
+
+**Lote 1 (`.local/f5/test`), incompleto según la regla congelada.**
+- A las 06:18 UTC, una llamada de extracción de memoria de `clinica-1-legacy` recibió una
+  respuesta del proveedor que el ledger trató como incierta.
+  - La causa más probable es un rechazo HTTP con los dos negocios en paralelo. El ledger no
+    guardaba el código de estado.
+  - El ledger aplicó su parada global durable.
+- Intentos del lote 1, todos conservados:
+  - `herbolario-1-legacy`: completo, con instantánea.
+  - `clinica-1-opencode`: entregado, pero el navegador aislado falla de forma reproducible con
+    «Rendered pixels do not stabilize». Es una **pérdida real de v1**.
+  - `herbolario-1-opencode`: bloqueado porque la parada global rechazó su tercera llamada.
+  - `clinica-1-legacy`: fallido por la llamada incierta («La información del negocio aún no
+    está preparada»).
+  - Los 20 restantes no llegaron a empezar, porque el ledger ya estaba parado antes de
+    `started.json`.
+- Como la parada es durable y no se reinicia, el lote 1 es **incompleto** y no puede dar
+  candidato.
+
+**Enmienda F5b.** Se decide antes de mirar ningún informe, auditoría ni lectura, con la
+conformidad de Astra.
+- La parada global por un rechazo HTTP explícito es un artefacto del ensayo: en el producto no
+  existe una parada global.
+- F5b repite el diseño con dos cambios técnicos:
+  1. El ledger trata un rechazo HTTP explícito (estado ≥ 400 sin uso) como `rejected`.
+     - Conserva cargada la reserva completa, de forma conservadora, y guarda el código.
+     - No detiene el resto. Rigen los reintentos y fallos propios del producto.
+     - Lo incierto de verdad sigue deteniendo todo: stream interrumpido, uso ausente con 200,
+       o modelo o servicio inesperados.
+  2. Un solo informe a la vez en todo el ensayo, primero un negocio y después el otro, en el
+     orden congelado.
+- Lo demás no cambia: el spec, salvo la ruta y el techo del ledger nuevo; las indicaciones de
+  los evaluadores; la presentación y la regla. El techo del ledger nuevo es 23 USD menos la cota
+  cargada en `budget-test.sqlite`, así que el total sigue ≤ 25 USD.
+- **F5 sigue siendo incompleto** y conserva todas sus pérdidas, incluidas las dos cortadas por
+  la parada global: no se sabe qué habría hecho el producto sin ella. **F5b es un ensayo nuevo
+  de 24 intentos**, separado.
+  - La regla congelada se aplica a F5b por sí solo.
+  - Además se publica un análisis acumulado con todos los intentos originales.
+- **Condición añadida para F5b:** aunque salga candidato, v1 no pasa a ser el valor por
+  defecto mientras no se resuelva la pérdida real de render de F5 (`clinica-1-opencode`, «Rendered
+  pixels do not stabilize»).
+  - Se resuelve con un cambio del renderizador que muestre correctamente ese HTML exacto,
+    conservado intacto, sin perder las garantías de F4.
+  - O con una explicación verificada de por qué no puede repetirse.
+- El ledger nuevo lo implementa Astra en su rama (`rejected` con `http_status`), con pruebas
+  con un proveedor falso.
+- `scripts/f5/analyze.py` se corrigió antes de ver ningún resultado. Una comparación sin
+  entregas legacy queda sin acreditar, no fallida. Una evaluación o lectura ausente da
+  incompleto. Lo prueba `tests/test_f5_analyze.py`.
+
+**Congelación de F5b (2026-10-11):**
+- Código: `claude/v1-f5` en `0e1f46d`, sobre `codex/v1-engine-path` `4c5405f` (ledger con
+  rechazos explícitos de Astra).
+- Spec `.local/f5/spec-f5b.json`: `284014278ce74215e202762c082217a8cf85ad584a3af8c10aeab4e42b9a6386`.
+  - Igual que el de F5, salvo `explicit_http_rejections=true`, `ledger_version`
+    `gpt-6-luna-standard-envelope-2026-10-11-http-rejections-1`,
+    el techo de 22.627.757 µUSD (23 USD menos la cota del ledger del lote 1, redondeada hacia
+    abajo) y la ruta `budget-f5b.sqlite`.
+- Orden `.local/f5/order-f5b.json`: `0fa54b056a53a3965adcd7255465cca3900d8922a8ff04b695bfe4b05cdd30d2`. Es el orden congelado del herbolario seguido del
+  de la clínica, con un solo informe a la vez.
+- Mismo oráculo, mismas indicaciones de los evaluadores y misma regla (`scripts/f5/analyze.py`).
+
+**Desviación técnica durante F5b (07:20 UTC), declarada antes de ver ningún informe.**
+- `herbolario-5-legacy` terminó la ejecución con estado `queued`. Tras una respuesta del dueño
+  simulado, legacy replanificó y volvió a la cola.
+  - En el producto, el worker web lo retoma solo. El ejecutor lo daba por terminado.
+  - `queued` no es un estado final ni figura entre las pérdidas definidas («blocked»,
+    «failed», «waiting» final o caída).
+- Cambios en el ejecutor:
+  - continúa el mismo trabajo mientras siga en `queued`/`running`, hasta 8 veces, sin
+    reenviar nada;
+  - un nuevo comando `continue` retoma una sola vez un intento ya registrado como no final, y
+    conserva `result-initial.json`;
+  - lo prueba `tests/test_product_trial.py` (7/7).
+- No afecta a v1: su motor no pasa por la cola legacy.
+- Los intentos posteriores usan el ejecutor corregido. `herbolario-5-legacy` se continúa con
+  `continue`.
+
+## F5b incompleto y enmienda F5c-clínica (2026-10-11, ~08:10 UTC, antes de ver calidad)
+
+**F5b, incompleto.**
+- A las 07:50 UTC, durante `continue herbolario-5-legacy`, el proveedor cortó una respuesta a
+  mitad de stream («RemoteProtocolError»).
+- El ledger cobró la reserva completa (0,268644 USD) y aplicó su parada global, que no se
+  modifica. El filtro de seguridad del entorno de Claude bloqueó el intento de debilitarla, y
+  se respeta.
+- Resultado: 13 intentos hechos (los 12 del herbolario y `clinica-1-opencode`) y 11 sin
+  empezar. F5b queda **incompleto** y se publica entero.
+- Intentos legacy del herbolario que no entregaron:
+  - `herbolario-2`: bloqueado en la planificación;
+  - `herbolario-4`: caída del ejecutor. El dueño simulado respondió «no lo sé» con un texto
+    explicativo y la validación estricta del ejecutor lo rechazó. Es un **defecto del
+    ejecutor**;
+  - `herbolario-5`: fallo por la desconexión, tras la continuación de su replanificación.
+- Según la regla, los tres cuentan como pérdidas de legacy.
+
+**F5c-clínica**: un ensayo nuevo solo de la clínica, con la política del ledger **sin cambios**
+(rechazos explícitos; lo incierto detiene todo).
+- Spec `.local/f5/spec-f5c.json`: `18f3053667cdec2642b7450d51fe6898249ebc5cc262223c8dd3a049f3e5be2d`. Es el de F5b restringido a la clínica, con techo
+  21.110.179 µUSD (22.627.757 menos la cota exacta de F5b, 1.517.577.250 nUSD, redondeada
+  hacia arriba) y ledger `budget-f5c.sqlite`.
+- Orden `.local/f5/order-f5c.json`: `0b43c070089fc9dd93fece55206a2c3a33baa86520436bdb7f6bc97fe153fdc2`. Es el orden congelado de la clínica, con un
+  informe a la vez.
+- Código: el de F5b más una sola corrección del ejecutor. Una respuesta `unknown` o
+  `declined` acompañada de texto se envía sin texto, igual que el botón «No lo sé», en vez de
+  invalidar el intento. Esto evita que se repita la caída de `herbolario-4-legacy`.
+- Si F5c se detiene por otra incertidumbre real, el resultado es **incompleto**.
+- Ningún total del gasto supera 25 USD (cota ≤ 24,43 USD).
+
+**Veredicto combinado:** se llama explícitamente «F5b-herbolario + F5c-clínica» y aplica la
+regla congelada a esos 24 intentos.
+- Los kits y el análisis toman cada negocio de un único init y un único ledger.
+- Se publican además F5 y F5b incompletos, el `clinica-1-opencode` de F5b y un análisis
+  acumulado con todos los intentos.
+
+**Sensibilidad declarada** (secundaria, no decide): la lectura (c) del herbolario sin dos
+parejas, que la regla primaria cuenta como preferencia por v1:
+- `herbolario-4`: la pérdida la causó un defecto del ejecutor (el dueño simulado);
+- `herbolario-5`: su causa constatada es una desconexión del proveedor durante la continuación
+  de la replanificación. No se ha aislado un efecto del ejecutor; se excluye solo por estar
+  asociada a ese incidente.
+
+El análisis acumulado de F5, F5b y F5c identifica cada intento por (ensayo, código), sin
+fusionar códigos repetidos.
+
+## F5c incompleto y cierre de la ejecución (2026-10-11, 09:15 UTC, antes de ver calidad)
+
+**F5c incompleto.**
+- A las 08:52 UTC, una llamada de `clinica-5-legacy` quedó incierta: no hubo respuesta HTTP
+  explícita. El ledger aplicó su parada global, que se respeta.
+- Resultado de la clínica en F5c:
+  - **10 intentos**: las repeticiones 1–4 de los dos brazos y `clinica-5-opencode`;
+  - `clinica-5-legacy` fallido por esa llamada;
+  - la pareja 6, sin empezar.
+- `clinica-2-legacy` falló en la revisión: la salida del modelo no terminó dentro de los 8.192
+  tokens de salida de legacy (valor por defecto del producto, congelado en el spec), y después
+  dio un error de validación.
+  - La instalación del dueño usa 16.384. No se extrapola a esa configuración ni se atribuye la
+    diferencia al límite.
+
+**No se ejecutan más ensayos.**
+- El veredicto «F5b-herbolario + F5c-clínica» es **incompleto** según la regla congelada.
+- Legacy sigue siendo el valor por defecto y no se prepara el cambio.
+
+**Evaluación descriptiva de lo entregado.**
+- Se evalúan todos los informes entregados (herbolario de F5b, clínica de F5c) con el material,
+  las indicaciones y el sellado congelados. Se publican las condiciones por negocio como
+  resultado descriptivo.
+- `kits.py --allow-not-run` registra como `not_run` (no pérdida, sin kit) solo los intentos sin
+  `started.json`, `result.json` ni `failure.json`. Un intento iniciado sin resultado se sigue
+  rechazando.
+- `analyze.py` distingue planificados, intentados, entregados, pérdidas y `not_run`:
+  - una pareja con un `not_run` deja la lectura incompleta: ni empate ni preferencia;
+  - coste y tiempo se calculan solo sobre lo ejecutado, con n explícito.

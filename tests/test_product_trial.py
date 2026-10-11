@@ -82,7 +82,7 @@ class ProductTrialTests(unittest.TestCase):
         manifest=self.initialize()
         seen=[]
         replies=[('stop',json.dumps({'disposition':'answered','text':' Comparo con el año pasado. '})),
-                 ('stop',json.dumps({'disposition':'unknown','text':''})),
+                 ('stop',json.dumps({'disposition':'unknown','text':'No conozco cambios de ese tipo.'})),
                  ('length','{"disposition":"answ'),
                  ('stop',json.dumps({'disposition':'answered','text':''}))]
         def provider(request):
@@ -115,9 +115,48 @@ class ProductTrialTests(unittest.TestCase):
         manifest=self.initialize()
         policy=trial.api_budget.Ledger(manifest['budget_path']).snapshot()['policy']
         self.assertEqual((policy['input_cap'],policy['output_cap'],policy['calls_cap'],policy['seconds_cap']),(40000000,1000000,400,3600))
+        self.assertEqual(policy['version'],trial.api_budget.VERSION)
+        self.spec['explicit_http_rejections']=True;self.source.write_text(json.dumps(self.spec))
+        with patch.object(trial.Config,'load',return_value=self.base),self.assertRaises(ValueError):
+            trial.initialize(self.source,self.root/'other-policy')
+        self.spec['explicit_http_rejections']=False
         self.spec['scope_quotas']['calls']=60;self.source.write_text(json.dumps(self.spec))
         with patch.object(trial.Config,'load',return_value=self.base),self.assertRaises(ValueError):
             trial.initialize(self.source,self.root/'again')
+
+    def test_rejection_policy_ledger_is_created_with_its_version(self):
+        self.spec.update(explicit_http_rejections=True,ledger_version=trial.api_budget.REJECTION_VERSION,budget_path=str(self.root/'f5b.sqlite'))
+        self.source.write_text(json.dumps(self.spec))
+        manifest=self.initialize()
+        self.assertEqual(trial.api_budget.Ledger(manifest['budget_path']).snapshot()['policy']['version'],trial.api_budget.REJECTION_VERSION)
+        self.spec['ledger_version']=trial.api_budget.VERSION;self.source.write_text(json.dumps(self.spec))
+        with patch.object(trial.Config,'load',return_value=self.base),self.assertRaises(ValueError):
+            trial.initialize(self.source,self.root/'mismatch')
+
+    def test_non_terminal_jobs_continue_and_a_recorded_queued_attempt_resumes_once(self):
+        manifest=self.initialize();code=next(j['code'] for j in manifest['jobs'] if j['arm']=='legacy')
+        real_workspace=trial.Workspace
+        states=iter(['queued','queued','blocked'])
+        business=next(j['business_id'] for j in manifest['jobs'] if j['code']==code)
+        def workspace(config,settings):
+            ws=real_workspace(config,settings).scoped(business);ws.scoped=lambda _:ws
+            real_row=ws.row;current={'status':'queued'}
+            ws.run_job=lambda job:current.update(status=next(states))
+            ws.row=lambda job:{**real_row(job),'status':current['status']}
+            return ws
+        with patch.object(trial,'Workspace',side_effect=workspace):trial.execute(self.output,code)
+        result=json.loads((self.output/'runs'/code/'result.json').read_text())
+        self.assertEqual((result['status'],result['continuations']),('blocked',2))
+        with self.assertRaises(ValueError):trial.execute(self.output,code,resume=True)  # terminal: never continued
+        # A recorded non-terminal result continues the same job once, keeping the first record.
+        target=self.output/'runs'/code
+        (target/'result.json').write_text(json.dumps({**result,'status':'queued','seconds':5.0}))
+        states=iter(['blocked'])
+        with patch.object(trial,'Workspace',side_effect=workspace):trial.execute(self.output,code,resume=True)
+        self.assertEqual(json.loads((target/'result-initial.json').read_text())['status'],'queued')
+        final=json.loads((target/'result.json').read_text())
+        self.assertTrue(final['resumed']);self.assertGreaterEqual(final['seconds'],5.0)
+        with self.assertRaises(ValueError):trial.execute(self.output,code,resume=True)
 
     def test_crash_is_preserved_and_over_cap_spec_is_rejected_before_preparation(self):
         manifest=self.initialize();code=manifest['jobs'][0]['code']

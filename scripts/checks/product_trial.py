@@ -61,15 +61,21 @@ def initialize(spec_path, root):
     quotas={'input_tokens':6000000,'output_tokens':128000,'calls':60,'seconds':1200,**spec.get('scope_quotas',{})}
     if set(quotas)!={'input_tokens','output_tokens','calls','seconds'} or any(type(v) is not int or v<=0 for v in quotas.values()):
         raise ValueError('Scope quotas must be positive integers.')
+    rejections=spec.get('explicit_http_rejections',False)
+    if type(rejections) is not bool:
+        raise ValueError('explicit_http_rejections must be a boolean.')
+    version=api_budget.REJECTION_VERSION if rejections else api_budget.VERSION
+    if spec.get('ledger_version',version)!=version:
+        raise ValueError('The spec ledger version does not match its rejection policy.')
     if budget_path.exists():
         policy=api_budget.Ledger(budget_path).snapshot()['policy']
         expected={'input_cap':quotas['input_tokens'],'output_cap':quotas['output_tokens'],'calls_cap':quotas['calls'],'seconds_cap':quotas['seconds']}
         if (policy['cap'] != spec['cap_micro_usd']*1000 or policy['scope_cap'] != spec['scope_cap_micro_usd']*1000
-                or any(policy[k]!=v for k,v in expected.items())):
+                or policy['version'] != version or any(policy[k]!=v for k,v in expected.items())):
             raise ValueError('The shared ledger has different ceilings; never reset it.')
     else:
         api_budget.Ledger.create(budget_path,cap_micro_usd=spec['cap_micro_usd'],
-                                scope_cap_micro_usd=spec['scope_cap_micro_usd'],**quotas)
+                                scope_cap_micro_usd=spec['scope_cap_micro_usd'],explicit_http_rejections=rejections,**quotas)
     jobs=[];active=None
     for item in spec['businesses']:
         if not isinstance(item['key'],str) or not re.fullmatch(r'[a-z][a-z0-9-]{0,63}',item['key']):
@@ -113,6 +119,7 @@ def initialize(spec_path, root):
     print(json.dumps({'database':database,'jobs':len(jobs),'output':str(root)}))
 
 MAX_ANSWERS=6
+MAX_RERUNS=8
 OWNER_PROMPT=(
     'Eres la persona dueña del negocio descrito abajo. Encargaste un informe a una herramienta de análisis y ahora te hace '
     'una pregunta. Responde como lo haría esa persona: en primera persona, breve (de una a tres frases), coherente con la '
@@ -150,18 +157,27 @@ def owner_answer(owner, question):
     value=json.loads(choice['message']['content'])
     if (not isinstance(value,dict) or set(value)!={'disposition','text'} or value['disposition'] not in ('answered','unknown','declined')
             or not isinstance(value['text'],str) or len(value['text'])>1500
-            or (value['disposition']=='answered')!=bool(value['text'].strip())):
+            or (value['disposition']=='answered' and not value['text'].strip())):
         raise ValueError('The owner stand-in answer is invalid.')
+    # unknown/declined is sent without text, as the product's «No lo sé» button does; an
+    # explanatory text alongside it is dropped, not treated as an invalid declaration.
     return value['disposition'],value['text'].strip() if value['disposition']=='answered' else ''
 
 
-def _execute(root, code):
+def _execute(root, code, resume=False):
     root=Path(root).resolve();manifest=json.loads((root/'manifest.json').read_text())
     job=next(j for j in manifest['jobs'] if j['code']==code)
     target=root/'runs'/code;target.mkdir(parents=True,mode=0o700,exist_ok=True)
-    if (target/'result.json').exists():
+    if resume:
+        # Continue the SAME job whose recorded result was not a terminal product state.
+        # The first result is kept; nothing already sent is replayed.
+        initial=json.loads((target/'result.json').read_text())
+        if initial['status'] not in ('queued','running') or (target/'result-initial.json').exists():
+            raise ValueError('Only a non-terminal recorded attempt can be continued, once.')
+        os.replace(target/'result.json',target/'result-initial.json')
+    elif (target/'result.json').exists():
         raise ValueError('This attempt is already recorded; no automatic trial retry.')
-    if (target/'started.json').exists():
+    elif (target/'started.json').exists():
         raise ValueError('Unfinished attempt requires explicit reconciliation, not a new send.')
     config=Config(**{**manifest['config'],'storage':Path(manifest['config']['storage'])})
     settings=ModelSettings(**manifest['settings']);ws=Workspace(config,settings).scoped(job['business_id'])
@@ -169,14 +185,30 @@ def _execute(root, code):
     ledger=api_budget.Ledger(manifest['budget_path'])
     if ledger.snapshot()['policy']['stopped']:
         raise api_budget.BudgetStopped('Trial provider budget is stopped.')
-    start=time.monotonic();save(target/'started.json',job)
-    answers=[]
+    start=time.monotonic()
+    if resume:
+        start-=initial['seconds']  # durations include the first, recorded segment
+    else:
+        save(target/'started.json',job)
+    answers=json.loads((target/'answers.json').read_text()) if resume and (target/'answers.json').exists() else []
+    continuations=json.loads((target/'continuations.json').read_text()) if resume and (target/'continuations.json').exists() else []
     with api_budget.scope('web:'+job['job_id']):
         ws.run_job(job['job_id'])
         # Legacy may ask its owner. A stand-in that knows only the spec's description
         # and goal answers, inside the same budget scope as the job; one send per
         # question and no repeat after an uncertain send (it stops the ledger).
-        while ws.row(job['job_id'])['status']=='waiting' and job['arm']=='legacy' and len(answers)<MAX_ANSWERS:
+        reruns=0
+        while True:
+            status=ws.row(job['job_id'])['status']
+            if status in ('queued','running') and reruns<MAX_RERUNS:
+                # Not terminal: the product worker would pick the job up again (for example
+                # after a legacy replan). Continue the same job; nothing is resent.
+                reruns+=1;continuations.append({'status':status,'at':time.monotonic()-start})
+                save(target/'continuations.json',continuations)
+                ws.run_job(job['job_id'])
+                continue
+            if not (status=='waiting' and job['arm']=='legacy' and len(answers)<MAX_ANSWERS):
+                break
             pending=ws.detail(job['job_id'])['questions']
             if not pending:
                 break
@@ -208,7 +240,8 @@ def _execute(root, code):
     result={'job':job,'status':row['status'],'phase':row['phase'],'issue':row['issue'],
         'seconds':time.monotonic()-start,'engine_run_id':row['engine_run_id'],
         'session_id':row['session_id'],'research_id':row['research_id'],'review_id':row['review_id'],
-        'report_document_id':row['report_document_id'],'delivery':False,'snapshot':False,'owner_answers':len(answers)}
+        'report_document_id':row['report_document_id'],'delivery':False,'snapshot':False,'owner_answers':len(answers),
+        'continuations':len(continuations),'resumed':resume}
     if row['engine_run_id']:
         state=admission.inspect_run(config,job['business_id'],row['engine_run_id'])
         save(target/'engine.json',state)
@@ -244,9 +277,9 @@ def _execute(root, code):
     print(json.dumps({k:result[k] for k in ('status','phase','delivery','snapshot','seconds')},default=str))
 
 
-def execute(root, code):
+def execute(root, code, resume=False):
     try:
-        _execute(root,code)
+        _execute(root,code,resume)
     except BaseException as error:
         target=Path(root)/'runs'/code
         if (target.is_dir() and (target/'started.json').exists() and not (target/'result.json').exists()
@@ -273,11 +306,12 @@ def accounting(root, code):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command',choices=('init','run','accounting','status','stop'))
+    parser.add_argument('command',choices=('init','run','continue','accounting','status','stop'))
     parser.add_argument('path');parser.add_argument('argument',nargs='?')
     args=parser.parse_args()
     if args.command=='init':initialize(args.path,args.argument)
     elif args.command=='run':execute(args.path,args.argument)
+    elif args.command=='continue':execute(args.path,args.argument,resume=True)
     elif args.command=='accounting':accounting(args.path,args.argument)
     else:
         manifest=json.loads((Path(args.path)/'manifest.json').read_text())
