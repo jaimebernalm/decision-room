@@ -37,7 +37,7 @@ class BlocksPdfTests(unittest.TestCase):
             'coverage': {'numeric_spans': 31, 'addressed_spans': 26, 'confirmed_spans': 26}, 'items': [
             {'block_id': 'b4', 'quote': '2026', 'status': 'unverifiable', 'coverage': True,
              'message': '3 cifras de esta prioridad no se recalcularon de forma independiente.'}]}))
-        self.assertIn('Se recalcularon con los datos 26 de las 31 cifras', text)
+        self.assertIn('Se examinaron 26 de los 31 números citados', text)
         self.assertNotIn('no se recalcularon de forma independiente', text)
         self.assertIn('Detalles de la comprobación independiente', text)
         self.assertNotIn('Cifras que no se pudieron recalcular', text)
@@ -91,6 +91,18 @@ class BlocksPdfTests(unittest.TestCase):
         name, units = grid_table._cellvalues[1]
         self.assertNotEqual(name.style.alignment, 2)
         self.assertEqual(units.style.alignment, 2)
+
+    def test_stacked_gaps_are_never_totals_of_zero(self):
+        from reportlab.graphics.shapes import String
+        series = [{'nombre': 'A', 'valores': [2, 2, None]}, {'nombre': 'B', 'valores': [3, None, None]}]
+        for kind in ('apiladas', 'barras_apiladas'):
+            projection = blocks.parse(raw(doc({'tipo': 'grafico', 'grafico': kind, 'titulo': 'Huecos',
+                                                'categorias': ['Completa', 'Parcial', 'Sin datos'], 'series': series})))
+            labels = [x.text for x in blocks_pdf.chart_drawing(projection['blocks'][0]).contents if isinstance(x, String)]
+            self.assertIn('5', labels)
+            self.assertIn('2 (parcial)', labels)
+            self.assertEqual(labels.count('0'), 0 if kind == 'barras_apiladas' else 1)  # only the axis
+            self.assertNotIn('2', labels)
 
     def test_series_colors_spread_from_dark_to_light(self):
         from reportlab.lib import colors

@@ -198,6 +198,12 @@ function ChartValues({ chart }: { chart: ChartBlock }) {
   );
 }
 
+/** A stack total names what it adds up: hidden series or gaps make it visible or partial. */
+export function stackTotalLabel(chart: ChartBlock, category: number, seriesHidden: boolean) {
+  if (seriesHidden) return tr("Total visible");
+  return chart.series.some((s) => s.values[category] === null) ? tr("Total parcial") : tr("Total");
+}
+
 function BlockChartBody({ chart }: { chart: ChartBlock }) {
   useLanguage();
   const rows = chartRows(chart);
@@ -233,18 +239,21 @@ function BlockChartBody({ chart }: { chart: ChartBlock }) {
         const category = String(payload[0].payload.category);
         const c = chart.categories.indexOf(category);
         const present = shown.filter(({ s }) => s.values[c] !== null);
-        const items: { label: string; value: string; color?: string }[] = present.map(({ s, i }) => ({
-          label: s.name,
-          value:
-            withUnit(s.values[c], chart.decimals, chart.unit) +
-            (s.details?.[c] ? ` · ${s.details[c]}` : ""),
-          color: color(i),
-        }));
-        if (stacked && present.length > 1)
+        // In a stack a missing part is shown as a gap ("—"), never silently left out.
+        const items: { label: string; value: string; color?: string }[] = (stacked ? shown : present).map(
+          ({ s, i }) => ({
+            label: s.name,
+            value:
+              withUnit(s.values[c], chart.decimals, chart.unit) +
+              (s.details?.[c] ? ` · ${s.details[c]}` : ""),
+            color: color(i),
+          }),
+        );
+        if (stacked && present.length > 0 && shown.length > 1)
           items.push({
-            label: tr("Total"),
+            label: stackTotalLabel(chart, c, hidden.size > 0),
             value: withUnit(
-              present.reduce((sum, { s }) => sum + (s.values[c] ?? 0), 0),
+              present.reduce((sum, { s }) => sum + (s.values[c] as number), 0),
               chart.decimals,
               chart.unit,
             ),
@@ -743,7 +752,7 @@ export function BlocksReport({
             <p className="text-muted-foreground">
               {coverage && coverage.numeric_spans > 0
                 ? tr(
-                    "Se recalcularon con los datos {0} de las {1} cifras de las prioridades; {2} coinciden con el informe.",
+                    "Se examinaron {0} de los {1} números citados en las prioridades; {2} coincidieron al recalcularlos con los datos.",
                     {
                       "0": formatNumber(coverage.addressed_spans, 0),
                       "1": formatNumber(coverage.numeric_spans, 0),

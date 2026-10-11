@@ -90,6 +90,10 @@ def _short(text, n=24):
     return text if len(text) <= n else text[:n - 1] + '…'
 
 
+def _total_label(total, partial, decimals):
+    return format_number(total, decimals) + (' (parcial)' if partial else '')
+
+
 def chart_drawing(chart):
     """Vector drawing for bar, column, line, change and stacked charts (None for tables)."""
     kind, cats, series = chart['kind'], chart['categories'], chart['series']
@@ -97,9 +101,12 @@ def chart_drawing(chart):
     if kind == 'table' or not values:
         return None
     stacked = kind in ('stacked_column', 'stacked_bar')
-    totals = [sum(s['values'][c] or 0 for s in series) for c in range(len(cats))]
+    # A gap is not a zero: a category with no values has no total, one with some gaps a partial one.
+    known = [[s['values'][c] for s in series if s['values'][c] is not None] for c in range(len(cats))]
+    totals = [sum(k) if k else None for k in known]
+    partial = [0 < len(k) < len(series) for k in known]
     if stacked:
-        values = totals
+        values = [t for t in totals if t is not None]
     low, high = min(0, min(values)), max(0, max(values))
     if kind == 'change':
         extent = max(abs(low), abs(high)) or 1
@@ -127,7 +134,9 @@ def chart_drawing(chart):
                     if v:
                         d.add(Rect(x(start), y, x(start + v) - x(start), 9, fillColor=_color(i, len(series)), strokeColor=None))
                         start += v
-                d.add(String(right + 4, y + 1.5, format_number(totals[c], chart['decimals']), fontName='Helvetica', fontSize=7, fillColor=GRAY))
+                if totals[c] is not None:
+                    d.add(String(right + 4, y + 1.5, _total_label(totals[c], partial[c], chart['decimals']),
+                                 fontName='Helvetica', fontSize=7, fillColor=GRAY))
                 continue
             for i, s in enumerate(series):
                 v = s['values'][c]
@@ -160,8 +169,9 @@ def chart_drawing(chart):
                         base[c] += v
             if len(cats) <= LABELLED_BARS:
                 for c, total in enumerate(totals):
-                    d.add(String(left + step * (c + .5), y(total) + 3, format_number(total, chart['decimals']),
-                                 fontName='Helvetica', fontSize=6.5, fillColor=GRAY, textAnchor='middle'))
+                    if total is not None:
+                        d.add(String(left + step * (c + .5), y(total) + 3, _total_label(total, partial[c], chart['decimals']),
+                                     fontName='Helvetica', fontSize=6.5, fillColor=GRAY, textAnchor='middle'))
         for i, s in enumerate(series if kind != 'stacked_column' else []):
             if kind == 'column':
                 width = step * .7 / len(series)
@@ -392,9 +402,9 @@ def render(projection, checks=None, *, delivered_at=None):
         summary = (checks or {}).get('coverage') or {}
         text = ''
         if summary.get('numeric_spans'):
-            text = (f"Se recalcularon con los datos {format_number(summary['addressed_spans'], 0)} de las "
-                    f"{format_number(summary['numeric_spans'], 0)} cifras de las prioridades; "
-                    f"{format_number(summary['confirmed_spans'], 0)} coinciden con el informe. ")
+            text = (f"Se examinaron {format_number(summary['addressed_spans'], 0)} de los "
+                    f"{format_number(summary['numeric_spans'], 0)} números citados en las prioridades; "
+                    f"{format_number(summary['confirmed_spans'], 0)} coincidieron al recalcularlos con los datos. ")
         story.append(paragraph(text + 'Una cifra sin recalcular no está marcada como errónea; '
                                'solo no se revisó por separado.', 'muted'))
         if unverifiable:

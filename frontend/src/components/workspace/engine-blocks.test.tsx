@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { it, expect } from "vitest";
-import { BlocksReport } from "./engine-blocks";
+import { BlocksReport, stackTotalLabel } from "./engine-blocks";
 import { formatNumber } from "@/lib/blocks-format";
 import { ReportView } from "./report";
 import fixture from "@/test-fixtures/blocks-report.json";
@@ -115,9 +115,9 @@ it("summarizes the check in one plain sentence instead of repeating technical no
       }}
     />,
   );
-  expect(screen.queryByText(/Se recalcularon/)).toBeNull(); // inside the folded details
+  expect(screen.queryByText(/Se examinaron/)).toBeNull(); // inside the folded details
   await userEvent.click(screen.getByText("Detalles de la comprobación independiente"));
-  expect(screen.getByText(/Se recalcularon con los datos 26 de las 31 cifras/)).toBeVisible();
+  expect(screen.getByText(/Se examinaron 26 de los 31 números citados/)).toBeVisible();
   expect(screen.getByText(/no está marcada como errónea/)).toBeVisible();
   expect(screen.queryByText(/no se recalcularon de forma independiente/)).toBeNull();
   expect(screen.queryByText("Cifras que no se pudieron recalcular")).toBeNull();
@@ -172,4 +172,19 @@ it("lets the reader sort a table and unfold long ones, keeping the author's orde
   expect(firstCells()[0]).toBe("Producto 8"); // 49 % 10 = 9, the largest
   await userEvent.click(screen.getByRole("button", { name: "Ver las 10 filas" }));
   expect(firstCells()).toHaveLength(10);
+});
+
+it("names stack totals with gaps or hidden series instead of treating a gap as zero", () => {
+  const chart = {
+    id: "b1", type: "chart", kind: "stacked_column", requested_kind: "apiladas", fallback: false,
+    title: "Huecos", categories: ["Completa", "Parcial"],
+    series: [
+      { name: "A", values: [2, 2], details: null },
+      { name: "B", values: [3, null], details: null },
+    ],
+    unit: null, decimals: 0, category_title: null, value_title: null, note: null,
+  } as const;
+  expect(stackTotalLabel(chart as never, 0, false)).toBe("Total");
+  expect(stackTotalLabel(chart as never, 1, false)).toBe("Total parcial");
+  expect(stackTotalLabel(chart as never, 0, true)).toBe("Total visible");
 });
