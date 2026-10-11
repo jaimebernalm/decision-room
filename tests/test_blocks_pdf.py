@@ -69,6 +69,29 @@ class BlocksPdfTests(unittest.TestCase):
             if kind == 'barras_apiladas':
                 self.assertIn('120', [x.text for x in drawing.contents if isinstance(x, String)])
 
+    def test_chart_values_go_to_one_appendix_instead_of_under_each_chart(self):
+        chart = {'tipo': 'grafico', 'grafico': 'columnas', 'titulo': 'Citas por mes', 'categorias': ['ene', 'feb'],
+                 'series': [{'nombre': '2026', 'valores': [612, 598], 'detalles': ['612 de 700', None]}]}
+        fallback = {'tipo': 'grafico', 'grafico': 'radar', 'titulo': 'Radar', 'categorias': ['a'],
+                    'series': [{'nombre': 's', 'valores': [7]}]}
+        projection = blocks.parse(raw(doc(chart, {'tipo': 'texto', 'contenido': 'Después del gráfico.'}, fallback)))
+        text = text_of(blocks_pdf.render(projection, None))
+        self.assertLess(text.index('Después del gráfico.'), text.index('Valores de los gráficos'))
+        self.assertGreater(text.index('612 de 700'), text.index('Valores de los gráficos'))  # exact values kept
+        self.assertEqual(text.count('Valores de los gráficos'), 1)
+        self.assertLess(text.index('Radar'), text.index('Valores de los gráficos'))  # undrawable stays inline
+        drawing = blocks_pdf.chart_drawing(projection['blocks'][0])
+        from reportlab.graphics.shapes import String
+        self.assertIn('612', [x.text for x in drawing.contents if isinstance(x, String)])  # labelled columns
+
+    def test_numeric_table_columns_align_right(self):
+        projection = blocks.parse(raw(FULL))
+        table = next(b for b in blocks.walk(projection['blocks']) if b['type'] == 'table')
+        grid_table = blocks_pdf._table(table)[-1]
+        name, units = grid_table._cellvalues[1]
+        self.assertNotEqual(name.style.alignment, 2)
+        self.assertEqual(units.style.alignment, 2)
+
     def test_series_colors_spread_from_dark_to_light(self):
         from reportlab.lib import colors
         hexes = [blocks_pdf._color(i, 3).hexval() for i in range(3)]
@@ -88,7 +111,7 @@ class BlocksPdfTests(unittest.TestCase):
             {'block_id': 'b6', 'quote': '4', 'status': 'discrepancy', 'independent_value': 'cuatro'}]}
         text = text_of(blocks_pdf.render(projection, checks))
         self.assertLess(text.index('cálculo independiente: dos'), text.index('cálculo independiente: cuatro'))
-        flow = blocks_pdf._blocks(projection['blocks'], {i['block_id']: [i] for i in checks['items']}, 0, {})
+        flow = blocks_pdf._blocks(projection['blocks'], {i['block_id']: [i] for i in checks['items']}, 0, {}, [])
         kinds = [type(x).__name__ for x in flow]
         notices = [i for i, x in enumerate(flow) if getattr(x, 'style', None) is blocks_pdf.NOTICE]
         self.assertEqual(len(notices), 2)

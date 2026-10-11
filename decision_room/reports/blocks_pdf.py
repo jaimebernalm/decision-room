@@ -20,6 +20,7 @@ from ..report_pdf import BORDER, GRAY, INK, STYLES, WIDTH as PAGE_WIDTH, grid, p
 
 WIDTH = PAGE_WIDTH - 12  # frame padding
 MAX_DRAWING_HEIGHT = 620
+LABELLED_BARS = 24  # value labels on columns up to this many bars
 LEGEND_ITEM = 110  # points per legend entry
 
 AMBER = colors.HexColor('#fff7e6')
@@ -157,6 +158,10 @@ def chart_drawing(chart):
                         x0 = left + step * c + step * .2
                         d.add(Rect(x0, y(base[c]), step * .6, y(base[c] + v) - y(base[c]), fillColor=_color(i, len(series)), strokeColor=None))
                         base[c] += v
+            if len(cats) <= LABELLED_BARS:
+                for c, total in enumerate(totals):
+                    d.add(String(left + step * (c + .5), y(total) + 3, format_number(total, chart['decimals']),
+                                 fontName='Helvetica', fontSize=6.5, fillColor=GRAY, textAnchor='middle'))
         for i, s in enumerate(series if kind != 'stacked_column' else []):
             if kind == 'column':
                 width = step * .7 / len(series)
@@ -164,6 +169,9 @@ def chart_drawing(chart):
                     if v is not None:
                         x0 = left + step * c + step * .15 + i * width
                         d.add(Rect(x0, min(y(v), y(0)), width, abs(y(v) - y(0)) or .5, fillColor=_color(i, len(series)), strokeColor=None))
+                        if len(cats) * len(series) <= LABELLED_BARS:
+                            d.add(String(x0 + width / 2, (y(v) + 3) if v >= 0 else (y(v) - 9), format_number(v, chart['decimals']),
+                                         fontName='Helvetica', fontSize=6.5, fillColor=GRAY, textAnchor='middle'))
             else:
                 segment = []
                 for c, v in enumerate(s['values'] + [None]):
@@ -183,24 +191,49 @@ def chart_drawing(chart):
     return d
 
 
-def _chart(chart):
+def _chart(chart, appendix):
+    """Title and drawing kept together; exact values go to the appendix, not under every chart.
+
+    Only charts that cannot be drawn (tables, too dense) show their values inline.
+    """
     head = chart['title'] + (f" ({chart['unit']})" if chart['unit'] else '')
     flow = [Paragraph(_text(head), SUBHEAD)]
     drawing = chart_drawing(chart)
+    if drawing is not None and drawing != 'dense':
+        flow.append(drawing)
+        if chart['note']:
+            flow.append(paragraph(chart['note'], 'muted'))
+        appendix.append(chart)
+        return flow
     if drawing == 'dense':
         flow.append(paragraph('Gráfico demasiado denso para una página: sus valores completos están en la tabla.', 'muted'))
-    elif drawing is not None:
-        flow.append(drawing)
+    return flow + _values(chart)
+
+
+def _values(chart, note=True):
+    flow = []
     rows = [[chart['category_title'] or 'Categoría'] + [s['name'] for s in chart['series']]]
     for c, cat in enumerate(chart['categories']):
         rows.append([cat] + [_unit(s['values'][c], chart['decimals'], chart['unit']) +
                              (f" ({s['details'][c]})" if s['details'] and s['details'][c] else '') for s in chart['series']])
     cols = len(rows[0])
     first = min(170, WIDTH * .4)
-    flow.append(grid(rows, [first] + [(WIDTH - first) / (cols - 1)] * (cols - 1)))
-    if chart['note']:
+    flow.append(_right_align(grid(rows, [first] + [(WIDTH - first) / (cols - 1)] * (cols - 1)), range(1, cols)))
+    if note and chart['note']:
         flow.append(paragraph(chart['note'], 'muted'))
     return flow
+
+
+NUMERIC_CELL = ParagraphStyle('blocks-number', parent=STYLES['small'], alignment=2)
+
+
+def _right_align(table, columns):
+    """Numbers align right, as in the web view (the shared grid builds left-aligned cells)."""
+    for row in table._cellvalues:
+        for c in columns:
+            if isinstance(row[c], Paragraph):
+                row[c].style = NUMERIC_CELL
+    return table
 
 
 def _table(block):
@@ -208,8 +241,10 @@ def _table(block):
     for r in block['rows']:
         rows.append(['' if v is None else v if isinstance(v, str) else format_number(v, cell_decimals(v, c['decimals']))
                      for v, c in zip(r, block['columns'])])
+    numeric = [c for c in range(len(block['columns']))
+               if any(r[c] is not None for r in block['rows']) and all(not isinstance(r[c], str) for r in block['rows'])]
     flow = [Paragraph(_text(block['title']), SUBHEAD)] if block['title'] else []
-    flow.append(grid(rows, [WIDTH / len(block['columns'])] * len(block['columns'])))
+    flow.append(_right_align(grid(rows, [WIDTH / len(block['columns'])] * len(block['columns'])), numeric))
     if block['note']:
         flow.append(paragraph(block['note'], 'muted'))
     return flow
@@ -279,7 +314,7 @@ def _checks(items):
     return [Paragraph('<br/>'.join(lines), NOTICE)]
 
 
-def _blocks(blocks, checks, depth, numbers):
+def _blocks(blocks, checks, depth, numbers, appendix):
     flow, figures = [], []
 
     def flush():
@@ -299,19 +334,20 @@ def _blocks(blocks, checks, depth, numbers):
         own = _checks(checks.get(b['id'], []))
         if kind == 'section':
             flow.append(Paragraph(_text(b['title']), STYLES['heading'] if depth == 0 else SUBHEAD))
-            flow += _blocks(b['blocks'], checks, depth + 1, numbers)
+            flow += _blocks(b['blocks'], checks, depth + 1, numbers, appendix)
         elif kind == 'priority':
             flow.append(Paragraph(f"Prioridad {numbers[b['id']]:02d} · {_text(b['title'])}", PRIORITY))
             flow += own
-            flow += _blocks(b['blocks'], checks, depth + 1, numbers)
+            flow += _blocks(b['blocks'], checks, depth + 1, numbers, appendix)
             own = []
         elif kind == 'text':
             flow += _content(b['content'])
         elif kind == 'notice':
             flow += _content(b['content'], NOTICE)
         elif kind == 'chart':
-            flow.append(KeepTogether(_chart(b)[:2]))
-            flow += _chart(b)[2:]
+            parts = _chart(b, appendix)
+            flow.append(KeepTogether(parts[:2]))
+            flow += parts[2:]
         elif kind == 'table':
             flow += _table(b)
         flow += own
@@ -337,7 +373,15 @@ def render(projection, checks=None, *, delivered_at=None):
         stamp = delivered_at.strftime('%d/%m/%Y') if isinstance(delivered_at, datetime) else str(delivered_at)
         story.append(paragraph(f'Informe entregado el {stamp}. Texto escrito por el motor de informes; '
                                'las cifras en revisión llevan aviso.', 'muted'))
-    story += _blocks(projection['blocks'], by_block, 0, numbers)
+    appendix = []
+    story += _blocks(projection['blocks'], by_block, 0, numbers, appendix)
+    if appendix:
+        # Exact values stay available for print, once, after the report instead of under each chart.
+        story.append(Spacer(1, 12))
+        story.append(Paragraph('Valores de los gráficos', SUBHEAD))
+        for chart in appendix:
+            story.append(KeepTogether([paragraph(chart['title'] + (f" ({chart['unit']})" if chart['unit'] else ''), 'muted')]
+                                      + _values(chart, note=False)))
     unverifiable = [c for c in (checks or {}).get('items', []) if c['status'] == 'unverifiable' and not c.get('coverage')]
     uncovered = [c for c in (checks or {}).get('items', []) if c.get('coverage')]
     if unverifiable or uncovered:
