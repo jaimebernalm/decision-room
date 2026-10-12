@@ -4,7 +4,7 @@ Fecha: 12 de octubre de 2026.
 
 Desarrolla el paso 2 del [plan de contexto compartido y cálculo rápido](<../product/contexto-compartido-y-calculo-rapido-plan.md>). El plan lo acordaron Claude y Codex en tres versiones; Codex aprobó la tercera. Claude lo implementa y Codex revisa los cambios. No incluye llamadas de pago; la prueba real final necesita la aprobación del propietario.
 
-**Estado: implementado y revisado; pendiente de la prueba real, que necesita aprobación de gasto.**
+**Estado: implementado, revisado y validado con el modelo real.**
 
 - Implementado en `feature/quick-chat-calculation`: un commit por parte (1 a 5), uno de correcciones tras la suite completa, esta documentación y dos rondas de correcciones de la revisión de Codex.
 - Codex revisó la implementación en tres versiones y aprobó la última. Sus hallazgos, todos corregidos: un rechazo por falta de espacio repetía el código en el prompt; las definiciones perdían el periodo y el alcance de cada declaración; la recuperación de informes antiguos podía fallar o tocar un cálculo vivo del chat; la observación podía pasarse 2 bytes de su límite; y, si ni el rechazo cabía, el turno fallaba en vez de responder.
@@ -276,11 +276,24 @@ Solo un cálculo terminado del mismo turno e intento, con las métricas completa
 
 ## Validación real
 
-Requiere aprobación de gasto y el Mac despierto. Unas seis preguntas de distinta dificultad sobre un negocio de prueba:
+**Hecha el 12 de octubre de 2026,** con aprobación de gasto y el Mac despierto. Un negocio de prueba con tres archivos (citas, encuestas y profesionales), en una base de datos aparte, con el modelo real del chat y un límite de gasto de 3 USD. Las cifras se compararon con un cálculo hecho a mano sobre los mismos CSV.
 
-- las pequeñas se responden en segundos, con una cifra correcta comparada con un cálculo hecho a mano;
-- las grandes acaban en una propuesta de informe;
-- se anotan la latencia y el coste por pregunta.
+| Pregunta | Resultado | Tiempo | Coste |
+|---|---|---|---|
+| Total de citas y cuántas se realizaron | Correcto (12 290 y 10 790) | 19,1 s | 0,007 USD |
+| Porcentaje de «no presentado» | **Incorrecto: 0 %** (ver abajo) | 16,2 s | 0,009 USD |
+| Citas realizadas por profesional en marzo de 2025 | Correcto (172, 181 y 141) | 12,3 s | 0,007 USD |
+| Puntuación media de las encuestas | Correcto (8,50) | 6,6 s | 0,003 USD |
+| Por qué perdemos pacientes y qué cambiar | Propuesta de informe, sin trabajo creado | 24,2 s | 0,009 USD |
+| Comparar profesionales por mes, canal y tipo, con causas | Propuesta de informe, sin trabajo creado | 7,9 s | 0,002 USD |
+| Porcentaje de «no presentado», repetida con la corrección | Correcto (4,78 %) | 15,3 s | 0,009 USD |
+
+- **El fallo:** el modelo filtró por «no presentado», como lo escribe el propietario en su descripción, pero en los datos el valor guardado es `no_presentado`. El filtro no encontró nada y la respuesta dijo 0 %, aunque avisando de que solo había buscado esa escritura exacta. La revisión lo rechazó una vez y aprobó la segunda redacción.
+- **La corrección** (`conversation-v21`): antes de filtrar por un texto, el programa lee los valores realmente guardados de esa columna y filtra por los encontrados, y un filtro que no encuentra nada se trata como un error que hay que corregir, no como un resultado. La revisión rechaza una cifra que dependa de un filtro de texto sin coincidencias si el código no leyó los valores guardados.
+- **Repetida en un chat nuevo,** el programa leyó los valores, falló a propósito al no encontrar «no presentado», leyó en el error los valores guardados y corrigió el filtro: 4,78 %, correcto.
+- Cada ejecución en el sandbox tardó entre 0,44 y 0,53 s. El resto del tiempo son llamadas al modelo: la decisión, la respuesta, su revisión y la extracción de memoria.
+- Las dos preguntas grandes acabaron en una propuesta con el objetivo redactado y no crearon ningún trabajo. Una de ellas no mencionó en su texto los cinco minutos ni la comprobación independiente; la tarjeta de la propuesta los muestra siempre.
+- **Coste total:** 0,044 USD según el límite de gasto (0,033 USD según el catálogo de precios), 33 llamadas al proveedor, sin llamadas de uso incierto.
 
 ## Orden de trabajo y commits
 

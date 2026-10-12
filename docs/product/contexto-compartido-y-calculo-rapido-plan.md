@@ -4,8 +4,8 @@ Fecha: 12 de octubre de 2026.
 
 **Estado:**
 
-- Pasos 0 y 1 terminados.
-- Paso 2, cálculo rápido en el chat: implementado y revisado por Codex ([calculo-rapido-implementacion.md](../technical/calculo-rapido-implementacion.md)); pendiente de la prueba real, que necesita aprobación de gasto.
+- Pasos 0, 1 y 2 terminados. Paso 2, cálculo rápido en el chat: implementado, revisado por Codex y validado con el modelo real ([calculo-rapido-implementacion.md](../technical/calculo-rapido-implementacion.md)).
+- Siguiente: paso 3, indicadores guardados y registro de seguimiento.
 - Orden revisado con el propietario el 12 de octubre de 2026: se añade el paso 3 (indicadores guardados y registro de seguimiento) y las predicciones pasan a ser el paso 4.
 
 Este plan continúa el trabajo de informes nativos. El formato nativo de bloques
@@ -18,7 +18,7 @@ estilo desde el PR #10. Sigue al [plan de implementación](<Decision Room - Plan
 |---|---|---|
 | 0 | ~~Diagnosticar los fallos del motor nativo~~ (hecho) | No era un fallo del código: el Mac se suspendió durante la prueba. |
 | 1 | ~~Contexto compartido e informes anteriores~~ (hecho) | El chat y los informes saben lo mismo del cliente, y cada informe recibe los anteriores. |
-| 2 | Cálculo rápido en el chat | Lo que más se nota en el uso diario. Genera las fórmulas que el paso 3 permitirá guardar. |
+| 2 | ~~Cálculo rápido en el chat~~ (hecho) | Lo que más se nota en el uso diario. Genera las fórmulas que el paso 3 permitirá guardar. |
 | 3 | Indicadores guardados y registro de seguimiento | Hace que el contexto no crezca aunque haya muchos informes, y recalcula las cifras recurrentes sin modelo. |
 | 4 | Predicciones | Necesita las series fijas del paso 3 para probarse contra el pasado. Se planificará aparte. |
 | Más adelante | Buscador de informes anteriores para el agente de informes | Solo hace falta cuando un negocio acumule decenas de informes. |
@@ -141,6 +141,13 @@ El chat lee datos, memoria e informes, pero no calcula. Cualquier cifra nueva ex
 - **Prueba real con preguntas de distinta dificultad, que requiere aprobación de gasto:**
   - las pequeñas se responden en segundos;
   - las grandes acaban en una propuesta de informe.
+
+**Resultado, 12 de octubre de 2026:**
+
+- De cuatro preguntas pequeñas, tres salieron bien a la primera, en 7 a 19 segundos. La cuarta dio un 0 % equivocado: el modelo buscó «no presentado» y el valor guardado era `no_presentado`.
+- Se corrigió: el cálculo ahora lee los valores guardados antes de filtrar, y un filtro sin coincidencias se trata como un error. Repetida, dio el 4,78 % correcto.
+- Las dos preguntas grandes acabaron en una propuesta de informe, sin lanzar ninguno.
+- Coste de toda la prueba: unos 0,04 USD.
 
 ## Paso 3. Indicadores guardados y registro de seguimiento
 
