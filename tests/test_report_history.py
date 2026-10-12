@@ -53,6 +53,51 @@ class CitationRuleTests(unittest.TestCase):
         self.assertIn('nunca porque coincida con el texto', contract.PROMPT)
 
 
+class SummaryBoundTests(unittest.TestCase):
+    def derived(self, priorities, warnings):
+        from datetime import datetime, timezone
+        from decision_room.engine import blocks
+        raw = json.dumps(dict(version=blocks.VERSION, titulo='T', bloques=[
+            dict(tipo='prioridad', titulo=f'Prioridad {n} ' + 'é' * 150, bloques=[
+                dict(tipo='texto', contenido='Comprobación siguiente: revisar el canal ' + 'ü' * 250)])
+            for n in range(priorities)])).encode()
+        projection = blocks.parse(raw)
+        checks = dict(state='complete', items=[dict(status='discrepancy', quote='5', message='€' * 200, coverage=None)
+                                               for _ in range(warnings)])
+        row = dict(origin='engine_blocks', title='Informe ' + 'ñ' * 200, goal='ñ' * 400, stale_reason=None,
+                   delivered_at=datetime(2026, 9, 1, tzinfo=timezone.utc), period_from=None, period_until=None)
+        return row, dict(document=projection, checks=checks, canonical_text='x')
+
+    def test_unicode_warnings_and_many_sections_never_exceed_the_budget(self):
+        row, derived = self.derived(priorities=12, warnings=5)
+        budget = history.SUMMARY_BYTES // 3
+        summary = history._summary(row, derived, 'complete', budget)
+        self.assertLessEqual(history.size(summary), budget)
+        self.assertIn('Avisos de su comprobación', summary)
+        self.assertIn('apartado(s)', summary)
+
+    def test_priority_without_action_keeps_its_text(self):
+        row, derived = self.derived(priorities=1, warnings=0)
+        summary = history._summary(row, derived, 'complete', history.SUMMARY_BYTES)
+        self.assertIn('Texto: Comprobación siguiente: revisar el canal', summary)
+
+    def test_old_report_keeps_opening_diagnosis_and_final_next_check(self):
+        from datetime import datetime, timezone
+        from decision_room.engine import blocks
+        raw = json.dumps(dict(version=blocks.VERSION, titulo='T', bloques=[
+            dict(tipo='texto', contenido='Las ventas bajan desde marzo.'),
+            dict(tipo='prioridad', titulo='Recogida', bloques=[
+                dict(tipo='texto', contenido='La recogida cae un 12 %.'),
+                dict(tipo='cifra', etiqueta='Pedidos', valor=88),
+                dict(tipo='texto', contenido='Comprobación siguiente: revisar las conversiones del mes.')])])).encode()
+        row = dict(origin='engine_blocks', title='T', goal='', stale_reason=None, period_from=None, period_until=None,
+                   delivered_at=datetime(2026, 9, 1, tzinfo=timezone.utc))
+        summary = history._summary(row, dict(document=blocks.parse(raw), canonical_text='x'), None, history.SUMMARY_BYTES)
+        self.assertIn('Apertura: Las ventas bajan desde marzo.', summary)
+        self.assertIn('Texto: La recogida cae un 12 %.', summary)
+        self.assertIn('Texto final: Comprobación siguiente: revisar las conversiones del mes.', summary)
+
+
 class FileLimitTests(unittest.TestCase):
     def test_short_text_is_whole_and_long_text_is_explicitly_truncated(self):
         self.assertEqual(history._file('corto'), ('corto', False))
@@ -62,6 +107,22 @@ class FileLimitTests(unittest.TestCase):
         self.assertLessEqual(history.size(clipped), history.FILE_BYTES)
         self.assertIn(history.sha(text), clipped)
         self.assertIn('Texto recortado', clipped)
+
+    def test_truncated_file_keeps_every_check_warning_at_its_end(self):
+        warnings = ''.join(f'Cifra en revisión: {n} unidades — discrepancia {n}\n' for n in range(6))
+        text = 'cuerpo ' * 12000 + history.CHECK_MARKER + 'completada\n' + warnings
+        clipped, truncated = history._file(text)
+        self.assertTrue(truncated)
+        self.assertLessEqual(history.size(clipped), history.FILE_BYTES)
+        self.assertIn('se conserva su sección de comprobación', clipped)
+        for n in range(6):
+            self.assertIn(f'discrepancia {n}', clipped)
+        huge = 'cuerpo ' * 12000 + history.CHECK_MARKER + 'completada\n' + 'Cifra en revisión: ' + 'x' * 300 + '\n' * 1
+        many, _ = history._file('cuerpo ' * 12000 + history.CHECK_MARKER + 'completada\n' + ''.join(
+            f'Cifra en revisión: {n} ' + 'x' * 300 + '\n' for n in range(200)))
+        self.assertLessEqual(history.size(many), history.FILE_BYTES)
+        self.assertIn('línea(s) de avisos no caben en este fichero', many)
+        self.assertTrue(huge)
 
 
 class HistoryTests(unittest.TestCase):
@@ -197,6 +258,26 @@ class HistoryTests(unittest.TestCase):
         self.assertNotIn('contexto/panorama.md', files)
         self.assertEqual(files['contexto/definiciones.txt'].decode(), run['brief']['checker_context'])
         self.assertIn(run['brief']['prior_reports'][0]['document_id'], files['contexto/informes-anteriores/manifest.json'].decode())
+
+    def test_replaced_data_keeps_the_same_logical_dataset_first_and_labels_it_stale(self):
+        from decision_room.service import import_batch
+        first = self.deliver()
+        self.csv = b'quantity,amount\n7,70\n8,80\n'
+        unrelated = self.deliver()
+        self.assertNotEqual(first['analysis_id'], unrelated['analysis_id'])
+        path = Path(self.ws.config.storage) / 'nuevo.csv'
+        path.write_bytes(b'quantity,amount\n9,90\n')
+        newer = import_batch(self.config, self.business['id'], [path])['analysis']['id']
+        with connect(self.config) as db:
+            db.execute('''INSERT INTO dataset_versions(business_id,analysis_id,dataset_id,version,superseded_by)
+                VALUES (%s,%s,%s,1,%s),(%s,%s,%s,2,NULL)''',
+                (self.business['id'], first['analysis_id'], first['analysis_id'], newer,
+                 self.business['id'], newer, first['analysis_id']))
+        value, _, _ = self.select(newer)
+        self.assertEqual([r['document_id'] for r in value['reports']],
+                         [str(first['report_document_id']), str(unrelated['report_document_id'])])
+        self.assertEqual([r['group'] for r in value['reports']], [1, 3])
+        self.assertIn('caducado', value['reports'][0]['summary'])
 
     def test_other_business_reports_never_appear(self):
         job = self.deliver()

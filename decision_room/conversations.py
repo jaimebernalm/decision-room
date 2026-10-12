@@ -427,6 +427,20 @@ def search_library(db, business, chats, query):
     return [chat for chat in chats if chat['id'] in matches]
 
 
+UNCONFIRMED = frozenset({'proposed', 'conflicted', 'withdrawn', 'superseded'})
+
+
+def _unconfirmed(value):
+    """True if any memory-like item inside a cited source is not a current declaration."""
+    if isinstance(value, dict):
+        if value.get('status') in UNCONFIRMED or value.get('memory_status') in UNCONFIRMED:
+            return True
+        return any(_unconfirmed(v) for v in value.values())
+    if isinstance(value, list):
+        return any(_unconfirmed(v) for v in value)
+    return False
+
+
 class Conversations:
     def __init__(self, workspace):
         self.ws = workspace
@@ -1145,9 +1159,17 @@ class Conversations:
                 content = available[key]['content']
                 if key.startswith('memory/') and (not isinstance(content, dict) or content.get('status') != 'declared'):
                     raise ValueError('Investigation brief cites memory that is not declared.')
-                if (key.startswith('tool/') and isinstance(content, dict) and content.get('origin') in ENGINE_ORIGINS
-                        and content.get('id') and content['id'] not in reports):
-                    reports.append(str(content['id']))
+                # Selections and memory-bearing tool results (search_memory, inspect_dataset)
+                # may carry proposed or conflicted items: such a source cannot be cited.
+                if _unconfirmed(content):
+                    raise ValueError('Investigation brief cites a source with unconfirmed memory.')
+                report = None
+                if key.startswith('tool/') and isinstance(content, dict) and content.get('origin') in ENGINE_ORIGINS:
+                    report = content.get('id')
+                elif key.startswith('selection/') and isinstance(content, dict) and content.get('authority') == 'engine_report':
+                    report = content.get('source_id')  # A selected block or action of a native report.
+                if report and str(report) not in reports:
+                    reports.append(str(report))
         return {**brief.model_dump(), 'reports': reports}
 
     def _job(self, db, chat, turn, analysis_id, brief=None):

@@ -77,5 +77,31 @@ class SharedCoreTests(unittest.TestCase):
         self.assertEqual(provenance['memory'], sorted(m['reference'] for m in core['memory']))
 
 
+class CatalogTests(SharedCoreTests):
+    test_chat_and_brief_receive_the_same_declared_core = None
+
+    def test_other_datasets_are_listed_as_discovery_for_writer_and_checker(self):
+        analysis = self.analysis()
+        other = Path(self.temp.name) / 'visitas.csv'
+        other.write_text('mes,visitas\n2025-01-01,10\n2025-02-01,12\n')
+        second = import_batch(self.config, self.business['id'], [other])['analysis']['id']
+        business = self.business['id']
+        job = dict(business_id=business, analysis_id=analysis, engine_config={'goal': 'Qué revisar.', 'profile': {'format': 'blocks'}},
+                   origin='upload', business_name='Test shop', context='una tienda de prueba.', business_revision=1)
+        builder, _ = engine_jobs.inputs(self.config, job)
+        with connect(self.config) as db, db.transaction():
+            prompt, provenance, *_ = builder(db)
+            saved = conversations.snapshot(db, business, analysis, 'objetivo')
+        from decision_room.engine import brief
+        listed = [i for i in saved['knowledge']['catalog']['items'] if i['analysis_id'] == str(second)]
+        self.assertEqual(len(listed), 1)
+        for text in (prompt, provenance['checker_context']):
+            self.assertIn(brief.CATALOG, text)
+            self.assertIn(listed[0]['description'], text)
+        # Only the other dataset is listed; the mounted one is not repeated as discovery.
+        self.assertEqual(len(saved['knowledge']['catalog']['items']), 2)
+        self.assertEqual(prompt.split(brief.CATALOG)[1].split('\n\n')[0].count('\n- '), 1)
+
+
 if __name__ == '__main__':
     unittest.main()

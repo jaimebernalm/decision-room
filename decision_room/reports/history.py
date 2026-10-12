@@ -24,6 +24,9 @@ FILE_BYTES = 64 * 1024
 META_BYTES = 8 * 1024
 ITEM_CHARS = 300
 MAX_WARNINGS = 3
+OMITTED = '(Sin espacio en este resumen para {} apartado(s).)'
+CHECK_MARKER = '\nComprobación independiente de cifras: '
+CHECK_BYTES = 16 * 1024
 FOLDER = 'informes-anteriores'
 RULE = ('Orden: referencias explícitas del encargo, mismo conjunto de datos (cualquier versión), mismo análisis '
         'y otros informes del negocio; dentro de cada grupo, del más reciente al más antiguo. Máximo 3.')
@@ -81,11 +84,8 @@ def _warnings(derived):
     if not checks:
         return []
     from ..engine import check_contract
-    items = [clip(i['message'] if i.get('coverage') else f"Cifra en revisión: {i['quote']} — {i['message']}", 200)
-             for i in check_contract.visible(checks)['items']]
-    if len(items) > MAX_WARNINGS:
-        items = items[:MAX_WARNINGS] + [f'(y {len(items) - MAX_WARNINGS} aviso(s) más en el texto completo)']
-    return items
+    return [clip(i['message'] if i.get('coverage') else f"Cifra en revisión: {i['quote']} — {i['message']}", 200)
+            for i in check_contract.visible(checks)['items']]
 
 
 def _sections(row, derived):
@@ -97,10 +97,21 @@ def _sections(row, derived):
     for block in projection['blocks']:
         if block['type'] == 'cover':
             sections.append(['Titular: ' + clip(' '.join(blocks.block_lines(block)), 600)])
+    if not sections:
+        # Reports saved before the cover block usually open with a text.
+        opening = next((b for b in projection['blocks'] if b['type'] == 'text'), None)
+        if opening is not None:
+            sections.append(['Apertura: ' + clip(' '.join(blocks.block_lines(opening)), 600)])
     for block in blocks.walk(projection['blocks']):
         if block['type'] != 'priority':
             continue
         lines = ['Prioridad: ' + clip(block['title'], 200)]
+        # Reports without an action block state the diagnosis first and often the next
+        # check last: keep the first and the last text of the priority, verbatim but clipped.
+        texts = [c for c in blocks.walk(block['blocks']) if c['type'] == 'text']
+        for label, text in (('Texto', texts[0] if texts else None), ('Texto final', texts[-1] if len(texts) > 1 else None)):
+            if text is not None:
+                lines.append(f'  {label}: ' + clip(' '.join(blocks.block_lines(text))))
         for child in blocks.walk(block['blocks']):
             if child['type'] == 'action':
                 for key, field in (('check', 'check'), ('if_confirmed', 'if_confirmed'), ('if_not', 'if_not')):
@@ -111,15 +122,35 @@ def _sections(row, derived):
     return sections
 
 
+def _tail(warnings, shown):
+    if not warnings:
+        return []
+    if not shown:
+        return [f'Avisos de su comprobación: {len(warnings)}; ver la sección de comprobación de su fichero.']
+    hidden = len(warnings) - shown
+    more = [f'(y {hidden} aviso(s) más en la sección de comprobación de su fichero)'] if hidden else []
+    return ['Avisos de su comprobación: ' + ' '.join(warnings[:shown] + more)]
+
+
 def _summary(row, derived, check_state, budget):
-    """Label, objective and check warnings are always kept; sections fill the rest in order."""
-    head = [_label(row, check_state)]
-    if row.get('goal'):
-        head.append('Lo que se pidió: ' + clip(row['goal']))
-    warnings = _warnings(derived)
-    tail = ['Avisos de su comprobación: ' + ' '.join(warnings)] if warnings else []
+    """Label, request and the existence of check warnings are always kept; sections fill the rest.
+
+    The result never exceeds `budget` bytes: the omission note is reserved first, warnings
+    beyond what fits are counted, not dropped silently, and sections are kept or dropped whole.
+    """
+    reserve = size(OMITTED.format(99)) + 1
+    goal = row.get('goal') or ''
+    for limit in (ITEM_CHARS, 100):
+        head = [_label(row, check_state)] + (['Lo que se pidió: ' + clip(goal, limit)] if goal else [])
+        warnings = _warnings(derived)
+        shown = min(len(warnings), MAX_WARNINGS)
+        while shown and size('\n'.join(head + _tail(warnings, shown))) + reserve > budget:
+            shown -= 1
+        tail = _tail(warnings, shown)
+        if size('\n'.join(head + tail)) + reserve <= budget:
+            break
     kept, omitted = [], 0
-    used = size('\n'.join(head + tail))
+    used = size('\n'.join(head + tail)) + reserve
     for section in _sections(row, derived):
         cost = size('\n'.join(section)) + 1
         if used + cost > budget:
@@ -128,19 +159,36 @@ def _summary(row, derived, check_state, budget):
         kept += section
         used += cost
     if omitted:
-        kept.append(f'(Sin espacio para {omitted} apartado(s); están en el texto completo.)')
+        kept.append(OMITTED.format(omitted))
     return '\n'.join(head + kept + tail)
 
 
+def _checks_section(checks):
+    """The trailing check section, bounded; lines that do not fit are counted, never hidden."""
+    if size(checks) <= CHECK_BYTES:
+        return checks if checks.endswith('\n') else checks + '\n'
+    lines, kept = checks.split('\n'), []
+    for line in lines:
+        if size('\n'.join(kept + [line])) > CHECK_BYTES - 120:
+            break
+        kept.append(line)
+    dropped = sum(1 for line in lines[len(kept):] if line.strip())
+    return '\n'.join(kept) + f'\n[{dropped} línea(s) de avisos no caben en este fichero.]\n'
+
+
 def _file(text):
-    """Full canonical text, or an explicitly truncated fragment with both hashes."""
+    """Full canonical text, or a truncated body that keeps its check section, with both hashes."""
     if size(text) <= FILE_BYTES:
         return text, False
-    marker = f"\n[Texto recortado. sha256 del texto completo: {sha(text)}]\n"
+    cut = text.rfind(CHECK_MARKER)
+    body, checks = (text[:cut], _checks_section(text[cut:])) if cut >= 0 else (text, '')
+    marker = ('\n[Texto recortado: el cuerpo del informe no cabe entero'
+              + ('; se conserva su sección de comprobación' if checks else '')
+              + f'. sha256 del texto completo: {sha(text)}]')
     fragment = '[sha256 de este fragmento: {}]\n'
-    room = FILE_BYTES - size(marker) - size(fragment.format('0' * 64))
-    raw = text.encode('utf-8')[:room].decode('utf-8', 'ignore')
-    return raw + marker + fragment.format(sha(raw)), True
+    room = FILE_BYTES - size(marker) - size(checks) - size(fragment.format('0' * 64))
+    raw = body.encode('utf-8')[:room].decode('utf-8', 'ignore')
+    return raw + marker + checks + fragment.format(sha(raw)), True
 
 
 def select(db, business, analysis, *, explicit=()):

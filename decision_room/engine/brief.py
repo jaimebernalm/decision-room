@@ -68,6 +68,8 @@ MEMORY = 'Ten en cuenta también lo que te he contado; son declaraciones mías, 
 DEFAULT_GOAL = 'Quiero entender cómo evoluciona mi actividad durante el periodo disponible.'
 REQUEST = 'Hazme un informe que me ayude a decidir qué revisar y qué comprobar después, usando estos datos.'
 MEMORY_KINDS = ('context', 'priority', 'definition', 'availability')
+CATALOG = ('Para que sepas que existen, el negocio tiene también estos otros conjuntos de datos. No están en '
+           '/inputs y no puedes usarlos en este informe; no saques conclusiones de ellos:')
 CHAT_BRIEF = ('Resumen del chat (propuesta del asistente a partir de nuestra conversación; es orientación, '
               'no hechos ni definiciones; si algo choca con los datos, mis definiciones o lo que te he contado, '
               'prevalecen estos):')
@@ -140,7 +142,7 @@ def facts(rows):
 
 
 def compose(*, name, description, goal, model, memory, panorama, questions=False, format='html', include_delivery=True,
-            data_meanings=None, history=None, chat_brief=None):
+            data_meanings=None, history=None, chat_brief=None, catalog=None, analysis=None):
     declared, unknown = data_meanings if data_meanings is not None else meanings(model)
     first = [identity(name, description), DATA]
     if panorama:
@@ -152,6 +154,13 @@ def compose(*, name, description, goal, model, memory, panorama, questions=False
     if questions:
         first.append(QUESTIONS)
     paragraphs = [' '.join(first)]
+    others = [i for i in (catalog or {}).get('items', []) if i['analysis_id'] != str(analysis)]
+    if others:
+        def when(period):
+            return (f"del {period['from']} al {period['until']}" if period.get('from') and period.get('until')
+                    else 'periodo declarado desconocido')
+        paragraphs.append(CATALOG + '\n' + '\n'.join(
+            f"- {' '.join((i['description'] or 'Sin título').split())[:120]} ({when(i['period'])})" for i in others))
     remembered = facts(memory)
     if remembered:
         paragraphs.append(MEMORY + '\n' + '\n'.join('- ' + f for f in remembered))
@@ -205,7 +214,7 @@ def build_inputs(db, business, analysis, *, goal, panorama, name=None, descripti
     prior = core['history']
     text = compose(name=owner['name'], description=owner['description'], goal=goal, model=model, memory=memory,
                    panorama=panorama, questions=questions, format=format, data_meanings=data_meanings, history=prior,
-                   chat_brief=investigation_brief)
+                   chat_brief=investigation_brief, catalog=core['catalog'], analysis=analysis)
     provenance = dict(version=('blocks-brief-5q' if questions else 'blocks-brief-5') if format == 'blocks' else (QUESTIONS_VERSION if questions else VERSION), profile='job' if frozen else 'current', profile_revision=owner['profile_revision'],
                       data_model=dict(analysis_id=str(analysis), revision=data['revision']) if data['revision'] else None,
                       memory=sorted(r['reference'] for r in memory if facts([r])),
@@ -215,7 +224,7 @@ def build_inputs(db, business, analysis, *, goal, panorama, name=None, descripti
     if format == 'blocks':
         provenance['checker_context'] = compose(name=owner['name'],description=owner['description'],goal=goal,
             model=model,memory=memory,panorama=False,questions=False,format=format,include_delivery=False,
-            data_meanings=data_meanings,history=prior)
+            data_meanings=data_meanings,history=prior,catalog=core['catalog'],analysis=analysis)
     if files:
         files = {**files, 'informes-anteriores/manifest.json': json.dumps(manifest, ensure_ascii=False, indent=1)}
     return text, provenance, files

@@ -421,6 +421,11 @@ def sources_for(context):
 
 
 def validate_decision(decision):
+    if decision.investigation_brief is not None:
+        if decision.action != 'investigate':
+            raise ValueError('Only an investigation carries a brief.')
+        if len(decision.investigation_brief.model_dump_json().encode()) > BRIEF_BYTES:
+            raise ValueError('Investigation brief exceeds its limit.')
     if decision.action == 'edit_presentation':
         if not decision.presentation_edit or any((decision.retrieval, decision.analysis_id, decision.text, decision.sources, decision.onboarding, decision.include_report)):
             raise ValueError('Presentation edit requires only an explicit edit command.')
@@ -430,11 +435,6 @@ def validate_decision(decision):
         return
     if decision.presentation_edit is not None:
         raise ValueError('Unexpected presentation command.')
-    if decision.investigation_brief is not None:
-        if decision.action != 'investigate':
-            raise ValueError('Only an investigation carries a brief.')
-        if len(decision.investigation_brief.model_dump_json().encode()) > BRIEF_BYTES:
-            raise ValueError('Investigation brief exceeds its limit.')
     if decision.action == 'answer':
         if not decision.text.strip() or decision.retrieval or decision.analysis_id:
             raise ValueError('Answer requires text/sources only.')

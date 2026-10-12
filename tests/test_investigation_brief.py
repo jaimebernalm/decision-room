@@ -23,6 +23,10 @@ class ContractTests(unittest.TestCase):
         chat_agent.validate_decision(decision(investigation_brief=None))
         with self.assertRaises(ValueError):
             chat_agent.validate_decision(decision('answer', text='Hola', investigation_brief=BRIEF))
+        edit = dict(report_id='r', base_version='v', revision=0, changes=[], restore_revision=1)
+        with self.assertRaises(ValueError):
+            chat_agent.validate_decision(decision('edit_presentation', analysis_id='', include_report=False,
+                                                  presentation_edit=edit, investigation_brief=BRIEF))
         # Every field within its own limit, yet over 4096 bytes once serialised.
         long = dict(objective='ñ' * 600, reason='ñ' * 600, background=[dict(text='ñ' * 300, sources=[]) for _ in range(6)])
         with self.assertRaises(ValueError):
@@ -36,12 +40,18 @@ class ContractTests(unittest.TestCase):
             'memory/m1': dict(content=dict(status='declared')),
             'memory/m2': dict(content=dict(status='proposed')),
             'tool/0': dict(content=dict(origin='engine_blocks', id='doc-1')),
-            'dataset/t': dict(content=dict(id='t'))}}
+            'dataset/t': dict(content=dict(id='t')),
+            'selection/0': dict(content=dict(kind='memory', memory_status='proposed', content=dict(statement='Quizá'))),
+            'tool/1': dict(content=dict(memories=[dict(status='declared'), dict(status='conflicted')])),
+            'tool/2': dict(content=dict(memories=[dict(status='declared')])),
+            'selection/1': dict(content=dict(kind='engine_block', authority='engine_report', source_id='doc-9',
+                                             status='available'))}}
         parse = lambda **b: chat_agent.InvestigationBrief.model_validate({**BRIEF, **b})
         frozen = Conversations._investigation_brief(context, parse(background=[
-            dict(text='x', sources=['memory/m1', 'tool/0', 'dataset/t'])]))
-        self.assertEqual(frozen['reports'], ['doc-1'])
-        for bad in (['memory/m2'], ['memory/unknown'], ['tool/9']):
+            dict(text='x', sources=['memory/m1', 'tool/0', 'dataset/t']), dict(text='y', sources=['tool/2', 'selection/1'])]))
+        # Opened reports and selected native blocks are pinned as explicit prior reports.
+        self.assertEqual(frozen['reports'], ['doc-1', 'doc-9'])
+        for bad in (['memory/m2'], ['memory/unknown'], ['tool/9'], ['selection/0'], ['tool/1']):
             with self.assertRaises(ValueError):
                 Conversations._investigation_brief(context, parse(background=[dict(text='x', sources=bad)]))
         self.assertIsNone(Conversations._investigation_brief(context, None))
@@ -73,6 +83,7 @@ class ChatJobTests(test_report_history.HistoryTests):
     test_replayed_key_reuses_frozen_inputs_and_a_changed_request_still_fails = None
     test_checker_receives_frozen_prior_texts_and_the_same_summary = None
     test_other_business_reports_never_appear = None
+    test_replaced_data_keeps_the_same_logical_dataset_first_and_labels_it_stale = None
 
     def test_chat_brief_reaches_the_writer_not_the_checker_and_pins_its_reports(self):
         old = self.deliver()
