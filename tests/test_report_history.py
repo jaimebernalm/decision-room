@@ -32,6 +32,27 @@ class ContextFileTests(unittest.TestCase):
                 profile.context_files(bad)
 
 
+class CitationRuleTests(unittest.TestCase):
+    def test_attributed_prior_figure_is_unverifiable_and_never_triggers_a_correction(self):
+        from decision_room.engine import blocks, check_contract as contract
+        raw = json.dumps(dict(version=blocks.VERSION, titulo='T', bloques=[dict(tipo='prioridad', titulo='P', bloques=[
+            dict(tipo='texto', contenido='El informe de junio decía 100 pedidos; ahora hay 120.')])])).encode()
+        projection = blocks.parse(raw)
+        priority = blocks.priorities(projection)[0]
+        text = priority['text']
+        quote = 'decía 100 pedidos'
+        start = text.index(quote)
+        result = contract.parse(json.dumps(dict(version=contract.VERSION, revision_sha256='r', coverage_notes='', items=[
+            dict(priority_id=priority['block_id'], quote=quote, start=start, end=start + len(quote), status='unverifiable',
+                 independent_value=None, method='Contrastada con informes-anteriores/01.txt.',
+                 message='cita del informe anterior; no recalculada con los datos actuales')])).encode(), projection, 'r')
+        cited = [i for i in result['items'] if i['quote'] == quote][0]
+        self.assertEqual((cited['status'], cited['independent_value']), ('unverifiable', None))
+        self.assertEqual(json.loads(contract.correction(result)[len(contract.CORRECTION):]), [])
+        self.assertIn('informes-anteriores', contract.PROMPT)
+        self.assertIn('nunca porque coincida con el texto', contract.PROMPT)
+
+
 class FileLimitTests(unittest.TestCase):
     def test_short_text_is_whole_and_long_text_is_explicitly_truncated(self):
         self.assertEqual(history._file('corto'), ('corto', False))
@@ -162,6 +183,20 @@ class HistoryTests(unittest.TestCase):
             api.prepare_report(self.config, row['business_id'], row['analysis_id'], owner_context=settings['owner_context'],
                                request_key='web:' + str(job['id']), limits=settings['limits'],
                                engine_config=settings['profile'], **created)
+
+    def test_checker_receives_frozen_prior_texts_and_the_same_summary(self):
+        self.deliver()
+        second = self.deliver()
+        run = self.run_row(second['engine_run_id'])
+        with connect(self.config) as db:
+            check = db.execute('SELECT instance_id FROM engine_native_checks WHERE run_id=%s ORDER BY started_at LIMIT 1',
+                               (second['engine_run_id'],)).fetchone()
+        files = IndependentRuntime.sessions[str(check['instance_id'])]['files']
+        self.assertEqual(files['contexto/informes-anteriores/01.txt'].decode(), run['input_context']['informes-anteriores/01.txt'])
+        self.assertIn('contexto/informes-anteriores/manifest.json', files)
+        self.assertNotIn('contexto/panorama.md', files)
+        self.assertEqual(files['contexto/definiciones.txt'].decode(), run['brief']['checker_context'])
+        self.assertIn(run['brief']['prior_reports'][0]['document_id'], files['contexto/informes-anteriores/manifest.json'].decode())
 
     def test_other_business_reports_never_appear(self):
         job = self.deliver()

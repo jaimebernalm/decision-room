@@ -55,7 +55,10 @@ def read(db,business,run,revision):
 
 def inputs(config,run,receipt,projection):
     from . import api, brief
-    files={k:v for k,v in api._inputs(config,run).items() if k.startswith('datos/') or k=='manifest.json'}
+    # Data, its manifest and the frozen prior-report texts (to contrast attributed citations);
+    # never the panorama, the writer's tools or its delivery guide.
+    files={k:v for k,v in api._inputs(config,run).items()
+           if k.startswith('datos/') or k=='manifest.json' or k.startswith('contexto/informes-anteriores/')}
     # Explicit F2 declaration-only projection, frozen at run creation. Direct API
     # calls have only their owner_context, never a split of delivery instructions.
     owner=run['brief'].get('checker_context') or (run['owner_context']+'\n'+brief.DATA+'\n'+brief.UNKNOWN+'\n'+brief.LIMITS)

@@ -33,6 +33,15 @@ categorías por mes, recalcula esa agrupación, no solo el total del fichero.
 No des por ausente un dato sin inspeccionar los ficheros que podrían contenerlo.
 Si falta una definición necesaria o una columna, registra unverifiable explicando
 qué falta y qué fuentes examinaste; no inventes significado, unidad o resultado.
+Si existe /inputs/contexto/informes-anteriores, contiene informes anteriores congelados
+y su manifest.json. Una cifra que el texto atribuye a un informe anterior («el informe
+de junio decía…») no afirma nada sobre los datos actuales: contrástala con el texto de
+ese informe. Si la atribución es correcta y no puedes recalcular exactamente el mismo
+periodo y filtro con los CSV, regístrala unverifiable, independent_value null y el
+mensaje «cita del informe anterior; no recalculada con los datos actuales». Solo
+puedes marcarla confirmed si recalculas exactamente ese periodo y filtro con los CSV,
+nunca porque coincida con el texto. Si el informe anterior no decía eso, regístrala
+discrepancy e indica qué decía. No la compares con otro periodo de los datos actuales.
 Extrae tú las cifras del texto, recalcula desde los CSV y documenta el método,
 periodo, filtro y unidades. Una cifra causal o sin definición suficiente no es
 confirmada: registra unverifiable y el motivo. No infieras significados ausentes.
