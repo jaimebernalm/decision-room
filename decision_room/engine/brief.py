@@ -130,8 +130,9 @@ def facts(rows):
             and r['content'].get('temporal_scope') != 'unresolved']
 
 
-def compose(*, name, description, goal, model, memory, panorama, questions=False, format='html', include_delivery=True):
-    declared, unknown = meanings(model)
+def compose(*, name, description, goal, model, memory, panorama, questions=False, format='html', include_delivery=True,
+            data_meanings=None):
+    declared, unknown = data_meanings if data_meanings is not None else meanings(model)
     first = [identity(name, description), DATA]
     if panorama:
         first.append(PANORAMA)
@@ -158,27 +159,29 @@ def build(db, business, analysis, *, goal, panorama, name=None, description=None
     ``name``/``description`` come from the job when it froze them at creation; otherwise
     the current «Mi negocio» profile is read and its revision recorded.
     """
-    from ..data_knowledge import service as knowledge
+    from .. import business_knowledge
     owner = db.execute('''SELECT b.name,b.description,w.profile_revision FROM businesses b
         JOIN web_businesses w ON w.business_id=b.id WHERE b.id=%s''', (business,)).fetchone()
     if not owner:
         raise ValueError('Business profile not found.')
     frozen = name is not None and description is not None
     owner = dict(name=name, description=description, profile_revision=profile_revision) if frozen else owner
-    head = knowledge.latest(db, business, analysis)
-    model = head['body'] if head and knowledge.current(
-        db, business, {'analysis_id': str(analysis), 'revision': head['revision']}) else None
     sources = [str(r['id']) for r in db.execute(
         'SELECT id FROM sources WHERE business_id=%s AND analysis_id=%s', (business, analysis)).fetchall()]
     selection = dict(analysis_id=str(analysis), source_ids=sources, period=context.period())
-    memory = context.scoped(context.effective(db, business), selection)
-    text = compose(name=owner['name'], description=owner['description'], goal=goal,
-                   model=model, memory=memory, panorama=panorama, questions=questions, format=format)
+    # The shared core: declared memory only, the same one the chat receives.
+    core = business_knowledge.build(db, business, selection,
+                                    profile=dict(name=owner['name'], description=owner['description']))
+    memory, data = core['memory'], core['data_model']
+    model, data_meanings = None, (data['declared'], data['unknown'])
+    text = compose(name=owner['name'], description=owner['description'], goal=goal, model=model, memory=memory,
+                   panorama=panorama, questions=questions, format=format, data_meanings=data_meanings)
     provenance = dict(version=('blocks-brief-4q' if questions else 'blocks-brief-4') if format == 'blocks' else (QUESTIONS_VERSION if questions else VERSION), profile='job' if frozen else 'current', profile_revision=owner['profile_revision'],
-                      data_model=dict(analysis_id=str(analysis), revision=head['revision']) if model else None,
+                      data_model=dict(analysis_id=str(analysis), revision=data['revision']) if data['revision'] else None,
                       memory=sorted(r['reference'] for r in memory if facts([r])),
                       panorama=bool(panorama))
     if format == 'blocks':
         provenance['checker_context'] = compose(name=owner['name'],description=owner['description'],goal=goal,
-            model=model,memory=memory,panorama=False,questions=False,format=format,include_delivery=False)
+            model=model,memory=memory,panorama=False,questions=False,format=format,include_delivery=False,
+            data_meanings=data_meanings)
     return text, provenance

@@ -147,6 +147,7 @@ def snapshot(db, business, analysis_id, objective):
     if len(memory.encoded(memories).encode()) > ctx.MEMORY_BYTES:
         raise WebError('La memoria aplicable es demasiado amplia. Acota el conjunto de datos.', 409)
     profile = db.execute('SELECT name,description FROM businesses WHERE id=%s', (business,)).fetchone()
+    from . import business_knowledge
     return dict(
         business_id=str(business),
         session_id=None,
@@ -160,6 +161,7 @@ def snapshot(db, business, analysis_id, objective):
         tables={r['id']: ctx.table_version(db, business, r['id']) for r in catalog['items']},
         runtime=runtime_context(),
         rules='Current memory; explicit business/source scope; historical quotes are not facts; reviewed evidence only.',
+        knowledge=business_knowledge.build(db, business, selection, profile=profile),
     )
 
 
@@ -180,6 +182,9 @@ def fresh(db, saved, ignore_origins=None):
         db.execute('SELECT name,description FROM businesses WHERE id=%s', (saved['business_id'],)).fetchone()
         != saved['profile']
     ):
+        return False
+    from .reports import history
+    if not history.current(db, saved['business_id'], (saved.get('knowledge') or {}).get('history')):
         return False
     return all(
         ctx.table_version(db, saved['business_id'], key) == value for key, value in saved['tables'].items()

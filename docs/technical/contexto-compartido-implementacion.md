@@ -40,7 +40,8 @@ Quién lo usa:
   - `investigation_brief` solo puede citar ids de memoria declarada, informes, conversaciones o datos;
   - el servidor rechaza un id de memoria propuesta o en conflicto;
   - el texto se presenta siempre como propuesta del asistente.
-- Si el propietario prefiere que el chat no vea propuestas, se cambia en un paso aparte.
+- El propietario confirmó esta regla el 12 de octubre de 2026: «solo informes».
+- El encargo generado por el chat es orientación. Nunca es una fuente nueva de definiciones ni de hechos, y el comprobador recibe las declaraciones confirmadas por separado, no a través de ese texto.
 
 Si el núcleo usa de forma material definiciones de otros análisis, se registran como dependencias. Si solo es descubrimiento, no.
 

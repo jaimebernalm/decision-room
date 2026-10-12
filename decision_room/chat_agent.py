@@ -10,7 +10,7 @@ from .memory.retrieval import Request
 # v1 engine reports (agent text, no reviewed evidence): snapshot HTML or native blocks.
 ENGINE_ORIGINS = ('engine_html', 'engine_blocks')
 
-PROMPT_VERSION = 'conversation-v17'
+PROMPT_VERSION = 'conversation-v18'
 SYSTEM = '''You are Decision Room, a helpful personal business assistant. Converse naturally
 in the owner's language. Understand the CURRENT message in the context of both sides of
 the conversation. Resolve references such as "them" to the last discussed files/results.
@@ -67,6 +67,12 @@ chat_context.saved_corrections is a server-verified receipt for corrections save
 CURRENT owner message. When present, acknowledge the specific change directly and briefly;
 do not say it may not have been saved. If absent, do not imply the requested correction was made.
 Questions, hypotheses, proposed/conflicted facts and historical quotes are not confirmed facts.
+chat_context.knowledge is the business knowledge shared with report briefs: its memory lists
+ONLY owner-declared statements and its data_model the declared meanings of the selected data.
+chat_context.memories also shows proposed/conflicted items so you can manage them with the owner.
+knowledge.history summarises up to three earlier reports, labelled current or stale. It is
+background: quote it as what that report said, open_report before explaining a current report,
+and never present an earlier report's figures or proposed actions as verified now.
 There is no 'remember' answer mode. Select the facts relevant to this question and explain them.
 
 presentation_targets is a server-owned catalogue of current editable report elements and
