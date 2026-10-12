@@ -181,6 +181,12 @@ def upload_paths(ws, data, paths, *, names=None, original_signature=None):
                     invalidate_reports(db, business)
                     if mode == 'correction':
                         context.invalidate(db, business)
+                # Saved indicators: queue the new version; a correction revokes the old values.
+                from .. import indicators
+                if old and mode == 'correction':
+                    indicators.revoke(db, business, previous)
+                indicators.reconcile(db, business)
+                indicators.bump(db, business)
             result['message'] = ('Este archivo ya estaba guardado; conserva su conjunto, periodo y versión.' if result['reused'] else
                 'Datos disponibles. Los informes anteriores no se han recalculado.' if result['status'] == 'ready' else
                 'Algunos archivos no se han podido preparar. Los datos anteriores se conservan.' if result['status'] == 'partial' else

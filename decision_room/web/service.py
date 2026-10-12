@@ -1040,7 +1040,12 @@ class Workspace:
             j = db.execute("SELECT j.id,j.business_id FROM web_jobs j JOIN web_businesses b ON b.business_id=j.business_id WHERE status IN ('queued','running') ORDER BY created_at LIMIT 1").fetchone()
             if not j:
                 from ..conversations import work_once
-                return work_once(self, db)
+                from .. import indicators
+                # Bounded alternation so neither chat turns nor indicator attempts starve.
+                self._indicators_first = not getattr(self, '_indicators_first', False)
+                if self._indicators_first:
+                    return indicators.work_once(self.config) or work_once(self, db)
+                return work_once(self, db) or indicators.work_once(self.config)
             # A deferred job waits for the worker's next pass instead of spinning.
             return self.scoped(j['business_id']).run_job(j['id']) != 'deferred'
 

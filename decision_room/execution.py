@@ -214,11 +214,16 @@ def execute(config, business_id, analysis_id, *, code, tables, definitions=None,
         return get_execution(config, business_id, execution_id)
 
 
+# Executions owned outside report pipelines; each owner has its own scoped recovery.
+NON_REPORT_PREFIXES = ('chat-calc:', 'indicator:')
+NON_REPORT_PATTERNS = [prefix + '%' for prefix in NON_REPORT_PREFIXES]
+
+
 def open_report_runs(db, business_id):
-    """Open executions that report pipelines must recover. Quick chat calculations
-    ('chat-calc:' keys) have their own scoped recovery, so a live one never fails a report."""
+    """Open executions that report pipelines must recover. Quick chat calculations and
+    saved-indicator attempts have their own scoped recovery, so a live one never fails a report."""
     return db.execute("""SELECT 1 FROM executions WHERE business_id=%s AND status IN ('preparing','running')
-        AND request_key NOT LIKE 'chat-calc:%%' LIMIT 1""", (business_id,)).fetchone() is not None
+        AND request_key NOT LIKE ALL(%s) LIMIT 1""", (business_id, NON_REPORT_PATTERNS)).fetchone() is not None
 
 
 class ControllerBusy(ValueError):
@@ -228,14 +233,14 @@ class ControllerBusy(ValueError):
 def recover_executions(config, business_id, backend=None, *, report_runs_only=False):
     """Stop and mark abandoned runs. Never rerun code implicitly.
 
-    report_runs_only leaves quick chat calculations to their own scoped recovery.
+    report_runs_only leaves quick chat calculations and indicator attempts to their own scoped recovery.
     """
     recovered = []
     with connect(config) as db:
         if not db.execute('SELECT pg_try_advisory_lock(%s) AS acquired', (LOCK,)).fetchone()['acquired']:
             raise ControllerBusy('An execution controller is active; recovery skipped.')
         rows = db.execute("""SELECT id FROM executions WHERE business_id=%s AND status IN ('preparing','running')
-            AND (NOT %s OR request_key NOT LIKE 'chat-calc:%%')""", (business_id, report_runs_only)).fetchall()
+            AND (NOT %s OR request_key NOT LIKE ALL(%s))""", (business_id, report_runs_only, NON_REPORT_PATTERNS)).fetchall()
         if not rows:
             return recovered
         backend = backend or DockerBackend()

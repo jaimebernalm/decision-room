@@ -1442,3 +1442,110 @@ CREATE TABLE IF NOT EXISTS chat_report_offers (
 );
 -- Version 39: quick chat calculations and report offers.
 INSERT INTO schema_versions(version) VALUES (39) ON CONFLICT DO NOTHING;
+-- Saved indicators: a fixed, owner-confirmed formula from a published quick calculation,
+-- recomputed without a model on new dataset versions through an attempt journal.
+CREATE TABLE IF NOT EXISTS saved_indicators (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    dataset_id uuid NOT NULL,
+    name text NOT NULL CHECK (char_length(name) BETWEEN 1 AND 120),
+    status text NOT NULL CHECK (status IN ('active','retired')),
+    revision integer NOT NULL DEFAULT 1,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    retired_at timestamptz,
+    UNIQUE (business_id, id),
+    FOREIGN KEY (business_id, dataset_id) REFERENCES analyses(business_id, id)
+);
+CREATE TABLE IF NOT EXISTS indicator_versions (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    indicator_id uuid NOT NULL,
+    version integer NOT NULL CHECK (version > 0),
+    state text NOT NULL CHECK (state IN ('proposed','active','superseded','discarded')),
+    code text NOT NULL,
+    code_sha256 text NOT NULL,
+    tables jsonb NOT NULL,
+    metric_keys jsonb NOT NULL,
+    definitions jsonb NOT NULL,
+    signature jsonb NOT NULL,
+    signature_sha256 text NOT NULL,
+    provenance jsonb NOT NULL,
+    applies_from integer,
+    comparison jsonb,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    confirmed_at timestamptz,
+    UNIQUE (indicator_id, version),
+    UNIQUE (business_id, id),
+    FOREIGN KEY (business_id, indicator_id) REFERENCES saved_indicators(business_id, id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS indicator_versions_active ON indicator_versions(indicator_id) WHERE state='active';
+CREATE TABLE IF NOT EXISTS indicator_values (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    indicator_id uuid NOT NULL,
+    version_id uuid NOT NULL,
+    analysis_id uuid NOT NULL,
+    dataset_version integer NOT NULL,
+    status text NOT NULL CHECK (status IN ('pending','completed','unavailable','revoked')),
+    reason text,
+    detail text,
+    metrics jsonb,
+    meanings_basis jsonb,
+    execution_id uuid,
+    latest_attempt_id uuid,
+    next_attempt_at timestamptz,
+    computed_at timestamptz,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (indicator_id, version_id, analysis_id),
+    UNIQUE (business_id, id),
+    CHECK ((status = 'completed') = (metrics IS NOT NULL)),
+    FOREIGN KEY (business_id, indicator_id) REFERENCES saved_indicators(business_id, id),
+    FOREIGN KEY (business_id, version_id) REFERENCES indicator_versions(business_id, id),
+    FOREIGN KEY (business_id, analysis_id) REFERENCES analyses(business_id, id),
+    FOREIGN KEY (business_id, execution_id) REFERENCES executions(business_id, id)
+);
+CREATE INDEX IF NOT EXISTS indicator_values_due ON indicator_values(status, next_attempt_at) WHERE status='pending';
+CREATE TABLE IF NOT EXISTS indicator_attempts (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    purpose text NOT NULL CHECK (purpose IN ('value','comparison')),
+    value_id uuid,
+    version_id uuid NOT NULL,
+    analysis_id uuid NOT NULL,
+    attempt_no integer NOT NULL CHECK (attempt_no > 0),
+    identity jsonb NOT NULL,
+    admission text NOT NULL CHECK (admission IN ('reserved','admitted','refused')),
+    outcome text CHECK (outcome IN ('completed','transient','structural')),
+    reason text,
+    detail text,
+    runtime jsonb,
+    execution_id uuid UNIQUE,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    finished_at timestamptz,
+    CHECK ((admission = 'admitted') = (execution_id IS NOT NULL)),
+    CHECK ((purpose = 'value') = (value_id IS NOT NULL)),
+    FOREIGN KEY (business_id, value_id) REFERENCES indicator_values(business_id, id),
+    FOREIGN KEY (business_id, version_id) REFERENCES indicator_versions(business_id, id),
+    FOREIGN KEY (business_id, analysis_id) REFERENCES analyses(business_id, id),
+    FOREIGN KEY (business_id, execution_id) REFERENCES executions(business_id, id)
+);
+CREATE INDEX IF NOT EXISTS indicator_attempts_value ON indicator_attempts(value_id, attempt_no);
+CREATE TABLE IF NOT EXISTS indicator_requests (
+    business_id uuid NOT NULL,
+    request_key uuid NOT NULL,
+    kind text NOT NULL,
+    request_sha256 text NOT NULL,
+    result jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (business_id, request_key)
+);
+-- Owner-visible knowledge of indicators and follow-ups; bumped only when its projection changes.
+CREATE TABLE IF NOT EXISTS knowledge_heads (
+    business_id uuid PRIMARY KEY,
+    indicators_revision integer NOT NULL DEFAULT 0,
+    indicators_sha256 text NOT NULL DEFAULT '',
+    follow_ups_revision integer NOT NULL DEFAULT 0,
+    follow_ups_sha256 text NOT NULL DEFAULT ''
+);
+INSERT INTO schema_versions(version) VALUES (40) ON CONFLICT DO NOTHING;
