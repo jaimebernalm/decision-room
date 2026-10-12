@@ -19,7 +19,7 @@ from .. import service as ingestion
 from ..agent import service as planning, research, review
 from ..agent.model import ModelAPIError, ModelClient, ModelNotReady, ModelSettings
 from ..database import connect
-from ..execution import open_report_runs, recover_executions
+from ..execution import ControllerBusy, open_report_runs, recover_executions
 from ..storage import Storage, digest
 from ..memory import service as memory, extraction as memory_extraction
 from . import business as business_store
@@ -952,7 +952,12 @@ class Workspace:
             with connect(self.config) as db:
                 abandoned = open_report_runs(db, b)
             if abandoned:
-                recover_executions(self.config, b)
+                try:
+                    recover_executions(self.config, b, report_runs_only=True)
+                except ControllerBusy:
+                    # A live calculation (often a quick chat one) holds the controller: wait for
+                    # it instead of failing this report; never touch that live run.
+                    return 'deferred'
             if self.ingest_job(j) is None:
                 return
             j = self.sync(job_id)
@@ -1036,8 +1041,8 @@ class Workspace:
             if not j:
                 from ..conversations import work_once
                 return work_once(self, db)
-            self.scoped(j['business_id']).run_job(j['id'])
-            return True
+            # A deferred job waits for the worker's next pass instead of spinning.
+            return self.scoped(j['business_id']).run_job(j['id']) != 'deferred'
 
     def worker(self):
         while not self.stop.is_set():

@@ -1726,9 +1726,7 @@ class Conversations:
                             raise ValueError('Retrieval budget exhausted.')
                         if not any(e['ordinal'] == ordinal for e in events):
                             response, deps = self._calculate(db, chat, turn, ordinal, action, context, events)
-                            request = dict(tool=quick_calc.TOOL, purpose=action.calculation.purpose,
-                                           analysis_id=action.analysis_id, code=action.calculation.code,
-                                           tables=[t.model_dump() for t in action.calculation.tables])
+                            request = quick_calc.request_projection(action.calculation.model_dump(), action.analysis_id, response)
                             with db.transaction():
                                 memory.lock(db, self.business)
                                 if not dependencies_current(self.config, db, turn['snapshot'], [*events, dict(dependencies=deps)]):

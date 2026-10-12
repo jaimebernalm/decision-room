@@ -76,6 +76,13 @@ class ObservationTests(unittest.TestCase):
         self.assertNotIn('metrics', shown)
         self.assertFalse(quick_calc.citable(shown))
 
+    def test_the_bound_is_exact_for_every_size_near_the_limit(self):
+        evidence = [dict(metric='m', tables=['ventas'], operation='SELECT "x"') for _ in range(40)]
+        for length in range(5600, 6200, 7):
+            shown = quick_calc.observation(self.row, self.execution(data=result({'m': 'ñ' * (length // 2)}, evidence, ['n' * 90] * 12)))
+            self.assertLessEqual(quick_calc.size(shown), quick_calc.OBSERVATION_BYTES, length)
+            self.assertTrue(shown.get('metrics') == {'m': 'ñ' * (length // 2)} or shown['status'] == 'output_too_large')
+
     def test_failure_keeps_a_bounded_log_tail_and_refusal_explains_itself(self):
         shown = quick_calc.observation(self.row, self.execution('failed', stderr='línea\n' * 2000 + 'ZeroDivisionError'))
         self.assertTrue(shown['stderr'].endswith('ZeroDivisionError'))
@@ -89,6 +96,7 @@ class ObservationTests(unittest.TestCase):
 class CalculationTests(unittest.TestCase):
     setUpClass = classmethod(fixtures.WebTests.setUpClass.__func__)
     tearDownClass = classmethod(fixtures.WebTests.tearDownClass.__func__)
+    create = fixtures.WebTests.create
 
     def setUp(self):
         fixtures.WebTests.setUp(self)
@@ -160,6 +168,20 @@ class CalculationTests(unittest.TestCase):
         self.assertNotIn('Quizá las unidades sean cajas.', statements)
         self.assertLessEqual(quick_calc.size(row['definitions']), quick_calc.DEFINITIONS_BYTES)
         self.assertEqual([d['kind'] for d in row['dependencies']][0], 'table')
+
+    def test_successive_declarations_keep_their_own_periods(self):
+        business = self.business['id']
+        memory.change(self.config, business, action='declare', request_key=str(uuid4()),
+                      content=content('amount es el total de la fila.', topic='amount_until_june',
+                                      valid_from='2025-01-01', valid_until='2025-06-30'))
+        memory.change(self.config, business, action='declare', request_key=str(uuid4()),
+                      content=content('amount es el precio unitario.', topic='amount_from_july',
+                                      valid_from='2025-07-01', valid_until='2025-12-31'))
+        items = {m['statement']: m for m in self.reserve()['definitions']['memory']}
+        self.assertEqual(items['amount es el total de la fila.']['period'], {'from': '2025-01-01', 'until': '2025-06-30'})
+        self.assertEqual(items['amount es el precio unitario.']['period'], {'from': '2025-07-01', 'until': '2025-12-31'})
+        self.assertEqual(items['amount es el precio unitario.']['temporal_scope'], 'dated')
+        self.assertEqual(items['amount es el precio unitario.']['scope'], 'business')
 
     def test_budget_duplicates_and_refusals_are_recorded_before_any_run(self):
         first = self.reserve(0)
@@ -301,6 +323,32 @@ class ChatCalculationTests(CalculationTests):
         self.assertEqual(source['label'], 'Cálculo rápido (sin comprobación independiente)')
         self.assertTrue(self.contexts[0]['chat_context']['runtime']['can_quick_calculate'])
 
+    def test_a_refusal_for_lack_of_room_never_puts_the_code_in_the_next_prompt(self):
+        code = CODE + '#' + 'x' * 7600 + '\n'
+        sizes = []
+
+        def script(context):
+            sizes.append(len(memory.encoded(context).encode()))
+            if not context['retrievals']:
+                # Leave less room than one calculation needs, but more than a refusal costs.
+                patcher = patch.object(conversations.ctx, 'CONTEXT_BYTES', sizes[0] + 4000)
+                patcher.start()
+                self.addCleanup(patcher.stop)
+                return calculate(self.analysis, self.table, code=code)
+            self.assertEqual(context['retrievals'][0]['response']['refusal'], 'context_full')
+            return answer('No me queda espacio para calcularlo aquí; te propongo un informe.', [])
+        self.script = script
+        turn, shown = self.send()
+        self.assertEqual(shown['status'], 'completed', shown)
+        self.assertEqual(self.backend.runs, [])
+        with connect(self.config) as db:
+            event = db.execute('SELECT * FROM chat_retrievals WHERE turn_id=%s', (turn,)).fetchone()
+            row = db.execute('SELECT * FROM chat_calculations WHERE turn_id=%s', (turn,)).fetchone()
+        self.assertNotIn('code', event['request'])
+        self.assertTrue(event['request']['code_omitted'])
+        self.assertEqual(row['request']['code'], code)  # Kept for audit, outside the prompt.
+        self.assertLess(sizes[1] - sizes[0], 4000)
+
     def test_scope_errors_are_tool_errors_and_record_nothing(self):
         def script(context):
             if not context['retrievals']:
@@ -417,6 +465,30 @@ class ChatCalculationTests(CalculationTests):
             db.execute("UPDATE executions SET request_key='research:x' WHERE id=%s", (row['execution_id'],))
             self.assertTrue(execution.open_report_runs(db, self.business['id']))
 
+
+
+    def test_a_legacy_report_waits_for_a_live_calculation_and_never_recovers_chat_runs(self):
+        from decision_room.web import service
+        turn, shown = self.send()
+        with connect(self.config) as db:
+            calc = db.execute('SELECT execution_id FROM chat_calculations WHERE turn_id=%s', (turn,)).fetchone()['execution_id']
+            db.execute("UPDATE executions SET status='running',finished_at=NULL WHERE id=%s", (calc,))
+            stale = db.execute("""INSERT INTO executions(id,business_id,analysis_id,request_key,request_sha256,code_sha256,code_key,
+                inputs,definitions,limits,environment,status) SELECT gen_random_uuid(),business_id,analysis_id,'research:abandoned',
+                request_sha256,code_sha256,code_key,inputs,definitions,limits,environment,'running' FROM executions WHERE id=%s
+                RETURNING id""", (calc,)).fetchone()['id']
+        job = self.create()
+        statuses = lambda: {r['id']: r['status'] for r in connect(self.config).execute(
+            'SELECT id,status FROM executions WHERE id=ANY(%s)', ([calc, stale],)).fetchall()}
+        with patch.object(service.Workspace, 'ingest_job', lambda ws, j: None):
+            with connect(self.config) as holder:
+                holder.execute('SELECT pg_advisory_lock_shared(%s)', (execution.LOCK,))  # The live calculation.
+                self.assertEqual(self.ws.scoped(self.business['id']).run_job(job), 'deferred')
+                self.assertNotEqual(self.ws.row(job)['status'], 'failed')
+                self.assertEqual(statuses(), {calc: 'running', stale: 'running'})
+            self.ws.scoped(self.business['id']).run_job(job)
+        self.assertEqual(statuses(), {calc: 'running', stale: 'interrupted'})  # Only the report's own run.
+        self.assertEqual(self.backend.removed, [stale])
 
 
 @unittest.skipUnless(quick_calc.available(), 'The local sandbox runtime is not built.')

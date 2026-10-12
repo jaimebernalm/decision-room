@@ -83,7 +83,7 @@ Unicidad por turno, intento y ordinal, y por ejecución. La tabla `executions` s
 
 - Al reintentar explícitamente un turno cuyo intento anterior dejó un cálculo sin resolver, se intenta una recuperación acotada, `recover_execution(config, business, execution_id)`. Toma el bloqueo exclusivo de mantenimiento con un intento no bloqueante, retira el contenedor etiquetado y después marca la ejecución como interrumpida. Si el bloqueo está ocupado o no se confirma la retirada, no hace nada. Nunca vuelve a ejecutar código.
 - Si después de ese intento sigue habiendo un cálculo del mensaje sin resolver, el reintento se rechaza con un 409 y no se crea un intento nuevo.
-- La recuperación previa de los trabajos antiguos (`web/service.py`) solo considera las ejecuciones que no son del chat (`execution.open_report_runs`), para que un cálculo vivo del chat no haga fallar un informe antiguo.
+- La recuperación previa de los trabajos antiguos (`web/service.py`) solo considera y solo recupera las ejecuciones que no son del chat (`execution.open_report_runs` y `recover_executions(..., report_runs_only=True)`). Si un cálculo vivo ocupa el bloqueo, el informe espera a la siguiente pasada del proceso de trabajo en vez de fallar, y nunca toca ese cálculo.
 
 ## 2.3 Alcance, definiciones y frescura
 
@@ -95,7 +95,7 @@ Unicidad por turno, intento y ordinal, y por ejecución. La tabla `executions` s
 - **Rechazos sin ejecutar nada:** alias duplicados (antes de construir el diccionario), ids duplicados y tablas ajenas o desconocidas.
 - **Definiciones congeladas.** Se pasan a `execute` como `definitions` y quedan visibles como `dr_runtime.DEFINITIONS`, sin cambiar la fórmula:
   - los significados declarados del modelo de datos del análisis calculado, con su revisión y si hay significados desconocidos;
-  - las referencias de la memoria declarada aplicable a ese análisis.
+  - las referencias de la memoria declarada aplicable a ese análisis, cada una con su periodo resuelto y su alcance, para que dos declaraciones sucesivas (por ejemplo, total de la fila hasta junio y precio unitario desde julio) sigan distinguiéndose.
 
   Tienen un máximo de 6 KiB serializados, con la cuenta de los significados y recuerdos omitidos (el plan decía 16 KiB; se bajó para que la proyección del revisor quepa en 24 KiB). Nunca incluyen memoria propuesta o en conflicto ni texto escrito por el chat.
 - **Dependencias del cálculo:**
@@ -113,7 +113,8 @@ Todos los límites de esta sección se miden en bytes del JSON real codificado e
   - Primero intenta la recuperación acotada.
   - Si sigue sin resolver, el cálculo nuevo no arranca: queda `refused` con el motivo `previous_unresolved`.
   - El modelo puede responder sin calcular o proponer un informe.
-- **Observación para el modelo:** como máximo 8 KiB en UTF-8. Contiene:
+- **Solicitud en el diario del chat:** el código solo queda en `chat_retrievals.request` si el cálculo se ejecutó, para que el modelo pueda leerlo y corregirlo. Un cálculo rechazado o inválido guarda el propósito, las tablas, el hash y el tamaño del código, nunca el código, para que no llene el contexto por el que se rechazó. `chat_calculations` conserva la solicitud completa.
+- **Observación para el modelo:** como máximo 8 KiB en UTF-8, comprobados al final sobre el JSON real. Contiene:
   - estado y error;
   - las métricas, que deben caber enteras en 6 KiB. Si no caben, el estado es `output_too_large` y el cálculo no puede citarse;
   - la evidencia, con cada operación recortada a 600 caracteres, un número máximo de elementos y la cuenta de los omitidos;

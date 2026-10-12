@@ -458,6 +458,7 @@ export function ChatPage({
                           turn.status === "completed" && (
                             <div className="mt-3">
                               <ReportOfferCard
+                                key={turn.response.report_offer.id}
                                 offer={turn.response.report_offer}
                                 chatId={id}
                                 businessId={business}

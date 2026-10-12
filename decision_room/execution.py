@@ -221,14 +221,21 @@ def open_report_runs(db, business_id):
         AND request_key NOT LIKE 'chat-calc:%%' LIMIT 1""", (business_id,)).fetchone() is not None
 
 
-def recover_executions(config, business_id, backend=None):
-    """Stop and mark abandoned runs. Never rerun code implicitly."""
+class ControllerBusy(ValueError):
+    """A live execution holds the controller lock; recovery must wait, not fail."""
+
+
+def recover_executions(config, business_id, backend=None, *, report_runs_only=False):
+    """Stop and mark abandoned runs. Never rerun code implicitly.
+
+    report_runs_only leaves quick chat calculations to their own scoped recovery.
+    """
     recovered = []
     with connect(config) as db:
         if not db.execute('SELECT pg_try_advisory_lock(%s) AS acquired', (LOCK,)).fetchone()['acquired']:
-            raise ValueError('An execution controller is active; recovery skipped.')
-        rows = db.execute("SELECT id FROM executions WHERE business_id=%s AND status IN ('preparing','running')",
-                          (business_id,)).fetchall()
+            raise ControllerBusy('An execution controller is active; recovery skipped.')
+        rows = db.execute("""SELECT id FROM executions WHERE business_id=%s AND status IN ('preparing','running')
+            AND (NOT %s OR request_key NOT LIKE 'chat-calc:%%')""", (business_id, report_runs_only)).fetchall()
         if not rows:
             return recovered
         backend = backend or DockerBackend()
