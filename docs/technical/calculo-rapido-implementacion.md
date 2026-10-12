@@ -4,7 +4,11 @@ Fecha: 12 de octubre de 2026.
 
 Desarrolla el paso 2 del [plan de contexto compartido y cálculo rápido](<../product/contexto-compartido-y-calculo-rapido-plan.md>). El plan lo acordaron Claude y Codex en tres versiones; Codex aprobó la tercera. Claude lo implementa y Codex revisa los cambios. No incluye llamadas de pago; la prueba real final necesita la aprobación del propietario.
 
-**Estado: plan acordado; implementación en curso en `feature/quick-chat-calculation`.**
+**Estado: implementado en `feature/quick-chat-calculation`, pendiente de la revisión de Codex y de la prueba real.**
+
+- Un commit por parte (1 a 5), uno de correcciones tras la suite completa y otro para esta documentación.
+- Suite completa: 1038/1039. El único error es el navegador de informes, que no está construido en la máquina local. Interfaz: 341 pruebas, `tsc` y `oxlint` sin errores.
+- Las cifras de esta página son las implementadas. Donde la implementación ajustó un número del plan acordado, se dice.
 
 ## Principios
 
@@ -16,7 +20,7 @@ Desarrolla el paso 2 del [plan de contexto compartido y cálculo rápido](<../pr
 
 ## Desviaciones del plan de producto
 
-- **Sin contenedor siempre activo.** El plan preveía mantener un contenedor activo durante la conversación. Arrancar el contenedor del sandbox con las mismas restricciones e importar DuckDB y pandas tarda 0,40–0,46 s en este Mac (tres mediciones con `docker run`; no es una medición completa de `execute`). Un contenedor nuevo por cálculo conserva el modelo de seguridad actual: nunca se reutiliza un contenedor ni queda estado entre preguntas o negocios. La duración completa se mide en la prueba de integración con Docker real y un modelo simulado, y no se promete una latencia.
+- **Sin contenedor siempre activo.** El plan preveía mantener un contenedor activo durante la conversación. Arrancar el contenedor del sandbox con las mismas restricciones e importar DuckDB y pandas tarda 0,40–0,46 s en este Mac (tres mediciones con `docker run`; no es una medición completa de `execute`). Un contenedor nuevo por cálculo conserva el modelo de seguridad actual: nunca se reutiliza un contenedor ni queda estado entre preguntas o negocios. Medido después con Docker real y un modelo simulado sobre una tabla pequeña (tres turnos): la ejecución completa de `execute` tarda unos 0,59 s y el turno entero unos 0,8 s, sin contar las llamadas al modelo. No se promete una latencia: depende del tamaño de los datos y de la máquina.
 - **Imagen del sandbox, no la del agente de informes.** Se usa la imagen de `sandbox/`, que tiene la pila de datos de Python y el protocolo `dr_runtime`, con las mismas restricciones: sin red, sistema de archivos de solo lectura, usuario sin privilegios, sin capacidades, límites de memoria, procesos y disco, y datos montados en solo lectura.
 
 ## 2.1 Contrato de decisión
@@ -26,7 +30,7 @@ En `chat_agent.py`, con `PROMPT_VERSION` `conversation-v20`:
 - **Acción `calculate`** con `calculation`:
   - `purpose`: la pregunta concreta que se calcula, de 1 a 300 caracteres;
   - `tables`: de 1 a 4 tablas, cada una con un alias (`[a-z][a-z0-9_]{0,62}`) y el id de la tabla preparada;
-  - `code`: hasta 8192 caracteres y, comprobado aparte, hasta 8 KiB en UTF-8.
+  - `code`: hasta 8192 caracteres y, comprobado aparte, hasta 8 KiB como cadena JSON serializada (escapes incluidos).
 
   Requiere también `analysis_id`.
 - **Acción `offer_report`** (2.5): `analysis_id`, `investigation_brief` obligatorio (con las reglas del paso 1), `text` y `sources`.
@@ -77,8 +81,9 @@ Unicidad por turno, intento y ordinal, y por ejecución. La tabla `executions` s
 
 ### Recuperación
 
-- Al reintentar explícitamente un turno cuyo intento anterior dejó un cálculo sin resolver, se intenta una recuperación acotada, `recover_execution(config, business, execution_id)`. Toma el bloqueo exclusivo de mantenimiento con un intento no bloqueante, retira el contenedor etiquetado y después marca la ejecución como interrumpida. Si el bloqueo está ocupado, no hace nada. Nunca vuelve a ejecutar código.
-- La recuperación previa de los trabajos antiguos (`web/service.py`) solo considera las ejecuciones que no son del chat, para que un cálculo vivo del chat no haga fallar un informe antiguo.
+- Al reintentar explícitamente un turno cuyo intento anterior dejó un cálculo sin resolver, se intenta una recuperación acotada, `recover_execution(config, business, execution_id)`. Toma el bloqueo exclusivo de mantenimiento con un intento no bloqueante, retira el contenedor etiquetado y después marca la ejecución como interrumpida. Si el bloqueo está ocupado o no se confirma la retirada, no hace nada. Nunca vuelve a ejecutar código.
+- Si después de ese intento sigue habiendo un cálculo del mensaje sin resolver, el reintento se rechaza con un 409 y no se crea un intento nuevo.
+- La recuperación previa de los trabajos antiguos (`web/service.py`) solo considera las ejecuciones que no son del chat (`execution.open_report_runs`), para que un cálculo vivo del chat no haga fallar un informe antiguo.
 
 ## 2.3 Alcance, definiciones y frescura
 
@@ -92,7 +97,7 @@ Unicidad por turno, intento y ordinal, y por ejecución. La tabla `executions` s
   - los significados declarados del modelo de datos del análisis calculado, con su revisión y si hay significados desconocidos;
   - las referencias de la memoria declarada aplicable a ese análisis.
 
-  Tienen un máximo de 16 KiB. Nunca incluyen memoria propuesta o en conflicto ni texto escrito por el chat.
+  Tienen un máximo de 6 KiB serializados, con la cuenta de los significados y recuerdos omitidos (el plan decía 16 KiB; se bajó para que la proyección del revisor quepa en 24 KiB). Nunca incluyen memoria propuesta o en conflicto ni texto escrito por el chat.
 - **Dependencias del cálculo:**
   - la versión de metadatos de cada tabla;
   - el modelo de datos `{analysis_id, revision}`, si existe.
@@ -118,9 +123,9 @@ Todos los límites de esta sección se miden en bytes del JSON real codificado e
   - `independent_check: 'none'`.
 
   `executions` conserva `verification: 'pending'` y nunca se reescribe. Nunca se corta un JSON ni se publican métricas parciales como completas.
-- **Contexto del autor:** el límite total de 200 000 bytes (`ctx.CONTEXT_BYTES`) sigue cubriendo todo. Antes de admitir un cálculo se reserva margen: si el tamaño del contexto actual más 24 KiB supera el límite, el cálculo queda `refused` con el motivo `context_full`. Esos 24 KiB son 8 KiB de código repetido en la solicitud y dos copias de 8 KiB de la observación. El modelo recibe un error de herramienta que le pide responder con lo que tiene o proponer un informe. Un cálculo nunca es lo que rompe el límite.
+- **Contexto del autor:** el límite total de 200 000 bytes (`ctx.CONTEXT_BYTES`) sigue cubriendo todo. Antes de admitir un cálculo se reserva margen: si el tamaño del contexto actual más 28 KiB supera el límite, el cálculo queda `refused` con el motivo `context_full`. Esos 28 KiB son la solicitud con su código de hasta 8 KiB y su propósito, y dos copias de 8 KiB de la observación (el plan decía 24 KiB; no contaba el propósito ni los metadatos de la solicitud). El modelo recibe un error de herramienta que le pide responder con lo que tiene o proponer un informe. Un cálculo nunca es lo que rompe el límite.
 - **Contexto de la revisión:** límite nuevo y explícito de 200 000 bytes sobre `check_context`.
-  - Por cada cálculo citado, la proyección para el revisor tiene un máximo de 24 KiB: código hasta 8 KiB, definiciones hasta 8 KiB con marca de omitidas y observación hasta 8 KiB.
+  - Por cada cálculo citado, la proyección para el revisor tiene un máximo de 24 KiB serializados: código hasta 8 KiB, definiciones hasta 6 KiB con marca de omitidas, observación hasta 8 KiB y metadatos. Si aun así no cupiera, las definiciones se sustituyen enteras por una marca de omitidas.
   - Los significados declarados del análisis calculado se añaden una vez y acotados.
   - Si se omitieron definiciones, la proyección lo declara con su número. El revisor no puede suponer su contenido: un cálculo cuya interpretación dependa de una definición omitida no se aprueba.
   - Si aun así se excede el límite, el borrador se rechaza sin llamar al revisor, con el aviso «cita menos fuentes o más pequeñas». Cuenta como un intento de revisión, como los demás problemas de fuentes.
@@ -191,7 +196,7 @@ Solo un cálculo terminado del mismo turno e intento, con las métricas completa
   - tablas, con los nombres originales de sus alias;
   - definiciones congeladas;
   - métricas, evidencia, notas y etiqueta.
-- `check_context` incluye `declared_data_meanings` del análisis calculado aunque el autor no lo cite.
+- La proyección de cada cálculo citado lleva `declared_meanings`: los significados declarados congelados del análisis calculado, aunque el autor no haya citado el modelo de datos.
 - **Nuevas reglas de `REVIEW_SYSTEM`:**
   - Comprobación ligera de coherencia entre el propósito y el código: fechas, filtros, unidades, grano, precio por unidad frente a total de la fila y uniones declaradas.
   - Se aprueban la paráfrasis y el redondeo de las métricas devueltas.
