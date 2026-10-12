@@ -118,6 +118,7 @@ def dialogue_reply(response):
     elif response.get('kind') == 'catalog':
         parts += [' · '.join([item.get('description', ''), ', '.join(item.get('names', [])),
                               ', '.join(item.get('columns', []))]) for item in response.get('items', [])]
+    parts += quick_calc.history_lines(response)
     text = '\n'.join(part for part in parts if part)
     return dict(kind=response['kind'], text=text[:4000], truncated=len(text) > 4000,
                 use='Conversation continuity only; not factual evidence.')
@@ -1020,8 +1021,18 @@ class Conversations:
         visible_text = action.text
         if action.onboarding and action.onboarding.question and action.onboarding.question.text not in visible_text:
             visible_text += '\n\n' + action.onboarding.question.text
+        # Cited quick calculations: the reviewer sees code, frozen declared meanings and the
+        # observation; only completed ones are recorded under the answer.
+        calculated = {f'tool/{e["ordinal"]}': e for e in context['retrievals']
+                      if e['request']['tool'] == quick_calc.TOOL and f'tool/{e["ordinal"]}' in cited}
+        rows = {r['ordinal']: r for r in db.execute(
+            'SELECT * FROM chat_calculations WHERE turn_id=%s AND attempt=%s AND ordinal=ANY(%s)',
+            (turn['id'], turn['attempt'], [e['ordinal'] for e in calculated.values()])).fetchall()} if calculated else {}
+        reviewed_sources = {key: (dict(item, content=quick_calc.review_projection(rows[calculated[key]['ordinal']], item['content']))
+                                  if key in calculated and calculated[key]['ordinal'] in rows else item)
+                            for key, item in cited.items()}
         check_context = dict(message=context['message'], recent_dialogue=context['recent_dialogue'],
-                             draft=visible_text, cited_sources=cited,
+                             draft=visible_text, cited_sources=reviewed_sources,
                              runtime=context['chat_context'].get('runtime', {}),
                              memory_status=context['chat_context'].get('memory_status', {}),
                              saved_corrections=context['chat_context'].get('saved_corrections', []),
@@ -1034,6 +1045,8 @@ class Conversations:
             check_context['presentation_change'] = context['presentation_change']
             check_context['presentation_targets'] = context['presentation_targets']
         check_context = chat_agent.separate_review_history(check_context)
+        if len(memory.encoded(check_context).encode()) > ctx.CONTEXT_BYTES:
+            source_issues.append('The review context is too large: cite fewer or smaller sources.')
         row = db.execute('SELECT * FROM chat_answer_reviews WHERE turn_id=%s AND attempt=%s AND ordinal=%s',
                          (turn['id'], turn['attempt'], ordinal)).fetchone()
         if row and row['status'] != 'completed':
@@ -1068,6 +1081,10 @@ class Conversations:
                         sources=[dict(reference=key, label=item['label']) for key, item in cited.items()])
         if action.onboarding:
             response['onboarding'] = action.onboarding.model_dump(mode='json')
+        records = [quick_calc.presentation(rows[e['ordinal']], e['response']) for key, e in calculated.items()
+                   if e['ordinal'] in rows and quick_calc.citable(e['response'])]
+        if records:
+            response['calculations'] = records
         # An optional evidence attachment retains report export and version checks.
         opened = [e['response'] for i, e in enumerate(context['retrievals'])
                   if f'tool/{e.get("ordinal", i)}' in cited and e['request']['tool'] == 'open_report' and 'error' not in e['response']

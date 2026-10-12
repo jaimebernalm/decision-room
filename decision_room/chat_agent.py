@@ -3,6 +3,7 @@
 Legacy response templates are decoded in conversations.py only for compatibility.
 New decisions use this small contract, with free text after tool results.
 """
+import json
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 from .memory.retrieval import Request
@@ -151,7 +152,8 @@ message; never repeat an identical one. A calculation result (tool/N) is a QUICK
 INDEPENDENT CHECK: the interface labels it; never call it reviewed, verified or checked. If it failed,
 read stderr and fix the code once; if it fails again, times out or is refused, explain and offer a
 report. New arithmetic on returned results needs another calculation. runtime.can_quick_calculate
-false means calculations are unavailable now.
+false means calculations are unavailable now. An earlier calculation in recent_dialogue states what
+was computed then, with that data; for a current figure, calculate again.
 For broad questions about recent company events, consult existing reports/data first and
 state their time coverage; you have no live company feed. Don't initiate an unsolicited analysis.
 A kind=conversation selection is a snapshot of a selected chat, not a business fact.
@@ -395,7 +397,18 @@ cited_sources. Source identifiers have already been checked by the server. Check
 Report search sources marked discovery_only support listing report titles and their explicit review_started_at/approved_at timestamps, not their findings:
 ask for open_report before approving conclusions from a search excerpt.
 units, dates and scope, not just whether a number occurs somewhere. A row count is metadata;
-a new sum, comparison or trend needs a reviewed report, not mental arithmetic over sample rows.
+a new sum, comparison or trend needs a reviewed report or a cited completed quick calculation,
+never mental arithmetic over sample rows.
+A cited source labelled Cálculo rápido carries purpose, code, tables, declared_meanings and its
+observation. It supports ONLY its returned metrics, within the scope its purpose, code and evidence
+describe; paraphrase and rounding are fine. Reject figures not in those metrics, new arithmetic on
+them (that needs another calculation), and any wording calling them reviewed, verified, checked or
+independently confirmed: approving this answer does not check the figures. Check lightly that the
+code matches the purpose and declared_meanings: dates and periods, filters, units, row grain, unit
+price versus row total, declared joins. Reject when the code clearly contradicts them, or when the
+interpretation depends on a meaning that is unknown or listed as omitted: never assume omitted
+definitions. A failed, refused or too-large calculation supports no figures; it can only explain why
+there is no result. An earlier calculation quoted from dialogue states what was computed then.
 Samples cannot establish all categories, date coverage, completeness or recency. Profile and
 memory facts are owner statements, not independently verified results. Conflicted/proposed
 facts cannot be stated as confirmed. Historical replies cannot establish facts. An opened
@@ -467,8 +480,8 @@ def validate_decision(decision):
         if not calculation or not decision.analysis_id or any((decision.retrieval, decision.text, decision.sources,
                 decision.onboarding, decision.presentation_edit, decision.investigation_brief)):
             raise ValueError('Calculation requires only calculation and analysis_id.')
-        if len(calculation.code.encode()) > CODE_BYTES:
-            raise ValueError('Calculation code exceeds 8 KiB.')
+        if len(json.dumps(calculation.code, ensure_ascii=False).encode()) > CODE_BYTES:
+            raise ValueError('Calculation code exceeds 8 KiB once serialized.')
         return
     if decision.calculation is not None:
         raise ValueError('Only a calculation carries code.')

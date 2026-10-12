@@ -292,8 +292,22 @@ export type PresentationReceipt = {
   title: string;
   href: string | null;
 };
+export type QuickCalculation = {
+  calculation_id: string;
+  execution_id: string;
+  label: string;
+  purpose: string;
+  code: string;
+  tables: { alias: string; names: string[] }[];
+  metrics: Record<string, string | number | boolean | null>;
+  evidence: { metric: string; tables: string[]; operation: string }[];
+  evidence_omitted: number;
+  notes: string[];
+  notes_omitted: number;
+};
 export type Response = Partial<Report> & {
   presentation_receipt?: PresentationReceipt;
+  calculations?: QuickCalculation[];
   kind: string;
   onboarding?: SetupGuide;
   first_report?: boolean;

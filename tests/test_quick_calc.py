@@ -347,5 +347,51 @@ class ChatCalculationTests(CalculationTests):
         self.assertEqual(status, 'interrupted')
 
 
+    def test_the_answer_records_the_labelled_formula_and_the_reviewer_sees_code_and_meanings(self):
+        turn, shown = self.send()
+        record = shown['response']['calculations'][0]
+        self.assertEqual(record['label'], quick_calc.LABEL)
+        self.assertEqual((record['code'], record['metrics']), (CODE, {'unidades': 180}))
+        self.assertEqual(record['tables'][0]['alias'], 'ventas')
+        self.assertTrue(record['tables'][0]['names'])
+        cited = next(v for v in self.reviews[-1]['cited_sources'].values() if v['label'] == quick_calc.SOURCE_LABEL)
+        self.assertEqual(cited['content']['code'], CODE)
+        self.assertEqual(cited['content']['independent_check'], 'none')
+        self.assertIn('declared_meanings', cited['content'])
+        self.assertLessEqual(quick_calc.size(cited['content']), quick_calc.REVIEW_BYTES)
+        # The next message sees the earlier calculation only as historical dialogue.
+        self.script = lambda context: answer('De nada.', [])
+        self.send('Gracias')
+        earlier = self.contexts[-1]['recent_dialogue'][-1]['assistant']['text']
+        self.assertIn('Cálculo rápido de entonces, sin comprobación independiente', earlier)
+        self.assertIn('unidades = 180', earlier)
+        from decision_room.conversation_context import assistant_text
+        self.assertIn('Operación: SELECT 1', assistant_text(shown['response']))
+
+    def test_a_failed_calculation_is_never_recorded_as_a_result(self):
+        self.backend.status, self.backend.stderr = 'failed', 'Traceback: ZeroDivisionError'
+        def script(context):
+            done = [e for e in context['retrievals'] if e['request']['tool'] == 'calculate']
+            if not done:
+                return calculate(self.analysis, self.table)
+            self.assertIn('ZeroDivisionError', done[0]['response']['stderr'])
+            return answer('No he podido calcularlo.', [f"tool/{done[0]['ordinal']}"])
+        self.script = script
+        turn, shown = self.send()
+        self.assertEqual(shown['status'], 'completed', shown)
+        self.assertNotIn('calculations', shown['response'])
+
+    def test_an_oversized_review_is_rejected_without_calling_the_reviewer(self):
+        with patch.object(quick_calc, 'review_projection', lambda row, response: dict(code='x' * 210000)), \
+                patch.object(conversations.ctx, 'MAX_RETRIEVALS', 3):
+            turn, shown = self.send()
+        self.assertEqual(shown['status'], 'failed')
+        self.assertEqual(self.reviews, [])
+        with connect(self.config) as db:
+            review = db.execute('SELECT response FROM chat_answer_reviews WHERE turn_id=%s ORDER BY ordinal LIMIT 1',
+                                (turn,)).fetchone()['response']
+        self.assertEqual(review['issues'], ['The review context is too large: cite fewer or smaller sources.'])
+
+
 if __name__ == '__main__':
     unittest.main()

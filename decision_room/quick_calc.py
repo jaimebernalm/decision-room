@@ -25,16 +25,19 @@ SOURCE_LABEL = 'Cálculo rápido (sin comprobación independiente)'
 TIMEOUT = 30
 MAX_INPUT_BYTES = 64 * 1024**2
 MAX_PER_ATTEMPT = 3
-CODE_BYTES = 8 * 1024
-DEFINITIONS_BYTES = 8 * 1024
+CODE_BYTES = 8 * 1024  # Serialized JSON string, escapes included.
+DEFINITIONS_BYTES = 6 * 1024
 OBSERVATION_BYTES = 8 * 1024
 METRICS_BYTES = 6 * 1024
 NOTES_BYTES = 1024
 LOG_BYTES = 1024
 OPERATION_CHARS = 600
-# Serialized cost of one calculation in the author context: its code echoed in the
-# request plus the observation in retrievals and again in available_sources.
-HEADROOM = 24 * 1024
+# Serialized cost of one calculation in the author context: the request with its
+# code and purpose, plus the observation in retrievals and again in available_sources.
+HEADROOM = 28 * 1024
+# One cited calculation as the answer reviewer sees it: code, frozen definitions,
+# observation and metadata.
+REVIEW_BYTES = 24 * 1024
 TERMINAL = ('completed', 'failed', 'timed_out', 'interrupted', 'invalid_output', 'resource_limit')
 
 REFUSALS = {
@@ -161,7 +164,7 @@ def reserve(db, business, *, turn, ordinal, chat_analysis, snapshot, events, cal
     if row:
         return row
     code = calculation['code']
-    if len(code.encode()) > CODE_BYTES:
+    if size(code) > CODE_BYTES:
         raise ValueError('Calculation code exceeds 8 KiB.')
     tables = authorize(db, business, snapshot, events, chat_analysis, analysis_id, calculation['tables'])
     defs = definitions(db, business, analysis_id)
@@ -291,3 +294,39 @@ def observation(row, result):
 
 def citable(response):
     return response.get('status') == 'completed' and 'metrics' in response and 'error' not in response
+
+
+def review_projection(row, response):
+    """One cited calculation as the answer reviewer sees it, at most REVIEW_BYTES serialized.
+
+    The frozen definitions keep their omitted counts; if they do not fit they are
+    dropped as a whole and marked, so the reviewer never assumes them.
+    """
+    projection = dict(label=LABEL, independent_check='none', purpose=row['request']['purpose'],
+                      code=row['request']['code'],
+                      tables=[dict(alias=t['alias'], names=t['original_names']) for t in row['request']['tables']],
+                      declared_meanings=row['definitions'], observation=response)
+    if size(projection) > REVIEW_BYTES:
+        projection['declared_meanings'] = dict(omitted='all', use='Definitions omitted for size: do not assume them.')
+    return projection
+
+
+def presentation(row, response):
+    """Durable record shown under the answer: formula, result and sources, with the server label."""
+    return dict(calculation_id=str(row['id']), execution_id=response['execution_id'], label=LABEL,
+                purpose=row['request']['purpose'], code=row['request']['code'],
+                tables=[dict(alias=t['alias'], names=t['original_names']) for t in row['request']['tables']],
+                metrics=response['metrics'], evidence=response['evidence'], evidence_omitted=response['evidence_omitted'],
+                notes=response['notes'], notes_omitted=response['notes_omitted'])
+
+
+def history_lines(response, operations=False):
+    """Earlier calculations as historical attribution: what was computed then, not current data."""
+    lines = []
+    for item in (response or {}).get('calculations', []):
+        metrics = ', '.join(f'{key} = {value}' for key, value in item['metrics'].items())
+        line = f"Cálculo rápido de entonces, sin comprobación independiente: {item['purpose']} → {metrics}"
+        if operations and item.get('evidence'):
+            line += ' | Operación: ' + '; '.join(e['operation'] for e in item['evidence'])
+        lines.append(line)
+    return lines

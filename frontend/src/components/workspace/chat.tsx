@@ -40,6 +40,7 @@ import { ContextAttachments, SelectionTool } from "./context-selection";
 import { ComposerSurface } from "./composer-surface";
 import { Composer } from "./composer";
 import { PresentationChangeReceipt } from "./presentation-receipt";
+import { QuickCalculations } from "./quick-calculation";
 export function Answer({
   response,
   ownerText = "",
@@ -138,6 +139,9 @@ export function Answer({
           {response.text}
         </MessageResponse>
       )}
+      {response.calculations?.length ? (
+        <QuickCalculations items={response.calculations} />
+      ) : null}
       {response.presentation_receipt && (
         <PresentationChangeReceipt receipt={response.presentation_receipt} />
       )}

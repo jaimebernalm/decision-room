@@ -1415,5 +1415,8 @@
   "favorable": "favourable",
   "desfavorable": "unfavourable",
   "aviso": "warning",
-  "neutro": "neutral"
+  "neutro": "neutral",
+  "Cálculo rápido, sin comprobación independiente": "Quick calculation, no independent check",
+  "Ver el código y las tablas": "View the code and tables",
+  "Tablas:": "Tables:"
 }
