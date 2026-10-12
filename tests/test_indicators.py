@@ -1,4 +1,5 @@
 """Saved indicators: created from a published calculation, recomputed without a model, never adapted."""
+import json
 from datetime import date, timedelta
 from unittest.mock import patch
 from uuid import uuid4
@@ -291,3 +292,56 @@ class RepairTests(IndicatorTests):
         with self.assertRaises(WebError) as refused:
             self.confirm(created, proposed, active)
         self.assertEqual(refused.exception.status, 409)
+
+
+class IndicatorConsumerTests(IndicatorTests):
+    for name in [n for n in dir(IndicatorTests) if n.startswith('test_')]:
+        locals()[name] = None
+    del name
+
+    def test_core_brief_and_chat_show_latest_values_with_their_meanings_basis(self):
+        from decision_room import business_knowledge, chat_agent, conversations
+        from decision_room.engine import brief
+        from decision_room.memory import retrieval
+        self.declare(self.analysis, meaning='unidades vendidas', unit='paquetes')
+        created, _ = self.saved()
+        newer = self.update()
+        self.backend.payload = qc.result({'unidades': 200})
+        indicators.work_once(self.config)
+        with connect(self.config) as db, db.transaction():
+            core = business_knowledge.build(db, self.b, dict(analysis_id=str(newer), source_ids=[], period={'from': None, 'until': None}))
+        [item] = core['indicators']['items']
+        self.assertEqual(item['latest']['metrics'], {'unidades': 200})
+        self.assertEqual(item['latest']['meanings'], indicators.INHERITED.format(1))
+        lines = brief.indicator_lines(core['indicators'])
+        self.assertIn('unidades = 200', lines[0])
+        self.assertIn('no están confirmados en esta versión', lines[0])
+        # The chat reads one indicator through its own tool; the research retriever refuses it.
+        def script(context):
+            done = [e for e in context['retrievals'] if e['request']['tool'] == 'inspect_indicator']
+            if not done:
+                return dict(action='retrieve', retrieval=dict(tool='inspect_indicator', query='', id=created['indicator_id'], limit=1),
+                            analysis_id='', text='', sources=[], calculation=None, include_report=False, onboarding=None,
+                            presentation_edit=None, investigation_brief=None)
+            self.assertNotIn('error', done[0]['response'])
+            self.assertIn('write_result', done[0]['response']['version']['code'])
+            self.assertLessEqual(len(json.dumps(done[0]['response'], ensure_ascii=False).encode()), indicators.INSPECT_BYTES)
+            return qc.answer('El indicador vale 200 con los últimos datos.', [f"tool/{done[0]['ordinal']}", 'indicators'])
+        self.script = script
+        turn, shown = self.send('¿Cuánto vale el indicador?')
+        self.assertEqual(shown['status'], 'completed', shown)
+        labels = {s['label'] for s in shown['response']['sources']}
+        self.assertEqual(labels, {'Indicador guardado', 'Indicadores guardados'})
+        with connect(self.config) as db, self.assertRaises(ValueError):
+            retrieval.retrieve(self.config, db, None, dict(tool='inspect_indicator', query='', id=created['indicator_id'], limit=1),
+                               manifest=dict(business_id=str(self.b)))
+        # A new value makes earlier chat context stale.
+        with connect(self.config) as db:
+            saved = db.execute('SELECT snapshot FROM chat_turns WHERE id=%s', (turn,)).fetchone()['snapshot']
+            self.assertTrue(conversations.fresh(db, saved))
+            db.execute("UPDATE indicator_values SET status='unavailable',reason='program_failed',metrics=NULL WHERE indicator_id=%s AND analysis_id=%s",
+                       (created['indicator_id'], newer))
+            with db.transaction():
+                indicators.bump(db, self.b)
+            self.assertFalse(conversations.fresh(db, saved))
+        del chat_agent

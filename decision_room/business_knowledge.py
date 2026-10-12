@@ -10,7 +10,9 @@ said is that report's statement, not current evidence.
 """
 from .memory import context
 
-VERSION = 'business-knowledge-2'
+VERSION = 'business-knowledge-3'
+INDICATORS_BYTES = 4 * 1024
+FOLLOW_UPS_BYTES = 6 * 1024
 CATALOG_LIMIT = 20
 
 
@@ -68,5 +70,67 @@ def build_with_files(db, business, selection, *, profile=None, explicit=()):
                 memory=declared(context.scoped(context.effective(db, business), scope)),
                 data_model=data_model(db, business, scope['analysis_id']),
                 catalog=catalog(db, business),
-                history=prior)
+                history=prior,
+                indicators=indicators(db, business),
+                follow_ups=follow_ups(db, business),
+                heads=heads(db, business))
     return core, files, manifest
+
+
+def heads(db, business):
+    row = db.execute('SELECT indicators_revision,follow_ups_revision FROM knowledge_heads WHERE business_id=%s', (business,)).fetchone()
+    return dict(indicators=row['indicators_revision'] if row else 0, follow_ups=row['follow_ups_revision'] if row else 0)
+
+
+def _bounded(items, limit):
+    """Whole items within a real serialized byte budget; the rest only counted."""
+    from .memory.service import encoded
+    kept, omitted = [], 0
+    for item in items:
+        if len(encoded([*kept, item]).encode()) <= limit:
+            kept.append(item)
+        else:
+            omitted += 1
+    return kept, omitted
+
+
+def indicators(db, business):
+    """Active saved indicators with their latest value (latest eligible dataset version)."""
+    from . import indicators as store
+    items = []
+    for row in db.execute("SELECT * FROM saved_indicators WHERE business_id=%s AND status='active' ORDER BY name,id", (business,)).fetchall():
+        version = db.execute("SELECT id,version,metric_keys FROM indicator_versions WHERE indicator_id=%s AND state='active'",
+                             (row['id'],)).fetchone()
+        values = store.current_values(db, business, row['id'])
+        latest = values[0] if values else None
+        item = dict(id=str(row['id']), name=row['name'], version=version['version'] if version else None, label=store.LABEL)
+        if latest:
+            basis = latest['meanings_basis'] or {}
+            item['latest'] = dict(value_id=str(latest['id']), version_id=str(latest['version_id']),
+                                  dataset_version=latest['dataset_version'], status=latest['status'])
+            if latest['status'] == 'completed':
+                item['latest']['metrics'] = latest['metrics']
+                if basis and not basis.get('current_meanings_confirmed', True):
+                    item['latest']['meanings'] = store.INHERITED.format(basis.get('dataset_version'))
+            elif latest['status'] == 'unavailable':
+                item['latest']['reason'] = store.REASONS.get(latest['reason'], latest['reason'])
+        items.append(item)
+    kept, omitted = _bounded(items, INDICATORS_BYTES)
+    return dict(items=kept, omitted=omitted,
+                use='Saved fixed formulas recomputed without a model; not independently checked.')
+
+
+def follow_ups(db, business):
+    """Open topics from earlier native reports, verbatim, newest report first; closed ones only counted."""
+    from . import follow_ups as register
+    items = []
+    for row in register.listing(db, business):
+        item = dict(id=str(row['id']), state=row['state'], headline=row['headline'], date=row['report_date'].date().isoformat(),
+                    priority=row['priority_title'], labels=row['content']['labels'],
+                    **{k: row['content'][k] for k in register.BRANCHES if row['content'][k] is not None})
+        if row['link']:
+            item['link'] = {k: row['link'][k] for k in ('indicator_id', 'metric_key', 'value', 'dataset_version')}
+        items.append(item)
+    kept, omitted = _bounded(items, FOLLOW_UPS_BYTES)
+    return dict(items=kept, omitted=omitted, counts=register.counts(db, business),
+                use="Earlier reports' proposals with the owner's state; 'checked' is the owner's declaration, not a verification.")

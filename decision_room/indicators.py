@@ -788,3 +788,36 @@ def retire(config, business, indicator_id, data):
         result = dict(indicator_id=str(indicator_id), status='retired')
         remember(db, business, key, 'retire', sha, result)
     return result
+
+
+INSPECT_BYTES = 12 * 1024
+
+
+def inspect(db, business, indicator_id):
+    """One indicator for the chat, at most 12 KiB serialized: code first, then recent values, then definitions."""
+    indicator = _indicator(db, business, indicator_id)
+    version = _active(db, indicator_id)
+    if not version:
+        raise WebError('Ese indicador no tiene una versión activa.', 409)
+    result = dict(indicator=dict(id=str(indicator['id']), name=indicator['name'], status=indicator['status'], label=LABEL),
+                  version=dict(version=version['version'], code=version['code'], metric_keys=version['metric_keys'],
+                               applies_from=version['applies_from'],
+                               tables=[dict(alias=t['alias'], original_names=t['original_names']) for t in version['tables']]),
+                  values=[], values_omitted=0, definitions_omitted=True,
+                  proposed=[dict(version=p['version'], comparison=(p['comparison'] or {}).get('state'))
+                            for p in db.execute("SELECT version,comparison FROM indicator_versions WHERE indicator_id=%s AND state='proposed' "
+                                                'ORDER BY version', (indicator_id,)).fetchall()])
+    for value in current_values(db, business, indicator_id):
+        basis = value['meanings_basis'] or {}
+        item = dict(dataset_version=value['dataset_version'], status=value['status'], metrics=value['metrics'],
+                    reason=REASONS.get(value['reason'], value['reason']) if value['reason'] else None,
+                    detail=(value['detail'] or '')[:300] or None,
+                    meanings=INHERITED.format(basis.get('dataset_version')) if basis and not basis.get('current_meanings_confirmed', True) else None)
+        if len(memory.encoded({**result, 'values': [*result['values'], item]}).encode()) <= INSPECT_BYTES and len(result['values']) < 5:
+            result['values'].append(item)
+        else:
+            result['values_omitted'] += 1
+    with_definitions = {**result, 'definitions': version['definitions'], 'definitions_omitted': False}
+    if len(memory.encoded(with_definitions).encode()) <= INSPECT_BYTES:
+        result = with_definitions
+    return result

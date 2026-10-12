@@ -128,3 +128,46 @@ class RegisterTests(reports.HistoryTests):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class ConsumerTests(RegisterTests):
+    for name in [n for n in dir(RegisterTests) if n.startswith('test_')]:
+        locals()[name] = None
+    del name
+
+    def test_brief_checker_and_chat_receive_the_same_bounded_register(self):
+        from decision_room import business_knowledge, chat_agent, conversations
+        from decision_room.engine import brief, check_contract
+        from decision_room.web import engine_jobs
+        job = self.deliver()
+        item = self.topics()[0]
+        self.state(item, 'checked', note='Comprobado con las ventas de marzo.')
+        closed = self.topics()[1]
+        self.state(closed, 'closed')
+        later = dict(business_id=self.business['id'], analysis_id=job['analysis_id'], origin='upload',
+                     engine_config={'goal': 'Qué revisar.', 'profile': {'format': 'blocks'}},
+                     business_name='Test shop', context='una tienda de prueba.', business_revision=1)
+        builder, _ = engine_jobs.inputs(self.config, later)
+        with connect(self.config) as db, db.transaction():
+            prompt, provenance, *_ = builder(db)
+            core = business_knowledge.build(db, self.business['id'], dict(analysis_id=str(job['analysis_id']), source_ids=[],
+                                                                         period={'from': None, 'until': None}))
+            saved = conversations.snapshot(db, self.business['id'], job['analysis_id'], 'objetivo')
+        self.assertIn(brief.FOLLOW_UPS, prompt)
+        self.assertIn('Revisar la recogida en local', prompt)
+        self.assertIn('comprobado con datos (declarado por el propietario)', prompt)
+        self.assertIn('1 tema(s) cerrado(s) no se incluyen', prompt)
+        self.assertNotIn('Qué revisar en abril', prompt.split(brief.FOLLOW_UPS)[1].split('\n\n')[0])
+        self.assertIn(brief.FOLLOW_UPS, provenance['checker_context'])
+        self.assertEqual(provenance['follow_ups'], [dict(id=str(item['id']), state='checked')])
+        self.assertIn('Los indicadores guardados y los temas abiertos', check_contract.PROMPT)
+        self.assertEqual([i['id'] for i in core['follow_ups']['items']], [str(item['id'])])
+        self.assertLessEqual(len(json.dumps(core['follow_ups'], ensure_ascii=False).encode()), business_knowledge.FOLLOW_UPS_BYTES + 200)
+        sources = chat_agent.sources_for(dict(chat_context=saved, retrievals=[]))
+        self.assertEqual(sources['follow_ups']['label'], 'Temas abiertos de informes anteriores')
+        # A later owner change makes that snapshot stale.
+        with connect(self.config) as db:
+            self.assertTrue(conversations.fresh(db, saved))
+        self.state(next(t for t in self.topics() if t['id'] == item['id']), 'proposed')
+        with connect(self.config) as db:
+            self.assertFalse(conversations.fresh(db, saved))

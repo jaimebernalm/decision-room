@@ -73,6 +73,12 @@ CATALOG = ('Para que sepas que existen, el negocio tiene también estos otros co
 CHAT_BRIEF = ('Resumen del chat (propuesta del asistente a partir de nuestra conversación; es orientación, '
               'no hechos ni definiciones; si algo choca con los datos, mis definiciones o lo que te he contado, '
               'prevalecen estos):')
+INDICATORS = ('Estos son indicadores que guardé: cada uno es una fórmula fija que confirmé y que se recalcula sin '
+              'modelo con cada versión de los datos; no tienen comprobación independiente. Si usas una de sus cifras, '
+              'di que es la del indicador guardado; si la recalculas con los datos, di si coincide:')
+FOLLOW_UPS = ('Estos son temas abiertos que dejaron informes anteriores, copiados tal cual y con el estado que les di '
+              '(«comprobado» quiere decir que yo lo di por comprobado, no que esté verificado). Dime qué muestran ahora '
+              'los datos sobre ellos, sin dar por hecho lo que proponían:')
 HISTORY = ('Estos son informes anteriores que me hiciste. Lo que dicen son afirmaciones de esos informes, no datos '
            'comprobados ahora, y sus acciones eran propuestas: no sé si se llevaron a cabo. Tienes su texto en '
            '/inputs/contexto/informes-anteriores/ (manifest.json indica cuál es cada uno). Si retomas algo de ellos, '
@@ -141,8 +147,55 @@ def facts(rows):
             and r['content'].get('temporal_scope') != 'unresolved']
 
 
+def _metrics(metrics):
+    return ', '.join(f'{key} = {value}' for key, value in metrics.items())
+
+
+def indicator_lines(core):
+    lines = []
+    for item in (core or {}).get('items', []):
+        latest = item.get('latest') or {}
+        head = f"- {item['name']} (versión {item['version']} de la fórmula)"
+        if latest.get('status') == 'completed':
+            line = f"{head}: {_metrics(latest['metrics'])}, con la versión {latest['dataset_version']} de los datos."
+            if latest.get('meanings'):
+                line += ' ' + latest['meanings']
+        elif latest.get('status') == 'unavailable':
+            line = f"{head}: no disponible con la versión {latest['dataset_version']} de los datos ({latest['reason']})"
+        elif latest:
+            line = f"{head}: pendiente de recalcular con la versión {latest['dataset_version']} de los datos."
+        else:
+            line = f'{head}: sin valor todavía.'
+        lines.append(sentence(line))
+    if (core or {}).get('omitted'):
+        lines.append(f"(No caben aquí {core['omitted']} indicador(es) más.)")
+    return lines
+
+
+def follow_up_lines(core):
+    from ..follow_ups import STATE_LABELS
+    lines = []
+    for item in (core or {}).get('items', []):
+        parts = [f"{item['labels'][k]}: {' / '.join(item[k])}" for k in ('check', 'if_confirmed', 'if_not') if item.get(k)]
+        line = f"- «{item['headline']}» ({item['date']}) · {item['priority']}: " + ' · '.join(parts)
+        line += f" [estado: {STATE_LABELS[item['state']]}]"
+        if item.get('link'):
+            link = item['link']
+            line += f" [lo enlacé a un indicador: {link['metric_key']} = {link['value']} con la versión {link['dataset_version']} de los datos]"
+        lines.append(line)
+    extra = []
+    if (core or {}).get('omitted'):
+        extra.append(f"{core['omitted']} tema(s) abierto(s) más no caben aquí")
+    counts = (core or {}).get('counts') or {}
+    if counts.get('closed'):
+        extra.append(f"{counts['closed']} tema(s) cerrado(s) no se incluyen")
+    if extra:
+        lines.append('(' + '; '.join(extra) + '.)')
+    return lines
+
+
 def compose(*, name, description, goal, model, memory, panorama, questions=False, format='html', include_delivery=True,
-            data_meanings=None, history=None, chat_brief=None, catalog=None, analysis=None):
+            data_meanings=None, history=None, chat_brief=None, catalog=None, analysis=None, indicators=None, follow_ups=None):
     declared, unknown = data_meanings if data_meanings is not None else meanings(model)
     first = [identity(name, description), DATA]
     if panorama:
@@ -164,6 +217,12 @@ def compose(*, name, description, goal, model, memory, panorama, questions=False
     remembered = facts(memory)
     if remembered:
         paragraphs.append(MEMORY + '\n' + '\n'.join('- ' + f for f in remembered))
+    measured = indicator_lines(indicators)
+    if measured:
+        paragraphs.append(INDICATORS + '\n' + '\n'.join(measured))
+    pending = follow_up_lines(follow_ups)
+    if (follow_ups or {}).get('items'):
+        paragraphs.append(FOLLOW_UPS + '\n' + '\n'.join(pending))
     prior = (history or {}).get('reports') or []
     if prior:
         paragraphs.append(HISTORY + '\n' + '\n\n'.join(r['summary'] for r in prior))
@@ -214,17 +273,23 @@ def build_inputs(db, business, analysis, *, goal, panorama, name=None, descripti
     prior = core['history']
     text = compose(name=owner['name'], description=owner['description'], goal=goal, model=model, memory=memory,
                    panorama=panorama, questions=questions, format=format, data_meanings=data_meanings, history=prior,
-                   chat_brief=investigation_brief, catalog=core['catalog'], analysis=analysis)
-    provenance = dict(version=('blocks-brief-5q' if questions else 'blocks-brief-5') if format == 'blocks' else (QUESTIONS_VERSION if questions else VERSION), profile='job' if frozen else 'current', profile_revision=owner['profile_revision'],
+                   chat_brief=investigation_brief, catalog=core['catalog'], analysis=analysis,
+                   indicators=core['indicators'], follow_ups=core['follow_ups'])
+    provenance = dict(version=('blocks-brief-6q' if questions else 'blocks-brief-6') if format == 'blocks' else (QUESTIONS_VERSION if questions else VERSION), profile='job' if frozen else 'current', profile_revision=owner['profile_revision'],
                       data_model=dict(analysis_id=str(analysis), revision=data['revision']) if data['revision'] else None,
                       memory=sorted(r['reference'] for r in memory if facts([r])),
                       panorama=bool(panorama), knowledge=core['version'], chat_brief=bool(investigation_brief),
                       # Historical identity only: a prior report's later staleness never retires this one.
-                      prior_reports=manifest['reports'])
+                      prior_reports=manifest['reports'],
+                      # The exact indicator values and topic states this report received.
+                      indicators=[dict(indicator_id=i['id'], **{k: i['latest'][k] for k in ('value_id', 'version_id', 'dataset_version', 'status')})
+                                  for i in core['indicators']['items'] if i.get('latest')],
+                      follow_ups=[dict(id=f['id'], state=f['state']) for f in core['follow_ups']['items']])
     if format == 'blocks':
         provenance['checker_context'] = compose(name=owner['name'],description=owner['description'],goal=goal,
             model=model,memory=memory,panorama=False,questions=False,format=format,include_delivery=False,
-            data_meanings=data_meanings,history=prior,catalog=core['catalog'],analysis=analysis)
+            data_meanings=data_meanings,history=prior,catalog=core['catalog'],analysis=analysis,
+            indicators=core['indicators'],follow_ups=core['follow_ups'])
     if files:
         files = {**files, 'informes-anteriores/manifest.json': json.dumps(manifest, ensure_ascii=False, indent=1)}
     return text, provenance, files

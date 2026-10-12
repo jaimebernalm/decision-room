@@ -170,8 +170,9 @@ class HistoryTests(unittest.TestCase):
         self.assertIn('vigente', summary)
         self.assertIn('Titular: Crece la tienda online', summary)
         self.assertIn('Prioridad: Revisar la recogida en local', summary)
-        self.assertIn('Qué comprobar (propuesta de ese informe)', summary)
-        self.assertIn('Qué revisar en abril (propuesta de ese informe)', summary)
+        # Actions live verbatim in the follow-up register with the owner's state, not as pending lines here.
+        self.assertNotIn('Qué comprobar', summary)
+        self.assertIn('están en el registro de seguimiento', summary)
         self.assertLessEqual(history.size(summary), history.SUMMARY_BYTES)
         self.assertEqual(list(files), ['informes-anteriores/01.txt'])
         self.assertEqual(report['file_sha256'], history.sha(files['informes-anteriores/01.txt']))
@@ -225,7 +226,7 @@ class HistoryTests(unittest.TestCase):
         self.assertIn(brief_module().HISTORY, run['prompt'])
         self.assertIn('Prioridad: Revisar la recogida en local', run['prompt'])
         self.assertIn('Prioridad: Revisar la recogida en local', run['brief']['checker_context'])
-        self.assertEqual(run['brief']['version'], 'blocks-brief-5')
+        self.assertEqual(run['brief']['version'], 'blocks-brief-6')
         self.assertEqual([r['document_id'] for r in run['brief']['prior_reports']], [str(first['report_document_id'])])
         self.assertEqual(set(run['input_context']) - {'panorama.md'},
                          {'informes-anteriores/01.txt', 'informes-anteriores/manifest.json'})
