@@ -41,14 +41,20 @@ class ContractTests(unittest.TestCase):
             'memory/m2': dict(content=dict(status='proposed')),
             'tool/0': dict(content=dict(origin='engine_blocks', id='doc-1')),
             'dataset/t': dict(content=dict(id='t')),
-            'selection/0': dict(content=dict(kind='memory', memory_status='proposed', content=dict(statement='Quizá'))),
+            'selection/0': dict(content=dict(kind='memory', status='available', authority='business_memory',
+                                             memory_status='proposed', content=dict(statement='Quizá'))),
+            'selection/2': dict(content=dict(kind='memory', status='available', authority='business_memory',
+                                             memory_status='declared', content=dict(statement='Cerramos en agosto.'))),
+            # A dataset whose own column is called status: business data, not memory.
+            'tool/3': dict(content=dict(dataset=dict(sample_rows=[dict(status='proposed', quantity=2)]), memories=[])),
             'tool/1': dict(content=dict(memories=[dict(status='declared'), dict(status='conflicted')])),
             'tool/2': dict(content=dict(memories=[dict(status='declared')])),
             'selection/1': dict(content=dict(kind='engine_block', authority='engine_report', source_id='doc-9',
                                              status='available'))}}
         parse = lambda **b: chat_agent.InvestigationBrief.model_validate({**BRIEF, **b})
         frozen = Conversations._investigation_brief(context, parse(background=[
-            dict(text='x', sources=['memory/m1', 'tool/0', 'dataset/t']), dict(text='y', sources=['tool/2', 'selection/1'])]))
+            dict(text='x', sources=['memory/m1', 'tool/0', 'dataset/t', 'tool/3']),
+            dict(text='y', sources=['tool/2', 'selection/1', 'selection/2'])]))
         # Opened reports and selected native blocks are pinned as explicit prior reports.
         self.assertEqual(frozen['reports'], ['doc-1', 'doc-9'])
         for bad in (['memory/m2'], ['memory/unknown'], ['tool/9'], ['selection/0'], ['tool/1']):

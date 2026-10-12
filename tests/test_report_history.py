@@ -76,6 +76,18 @@ class SummaryBoundTests(unittest.TestCase):
         self.assertIn('Avisos de su comprobación', summary)
         self.assertIn('apartado(s)', summary)
 
+    def test_three_digit_omission_count_still_fits(self):
+        from datetime import datetime, timezone
+        from decision_room.engine import blocks
+        raw = json.dumps(dict(version=blocks.VERSION, titulo='T', bloques=[
+            dict(tipo='prioridad', titulo='p' * 200, bloques=[dict(tipo='texto', contenido='x' * 300)])
+            for _ in range(150)])).encode()
+        row = dict(origin='engine_blocks', title='T', goal='g' * 293, stale_reason=None, period_from=None,
+                   period_until=None, delivered_at=datetime(2026, 9, 1, tzinfo=timezone.utc))
+        summary = history._summary(row, dict(document=blocks.parse(raw), canonical_text='x'), None, 2048)
+        self.assertLessEqual(history.size(summary), 2048)
+        self.assertIn('apartado(s)', summary)
+
     def test_priority_without_action_keeps_its_text(self):
         row, derived = self.derived(priorities=1, warnings=0)
         summary = history._summary(row, derived, 'complete', history.SUMMARY_BYTES)

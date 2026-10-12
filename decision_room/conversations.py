@@ -427,17 +427,22 @@ def search_library(db, business, chats, query):
     return [chat for chat in chats if chat['id'] in matches]
 
 
-UNCONFIRMED = frozenset({'proposed', 'conflicted', 'withdrawn', 'superseded'})
+def _unconfirmed(key, content):
+    """True if a cited source carries memory that is not a current declaration.
 
-
-def _unconfirmed(value):
-    """True if any memory-like item inside a cited source is not a current declaration."""
-    if isinstance(value, dict):
-        if value.get('status') in UNCONFIRMED or value.get('memory_status') in UNCONFIRMED:
-            return True
-        return any(_unconfirmed(v) for v in value.values())
-    if isinstance(value, list):
-        return any(_unconfirmed(v) for v in value)
+    Only typed memory is inspected: memory/* items, memory selections and the `memories`
+    field of memory-bearing tool results. Business data (columns, sample rows, any domain
+    'status' value) is never read as memory.
+    """
+    if key.startswith('memory/'):
+        return not isinstance(content, dict) or content.get('status') != 'declared'
+    if not isinstance(content, dict):
+        return False
+    if content.get('authority') == 'business_memory' or 'memory_status' in content:
+        return content.get('memory_status') != 'declared'
+    memories = content.get('memories')
+    if memories is not None:
+        return not isinstance(memories, list) or any(not isinstance(m, dict) or m.get('status') != 'declared' for m in memories)
     return False
 
 
@@ -1157,12 +1162,10 @@ class Conversations:
                 if key not in available:
                     raise ValueError('Investigation brief cites an unavailable source.')
                 content = available[key]['content']
-                if key.startswith('memory/') and (not isinstance(content, dict) or content.get('status') != 'declared'):
+                # Memory items, memory selections and memory-bearing tool results (search_memory,
+                # inspect_dataset) may carry proposed or conflicted items: those cannot be cited.
+                if _unconfirmed(key, content):
                     raise ValueError('Investigation brief cites memory that is not declared.')
-                # Selections and memory-bearing tool results (search_memory, inspect_dataset)
-                # may carry proposed or conflicted items: such a source cannot be cited.
-                if _unconfirmed(content):
-                    raise ValueError('Investigation brief cites a source with unconfirmed memory.')
                 report = None
                 if key.startswith('tool/') and isinstance(content, dict) and content.get('origin') in ENGINE_ORIGINS:
                     report = content.get('id')

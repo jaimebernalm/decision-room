@@ -138,7 +138,9 @@ def _summary(row, derived, check_state, budget):
     The result never exceeds `budget` bytes: the omission note is reserved first, warnings
     beyond what fits are counted, not dropped silently, and sections are kept or dropped whole.
     """
-    reserve = size(OMITTED.format(99)) + 1
+    sections = _sections(row, derived)
+    # Reserved for the largest possible omission count: every optional section.
+    reserve = size(OMITTED.format(len(sections))) + 1 if sections else 0
     goal = row.get('goal') or ''
     for limit in (ITEM_CHARS, 100):
         head = [_label(row, check_state)] + (['Lo que se pidió: ' + clip(goal, limit)] if goal else [])
@@ -151,7 +153,7 @@ def _summary(row, derived, check_state, budget):
             break
     kept, omitted = [], 0
     used = size('\n'.join(head + tail)) + reserve
-    for section in _sections(row, derived):
+    for section in sections:
         cost = size('\n'.join(section)) + 1
         if used + cost > budget:
             omitted += 1
