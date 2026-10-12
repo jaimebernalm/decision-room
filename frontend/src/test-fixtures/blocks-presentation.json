@@ -1,6 +1,6 @@
 {
  "schema": "informe-bloques-1",
- "projector": "bloques-proyector-5",
+ "projector": "bloques-proyector-6",
  "title": "Cómo va el trimestre",
  "blocks": [
   {
@@ -127,7 +127,12 @@
         }
        ]
       }
-     ]
+     ],
+     "labels": {
+      "check": null,
+      "if_confirmed": null,
+      "if_not": null
+     }
     }
    ]
   },
@@ -206,7 +211,12 @@
       }
      ],
      "if_confirmed": null,
-     "if_not": null
+     "if_not": null,
+     "labels": {
+      "check": "Qué revisar en abril",
+      "if_confirmed": null,
+      "if_not": null
+     }
     }
    ]
   }

@@ -297,7 +297,8 @@ it("lays out the action with platform labels and only the branches the report gi
   expect(within(first).getByText("Si no")).toBeInTheDocument();
   expect(within(first).getByText("Revisar la atención en el local.")).toBeInTheDocument();
   const second = screen.getByRole("heading", { name: /Seguir la tienda online/ }).closest("section")!;
-  expect(within(second).getByText("Qué comprobar")).toBeInTheDocument();
+  expect(within(second).getByText("Qué revisar en abril")).toBeInTheDocument();
+  expect(within(second).queryByText("Qué comprobar")).toBeNull();
   expect(within(second).queryByText("Si se confirma")).toBeNull();
   // Priority numbering ignores cards and the cover.
   expect(within(second).getByText("02")).toBeInTheDocument();
