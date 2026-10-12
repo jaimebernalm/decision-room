@@ -176,6 +176,12 @@ def reconcile(db,business,trace,*,reconstructed=False):
     for entry in executions:
         ex=db.execute('SELECT * FROM executions WHERE business_id=%s AND id=%s',(business,entry['source_id'])).fetchone()
         if not ex: continue
+        if ex['request_key'].startswith('indicator:'):
+            # A saved indicator recomputed without a model: never a report's research.
+            observe('execution',ex['id'],ex['status'],'Indicador guardado recalculado' if ex['status']=='completed' else 'Recalculando un indicador guardado',
+                    role='chat',actor='chat',parent=None,at=ex['finished_at'] or ex['created_at'],started_at=ex['created_at'],finished_at=ex['finished_at'],
+                    refs=refs_for(db,business,[i['id'] for i in ex['inputs'].values()]),source={'kind':'execution','id':str(ex['id'])})
+            continue
         if ex['request_key'].startswith('chat-calc:'):
             # A quick chat calculation belongs to its turn, never to a report's research.
             calc=db.execute("SELECT turn_id FROM chat_calculations WHERE business_id=%s AND execution_id=%s",(business,ex['id'])).fetchone()

@@ -4,7 +4,21 @@ Fecha: 12 de octubre de 2026.
 
 Desarrolla el paso 3 del [plan de contexto compartido y cálculo rápido](<../product/contexto-compartido-y-calculo-rapido-plan.md>). El plan lo acordaron Claude y Codex en cuatro versiones; Codex aprobó la cuarta. Claude lo implementa y Codex revisa los cambios. La prueba real final necesita la aprobación del propietario.
 
-**Estado: plan acordado; implementación en curso en `feature/saved-indicators`.**
+**Estado: implementado en `feature/saved-indicators`, pendiente de la revisión de Codex y de la prueba real.**
+
+- Un commit por parte (1 a 6).
+- **Puntos de entrada:**
+  - `POST /api/indicators` (guardar);
+  - `POST /api/indicators/{id}/versions` (proponer);
+  - `POST /api/indicators/{id}/versions/{v}/confirm` (confirmar);
+  - `POST /api/indicators/{id}/retire` (retirar);
+  - `POST /api/follow-ups/{id}/state` (estado de un tema);
+  - `GET /api/indicators` (vista del propietario).
+- **Módulos:** `decision_room/indicators.py` y `decision_room/follow_ups.py`.
+- **Versión de esquema:** 40, para todo el paso.
+- **Detalles de la implementación:**
+  - Las cifras de los indicadores se muestran con formato español (enteros con separador de miles, decimales con dos cifras), pero se guarda el valor exacto.
+  - Las ejecuciones de indicador no cuelgan de ningún turno en la actividad, porque el proceso de trabajo no tiene traza. El monitor interno muestra su procedencia.
 
 ## Decisiones del propietario
 
