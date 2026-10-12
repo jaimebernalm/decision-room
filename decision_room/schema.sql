@@ -1387,3 +1387,31 @@ BEGIN
 END $$;
 DROP TRIGGER IF EXISTS native_cycle_guard ON engine_native_cycles;
 CREATE TRIGGER native_cycle_guard BEFORE INSERT OR UPDATE OR DELETE ON engine_native_cycles FOR EACH ROW EXECUTE FUNCTION guard_native_cycle();
+-- Quick chat calculations: durable intent and ownership, written before any Docker call.
+-- executions keeps the result; chat_retrievals keeps the model-facing observation.
+CREATE TABLE IF NOT EXISTS chat_calculations (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    conversation_id uuid NOT NULL,
+    turn_id uuid NOT NULL REFERENCES chat_turns(id),
+    attempt integer NOT NULL,
+    ordinal integer NOT NULL,
+    analysis_id uuid NOT NULL,
+    request jsonb NOT NULL,
+    identity_sha256 text NOT NULL,
+    definitions jsonb NOT NULL,
+    dependencies jsonb NOT NULL,
+    admission text NOT NULL CHECK (admission IN ('reserved','admitted','refused')),
+    refusal text,
+    execution_id uuid,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (turn_id, attempt, ordinal),
+    UNIQUE (execution_id),
+    CHECK ((admission = 'admitted') = (execution_id IS NOT NULL)),
+    CHECK ((admission = 'refused') = (refusal IS NOT NULL)),
+    FOREIGN KEY (business_id, conversation_id) REFERENCES chat_conversations(business_id, id),
+    FOREIGN KEY (business_id, analysis_id) REFERENCES analyses(business_id, id),
+    FOREIGN KEY (business_id, execution_id) REFERENCES executions(business_id, id)
+);
+CREATE INDEX IF NOT EXISTS chat_calculations_turn ON chat_calculations(turn_id, attempt);
+INSERT INTO schema_versions(version) VALUES (39) ON CONFLICT DO NOTHING;
