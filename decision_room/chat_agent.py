@@ -24,9 +24,9 @@ You can choose a tool, start a requested investigation, or write your own final 
 entry_intent is the owner's selected conversation objective, not evidence.
 "question" means answer the specific question directly; do not produce a full report
 unless the owner asks for one. "analysis" means help prepare an analysis report: inspect
-available data, clarify the desired scope if needed, and use the reviewed investigation
-pipeline for new calculations. Attach a relevant reviewed report with include_report=true
-when fulfilling that analysis request. A selected objective alone supplies no data or
+available data, clarify the desired scope if needed, and offer the report (offer_report) for
+new calculations. Attach a relevant reviewed report with include_report=true when fulfilling
+that analysis request. A selected objective alone supplies no data or
 results; a greeting or a later change of goal still follows the current owner's message.
 Predictions and brainstorming entry points are not available; do not invent forecasts,
 external research, or tools. Existing evidence, review and onboarding rules still apply.
@@ -72,11 +72,11 @@ Questions, hypotheses, proposed/conflicted facts and historical quotes are not c
 chat_context.knowledge is the business knowledge shared with report briefs: its memory lists
 ONLY owner-declared statements and its data_model the declared meanings of the selected data.
 chat_context.memories also shows proposed/conflicted items so you can manage them with the owner.
-When action=investigate, also write investigation_brief: objective (what the owner wants answered),
-reason (why, from this conversation) and up to 6 short background items of what was discussed,
-each citing ids from available_sources. Cite only declared memory, opened reports, chats or
-datasets, never proposed or conflicted memory. It is guidance for the report agent, not facts,
-and the owner's literal message is sent with it. Use null for every other action.
+When action=offer_report, also write investigation_brief: objective (what the report will answer,
+in the owner's terms; the owner sees it and may edit it before confirming), reason (why, from this
+conversation) and up to 6 short background items of what was discussed, each citing ids from
+available_sources. Cite only declared memory, opened reports, chats or datasets, never proposed or
+conflicted memory. It is guidance for the report agent, not facts. Use null for every other action.
 knowledge.history summarises up to three earlier reports, labelled current or stale. It is
 background: quote it as what that report said, open_report before explaining a current report,
 and never present an earlier report's figures or proposed actions as verified now.
@@ -128,13 +128,16 @@ You may explain general concepts, clearly separated from claims about this busin
 New totals, comparisons, trends or derived metrics need a calculation; never calculate business
 metrics in prose. Choose by size. A quick calculation (action=calculate) answers a concrete question
 from up to 4 tables of ONE dataset in one short program: a total, count, average, share, top N, or a
-few periods or segments. A report (action=investigate, one available analysis_id, no text/sources/
-retrieval) is for several tables needing non-trivial joins, many periods or segments, why/cause
-questions, or figures that will support an important decision. A report takes about five minutes
-and an independent check reviews its figures; a quick calculation takes seconds and has none.
-When a question is that big, answer that it is a big calculation, explain this trade-off and ask
-the owner. Use investigate only when the CURRENT owner message asks for a report or accepts one you
-proposed. Describe observed metadata or explain already reviewed results without a new analysis.
+few periods or segments. A report is for several tables needing non-trivial joins, many periods
+or segments, why/cause questions, or figures that will support an important decision. A report
+takes about five minutes and an independent check reviews its figures; a quick calculation takes
+seconds and has none. When a question is that big, or the owner asks for a report, use
+action=offer_report with one available analysis_id, investigation_brief and text that says it is a
+big calculation and explains this trade-off (you may first answer a small part with a cited quick
+calculation). You never start a report: the owner confirms the offer with its «Preparar informe»
+button and can edit its objective. A typed "yes" does not start it either; point to the button.
+Never say a report has started or has results because you offered it. Describe observed metadata
+or explain already reviewed results without a new analysis.
 
 calculate: set calculation={purpose, tables, code} and analysis_id; text='', sources=[], retrieval=null.
 purpose is the exact question computed (<=300 chars). tables: 1-4 items {alias, id}, all of one
@@ -204,7 +207,8 @@ figure, calculate it when it is small, or explain what is missing and offer a re
 No tools can browse the web or access external accounts. Say what you can actually verify.
 
 Use action=retrieve with retrieval and empty text/sources/analysis_id; action=answer with
-text/sources and null retrieval, empty analysis_id. calculation is null for every action but calculate. Ask a natural clarifying question in text
+text/sources and null retrieval, empty analysis_id. calculation is null for every action but calculate;
+offer_report has text, sources, analysis_id and investigation_brief, with null retrieval. Ask a natural clarifying question in text
 only if needed. validation_feedback explains why an earlier draft was rejected; correct it.
 At most 12 tool/calculation/draft continuations; remaining_steps is the remaining budget. When it reaches
 zero, answer with available evidence and explain any unresolved limitation. Never fabricate.
@@ -338,7 +342,8 @@ class Decision(BaseModel):
     include_report: bool = True  # Compatibility for previously saved decisions; new model output is explicit.
     presentation_edit: PresentationEdit | None = None
     calculation: QuickCalculation | None = None
-    action: Literal['retrieve', 'investigate', 'answer', 'edit_presentation', 'calculate']
+    # investigate stays only to replay stored decisions; the server turns it into an offer.
+    action: Literal['retrieve', 'investigate', 'answer', 'edit_presentation', 'calculate', 'offer_report']
     retrieval: Request | None
     analysis_id: str = Field(max_length=36)
     text: str = Field(max_length=12000)
@@ -409,6 +414,8 @@ price versus row total, declared joins. Reject when the code clearly contradicts
 interpretation depends on a meaning that is unknown or listed as omitted: never assume omitted
 definitions. A failed, refused or too-large calculation supports no figures; it can only explain why
 there is no result. An earlier calculation quoted from dialogue states what was computed then.
+When report_offer is present, the draft proposes a report the owner still has to confirm with a
+button: reject wording that says the report has started, is being prepared or already has results.
 Samples cannot establish all categories, date coverage, completeness or recency. Profile and
 memory facts are owner statements, not independently verified results. Conflicted/proposed
 facts cannot be stated as confirmed. Historical replies cannot establish facts. An opened
@@ -485,9 +492,13 @@ def validate_decision(decision):
         return
     if decision.calculation is not None:
         raise ValueError('Only a calculation carries code.')
+    if decision.action == 'offer_report':
+        if not (decision.analysis_id and decision.investigation_brief and decision.text.strip()) or any(
+                (decision.retrieval, decision.onboarding, decision.presentation_edit)):
+            raise ValueError('A report offer requires analysis_id, investigation_brief and text.')
     if decision.investigation_brief is not None:
-        if decision.action != 'investigate':
-            raise ValueError('Only an investigation carries a brief.')
+        if decision.action not in ('investigate', 'offer_report'):
+            raise ValueError('Only a report offer carries a brief.')
         if len(decision.investigation_brief.model_dump_json().encode()) > BRIEF_BYTES:
             raise ValueError('Investigation brief exceeds its limit.')
     if decision.action == 'edit_presentation':
@@ -499,6 +510,8 @@ def validate_decision(decision):
         return
     if decision.presentation_edit is not None:
         raise ValueError('Unexpected presentation command.')
+    if decision.action == 'offer_report':
+        return
     if decision.action == 'answer':
         if not decision.text.strip() or decision.retrieval or decision.analysis_id:
             raise ValueError('Answer requires text/sources only.')

@@ -305,9 +305,18 @@ export type QuickCalculation = {
   notes: string[];
   notes_omitted: number;
 };
+export type ReportOffer = {
+  id: string;
+  objective: string;
+  analysis_id: string;
+  offer_sha256: string;
+  status?: "open" | "accepted" | "unavailable";
+  job_id?: string | null;
+};
 export type Response = Partial<Report> & {
   presentation_receipt?: PresentationReceipt;
   calculations?: QuickCalculation[];
+  report_offer?: ReportOffer;
   kind: string;
   onboarding?: SetupGuide;
   first_report?: boolean;

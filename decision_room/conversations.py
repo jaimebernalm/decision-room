@@ -26,6 +26,8 @@ from .web.dossier import available as dataset_available
 from .web.dashboard import projection
 
 PROMPT_VERSION = chat_agent.PROMPT_VERSION
+LEGACY_OFFER = ('Esta pregunta necesita un informe. Tarda unos cinco minutos y una comprobación independiente '
+                'revisa sus cifras. Si quieres prepararlo, confírmalo con «Preparar informe».')
 
 
 class AnswerValidationExhausted(ValueError):
@@ -36,7 +38,7 @@ class Action(BaseModel):
     model_config = ConfigDict(extra='forbid')
     action: Literal[
         'retrieve', 'investigate', 'explain', 'remember', 'clarify', 'missing', 'catalog', 'recall', 'respond', 'answer', 'edit_presentation',
-        'calculate'
+        'calculate', 'offer_report'
     ]
     retrieval: retrieval.Request | None
     analysis_id: str = Field(max_length=36)
@@ -816,6 +818,13 @@ class Conversations:
                         report_outdated=bool(t['response'] and t['response'].get('report_id')),
                         issue=None if t['response'] else 'El contexto o la evidencia han cambiado. Recalcula este mensaje.',
                     )
+                offered = (value['response'] or {}).get('report_offer')
+                if offered:
+                    state = db.execute('SELECT status,job_id,attempt FROM chat_report_offers WHERE id=%s AND business_id=%s',
+                                       (offered['id'], self.business)).fetchone()
+                    value['response'] = {**value['response'], 'report_offer': {
+                        **offered, 'status': state['status'] if state and state['attempt'] == t['attempt'] else 'unavailable',
+                        'job_id': str(state['job_id']) if state and state['job_id'] else None}}
                 receipt = (value['response'] or {}).get('presentation_receipt')
                 if receipt:
                     key = (receipt['report_id'],receipt['base_version'])
@@ -1044,6 +1053,8 @@ class Conversations:
         if context.get('presentation_change'):
             check_context['presentation_change'] = context['presentation_change']
             check_context['presentation_targets'] = context['presentation_targets']
+        if context.get('report_offer'):
+            check_context['report_offer'] = context['report_offer']
         check_context = chat_agent.separate_review_history(check_context)
         if len(memory.encoded(check_context).encode()) > ctx.CONTEXT_BYTES:
             source_issues.append('The review context is too large: cite fewer or smaller sources.')
@@ -1227,72 +1238,170 @@ class Conversations:
         result = quick_calc.resolve(self.config, self.business, row)
         return quick_calc.observation(row, result), (row['dependencies'] if result else [])
 
-    def _job(self, db, chat, turn, analysis_id, brief=None):
-        # Persist job and link atomically: recovery cannot create a second analysis.
-        with db.transaction():
-            memory.lock(db, self.business)
-            if not dependencies_current(self.config, db, turn['snapshot'], self.events(db, turn)):
-                raise ctx.StaleContext('Context changed before investigation.')
-            if chat['analysis_id'] and str(chat['analysis_id']) != analysis_id:
-                raise ValueError('Cannot silently switch the selected dataset.')
-            if not dataset_available(db, self.business, identifier(analysis_id)):
-                raise ValueError('Analysis unavailable.')
-            call = db.execute(
-                'SELECT context FROM chat_calls WHERE turn_id=%s AND attempt=%s ORDER BY ordinal DESC LIMIT 1',
-                (turn['id'], turn['attempt']),
+    def _continuation(self, db, turn, context):
+        """Historical context for a report, frozen when it is offered. Quotes must still be current."""
+        quotes = list(context['recent_owner_messages'])
+        for event in self.events(db, turn):
+            if event['request']['tool'] == 'search_chats':
+                quotes.extend(event['response'].get('items', []))
+        dependencies = [dict(kind='report', id=r['report_id'], version=r['report_version'])
+                        for r in selections.pointers(turn['payload'], reports_only=True)]
+        for quote in quotes:
+            row = db.execute(
+                'SELECT snapshot FROM chat_turns WHERE id=%s AND business_id=%s',
+                (quote['message_id'], self.business),
             ).fetchone()
-            context = call['context']
-            investigation_brief = self._investigation_brief(context, brief)
-            quotes = list(context['recent_owner_messages'])
-            for event in self.events(db, turn):
-                if event['request']['tool'] == 'search_chats':
-                    quotes.extend(event['response'].get('items', []))
-            reference = turn['payload'].get('finding_reference')
-            dependencies = [dict(kind='report', id=r['report_id'], version=r['report_version'])
-                            for r in selections.pointers(turn['payload'], reports_only=True)]
-            for quote in quotes:
-                row = db.execute(
-                    'SELECT snapshot FROM chat_turns WHERE id=%s AND business_id=%s',
-                    (quote['message_id'], self.business),
-                ).fetchone()
-                if not row or not fresh(db, row['snapshot']):
-                    raise ctx.StaleContext('Historical context changed before investigation.')
-                dependencies.append(dict(kind='chat', id=quote['message_id'], snapshot=row['snapshot']))
-            continuation = dict(
-                context=dict(
-                    finding_reference=reference,
-                    context_references=turn['payload'].get('context_references', []),
-                    historical_owner_quotes=quotes,
-                    reviewed_result_pointers=context['recent_reviewed_results'],
-                    rule='Historical quotes may be hypotheses; current memory wins. Open reports before using their conclusions.',
-                ),
-                dependencies=dependencies,
-            )
-            from .engine.job_profile import selection, freeze
-            kind, engine_settings = selection(self.config, {})
-            engine_settings = freeze(engine_settings, context=memory.encoded(continuation),
-                                     goal=turn['payload']['text'], input_hash=memory.digest(turn['payload']),
-                                     investigation_brief=investigation_brief)
-            job = uuid4()
+            if not row or not fresh(db, row['snapshot']):
+                raise ctx.StaleContext('Historical context changed before the report offer.')
+            dependencies.append(dict(kind='chat', id=quote['message_id'], snapshot=row['snapshot']))
+        return dict(
+            context=dict(
+                finding_reference=turn['payload'].get('finding_reference'),
+                context_references=turn['payload'].get('context_references', []),
+                historical_owner_quotes=quotes,
+                reviewed_result_pointers=context['recent_reviewed_results'],
+                rule='Historical quotes may be hypotheses; current memory wins. Open reports before using their conclusions.',
+            ),
+            dependencies=dependencies,
+        )
+
+    def _offer(self, db, chat, turn, action, context):
+        """Freeze an offered report inside the publication transaction. No job is created here.
+
+        The validated brief, the continuation and its dependencies are stored so the
+        owner's later acceptance never reads chat_calls or model output again.
+        """
+        existing = db.execute('SELECT * FROM chat_report_offers WHERE turn_id=%s AND attempt=%s',
+                              (turn['id'], turn['attempt'])).fetchone()
+        if existing:
+            return dict(id=str(existing['id']), objective=existing['objective'],
+                        analysis_id=str(existing['analysis_id']), offer_sha256=existing['offer_sha256'])
+        if chat['analysis_id'] and str(chat['analysis_id']) != action.analysis_id:
+            raise ValueError('Cannot silently switch the selected dataset.')
+        if not dataset_available(db, self.business, identifier(action.analysis_id)):
+            raise ValueError('Analysis unavailable.')
+        brief = self._investigation_brief(context, action.investigation_brief)
+        objective = ((brief or {}).get('objective') or turn['payload']['text']).strip()[:600]
+        continuation = self._continuation(db, turn, context)
+        frozen = dict(analysis_id=action.analysis_id, objective=objective, brief=brief, continuation=continuation)
+        offer = uuid4()
+        db.execute(
+            """INSERT INTO chat_report_offers(id,business_id,conversation_id,turn_id,attempt,analysis_id,objective,brief,
+               continuation,offer_sha256,status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'open')""",
+            (offer, self.business, chat['id'], turn['id'], turn['attempt'], identifier(action.analysis_id), objective,
+             Jsonb(brief), Jsonb(continuation), memory.digest(frozen)))
+        return dict(id=str(offer), objective=objective, analysis_id=action.analysis_id, offer_sha256=memory.digest(frozen))
+
+    def _job(self, db, chat, turn, offer, origin):
+        """Create the report job of an offer accepted by THIS turn, in the caller's transaction.
+
+        It never reads chat_calls: the goal is the owner-confirmed objective, the brief
+        stays guidance and the continuation is the one frozen with the offer.
+        """
+        if offer['status'] != 'accepted' or offer['accepted_turn_id'] != turn['id']:
+            raise ValueError("A report needs the owner's accepted offer.")
+        continuation = offer['continuation']
+        frozen = dict(analysis_id=str(offer['analysis_id']), objective=offer['objective'], brief=offer['brief'],
+                      continuation=continuation)
+        if memory.digest(frozen) != offer['offer_sha256']:
+            raise ValueError('The report offer changed after it was made.')
+        if not dependencies_current(self.config, db, origin['snapshot'], self.events(db, origin)):
+            raise ctx.StaleContext('Context changed since the report was offered.')
+        for dependency in continuation['dependencies']:
+            if dependency['kind'] == 'chat' and not fresh(db, dependency['snapshot']):
+                raise ctx.StaleContext('Historical context changed since the report was offered.')
+        if chat['analysis_id'] and chat['analysis_id'] != offer['analysis_id']:
+            raise ValueError('Cannot silently switch the selected dataset.')
+        if not dataset_available(db, self.business, offer['analysis_id']):
+            raise ValueError('Analysis unavailable.')
+        from .engine.job_profile import selection, freeze
+        kind, engine_settings = selection(self.config, {})
+        engine_settings = freeze(engine_settings, context=memory.encoded(continuation),
+                                 goal=offer['accepted_objective'], input_hash=memory.digest(turn['payload']),
+                                 investigation_brief=offer['brief'])
+        job = uuid4()
+        db.execute(
+            """INSERT INTO web_jobs(id,request_key,request_sha256,business_id,analysis_id,title,context,goal,filename,upload_key,byte_count,model_settings,status,phase,business_name,origin,engine_kind,engine_config)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'','',0,%s,'queued','planning',%s,'chat',%s,%s)""",
+            (
+                job,
+                turn['id'],
+                memory.digest(turn['payload']),
+                self.business,
+                offer['analysis_id'],
+                chat['title'],
+                memory.encoded(continuation),
+                offer['accepted_objective'],
+                Jsonb(turn['model_settings']),
+                origin['snapshot']['profile']['name'],
+                kind, Jsonb(engine_settings),
+            ),
+        )
+        db.execute("UPDATE chat_turns SET job_id=%s,status='processing' WHERE id=%s", (job, turn['id']))
+        db.execute('UPDATE chat_conversations SET analysis_id=%s WHERE id=%s', (offer['analysis_id'], chat['id']))
+        return job
+
+    def accept_offer(self, chat_id, data):
+        """The owner's explicit confirmation of an offered report: one atomic receipt and job.
+
+        Lock order matches send and publication: onboarding, conversation, memory, offer.
+        The same request key and objective return the same turn and job; anything else 409.
+        """
+        self.guard(data)
+        key = identifier(data.get('request_key'))
+        offer_id = identifier(data.get('offer_id'))
+        objective = bounded(data.get('objective'), 'el objetivo del informe', 600)
+        with connect(self.config) as db, db.transaction():
+            from .web import onboarding
+            onboarding.current(db, self.business, lock=True)
+            chat = self.conversation(db, chat_id, lock=True)
+            memory.lock(db, self.business)
+            offer = db.execute('SELECT * FROM chat_report_offers WHERE id=%s AND business_id=%s AND conversation_id=%s FOR UPDATE',
+                               (offer_id, self.business, chat['id'])).fetchone()
+            if not offer:
+                raise WebError('Esa propuesta de informe no está en este chat.', 404)
+            prior = db.execute('SELECT * FROM chat_turns WHERE conversation_id=%s AND request_key=%s',
+                               (chat['id'], key)).fetchone()
+            if prior:
+                receipt = prior['payload'].get('report_acceptance') or {}
+                if receipt.get('offer_id') != str(offer_id) or receipt.get('objective') != objective:
+                    raise WebError('Este envío ya contiene otra petición.', 409)
+                return {'id': prior['id'], 'job_id': prior['job_id']}
+            if offer['status'] == 'accepted':
+                raise WebError('Este informe ya se ha pedido.', 409)
+            origin = db.execute('SELECT * FROM chat_turns WHERE id=%s AND business_id=%s', (offer['turn_id'], self.business)).fetchone()
+            if (not origin or origin['attempt'] != offer['attempt'] or origin['status'] != 'completed'
+                    or ((origin['response'] or {}).get('report_offer') or {}).get('id') != str(offer_id)):
+                raise WebError('Esta propuesta ya no está vigente. Vuelve a pedir el informe.', 409)
+            previous = db.execute('SELECT * FROM chat_turns WHERE conversation_id=%s ORDER BY ordinal DESC LIMIT 1',
+                                  (chat['id'],)).fetchone()
+            if previous['status'] != 'completed':
+                raise WebError('Espera a que termine la respuesta en curso.', 409)
+            if not self.ws.settings:
+                raise WebError('Configura el modelo antes de enviar mensajes.', 409)
+            turn_id = uuid4()
+            payload = dict(text='Preparar informe: ' + objective, question_id='', disposition='answered', question='',
+                           phase=None, memory_deferred=False,
+                           report_acceptance=dict(offer_id=str(offer_id), offer_sha256=offer['offer_sha256'], objective=objective))
             db.execute(
-                """INSERT INTO web_jobs(id,request_key,request_sha256,business_id,analysis_id,title,context,goal,filename,upload_key,byte_count,model_settings,status,phase,business_name,origin,engine_kind,engine_config)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'','',0,%s,'queued','planning',%s,'chat',%s,%s)""",
-                (
-                    job,
-                    turn['id'],
-                    memory.digest(turn['payload']),
-                    self.business,
-                    analysis_id,
-                    chat['title'],
-                    memory.encoded(continuation),
-                    turn['payload']['text'],
-                    Jsonb(turn['model_settings']),
-                    turn['snapshot']['profile']['name'],
-                    kind, Jsonb(engine_settings),
-                ),
-            )
-            db.execute("UPDATE chat_turns SET job_id=%s,status='processing' WHERE id=%s", (job, turn['id']))
-            db.execute('UPDATE chat_conversations SET analysis_id=%s WHERE id=%s', (analysis_id, chat['id']))
+                """INSERT INTO chat_turns(id,business_id,conversation_id,ordinal,request_key,payload,status,model_settings)
+                VALUES (%s,%s,%s,%s,%s,%s,'processing',%s)""",
+                (turn_id, self.business, chat['id'], previous['ordinal'] + 1, key, Jsonb(payload), Jsonb(asdict(self.ws.settings))))
+            db.execute("""UPDATE chat_report_offers SET status='accepted',accepted_turn_id=%s,accepted_objective=%s,
+                          request_key=%s,accepted_at=now() WHERE id=%s""", (turn_id, objective, key, offer_id))
+            offer = {**offer, 'status': 'accepted', 'accepted_turn_id': turn_id, 'accepted_objective': objective}
+            turn = db.execute('SELECT * FROM chat_turns WHERE id=%s', (turn_id,)).fetchone()
+            try:
+                job = self._job(db, chat, turn, offer, origin)
+            except ctx.StaleContext:
+                raise WebError('La información ha cambiado desde la propuesta. Vuelve a pedir el informe.', 409) from None
+            except WebError:
+                raise
+            except ValueError as error:
+                raise WebError('No se puede preparar este informe: ' + str(error), 409) from None
+            db.execute('UPDATE chat_report_offers SET job_id=%s WHERE id=%s', (job, offer_id))
+        self.ws.wake.set()
+        return {'id': turn_id, 'job_id': job}
 
     @tracked('turn')
     def run(self, turn_id):
@@ -1633,10 +1742,30 @@ class Conversations:
                         raise ValueError('Unexpected retrieval payload.')
                     if action.reply_kind and action.action != 'respond':
                         raise ValueError('Conversational reply cannot mix actions.')
-                    if action.action == 'investigate':
+                    if action.action in ('offer_report', 'investigate'):
                         if context.get('onboarding'):
                             raise ValueError('Confirm the onboarding scope before starting an investigation.')
-                        self._job(db, chat, turn, action.analysis_id, action.investigation_brief)
+                        if action.action == 'offer_report':
+                            draft = Action.model_validate(dict(
+                                action='answer', retrieval=None, analysis_id='', report_id='', claim_keys=[], question='',
+                                message_ids=[], text=action.text, sources=action.sources, include_report=False))
+                            response = self._answer(db, turn, ordinal, draft, {**context, 'report_offer': dict(
+                                analysis_id=action.analysis_id, brief=action.investigation_brief.model_dump())}, model)
+                            if response is None:
+                                if ordinal >= ctx.MAX_RETRIEVALS:
+                                    raise AnswerValidationExhausted('Answer validation budget exhausted.')
+                                continue
+                        else:
+                            # A stored decision from before offers existed: it never starts a job.
+                            response = dict(kind='grounded_answer', sources=[], text=LEGACY_OFFER)
+                        with db.transaction():
+                            from .web import onboarding
+                            onboarding.current(db, self.business, lock=True)
+                            memory.lock(db, self.business)
+                            if not dependencies_current(self.config, db, turn['snapshot'], events):
+                                raise ctx.StaleContext('Context changed before the report offer.')
+                            response['report_offer'] = self._offer(db, chat, turn, action, context)
+                            self._save(db, turn, 'completed', response)
                         return
                     if action.action == 'edit_presentation':
                         response = self._edit_presentation(db, turn, ordinal, action, context, model)

@@ -41,6 +41,7 @@ import { ComposerSurface } from "./composer-surface";
 import { Composer } from "./composer";
 import { PresentationChangeReceipt } from "./presentation-receipt";
 import { QuickCalculations } from "./quick-calculation";
+import { ReportOfferCard } from "./report-offer";
 export function Answer({
   response,
   ownerText = "",
@@ -452,6 +453,21 @@ export function ChatPage({
                             </>
                           )}
                         </ProgressiveAnswer>
+                        {turn.response?.report_offer &&
+                          !turn.historical &&
+                          turn.status === "completed" && (
+                            <div className="mt-3">
+                              <ReportOfferCard
+                                offer={turn.response.report_offer}
+                                chatId={id}
+                                businessId={business}
+                                onAccepted={() => {
+                                  resource.refresh();
+                                  refresh();
+                                }}
+                              />
+                            </div>
+                          )}
                         {turn.status === "waiting" && (
                           <Notice>
                             {tr(

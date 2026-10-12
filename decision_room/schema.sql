@@ -1415,3 +1415,30 @@ CREATE TABLE IF NOT EXISTS chat_calculations (
 );
 CREATE INDEX IF NOT EXISTS chat_calculations_turn ON chat_calculations(turn_id, attempt);
 INSERT INTO schema_versions(version) VALUES (39) ON CONFLICT DO NOTHING;
+-- Reports offered by the chat. Only an explicit owner acceptance (a separate endpoint,
+-- never model output) turns an offer into a job, atomically with its receipt.
+CREATE TABLE IF NOT EXISTS chat_report_offers (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    conversation_id uuid NOT NULL,
+    turn_id uuid NOT NULL REFERENCES chat_turns(id),
+    attempt integer NOT NULL,
+    analysis_id uuid NOT NULL,
+    objective text NOT NULL,
+    brief jsonb,
+    continuation jsonb NOT NULL,
+    offer_sha256 text NOT NULL,
+    status text NOT NULL CHECK (status IN ('open','accepted')),
+    accepted_turn_id uuid UNIQUE REFERENCES chat_turns(id),
+    accepted_objective text,
+    request_key uuid,
+    job_id uuid,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    accepted_at timestamptz,
+    UNIQUE (turn_id, attempt),
+    CHECK ((status = 'accepted') = (accepted_turn_id IS NOT NULL AND accepted_objective IS NOT NULL AND request_key IS NOT NULL)),
+    FOREIGN KEY (business_id, conversation_id) REFERENCES chat_conversations(business_id, id),
+    FOREIGN KEY (business_id, analysis_id) REFERENCES analyses(business_id, id),
+    FOREIGN KEY (business_id, job_id) REFERENCES web_jobs(business_id, id)
+);
+INSERT INTO schema_versions(version) VALUES (40) ON CONFLICT DO NOTHING;

@@ -12,7 +12,10 @@ class ModelActionTests(unittest.TestCase):
             client.generate_chat({})
         schema = request.call_args.args[3]
         self.assertEqual(set(schema['required']), set(schema['properties']))
-        self.assertEqual(schema['properties']['action']['enum'], ['retrieve', 'investigate', 'answer', 'edit_presentation'])
+        # The model cannot start a report: investigate only replays stored decisions as offers.
+        self.assertEqual(schema['properties']['action']['enum'], ['retrieve', 'answer', 'edit_presentation', 'calculate', 'offer_report'])
+        for name in ('QuickCalculation', 'CalculationTable', 'InvestigationBrief'):
+            self.assertEqual(set(schema['$defs'][name]['required']), set(schema['$defs'][name]['properties']))
         self.assertIn('text', schema['properties'])
         self.assertIn('sources', schema['properties'])
         self.assertNotIn('reply_kind', schema['properties'])
