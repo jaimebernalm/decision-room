@@ -1,6 +1,7 @@
 """Optional native presentation blocks: full text, checker locations, PDF and stored citations."""
 import io
 import json
+import copy
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -28,16 +29,18 @@ def pdf_text(pdf):
 class PresentationFormatTests(unittest.TestCase):
     def test_synthetic_fixture_keeps_all_text_and_path_ids(self):
         p = blocks.parse(FIXTURE.read_bytes())
-        self.assertEqual(p['projector'], 'bloques-proyector-5')
+        self.assertEqual(p['projector'], 'bloques-proyector-6')
         self.assertEqual([b['id'] for b in blocks.walk(p['blocks'])],
                          ['b1', 'b2', 'b3', 'b3-1', 'b3-2', 'b4', 'b5', 'b5-1'])
         self.assertEqual([b['type'] for b in p['blocks']], ['cover', 'cards', 'priority', 'cards', 'priority'])
         self.assertEqual([c['tone'] for c in p['blocks'][1]['cards']], ['positive', 'negative'])
         self.assertEqual([c['tone'] for c in p['blocks'][3]['cards']], [None, 'warning', 'neutral'])
         self.assertIsNone(p['blocks'][4]['blocks'][0]['if_confirmed'])
+        self.assertEqual(p['blocks'][2]['blocks'][1]['labels'], dict(check=None, if_confirmed=None, if_not=None))
+        self.assertEqual(p['blocks'][4]['blocks'][0]['labels']['check'], 'Qué revisar en abril')
         text = blocks.canonical_text(p)
         for phrase in ('8,2 %', '1.240 pedidos', 'Revisar la atención en el local.', 'Tres.',
-                       'Qué comprobar', 'Si se confirma', 'Si no'):
+                       'Qué comprobar', 'Si se confirma', 'Si no', 'Qué revisar en abril'):
             self.assertIn(phrase, text)
         priorities = blocks.priorities(p)
         self.assertEqual([b['block_id'] for b in priorities], ['b3', 'b5'])
@@ -102,6 +105,60 @@ class PresentationFormatTests(unittest.TestCase):
         with self.assertRaises(check_contract.CheckError):
             check_contract.parse(raw(output), p, 'a' * 64)
 
+    def test_own_action_labels_are_optional_bounded_and_require_their_branch(self):
+        action = dict(tipo='accion', comprobar='Contar.', si_se_confirma='Actuar.', si_no='Revisar.',
+                      rotulo_comprobar='La comprobación', rotulo_si_se_confirma='Si son pedidos reales',
+                      rotulo_si_no='Si son duplicados')
+        p = blocks.parse(raw(doc(dict(tipo='prioridad', titulo='P', bloques=[action]))))
+        b = p['blocks'][0]['blocks'][0]
+        self.assertEqual(b['labels'], dict(check='La comprobación', if_confirmed='Si son pedidos reales', if_not='Si son duplicados'))
+        self.assertEqual(blocks.block_lines(b), ['La comprobación', 'Contar.', 'Si son pedidos reales', 'Actuar.', 'Si son duplicados', 'Revisar.'])
+        for key in ('rotulo_comprobar', 'rotulo_si_se_confirma', 'rotulo_si_no'):
+            valid = dict(action, **{key: 'x' * blocks.MAX_TITLE})
+            blocks.parse(raw(doc(dict(tipo='prioridad', titulo='P', bloques=[valid]))))
+            for value in ('', '  ', None, False, 12, [], {}, 'x' * (blocks.MAX_TITLE + 1), 'x\x00y'):
+                with self.subTest(key=key, value=value), self.assertRaises(blocks.BlocksError):
+                    blocks.parse(raw(doc(dict(tipo='prioridad', titulo='P', bloques=[dict(action, **{key: value})]))))
+        for branch in ('si_se_confirma', 'si_no'):
+            invalid = dict(action)
+            del invalid[branch]
+            with self.assertRaisesRegex(blocks.BlocksError, 'sin la rama'):
+                blocks.parse(raw(doc(dict(tipo='prioridad', titulo='P', bloques=[invalid]))))
+        with patch.object(blocks, 'MAX_TEXT', 50), self.assertRaisesRegex(blocks.BlocksError, 'caracteres de texto'):
+            blocks.parse(raw(doc(dict(tipo='prioridad', titulo='P', bloques=[dict(action, rotulo_comprobar='x' * 50)]))))
+
+    def test_projector_five_without_labels_preserves_default_text_and_pdf(self):
+        current = blocks.parse(raw(doc(dict(tipo='prioridad', titulo='P', bloques=[
+            dict(tipo='accion', comprobar='Contar.', si_se_confirma='Actuar.', si_no='Revisar.')]))))
+        legacy = copy.deepcopy(current)
+        legacy['projector'] = 'bloques-proyector-5'
+        del legacy['blocks'][0]['blocks'][0]['labels']
+        self.assertEqual(blocks.canonical_text(legacy), blocks.canonical_text(current))
+        self.assertEqual(blocks.priorities(legacy), blocks.priorities(current))
+        self.assertEqual(pdf_text(blocks_pdf.render(legacy)), pdf_text(blocks_pdf.render(current)))
+
+    def test_custom_labels_and_number_in_branch_use_the_actual_checker_offsets(self):
+        p = blocks.parse(raw(doc(dict(tipo='prioridad', titulo='P', bloques=[dict(tipo='accion',
+            comprobar='Recontar.', si_se_confirma='Mantener las 5 unidades.', si_no='Revisar.',
+            rotulo_comprobar='La comprobación siguiente', rotulo_si_se_confirma='Si son pedidos reales', rotulo_si_no='Si son duplicados')]))))
+        text = blocks.priorities(p)[0]['text']
+        self.assertEqual(text, 'Prioridad: P\nLa comprobación siguiente\nRecontar.\nSi son pedidos reales\nMantener las 5 unidades.\nSi son duplicados\nRevisar.')
+        offset = text.index('5 unidades')
+        output = dict(version=check_contract.VERSION, revision_sha256='a' * 64, coverage_notes='', items=[
+            dict(priority_id='b1', quote='5 unidades', start=offset, end=offset + 10, status='confirmed',
+                 independent_value='5 unidades', method='Sumar.', message='')])
+        checked = check_contract.parse(raw(output), p, 'a' * 64)
+        self.assertEqual(checked['coverage']['confirmed_spans'], 1)
+        self.assertEqual(checked['items'][0]['block_id'], 'b1-1')
+        self.assertTrue(checked['items'][0]['located'])
+        legacy = copy.deepcopy(p)
+        del legacy['blocks'][0]['blocks'][0]['labels']
+        wrong_offset = blocks.priorities(legacy)[0]['text'].index('5 unidades')
+        self.assertNotEqual(offset, wrong_offset)
+        output['items'][0].update(start=wrong_offset, end=wrong_offset + 10)
+        with self.assertRaises(check_contract.CheckError):
+            check_contract.parse(raw(output), p, 'a' * 64)
+
     def test_brief_and_guide_offer_presentation_without_a_mandatory_template(self):
         kwargs = dict(name='Fixture', description='Datos', goal='Comparar', model=None, memory=[], panorama=False)
         native = brief.compose(**kwargs, format='blocks')
@@ -109,6 +166,7 @@ class PresentationFormatTests(unittest.TestCase):
         self.assertNotIn(brief.PRESENTATION, brief.compose(**kwargs, format='html'))
         self.assertIn('no lo dupliques', native)
         self.assertIn('Subir no siempre es bueno', native)
+        self.assertIn('rótulos propios', native)
         self.assertIn('fuera de prioridades no forman parte de esa cobertura', blocks.FORMAT_GUIDE)
 
 
@@ -123,10 +181,20 @@ class PresentationPdfTests(unittest.TestCase):
         self.assertEqual(text.count('Cómo va el trimestre'), 1)
         self.assertIn('<b>Titular</b> & <script>', text)
         for phrase in ('Qué ha funcionado', 'Qué no', 'Qué comprobar', 'Si se confirma', 'Si no',
-                       'Revisar la atención en el local.', 'Tres.', '1.180', '7,9 %', 'otro'):
+                       'Revisar la atención en el local.', 'Tres.', '1.180', '7,9 %', 'otro', 'Qué revisar en abril'):
             self.assertIn(phrase, text)
         self.assertEqual(text.count('Cifra en revisión'), 3)
         self.assertNotIn('Verificado', text)
+
+    def test_custom_action_labels_are_complete_and_escaped_in_pdf(self):
+        p = blocks.parse(raw(doc(dict(tipo='prioridad', titulo='P', bloques=[dict(tipo='accion',
+            comprobar='Contar.', si_se_confirma='Actuar.', si_no='Revisar.',
+            rotulo_comprobar='<b>Mi comprobación</b>', rotulo_si_se_confirma='Si son pedidos reales', rotulo_si_no='Si son duplicados')]))))
+        text = pdf_text(blocks_pdf.render(p))
+        for phrase in ('<b>Mi comprobación</b>', 'Si son pedidos reales', 'Si son duplicados', 'Contar.', 'Actuar.', 'Revisar.'):
+            self.assertEqual(text.count(phrase), 1)
+        self.assertNotIn('Qué comprobar', text)
+        self.assertNotIn('Si se confirma', text)
 
     def test_long_cover_cards_and_action_paginate_without_lost_or_repeated_text(self):
         card = lambda title, word: dict(titulo=title, contenido=(word + ' ') * 480)
@@ -168,6 +236,26 @@ class PresentationPdfTests(unittest.TestCase):
                 self.assertEqual(len(pages), 2)
                 self.assertTrue(all(page.extract_text().strip() for page in pages))
                 self.assertEqual(pdf_text(buffer.getvalue()).count('Panel completo una sola vez.'), 1)
+
+    def test_card_heading_near_page_bottom_stays_with_its_body(self):
+        from reportlab.lib.pagesizes import A4
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+        content = blocks.parse(raw(doc(dict(tipo='texto', contenido='Contenido. ' * 80))))['blocks'][0]['content']
+        for tone in (None, 'positive'):
+            for remaining in (35, 50, 65):
+                with self.subTest(tone=tone, remaining=remaining):
+                    buffer = io.BytesIO()
+                    document = SimpleDocTemplate(buffer, pagesize=A4, topMargin=44, bottomMargin=44)
+                    before = Paragraph('Contenido previo', blocks_pdf.STYLES['body'])
+                    height = before.wrap(blocks_pdf.WIDTH, 10000)[1] + before.getSpaceAfter()
+                    spacer = document.height - 12 - height - remaining
+                    card = dict(title='Tarjeta siguiente', content=content, tone=tone)
+                    document.build([before, Spacer(1, spacer), *blocks_pdf._cards([card])])
+                    pages = PdfReader(io.BytesIO(buffer.getvalue())).pages
+                    self.assertEqual(len(pages), 2)
+                    self.assertNotIn('Tarjeta siguiente', pages[0].extract_text())
+                    self.assertIn('Tarjeta siguiente', pages[1].extract_text())
+                    self.assertEqual(pages[1].extract_text().count('Contenido.'), 80)
 
 
 class PresentationProductTests(unittest.TestCase):
@@ -211,7 +299,7 @@ class PresentationProductTests(unittest.TestCase):
             for key in expected:
                 self.assertEqual(self.resolve(entry, key), before[key])
             with reading.read(self.config, self.business['id'], entry['report_document_id']) as (db, document, revision):
-                self.assertEqual(reading.view(db, document, revision)['blocks']['projector'], 'bloques-proyector-5')
+                self.assertEqual(reading.view(db, document, revision)['blocks']['projector'], 'bloques-proyector-6')
         with connect(self.config) as db:
             db.execute("UPDATE report_documents SET stale_reason='data_changed' WHERE id=%s", (entry['report_document_id'],))
         from decision_room.web.errors import WebError

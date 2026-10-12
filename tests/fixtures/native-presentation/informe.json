@@ -129,6 +129,7 @@
       "bloques": [
         {
           "tipo": "accion",
+          "rotulo_comprobar": "Qué revisar en abril",
           "comprobar": [
             {
               "parrafo": [

@@ -2,7 +2,7 @@
 
 `informe.json` contiene una portada, dos tarjetas con valoración, una prioridad con
 acción y sus dos ramas, tres tarjetas de ejemplo y una prioridad con una acción
-sin ramas. Sus textos y cifras son ficticios; no procede de un cliente ni de los
+sin ramas con el rótulo propio «Qué revisar en abril». Sus textos y cifras son ficticios; no procede de un cliente ni de los
 negocios usados en la evaluación del motor.
 
 El contenido pasa por el mismo parser que cualquier entrega nativa. La proyección

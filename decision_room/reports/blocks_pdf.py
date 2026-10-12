@@ -16,7 +16,7 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from ..chart_layout import CHART_NEUTRALS, CHART_SEMANTIC, CHART_SERIES_PALETTE
-from ..engine.blocks import cell_decimals, format_number
+from ..engine.blocks import action_label, cell_decimals, format_number
 from ..report_pdf import BORDER, GRAY, INK, STYLES, WIDTH as PAGE_WIDTH, grid, paragraph
 
 WIDTH = PAGE_WIDTH - 12  # frame padding
@@ -29,11 +29,13 @@ AMBER_LINE = colors.HexColor('#e0a33a')
 NOTICE = ParagraphStyle('notice', parent=STYLES['body'], backColor=AMBER, borderColor=AMBER_LINE, borderWidth=.6,
                         borderPadding=7, spaceBefore=6, spaceAfter=12)
 SUBHEAD = ParagraphStyle('subhead', parent=STYLES['heading'], fontSize=11, leading=15, spaceBefore=10)
-PRIORITY = ParagraphStyle('priority', parent=STYLES['heading'], textColor=colors.HexColor(CHART_SERIES_PALETTE[2]))
-COVER_TITLE = ParagraphStyle('cover_title', parent=STYLES['title'], fontSize=23, leading=29, spaceAfter=10)
-COVER_BODY = ParagraphStyle('cover_body', parent=STYLES['body'], fontSize=11, leading=17)
-PANEL_TITLE = ParagraphStyle('panel_title', parent=STYLES['heading'], spaceBefore=0, fontSize=11, leading=15)
-PANEL_LABEL = ParagraphStyle('panel_label', parent=STYLES['muted'], fontName='Helvetica-Bold', spaceAfter=5)
+PRIORITY = ParagraphStyle('priority', parent=STYLES['heading'], fontSize=14, leading=19)
+COVER_TITLE = ParagraphStyle('cover_title', parent=STYLES['title'], spaceAfter=10)
+COVER_EYEBROW = ParagraphStyle('cover_eyebrow', parent=STYLES['muted'], fontSize=10, leading=14)
+COVER_BODY = ParagraphStyle('cover_body', parent=STYLES['body'], fontSize=11, leading=17, textColor=GRAY)
+PANEL_TITLE = ParagraphStyle('panel_title', parent=STYLES['heading'], spaceBefore=0, fontSize=12, leading=16)
+PANEL_LABEL = ParagraphStyle('panel_label', parent=PANEL_TITLE, fontSize=11, leading=15, spaceAfter=5)
+PANEL_BACKGROUND = colors.HexColor('#f8f8f8')
 
 
 def _text(value):
@@ -60,7 +62,8 @@ def _content(content, style='body'):
         else:
             for i, item in enumerate(node['items'], 1):
                 marker = f'{i}.' if node['ordered'] else '•'
-                flow.append(Paragraph(f'{marker} {_spans(item)}', ParagraphStyle('item', parent=STYLES['body'], leftIndent=14,
+                parent = COVER_BODY if style is COVER_BODY else STYLES['body']
+                flow.append(Paragraph(f'{marker} {_spans(item)}', ParagraphStyle('item', parent=parent, leftIndent=14,
                                                                                   firstLineIndent=-10, spaceAfter=3)))
     return flow
 
@@ -73,17 +76,18 @@ class _Panel(Table):
         has_content = lambda part: any(cell for row in part._cellvalues for cell in row)
         if parts and not has_content(parts[0]):
             return []  # Only padding fit: defer the whole panel to the next frame.
+        if parts:
+            first = [item for row in parts[0]._cellvalues for cell in row for item in cell]
+            if first and all(item.getKeepWithNext() for item in first):
+                return []  # A card/branch heading alone must move with its first body line.
         return [part for part in parts if has_content(part)]
 
 
-def _panel(parts, width=WIDTH, *, tone=None, cover=False):
+def _panel(parts, width=WIDTH):
     """A light, splittable platform panel; even a single long paragraph can cross pages."""
-    accent = colors.HexColor('#173b52') if cover else colors.HexColor(CHART_SEMANTIC[tone]) if tone else BORDER
-    background = colors.Color(*(1 - (1 - channel) * .06 for channel in (accent.red, accent.green, accent.blue)))
     table = _Panel([[parts]], colWidths=[width], hAlign='LEFT', splitInRow=1, spaceAfter=10)
     table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), background),
-        ('LINEBEFORE', (0, 0), (-1, -1), 3 if cover else 2, accent),
+        ('BACKGROUND', (0, 0), (-1, -1), PANEL_BACKGROUND),
         ('LEFTPADDING', (0, 0), (-1, -1), 12), ('RIGHTPADDING', (0, 0), (-1, -1), 12),
         ('TOPPADDING', (0, 0), (-1, -1), 12), ('BOTTOMPADDING', (0, 0), (-1, -1), 9),
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
@@ -92,31 +96,58 @@ def _panel(parts, width=WIDTH, *, tone=None, cover=False):
 
 
 def _cover(block, eyebrow=''):
-    parts = [Paragraph(_text(eyebrow), PANEL_LABEL)] if eyebrow else []
-    parts += [Paragraph(_text(block['title']), COVER_TITLE), *_content(block['content'], COVER_BODY)]
-    return [_panel(parts, cover=True)]
+    parts = [Paragraph(_text(eyebrow), COVER_EYEBROW)] if eyebrow else []
+    return parts + [Paragraph(_text(block['title']), COVER_TITLE), *_content(block['content'], COVER_BODY)]
+
+
+def _tone_mark(tone):
+    """Small declared-tone symbol, as on screen; surfaces remain neutral."""
+    drawing = Drawing(16, 16)
+    drawing.add(Circle(6, 8, 5, fillColor=colors.HexColor(CHART_SEMANTIC[tone]), strokeColor=None))
+    if tone in ('positive', 'negative'):
+        start, tip = (5, 11) if tone == 'positive' else (11, 5)
+        wing = tip - 2 if tone == 'positive' else tip + 2
+        for x1, y1, x2, y2 in ((6, start, 6, tip), (4, wing, 6, tip), (8, wing, 6, tip)):
+            drawing.add(Line(x1, y1, x2, y2, strokeColor=colors.white, strokeWidth=.8))
+    elif tone == 'warning':
+        drawing.add(String(6, 5, '!', fontName='Helvetica-Bold', fontSize=8, fillColor=colors.white, textAnchor='middle'))
+    else:
+        drawing.add(Circle(6, 8, .7, fillColor=colors.white, strokeColor=None))
+    return drawing
+
+
+def _card_heading(card, width, label):
+    title = Paragraph(_text(card['title']), PANEL_LABEL if label else PANEL_TITLE)
+    if not card.get('tone'):
+        return title
+    heading = Table([[_tone_mark(card['tone']), title]], colWidths=[16, width - 40], hAlign='LEFT', spaceAfter=8)
+    heading.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                                ('LEFTPADDING', (0, 0), (-1, -1), 0), ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+                                ('TOPPADDING', (0, 0), (-1, -1), 0), ('BOTTOMPADDING', (0, 0), (-1, -1), 0)]))
+    heading.keepWithNext = True
+    return heading
 
 
 def _cards(cards, *, label=False):
     """Two short cards share a row. Three cards or long contents remain fully paginable."""
-    def parts(card):
-        return [Paragraph(_text(card['title']), PANEL_LABEL if label else PANEL_TITLE), *_content(card['content'])]
+    def parts(card, width=WIDTH):
+        return [_card_heading(card, width, label), *_content(card['content'])]
     if len(cards) == 2:
         width = (WIDTH - 12) / 2
-        panels = [_panel(parts(c), width, tone=c.get('tone')) for c in cards]
+        panels = [_panel(parts(c, width), width) for c in cards]
         if all(p.wrap(width, 10000)[1] <= 280 for p in panels):
             table = Table([[panels[0], '', panels[1]]], colWidths=[width, 12, width], hAlign='LEFT', spaceAfter=10)
             table.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP'),
                                       ('LEFTPADDING', (0, 0), (-1, -1), 0), ('RIGHTPADDING', (0, 0), (-1, -1), 0),
                                       ('TOPPADDING', (0, 0), (-1, -1), 0), ('BOTTOMPADDING', (0, 0), (-1, -1), 0)]))
             return [table]
-    return [_panel(parts(c), tone=c.get('tone')) for c in cards]
+    return [_panel(parts(c)) for c in cards]
 
 
 def _action(block):
-    flow = [_panel([Paragraph('Qué comprobar', PANEL_LABEL), *_content(block['check'])])]
-    branches = [dict(title=title, content=block[key]) for key, title in
-                (('if_confirmed', 'Si se confirma'), ('if_not', 'Si no')) if block[key] is not None]
+    flow = [Paragraph(_text(action_label(block, 'check')), PANEL_LABEL), *_content(block['check'])]
+    branches = [dict(title=action_label(block, key), content=block[key])
+                for key in ('if_confirmed', 'if_not') if block[key] is not None]
     return flow + _cards(branches, label=True)
 
 

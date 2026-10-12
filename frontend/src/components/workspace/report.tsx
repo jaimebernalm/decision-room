@@ -451,7 +451,7 @@ function EngineFrame({ report }: { report: ReportData }) {
                   : block.type === "cards"
                     ? block.cards.map((c) => c.title).join(" · ")
                     : block.type === "action"
-                      ? tr("Qué comprobar")
+                      ? (block.labels?.check ?? tr("Qué comprobar"))
                       : report.title,
             report_title: report.title,
             href: location.hash,

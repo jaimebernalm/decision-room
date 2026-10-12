@@ -48,7 +48,8 @@ NARRATIVE = ('Compara cada segmento relevante con su propia evolución en el tie
 
 PRESENTATION = ('Usa portada, tarjetas y accion cuando ayuden a organizar el titular, el resumen, el balance y '
                 'los siguientes pasos que ya ibas a contar; mueve el contenido a esos bloques, no lo dupliques '
-                'ni añadas texto para rellenarlos. No son una plantilla obligatoria. Declara bueno en las '
+                'ni añadas texto para rellenarlos. No son una plantilla obligatoria. Puedes dar rótulos propios '
+                'a las partes de accion cuando los de la plataforma no encajen con la comprobación. Declara bueno en las '
                 'variaciones y tono en series y tarjetas cuando los datos y el significado confirmado de la '
                 'métrica permitan una lectura favorable, desfavorable o de aviso; si no, omítelos. '
                 'Subir no siempre es bueno. Conserva los gráficos de evolución y las tablas cortas que aporten evidencia.')
@@ -173,7 +174,7 @@ def build(db, business, analysis, *, goal, panorama, name=None, description=None
     memory = context.scoped(context.effective(db, business), selection)
     text = compose(name=owner['name'], description=owner['description'], goal=goal,
                    model=model, memory=memory, panorama=panorama, questions=questions, format=format)
-    provenance = dict(version=('blocks-brief-3q' if questions else 'blocks-brief-3') if format == 'blocks' else (QUESTIONS_VERSION if questions else VERSION), profile='job' if frozen else 'current', profile_revision=owner['profile_revision'],
+    provenance = dict(version=('blocks-brief-4q' if questions else 'blocks-brief-4') if format == 'blocks' else (QUESTIONS_VERSION if questions else VERSION), profile='job' if frozen else 'current', profile_revision=owner['profile_revision'],
                       data_model=dict(analysis_id=str(analysis), revision=head['revision']) if model else None,
                       memory=sorted(r['reference'] for r in memory if facts([r])),
                       panorama=bool(panorama))

@@ -11,7 +11,7 @@ import { exactDecimals, formatNumber } from "@/lib/blocks-format";
 import { ReportView } from "./report";
 import fixture from "@/test-fixtures/blocks-report.json";
 import presentationFixture from "@/test-fixtures/blocks-presentation.json";
-import type { BlocksProjection, ContextAttachment, Report } from "@/lib/types";
+import type { BlocksProjection, ContextAttachment, Report, ReportBlock } from "@/lib/types";
 
 const projection = fixture as unknown as BlocksProjection;
 
@@ -261,15 +261,32 @@ it("opens with the cover, the report title as its label and no second heading", 
   expect(within(cover).getByText("8,2 %").tagName).toBe("STRONG");
 });
 
-it("colors cards only by declared tone and keeps two or three side by side", () => {
+it("keeps cards neutral and marks only a declared tone beside the title", () => {
   render(<BlocksReport projection={presentation} />);
-  const worked = screen.getByText("Qué ha funcionado").closest("[data-slot=card]") as HTMLElement;
-  expect(worked.style.borderTopColor).not.toBe("");
-  const plain = screen.getByText("A").closest("[data-slot=card]") as HTMLElement;
-  expect(plain.style.borderTopColor).toBe("");
+  const worked = screen.getByText("Qué ha funcionado").closest("[data-slot=report-card]") as HTMLElement;
+  expect(worked.dataset.tone).toBe("positive");
+  // No colored surface or accent edge: the color lives only in the small mark.
+  expect(worked.style.background).toBe("");
+  expect(worked.style.borderTopColor).toBe("");
+  expect(within(worked).getByRole("img", { name: "Según el informe: favorable" })).toBeInTheDocument();
+  const plain = screen.getByText("A").closest("[data-slot=report-card]") as HTMLElement;
+  expect(within(plain).queryByRole("img")).toBeNull();
   expect(worked.parentElement!.className).toContain("md:grid-cols-2");
   expect(worked.parentElement!.className).not.toContain("lg:grid-cols-3");
   expect(plain.parentElement!.className).toContain("lg:grid-cols-3");
+});
+
+it("uses the report's own names for the action parts when it gives them", () => {
+  const named = structuredClone(presentation);
+  const priority = named.blocks.find((b) => b.type === "priority")!;
+  const action = (priority as { blocks: ReportBlock[] }).blocks.find((b) => b.type === "action") as Extract<ReportBlock, { type: "action" }>;
+  action.labels = { check: null, if_confirmed: "Si son pedidos reales", if_not: "Si son duplicados" };
+  render(<BlocksReport projection={named} />);
+  const section = screen.getByRole("heading", { name: /Revisar la recogida en local/ }).closest("section")!;
+  expect(within(section).getByText("Qué comprobar")).toBeInTheDocument();
+  expect(within(section).getByText("Si son pedidos reales")).toBeInTheDocument();
+  expect(within(section).getByText("Si son duplicados")).toBeInTheDocument();
+  expect(within(section).queryByText("Si se confirma")).toBeNull();
 });
 
 it("lays out the action with platform labels and only the branches the report gives", () => {
@@ -280,7 +297,8 @@ it("lays out the action with platform labels and only the branches the report gi
   expect(within(first).getByText("Si no")).toBeInTheDocument();
   expect(within(first).getByText("Revisar la atención en el local.")).toBeInTheDocument();
   const second = screen.getByRole("heading", { name: /Seguir la tienda online/ }).closest("section")!;
-  expect(within(second).getByText("Qué comprobar")).toBeInTheDocument();
+  expect(within(second).getByText("Qué revisar en abril")).toBeInTheDocument();
+  expect(within(second).queryByText("Qué comprobar")).toBeNull();
   expect(within(second).queryByText("Si se confirma")).toBeNull();
   // Priority numbering ignores cards and the cover.
   expect(within(second).getByText("02")).toBeInTheDocument();
@@ -419,4 +437,26 @@ it("shows disputed figures under the cover and the cards", () => {
   expect(notes).toHaveLength(2);
   expect(notes[0]).toHaveTextContent("cálculo independiente: 7,9 %");
   expect(notes[1]).toHaveTextContent("cálculo independiente: 1.180");
+});
+
+it("reads projector 5 reports without labels with the platform's names", () => {
+  const older = structuredClone(presentation) as BlocksProjection;
+  older.projector = "bloques-proyector-5";
+  const strip = (blocks: ReportBlock[]) => {
+    for (const b of blocks) {
+      if (b.type === "action") delete (b as { labels?: unknown }).labels;
+      if ("blocks" in b) strip(b.blocks);
+    }
+  };
+  strip(older.blocks);
+  render(<BlocksReport projection={older} />);
+  expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Crece la tienda online");
+  expect(screen.getByText("Qué ha funcionado")).toBeInTheDocument();
+  const first = screen.getByRole("heading", { name: /Revisar la recogida en local/ }).closest("section")!;
+  expect(within(first).getByText("Qué comprobar")).toBeInTheDocument();
+  expect(within(first).getByText("Si se confirma")).toBeInTheDocument();
+  expect(within(first).getByText("Si no")).toBeInTheDocument();
+  const second = screen.getByRole("heading", { name: /Seguir la tienda online/ }).closest("section")!;
+  expect(within(second).getByText("Qué comprobar")).toBeInTheDocument();
+  expect(within(second).queryByText("Qué revisar en abril")).toBeNull();
 });

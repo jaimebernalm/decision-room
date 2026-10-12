@@ -482,6 +482,8 @@ export type ReportBlock = { id: string } & (
       check: BlockContent[];
       if_confirmed: BlockContent[] | null;
       if_not: BlockContent[] | null;
+      /** The report's own names for the parts; null or absent means the platform's label. */
+      labels?: { check: string | null; if_confirmed: string | null; if_not: string | null };
     }
   | {
       type: "figure";

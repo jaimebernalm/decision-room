@@ -16,7 +16,7 @@ import sys
 from decimal import Decimal, ROUND_HALF_UP, localcontext
 
 VERSION = 'informe-bloques-1'
-PROJECTOR_VERSION = 'bloques-proyector-5'
+PROJECTOR_VERSION = 'bloques-proyector-6'
 MAX_BYTES = 256 * 1024
 MAX_BLOCKS = 300            # every block, nested ones included
 MAX_DEPTH = 4               # seccion > seccion > prioridad > contenido
@@ -82,9 +82,13 @@ Bloques (campo "tipo"); los marcados con ? son opcionales:
               "filas":[["Magnesio",1234.5],...],"nota"?:"..."}   (celdas: texto, número o null)
              Una columna de variaciones puede llevar "signo":true (muestra +/−) y "bueno":"subir|bajar".
 - prioridad: {"tipo":"prioridad","titulo":"...","bloques":[...]}   (dentro, lo que quieras)
-- accion:    {"tipo":"accion","comprobar": CONTENIDO,"si_se_confirma"?: CONTENIDO,"si_no"?: CONTENIDO}
+- accion:    {"tipo":"accion","comprobar": CONTENIDO,"si_se_confirma"?: CONTENIDO,"si_no"?: CONTENIDO,
+              "rotulo_comprobar"?:"...","rotulo_si_se_confirma"?:"...","rotulo_si_no"?:"..."}
              Solo dentro de una prioridad. Organiza qué comprobar y cómo actuar según el resultado;
              las ramas son opcionales. Mueve aquí el contenido, no lo repitas en el texto de la prioridad.
+             Puedes nombrar las ramas con tus palabras si los rótulos por defecto no encajan.
+             Cada rótulo presente debe ser texto no vacío de hasta 200 caracteres; una rama ausente
+             no puede tener rótulo. Sin rótulos propios se usan «Qué comprobar», «Si se confirma» y «Si no».
 - aviso:     {"tipo":"aviso","contenido": CONTENIDO}
 
 Estos bloques son opciones de presentación, no una plantilla ni una petición de más texto.
@@ -348,13 +352,20 @@ class _Checker:
         return dict(id=ident, type='cards', cards=projected)
 
     def b_accion(self, where, b, ident, depth, in_priority):
-        if not self.keys(where, b, ('tipo', 'comprobar'), ('si_se_confirma', 'si_no')):
+        if not self.keys(where, b, ('tipo', 'comprobar'),
+                         ('si_se_confirma', 'si_no', 'rotulo_comprobar', 'rotulo_si_se_confirma', 'rotulo_si_no')):
             return None
         if not in_priority:
             self.fail(where, 'una accion solo puede ir dentro de una prioridad')
+        for branch in ('si_se_confirma', 'si_no'):
+            if 'rotulo_' + branch in b and branch not in b:
+                self.fail(f'{where}.rotulo_{branch}', f'no puede tener rótulo sin la rama «{branch}»')
         return dict(id=ident, type='action', check=self.content(f'{where}.comprobar', b['comprobar']),
                     if_confirmed=self.content(f'{where}.si_se_confirma', b['si_se_confirma']) if 'si_se_confirma' in b else None,
-                    if_not=self.content(f'{where}.si_no', b['si_no']) if 'si_no' in b else None)
+                    if_not=self.content(f'{where}.si_no', b['si_no']) if 'si_no' in b else None,
+                    labels=dict(check=self.optional_string(where, b, 'rotulo_comprobar', MAX_TITLE),
+                                if_confirmed=self.optional_string(where, b, 'rotulo_si_se_confirma', MAX_TITLE),
+                                if_not=self.optional_string(where, b, 'rotulo_si_no', MAX_TITLE)))
 
     def b_cifra(self, where, b, ident, depth, in_priority):
         if not self.keys(where, b, ('tipo', 'etiqueta', 'valor'), ('unidad', 'decimales', 'periodo', 'anterior', 'nota', 'bueno')):
@@ -608,6 +619,14 @@ def _content_lines(content):
     return lines
 
 
+ACTION_LABELS = dict(check='Qué comprobar', if_confirmed='Si se confirma', if_not='Si no')
+
+
+def action_label(block, key):
+    """Saved projections before projector 6 have no labels; their defaults stay intact."""
+    return (block.get('labels') or {}).get(key) or ACTION_LABELS[key]
+
+
 def block_lines(block):
     """Plain-text rendering of one block and its children (canonical, platform-formatted)."""
     kind = block['type']
@@ -623,10 +642,10 @@ def block_lines(block):
     if kind == 'cards':
         return [line for card in block['cards'] for line in [card['title'], *_content_lines(card['content'])]]
     if kind == 'action':
-        lines = ['Qué comprobar', *_content_lines(block['check'])]
-        for key, label in (('if_confirmed', 'Si se confirma'), ('if_not', 'Si no')):
+        lines = [action_label(block, 'check'), *_content_lines(block['check'])]
+        for key in ('if_confirmed', 'if_not'):
             if block[key] is not None:
-                lines += [label, *_content_lines(block[key])]
+                lines += [action_label(block, key), *_content_lines(block[key])]
         return lines
     if kind == 'notice':
         return ['Aviso: ' + line for line in _content_lines(block['content'])]
