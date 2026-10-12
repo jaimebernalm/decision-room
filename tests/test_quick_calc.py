@@ -229,5 +229,123 @@ class CalculationTests(unittest.TestCase):
             self.assertIsNone(db.execute("SELECT 1 FROM executions WHERE request_key LIKE 'budget-%%'").fetchone())
 
 
+
+def answer(text, sources):
+    return dict(action='answer', retrieval=None, analysis_id='', text=text, sources=sources, calculation=None,
+                include_report=False, onboarding=None, presentation_edit=None, investigation_brief=None)
+
+
+def calculate(analysis, table, code=CODE, alias='ventas'):
+    return dict(action='calculate', retrieval=None, analysis_id=analysis, text='', sources=[], include_report=False,
+                onboarding=None, presentation_edit=None, investigation_brief=None,
+                calculation=dict(purpose='Unidades vendidas en total', code=code, tables=[dict(alias=alias, id=table)]))
+
+
+class ChatCalculationTests(CalculationTests):
+    """A whole chat turn: calculate, observe, answer; replays never run the program again."""
+    test_scope_is_one_analysis_of_delivered_tables_and_errors_record_nothing = None
+    test_definitions_are_declared_meanings_only = None
+    test_budget_duplicates_and_refusals_are_recorded_before_any_run = None
+    test_resolve_runs_once_and_replays_read_the_finished_execution = None
+    test_busy_before_admission_is_refused_and_an_open_run_is_never_relabelled = None
+    test_input_budget_is_checked_before_admission = None
+
+    def setUp(self):
+        super().setUp()
+        self.backend = FakeBackend()
+        patcher = patch.object(execution, 'DockerBackend', lambda: self.backend)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        test = self
+
+        class Model(fixtures.WebModel):
+            def generate_chat(model, context, correction=None):
+                test.contexts.append(context)
+                return test.script(context), {}
+
+            def review_chat_answer(model, context):
+                test.reviews.append(context)
+                return dict(approved=True, issues=[]), {}
+
+        self.contexts, self.reviews = [], []
+        self.ws.model_factory = Model
+        self.chats = Conversations(self.ws.scoped(self.business['id']))
+        self.chat_id = self.chats.create(dict(business_id=str(self.business['id']), request_key=str(uuid4())))['id']
+
+    def script(self, context):
+        done = [e for e in context['retrievals'] if e['request']['tool'] == 'calculate']
+        if not done:
+            return calculate(self.analysis, self.table)
+        return answer('Se vendieron 180 unidades en total.', [f"tool/{done[-1]['ordinal']}"])
+
+    def send(self, text='¿Cuántas unidades vendimos?'):
+        turn = self.chats.send(self.chat_id, dict(business_id=str(self.business['id']), request_key=str(uuid4()), text=text))
+        self.chats.run(turn['id'])
+        return turn['id'], self.chats.detail(self.chat_id)['turns'][-1]
+
+    def test_a_turn_calculates_once_and_cites_a_labelled_source(self):
+        turn, shown = self.send()
+        self.assertEqual(shown['status'], 'completed', shown)
+        self.assertEqual(len(self.backend.runs), 1)
+        with connect(self.config) as db:
+            event = db.execute("SELECT * FROM chat_retrievals WHERE turn_id=%s AND request->>'tool'='calculate'", (turn,)).fetchone()
+            row = db.execute('SELECT * FROM chat_calculations WHERE turn_id=%s', (turn,)).fetchone()
+        self.assertEqual(event['response']['metrics'], {'unidades': 180})
+        self.assertEqual(event['response']['independent_check'], 'none')
+        self.assertEqual(event['request']['code'], CODE)
+        self.assertEqual(row['admission'], 'admitted')
+        self.assertEqual(event['dependencies'], row['dependencies'])
+        self.assertEqual(event['dependencies'][0], dict(kind='table', id=self.table,
+                                                        metadata_version=row['request']['tables'][0]['metadata_version']))
+        source = self.contexts[-1]['available_sources'][f"tool/{event['ordinal']}"]
+        self.assertEqual(source['label'], 'Cálculo rápido (sin comprobación independiente)')
+        self.assertTrue(self.contexts[0]['chat_context']['runtime']['can_quick_calculate'])
+
+    def test_scope_errors_are_tool_errors_and_record_nothing(self):
+        def script(context):
+            if not context['retrievals']:
+                return calculate(self.analysis, self.other_table)
+            self.assertIn('error', context['retrievals'][0]['response'])
+            return answer('No puedo calcularlo con esos datos.', [])
+        self.script = script
+        turn, shown = self.send()
+        self.assertEqual(shown['status'], 'completed', shown)
+        self.assertEqual(self.backend.runs, [])
+        with connect(self.config) as db:
+            self.assertIsNone(db.execute('SELECT 1 FROM chat_calculations WHERE turn_id=%s', (turn,)).fetchone())
+
+    def test_a_crash_after_running_replays_without_running_again(self):
+        real = quick_calc.observation
+        with patch.object(quick_calc, 'observation', side_effect=KeyboardInterrupt()):
+            with self.assertRaises(KeyboardInterrupt):
+                self.send()
+        turn = self.chats.detail(self.chat_id)['turns'][-1]['id']
+        with patch.object(quick_calc, 'observation', real):
+            self.chats.run(turn)
+        shown = self.chats.detail(self.chat_id)['turns'][-1]
+        self.assertEqual(shown['status'], 'completed', shown)
+        self.assertEqual(len(self.backend.runs), 1)
+
+    def test_an_open_calculation_fails_the_turn_and_blocks_retry_until_recovered(self):
+        def script(context):
+            return calculate(self.analysis, self.table)
+        self.script = script
+        with patch.object(quick_calc, 'TERMINAL', ('failed',)):
+            turn, shown = self.send()
+        self.assertEqual(shown['status'], 'failed')
+        with connect(self.config) as db:
+            row = db.execute('SELECT * FROM chat_calculations WHERE turn_id=%s', (turn,)).fetchone()
+            db.execute("UPDATE executions SET status='running',finished_at=NULL WHERE id=%s", (row['execution_id'],))
+        with connect(self.config) as holder:
+            holder.execute('SELECT pg_advisory_lock_shared(%s)', (execution.LOCK,))
+            with self.assertRaises(fixtures.WebError):
+                self.chats.retry(self.chat_id, turn, dict(business_id=str(self.business['id'])))
+        self.chats.retry(self.chat_id, turn, dict(business_id=str(self.business['id'])))
+        self.assertEqual(self.backend.removed, [row['execution_id']])
+        with connect(self.config) as db:
+            status = db.execute('SELECT status FROM executions WHERE id=%s', (row['execution_id'],)).fetchone()['status']
+        self.assertEqual(status, 'interrupted')
+
+
 if __name__ == '__main__':
     unittest.main()

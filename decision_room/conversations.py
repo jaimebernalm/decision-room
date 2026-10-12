@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from psycopg.types.json import Jsonb
 
 from .database import connect
-from . import chat_agent, context_references as selections, conversation_context
+from . import chat_agent, context_references as selections, conversation_context, quick_calc
 from .chat_agent import ENGINE_ORIGINS
 from .greetings import is_greeting, salutation
 from .agent.model import ModelSettings, ModelRequestUncertain, record_transport
@@ -35,7 +35,8 @@ class AnswerValidationExhausted(ValueError):
 class Action(BaseModel):
     model_config = ConfigDict(extra='forbid')
     action: Literal[
-        'retrieve', 'investigate', 'explain', 'remember', 'clarify', 'missing', 'catalog', 'recall', 'respond', 'answer', 'edit_presentation'
+        'retrieve', 'investigate', 'explain', 'remember', 'clarify', 'missing', 'catalog', 'recall', 'respond', 'answer', 'edit_presentation',
+        'calculate'
     ]
     retrieval: retrieval.Request | None
     analysis_id: str = Field(max_length=36)
@@ -50,6 +51,7 @@ class Action(BaseModel):
     presentation_edit: chat_agent.PresentationEdit | None = None
     onboarding: chat_agent.SetupGuide | None = None
     investigation_brief: chat_agent.InvestigationBrief | None = None
+    calculation: chat_agent.QuickCalculation | None = None
     answer_mode: Literal['summary', 'method', 'recency'] = 'summary'
     include_report: bool = True  # Historical Actions retain their existing attachment behavior.
 
@@ -59,6 +61,7 @@ def runtime_context():
     return dict(server_time=now.isoformat(timespec='seconds'), timezone=str(now.tzinfo),
                 web_access=False, live_business_feed=False,
                 can_analyze_uploaded_datasets=True, can_predict_future=False,
+                can_quick_calculate=quick_calc.available(),
                 available_sources=['saved business context', 'uploaded datasets', 'reviewed reports'])
 
 
@@ -856,6 +859,9 @@ class Conversations:
 
     def retry(self, chat_id, turn_id, data):
         self.guard(data)
+        with connect(self.config) as db:
+            if quick_calc.unresolved(db, self.business, identifier(turn_id)):
+                quick_calc.recover(self.config, self.business, identifier(turn_id))  # Never reruns code.
         # Serialize retries with processing and sends. A second click cannot reset
         # a newly running turn or authorize a second provider request.
         with connect(self.config) as db, db.transaction():
@@ -871,6 +877,8 @@ class Conversations:
             ).fetchall()
             if any(item['status'] != 'queued' for item in successors):
                 raise WebError('Abre un nuevo mensaje para recalcular una respuesta anterior.', 409)
+            if quick_calc.unresolved(db, self.business, turn['id']):
+                raise WebError('Un cálculo anterior de este mensaje todavía se está cerrando. Reintenta en unos segundos.', 409)
             item = next(x for x in self.detail(chat_id)['turns'] if x['id'] == turn['id'])
             if turn['status'] in ('queued', 'routing', 'processing') or item['status'] not in (
                 'failed',
@@ -1174,6 +1182,33 @@ class Conversations:
                 if report and str(report) not in reports:
                     reports.append(str(report))
         return {**brief.model_dump(), 'reports': reports}
+
+    def _calculate(self, db, chat, turn, ordinal, action, context, events):
+        """Record the intent, run it once outside any transaction and return the bounded observation.
+
+        Scope errors, duplicates and an exhausted budget become tool errors and record
+        nothing. An open admitted run raises quick_calc.Unresolved: the turn fails with
+        the ordinary retry notice and the run is never relabelled.
+        """
+        if context.get('onboarding'):
+            return dict(error='Quick calculations are not available while setting up the first report.', items=[]), []
+        if quick_calc.unresolved(db, self.business, turn['id']):
+            quick_calc.recover(self.config, self.business, turn['id'])  # Try-lock; never reruns.
+        try:
+            with db.transaction():
+                memory.lock(db, self.business)
+                if not dependencies_current(self.config, db, turn['snapshot'], events):
+                    raise ctx.StaleContext('Context changed before calculation.')
+                row = quick_calc.reserve(
+                    db, self.business, turn=turn, ordinal=ordinal, chat_analysis=chat['analysis_id'],
+                    snapshot=turn['snapshot'], events=events, calculation=action.calculation.model_dump(),
+                    analysis_id=action.analysis_id, context_bytes=len(memory.encoded(context).encode()))
+        except ctx.StaleContext:
+            raise
+        except ValueError as error:
+            return dict(error=str(error)[:500], items=[]), []
+        result = quick_calc.resolve(self.config, self.business, row)
+        return quick_calc.observation(row, result), (row['dependencies'] if result else [])
 
     def _job(self, db, chat, turn, analysis_id, brief=None):
         # Persist job and link atomically: recovery cannot create a second analysis.
@@ -1558,6 +1593,25 @@ class Conversations:
                                     ),
                                 )
                         continue
+                    if action.action == 'calculate':
+                        if action.retrieval is not None or not action.calculation:
+                            raise ValueError('Calculation cannot mix actions.')
+                        if ordinal >= ctx.MAX_RETRIEVALS:
+                            raise ValueError('Retrieval budget exhausted.')
+                        if not any(e['ordinal'] == ordinal for e in events):
+                            response, deps = self._calculate(db, chat, turn, ordinal, action, context, events)
+                            request = dict(tool=quick_calc.TOOL, purpose=action.calculation.purpose,
+                                           analysis_id=action.analysis_id, code=action.calculation.code,
+                                           tables=[t.model_dump() for t in action.calculation.tables])
+                            with db.transaction():
+                                memory.lock(db, self.business)
+                                if not dependencies_current(self.config, db, turn['snapshot'], [*events, dict(dependencies=deps)]):
+                                    raise ctx.StaleContext('Context changed during calculation.')
+                                db.execute('INSERT INTO chat_retrievals VALUES (%s,%s,%s,%s,%s,%s)',
+                                           (turn_id, turn['attempt'], ordinal, Jsonb(request), Jsonb(response), Jsonb(deps)))
+                        continue
+                    if action.calculation is not None:
+                        raise ValueError('Unexpected calculation payload.')
                     if action.retrieval is not None:
                         raise ValueError('Unexpected retrieval payload.')
                     if action.reply_kind and action.action != 'respond':
