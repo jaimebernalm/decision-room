@@ -30,6 +30,10 @@ NOTICE = ParagraphStyle('notice', parent=STYLES['body'], backColor=AMBER, border
                         borderPadding=7, spaceBefore=6, spaceAfter=12)
 SUBHEAD = ParagraphStyle('subhead', parent=STYLES['heading'], fontSize=11, leading=15, spaceBefore=10)
 PRIORITY = ParagraphStyle('priority', parent=STYLES['heading'], textColor=colors.HexColor(CHART_SERIES_PALETTE[2]))
+COVER_TITLE = ParagraphStyle('cover_title', parent=STYLES['title'], fontSize=23, leading=29, spaceAfter=10)
+COVER_BODY = ParagraphStyle('cover_body', parent=STYLES['body'], fontSize=11, leading=17)
+PANEL_TITLE = ParagraphStyle('panel_title', parent=STYLES['heading'], spaceBefore=0, fontSize=11, leading=15)
+PANEL_LABEL = ParagraphStyle('panel_label', parent=STYLES['muted'], fontName='Helvetica-Bold', spaceAfter=5)
 
 
 def _text(value):
@@ -59,6 +63,61 @@ def _content(content, style='body'):
                 flow.append(Paragraph(f'{marker} {_spans(item)}', ParagraphStyle('item', parent=STYLES['body'], leftIndent=14,
                                                                                   firstLineIndent=-10, spaceAfter=3)))
     return flow
+
+
+class _Panel(Table):
+    def split(self, available_width, available_height):
+        # ReportLab can leave a continuation containing only bottom padding after all
+        # paragraphs fit. Dropping that empty fragment prevents a blank report page.
+        parts = super().split(available_width, available_height)
+        has_content = lambda part: any(cell for row in part._cellvalues for cell in row)
+        if parts and not has_content(parts[0]):
+            return []  # Only padding fit: defer the whole panel to the next frame.
+        return [part for part in parts if has_content(part)]
+
+
+def _panel(parts, width=WIDTH, *, tone=None, cover=False):
+    """A light, splittable platform panel; even a single long paragraph can cross pages."""
+    accent = colors.HexColor('#173b52') if cover else colors.HexColor(CHART_SEMANTIC[tone]) if tone else BORDER
+    background = colors.Color(*(1 - (1 - channel) * .06 for channel in (accent.red, accent.green, accent.blue)))
+    table = _Panel([[parts]], colWidths=[width], hAlign='LEFT', splitInRow=1, spaceAfter=10)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), background),
+        ('LINEBEFORE', (0, 0), (-1, -1), 3 if cover else 2, accent),
+        ('LEFTPADDING', (0, 0), (-1, -1), 12), ('RIGHTPADDING', (0, 0), (-1, -1), 12),
+        ('TOPPADDING', (0, 0), (-1, -1), 12), ('BOTTOMPADDING', (0, 0), (-1, -1), 9),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+    ]))
+    return table
+
+
+def _cover(block, eyebrow=''):
+    parts = [Paragraph(_text(eyebrow), PANEL_LABEL)] if eyebrow else []
+    parts += [Paragraph(_text(block['title']), COVER_TITLE), *_content(block['content'], COVER_BODY)]
+    return [_panel(parts, cover=True)]
+
+
+def _cards(cards, *, label=False):
+    """Two short cards share a row. Three cards or long contents remain fully paginable."""
+    def parts(card):
+        return [Paragraph(_text(card['title']), PANEL_LABEL if label else PANEL_TITLE), *_content(card['content'])]
+    if len(cards) == 2:
+        width = (WIDTH - 12) / 2
+        panels = [_panel(parts(c), width, tone=c.get('tone')) for c in cards]
+        if all(p.wrap(width, 10000)[1] <= 280 for p in panels):
+            table = Table([[panels[0], '', panels[1]]], colWidths=[width, 12, width], hAlign='LEFT', spaceAfter=10)
+            table.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                                      ('LEFTPADDING', (0, 0), (-1, -1), 0), ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+                                      ('TOPPADDING', (0, 0), (-1, -1), 0), ('BOTTOMPADDING', (0, 0), (-1, -1), 0)]))
+            return [table]
+    return [_panel(parts(c), tone=c.get('tone')) for c in cards]
+
+
+def _action(block):
+    flow = [_panel([Paragraph('Qué comprobar', PANEL_LABEL), *_content(block['check'])])]
+    branches = [dict(title=title, content=block[key]) for key, title in
+                (('if_confirmed', 'Si se confirma'), ('if_not', 'Si no')) if block[key] is not None]
+    return flow + _cards(branches, label=True)
 
 
 def _unit(value, decimals, unit):
@@ -400,6 +459,12 @@ def _blocks(blocks, checks, depth, numbers, appendix):
             own = []
         elif kind == 'text':
             flow += _content(b['content'])
+        elif kind == 'cover':
+            flow += _cover(b)
+        elif kind == 'cards':
+            flow += _cards(b['cards'])
+        elif kind == 'action':
+            flow += _action(b)
         elif kind == 'notice':
             flow += _content(b['content'], NOTICE)
         elif kind == 'chart':
@@ -426,13 +491,18 @@ def render(projection, checks=None, *, delivered_at=None):
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=44, rightMargin=44, topMargin=44, bottomMargin=44,
                             title=projection['title'], author='Decision Room')
-    story = [Paragraph(_text(projection['title']), STYLES['title'])]
+    report_blocks = projection['blocks']
+    cover = report_blocks[0] if report_blocks and report_blocks[0]['type'] == 'cover' else None
+    story = _cover(cover, projection['title']) if cover else [Paragraph(_text(projection['title']), STYLES['title'])]
+    if cover:
+        story += _checks(by_block.get(cover['id'], []))
+        report_blocks = report_blocks[1:]
     if delivered_at:
         stamp = delivered_at.strftime('%d/%m/%Y') if isinstance(delivered_at, datetime) else str(delivered_at)
         story.append(paragraph(f'Informe entregado el {stamp}. Texto escrito por el motor de informes; '
                                'las cifras en revisión llevan aviso.', 'muted'))
     appendix = []
-    story += _blocks(projection['blocks'], by_block, 0, numbers, appendix)
+    story += _blocks(report_blocks, by_block, 0, numbers, appendix)
     if appendix:
         # Exact values stay available for print, once, after the report instead of under each chart.
         story.append(Spacer(1, 12))

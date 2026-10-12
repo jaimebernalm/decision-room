@@ -1,0 +1,143 @@
+{
+  "version": "informe-bloques-1",
+  "titulo": "Cómo va el trimestre",
+  "bloques": [
+    {
+      "tipo": "portada",
+      "titulo": "Crece la tienda online; la recogida en local pide revisión",
+      "contenido": [
+        {
+          "parrafo": [
+            "Las ventas suben un ",
+            {
+              "texto": "8,2 %",
+              "negrita": true,
+              "cursiva": false
+            },
+            " frente al mismo trimestre del año anterior, sobre todo por la tienda online."
+          ]
+        }
+      ]
+    },
+    {
+      "tipo": "tarjetas",
+      "tarjetas": [
+        {
+          "titulo": "Qué ha funcionado",
+          "contenido": [
+            {
+              "parrafo": [
+                "La tienda online aporta 1.240 pedidos más."
+              ]
+            }
+          ],
+          "tono": "positivo"
+        },
+        {
+          "titulo": "Qué no",
+          "contenido": [
+            {
+              "parrafo": [
+                "La recogida en local cae un 12 %."
+              ]
+            }
+          ],
+          "tono": "negativo"
+        }
+      ]
+    },
+    {
+      "tipo": "prioridad",
+      "titulo": "Revisar la recogida en local",
+      "bloques": [
+        {
+          "tipo": "texto",
+          "contenido": [
+            {
+              "parrafo": [
+                "La caída empieza en marzo y se mantiene."
+              ]
+            }
+          ]
+        },
+        {
+          "tipo": "accion",
+          "comprobar": [
+            {
+              "parrafo": [
+                "Si los pedidos de recogida pasaron a envío a domicilio."
+              ]
+            }
+          ],
+          "si_se_confirma": [
+            {
+              "parrafo": [
+                "Mantener el horario y revisar el coste de envío."
+              ]
+            }
+          ],
+          "si_no": [
+            {
+              "parrafo": [
+                "Revisar la atención en el local."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "tipo": "tarjetas",
+      "tarjetas": [
+        {
+          "titulo": "A",
+          "contenido": [
+            {
+              "parrafo": [
+                "Uno."
+              ]
+            }
+          ]
+        },
+        {
+          "titulo": "B",
+          "contenido": [
+            {
+              "parrafo": [
+                "Dos."
+              ]
+            }
+          ],
+          "tono": "aviso"
+        },
+        {
+          "titulo": "C",
+          "contenido": [
+            {
+              "parrafo": [
+                "Tres."
+              ]
+            }
+          ],
+          "tono": "neutro"
+        }
+      ]
+    },
+    {
+      "tipo": "prioridad",
+      "titulo": "Seguir la tienda online",
+      "bloques": [
+        {
+          "tipo": "accion",
+          "comprobar": [
+            {
+              "parrafo": [
+                "Si el crecimiento se mantiene en abril."
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
