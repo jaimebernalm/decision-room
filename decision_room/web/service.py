@@ -19,7 +19,7 @@ from .. import service as ingestion
 from ..agent import service as planning, research, review
 from ..agent.model import ModelAPIError, ModelClient, ModelNotReady, ModelSettings
 from ..database import connect
-from ..execution import recover_executions
+from ..execution import open_report_runs, recover_executions
 from ..storage import Storage, digest
 from ..memory import service as memory, extraction as memory_extraction
 from . import business as business_store
@@ -950,7 +950,7 @@ class Workspace:
                     self.update(job_id, session_id=successor['id'], research_id=None, review_id=None, pending_answer=None, phase='planning')
                     j = self.sync(job_id)
             with connect(self.config) as db:
-                abandoned = db.execute("SELECT 1 FROM executions WHERE business_id=%s AND status IN ('preparing','running') LIMIT 1", (b,)).fetchone()
+                abandoned = open_report_runs(db, b)
             if abandoned:
                 recover_executions(self.config, b)
             if self.ingest_job(j) is None:

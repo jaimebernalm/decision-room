@@ -393,5 +393,30 @@ class ChatCalculationTests(CalculationTests):
         self.assertEqual(review['issues'], ['The review context is too large: cite fewer or smaller sources.'])
 
 
+    def test_activity_monitor_evaluation_and_legacy_recovery_treat_it_as_a_chat_calculation(self):
+        from decision_room.observability import collector, store
+        from decision_room.web import internal_monitor
+        turn, shown = self.send()
+        with connect(self.config) as db:
+            trace = store.linked(db, self.business['id'], 'turn', turn)
+            collector.reconcile(db, self.business['id'], trace, reconstructed=True)
+            tasks = {t['kind']: t for t in db.execute('SELECT * FROM activity_tasks WHERE trace_id=%s', (trace,)).fetchall()
+                     if t['kind'] in ('turn', 'execution', 'retrieval')}
+            row = db.execute('SELECT * FROM chat_calculations WHERE turn_id=%s', (turn,)).fetchone()
+        self.assertEqual(tasks['execution']['public_text'], 'Cálculo rápido terminado')
+        self.assertEqual(tasks['execution']['role'], 'chat')
+        self.assertEqual(tasks['execution']['parent_task_id'], tasks['turn']['id'])
+        self.assertEqual(tasks['retrieval']['public_text'], 'Cálculo rápido terminado')
+        content = internal_monitor.detail(self.ws.scoped(self.business['id']), trace, 'tasks', tasks['execution']['id'])['content']
+        self.assertEqual(content['provenance']['kind'], 'quick_chat_calculation')
+        self.assertEqual(content['provenance']['independent_check'], 'none')
+        # A legacy report run never tries to recover (and fail on) a live chat calculation.
+        with connect(self.config) as db:
+            db.execute("UPDATE executions SET status='running',finished_at=NULL WHERE id=%s", (row['execution_id'],))
+            self.assertFalse(execution.open_report_runs(db, self.business['id']))
+            db.execute("UPDATE executions SET request_key='research:x' WHERE id=%s", (row['execution_id'],))
+            self.assertTrue(execution.open_report_runs(db, self.business['id']))
+
+
 if __name__ == '__main__':
     unittest.main()

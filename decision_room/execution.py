@@ -214,6 +214,13 @@ def execute(config, business_id, analysis_id, *, code, tables, definitions=None,
         return get_execution(config, business_id, execution_id)
 
 
+def open_report_runs(db, business_id):
+    """Open executions that report pipelines must recover. Quick chat calculations
+    ('chat-calc:' keys) have their own scoped recovery, so a live one never fails a report."""
+    return db.execute("""SELECT 1 FROM executions WHERE business_id=%s AND status IN ('preparing','running')
+        AND request_key NOT LIKE 'chat-calc:%%' LIMIT 1""", (business_id,)).fetchone() is not None
+
+
 def recover_executions(config, business_id, backend=None):
     """Stop and mark abandoned runs. Never rerun code implicitly."""
     recovered = []

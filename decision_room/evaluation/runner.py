@@ -63,7 +63,7 @@ def collect(config,state,directory):
     if state.get('session_id'):
         with connect(config) as db:
             calls=db.execute('SELECT phase,status,prompt_version,usage,issue,created_at,finished_at FROM agent_calls WHERE session_id=%s ORDER BY created_at',(state['session_id'],)).fetchall()
-            executions=db.execute('SELECT id,status,issue,duration_seconds FROM executions WHERE business_id=%s ORDER BY created_at',(state['business_id'],)).fetchall()
+            executions=db.execute('SELECT id,status,issue,duration_seconds FROM executions WHERE business_id=%s AND request_key NOT LIKE 'chat-calc:%%' ORDER BY created_at',(state['business_id'],)).fetchall()
         write(directory/'resources.json',{'calls':calls,'executions':executions,'monetary_cost':None})
 
 
