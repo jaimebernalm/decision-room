@@ -40,6 +40,8 @@ import { ContextAttachments, SelectionTool } from "./context-selection";
 import { ComposerSurface } from "./composer-surface";
 import { Composer } from "./composer";
 import { PresentationChangeReceipt } from "./presentation-receipt";
+import { QuickCalculations } from "./quick-calculation";
+import { ReportOfferCard } from "./report-offer";
 export function Answer({
   response,
   ownerText = "",
@@ -138,6 +140,9 @@ export function Answer({
           {response.text}
         </MessageResponse>
       )}
+      {response.calculations?.length ? (
+        <QuickCalculations items={response.calculations} />
+      ) : null}
       {response.presentation_receipt && (
         <PresentationChangeReceipt receipt={response.presentation_receipt} />
       )}
@@ -448,6 +453,22 @@ export function ChatPage({
                             </>
                           )}
                         </ProgressiveAnswer>
+                        {turn.response?.report_offer &&
+                          !turn.historical &&
+                          turn.status === "completed" && (
+                            <div className="mt-3">
+                              <ReportOfferCard
+                                key={turn.response.report_offer.id}
+                                offer={turn.response.report_offer}
+                                chatId={id}
+                                businessId={business}
+                                onAccepted={() => {
+                                  resource.refresh();
+                                  refresh();
+                                }}
+                              />
+                            </div>
+                          )}
                         {turn.status === "waiting" && (
                           <Notice>
                             {tr(

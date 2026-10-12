@@ -207,6 +207,7 @@ class ChatEngineCreationTests(unittest.TestCase):
     batch = chat_fixtures.ConversationTests.batch
     chat = chat_fixtures.ConversationTests.chat
     send = chat_fixtures.ConversationTests.send
+    accept = chat_fixtures.ConversationTests.accept
 
     def test_chat_investigation_snapshots_default_engine(self):
         from decision_room.conversations import Conversations

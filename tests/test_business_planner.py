@@ -301,6 +301,7 @@ class PlannerConversationTests(unittest.TestCase):
     chat=chat_tests.ConversationTests.chat
     batch=chat_tests.ConversationTests.batch
     send=chat_tests.ConversationTests.send
+    accept=chat_tests.ConversationTests.accept
 
     def test_research_question_and_unknown_reply_stay_in_original_conversation(self):
         from decision_room.conversations import Conversations

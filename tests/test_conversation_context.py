@@ -19,6 +19,7 @@ class SelectedConversationTests(unittest.TestCase):
     setUp = chats_tests.ConversationTests.setUp
     chat = chats_tests.ConversationTests.chat
     send = chats_tests.ConversationTests.send
+    accept = chats_tests.ConversationTests.accept
 
     def seed(self, chat, texts):
         with connect(self.config) as db:

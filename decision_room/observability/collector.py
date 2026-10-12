@@ -74,7 +74,11 @@ def reconcile(db,business,trace,*,reconstructed=False):
             observe('chat_call',key,c['status'],('Fuentes seleccionadas' if (c['response'] or {}).get('action')=='retrieve' else 'Respuesta preparada') if c['status']=='completed' else 'Preparando tu respuesta',role='chat',actor='chat',parent=parent,
                     at=c['finished_at'] or (c['created_at'] if c['status']=='running' else None),started_at=c['created_at'],finished_at=c['finished_at'],finish_unknown=c['status']!='running' and c['finished_at'] is None,source={'kind':'chat_call','action':(c['response'] or {}).get('action',''),'turn_id':str(turn_id),'attempt':c['attempt'],'ordinal':c['ordinal']})
         for r in db.execute('SELECT * FROM chat_retrievals WHERE turn_id=%s ORDER BY attempt,ordinal',(turn_id,)).fetchall():
-            observe('retrieval',f'{turn_id}:{r["attempt"]}:{r["ordinal"]}','completed',('Informe consultado' if (r['response'] or {}).get('origin') in ('engine_html','engine_blocks') else {'search_reports':'Informes consultados','open_report':'Informe revisado consultado','inspect_dataset':'Datos inspeccionados','search_memory':'Contexto del negocio consultado'}.get(r['request'].get('tool'),'Contexto consultado')),role='chat',actor='chat',parent=parent,
+            if r['request'].get('tool')=='calculate':
+                label='Cálculo rápido terminado' if (r['response'] or {}).get('status')=='completed' and 'metrics' in (r['response'] or {}) else 'Cálculo rápido sin resultado'
+            else:
+                label=('Informe consultado' if (r['response'] or {}).get('origin') in ('engine_html','engine_blocks') else {'search_reports':'Informes consultados','open_report':'Informe revisado consultado','inspect_dataset':'Datos inspeccionados','search_memory':'Contexto del negocio consultado'}.get(r['request'].get('tool'),'Contexto consultado'))
+            observe('retrieval',f'{turn_id}:{r["attempt"]}:{r["ordinal"]}','completed',label,role='chat',actor='chat',parent=parent,
                     source={'kind':'retrieval','turn_id':str(turn_id),'attempt':r['attempt'],'ordinal':r['ordinal']})
         for r in db.execute('SELECT * FROM chat_answer_reviews WHERE turn_id=%s ORDER BY attempt,ordinal',(turn_id,)).fetchall():
             observe('chat_review',f'{turn_id}:{r["attempt"]}:{r["ordinal"]}',r['status'],('Respuesta revisada' if (r['response'] or {}).get('approved') else 'Revisión con ajustes pendientes') if r['status']=='completed' else 'Revisando la respuesta',role='chat_reviewer',actor='chat_reviewer',parent=parent,at=r['finished_at'] or (r['created_at'] if r['status']=='running' else None),started_at=r['created_at'],finished_at=r['finished_at'],finish_unknown=r['status']!='running' and r['finished_at'] is None,source={'kind':'chat_review','turn_id':str(turn_id),'attempt':r['attempt'],'ordinal':r['ordinal']})
@@ -172,6 +176,13 @@ def reconcile(db,business,trace,*,reconstructed=False):
     for entry in executions:
         ex=db.execute('SELECT * FROM executions WHERE business_id=%s AND id=%s',(business,entry['source_id'])).fetchone()
         if not ex: continue
+        if ex['request_key'].startswith('chat-calc:'):
+            # A quick chat calculation belongs to its turn, never to a report's research.
+            calc=db.execute("SELECT turn_id FROM chat_calculations WHERE business_id=%s AND execution_id=%s",(business,ex['id'])).fetchone()
+            observe('execution',ex['id'],ex['status'],'Cálculo rápido terminado' if ex['status']=='completed' else 'Cálculo rápido',
+                    role='chat',actor='chat',parent=turn_tasks.get(calc['turn_id']) if calc else None,at=ex['finished_at'] or ex['created_at'],started_at=ex['created_at'],finished_at=ex['finished_at'],
+                    refs=refs_for(db,business,[i['id'] for i in ex['inputs'].values()]),source={'kind':'execution','id':str(ex['id'])})
+            continue
         step=db.execute('SELECT research_id FROM agent_research_steps WHERE execution_id=%s ORDER BY created_at LIMIT 1',(ex['id'],)).fetchone()
         owner=step['research_id'] if step else None
         if not owner and ex['request_key'].startswith('research:'):

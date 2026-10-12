@@ -100,10 +100,18 @@ class ConversationTests(unittest.TestCase):
             )
         )['id']
 
-    def send(self, chat, text, **values):
+    def send(self, chat, text, accept=True, **values):
         payload = dict(business_id=str(self.b), request_key=str(uuid4()), text=text, **values)
         result = self.chats.send(chat, payload)
         self.chats.run(result['id'])
+        turn = self.chats.detail(chat)['turns'][-1]
+        offer = (turn.get('response') or {}).get('report_offer')
+        # The chat only offers reports; these scenarios then confirm the offer like the owner's button.
+        return self.accept(chat, offer) if accept and offer and offer['status'] == 'open' else turn
+
+    def accept(self, chat, offer, objective=None):
+        self.chats.accept_offer(chat, dict(business_id=str(self.b), request_key=str(uuid4()), offer_id=offer['id'],
+                                           objective=objective or offer['objective']))
         return self.chats.detail(chat)['turns'][-1]
 
     def batch(self):
@@ -199,21 +207,20 @@ class ConversationTests(unittest.TestCase):
 
     def test_clarification_is_inserted_before_queued_followups(self):
         chat = self.chat(self.batch())
-        first = self.chats.send(chat, dict(business_id=str(self.b), request_key=str(uuid4()), text='Calculate sales'))
+        first = self.send(chat, 'Calculate sales')  # Offered, then confirmed: the job belongs to the receipt turn.
         follow = self.chats.send(chat, dict(business_id=str(self.b), request_key=str(uuid4()), text='What happened next?'))
-        self.chats.run(first['id'])
-        job = self.chats.detail(chat)['turns'][0]['job_id']
+        job = first['job_id']
         self.ws.run_job(job)
         self.chats.run(first['id'])
-        self.assertEqual(self.chats.detail(chat)['turns'][0]['status'], 'waiting')
-        self.chats.run(follow['id'])
-        self.assertEqual(self.chats.detail(chat)['turns'][1]['status'], 'queued')
-        question = self.chats.detail(chat)['turns'][0]['questions'][0]
-        reply = self.chats.send(chat, dict(business_id=str(self.b), request_key=str(uuid4()), text='unit price', question_id=question['id']))
-        turns = self.chats.detail(chat)['turns']
-        self.assertEqual([t['id'] for t in turns], [first['id'], reply['id'], follow['id']])
+        self.assertEqual(self.chats.detail(chat)['turns'][1]['status'], 'waiting')
         self.chats.run(follow['id'])
         self.assertEqual(self.chats.detail(chat)['turns'][2]['status'], 'queued')
+        question = self.chats.detail(chat)['turns'][1]['questions'][0]
+        reply = self.chats.send(chat, dict(business_id=str(self.b), request_key=str(uuid4()), text='unit price', question_id=question['id']))
+        turns = self.chats.detail(chat)['turns']
+        self.assertEqual([t['id'] for t in turns[1:]], [first['id'], reply['id'], follow['id']])
+        self.chats.run(follow['id'])
+        self.assertEqual(self.chats.detail(chat)['turns'][3]['status'], 'queued')
         self.chats.run(reply['id'])
 
     def test_deleted_chat_is_no_longer_accessible(self):
@@ -594,14 +601,15 @@ class ConversationTests(unittest.TestCase):
 
     def test_daily_activity_distinguishes_unpublished_pending_and_withdrawn(self):
         chat = self.chat(self.batch())
-        saved = self.chats.send(chat, dict(business_id=str(self.b), request_key=str(uuid4()), text='Calculate sales'))
+        offered = self.chats.send(chat, dict(business_id=str(self.b), request_key=str(uuid4()), text='Calculate sales'))
         dashboard = self.ws.dashboard()
         self.assertEqual(dashboard['activity'][0]['status'], 'queued')
         self.assertEqual(dashboard['activity'][0]['href'], '#chat/' + str(chat))
         self.assertFalse(self.ws.listing())
-        self.chats.run(saved['id'])
+        self.chats.run(offered['id'])
+        saved = self.accept(chat, self.chats.detail(chat)['turns'][0]['response']['report_offer'])
         self.assertEqual(self.ws.dashboard()['activity'][0]['status'], 'running')
-        self.ws.run_job(self.chats.detail(chat)['turns'][0]['job_id'])
+        self.ws.run_job(saved['job_id'])
         self.chats.run(saved['id'])
         self.assertEqual(self.ws.dashboard()['activity'][0]['status'], 'waiting')
         finished, turn = self.complete()

@@ -47,12 +47,14 @@ def list_executions(config, business_id, analysis_id):
 
 
 def execute(config, business_id, analysis_id, *, code, tables, definitions=None,
-            request_key, timeout=30, backend=None):
+            request_key, timeout=30, backend=None, max_input_bytes=None):
     """Run once; completed results are candidates, never analytically approved.
 
     `tables` maps readable aliases to prepared table UUIDs. Caller authentication
     belongs to the future API; these IDs are scoped here, not access tokens.
     Backend configuration is trusted operator configuration, never agent input.
+    `max_input_bytes` lowers the input budget and is checked from the stored
+    snapshots before admission, so an oversized request never creates a row.
     """
     business_id, analysis_id = uuid.UUID(str(business_id)), uuid.UUID(str(analysis_id))
     definitions = {} if definitions is None else definitions
@@ -66,6 +68,8 @@ def execute(config, business_id, analysis_id, *, code, tables, definitions=None,
         raise ValueError('Definitions must be a JSON object of at most 64 KiB.')
     # Strict round trip: no NaN, custom Python objects or implicit string casting.
     definitions = json.loads(json.dumps(definitions, allow_nan=False))
+    if max_input_bytes is not None and (type(max_input_bytes) is not int or not 1 <= max_input_bytes <= LIMITS['input_bytes']):
+        raise ValueError('Input budget must be a positive byte count within the sandbox limit.')
     if not isinstance(tables, dict) or not 1 <= len(tables) <= 64:
         raise ValueError('Select between 1 and 64 prepared tables.')
     if any(not isinstance(alias, str) or not re.fullmatch(r'[a-z][a-z0-9_]{0,62}', alias) for alias in tables):
@@ -84,8 +88,13 @@ def execute(config, business_id, analysis_id, *, code, tables, definitions=None,
             inputs[alias] = {key: (str(row[key]) if key in ('id', 'source_id') else row[key])
                              for key in ('id', 'source_id', 'original_names', 'original_sha256', 'parquet_key',
                                          'parquet_sha256', 'row_count', 'columns', 'lineage_column', 'engine_version')}
-        backend = backend or DockerBackend()
         limits = {**LIMITS, 'timeout_seconds': timeout, 'outer_grace_seconds': 10}
+        if max_input_bytes is not None:
+            limits['input_bytes'] = max_input_bytes
+            stored = sum(storage.path(business_id, table['parquet_key']).stat().st_size for table in inputs.values())
+            if stored > max_input_bytes:
+                raise ValueError(f'Selected input snapshots exceed {max_input_bytes // 1024**2} MiB.')
+        backend = backend or DockerBackend()
         fingerprint = sha(canonical({'code': code, 'inputs': inputs, 'definitions': definitions,
                                      'limits': limits, 'environment': backend.manifest}))
         # Recovery takes this lock exclusively; live executions share it.
@@ -151,7 +160,7 @@ def execute(config, business_id, analysis_id, *, code, tables, definitions=None,
                     while chunk := incoming.read(1024**2):
                         size += len(chunk)
                         if size > limits['input_bytes']:
-                            raise ValueError('Selected input snapshots exceed 512 MiB.')
+                            raise ValueError(f"Selected input snapshots exceed {limits['input_bytes'] // 1024**2} MiB.")
                         outgoing.write(chunk)
                 if digest(destination) != table['parquet_sha256']:
                     raise ValueError('Prepared input failed its SHA-256 integrity check.')
@@ -205,14 +214,28 @@ def execute(config, business_id, analysis_id, *, code, tables, definitions=None,
         return get_execution(config, business_id, execution_id)
 
 
-def recover_executions(config, business_id, backend=None):
-    """Stop and mark abandoned runs. Never rerun code implicitly."""
+def open_report_runs(db, business_id):
+    """Open executions that report pipelines must recover. Quick chat calculations
+    ('chat-calc:' keys) have their own scoped recovery, so a live one never fails a report."""
+    return db.execute("""SELECT 1 FROM executions WHERE business_id=%s AND status IN ('preparing','running')
+        AND request_key NOT LIKE 'chat-calc:%%' LIMIT 1""", (business_id,)).fetchone() is not None
+
+
+class ControllerBusy(ValueError):
+    """A live execution holds the controller lock; recovery must wait, not fail."""
+
+
+def recover_executions(config, business_id, backend=None, *, report_runs_only=False):
+    """Stop and mark abandoned runs. Never rerun code implicitly.
+
+    report_runs_only leaves quick chat calculations to their own scoped recovery.
+    """
     recovered = []
     with connect(config) as db:
         if not db.execute('SELECT pg_try_advisory_lock(%s) AS acquired', (LOCK,)).fetchone()['acquired']:
-            raise ValueError('An execution controller is active; recovery skipped.')
-        rows = db.execute("SELECT id FROM executions WHERE business_id=%s AND status IN ('preparing','running')",
-                          (business_id,)).fetchall()
+            raise ControllerBusy('An execution controller is active; recovery skipped.')
+        rows = db.execute("""SELECT id FROM executions WHERE business_id=%s AND status IN ('preparing','running')
+            AND (NOT %s OR request_key NOT LIKE 'chat-calc:%%')""", (business_id, report_runs_only)).fetchall()
         if not rows:
             return recovered
         backend = backend or DockerBackend()
@@ -223,3 +246,28 @@ def recover_executions(config, business_id, backend=None):
                 issue='Abandoned execution recovered; no automatic retry.' WHERE id=%s""", (row['id'],))
             recovered.append(row['id'])
     return recovered
+
+
+def recover_execution(config, business_id, execution_id, backend=None):
+    """Stop one abandoned run when no controller is active; never rerun code.
+
+    Returns the resulting status, or None when the maintenance lock is busy or
+    the container could not be confirmed removed (the run stays open).
+    """
+    with connect(config) as db:
+        if not db.execute('SELECT pg_try_advisory_lock(%s) AS acquired', (LOCK,)).fetchone()['acquired']:
+            return None
+        row = db.execute('SELECT status FROM executions WHERE business_id=%s AND id=%s',
+                         (business_id, execution_id)).fetchone()
+        if row is None:
+            raise ValueError('Execution not found for this business.')
+        if row['status'] not in ('preparing', 'running'):
+            return row['status']
+        try:
+            (backend or DockerBackend()).remove(execution_id)
+        except Exception:
+            return None
+        shutil.rmtree(INPUT_ROOT / str(execution_id), ignore_errors=True)
+        db.execute("""UPDATE executions SET status='interrupted',result=NULL,finished_at=now(),
+            issue='Abandoned execution recovered; no automatic retry.' WHERE id=%s""", (execution_id,))
+        return 'interrupted'

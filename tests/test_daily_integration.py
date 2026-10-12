@@ -16,6 +16,7 @@ class DailyIntegrationTests(unittest.TestCase):
     batch = fixture.ConversationTests.batch
     chat = fixture.ConversationTests.chat
     send = fixture.ConversationTests.send
+    accept = fixture.ConversationTests.accept
     complete = fixture.ConversationTests.complete
 
     def test_source_conflict_can_be_seen_and_resolved_in_its_chat(self):

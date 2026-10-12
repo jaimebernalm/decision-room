@@ -1415,5 +1415,12 @@
   "favorable": "favourable",
   "desfavorable": "unfavourable",
   "aviso": "warning",
-  "neutro": "neutral"
+  "neutro": "neutral",
+  "Cálculo rápido, sin comprobación independiente": "Quick calculation, no independent check",
+  "Ver el código y las tablas": "View the code and tables",
+  "Tablas:": "Tables:",
+  "Informe pedido.": "Report requested.",
+  "Objetivo del informe": "Report objective",
+  "Tarda unos cinco minutos y una comprobación independiente revisa sus cifras.": "It takes about five minutes and an independent check reviews its figures.",
+  "Preparar informe": "Prepare report"
 }

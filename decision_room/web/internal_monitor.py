@@ -163,6 +163,10 @@ def detail(ws,trace_id,kind,object_id,*,event_id=None):
                 if ex:
                     path=Storage(ws.config.storage).path(business,ex['code_key'])
                     content['execution']={k:ex[k] for k in ('id','status','result','logs','runtime','duration_seconds','issue','inputs','definitions')}
+                    calc=db.execute('SELECT conversation_id,turn_id,attempt,ordinal,request FROM chat_calculations WHERE business_id=%s AND execution_id=%s',(business,ex['id'])).fetchone()
+                    if calc:
+                        content['provenance']=dict(kind='quick_chat_calculation',conversation_id=str(calc['conversation_id']),turn_id=str(calc['turn_id']),
+                                                   attempt=calc['attempt'],ordinal=calc['ordinal'],purpose=calc['request']['purpose'],independent_check='none')
                     content['code']=path.read_text()[:16000] if path.is_file() else '[código no disponible]'
             elif sk=='research':
                 r=db.execute('SELECT snapshot,options,status,issue FROM agent_research WHERE business_id=%s AND id=%s',(business,source['id'])).fetchone()

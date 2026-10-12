@@ -71,6 +71,8 @@ def assistant_text(response):
     elif kind == 'catalog':
         parts += [' · '.join([i.get('description', ''), ', '.join(i.get('names', [])),
                               ', '.join(i.get('columns', []))]) for i in response.get('items', [])]
+    from .quick_calc import history_lines
+    parts += history_lines(response, operations=True)
     return '\n'.join(p for p in parts if p)
 
 

@@ -167,6 +167,9 @@ class ModelClient:
                     prop.pop('default', None)
         if context.get('onboarding'):
             schema['properties']['action']['enum'] = ['retrieve', 'answer']
+        else:
+            # The chat never starts a report: stored investigate decisions only replay as offers.
+            schema['properties']['action']['enum'] = [a for a in schema['properties']['action']['enum'] if a != 'investigate']
         return self._generate(context, correction, SYSTEM + (ONBOARDING_SYSTEM if context.get("onboarding") else ""), schema)
 
     def review_chat_answer(self, context):
