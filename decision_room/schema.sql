@@ -1549,3 +1549,64 @@ CREATE TABLE IF NOT EXISTS knowledge_heads (
     follow_ups_sha256 text NOT NULL DEFAULT ''
 );
 INSERT INTO schema_versions(version) VALUES (40) ON CONFLICT DO NOTHING;
+-- Follow-up register: immutable action snapshots per native report revision and position,
+-- and owner topics (one per action occurrence) whose state only the owner sets.
+CREATE TABLE IF NOT EXISTS follow_ups (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    document_id uuid NOT NULL,
+    content_sha256 text NOT NULL,
+    current_action_id uuid,
+    state text NOT NULL CHECK (state IN ('proposed','checked','closed')),
+    availability text NOT NULL CHECK (availability IN ('available','withdrawn')),
+    withdrawn_reason text,
+    note text CHECK (note IS NULL OR char_length(note) <= 300),
+    link jsonb,
+    revision integer NOT NULL DEFAULT 1,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (business_id, id)
+);
+CREATE INDEX IF NOT EXISTS follow_ups_document ON follow_ups(business_id, document_id);
+CREATE TABLE IF NOT EXISTS follow_up_actions (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    document_id uuid NOT NULL,
+    revision_id uuid NOT NULL,
+    block_id text NOT NULL,
+    position integer NOT NULL,
+    priority_title text NOT NULL,
+    content jsonb NOT NULL,
+    content_sha256 text NOT NULL,
+    headline text NOT NULL,
+    report_date timestamptz NOT NULL,
+    dataset_id uuid,
+    analysis_id uuid,
+    metadata jsonb NOT NULL DEFAULT '{}',
+    topic_id uuid,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (revision_id, block_id),
+    UNIQUE (business_id, id),
+    FOREIGN KEY (business_id, topic_id) REFERENCES follow_ups(business_id, id)
+);
+CREATE TABLE IF NOT EXISTS follow_up_events (
+    id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    follow_up_id uuid NOT NULL,
+    request_key uuid NOT NULL,
+    request_sha256 text NOT NULL,
+    from_state text,
+    to_state text NOT NULL,
+    note text,
+    link jsonb,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (business_id, request_key),
+    FOREIGN KEY (business_id, follow_up_id) REFERENCES follow_ups(business_id, id)
+);
+CREATE TABLE IF NOT EXISTS follow_up_sync (
+    document_id uuid PRIMARY KEY,
+    business_id uuid NOT NULL,
+    revision_id uuid,
+    available boolean NOT NULL,
+    synced_at timestamptz NOT NULL DEFAULT now()
+);

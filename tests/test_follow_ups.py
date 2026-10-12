@@ -1,0 +1,130 @@
+"""Follow-up register: verbatim native actions as owner topics; states never copied between actions."""
+import json
+import unittest
+from uuid import uuid4
+
+from decision_room import follow_ups
+from decision_room.database import connect
+from decision_room.web.errors import WebError
+from tests import test_report_history as reports
+
+
+def topic(id, block, sha, state='proposed'):
+    return dict(id=id, block_id=block, content_sha256=sha, state=state, availability='available')
+
+
+def action(id, block, sha):
+    return dict(id=id, block_id=block, content_sha256=sha)
+
+
+class MatchTests(unittest.TestCase):
+    def test_identical_actions_stay_separate_and_a_closure_never_propagates(self):
+        old = [topic('t1', 'b1', 'X', 'closed'), topic('t2', 'b2', 'X')]
+        # Same positions and content: each follows its own block.
+        pairs = follow_ups._match(old, [action('n1', 'b1', 'X'), action('n2', 'b2', 'X')])
+        self.assertEqual({(t['id'], a['id']) for t, a in pairs}, {('t1', 'n1'), ('t2', 'n2')})
+        # Reordered duplicates: positions differ and the content is not unique, so nothing is carried.
+        self.assertEqual(follow_ups._match(old, [action('n1', 'b3', 'X'), action('n2', 'b4', 'X')]), [])
+        # One of the two deleted: the remaining one keeps its own position.
+        pairs = follow_ups._match(old, [action('n2', 'b2', 'X')])
+        self.assertEqual([(t['id'], a['id']) for t, a in pairs], [('t2', 'n2')])
+        # A third identical block inserted elsewhere: the two keep their positions, the new one is new.
+        pairs = follow_ups._match(old, [action('n1', 'b1', 'X'), action('n2', 'b2', 'X'), action('n3', 'b3', 'X')])
+        self.assertEqual(len(pairs), 2)
+
+    def test_a_unique_moved_action_follows_and_changed_content_does_not(self):
+        old = [topic('t1', 'b1', 'A', 'checked'), topic('t2', 'b2', 'B')]
+        pairs = follow_ups._match(old, [action('n1', 'b5', 'A'), action('n2', 'b2', 'B2')])
+        self.assertEqual([(t['id'], a['id']) for t, a in pairs], [('t1', 'n1')])
+
+
+class RegisterTests(reports.HistoryTests):
+    for name in [n for n in dir(reports.HistoryTests) if n.startswith('test_')]:
+        locals()[name] = None
+    del name
+
+    def topics(self, include_closed=True):
+        with connect(self.config) as db:
+            return follow_ups.listing(db, self.business['id'], include_closed=include_closed)
+
+    def state(self, item, state, **extra):
+        return follow_ups.set_state(self.config, self.business['id'], item['id'],
+                                    dict(request_key=extra.pop('key', str(uuid4())), state=state,
+                                         expected_revision=extra.pop('expected', item['revision']), **extra))
+
+    def test_each_action_is_a_verbatim_topic_with_its_report_headline(self):
+        job = self.deliver()
+        items = self.topics()
+        self.assertEqual(len(items), 2)
+        first, second = items[0], items[1]
+        self.assertEqual(first['headline'], 'Crece la tienda online; la recogida en local pide revisión')
+        self.assertEqual(first['priority_title'], 'Revisar la recogida en local')
+        self.assertEqual(first['state'], 'proposed')
+        self.assertEqual(second['content']['labels']['check'], 'Qué revisar en abril')
+        self.assertIsNone(second['content']['if_confirmed'])
+        self.assertTrue(all(isinstance(line, str) for line in first['content']['check']))
+        follow_ups.reconcile_once(self.config)
+        self.assertEqual(len(self.topics()), 2)  # Idempotent.
+        self.assertEqual(str(first['document_id']), str(job['report_document_id']))
+
+    def test_owner_states_are_audited_idempotent_and_closed_ones_are_not_open(self):
+        self.deliver()
+        item = self.topics()[0]
+        key = str(uuid4())
+        self.state(item, 'checked', note='Lo miré con las ventas de marzo.', key=key)
+        self.assertEqual(self.state(item, 'checked', note='Lo miré con las ventas de marzo.', key=key)['state'], 'checked')
+        with self.assertRaises(WebError):
+            self.state(item, 'closed', key=key)  # Same key, other payload.
+        with self.assertRaises(WebError):
+            self.state(item, 'closed')  # Stale revision.
+        current = next(t for t in self.topics() if t['id'] == item['id'])
+        self.state(current, 'closed')
+        self.assertNotIn(item['id'], [t['id'] for t in self.topics(include_closed=False)])
+        with connect(self.config) as db:
+            events = db.execute('SELECT from_state,to_state FROM follow_up_events WHERE follow_up_id=%s ORDER BY created_at',
+                                (item['id'],)).fetchall()
+            self.assertEqual(follow_ups.counts(db, self.business['id'])['closed'], 1)
+        self.assertEqual([(e['from_state'], e['to_state']) for e in events], [('proposed', 'checked'), ('checked', 'closed')])
+        with self.assertRaises(WebError):
+            self.state(current, 'checked', link=dict(indicator_id=str(uuid4()), metric_key='x'), expected=current['revision'] + 1)
+        other = self.ws.save_business(dict(request_key=str(uuid4()), expected_active_id=str(self.business['id']),
+                                           name='Otra tienda', description='Otra.'))
+        with self.assertRaises(WebError) as foreign:
+            follow_ups.set_state(self.config, other['id'], item['id'], dict(request_key=str(uuid4()), state='closed', expected_revision=1))
+        self.assertEqual(foreign.exception.status, 404)
+
+    def test_deleting_withdraws_topics_and_restoring_brings_them_back_with_their_state(self):
+        job = self.deliver()
+        item = self.topics()[0]
+        self.state(item, 'closed')
+        data = dict(business_id=str(self.business['id']))
+        self.ws.delete_report(job['id'], data)
+        self.assertEqual(self.topics(), [])
+        self.ws.delete_report(job['id'], data, restore=True)
+        restored = next(t for t in self.topics() if t['id'] == item['id'])
+        self.assertEqual(restored['state'], 'closed')
+
+    def test_reconciliation_covers_every_report_page_by_page(self):
+        jobs = [self.deliver() for _ in range(3)]
+        with connect(self.config) as db:
+            for table in ('follow_up_events', 'follow_up_actions', 'follow_ups', 'follow_up_sync'):
+                db.execute('DELETE FROM ' + table)
+        while follow_ups.reconcile_once(self.config, limit=1):
+            pass
+        documents = {str(t['document_id']) for t in self.topics()}
+        self.assertEqual(documents, {str(j['report_document_id']) for j in jobs})
+
+    def test_the_revision_only_moves_when_the_owner_visible_register_changes(self):
+        self.deliver()
+        with connect(self.config) as db, db.transaction():
+            before = db.execute('SELECT follow_ups_revision FROM knowledge_heads WHERE business_id=%s', (self.business['id'],)).fetchone()
+            self.assertIsNone(follow_ups.bump(db, self.business['id']))
+        self.state(self.topics()[0], 'checked')
+        with connect(self.config) as db:
+            after = db.execute('SELECT follow_ups_revision FROM knowledge_heads WHERE business_id=%s', (self.business['id'],)).fetchone()
+        self.assertGreater(after['follow_ups_revision'], before['follow_ups_revision'])
+        json.dumps(follow_ups.projection(connect(self.config), self.business['id']), default=str)
+
+
+if __name__ == '__main__':
+    unittest.main()

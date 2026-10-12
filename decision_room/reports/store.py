@@ -91,6 +91,10 @@ def adopt(config, business, run):
         db.execute('''UPDATE web_jobs SET report_document_id=%s
             WHERE business_id=%s AND engine_run_id=%s AND engine_kind='opencode'
             AND (report_document_id IS NULL OR report_document_id=%s)''', (document,business,run,document))
+        if native:
+            from .. import follow_ups  # Same transaction and locks as the publication.
+            follow_ups.sync_document(db, business, document)
+            follow_ups.bump(db, business)
         return document
 
 

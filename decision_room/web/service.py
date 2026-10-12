@@ -567,6 +567,9 @@ class Workspace:
                 db.execute('UPDATE report_documents SET deleted_at=' + ('NULL' if restore else 'coalesce(deleted_at,now())') +
                            ' WHERE business_id=%s AND id=%s AND source_run_id=%s',
                            (business,job['report_document_id'],initial['engine_run_id']))
+                from .. import follow_ups  # Withdraw or restore its topics, keeping the owner's states.
+                follow_ups.sync_document(db, business, job['report_document_id'])
+                follow_ups.bump(db, business)
         return {'saved': True}
 
     def daily_activity(self, listing):
@@ -1043,9 +1046,11 @@ class Workspace:
                 from .. import indicators
                 # Bounded alternation so neither chat turns nor indicator attempts starve.
                 self._indicators_first = not getattr(self, '_indicators_first', False)
+                from .. import follow_ups
+                background = lambda: indicators.work_once(self.config) or follow_ups.reconcile_once(self.config)
                 if self._indicators_first:
-                    return indicators.work_once(self.config) or work_once(self, db)
-                return work_once(self, db) or indicators.work_once(self.config)
+                    return background() or work_once(self, db)
+                return work_once(self, db) or background()
             # A deferred job waits for the worker's next pass instead of spinning.
             return self.scoped(j['business_id']).run_job(j['id']) != 'deferred'
 
