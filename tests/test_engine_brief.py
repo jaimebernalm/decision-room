@@ -196,7 +196,7 @@ class PanoramaInputsTests(unittest.TestCase):
     def inputs(self, job):
         builder, context = engine_jobs.inputs(self.config, job)
         with connect(self.config) as db, db.transaction():
-            prompt, provenance = builder(db)
+            prompt, provenance, *_ = builder(db)
         return prompt, context, provenance
 
     def test_sales_with_catalogs_produce_named_panorama_and_matching_brief(self):

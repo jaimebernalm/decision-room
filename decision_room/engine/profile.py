@@ -62,11 +62,22 @@ def prompt(owner_context, *, format='html'):
     return owner_context.strip() + '\n\n' + fixed
 
 
+HISTORY_FILES = ('informes-anteriores/01.txt', 'informes-anteriores/02.txt', 'informes-anteriores/03.txt')
+HISTORY_MANIFEST = 'informes-anteriores/manifest.json'
+CONTEXT_FILES = frozenset({'panorama.md', HISTORY_MANIFEST, *HISTORY_FILES})
+
+
 def context_files(value=None):
-    """Only the optional F2 panorama, with no diagnostics or arbitrary host paths."""
+    """The optional panorama and frozen prior-report files: an exact list, never host paths."""
     value = {} if value is None else value
-    if not isinstance(value, dict) or set(value) - {'panorama.md'}:
-        raise ValueError('Only panorama.md is accepted as optional context.')
+    if not isinstance(value, dict) or set(value) - CONTEXT_FILES:
+        raise ValueError('Only the panorama and prior-report files are accepted as optional context.')
     if any(not isinstance(v, str) or len(v.encode('utf-8')) > 256 * 1024 for v in value.values()):
         raise ValueError('Context must be bounded UTF-8 text.')
+    texts = [value[k] for k in HISTORY_FILES if k in value]
+    if (any(len(t.encode('utf-8')) > 64 * 1024 for t in texts) or sum(len(t.encode('utf-8')) for t in texts) > 192 * 1024
+            or len(value.get(HISTORY_MANIFEST, '').encode('utf-8')) > 8 * 1024):
+        raise ValueError('Prior-report context exceeds its limits.')
+    if texts and HISTORY_MANIFEST not in value:
+        raise ValueError('Prior-report files need their manifest.')
     return value.copy()

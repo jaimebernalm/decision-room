@@ -41,12 +41,17 @@ def inputs(config, job):
     owner = {} if job.get('origin') == 'chat' else dict(name=job['business_name'], description=job['context'],
                                                          profile_revision=job.get('business_revision'))
 
+    request = dict(goal=job['engine_config']['goal'], panorama=available,
+                   questions=job['engine_config'].get('profile', {}).get('questions', False),
+                   format=job['engine_config'].get('profile', {}).get('format', 'html'),
+                   investigation_brief=job['engine_config'].get('investigation_brief'), **owner)
+
     def builder(db):
-        text, provenance = brief.build(db, business, analysis, goal=job['engine_config']['goal'],
-                                       panorama=available, questions=job['engine_config'].get('profile', {}).get('questions', False),
-                                       format=job['engine_config'].get('profile', {}).get('format', 'html'), **owner)
+        text, provenance, files = brief.build_inputs(db, business, analysis, **request)
         provenance['panorama'] = {k: v for k, v in panorama.items() if k != 'markdown'}
-        return text, provenance
+        return text, provenance, files
+    # The static request; a replayed job key is verified against it, never rebuilt.
+    builder.request = {k: str(v) if k == 'profile_revision' and v is not None else v for k, v in request.items()}
     return builder, ({'panorama.md': panorama['markdown']} if available else None)
 
 
@@ -60,6 +65,9 @@ def creation(config, job):
             raise ValueError('Captured job configuration failed its integrity check.')
         return dict(frozen_prompt=settings['prompt'])
     if admission.sha(admission.canonical([settings['owner_context'], settings['goal']])) != settings['owner_sha256']:
+        raise ValueError('Captured job configuration failed its integrity check.')
+    if ('investigation_brief' in settings and admission.sha(admission.canonical(settings['investigation_brief']))
+            != settings.get('investigation_brief_sha256')):
         raise ValueError('Captured job configuration failed its integrity check.')
     builder, context = inputs(config, job)
     return dict(builder=builder, context=context)

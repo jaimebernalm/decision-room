@@ -45,10 +45,18 @@ def selection(config, data, old=None):
     return kind, {'profile': settings, 'limits': asdict(limits)}
 
 
-def freeze(settings, *, context, goal, input_hash):
-    """Owner inputs at creation. The brief needs prepared data, so it is built once at run creation."""
+def freeze(settings, *, context, goal, input_hash, investigation_brief=None):
+    """Owner inputs at creation. The brief needs prepared data, so it is built once at run creation.
+
+    A chat-written investigation brief is frozen once, with its own hash; it is guidance,
+    never a source of facts, and recovery reuses this frozen copy.
+    """
     if not settings:
         return {}
     owner = context + '\n\n' + goal
-    return {**settings, 'owner_context': owner, 'goal': goal,
-            'owner_sha256': admission.sha(admission.canonical([owner, goal])), 'input_request_sha256': input_hash}
+    frozen = {**settings, 'owner_context': owner, 'goal': goal,
+              'owner_sha256': admission.sha(admission.canonical([owner, goal])), 'input_request_sha256': input_hash}
+    if investigation_brief is not None:
+        frozen['investigation_brief'] = investigation_brief
+        frozen['investigation_brief_sha256'] = admission.sha(admission.canonical(investigation_brief))
+    return frozen

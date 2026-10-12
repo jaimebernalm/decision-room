@@ -10,7 +10,7 @@ from .memory.retrieval import Request
 # v1 engine reports (agent text, no reviewed evidence): snapshot HTML or native blocks.
 ENGINE_ORIGINS = ('engine_html', 'engine_blocks')
 
-PROMPT_VERSION = 'conversation-v17'
+PROMPT_VERSION = 'conversation-v19'
 SYSTEM = '''You are Decision Room, a helpful personal business assistant. Converse naturally
 in the owner's language. Understand the CURRENT message in the context of both sides of
 the conversation. Resolve references such as "them" to the last discussed files/results.
@@ -67,6 +67,17 @@ chat_context.saved_corrections is a server-verified receipt for corrections save
 CURRENT owner message. When present, acknowledge the specific change directly and briefly;
 do not say it may not have been saved. If absent, do not imply the requested correction was made.
 Questions, hypotheses, proposed/conflicted facts and historical quotes are not confirmed facts.
+chat_context.knowledge is the business knowledge shared with report briefs: its memory lists
+ONLY owner-declared statements and its data_model the declared meanings of the selected data.
+chat_context.memories also shows proposed/conflicted items so you can manage them with the owner.
+When action=investigate, also write investigation_brief: objective (what the owner wants answered),
+reason (why, from this conversation) and up to 6 short background items of what was discussed,
+each citing ids from available_sources. Cite only declared memory, opened reports, chats or
+datasets, never proposed or conflicted memory. It is guidance for the report agent, not facts,
+and the owner's literal message is sent with it. Use null for every other action.
+knowledge.history summarises up to three earlier reports, labelled current or stale. It is
+background: quote it as what that report said, open_report before explaining a current report,
+and never present an earlier report's figures or proposed actions as verified now.
 There is no 'remember' answer mode. Select the facts relevant to this question and explain them.
 
 presentation_targets is a server-owned catalogue of current editable report elements and
@@ -265,9 +276,24 @@ class PresentationEdit(BaseModel):
     changes: list[Change] = Field(max_length=50)
     restore_revision: StrictInt | None = Field(ge=0)
 
+class BriefBackground(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    text: str = Field(min_length=1, max_length=300)
+    sources: list[str] = Field(max_length=4)
+
+class InvestigationBrief(BaseModel):
+    """Guidance for the report agent written by the chat; never a source of facts or definitions."""
+    model_config = ConfigDict(extra='forbid')
+    objective: str = Field(min_length=1, max_length=600)
+    reason: str = Field(max_length=600)
+    background: list[BriefBackground] = Field(max_length=6)
+
+BRIEF_BYTES = 4096
+
 class Decision(BaseModel):
     model_config = ConfigDict(extra='forbid')
     onboarding: SetupGuide | None = None
+    investigation_brief: InvestigationBrief | None = None
     include_report: bool = True  # Compatibility for previously saved decisions; new model output is explicit.
     presentation_edit: PresentationEdit | None = None
     action: Literal['retrieve', 'investigate', 'answer', 'edit_presentation']
@@ -395,6 +421,11 @@ def sources_for(context):
 
 
 def validate_decision(decision):
+    if decision.investigation_brief is not None:
+        if decision.action != 'investigate':
+            raise ValueError('Only an investigation carries a brief.')
+        if len(decision.investigation_brief.model_dump_json().encode()) > BRIEF_BYTES:
+            raise ValueError('Investigation brief exceeds its limit.')
     if decision.action == 'edit_presentation':
         if not decision.presentation_edit or any((decision.retrieval, decision.analysis_id, decision.text, decision.sources, decision.onboarding, decision.include_report)):
             raise ValueError('Presentation edit requires only an explicit edit command.')

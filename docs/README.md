@@ -7,6 +7,7 @@
 - [Definición del producto](<product/Decision Room - Definicion del producto.md>).
 - [Organización multiagente del producto final](<product/Decision Room - Definicion del producto.md#186-organización-multiagente-del-producto-final>): negocio, analítica y revisión; evolución posterior al MVP.
 - [Servicios y diferenciación](<product/Decision Room - Servicios y diferenciacion.md>).
+- [Contexto compartido, informes que se continúan y cálculo rápido en el chat](product/contexto-compartido-y-calculo-rapido-plan.md): siguiente plan tras los informes nativos.
 - [Ideas e integraciones posibles](<product/Decision Room - Ideas e integraciones posibles.md>): propuestas pendientes de evaluación, sin compromiso de implementación.
 
 El borrador Word inicial se conserva localmente; la documentación pública se

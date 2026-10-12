@@ -49,6 +49,7 @@ class Action(BaseModel):
                         'greeting', 'greeting_repair', 'acknowledgement'] = ''
     presentation_edit: chat_agent.PresentationEdit | None = None
     onboarding: chat_agent.SetupGuide | None = None
+    investigation_brief: chat_agent.InvestigationBrief | None = None
     answer_mode: Literal['summary', 'method', 'recency'] = 'summary'
     include_report: bool = True  # Historical Actions retain their existing attachment behavior.
 
@@ -147,6 +148,7 @@ def snapshot(db, business, analysis_id, objective):
     if len(memory.encoded(memories).encode()) > ctx.MEMORY_BYTES:
         raise WebError('La memoria aplicable es demasiado amplia. Acota el conjunto de datos.', 409)
     profile = db.execute('SELECT name,description FROM businesses WHERE id=%s', (business,)).fetchone()
+    from . import business_knowledge
     return dict(
         business_id=str(business),
         session_id=None,
@@ -160,6 +162,7 @@ def snapshot(db, business, analysis_id, objective):
         tables={r['id']: ctx.table_version(db, business, r['id']) for r in catalog['items']},
         runtime=runtime_context(),
         rules='Current memory; explicit business/source scope; historical quotes are not facts; reviewed evidence only.',
+        knowledge=business_knowledge.build(db, business, selection, profile=profile),
     )
 
 
@@ -180,6 +183,9 @@ def fresh(db, saved, ignore_origins=None):
         db.execute('SELECT name,description FROM businesses WHERE id=%s', (saved['business_id'],)).fetchone()
         != saved['profile']
     ):
+        return False
+    from .reports import history
+    if not history.current(db, saved['business_id'], (saved.get('knowledge') or {}).get('history')):
         return False
     return all(
         ctx.table_version(db, saved['business_id'], key) == value for key, value in saved['tables'].items()
@@ -419,6 +425,25 @@ def search_library(db, business, chats, query):
                     matches.add(chat_id)
                     break
     return [chat for chat in chats if chat['id'] in matches]
+
+
+def _unconfirmed(key, content):
+    """True if a cited source carries memory that is not a current declaration.
+
+    Only typed memory is inspected: memory/* items, memory selections and the `memories`
+    field of memory-bearing tool results. Business data (columns, sample rows, any domain
+    'status' value) is never read as memory.
+    """
+    if key.startswith('memory/'):
+        return not isinstance(content, dict) or content.get('status') != 'declared'
+    if not isinstance(content, dict):
+        return False
+    if content.get('authority') == 'business_memory' or 'memory_status' in content:
+        return content.get('memory_status') != 'declared'
+    memories = content.get('memories')
+    if memories is not None:
+        return not isinstance(memories, list) or any(not isinstance(m, dict) or m.get('status') != 'declared' for m in memories)
+    return False
 
 
 class Conversations:
@@ -1125,7 +1150,32 @@ class Conversations:
             (status, Jsonb(response) if response else None, issue, turn['id']),
         )
 
-    def _job(self, db, chat, turn, analysis_id):
+    @staticmethod
+    def _investigation_brief(context, brief):
+        """Server-checked chat guidance: sources must have been delivered; memory must be declared."""
+        if brief is None:
+            return None
+        available = context.get('available_sources', {})
+        reports = []
+        for item in brief.background:
+            for key in item.sources:
+                if key not in available:
+                    raise ValueError('Investigation brief cites an unavailable source.')
+                content = available[key]['content']
+                # Memory items, memory selections and memory-bearing tool results (search_memory,
+                # inspect_dataset) may carry proposed or conflicted items: those cannot be cited.
+                if _unconfirmed(key, content):
+                    raise ValueError('Investigation brief cites memory that is not declared.')
+                report = None
+                if key.startswith('tool/') and isinstance(content, dict) and content.get('origin') in ENGINE_ORIGINS:
+                    report = content.get('id')
+                elif key.startswith('selection/') and isinstance(content, dict) and content.get('authority') == 'engine_report':
+                    report = content.get('source_id')  # A selected block or action of a native report.
+                if report and str(report) not in reports:
+                    reports.append(str(report))
+        return {**brief.model_dump(), 'reports': reports}
+
+    def _job(self, db, chat, turn, analysis_id, brief=None):
         # Persist job and link atomically: recovery cannot create a second analysis.
         with db.transaction():
             memory.lock(db, self.business)
@@ -1140,6 +1190,7 @@ class Conversations:
                 (turn['id'], turn['attempt']),
             ).fetchone()
             context = call['context']
+            investigation_brief = self._investigation_brief(context, brief)
             quotes = list(context['recent_owner_messages'])
             for event in self.events(db, turn):
                 if event['request']['tool'] == 'search_chats':
@@ -1168,7 +1219,8 @@ class Conversations:
             from .engine.job_profile import selection, freeze
             kind, engine_settings = selection(self.config, {})
             engine_settings = freeze(engine_settings, context=memory.encoded(continuation),
-                                     goal=turn['payload']['text'], input_hash=memory.digest(turn['payload']))
+                                     goal=turn['payload']['text'], input_hash=memory.digest(turn['payload']),
+                                     investigation_brief=investigation_brief)
             job = uuid4()
             db.execute(
                 """INSERT INTO web_jobs(id,request_key,request_sha256,business_id,analysis_id,title,context,goal,filename,upload_key,byte_count,model_settings,status,phase,business_name,origin,engine_kind,engine_config)
@@ -1513,7 +1565,7 @@ class Conversations:
                     if action.action == 'investigate':
                         if context.get('onboarding'):
                             raise ValueError('Confirm the onboarding scope before starting an investigation.')
-                        self._job(db, chat, turn, action.analysis_id)
+                        self._job(db, chat, turn, action.analysis_id, action.investigation_brief)
                         return
                     if action.action == 'edit_presentation':
                         response = self._edit_presentation(db, turn, ordinal, action, context, model)
