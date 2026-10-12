@@ -2,7 +2,7 @@
 
 Fecha: 12 de octubre de 2026.
 
-Desarrolla el paso 3 del [plan de contexto compartido y cálculo rápido](<../product/contexto-compartido-y-calculo-rapido-plan.md>). El plan lo acordaron Claude y Codex en tres versiones; Codex aprobó la tercera. Claude lo implementa y Codex revisa los cambios. La prueba real final necesita la aprobación del propietario.
+Desarrolla el paso 3 del [plan de contexto compartido y cálculo rápido](<../product/contexto-compartido-y-calculo-rapido-plan.md>). El plan lo acordaron Claude y Codex en cuatro versiones; Codex aprobó la cuarta. Claude lo implementa y Codex revisa los cambios. La prueba real final necesita la aprobación del propietario.
 
 **Estado: plan acordado; implementación en curso en `feature/saved-indicators`.**
 
@@ -119,20 +119,39 @@ Nunca se toma la primera de una lista, y la correspondencia debe ser uno a uno.
 
 ### Firma semántica
 
-Es conservadora y cubre todas las columnas de cada tabla emparejada:
+Acordada en la cuarta versión del plan. Cada versión nueva de los datos se perfila desde cero y empieza sin los significados confirmados en la anterior, por diseño del modelo de datos, que no copia confirmaciones por coincidencia de nombres. Con una regla estricta, cada subida de datos dejaría todos los indicadores no disponibles.
 
-- nombres y esquema de las columnas;
-- significado declarado, unidad, conversión y estado semántico;
-- descripción y grano de la tabla;
-- la memoria declarada de definición o disponibilidad aplicable a esas tablas, con su periodo, y con su alcance trasladado solo a través de la correspondencia explícita.
+**Se congela al crear la versión del indicador,** a partir del análisis A0 del cálculo (versión de datos N, revisión R del modelo de datos):
 
-Lo desconocido y lo omitido se registran de forma explícita. Los identificadores y las revisiones van en la procedencia, no en la firma.
+- el esquema de cada alias, con los nombres de columna en orden;
+- los elementos declarados por el propietario: descripción y grano de la tabla y, por columna, significado, unidad y conversión;
+- la memoria declarada de definición o disponibilidad aplicable a A0, con su tipo, texto, periodo y alcance (negocio, análisis o tabla del alias), sin identificadores;
+- la base: A0, N y R.
 
-- Cualquier diferencia: `meanings_changed`.
-- Algo declarado antes que ahora es desconocido: `meanings_unknown`.
-- Omisiones que impiden comparar: `meanings_unverifiable`.
+**En cada recálculo,** y también al guardar, confirmar y publicar:
 
-Un cambio que quizá no afecta a la fórmula también detiene el indicador; la reparación del propietario es la salida.
+1. **Estructura.** Correspondencia uno a uno y los mismos nombres de columna en el mismo orden. Si no, el valor queda no disponible (`missing_table`, `ambiguous_table` o `schema_changed`). Un esquema idéntico es solo un control estructural, nunca una prueba de que el significado sigue igual.
+2. **Memoria.** La memoria declarada aplicable se calcula para la versión nueva con sus propios análisis, fuentes y periodo. Debe coincidir con la congelada; si no, `meanings_changed`. Nunca se amplía ni se traslada como confirmación: una declaración ligada solo a A0 que no se aplica a la versión nueva detiene el indicador.
+3. **Elementos del modelo de datos de la versión nueva:**
+   - declarado en la versión nueva y distinto del congelado, o declarado donde el congelado no tenía nada: `meanings_changed`;
+   - declarado en el congelado y desconocido en la versión nueva: se acepta solo si ninguna corrección del propietario en esa versión cambió ese elemento concreto, comparando cada revisión con la anterior. Entonces es un supuesto de la fórmula, no una declaración de los datos nuevos;
+   - un elemento que el propietario retiró o vació en la versión nueva: `meanings_unknown`.
+4. **Base.** A0 no está corregido y sus elementos declarados actuales siguen siendo los congelados; si no, `basis_changed`. La base es siempre la versión donde se declararon los significados (N), nunca una versión intermedia que no los declaró.
+5. **Nada se escribe** en el modelo de datos ni en la memoria de la versión nueva.
+
+**Cada valor guarda `meanings_basis`:**
+
+- el análisis, la versión N y la revisión R;
+- la lista de elementos confirmados (declarados e iguales en los datos actuales), la de heredados de N y la de columnas sin significado declarado en ninguna versión.
+
+Una base sin significados nunca se presenta como si confirmara todas las columnas.
+
+**Todos los consumidores reciben esa base:** Inicio, el historial de valores, `inspect_indicator`, la comparación de una reparación, el encargo y el comprobador.
+
+- **Texto para el propietario:** «Calculado con la fórmula y los significados guardados de la versión N; esos significados no están confirmados en esta versión».
+- **Informe:** puede decir que la fórmula guardada calcula X con los significados de N, pero no presentarlo como un significado confirmado ahora.
+- **Comprobador:** mantiene aparte las declaraciones actuales y marca como no comprobable lo que necesite una interpretación no declarada para los datos actuales. Recalcular la misma cifra no confirma el significado.
+- **Al guardar o reparar,** la confirmación explica que se fijan el código y los significados para los recálculos futuros y que las versiones nuevas de los datos pueden no declararlos.
 
 ### Cola y reconciliación
 
