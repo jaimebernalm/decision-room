@@ -5,7 +5,7 @@ Fecha: 12 de octubre de 2026.
 **Estado:**
 
 - Pasos 0 y 1 terminados.
-- Siguiente: paso 2, cálculo rápido en el chat.
+- Paso 2, cálculo rápido en el chat: plan técnico acordado con Codex e implementación en curso ([calculo-rapido-implementacion.md](../technical/calculo-rapido-implementacion.md)).
 - Orden revisado con el propietario el 12 de octubre de 2026: se añade el paso 3 (indicadores guardados y registro de seguimiento) y las predicciones pasan a ser el paso 4.
 
 Este plan continúa el trabajo de informes nativos. El formato nativo de bloques
@@ -95,6 +95,12 @@ Cuando el chat lanza un informe, guarda en el trabajo las citas recientes del pr
 - **Prueba real con el negocio de prueba, que requiere aprobación de gasto:** dos informes seguidos. El segundo debe retomar las acciones pendientes del primero y distinguir lo citado de lo recalculado.
 
 ## Paso 2. Cálculo rápido en el chat
+
+**Plan técnico acordado el 12 de octubre de 2026:** [calculo-rapido-implementacion.md](../technical/calculo-rapido-implementacion.md). Cambia tres cosas respecto a lo escrito abajo:
+
+- **Sin contenedor siempre activo.** Arrancar un contenedor nuevo del sandbox tarda en torno a medio segundo, así que cada cálculo usa uno nuevo y se mantiene el modelo de seguridad actual: nunca se reutiliza un contenedor entre preguntas ni entre negocios.
+- **Imagen del sandbox de cálculo,** no la del agente de informes. Tiene la pila de datos de Python y las mismas restricciones: sin red, datos de solo lectura y límites de recursos.
+- **El informe siempre se confirma con un botón.** El chat nunca lanza un informe por sí solo, ni siquiera ante un «hazme un informe» escrito: propone el objetivo, el propietario puede editarlo y lo confirma con «Preparar informe». Así no depende de que el modelo interprete bien un mensaje.
 
 ### Situación actual
 
