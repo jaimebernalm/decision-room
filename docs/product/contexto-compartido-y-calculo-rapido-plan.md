@@ -5,7 +5,7 @@ Fecha: 12 de octubre de 2026.
 **Estado:**
 
 - Pasos 0, 1 y 2 terminados. Paso 2, cálculo rápido en el chat: implementado, revisado por Codex y validado con el modelo real ([calculo-rapido-implementacion.md](../technical/calculo-rapido-implementacion.md)).
-- Siguiente: paso 3, indicadores guardados y registro de seguimiento.
+- Paso 3, indicadores guardados y registro de seguimiento: plan técnico acordado con Codex e implementación en curso ([indicadores-seguimiento-implementacion.md](../technical/indicadores-seguimiento-implementacion.md)).
 - Orden revisado con el propietario el 12 de octubre de 2026: se añade el paso 3 (indicadores guardados y registro de seguimiento) y las predicciones pasan a ser el paso 4.
 
 Este plan continúa el trabajo de informes nativos. El formato nativo de bloques
@@ -152,6 +152,11 @@ El chat lee datos, memoria e informes, pero no calcula. Cualquier cifra nueva ex
 ## Paso 3. Indicadores guardados y registro de seguimiento
 
 Pensado para cuando un negocio tenga muchos informes.
+
+**Plan técnico acordado el 12 de octubre de 2026:** [indicadores-seguimiento-implementacion.md](../technical/indicadores-seguimiento-implementacion.md). Precisa dos cosas de lo escrito abajo, con las decisiones del propietario:
+
+- **Reparación de un indicador.** Si falla por la estructura de los datos, queda no disponible con el motivo. El chat propone una fórmula nueva, se compara con la cifra guardada sobre los datos anteriores y el propietario la confirma con un botón. Los fallos pasajeros se reintentan solos con la misma fórmula.
+- **Cifras de informe.** No pueden pasar directamente a indicador, porque el informe no guarda su fórmula. Primero se recalculan con un cálculo rápido del chat.
 
 ### Situación actual
 
