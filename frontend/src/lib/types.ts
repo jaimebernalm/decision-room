@@ -416,8 +416,78 @@ export type HomeSource = {
   analysis_id: string;
   limitations: string[];
   href: string;
-  origin?: "engine_blocks";
+  origin?: "engine_blocks" | "indicator";
   reviewed?: boolean;
+  label?: string;
+  indicator_id?: string;
+};
+export type IndicatorValue = {
+  id: string;
+  dataset_version: number;
+  status: "pending" | "completed" | "unavailable" | "revoked";
+  metrics: Record<string, string | number | boolean | null> | null;
+  display: Record<string, string>;
+  reason: string | null;
+  detail: string | null;
+  meanings: string | null;
+};
+export type IndicatorComparison = {
+  state: "pending" | "match" | "mismatch" | "unavailable";
+  sha256?: string;
+  reason?: string | null;
+  metrics?: {
+    metric: string;
+    before: unknown;
+    after: unknown;
+    present: boolean;
+    same: boolean;
+  }[];
+  baseline?: { dataset_version: number };
+};
+export type SavedIndicator = {
+  id: string;
+  name: string;
+  status: "active" | "retired";
+  revision: number;
+  label: string;
+  version: {
+    id: string;
+    version: number;
+    code: string;
+    metric_keys: string[];
+    applies_from: number | null;
+  } | null;
+  values: IndicatorValue[];
+  proposals: {
+    id: string;
+    version: number;
+    code: string;
+    comparison: IndicatorComparison;
+  }[];
+};
+export type FollowUp = {
+  id: string;
+  state: "proposed" | "checked" | "closed";
+  note: string | null;
+  revision: number;
+  headline: string;
+  report_date: string;
+  priority_title: string;
+  content: {
+    labels: Record<"check" | "if_confirmed" | "if_not", string>;
+    check: string[];
+    if_confirmed: string[] | null;
+    if_not: string[] | null;
+  };
+  link: { metric_key: string; value: unknown; dataset_version: number } | null;
+};
+export type IndicatorsOverview = {
+  indicators: SavedIndicator[];
+  follow_ups: {
+    items: FollowUp[];
+    counts: { open: number; closed: number; withdrawn: number };
+  };
+  label: string;
 };
 export type HomeItem = { id: string; title: string; source: HomeSource } & (
   | { kind: "metric"; content: Report["highlights"][number] }

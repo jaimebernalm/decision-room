@@ -821,3 +821,42 @@ def inspect(db, business, indicator_id):
     if len(memory.encoded(with_definitions).encode()) <= INSPECT_BYTES:
         result = with_definitions
     return result
+
+
+
+def overview(db, business):
+    """Owner page: every indicator with its version, values (latest first), proposals and receipts."""
+    items = []
+    for row in db.execute('SELECT * FROM saved_indicators WHERE business_id=%s ORDER BY status,name,id', (business,)).fetchall():
+        active = _active(db, row['id'])
+        values = []
+        for value in current_values(db, business, row['id'])[:12]:
+            basis = value['meanings_basis'] or {}
+            values.append(dict(id=str(value['id']), dataset_version=value['dataset_version'], status=value['status'],
+                               metrics=value['metrics'],
+                               display={k: display(v) for k, v in (value['metrics'] or {}).items()}, reason=REASONS.get(value['reason'], value['reason']) if value['reason'] else None,
+                               detail=value['detail'], computed_at=value['computed_at'],
+                               meanings=INHERITED.format(basis.get('dataset_version'))
+                               if basis and not basis.get('current_meanings_confirmed', True) else None))
+        proposals = [dict(id=str(p['id']), version=p['version'], comparison={k: v for k, v in (p['comparison'] or {}).items() if k != 'history'},
+                          code=p['code'], created_at=p['created_at'])
+                     for p in db.execute("SELECT * FROM indicator_versions WHERE indicator_id=%s AND state='proposed' ORDER BY version",
+                                         (row['id'],)).fetchall()]
+        items.append(dict(id=str(row['id']), name=row['name'], status=row['status'], revision=row['revision'], label=LABEL,
+                          version=dict(id=str(active['id']), version=active['version'], code=active['code'],
+                                       metric_keys=active['metric_keys'], applies_from=active['applies_from']) if active else None,
+                          values=values, proposals=proposals))
+    return items
+
+
+
+def display(value):
+    """Owner-facing formatting of a metric value; the raw value is kept alongside."""
+    from .engine import blocks
+    if isinstance(value, bool):
+        return 'sí' if value else 'no'
+    if isinstance(value, int):
+        return blocks.format_number(value, 0)
+    if isinstance(value, float):
+        return blocks.format_number(value, 2)
+    return '—' if value is None else str(value)

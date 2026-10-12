@@ -345,3 +345,37 @@ class IndicatorConsumerTests(IndicatorTests):
                 indicators.bump(db, self.b)
             self.assertFalse(conversations.fresh(db, saved))
         del chat_agent
+
+
+class IndicatorApiTests(IndicatorTests):
+    for name in [n for n in dir(IndicatorTests) if n.startswith('test_')]:
+        locals()[name] = None
+    del name
+    http = qc.fixtures.WebTests.http
+
+    def test_http_routes_and_home_cards_are_scoped_and_typed(self):
+        from decision_room.web import home
+        turn, shown = self.send()
+        calc = shown['response']['calculations'][0]['calculation_id']
+        client, server = self.http()
+        client.post('/api/login', json={'token': server.token})
+        self.ws.select_business(dict(business_id=str(self.b)))
+        body = dict(business_id=str(self.b), request_key=str(uuid4()), turn_id=str(turn), calculation_id=calc,
+                    name='Unidades vendidas', metric_keys=['unidades'])
+        created = client.post('/api/indicators', json=body)
+        self.assertEqual(created.status_code, 200, created.text)
+        self.assertEqual(client.post('/api/indicators', json={**body, 'business_id': str(uuid4())}).status_code, 409)
+        overview = client.get('/api/indicators').json()
+        [item] = overview['indicators']
+        self.assertEqual(item['values'][0]['display'], {'unidades': '180'})
+        self.assertEqual(overview['label'], indicators.LABEL)
+        cards = [i for i in home.collect(self.ws.scoped(self.b))['items'] if i['source'].get('origin') == 'indicator']
+        self.assertEqual([c['id'] for c in cards], [f"indicator:{item['id']}:unidades"])
+        self.assertIsNone(cards[0]['source']['report_id'])
+        missing = client.post(f'/api/follow-ups/{uuid4()}/state', json=dict(business_id=str(self.b), request_key=str(uuid4()),
+                                                                              state='closed', expected_revision=1))
+        self.assertEqual(missing.status_code, 404)
+        retired = client.post(f"/api/indicators/{item['id']}/retire", json=dict(business_id=str(self.b), request_key=str(uuid4()),
+                                                                                 expected_revision=item['revision']))
+        self.assertEqual(retired.status_code, 200, retired.text)
+        self.assertEqual([i for i in home.collect(self.ws.scoped(self.b))['items'] if i['source'].get('origin') == 'indicator'], [])

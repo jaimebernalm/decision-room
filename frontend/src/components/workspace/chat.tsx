@@ -45,9 +45,11 @@ import { ReportOfferCard } from "./report-offer";
 export function Answer({
   response,
   ownerText = "",
+  turnId,
 }: {
   response: Response;
   ownerText?: string;
+  turnId?: string;
 }) {
   useLanguage();
   const { listing, workspace } = useWorkspace();
@@ -141,7 +143,7 @@ export function Answer({
         </MessageResponse>
       )}
       {response.calculations?.length ? (
-        <QuickCalculations items={response.calculations} />
+        <QuickCalculations items={response.calculations} turnId={turnId} />
       ) : null}
       {response.presentation_receipt && (
         <PresentationChangeReceipt receipt={response.presentation_receipt} />
@@ -404,6 +406,9 @@ export function ChatPage({
                                   <Answer
                                     response={visibleResponse}
                                     ownerText={turn.payload.text}
+                                    turnId={
+                                      turn.historical ? undefined : turn.id
+                                    }
                                   />
                                 </div>
                               )}

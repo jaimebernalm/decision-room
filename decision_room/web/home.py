@@ -91,6 +91,7 @@ def collect(ws):
             continue
     items += engine_figures(ws, [x for x in listing if (x.get('engine_report') or {}).get('is_current')
                                  and x['engine_report'].get('origin') == 'engine_blocks'][:20])
+    items += indicator_cards(ws)
     with connect(ws.config) as db, db.transaction():
         memory.lock(db, business)
         profile = business_store.profile(db, business)
@@ -140,6 +141,34 @@ def engine_figures(ws, listing):
                            check_incomplete=incomplete)
             items.append(dict(id=f"{job['id']}:metric:{block['id']}", kind='metric', title=block['label'],
                               content=content, source={**source, 'period': block['period'] or ''}))
+    return items
+
+
+def indicator_cards(ws):
+    """Saved indicators: one card per metric, stable id so pins survive recomputation; never a report."""
+    from .. import indicators
+    items = []
+    with connect(ws.config) as db:
+        for item in indicators.overview(db, ws.business_id()):
+            if item['status'] != 'active' or not item['version']:
+                continue
+            latest = item['values'][0] if item['values'] else None
+            several = len(item['version']['metric_keys']) > 1
+            for metric in item['version']['metric_keys']:
+                completed = bool(latest) and latest['status'] == 'completed'
+                notes = [n for n in ((latest or {}).get('meanings'), (latest or {}).get('reason')) if n]
+                period = f"Versión {latest['dataset_version']} de los datos" if latest else ''
+                content = dict(key=metric, label=f"{item['name']} · {metric}" if several else item['name'],
+                               value=latest['display'][metric] if completed else '—', unit='', claim_key=metric,
+                               period=period, disputed=False, check_incomplete=False,
+                               indicator_status=latest['status'] if latest else 'pending')
+                source = dict(origin='indicator', indicator_id=item['id'], version_id=item['version']['id'],
+                              value_id=latest['id'] if latest else None, version=str(item['version']['version']),
+                              title=item['name'], label=indicators.LABEL, period=period, coverage=indicators.LABEL,
+                              filename='', created_at=None, data_version=None, limitations=notes, href='#indicators',
+                              job_id=None, report_id=None, presentation=None, reviewed=False)
+                items.append(dict(id=f"indicator:{item['id']}:{metric}", kind='metric', title=content['label'],
+                                  content=content, source=source))
     return items
 
 

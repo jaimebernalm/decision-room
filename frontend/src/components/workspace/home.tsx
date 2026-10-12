@@ -1,6 +1,6 @@
 import { displayNumber } from "@/lib/presentation";
 import { translate as tr, useLanguage } from "@/lib/i18n";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   ArrowUpRight,
   ChevronDown,
@@ -38,6 +38,7 @@ import { Selectable } from "./context-selection";
 import type { ContextAttachment } from "@/lib/types";
 import { EvidenceChart } from "./report";
 import { PresentationEditor } from "./presentation-editor";
+import { IndicatorsPanel } from "./indicators";
 import { findingHref, relatedFinding } from "@/lib/report-navigation";
 import {
   DropdownMenu,
@@ -69,6 +70,14 @@ const selection = (item: HomeItem): ContextAttachment =>
   href: item.source.href,
   content: item.content,
 };
+// Saved indicators are not report elements: they are never attached to the chat as one.
+function IndicatorAware({ item, children }: { item: HomeItem; children: ReactNode }) {
+  return item.source.origin === "indicator" ? (
+    <>{children}</>
+  ) : (
+    <Selectable item={selection(item)}>{children}</Selectable>
+  );
+}
 const labels = {
   metric: "Indicadores",
   chart: "Gráficos",
@@ -85,9 +94,11 @@ function Source({ item, reason }: { item: HomeItem; reason?: string }) {
             <span>{item.source.period}</span> ·{" "}
           </>
         )}
-        {item.source.origin === "engine_blocks"
-          ? tr("Informe v1 · cifra sin revisión")
-          : tr("Revisión {0}", { "0": item.source.version })}
+        {item.source.origin === "indicator"
+          ? tr(item.source.label ?? "Indicador guardado")
+          : item.source.origin === "engine_blocks"
+            ? tr("Informe v1 · cifra sin revisión")
+            : tr("Revisión {0}", { "0": item.source.version })}
       </p>
       {item.kind === "metric" && item.content.disputed && (
           <p className="mb-2 rounded-md bg-amber-500/10 px-2 py-1 text-amber-900 dark:text-amber-200">
@@ -359,7 +370,7 @@ export function Home() {
                 {selected
                   .filter((item) => item.kind === "metric")
                   .map((item) => (
-                    <Selectable key={item.id} item={selection(item)}>
+                    <IndicatorAware key={item.id} item={item}>
                       <Card className="min-w-0 gap-3 rounded-2xl bg-muted/45 shadow-none ring-0">
                         <CardHeader>
                           <div className="flex items-start justify-between gap-2">
@@ -379,7 +390,7 @@ export function Home() {
                           <Source item={item} reason={data.reasons[item.id]} />
                         </CardContent>
                       </Card>
-                    </Selectable>
+                    </IndicatorAware>
                   ))}
               </section>
               {selected.some((item) => item.kind === "chart") && (
@@ -523,6 +534,7 @@ export function Home() {
               </div>
             </section>
           )}
+          <IndicatorsPanel />
           <section className="mt-8 rounded-2xl bg-muted/40 p-5">
             <div className="mb-3 flex items-center justify-between gap-3">
               <h2 className="text-sm font-semibold">

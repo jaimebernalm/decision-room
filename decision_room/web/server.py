@@ -395,6 +395,40 @@ class Handler(BaseHTTPRequestHandler):
                         raise WebError('Esta versión no es válida.') from None
                     self.send(200, presentation_editing.view(ws, report_id, revision))
                 return
+            if path == '/api/indicators' or path.startswith('/api/indicators/') or path.startswith('/api/follow-ups/'):
+                from .. import follow_ups, indicators
+                from ..database import connect
+                from .dossier import guard
+                parts = path.strip('/').split('/')
+                if not mutation and path == '/api/indicators':
+                    business = ws.business_id()
+                    if not business:
+                        raise WebError('Selecciona un negocio.', 409)
+                    with connect(ws.config) as db:
+                        items = indicators.overview(db, business)
+                        topics = [{**row, 'id': str(row['id']), 'document_id': str(row['document_id'])}
+                                  for row in follow_ups.listing(db, business)]
+                        counts = follow_ups.counts(db, business)
+                    self.send(200, dict(indicators=items, follow_ups=dict(items=topics, counts=counts), label=indicators.LABEL))
+                    return
+                if not mutation:
+                    raise WebError('Operación no encontrada.', 404)
+                data = self.json_body()
+                business = guard(ws, data)
+                if path == '/api/indicators':
+                    result = indicators.create(ws.config, business, data)
+                elif parts[1] == 'indicators' and len(parts) == 4 and parts[3] == 'versions':
+                    result = indicators.propose(ws.config, business, parts[2], data)
+                elif parts[1] == 'indicators' and len(parts) == 6 and parts[3] == 'versions' and parts[5] == 'confirm':
+                    result = indicators.confirm(ws.config, business, parts[2], parts[4], data)
+                elif parts[1] == 'indicators' and len(parts) == 4 and parts[3] == 'retire':
+                    result = indicators.retire(ws.config, business, parts[2], data)
+                elif parts[1] == 'follow-ups' and len(parts) == 4 and parts[3] == 'state':
+                    result = follow_ups.set_state(ws.config, business, parts[2], data)
+                else:
+                    raise WebError('Operación no encontrada.', 404)
+                self.send(200, result)
+                return
             if path in ('/api/home', '/api/home/preferences', '/api/home/suggest'):
                 from . import home
                 if not mutation and path == '/api/home':
