@@ -2,8 +2,11 @@
 
 Fecha: 12 de octubre de 2026.
 
-**Estado: propuesto y aprobado en orden por el propietario. Ningún paso está
-implementado todavía.**
+**Estado:**
+
+- Pasos 0 y 1 terminados.
+- Siguiente: paso 2, cálculo rápido en el chat.
+- Orden revisado con el propietario el 12 de octubre de 2026: se añade el paso 3 (indicadores guardados y registro de seguimiento) y las predicciones pasan a ser el paso 4.
 
 Este plan continúa el trabajo de informes nativos. El formato nativo de bloques
 es el predeterminado desde el PR #9 y la plataforma lo presenta con su propio
@@ -13,10 +16,12 @@ estilo desde el PR #10. Sigue al [plan de implementación](<Decision Room - Plan
 
 | Paso | Qué | Por qué en este orden |
 |---|---|---|
-| 0 | Diagnosticar y corregir los fallos del motor nativo | En la prueba de adopción del estilo A, dos de tres informes no llegaron al cliente. El nativo ya es el formato predeterminado. |
-| 1 | Contexto compartido e informes anteriores | El chat y los informes deben saber lo mismo del cliente. Es la base de los pasos siguientes. |
-| 2 | Cálculo rápido en el chat | Calcula mejor si ya conoce los datos y los informes anteriores. |
-| 3 | Predicciones | Necesita un tipo de trabajo propio, con prueba contra el pasado. Se planificará aparte. |
+| 0 | ~~Diagnosticar los fallos del motor nativo~~ (hecho) | No era un fallo del código: el Mac se suspendió durante la prueba. |
+| 1 | ~~Contexto compartido e informes anteriores~~ (hecho) | El chat y los informes saben lo mismo del cliente, y cada informe recibe los anteriores. |
+| 2 | Cálculo rápido en el chat | Lo que más se nota en el uso diario. Genera las fórmulas que el paso 3 permitirá guardar. |
+| 3 | Indicadores guardados y registro de seguimiento | Hace que el contexto no crezca aunque haya muchos informes, y recalcula las cifras recurrentes sin modelo. |
+| 4 | Predicciones | Necesita las series fijas del paso 3 para probarse contra el pasado. Se planificará aparte. |
+| Más adelante | Buscador de informes anteriores para el agente de informes | Solo hace falta cuando un negocio acumule decenas de informes. |
 
 ## Arquitectura que se mantiene
 
@@ -40,9 +45,21 @@ En la prueba de adopción del 11 de octubre se lanzaron tres informes:
 
 El diagnóstico usa los registros ya guardados y no hace llamadas de pago. Cada causa se corrige con una prueba que la reproduzca. Una nueva ejecución real necesita la aprobación del propietario.
 
+**Resultado, 12 de octubre de 2026:** no hay fallo del código. El registro de energía del Mac muestra que se cerró la tapa y el equipo entró en reposo justo cuando empezaba cada llamada fallida (23:23:27 y 23:35:34). El motor actuó bien: no repitió llamadas de uso incierto. Desde entonces, antes de cualquier prueba de pago se mantiene el equipo despierto y con la tapa abierta.
+
 ## Paso 1. Contexto compartido e informes anteriores
 
-### Situación actual
+**Hecho el 12 de octubre de 2026.**
+
+- **Implementación:** [contexto-compartido-implementacion.md](../technical/contexto-compartido-implementacion.md), planificada con Codex, implementada por Claude y revisada por Codex en dos rondas.
+- **Pruebas:** suite completa 1013/1014; el único error es el navegador de informes, que no está construido en la máquina local.
+- **Prueba real:** dos informes seguidos sobre un negocio de prueba con los mismos datos.
+  - El segundo recibió el primero, lo retomó («la señal anterior se mantiene y se afina») y recalculó sus cifras en vez de copiarlas.
+  - Dijo qué propuestas necesitaban registros que no están en los CSV.
+  - Comprobación sin discrepancias. Coste: 0,19 USD como máximo, según el límite de gasto.
+- **Sin probar todavía con el agente real:** datos sustituidos entre un informe y otro.
+
+### Situación anterior
 
 Hay dos constructores de contexto:
 
@@ -119,7 +136,37 @@ El chat lee datos, memoria e informes, pero no calcula. Cualquier cifra nueva ex
   - las pequeñas se responden en segundos;
   - las grandes acaban en una propuesta de informe.
 
-## Paso 3. Predicciones
+## Paso 3. Indicadores guardados y registro de seguimiento
+
+Pensado para cuando un negocio tenga muchos informes.
+
+### Situación actual
+
+- Cada informe recibe como máximo 3 informes anteriores, en un resumen de hasta 6 KiB más sus textos como archivos, y el contexto no crece. Con muchos informes, lo difícil es elegir bien cuáles 3.
+- Las fórmulas no se guardan: el agente escribe su cálculo en cada informe y lo descarta, así que una cifra recurrente se vuelve a calcular cada vez.
+
+### Cambios
+
+1. **Indicadores guardados.**
+   - Una cifra recurrente, como una tasa de citas perdidas o las ventas por canal, se guarda como indicador: su cálculo fijo, las columnas que usa y su significado confirmado.
+   - Puede nacer de un cálculo rápido del chat («guárdalo como indicador») o de una cifra de un informe.
+   - Al subir datos nuevos se recalcula de forma determinista, sin modelo. Los informes y el chat lo reciben ya calculado y el agente solo lo interpreta.
+2. **Registro de seguimiento.**
+   - Las acciones de los informes nativos («qué comprobar», «si se confirma», «si no») ya están estructuradas. Se reúnen en una lista viva de temas abiertos, con su origen, fecha y estado.
+   - El estado puede ser «propuesto», «comprobado con datos» o «cerrado por el propietario».
+   - Un informe nuevo recibe esa lista corta en lugar de informes enteros, así que su tamaño no depende de cuántos informes haya.
+3. **Determinista.** Nada se resume con un modelo. Un indicador cuyo cálculo deja de cuadrar con los datos, por ejemplo por un cambio de columnas, se marca como no disponible y nunca se adapta en silencio.
+
+### Validación
+
+Se definirá al planificar el paso, con el mismo método: plan con Codex, implementación de Claude y revisión de Codex.
+
+## Más adelante: buscador de informes anteriores
+
+- Cuando un negocio acumule decenas de informes, el agente de informes tendrá una herramienta de búsqueda sobre los informes anteriores, como la que ya tiene el chat, apoyada en la búsqueda semántica existente.
+- No se adelanta: con pocos informes, la selección actual y el registro de seguimiento bastan.
+
+## Paso 4. Predicciones
 
 Queda fuera de este plan. Será un tipo de trabajo propio, con estas reglas:
 
