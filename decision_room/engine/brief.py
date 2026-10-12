@@ -32,6 +32,7 @@ def native_fixed(fixed):
     paragraphs[-1] = paragraphs[-1].replace(', tengan etiquetas legibles y se abran correctamente', ' y tengan etiquetas legibles').replace(
         ' Añade interacción para consultar valores exactos cuando ayude a leerlos.', '')
     paragraphs.insert(2, NARRATIVE)
+    paragraphs.insert(3, PRESENTATION)
     return '\n\n'.join(paragraphs)
 
 
@@ -44,6 +45,14 @@ NARRATIVE = ('Compara cada segmento relevante con su propia evolución en el tie
              'gráfico o una tabla, y termina con qué comprobar y qué hacer según el resultado. Usa una tabla solo '
              'cuando su detalle ayude a decidir, no repitas en el texto lo que ya muestra un gráfico o una tabla y '
              'no añadas notas técnicas sobre cómo has calculado si no cambian la lectura.')
+
+PRESENTATION = ('Usa portada, tarjetas y accion cuando ayuden a organizar el titular, el resumen, el balance y '
+                'los siguientes pasos que ya ibas a contar; mueve el contenido a esos bloques, no lo dupliques '
+                'ni añadas texto para rellenarlos. No son una plantilla obligatoria. Puedes dar rótulos propios '
+                'a las partes de accion cuando los de la plataforma no encajen con la comprobación. Declara bueno en las '
+                'variaciones y tono en series y tarjetas cuando los datos y el significado confirmado de la '
+                'métrica permitan una lectura favorable, desfavorable o de aviso; si no, omítelos. '
+                'Subir no siempre es bueno. Conserva los gráficos de evolución y las tablas cortas que aporten evidencia.')
 
 
 DATA = 'Los CSV están en la carpeta /inputs/datos; /inputs/manifest.json indica qué tabla es cada archivo.'
@@ -165,7 +174,7 @@ def build(db, business, analysis, *, goal, panorama, name=None, description=None
     memory = context.scoped(context.effective(db, business), selection)
     text = compose(name=owner['name'], description=owner['description'], goal=goal,
                    model=model, memory=memory, panorama=panorama, questions=questions, format=format)
-    provenance = dict(version=('blocks-brief-2q' if questions else 'blocks-brief-2') if format == 'blocks' else (QUESTIONS_VERSION if questions else VERSION), profile='job' if frozen else 'current', profile_revision=owner['profile_revision'],
+    provenance = dict(version=('blocks-brief-4q' if questions else 'blocks-brief-4') if format == 'blocks' else (QUESTIONS_VERSION if questions else VERSION), profile='job' if frozen else 'current', profile_revision=owner['profile_revision'],
                       data_model=dict(analysis_id=str(analysis), revision=head['revision']) if model else None,
                       memory=sorted(r['reference'] for r in memory if facts([r])),
                       panorama=bool(panorama))

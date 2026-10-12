@@ -463,13 +463,28 @@ export type BlockChartSeries = {
   values: (number | null)[];
   details: (string | null)[] | null;
   /** Meaning declared by the report (projector 4+); absent in older stored projections. */
-  tone?: "positive" | "negative" | "warning" | "neutral" | null;
+  tone?: BlockTone | null;
 };
 /** Which direction the report says is good for the business; color only when declared. */
 export type BlockGood = "up" | "down" | null | undefined;
+/** Declared meaning of a card or series; the platform maps it to its semantic palette. */
+export type BlockTone = "positive" | "negative" | "warning" | "neutral";
 export type ReportBlock = { id: string } & (
   | { type: "section" | "priority"; title: string; blocks: ReportBlock[] }
   | { type: "text" | "notice"; content: BlockContent[] }
+  /** Projector 5+: optional headline and summary, only as the first root block. */
+  | { type: "cover"; title: string; content: BlockContent[] }
+  /** Projector 5+: two or three side-by-side cards, e.g. what worked and what did not. */
+  | { type: "cards"; cards: { title: string; content: BlockContent[]; tone: BlockTone | null }[] }
+  /** Projector 5+: inside a priority, what to check next and how the reaction depends on it. */
+  | {
+      type: "action";
+      check: BlockContent[];
+      if_confirmed: BlockContent[] | null;
+      if_not: BlockContent[] | null;
+      /** The report's own names for the parts; null or absent means the platform's label. */
+      labels?: { check: string | null; if_confirmed: string | null; if_not: string | null };
+    }
   | {
       type: "figure";
       label: string;

@@ -39,6 +39,7 @@ import type {
   BlockGood,
   BlockContent,
   BlockSpan,
+  BlockTone,
   BlocksProjection,
   ReportBlock,
 } from "@/lib/types";
@@ -323,6 +324,10 @@ function BlockChartBody({ chart }: { chart: ChartBlock }) {
   };
   // Values written on the bars when there are few, as the PDF does (stacks show totals on hover).
   const labelled = !stacked && chart.kind !== "line" && rows.length * shown.length <= 24;
+  // Room for the value written past the longest bar, so a label is never clipped at the edge.
+  const labelRoom = labelled && horizontal
+    ? Math.max(...shown.flatMap(({ s }) => s.values.map((v) => (v === null ? 0 : formatNumber(v, chart.decimals).length)))) * 7 + 8
+    : 0;
   return (
     <div className="space-y-3">
       {legend}
@@ -363,7 +368,7 @@ function BlockChartBody({ chart }: { chart: ChartBlock }) {
             layout={horizontal ? "vertical" : "horizontal"}
             data={rows}
             accessibilityLayer
-            margin={{ left: 0, right: 16 }}
+            margin={{ left: 0, right: 16 + labelRoom }}
             barGap={3}
             barCategoryGap={horizontal ? 14 : "20%"}
           >
@@ -589,6 +594,88 @@ export function BlockTable({ block }: { block: TableBlock }) {
   );
 }
 
+type CoverBlock = Extract<ReportBlock, { type: "cover" }>;
+type CardsBlock = Extract<ReportBlock, { type: "cards" }>;
+type ActionBlock = Extract<ReportBlock, { type: "action" }>;
+
+/** The report's headline and summary first, in the platform's own type: no panel, no color. */
+function Cover({ block, eyebrow }: { block: CoverBlock; eyebrow: string }) {
+  return (
+    <header className="space-y-3">
+      {eyebrow && <p className="text-sm text-muted-foreground">{eyebrow}</p>}
+      <h2 className="text-2xl font-semibold tracking-tight text-balance">{block.title}</h2>
+      <div className="max-w-3xl text-muted-foreground [&_.text-sm]:text-base">
+        <BlockText content={block.content} />
+      </div>
+    </header>
+  );
+}
+
+const TONE_GLYPH = { positive: "↑", negative: "↓", warning: "!", neutral: "·" } as const;
+const TONE_NAME = { positive: "favorable", negative: "desfavorable", warning: "aviso", neutral: "neutro" } as const;
+
+/** A declared tone is a small mark beside the title; the card itself stays neutral. */
+function ToneMark({ tone }: { tone: BlockTone | null }) {
+  useLanguage();
+  if (!tone) return null;
+  return (
+    <span
+      role="img"
+      aria-label={tr("Según el informe: {0}", { "0": tr(TONE_NAME[tone]) })}
+      className="inline-flex size-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+      style={{ background: SEMANTIC[tone] }}
+    >
+      {TONE_GLYPH[tone]}
+    </span>
+  );
+}
+
+/** Two or three side-by-side cards on the platform's soft surface, like the home tiles. */
+function Cards({ block }: { block: CardsBlock }) {
+  return (
+    <div className={`grid gap-4 md:grid-cols-2 ${block.cards.length === 3 ? "lg:grid-cols-3" : ""}`}>
+      {block.cards.map((card, i) => (
+        <div key={i} data-slot="report-card" data-tone={card.tone ?? undefined} className="space-y-2 rounded-2xl bg-muted/45 p-5">
+          <p className="flex items-center gap-2 text-[15px] font-semibold">
+            <ToneMark tone={card.tone} />
+            {card.title}
+          </p>
+          <BlockText content={card.content} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** What to check next and how the reaction depends on it; the report may name the parts itself. */
+function Action({ block }: { block: ActionBlock }) {
+  useLanguage();
+  const labels = block.labels ?? { check: null, if_confirmed: null, if_not: null };
+  const heading = "text-[15px] font-semibold";
+  const branches = [
+    { title: labels.if_confirmed ?? tr("Si se confirma"), content: block.if_confirmed },
+    { title: labels.if_not ?? tr("Si no"), content: block.if_not },
+  ].filter((b): b is { title: string; content: BlockContent[] } => !!b.content);
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className={heading}>{labels.check ?? tr("Qué comprobar")}</p>
+        <BlockText content={block.check} />
+      </div>
+      {branches.length > 0 && (
+        <div className={`grid gap-3 ${branches.length === 2 ? "sm:grid-cols-2" : ""}`}>
+          {branches.map((b, i) => (
+            <div key={i} className="rounded-xl bg-muted/50 p-4">
+              <p className={heading}>{b.title}</p>
+              <BlockText content={b.content} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Independent-check outcome for one block. Never a confirmation mark (P5). */
 function CheckNotices({ items }: { items: BlockCheck[] }) {
   useLanguage();
@@ -710,7 +797,7 @@ function Block({
                   {String(numbers.get(block.id) ?? 0).padStart(2, "0")}
                 </span>
                 <div className="min-w-0 flex-1 space-y-4">
-                  <h3 className="text-base font-semibold leading-snug">
+                  <h3 className="text-lg font-semibold leading-snug tracking-tight">
                     <span className="sr-only">{tr("Prioridad")}: </span>
                     {block.title}
                   </h3>
@@ -759,6 +846,27 @@ function Block({
           {notices}
         </>
       );
+    case "cover":
+      return (
+        <>
+          {wrap(block, <Cover block={block} eyebrow="" />)}
+          {notices}
+        </>
+      );
+    case "cards":
+      return (
+        <>
+          {wrap(block, <Cards block={block} />)}
+          {notices}
+        </>
+      );
+    case "action":
+      return (
+        <>
+          {wrap(block, <Action block={block} />)}
+          {notices}
+        </>
+      );
   }
 }
 
@@ -788,12 +896,23 @@ export function BlocksReport({
   );
   const uncovered = (checks?.items ?? []).filter((c) => c.coverage);
   const coverage = checks?.coverage;
+  // A cover opens the report and carries the report title as its label; without one, the title heads it.
+  const [first, ...rest] = projection.blocks;
+  const cover = first?.type === "cover" ? first : null;
+  const coverChecks = cover ? (byBlock.get(cover.id) ?? []) : [];
   return (
     <div className="space-y-6">
-      {projection.title && (
-        <h2 className="text-2xl font-semibold tracking-tight text-balance">{projection.title}</h2>
+      {cover ? (
+        <>
+          {wrap(cover, <Cover block={cover} eyebrow={projection.title} />)}
+          {coverChecks.length > 0 && <CheckNotices items={coverChecks} />}
+        </>
+      ) : (
+        projection.title && (
+          <h2 className="text-2xl font-semibold tracking-tight text-balance">{projection.title}</h2>
+        )
       )}
-      <Blocks blocks={projection.blocks} depth={0} checks={byBlock} wrap={wrap} numbers={numbers} />
+      <Blocks blocks={cover ? rest : projection.blocks} depth={0} checks={byBlock} wrap={wrap} numbers={numbers} />
       {(unverifiable.length > 0 || uncovered.length > 0) && (
         // Limits of the independent check: one plain summary, folded away. The per-priority
         // coverage messages stay in the data and the chat, never repeated here (no extra text).

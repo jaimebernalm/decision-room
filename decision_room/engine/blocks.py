@@ -16,7 +16,7 @@ import sys
 from decimal import Decimal, ROUND_HALF_UP, localcontext
 
 VERSION = 'informe-bloques-1'
-PROJECTOR_VERSION = 'bloques-proyector-4'
+PROJECTOR_VERSION = 'bloques-proyector-6'
 MAX_BYTES = 256 * 1024
 MAX_BLOCKS = 300            # every block, nested ones included
 MAX_DEPTH = 4               # seccion > seccion > prioridad > contenido
@@ -50,6 +50,14 @@ gráficos y las tablas.
 
 Bloques (campo "tipo"); los marcados con ? son opcionales:
 - seccion:   {"tipo":"seccion","titulo":"...","bloques":[...]}
+- portada:   {"tipo":"portada","titulo":"titular","contenido": CONTENIDO}
+             Opcional, solo una y como primer bloque del informe, nunca dentro de otro bloque.
+             Destaca el titular y el resumen que ya ibas a escribir; no los repitas después.
+- tarjetas:  {"tipo":"tarjetas","tarjetas":[{"titulo":"...","contenido": CONTENIDO,
+                          "tono"?:"positivo|negativo|aviso|neutro"}, ...]}
+             Dos o tres tarjetas de texto, por ejemplo lo que ha funcionado, lo que no y lo que
+             conviene vigilar. Títulos libres; no fuerces un balance que los datos no sostienen.
+             El color solo refleja el "tono" que declares, no una comprobación de la plataforma.
 - texto:     {"tipo":"texto","contenido": CONTENIDO}
 - cifra:     {"tipo":"cifra","etiqueta":"...","valor":123.4,"unidad"?:"€","decimales"?:2,
               "periodo"?:"ene–ago 2026","anterior"?:{"valor":100,"periodo"?:"ene–ago 2025"},"nota"?:"...",
@@ -74,7 +82,21 @@ Bloques (campo "tipo"); los marcados con ? son opcionales:
               "filas":[["Magnesio",1234.5],...],"nota"?:"..."}   (celdas: texto, número o null)
              Una columna de variaciones puede llevar "signo":true (muestra +/−) y "bueno":"subir|bajar".
 - prioridad: {"tipo":"prioridad","titulo":"...","bloques":[...]}   (dentro, lo que quieras)
+- accion:    {"tipo":"accion","comprobar": CONTENIDO,"si_se_confirma"?: CONTENIDO,"si_no"?: CONTENIDO,
+              "rotulo_comprobar"?:"...","rotulo_si_se_confirma"?:"...","rotulo_si_no"?:"..."}
+             Solo dentro de una prioridad. Organiza qué comprobar y cómo actuar según el resultado;
+             las ramas son opcionales. Mueve aquí el contenido, no lo repitas en el texto de la prioridad.
+             Puedes nombrar las ramas con tus palabras si los rótulos por defecto no encajan.
+             Cada rótulo presente debe ser texto no vacío de hasta 200 caracteres; una rama ausente
+             no puede tener rótulo. Sin rótulos propios se usan «Qué comprobar», «Si se confirma» y «Si no».
 - aviso:     {"tipo":"aviso","contenido": CONTENIDO}
+
+Estos bloques son opciones de presentación, no una plantilla ni una petición de más texto.
+Usa "bueno" en cifras, gráficos de cambio y columnas de variaciones, y "tono" en series y
+tarjetas cuando los datos y el significado confirmado de la métrica sostengan esa lectura.
+Subir no siempre es bueno; si no hay una interpretación sustentada, omite el color semántico.
+El comprobador independiente examina las cifras de las prioridades, incluidas sus acciones;
+las de portada y tarjetas fuera de prioridades no forman parte de esa cobertura.
 
 CONTENIDO es un texto (los párrafos se separan con una línea en blanco) o una lista de:
 - "un párrafo" o {"parrafo":[FRAGMENTO,...]}
@@ -187,7 +209,7 @@ class _Checker:
     def choice(self, where, b, key, options):
         if key not in b:
             return None
-        if b[key] not in options:
+        if not isinstance(b[key], str) or b[key] not in options:
             self.fail(f'{where}.{key}', 'debe ser ' + ' o '.join(f'«{o}»' for o in options))
             return None
         return options[b[key]]
@@ -305,6 +327,46 @@ class _Checker:
             return None
         return dict(id=ident, type='notice', content=self.content(f'{where}.contenido', b['contenido']))
 
+    def b_portada(self, where, b, ident, depth, in_priority):
+        if not self.keys(where, b, ('tipo', 'titulo', 'contenido')):
+            return None
+        if depth != 1 or ident != 'b1':
+            self.fail(where, 'la portada solo puede ser el primer bloque del informe, sin anidar')
+        return dict(id=ident, type='cover', title=self.string(f'{where}.titulo', b['titulo'], MAX_TITLE),
+                    content=self.content(f'{where}.contenido', b['contenido']))
+
+    def b_tarjetas(self, where, b, ident, depth, in_priority):
+        if not self.keys(where, b, ('tipo', 'tarjetas')):
+            return None
+        cards = b['tarjetas']
+        if not isinstance(cards, list) or not 2 <= len(cards) <= 3:
+            self.fail(f'{where}.tarjetas', 'debe ser una lista de 2 o 3 tarjetas')
+            return None
+        projected = []
+        for i, card in enumerate(cards, 1):
+            here = f'{where}.tarjetas[{i}]'
+            if self.keys(here, card, ('titulo', 'contenido'), ('tono',)):
+                projected.append(dict(title=self.string(f'{here}.titulo', card['titulo'], MAX_TITLE),
+                                      content=self.content(f'{here}.contenido', card['contenido']),
+                                      tone=self.choice(here, card, 'tono', TONES)))
+        return dict(id=ident, type='cards', cards=projected)
+
+    def b_accion(self, where, b, ident, depth, in_priority):
+        if not self.keys(where, b, ('tipo', 'comprobar'),
+                         ('si_se_confirma', 'si_no', 'rotulo_comprobar', 'rotulo_si_se_confirma', 'rotulo_si_no')):
+            return None
+        if not in_priority:
+            self.fail(where, 'una accion solo puede ir dentro de una prioridad')
+        for branch in ('si_se_confirma', 'si_no'):
+            if 'rotulo_' + branch in b and branch not in b:
+                self.fail(f'{where}.rotulo_{branch}', f'no puede tener rótulo sin la rama «{branch}»')
+        return dict(id=ident, type='action', check=self.content(f'{where}.comprobar', b['comprobar']),
+                    if_confirmed=self.content(f'{where}.si_se_confirma', b['si_se_confirma']) if 'si_se_confirma' in b else None,
+                    if_not=self.content(f'{where}.si_no', b['si_no']) if 'si_no' in b else None,
+                    labels=dict(check=self.optional_string(where, b, 'rotulo_comprobar', MAX_TITLE),
+                                if_confirmed=self.optional_string(where, b, 'rotulo_si_se_confirma', MAX_TITLE),
+                                if_not=self.optional_string(where, b, 'rotulo_si_no', MAX_TITLE)))
+
     def b_cifra(self, where, b, ident, depth, in_priority):
         if not self.keys(where, b, ('tipo', 'etiqueta', 'valor'), ('unidad', 'decimales', 'periodo', 'anterior', 'nota', 'bueno')):
             return None
@@ -419,7 +481,7 @@ class _Checker:
                     columns=columns, rows=out, note=self.optional_string(where, b, 'nota'))
 
 
-BLOCK_TYPES = ('seccion', 'texto', 'cifra', 'grafico', 'tabla', 'prioridad', 'aviso')
+BLOCK_TYPES = ('seccion', 'texto', 'cifra', 'grafico', 'tabla', 'prioridad', 'aviso', 'portada', 'tarjetas', 'accion')
 
 
 def _validate(value):
@@ -557,6 +619,14 @@ def _content_lines(content):
     return lines
 
 
+ACTION_LABELS = dict(check='Qué comprobar', if_confirmed='Si se confirma', if_not='Si no')
+
+
+def action_label(block, key):
+    """Saved projections before projector 6 have no labels; their defaults stay intact."""
+    return (block.get('labels') or {}).get(key) or ACTION_LABELS[key]
+
+
 def block_lines(block):
     """Plain-text rendering of one block and its children (canonical, platform-formatted)."""
     kind = block['type']
@@ -567,6 +637,16 @@ def block_lines(block):
         return lines
     if kind == 'text':
         return _content_lines(block['content'])
+    if kind == 'cover':
+        return [block['title']] + _content_lines(block['content'])
+    if kind == 'cards':
+        return [line for card in block['cards'] for line in [card['title'], *_content_lines(card['content'])]]
+    if kind == 'action':
+        lines = [action_label(block, 'check'), *_content_lines(block['check'])]
+        for key in ('if_confirmed', 'if_not'):
+            if block[key] is not None:
+                lines += [action_label(block, key), *_content_lines(block[key])]
+        return lines
     if kind == 'notice':
         return ['Aviso: ' + line for line in _content_lines(block['content'])]
     if kind == 'figure':

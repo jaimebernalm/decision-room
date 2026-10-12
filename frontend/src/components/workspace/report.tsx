@@ -448,7 +448,11 @@ function EngineFrame({ report }: { report: ReportData }) {
                 ? block.title || block.id
                 : "label" in block
                   ? block.label
-                  : report.title,
+                  : block.type === "cards"
+                    ? block.cards.map((c) => c.title).join(" · ")
+                    : block.type === "action"
+                      ? (block.labels?.check ?? tr("Qué comprobar"))
+                      : report.title,
             report_title: report.title,
             href: location.hash,
           }}

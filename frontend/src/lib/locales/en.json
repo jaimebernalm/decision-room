@@ -1407,5 +1407,13 @@
   "Categoría": "Category",
   "Texto del informe": "Report text",
   "La comprobación independiente de cifras no se completó para este informe.": "The independent figure check was not completed for this report.",
-  "Detalles de la comprobación independiente": "Independent check details"
+  "Detalles de la comprobación independiente": "Independent check details",
+  "Qué comprobar": "What to check",
+  "Si se confirma": "If confirmed",
+  "Si no": "If not",
+  "Según el informe: {0}": "According to the report: {0}",
+  "favorable": "favourable",
+  "desfavorable": "unfavourable",
+  "aviso": "warning",
+  "neutro": "neutral"
 }
