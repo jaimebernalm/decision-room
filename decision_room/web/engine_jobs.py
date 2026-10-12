@@ -43,7 +43,8 @@ def inputs(config, job):
 
     request = dict(goal=job['engine_config']['goal'], panorama=available,
                    questions=job['engine_config'].get('profile', {}).get('questions', False),
-                   format=job['engine_config'].get('profile', {}).get('format', 'html'), **owner)
+                   format=job['engine_config'].get('profile', {}).get('format', 'html'),
+                   investigation_brief=job['engine_config'].get('investigation_brief'), **owner)
 
     def builder(db):
         text, provenance, files = brief.build_inputs(db, business, analysis, **request)
@@ -64,6 +65,9 @@ def creation(config, job):
             raise ValueError('Captured job configuration failed its integrity check.')
         return dict(frozen_prompt=settings['prompt'])
     if admission.sha(admission.canonical([settings['owner_context'], settings['goal']])) != settings['owner_sha256']:
+        raise ValueError('Captured job configuration failed its integrity check.')
+    if ('investigation_brief' in settings and admission.sha(admission.canonical(settings['investigation_brief']))
+            != settings.get('investigation_brief_sha256')):
         raise ValueError('Captured job configuration failed its integrity check.')
     builder, context = inputs(config, job)
     return dict(builder=builder, context=context)

@@ -68,6 +68,9 @@ MEMORY = 'Ten en cuenta también lo que te he contado; son declaraciones mías, 
 DEFAULT_GOAL = 'Quiero entender cómo evoluciona mi actividad durante el periodo disponible.'
 REQUEST = 'Hazme un informe que me ayude a decidir qué revisar y qué comprobar después, usando estos datos.'
 MEMORY_KINDS = ('context', 'priority', 'definition', 'availability')
+CHAT_BRIEF = ('Resumen del chat (propuesta del asistente a partir de nuestra conversación; es orientación, '
+              'no hechos ni definiciones; si algo choca con los datos, mis definiciones o lo que te he contado, '
+              'prevalecen estos):')
 HISTORY = ('Estos son informes anteriores que me hiciste. Lo que dicen son afirmaciones de esos informes, no datos '
            'comprobados ahora, y sus acciones eran propuestas: no sé si se llevaron a cabo. Tienes su texto en '
            '/inputs/contexto/informes-anteriores/ (manifest.json indica cuál es cada uno). Si retomas algo de ellos, '
@@ -137,7 +140,7 @@ def facts(rows):
 
 
 def compose(*, name, description, goal, model, memory, panorama, questions=False, format='html', include_delivery=True,
-            data_meanings=None, history=None):
+            data_meanings=None, history=None, chat_brief=None):
     declared, unknown = data_meanings if data_meanings is not None else meanings(model)
     first = [identity(name, description), DATA]
     if panorama:
@@ -156,6 +159,12 @@ def compose(*, name, description, goal, model, memory, panorama, questions=False
     if prior:
         paragraphs.append(HISTORY + '\n' + '\n\n'.join(r['summary'] for r in prior))
     paragraphs.append(sentence(goal or '') + ' ' + REQUEST if (goal or '').strip() else DEFAULT_GOAL + ' ' + REQUEST)
+    if chat_brief:
+        lines = [CHAT_BRIEF, '- Objetivo: ' + chat_brief['objective']]
+        if chat_brief.get('reason'):
+            lines.append('- Motivo: ' + chat_brief['reason'])
+        lines += ['- ' + item['text'] for item in chat_brief.get('background', [])]
+        paragraphs.append('\n'.join(lines))
     fixed = FIXED.read_text()
     if format == 'blocks':
         fixed = native_fixed(fixed)
@@ -169,7 +178,7 @@ def build(db, business, analysis, **kwargs):
 
 
 def build_inputs(db, business, analysis, *, goal, panorama, name=None, description=None, profile_revision=None,
-                 questions=False, format='html'):
+                 questions=False, format='html', investigation_brief=None):
     """Read the product inputs once, under the caller's transaction: text, provenance and frozen files.
 
     The prior-report summaries, files and manifest are selected in this same transaction.
@@ -189,16 +198,18 @@ def build_inputs(db, business, analysis, *, goal, panorama, name=None, descripti
     selection = dict(analysis_id=str(analysis), source_ids=sources, period=context.period())
     # The shared core: declared memory only, the same one the chat receives.
     core, files, manifest = business_knowledge.build_with_files(
-        db, business, selection, profile=dict(name=owner['name'], description=owner['description']))
+        db, business, selection, profile=dict(name=owner['name'], description=owner['description']),
+        explicit=(investigation_brief or {}).get('reports', ()))
     memory, data = core['memory'], core['data_model']
     model, data_meanings = None, (data['declared'], data['unknown'])
     prior = core['history']
     text = compose(name=owner['name'], description=owner['description'], goal=goal, model=model, memory=memory,
-                   panorama=panorama, questions=questions, format=format, data_meanings=data_meanings, history=prior)
+                   panorama=panorama, questions=questions, format=format, data_meanings=data_meanings, history=prior,
+                   chat_brief=investigation_brief)
     provenance = dict(version=('blocks-brief-5q' if questions else 'blocks-brief-5') if format == 'blocks' else (QUESTIONS_VERSION if questions else VERSION), profile='job' if frozen else 'current', profile_revision=owner['profile_revision'],
                       data_model=dict(analysis_id=str(analysis), revision=data['revision']) if data['revision'] else None,
                       memory=sorted(r['reference'] for r in memory if facts([r])),
-                      panorama=bool(panorama), knowledge=core['version'],
+                      panorama=bool(panorama), knowledge=core['version'], chat_brief=bool(investigation_brief),
                       # Historical identity only: a prior report's later staleness never retires this one.
                       prior_reports=manifest['reports'])
     if format == 'blocks':

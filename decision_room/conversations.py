@@ -49,6 +49,7 @@ class Action(BaseModel):
                         'greeting', 'greeting_repair', 'acknowledgement'] = ''
     presentation_edit: chat_agent.PresentationEdit | None = None
     onboarding: chat_agent.SetupGuide | None = None
+    investigation_brief: chat_agent.InvestigationBrief | None = None
     answer_mode: Literal['summary', 'method', 'recency'] = 'summary'
     include_report: bool = True  # Historical Actions retain their existing attachment behavior.
 
@@ -1130,7 +1131,26 @@ class Conversations:
             (status, Jsonb(response) if response else None, issue, turn['id']),
         )
 
-    def _job(self, db, chat, turn, analysis_id):
+    @staticmethod
+    def _investigation_brief(context, brief):
+        """Server-checked chat guidance: sources must have been delivered; memory must be declared."""
+        if brief is None:
+            return None
+        available = context.get('available_sources', {})
+        reports = []
+        for item in brief.background:
+            for key in item.sources:
+                if key not in available:
+                    raise ValueError('Investigation brief cites an unavailable source.')
+                content = available[key]['content']
+                if key.startswith('memory/') and (not isinstance(content, dict) or content.get('status') != 'declared'):
+                    raise ValueError('Investigation brief cites memory that is not declared.')
+                if (key.startswith('tool/') and isinstance(content, dict) and content.get('origin') in ENGINE_ORIGINS
+                        and content.get('id') and content['id'] not in reports):
+                    reports.append(str(content['id']))
+        return {**brief.model_dump(), 'reports': reports}
+
+    def _job(self, db, chat, turn, analysis_id, brief=None):
         # Persist job and link atomically: recovery cannot create a second analysis.
         with db.transaction():
             memory.lock(db, self.business)
@@ -1145,6 +1165,7 @@ class Conversations:
                 (turn['id'], turn['attempt']),
             ).fetchone()
             context = call['context']
+            investigation_brief = self._investigation_brief(context, brief)
             quotes = list(context['recent_owner_messages'])
             for event in self.events(db, turn):
                 if event['request']['tool'] == 'search_chats':
@@ -1173,7 +1194,8 @@ class Conversations:
             from .engine.job_profile import selection, freeze
             kind, engine_settings = selection(self.config, {})
             engine_settings = freeze(engine_settings, context=memory.encoded(continuation),
-                                     goal=turn['payload']['text'], input_hash=memory.digest(turn['payload']))
+                                     goal=turn['payload']['text'], input_hash=memory.digest(turn['payload']),
+                                     investigation_brief=investigation_brief)
             job = uuid4()
             db.execute(
                 """INSERT INTO web_jobs(id,request_key,request_sha256,business_id,analysis_id,title,context,goal,filename,upload_key,byte_count,model_settings,status,phase,business_name,origin,engine_kind,engine_config)
@@ -1518,7 +1540,7 @@ class Conversations:
                     if action.action == 'investigate':
                         if context.get('onboarding'):
                             raise ValueError('Confirm the onboarding scope before starting an investigation.')
-                        self._job(db, chat, turn, action.analysis_id)
+                        self._job(db, chat, turn, action.analysis_id, action.investigation_brief)
                         return
                     if action.action == 'edit_presentation':
                         response = self._edit_presentation(db, turn, ordinal, action, context, model)

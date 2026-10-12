@@ -4,7 +4,11 @@ Fecha: 12 de octubre de 2026.
 
 Desarrolla el paso 1 del [plan de contexto compartido y cálculo rápido](<../product/contexto-compartido-y-calculo-rapido-plan.md>). El plan lo acordaron Claude y Codex. Claude lo implementa y Codex revisa los cambios. No incluye llamadas de pago; la prueba real final necesita la aprobación del propietario.
 
-**Estado: acordado, sin implementar.**
+**Estado:**
+
+- Implementado en `feature/shared-business-context`, un commit por subpaso (1.1 y 1.2 van juntos).
+- Suite completa: 1006/1007. El único error es el navegador de informes, que no está construido en la máquina local.
+- Pendiente: la revisión de Codex y la prueba real de pago.
 
 ## Principios
 
