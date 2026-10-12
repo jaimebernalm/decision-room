@@ -438,3 +438,25 @@ it("shows disputed figures under the cover and the cards", () => {
   expect(notes[0]).toHaveTextContent("cálculo independiente: 7,9 %");
   expect(notes[1]).toHaveTextContent("cálculo independiente: 1.180");
 });
+
+it("reads projector 5 reports without labels with the platform's names", () => {
+  const older = structuredClone(presentation) as BlocksProjection;
+  older.projector = "bloques-proyector-5";
+  const strip = (blocks: ReportBlock[]) => {
+    for (const b of blocks) {
+      if (b.type === "action") delete (b as { labels?: unknown }).labels;
+      if ("blocks" in b) strip(b.blocks);
+    }
+  };
+  strip(older.blocks);
+  render(<BlocksReport projection={older} />);
+  expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Crece la tienda online");
+  expect(screen.getByText("Qué ha funcionado")).toBeInTheDocument();
+  const first = screen.getByRole("heading", { name: /Revisar la recogida en local/ }).closest("section")!;
+  expect(within(first).getByText("Qué comprobar")).toBeInTheDocument();
+  expect(within(first).getByText("Si se confirma")).toBeInTheDocument();
+  expect(within(first).getByText("Si no")).toBeInTheDocument();
+  const second = screen.getByRole("heading", { name: /Seguir la tienda online/ }).closest("section")!;
+  expect(within(second).getByText("Qué comprobar")).toBeInTheDocument();
+  expect(within(second).queryByText("Qué revisar en abril")).toBeNull();
+});
