@@ -4,10 +4,11 @@ Fecha: 12 de octubre de 2026.
 
 Desarrolla el paso 2 del [plan de contexto compartido y cálculo rápido](<../product/contexto-compartido-y-calculo-rapido-plan.md>). El plan lo acordaron Claude y Codex en tres versiones; Codex aprobó la tercera. Claude lo implementa y Codex revisa los cambios. No incluye llamadas de pago; la prueba real final necesita la aprobación del propietario.
 
-**Estado: implementado en `feature/quick-chat-calculation`, pendiente de la revisión de Codex y de la prueba real.**
+**Estado: implementado y revisado; pendiente de la prueba real, que necesita aprobación de gasto.**
 
-- Un commit por parte (1 a 5), uno de correcciones tras la suite completa y otro para esta documentación.
-- Suite completa: 1038/1039. El único error es el navegador de informes, que no está construido en la máquina local. Interfaz: 341 pruebas, `tsc` y `oxlint` sin errores.
+- Implementado en `feature/quick-chat-calculation`: un commit por parte (1 a 5), uno de correcciones tras la suite completa, esta documentación y dos rondas de correcciones de la revisión de Codex.
+- Codex revisó la implementación en tres versiones y aprobó la última. Sus hallazgos, todos corregidos: un rechazo por falta de espacio repetía el código en el prompt; las definiciones perdían el periodo y el alcance de cada declaración; la recuperación de informes antiguos podía fallar o tocar un cálculo vivo del chat; la observación podía pasarse 2 bytes de su límite; y, si ni el rechazo cabía, el turno fallaba en vez de responder.
+- Suite completa: 1043/1044. El único error es el navegador de informes, que no está construido en la máquina local. Interfaz: 341 pruebas, `tsc` y `oxlint` sin errores.
 - Las cifras de esta página son las implementadas. Donde la implementación ajustó un número del plan acordado, se dice.
 
 ## Principios

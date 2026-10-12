@@ -5,7 +5,7 @@ Fecha: 12 de octubre de 2026.
 **Estado:**
 
 - Pasos 0 y 1 terminados.
-- Paso 2, cálculo rápido en el chat: implementado ([calculo-rapido-implementacion.md](../technical/calculo-rapido-implementacion.md)); pendiente de la revisión de Codex y de la prueba real, que necesita aprobación de gasto.
+- Paso 2, cálculo rápido en el chat: implementado y revisado por Codex ([calculo-rapido-implementacion.md](../technical/calculo-rapido-implementacion.md)); pendiente de la prueba real, que necesita aprobación de gasto.
 - Orden revisado con el propietario el 12 de octubre de 2026: se añade el paso 3 (indicadores guardados y registro de seguimiento) y las predicciones pasan a ser el paso 4.
 
 Este plan continúa el trabajo de informes nativos. El formato nativo de bloques
