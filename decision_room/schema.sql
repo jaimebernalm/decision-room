@@ -1162,6 +1162,8 @@ INSERT INTO schema_versions(version) VALUES (34) ON CONFLICT DO NOTHING;
 
 -- Migration 35: provenance of the generated v1 brief and panorama (F2). Existing runs keep '{}'.
 ALTER TABLE engine_runs ADD COLUMN IF NOT EXISTS brief jsonb NOT NULL DEFAULT '{}';
+-- Static request identity: a replayed key is checked against it without rebuilding dynamic inputs.
+ALTER TABLE engine_runs ADD COLUMN IF NOT EXISTS request_static_sha256 text;
 INSERT INTO schema_versions(version) VALUES (35) ON CONFLICT DO NOTHING;
 
 -- Migration 36: versioned, immutable derivatives; original receipts remain immutable.

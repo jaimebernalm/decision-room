@@ -6,12 +6,13 @@ paragraphs are generated here from the business profile, the owner's request, ow
 declared column meanings and declared memory. Differences from the trial wording are
 listed in docs/technical/v1-f2-validation.md.
 """
+import json
 from pathlib import Path
 
 from ..memory import context
 
-VERSION = 'v1-brief-1'
-QUESTIONS_VERSION = 'v1-brief-1q'
+VERSION = 'v1-brief-2'
+QUESTIONS_VERSION = 'v1-brief-2q'
 QUESTIONS = ('Si te falta un dato que solo yo puedo darte y que cambiaría una conclusión, puedes hacerme una pregunta '
              'breve con preguntar_dueno, con su motivo y, si ayuda, opciones. Hazlo como mucho una vez y no sigas '
              'calculando mientras esperas. Si respondo «no lo sé» o prefiero no responder, mantén la conclusión parcial '
@@ -67,6 +68,11 @@ MEMORY = 'Ten en cuenta también lo que te he contado; son declaraciones mías, 
 DEFAULT_GOAL = 'Quiero entender cómo evoluciona mi actividad durante el periodo disponible.'
 REQUEST = 'Hazme un informe que me ayude a decidir qué revisar y qué comprobar después, usando estos datos.'
 MEMORY_KINDS = ('context', 'priority', 'definition', 'availability')
+HISTORY = ('Estos son informes anteriores que me hiciste. Lo que dicen son afirmaciones de esos informes, no datos '
+           'comprobados ahora, y sus acciones eran propuestas: no sé si se llevaron a cabo. Tienes su texto en '
+           '/inputs/contexto/informes-anteriores/ (manifest.json indica cuál es cada uno). Si retomas algo de ellos, '
+           'recalcúlalo con los datos actuales y di qué ha cambiado; si citas una cifra suya, deja claro que es lo '
+           'que decía ese informe.')
 
 
 def sentence(text):
@@ -131,7 +137,7 @@ def facts(rows):
 
 
 def compose(*, name, description, goal, model, memory, panorama, questions=False, format='html', include_delivery=True,
-            data_meanings=None):
+            data_meanings=None, history=None):
     declared, unknown = data_meanings if data_meanings is not None else meanings(model)
     first = [identity(name, description), DATA]
     if panorama:
@@ -146,6 +152,9 @@ def compose(*, name, description, goal, model, memory, panorama, questions=False
     remembered = facts(memory)
     if remembered:
         paragraphs.append(MEMORY + '\n' + '\n'.join('- ' + f for f in remembered))
+    prior = (history or {}).get('reports') or []
+    if prior:
+        paragraphs.append(HISTORY + '\n' + '\n\n'.join(r['summary'] for r in prior))
     paragraphs.append(sentence(goal or '') + ' ' + REQUEST if (goal or '').strip() else DEFAULT_GOAL + ' ' + REQUEST)
     fixed = FIXED.read_text()
     if format == 'blocks':
@@ -153,8 +162,17 @@ def compose(*, name, description, goal, model, memory, panorama, questions=False
     return '\n\n'.join(paragraphs) + ('\n\n' + fixed if include_delivery else '')
 
 
-def build(db, business, analysis, *, goal, panorama, name=None, description=None, profile_revision=None, questions=False, format='html'):
-    """Read the product inputs once, under the caller's transaction, and return text + provenance.
+def build(db, business, analysis, **kwargs):
+    """Text + provenance only (callers that do not install the prior-report files)."""
+    text, provenance, _ = build_inputs(db, business, analysis, **kwargs)
+    return text, provenance
+
+
+def build_inputs(db, business, analysis, *, goal, panorama, name=None, description=None, profile_revision=None,
+                 questions=False, format='html'):
+    """Read the product inputs once, under the caller's transaction: text, provenance and frozen files.
+
+    The prior-report summaries, files and manifest are selected in this same transaction.
 
     ``name``/``description`` come from the job when it froze them at creation; otherwise
     the current «Mi negocio» profile is read and its revision recorded.
@@ -170,18 +188,23 @@ def build(db, business, analysis, *, goal, panorama, name=None, description=None
         'SELECT id FROM sources WHERE business_id=%s AND analysis_id=%s', (business, analysis)).fetchall()]
     selection = dict(analysis_id=str(analysis), source_ids=sources, period=context.period())
     # The shared core: declared memory only, the same one the chat receives.
-    core = business_knowledge.build(db, business, selection,
-                                    profile=dict(name=owner['name'], description=owner['description']))
+    core, files, manifest = business_knowledge.build_with_files(
+        db, business, selection, profile=dict(name=owner['name'], description=owner['description']))
     memory, data = core['memory'], core['data_model']
     model, data_meanings = None, (data['declared'], data['unknown'])
+    prior = core['history']
     text = compose(name=owner['name'], description=owner['description'], goal=goal, model=model, memory=memory,
-                   panorama=panorama, questions=questions, format=format, data_meanings=data_meanings)
-    provenance = dict(version=('blocks-brief-4q' if questions else 'blocks-brief-4') if format == 'blocks' else (QUESTIONS_VERSION if questions else VERSION), profile='job' if frozen else 'current', profile_revision=owner['profile_revision'],
+                   panorama=panorama, questions=questions, format=format, data_meanings=data_meanings, history=prior)
+    provenance = dict(version=('blocks-brief-5q' if questions else 'blocks-brief-5') if format == 'blocks' else (QUESTIONS_VERSION if questions else VERSION), profile='job' if frozen else 'current', profile_revision=owner['profile_revision'],
                       data_model=dict(analysis_id=str(analysis), revision=data['revision']) if data['revision'] else None,
                       memory=sorted(r['reference'] for r in memory if facts([r])),
-                      panorama=bool(panorama))
+                      panorama=bool(panorama), knowledge=core['version'],
+                      # Historical identity only: a prior report's later staleness never retires this one.
+                      prior_reports=manifest['reports'])
     if format == 'blocks':
         provenance['checker_context'] = compose(name=owner['name'],description=owner['description'],goal=goal,
             model=model,memory=memory,panorama=False,questions=False,format=format,include_delivery=False,
-            data_meanings=data_meanings)
-    return text, provenance
+            data_meanings=data_meanings,history=prior)
+    if files:
+        files = {**files, 'informes-anteriores/manifest.json': json.dumps(manifest, ensure_ascii=False, indent=1)}
+    return text, provenance, files

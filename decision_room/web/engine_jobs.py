@@ -41,12 +41,16 @@ def inputs(config, job):
     owner = {} if job.get('origin') == 'chat' else dict(name=job['business_name'], description=job['context'],
                                                          profile_revision=job.get('business_revision'))
 
+    request = dict(goal=job['engine_config']['goal'], panorama=available,
+                   questions=job['engine_config'].get('profile', {}).get('questions', False),
+                   format=job['engine_config'].get('profile', {}).get('format', 'html'), **owner)
+
     def builder(db):
-        text, provenance = brief.build(db, business, analysis, goal=job['engine_config']['goal'],
-                                       panorama=available, questions=job['engine_config'].get('profile', {}).get('questions', False),
-                                       format=job['engine_config'].get('profile', {}).get('format', 'html'), **owner)
+        text, provenance, files = brief.build_inputs(db, business, analysis, **request)
         provenance['panorama'] = {k: v for k, v in panorama.items() if k != 'markdown'}
-        return text, provenance
+        return text, provenance, files
+    # The static request; a replayed job key is verified against it, never rebuilt.
+    builder.request = {k: str(v) if k == 'profile_revision' and v is not None else v for k, v in request.items()}
     return builder, ({'panorama.md': panorama['markdown']} if available else None)
 
 

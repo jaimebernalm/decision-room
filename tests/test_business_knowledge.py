@@ -70,7 +70,7 @@ class SharedCoreTests(unittest.TestCase):
                    origin='upload', business_name='Test shop', context='una tienda de prueba.', business_revision=1)
         builder, _ = engine_jobs.inputs(self.config, job)
         with connect(self.config) as db, db.transaction():
-            prompt, provenance = builder(db)
+            prompt, provenance, *_ = builder(db)
         self.assertIn('Abrimos también los sábados por la tarde', prompt)
         self.assertNotIn('agosto', prompt)
         self.assertNotIn('domicilio', prompt)

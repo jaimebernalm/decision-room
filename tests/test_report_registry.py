@@ -77,6 +77,8 @@ class RegistryTests(unittest.TestCase):
                 db.execute(old)
                 # The current writer records brief provenance (migration 35, additive and idempotent).
                 db.execute("ALTER TABLE engine_runs ADD COLUMN IF NOT EXISTS brief jsonb NOT NULL DEFAULT '{}'")
+                # ...and the static request identity of replayed keys (additive and idempotent).
+                db.execute('ALTER TABLE engine_runs ADD COLUMN IF NOT EXISTS request_static_sha256 text')
             business=create_business(config,'Upgrade fixture')['id']
             csv=self.root/'upgrade.csv'; csv.write_text('quantity\n4\n')
             # Emulate the pre-F1 writer while building old-schema fixtures.

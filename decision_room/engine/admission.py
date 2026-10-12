@@ -81,9 +81,12 @@ def create_run(config, business_id, analysis_id, *, table_ids, owner_context, re
                model, limits=None, context=None, engine_config=None, frozen_prompt=None, brief=None, builder=None):
     """Trusted bootstrap. Returns (run_id, token); replay returns (run_id, None).
 
-    ``builder(db)`` may return (prompt, brief provenance). It runs under the memory
-    head lock in the same transaction that captures the report dependencies, so the
-    brief and the dependency baseline always describe the same revisions.
+    ``builder(db)`` may return (prompt, brief provenance) or (prompt, brief provenance,
+    generated context files). It runs under the memory head lock in the same transaction
+    that captures the report dependencies, so the brief, its frozen prior-report files and
+    the dependency baseline always describe the same revisions. ``builder.request`` is its
+    static request (goal, frozen profile, format...); a replayed request key is verified
+    against that static identity and never rebuilds the dynamic inputs.
 
     Tokens are never stored in cleartext. The controller must retain its private
     credential or explicitly rotate it; idempotent creation does not rotate it.
@@ -121,13 +124,28 @@ def create_run(config, business_id, analysis_id, *, table_ids, owner_context, re
         memory.lock(db, business_id)
         lock = int.from_bytes(hashlib.sha256(canonical([str(business_id), request_key])).digest()[:8], 'big', signed=True)
         db.execute('SELECT pg_advisory_xact_lock(%s)', (lock,))
+        # A builder without a declared static request keeps the full input comparison.
+        static = None if builder is not None and not hasattr(builder, 'request') else sha(canonical(
+            [str(analysis_id), [str(t) for t in table_ids], owner_context, model, asdict(limits), settings, context,
+             builder.request if builder is not None else [prompt, brief]]))
+        previous = db.execute('SELECT id,request_sha256,request_static_sha256 FROM engine_runs WHERE business_id=%s AND request_key=%s',
+                              (business_id, request_key)).fetchone()
+        if previous and previous['request_static_sha256'] is not None:
+            # Recovery reuses the frozen run: memory, prior reports and prompt are not recomposed.
+            if previous['request_static_sha256'] != static:
+                raise ValueError('Engine request key already used with different input.')
+            return previous['id'], None
         if builder is not None:
-            prompt, brief = _frozen(*builder(db))
+            built = builder(db)
+            prompt, brief = _frozen(built[0], built[1])
+            generated = built[2] if len(built) > 2 else {}
+            if set(generated) & set(context):
+                raise ValueError('Generated context collides with supplied context.')
+            context = profile.context_files({**context, **generated})
         snapshot = _snapshot(db, config, business_id, analysis_id, table_ids)
         fingerprint = sha(canonical([str(analysis_id), snapshot, owner_context, model, asdict(limits), settings, context, prompt, brief]))
-        previous = db.execute('SELECT id,request_sha256 FROM engine_runs WHERE business_id=%s AND request_key=%s',
-                              (business_id, request_key)).fetchone()
         if previous:
+            # Runs created before the static identity keep the full comparison.
             if previous['request_sha256'] != fingerprint:
                 raise ValueError('Engine request key already used with different input.')
             return previous['id'], None
@@ -136,11 +154,12 @@ def create_run(config, business_id, analysis_id, *, table_ids, owner_context, re
         provider_budget.create(config, business_id, run_id, settings, limits)
         db.execute('''INSERT INTO engine_runs
             (id,business_id,analysis_id,request_key,request_sha256,owner_context,model,
-             snapshot,snapshot_sha256,limits,credential_sha256,profile,prompt,prompt_sha256,input_context,input_sha256,brief)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)''',
+             snapshot,snapshot_sha256,limits,credential_sha256,profile,prompt,prompt_sha256,input_context,input_sha256,brief,
+             request_static_sha256)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)''',
                    (run_id, business_id, analysis_id, request_key, fingerprint, owner_context,
                     model, Jsonb(snapshot), sha(canonical(snapshot)), Jsonb(asdict(limits)), sha(token.encode()), Jsonb(settings), prompt, sha(prompt.encode()),
-                    Jsonb(context), sha(canonical({"snapshot": snapshot, "context": context})), Jsonb(brief)))
+                    Jsonb(context), sha(canonical({"snapshot": snapshot, "context": context})), Jsonb(brief), static))
         _event(db, run_id, 'created', {})
         from ..reports.store import capture
         capture(db, business_id, analysis_id, run_id, snapshot)
