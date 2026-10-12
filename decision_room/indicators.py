@@ -340,6 +340,7 @@ def revoke(db, business, analysis):
     """A corrected dataset version: its values stay for audit but are never current or a baseline."""
     count = db.execute("""UPDATE indicator_values SET status='revoked',reason='corrected',metrics=NULL,updated_at=now()
         WHERE business_id=%s AND analysis_id=%s AND status<>'revoked'""", (business, analysis)).rowcount
+    requeue_comparisons(db, business, analysis)
     return count
 
 
@@ -545,7 +546,11 @@ def _publish(db, business, value, version, attempt, result, refusal):
 
 
 def work_once(config):
-    """One due attempt for any business; the worker alternates this with chat turns."""
+    """One due comparison or value attempt for any business; the worker alternates this with chat turns."""
+    return _compare_once(config) or _values_once(config)
+
+
+def _values_once(config):
     with connect(config) as db:
         due = db.execute("""SELECT v.id,v.business_id FROM indicator_values v JOIN saved_indicators i ON i.id=v.indicator_id
             JOIN indicator_versions x ON x.id=v.version_id
@@ -553,3 +558,233 @@ def work_once(config):
               AND (v.next_attempt_at IS NULL OR v.next_attempt_at<=now())
             ORDER BY v.next_attempt_at NULLS FIRST,v.created_at LIMIT 5""").fetchall()
     return any(process(config, row['business_id'], row['id']) for row in due)
+
+
+# ---- Repair: proposed version, comparison, confirmation -------------------------------
+
+POLICY = 'indicator-compare-1'
+
+
+def same(a, b):
+    """bool/string/null: same type and exact; int/int exact; numbers with a float: fixed relative policy."""
+    if any(isinstance(x, (bool, str)) or x is None for x in (a, b)):
+        return type(a) is type(b) and a == b
+    if isinstance(a, int) and isinstance(b, int):
+        return a == b
+    if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+        return abs(a - b) <= max(1e-9, 1e-9 * max(abs(a), abs(b)))
+    return False
+
+
+def _sealed(receipt_body):
+    return {**receipt_body, 'sha256': digest(receipt_body)}
+
+
+def _active(db, indicator_id):
+    return db.execute("SELECT * FROM indicator_versions WHERE indicator_id=%s AND state='active'", (indicator_id,)).fetchone()
+
+
+def _indicator(db, business, indicator_id, lock=False):
+    row = db.execute('SELECT * FROM saved_indicators WHERE business_id=%s AND id=%s' + (' FOR UPDATE' if lock else ''),
+                     (business, indicator_id)).fetchone()
+    if not row:
+        raise WebError('Ese indicador no existe en este negocio.', 404)
+    return row
+
+
+def propose(config, business, indicator_id, data):
+    """A repaired formula from a published calculation, as a proposed version; its comparison is queued."""
+    key = identifier(data.get('request_key'))
+    indicator_id, turn_id = identifier(indicator_id), identifier(data.get('turn_id'))
+    calculation_id, expected = identifier(data.get('calculation_id')), identifier(data.get('expected_active_version_id'))
+    request = dict(indicator_id=str(indicator_id), turn_id=str(turn_id), calculation_id=str(calculation_id), expected=str(expected))
+    with connect(config) as db, db.transaction():
+        memory.lock(db, business)
+        prior, sha = receipt(db, business, key, 'propose', request)
+        if prior:
+            return prior
+        indicator = _indicator(db, business, indicator_id, lock=True)
+        active = _active(db, indicator_id)
+        if indicator['status'] != 'active' or not active or active['id'] != expected:
+            raise WebError('El indicador ha cambiado. Recarga antes de proponer otra versión.', 409)
+        row, done, source, rows = published(db, business, turn_id, calculation_id, active['metric_keys'])
+        if source['dataset_id'] != indicator['dataset_id']:
+            raise WebError('Ese cálculo usa otros datos distintos de los del indicador.', 409)
+        fields = _version_fields(db, business, row, done, source, rows, active['metric_keys'], turn_id)
+        if check(db, business, fields['signature'], row['analysis_id'], rows)[0]:
+            raise WebError('Los datos de ese cálculo ya no son válidos. Pide un cálculo nuevo.', 409)
+        number = db.execute('SELECT max(version) AS n FROM indicator_versions WHERE indicator_id=%s', (indicator_id,)).fetchone()['n'] + 1
+        version = uuid4()
+        _insert_version(db, business, indicator_id, version, number, 'proposed', fields,
+                        comparison=dict(state='pending', policy=POLICY, attempts=0))
+        bump(db, business)
+        result = dict(indicator_id=str(indicator_id), version_id=str(version), version=number)
+        remember(db, business, key, 'propose', sha, result)
+    return result
+
+
+def _baseline(db, business, indicator_id):
+    """Latest eligible completed value of the active version, by dataset version."""
+    for value in current_values(db, business, indicator_id):
+        source = dataset_of(db, business, value['analysis_id'])
+        if value['status'] == 'completed' and source and not source['corrected']:
+            return value
+    return None
+
+
+def _compare_once(config):
+    with connect(config) as db:
+        due = db.execute("""SELECT x.id,x.business_id FROM indicator_versions x JOIN saved_indicators i ON i.id=x.indicator_id
+            WHERE x.state='proposed' AND i.status='active' AND x.comparison->>'state'='pending'
+              AND (x.comparison->>'next_attempt_at' IS NULL OR (x.comparison->>'next_attempt_at')::timestamptz<=now())
+            ORDER BY x.created_at LIMIT 5""").fetchall()
+    return any(compare(config, row['business_id'], row['id']) for row in due)
+
+
+def compare(config, business, version_id):
+    """Run the proposed code on the baseline's data and seal a typed comparison receipt."""
+    with connect(config) as db:
+        if not db.execute('SELECT pg_try_advisory_lock(hashtextextended(%s,41)) AS locked', (str(version_id),)).fetchone()['locked']:
+            return False
+        with db.transaction():
+            memory.lock(db, business)
+            version = db.execute("SELECT * FROM indicator_versions WHERE business_id=%s AND id=%s AND state='proposed'",
+                                 (business, version_id)).fetchone()
+            if not version or version['comparison'].get('state') != 'pending':
+                return False
+            attempt = db.execute("""SELECT * FROM indicator_attempts WHERE purpose='comparison' AND version_id=%s AND outcome IS NULL
+                ORDER BY attempt_no DESC LIMIT 1""", (version_id,)).fetchone()
+            if not attempt:
+                base = _baseline(db, business, version['indicator_id'])
+                rows, failure = mapping(db, business, base['analysis_id'], version['tables']) if base else (None, ('no_baseline', ''))
+                if failure:
+                    _seal(db, business, version, dict(state='unavailable', reason=failure[0], detail=failure[1]))
+                    return True
+                number = (db.execute("SELECT max(attempt_no) AS n FROM indicator_attempts WHERE purpose='comparison' AND version_id=%s",
+                                     (version_id,)).fetchone()['n'] or 0) + 1
+                identity = dict(code_sha256=version['code_sha256'], definitions_sha256=digest(version['definitions']),
+                                baseline=dict(value_id=str(base['id']), analysis_id=str(base['analysis_id']),
+                                              dataset_version=base['dataset_version'], metrics=base['metrics']),
+                                tables=[dict(alias=a, table_id=str(r['id']), metadata_version=ctx.table_version(db, business, r['id']))
+                                        for a, r in sorted(rows.items())])
+                attempt = db.execute('''INSERT INTO indicator_attempts(id,business_id,purpose,version_id,analysis_id,attempt_no,identity,admission)
+                    VALUES (%s,%s,'comparison',%s,%s,%s,%s,'reserved') RETURNING *''',
+                                     (uuid4(), business, version_id, base['analysis_id'], number, Jsonb(identity))).fetchone()
+        try:
+            result, refusal = _run(config, business, attempt, version)
+        except quick_calc.Unresolved:
+            return False
+        with db.transaction():
+            memory.lock(db, business)
+            version = db.execute('SELECT * FROM indicator_versions WHERE id=%s', (version_id,)).fetchone()
+            outcome, reason = ('transient', refusal) if result is None else _classify(result)
+            if outcome in ('transient', 'resource') and attempt['attempt_no'] <= len(BACKOFF) and refusal != 'input_too_large':
+                delay = BACKOFF[min(attempt['attempt_no'] - 1, len(BACKOFF) - 1)]
+                db.execute("UPDATE indicator_versions SET comparison=comparison || %s WHERE id=%s",
+                           (Jsonb(dict(next_attempt_at=(now() + timedelta(seconds=delay)).isoformat())), version_id))
+            elif outcome != 'completed':
+                _seal(db, business, version, dict(state='unavailable', reason=reason or refusal,
+                                                  detail=((result or {}).get('logs') or {}).get('stderr', '')[-300:]))
+            else:
+                base = attempt['identity']['baseline']
+                metrics = (result['result'] or {}).get('metrics', {})
+                rows = [dict(metric=k, before=base['metrics'].get(k), after=metrics.get(k), present=k in metrics,
+                             same=k in metrics and same(base['metrics'].get(k), metrics.get(k))) for k in version['metric_keys']]
+                state = 'unavailable' if not all(r['present'] for r in rows) else 'match' if all(r['same'] for r in rows) else 'mismatch'
+                _seal(db, business, version, dict(state=state, baseline=base, execution_id=str(result['id']), metrics=rows,
+                                                  reason='metric_missing' if state == 'unavailable' else None))
+            db.execute('UPDATE indicator_attempts SET outcome=%s,reason=%s,finished_at=now(),admission=CASE WHEN execution_id IS NULL '
+                       "THEN 'refused' ELSE admission END WHERE id=%s",
+                       ('completed' if outcome == 'completed' else 'transient' if outcome in ('transient', 'resource') else 'structural',
+                        reason or refusal, attempt['id']))
+            bump(db, business)
+    return True
+
+
+def _seal(db, business, version, body):
+    """A comparison receipt is immutable; a revoked one is kept in history."""
+    sealed = _sealed(dict(body, policy=POLICY, created_at=now().isoformat()))
+    history = (version['comparison'] or {}).get('history', [])
+    db.execute('UPDATE indicator_versions SET comparison=%s WHERE id=%s', (Jsonb({**sealed, 'history': history}), version['id']))
+    bump(db, business)
+
+
+def requeue_comparisons(db, business, analysis):
+    """A corrected baseline revokes the receipts that used it: keep them as history and compare again."""
+    for version in db.execute("""SELECT * FROM indicator_versions WHERE business_id=%s AND state='proposed'
+            AND comparison->'baseline'->>'analysis_id'=%s""", (business, str(analysis))).fetchall():
+        old = {k: v for k, v in version['comparison'].items() if k != 'history'}
+        db.execute('UPDATE indicator_versions SET comparison=%s WHERE id=%s',
+                   (Jsonb(dict(state='pending', policy=POLICY, history=[*version['comparison'].get('history', []),
+                                                                         dict(old, revoked='baseline_corrected')])), version['id']))
+
+
+def confirm(config, business, indicator_id, version_id, data):
+    """The owner's button: activates exactly this proposal after revalidating it; a match is not required."""
+    key = identifier(data.get('request_key'))
+    indicator_id, version_id = identifier(indicator_id), identifier(version_id)
+    expected = identifier(data.get('expected_active_version_id'))
+    comparison_sha = data.get('comparison_sha')
+    request = dict(indicator_id=str(indicator_id), version_id=str(version_id), expected=str(expected), comparison_sha=comparison_sha)
+    with connect(config) as db, db.transaction():
+        memory.lock(db, business)
+        prior, sha = receipt(db, business, key, 'confirm', request)
+        if prior:
+            return prior
+        indicator = _indicator(db, business, indicator_id, lock=True)
+        active = _active(db, indicator_id)
+        version = db.execute("SELECT * FROM indicator_versions WHERE business_id=%s AND id=%s AND indicator_id=%s",
+                             (business, version_id, indicator_id)).fetchone()
+        if indicator['status'] != 'active' or not active or active['id'] != expected or not version or version['state'] != 'proposed':
+            raise WebError('El indicador ha cambiado. Recarga antes de confirmar.', 409)
+        comparison = version['comparison'] or {}
+        if comparison.get('state') == 'pending':
+            raise WebError('La comparación con los datos anteriores todavía se está haciendo.', 409)
+        base = comparison.get('baseline')
+        source = base and dataset_of(db, business, base['analysis_id'])
+        if base and (not source or source['corrected']):
+            requeue_comparisons(db, business, base['analysis_id'])
+            raise WebError('Los datos de la comparación se corrigieron. Se está repitiendo; vuelve a revisarla.', 409)
+        if comparison.get('sha256') != comparison_sha:
+            raise WebError('La comparación ha cambiado. Revísala antes de confirmar.', 409)
+        provenance = version['provenance']
+        row, done, calc_source, rows = published(db, business, identifier(provenance['turn_id']),
+                                                 identifier(provenance['calculation_id']), version['metric_keys'])
+        reason, _, basis = check(db, business, version['signature'], row['analysis_id'], rows)
+        if reason or calc_source['dataset_version'] != provenance['dataset_version']:
+            raise WebError('Los datos o los significados de ese cálculo han cambiado. Pide un cálculo nuevo.', 409)
+        db.execute("UPDATE indicator_versions SET state='superseded' WHERE id=%s", (active['id'],))
+        db.execute("UPDATE indicator_versions SET state='discarded' WHERE indicator_id=%s AND state='proposed' AND id<>%s",
+                   (indicator_id, version_id))
+        db.execute("UPDATE indicator_versions SET state='active',confirmed_at=now(),applies_from=%s WHERE id=%s",
+                   (calc_source['dataset_version'], version_id))
+        db.execute('''INSERT INTO indicator_values(id,business_id,indicator_id,version_id,analysis_id,dataset_version,status,metrics,
+            meanings_basis,execution_id,computed_at) VALUES (%s,%s,%s,%s,%s,%s,'completed',%s,%s,%s,now())
+            ON CONFLICT (indicator_id,version_id,analysis_id) DO NOTHING''',
+                   (uuid4(), business, indicator_id, version_id, row['analysis_id'], calc_source['dataset_version'],
+                    Jsonb({k: done['result']['metrics'][k] for k in version['metric_keys']}), Jsonb(basis), done['id']))
+        db.execute('UPDATE saved_indicators SET revision=revision+1 WHERE id=%s', (indicator_id,))
+        reconcile(db, business)
+        bump(db, business)
+        result = dict(indicator_id=str(indicator_id), version_id=str(version_id), state='active')
+        remember(db, business, key, 'confirm', sha, result)
+    return result
+
+
+def retire(config, business, indicator_id, data):
+    key = identifier(data.get('request_key'))
+    indicator_id = identifier(indicator_id)
+    expected = data.get('expected_revision')
+    with connect(config) as db, db.transaction():
+        memory.lock(db, business)
+        prior, sha = receipt(db, business, key, 'retire', dict(indicator_id=str(indicator_id), expected=expected))
+        if prior:
+            return prior
+        indicator = _indicator(db, business, indicator_id, lock=True)
+        if indicator['revision'] != expected:
+            raise WebError('El indicador ha cambiado. Recarga antes de retirarlo.', 409)
+        db.execute("UPDATE saved_indicators SET status='retired',retired_at=now(),revision=revision+1 WHERE id=%s", (indicator_id,))
+        bump(db, business)
+        result = dict(indicator_id=str(indicator_id), status='retired')
+        remember(db, business, key, 'retire', sha, result)
+    return result

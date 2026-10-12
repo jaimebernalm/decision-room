@@ -199,3 +199,95 @@ class IndicatorTests(qc.ChatCalculationTests):
         self.update(previous=newer)
         indicators.work_once(self.config)
         self.assertEqual(self.values(created['indicator_id'])[-1]['reason'], 'basis_changed')
+
+
+class RepairTests(IndicatorTests):
+    for name in [n for n in dir(IndicatorTests) if n.startswith('test_')]:
+        locals()[name] = None
+    del name
+
+    def proposal(self, created):
+        turn, shown = self.send('Arregla el indicador')
+        calc = shown['response']['calculations'][0]['calculation_id']
+        with connect(self.config) as db:
+            active = db.execute("SELECT id FROM indicator_versions WHERE indicator_id=%s AND state='active'",
+                                (created['indicator_id'],)).fetchone()['id']
+        data = dict(request_key=str(uuid4()), turn_id=str(turn), calculation_id=calc, expected_active_version_id=str(active))
+        return indicators.propose(self.config, self.b, created['indicator_id'], data), active
+
+    def version(self, version_id):
+        with connect(self.config) as db:
+            return db.execute('SELECT * FROM indicator_versions WHERE id=%s', (version_id,)).fetchone()
+
+    def confirm(self, created, proposed, active, sha=None):
+        return indicators.confirm(self.config, self.b, created['indicator_id'], proposed['version_id'],
+                                  dict(request_key=str(uuid4()), expected_active_version_id=str(active),
+                                       comparison_sha=sha if sha is not None else self.version(proposed['version_id'])['comparison'].get('sha256')))
+
+    def test_a_proposal_is_compared_on_earlier_data_and_activated_only_by_the_owner(self):
+        created, _ = self.saved()
+        proposed, active = self.proposal(created)
+        with self.assertRaises(WebError):  # Comparison still pending.
+            self.confirm(created, proposed, active)
+        self.assertTrue(indicators.work_once(self.config))
+        comparison = self.version(proposed['version_id'])['comparison']
+        self.assertEqual(comparison['state'], 'match')
+        self.assertEqual(comparison['policy'], indicators.POLICY)
+        self.assertEqual(self.version(proposed['version_id'])['state'], 'proposed')  # A match never activates by itself.
+        with self.assertRaises(WebError):
+            self.confirm(created, proposed, active, sha='0' * 64)
+        self.confirm(created, proposed, active)
+        self.assertEqual(self.version(proposed['version_id'])['state'], 'active')
+        self.assertEqual(self.version(active)['state'], 'superseded')
+
+    def test_a_mismatch_can_still_be_confirmed_and_a_stale_proposal_cannot(self):
+        created, _ = self.saved()
+        first, active = self.proposal(created)
+        second, _ = self.proposal(created)
+        self.backend.payload = qc.result({'unidades': 999})
+        while indicators.work_once(self.config):
+            pass
+        self.assertEqual(self.version(first['version_id'])['comparison']['state'], 'mismatch')
+        rows = self.version(first['version_id'])['comparison']['metrics']
+        self.assertEqual((rows[0]['before'], rows[0]['after'], rows[0]['same']), (180, 999, False))
+        self.confirm(created, first, active)
+        self.assertEqual(self.version(second['version_id'])['state'], 'discarded')
+        with self.assertRaises(WebError) as stale:
+            self.confirm(created, second, active)
+        self.assertEqual(stale.exception.status, 409)
+
+    def test_a_corrected_baseline_revokes_the_receipt_and_compares_again(self):
+        created, _ = self.saved()
+        proposed, active = self.proposal(created)  # Calculated on the original data.
+        with connect(self.config) as db:  # Hold the comparison until the newer value exists.
+            db.execute('''UPDATE indicator_versions SET comparison=comparison || '{"next_attempt_at": "2999-01-01T00:00:00+00:00"}'
+                WHERE id=%s''', (proposed['version_id'],))
+        newer = self.update()
+        indicators.work_once(self.config)  # Value on the newer version: the latest eligible baseline.
+        with connect(self.config) as db:
+            db.execute("UPDATE indicator_versions SET comparison=comparison - 'next_attempt_at' WHERE id=%s", (proposed['version_id'],))
+        indicators.work_once(self.config)
+        receipt = self.version(proposed['version_id'])['comparison']
+        self.assertEqual(receipt['baseline']['analysis_id'], str(newer))
+        self.update(mode='correction', previous=newer)
+        comparison = self.version(proposed['version_id'])['comparison']
+        self.assertEqual(comparison['state'], 'pending')
+        self.assertEqual(comparison['history'][-1]['revoked'], 'baseline_corrected')
+        with self.assertRaises(WebError):
+            self.confirm(created, proposed, active, sha=receipt['sha256'])
+        while indicators.work_once(self.config):
+            pass
+        again = self.version(proposed['version_id'])['comparison']
+        self.assertNotEqual(again['baseline']['analysis_id'], str(newer))
+        self.confirm(created, proposed, active)
+
+    def test_a_proposal_whose_own_data_was_corrected_is_refused(self):
+        created, _ = self.saved()
+        proposed, active = self.proposal(created)
+        indicators.work_once(self.config)
+        with connect(self.config) as db:
+            db.execute('''INSERT INTO dataset_versions(business_id,analysis_id,dataset_id,version,corrected)
+                VALUES (%s,%s,%s,1,true) ON CONFLICT (analysis_id) DO UPDATE SET corrected=true''', (self.b, self.analysis, self.analysis))
+        with self.assertRaises(WebError) as refused:
+            self.confirm(created, proposed, active)
+        self.assertEqual(refused.exception.status, 409)
