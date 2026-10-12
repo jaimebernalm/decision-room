@@ -1410,5 +1410,10 @@
   "Detalles de la comprobación independiente": "Independent check details",
   "Qué comprobar": "What to check",
   "Si se confirma": "If confirmed",
-  "Si no": "If not"
+  "Si no": "If not",
+  "Según el informe: {0}": "According to the report: {0}",
+  "favorable": "favourable",
+  "desfavorable": "unfavourable",
+  "aviso": "warning",
+  "neutro": "neutral"
 }
