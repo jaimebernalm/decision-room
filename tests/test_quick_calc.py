@@ -349,6 +349,27 @@ class ChatCalculationTests(CalculationTests):
         self.assertEqual(row['request']['code'], code)  # Kept for audit, outside the prompt.
         self.assertLess(sizes[1] - sizes[0], 4000)
 
+    def test_when_not_even_the_refusal_fits_the_owner_gets_a_fixed_reply_without_figures(self):
+        code = CODE + '#' + 'x' * 7600 + '\n'
+        calls = []
+
+        def script(context):
+            calls.append(context)
+            # Less room than the refusal itself needs (Codex's 199846/200000 case).
+            patcher = patch.object(conversations.ctx, 'CONTEXT_BYTES', len(memory.encoded(context).encode()) + 150)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+            return calculate(self.analysis, self.table, code=code)
+        self.script = script
+        turn, shown = self.send()
+        self.assertEqual(shown['status'], 'completed', shown)
+        self.assertEqual(shown['response'], dict(kind='answer', text=quick_calc.NO_ROOM))
+        self.assertEqual(len(calls), 1)  # No further model call.
+        self.assertEqual(self.backend.runs, [])
+        with connect(self.config) as db:
+            event = db.execute('SELECT * FROM chat_retrievals WHERE turn_id=%s', (turn,)).fetchone()
+        self.assertEqual(event['response']['refusal'], 'context_full')  # Still recorded.
+
     def test_scope_errors_are_tool_errors_and_record_nothing(self):
         def script(context):
             if not context['retrievals']:

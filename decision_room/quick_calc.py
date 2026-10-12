@@ -50,6 +50,10 @@ REFUSALS = {
 }
 
 
+NO_ROOM = ('No puedo completar este cálculo en este mensaje: la conversación ya no tiene espacio para más '
+           'información. Prueba con una pregunta más concreta en un mensaje nuevo, o pide un informe.')
+
+
 class Unresolved(RuntimeError):
     """An admitted calculation is still open: never relabel it and never start another."""
 
@@ -359,3 +363,15 @@ def history_lines(response, operations=False):
             line += ' | Operación: ' + '; '.join(e['operation'] for e in item['evidence'])
         lines.append(line)
     return lines
+
+
+def next_context_bytes(context, event):
+    """Serialized size of the next author context once this observation is added.
+
+    The observation goes into retrievals and, unless it is an error, again into
+    available_sources; 1 KiB covers the counters and status that are rebuilt each step.
+    """
+    item = {k: event[k] for k in ('ordinal', 'request', 'response')}
+    source = 0 if 'error' in event['response'] else size(dict(label=SOURCE_LABEL, content=event['response'],
+                                                               discovery_only=False)) + 16
+    return size(context) + size(item) + 2 + source + 1024

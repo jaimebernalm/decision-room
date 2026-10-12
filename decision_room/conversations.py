@@ -1724,7 +1724,8 @@ class Conversations:
                             raise ValueError('Calculation cannot mix actions.')
                         if ordinal >= ctx.MAX_RETRIEVALS:
                             raise ValueError('Retrieval budget exhausted.')
-                        if not any(e['ordinal'] == ordinal for e in events):
+                        event = next((e for e in events if e['ordinal'] == ordinal), None)
+                        if not event:
                             response, deps = self._calculate(db, chat, turn, ordinal, action, context, events)
                             request = quick_calc.request_projection(action.calculation.model_dump(), action.analysis_id, response)
                             with db.transaction():
@@ -1733,6 +1734,13 @@ class Conversations:
                                     raise ctx.StaleContext('Context changed during calculation.')
                                 db.execute('INSERT INTO chat_retrievals VALUES (%s,%s,%s,%s,%s,%s)',
                                            (turn_id, turn['attempt'], ordinal, Jsonb(request), Jsonb(response), Jsonb(deps)))
+                            event = dict(ordinal=ordinal, request=request, response=response)
+                        if quick_calc.next_context_bytes(context, event) > ctx.CONTEXT_BYTES:
+                            # Not even this observation fits the next prompt: a fixed reply with no
+                            # figures and no model call. The observation and audit stay recorded.
+                            with db.transaction():
+                                self._save(db, turn, 'completed', dict(kind='answer', text=quick_calc.NO_ROOM))
+                            return
                         continue
                     if action.calculation is not None:
                         raise ValueError('Unexpected calculation payload.')
