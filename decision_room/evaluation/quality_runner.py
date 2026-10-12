@@ -62,7 +62,7 @@ def collect_discovery_resources(config, state, directory):
             call_key,attempt FROM data_model_discoveries WHERE business_id=%s ORDER BY created_at""",
             (state['business_id'],)).fetchall()
         if not state.get('session_id'):
-            data['executions'] = db.execute('SELECT id,status,issue,duration_seconds FROM executions WHERE business_id=%s AND request_key NOT LIKE 'chat-calc:%%' ORDER BY created_at',
+            data['executions'] = db.execute("SELECT id,status,issue,duration_seconds FROM executions WHERE business_id=%s AND request_key NOT LIKE 'chat-calc:%%' ORDER BY created_at",
                                            (state['business_id'],)).fetchall()
     data['calls'] = [c for c in data['calls'] if c['phase'] != 'data_discovery'] + calls
     data['includes_data_discovery'] = True

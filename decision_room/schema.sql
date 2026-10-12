@@ -1414,7 +1414,6 @@ CREATE TABLE IF NOT EXISTS chat_calculations (
     FOREIGN KEY (business_id, execution_id) REFERENCES executions(business_id, id)
 );
 CREATE INDEX IF NOT EXISTS chat_calculations_turn ON chat_calculations(turn_id, attempt);
-INSERT INTO schema_versions(version) VALUES (39) ON CONFLICT DO NOTHING;
 -- Reports offered by the chat. Only an explicit owner acceptance (a separate endpoint,
 -- never model output) turns an offer into a job, atomically with its receipt.
 CREATE TABLE IF NOT EXISTS chat_report_offers (
@@ -1441,4 +1440,5 @@ CREATE TABLE IF NOT EXISTS chat_report_offers (
     FOREIGN KEY (business_id, analysis_id) REFERENCES analyses(business_id, id),
     FOREIGN KEY (business_id, job_id) REFERENCES web_jobs(business_id, id)
 );
-INSERT INTO schema_versions(version) VALUES (40) ON CONFLICT DO NOTHING;
+-- Version 39: quick chat calculations and report offers.
+INSERT INTO schema_versions(version) VALUES (39) ON CONFLICT DO NOTHING;

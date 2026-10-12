@@ -418,5 +418,47 @@ class ChatCalculationTests(CalculationTests):
             self.assertTrue(execution.open_report_runs(db, self.business['id']))
 
 
+
+@unittest.skipUnless(quick_calc.available(), 'The local sandbox runtime is not built.')
+class RealSandboxTests(ChatCalculationTests):
+    """End to end with real Docker and a scripted model: the program really runs, once."""
+    for name in [n for n in dir(ChatCalculationTests) if n.startswith('test_')]:
+        locals()[name] = None
+    del name
+
+    def setUp(self):
+        CalculationTests.setUp(self)
+        test = self
+
+        class Model(fixtures.WebModel):
+            def generate_chat(model, context, correction=None):
+                test.contexts.append(context)
+                return test.script(context), {}
+
+            def review_chat_answer(model, context):
+                return dict(approved=True, issues=[]), {}
+
+        self.contexts = []
+        self.ws.model_factory = Model
+        self.chats = Conversations(self.ws.scoped(self.business['id']))
+        self.chat_id = self.chats.create(dict(business_id=str(self.business['id']), request_key=str(uuid4())))['id']
+
+    def test_a_real_calculation_returns_the_exact_total_in_seconds(self):
+        import time
+        expected = sum(1 + i % 3 for i in range(90))
+        started = time.monotonic()
+        turn, shown = self.send()
+        elapsed = time.monotonic() - started
+        self.assertEqual(shown['status'], 'completed', shown)
+        self.assertEqual(shown['response']['calculations'][0]['metrics'], {'unidades': expected})
+        self.assertLess(elapsed, quick_calc.TIMEOUT)
+        with connect(self.config) as db:
+            done = db.execute("SELECT e.status,e.runtime FROM chat_calculations c JOIN executions e ON e.id=c.execution_id "
+                              "WHERE c.turn_id=%s", (turn,)).fetchone()
+        self.assertEqual(done['status'], 'completed')
+        self.assertEqual(done['runtime']['host_config']['NetworkMode'], 'none')
+        self.assertTrue(done['runtime']['host_config']['ReadonlyRootfs'])
+
+
 if __name__ == '__main__':
     unittest.main()
