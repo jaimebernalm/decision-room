@@ -146,6 +146,22 @@ Excel layouts and visual previews use the existing Codex spreadsheet runtime;
 its packages are linked into `.tools/spreadsheets/node_modules`, not installed
 globally or copied into the Python environment.
 
+## Automatic checks
+
+GitHub Actions runs `.github/workflows/checks.yml` on every pull request into
+`master` and every push to `master`:
+
+- **Frontend:** `tsc -b`, `vitest run` and `oxlint`.
+- **Backend:** the Python suite on PostgreSQL 18 with pgvector.
+
+No secrets are needed: the tests use stand-in models. Tests that need the engine
+image, the calculation sandbox or the contained report browser skip themselves
+there and run locally. Locally:
+
+```sh
+PYTHONPATH=.:tests .venv/bin/python -m unittest discover -s tests -t .
+```
+
 ## Data
 
 [Wide World Importers](data/wide-world-importers/README.md) contains the original

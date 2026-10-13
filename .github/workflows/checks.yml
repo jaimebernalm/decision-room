@@ -1,0 +1,74 @@
+# Automatic checks for every pull request into master and every push to master.
+# No secrets: the tests use stand-in models and never call a paid API. Tests that
+# need the engine image, the calculation sandbox or the contained browser skip
+# themselves here and still run locally.
+name: Checks
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend (types, tests, lint)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npx tsc -b
+      - run: npx vitest run
+      - run: npx oxlint
+
+  backend:
+    name: Backend (Python suite on PostgreSQL)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    services:
+      postgres:
+        # The schema needs pgvector (CREATE EXTENSION vector); local development uses PostgreSQL 18.
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: decision_room
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DECISION_ROOM_DATABASE_URL: host=localhost port=5432 dbname=decision_room user=postgres password=postgres connect_timeout=5
+      PYTHONPATH: .:tests
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Migration tests read old schema versions with git show.
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements.lock
+      - run: python -m pip install -r requirements.lock
+      - run: python -m unittest discover -s tests -t .
