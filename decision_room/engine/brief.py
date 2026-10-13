@@ -148,7 +148,9 @@ def facts(rows):
 
 
 def _metrics(metrics):
-    return ', '.join(f'{key} = {value}' for key, value in metrics.items())
+    """As the owner sees them in the app, never a float's every digit."""
+    from ..indicators import display
+    return ', '.join(f'{key} = {display(value)}' for key, value in metrics.items())
 
 
 def _data(latest):
@@ -193,7 +195,7 @@ def follow_up_lines(core):
         line += f" [estado: {STATE_LABELS[item['state']]}]"
         if item.get('link'):
             link = item['link']
-            line += f" [lo enlacé a un indicador: {link['metric_key']} = {link['value']} con la versión {link['dataset_version']} de los datos"
+            line += f" [lo enlacé a un indicador: {_metrics({link['metric_key']: link['value']})} con la versión {link['dataset_version']} de los datos"
             line += f"; {link['meanings']}]" if link.get('meanings') else ']'
         lines.append(line)
     extra = []
@@ -288,7 +290,7 @@ def build_inputs(db, business, analysis, *, goal, panorama, name=None, descripti
                    panorama=panorama, questions=questions, format=format, data_meanings=data_meanings, history=prior,
                    chat_brief=investigation_brief, catalog=core['catalog'], analysis=analysis,
                    indicators=core['indicators'], follow_ups=core['follow_ups'])
-    provenance = dict(version=('blocks-brief-6q' if questions else 'blocks-brief-6') if format == 'blocks' else (QUESTIONS_VERSION if questions else VERSION), profile='job' if frozen else 'current', profile_revision=owner['profile_revision'],
+    provenance = dict(version=('blocks-brief-7q' if questions else 'blocks-brief-7') if format == 'blocks' else (QUESTIONS_VERSION if questions else VERSION), profile='job' if frozen else 'current', profile_revision=owner['profile_revision'],
                       data_model=dict(analysis_id=str(analysis), revision=data['revision']) if data['revision'] else None,
                       memory=sorted(r['reference'] for r in memory if facts([r])),
                       panorama=bool(panorama), knowledge=core['version'], chat_brief=bool(investigation_brief),

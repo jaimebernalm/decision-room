@@ -1010,6 +1010,14 @@ class Conversations:
             raise WebError(str(error), error.status) from None
         return {'saved': True}
 
+    def _reject_decision(self, db, turn, ordinal, problem):
+        """Record a deterministic rejection of an invalid decision as this step's review (no model call)."""
+        db.execute('''INSERT INTO chat_answer_reviews(turn_id,attempt,ordinal,prompt_version,context,response,usage,status)
+            VALUES (%s,%s,%s,%s,%s,%s,'{}','completed') ON CONFLICT (turn_id,attempt,ordinal) DO NOTHING''',
+                   (turn['id'], turn['attempt'], ordinal, PROMPT_VERSION, Jsonb(dict(decision_validation=problem)),
+                    Jsonb(dict(approved=False, issues=[f'Your previous decision was invalid: {problem} Return one complete, valid decision.']))))
+        notify(db)
+
     def _answer(self, db, turn, ordinal, action, context, model):
         """Check free prose against server-owned sources before publishing it.
 
@@ -1663,7 +1671,14 @@ class Conversations:
                         context = call['context']
                     if output.get('action') == 'answer' or 'text' in output:
                         decision = chat_agent.Decision.model_validate(output)
-                        chat_agent.validate_decision(decision)
+                        try:
+                            chat_agent.validate_decision(decision)
+                        except ValueError as problem:
+                            # A malformed decision is fed back like a rejected answer, never a failed turn.
+                            self._reject_decision(db, turn, ordinal, str(problem))
+                            if ordinal >= ctx.MAX_RETRIEVALS:
+                                raise AnswerValidationExhausted('Decision validation budget exhausted.') from None
+                            continue
                         action = Action.model_validate(dict(report_id='', claim_keys=[], question='', message_ids=[], **decision.model_dump()))
                     else:
                         # Replay legacy persisted decisions; the provider no longer sees these actions.

@@ -120,7 +120,13 @@ Todos los límites de esta sección se miden en bytes del JSON real codificado e
   - las métricas, que deben caber enteras en 6 KiB. Si no caben, el estado es `output_too_large` y el cálculo no puede citarse;
   - la evidencia, con cada operación recortada a 600 caracteres, un número máximo de elementos y la cuenta de los omitidos;
   - notas de hasta 1 KiB, con la cuenta de las omitidas;
-  - extractos de stdout y stderr de hasta 1 KiB cada uno, solo si el cálculo no terminó bien;
+  - extractos de stdout y stderr de hasta 1 KiB cada uno, solo si el cálculo no terminó bien. Desde `conversation-v23`, un cálculo terminado también devuelve el final de su stdout (hasta 1 KiB), si cabe en el límite de la observación. Lo acompaña `stdout_state`, que pone el servidor y tiene reservado su espacio en el límite:
+    - `complete`;
+    - `partial`, si lo recortaron el trabajador o el extracto;
+    - `omitted`, si no cabe;
+    - `empty`.
+
+    Un valor que no aparece en una salida parcial u omitida nunca prueba que falte en los datos. No se muestra al propietario;
   - los ids de la ejecución y del cálculo;
   - `independent_check: 'none'`.
 
@@ -294,6 +300,15 @@ Solo un cálculo terminado del mismo turno e intento, con las métricas completa
 - Cada ejecución en el sandbox tardó entre 0,44 y 0,53 s. El resto del tiempo son llamadas al modelo: la decisión, la respuesta, su revisión y la extracción de memoria.
 - Las dos preguntas grandes acabaron en una propuesta con el objetivo redactado y no crearon ningún trabajo. Una de ellas no mencionó en su texto los cinco minutos ni la comprobación independiente; la tarjeta de la propuesta los muestra siempre.
 - **Coste total:** 0,044 USD según el límite de gasto (0,033 USD según el catálogo de precios), 33 llamadas al proveedor, sin llamadas de uso incierto.
+
+**Prueba real del paso 3 (13 de octubre de 2026):** se repitió el fallo del filtro de texto. El programa imprimió los valores guardados de `estado`, pero la observación de un cálculo terminado no incluía stdout. Ni el modelo ni la revisión los vieron: el modelo filtró por `no presentado`, cuando los datos tienen `no_presentado`, y la revisión aprobó 0,0 %, porque el código «había leído» los valores. Corrección (`conversation-v23`):
+
+- la observación incluye el final de lo que imprime el programa;
+- el chat debe imprimir los valores por los que filtra y comprobarlos antes de responder;
+- la revisión rechaza un filtro de texto cuyo valor no aparece entre los valores impresos;
+- un filtro sin coincidencias solo se acepta si `stdout_state` es `complete` y los valores impresos muestran que ese valor no existe. Lo pidió Codex al revisar la corrección.
+
+En la misma prueba, cuando el modelo devolvía una propuesta de informe incompleta, el turno fallaba. Ahora esa decisión se rechaza sin llamar al revisor y se devuelve al modelo para que la corrija, como una respuesta rechazada.
 
 ## Orden de trabajo y commits
 

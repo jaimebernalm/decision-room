@@ -503,6 +503,18 @@ class RepairTests(IndicatorTests):
             self.assertIsNone(seen['version']['code'])
             self.assertEqual(seen['version']['code_sha256'], hashlib.sha256(code.encode()).hexdigest())
 
+    def test_an_unavailable_comparison_tells_the_owner_why_in_words(self):
+        created, _ = self.saved()
+        proposed, _ = self.proposal(created)
+        self.backend.status, self.backend.stderr = 'failed', 'Binder Error: column "estado_cita" not found'
+        indicators.work_once(self.config)
+        with connect(self.config) as db:
+            [item] = [i for i in indicators.overview(db, self.b) if i['id'] == created['indicator_id']]
+        comparison = item['proposals'][0]['comparison']
+        self.assertEqual((comparison['state'], comparison['reason_code']), ('unavailable', 'program_failed'))
+        self.assertEqual(comparison['reason'], indicators.COMPARISON_REASONS['program_failed'])
+        self.assertEqual(comparison['sha256'], self.version(proposed['version_id'])['comparison']['sha256'])
+
     def test_a_proposal_whose_own_data_was_corrected_is_refused(self):
         created, _ = self.saved()
         proposed, active = self.proposal(created)
@@ -612,3 +624,16 @@ class BoundTests(unittest.TestCase):
                 out = business_knowledge._bounded(items, limit, lambda kept, omitted: dict(items=kept, omitted=omitted, use='x' * 60))
                 self.assertLessEqual(len(encoded(out).encode()), limit)
                 self.assertEqual(len(out['items']) + out['omitted'], count)
+
+
+class FormattingTests(unittest.TestCase):
+    def test_the_brief_shows_indicator_figures_as_the_owner_sees_them(self):
+        from decision_room.engine import brief
+        core = dict(items=[dict(name='Citas', version=3, latest=dict(
+            status='completed', dataset_version=3, metrics={'pct': 4.784377542717657, 'ratio': 0.0478437, 'total': 12290, 'cero': 0.0}))])
+        [line] = brief.indicator_lines(core)
+        self.assertIn('pct = 4,78, ratio = 0,0478, total = 12.290, cero = 0,00', line)
+        self.assertNotIn('4784377', line)
+        topics = dict(items=[dict(headline='H', date='2026-10-12', priority='P', labels=dict(check='Qué'), check=['x'], state='checked',
+                                  report={}, link=dict(metric_key='pct', value=4.784377542717657, dataset_version=3))], counts={})
+        self.assertIn('pct = 4,78 con la versión 3', brief.follow_up_lines(topics)[0])
