@@ -34,7 +34,7 @@ Codex revisó la implementación (resultado `7d2a9c14` v1, veredicto *revise*) c
    - prioriza el último valor; si no cabe entero, deja un registro mínimo con su estado y no ofrece uno anterior en su lugar.
 
    El núcleo compartido mide la proyección completa con sus contadores, no solo la lista.
-7. **Solo cerrados u omitidos.** El encargo dice cuántos temas están cerrados u omitidos aunque no quepa ninguno.
+7. **Solo cerrados u omitidos.** El encargo dice cuántos temas abiertos o cerrados no caben aunque no quepa ninguno.
 
 Además:
 - La interfaz muestra la fórmula propuesta, la versión de datos de la base y el motivo de una comparación no disponible.
@@ -57,7 +57,7 @@ Tomadas el 12 de octubre de 2026:
   3. el propietario confirma con un botón.
 
   Los fallos pasajeros se reintentan solos con la misma fórmula.
-- **El registro de seguimiento no es un resumen de un modelo.** Cada tema es una acción de un informe nativo copiada tal cual («qué comprobar», «si se confirma», «si no»), con el titular y la fecha del informe, el estado que pone el propietario y, si lo hay, el valor del indicador enlazado. Un informe nuevo recibe solo los temas abiertos, los más recientes primero y con un tope de tamaño. Los cerrados solo se cuentan.
+- **El registro de seguimiento no es un resumen de un modelo.** Cada tema es una acción de un informe nativo copiada tal cual («qué comprobar», «si se confirma», «si no»), con el titular y la fecha del informe, el estado que pone el propietario y, si lo hay, el valor del indicador enlazado. Un informe nuevo recibe los temas abiertos, los más recientes primero y con un tope de tamaño, con la nota del propietario. De los cerrados recibe solo el titular, la fecha, el título y la nota, para no volver a proponerlos como nuevos (desde `business-knowledge-4`).
 
 ## Principios
 
@@ -263,17 +263,22 @@ Una base sin significados nunca se presenta como si confirmara todas las columna
 
 ## 3.6 Consumidores
 
-- **Núcleo compartido** (`business-knowledge-3`):
+- **Núcleo compartido** (`business-knowledge-4`):
   - **Indicadores:** catálogo de hasta 4 KiB serializados, con nombre, id, último valor elegible por métrica con su versión de datos y periodo, estado, motivo y etiqueta. Entran elementos enteros o se cuentan los omitidos. Un último estado no disponible nunca se esconde detrás de un valor anterior.
-  - **Temas abiertos:** hasta 6 KiB serializados, del informe más reciente al más antiguo, con elementos enteros y sus ramas completas o la cuenta de omitidos y la marca de texto parcial. Cerrados y retirados solo se cuentan.
+  - **Temas:** hasta 8 KiB serializados en total, del informe más reciente al más antiguo.
+    - Abiertos: elementos enteros con sus ramas completas y la nota del propietario, o la cuenta de omitidos y la marca de texto parcial.
+    - Cerrados (`closed`, con su propio tope de 2 KiB dentro del total): titular, fecha, título de la prioridad y nota, sin ramas; los que no caben se cuentan.
+    - Retirados: solo se cuentan.
+    - Hasta `business-knowledge-3` los cerrados solo se contaban y la nota no se pasaba (ver la prueba real, más abajo).
 - **Resumen histórico del paso 1:** deja de listar las acciones («sus acciones están en el registro de seguimiento») para no presentar como pendientes las ya cerradas. Los archivos de informes anteriores siguen como fuentes atribuidas.
 - **Encargo** (`blocks-brief-6`):
   - párrafo «Indicadores guardados»: fórmula fija confirmada por el propietario, recalculada sin modelo y sin comprobación independiente;
-  - párrafo «Temas abiertos»: propuestas de informes anteriores con el estado que les dio el propietario, para que el informe diga qué muestran los datos actuales;
+  - párrafo «Temas abiertos»: propuestas de informes anteriores con el estado y la nota que les dio el propietario, para que el informe diga qué muestran los datos actuales; si vuelve a proponer algo que el propietario dio por comprobado, debe decirlo y tener en cuenta la nota (`blocks-brief-8`);
+  - párrafo de temas cerrados por el propietario: no se vuelven a proponer salvo que los datos actuales muestren algo nuevo, y entonces el informe dice que estaban cerrados y qué ha cambiado (`blocks-brief-8`);
   - la procedencia congela lo recibido: ids, versiones y métricas de los valores, e ids y estados de los temas;
   - `checker_context` recibe las mismas proyecciones.
 - **Comprobador:** una cifra de indicador o un tema citados como tales son una atribución. Solo se confirman recalculando el mismo periodo y filtros desde los CSV. El código del indicador no se le entrega y no se montan archivos nuevos.
-- **Chat** (`conversation-v22`):
+- **Chat** (`conversation-v22`; desde `conversation-v24` también ve la nota y los temas cerrados, y no los vuelve a sugerir como nuevos):
   - el núcleo va en el snapshot;
   - `fresh()` compara `knowledge_heads`;
   - las observaciones de `inspect_indicator` añaden dependencias;
@@ -351,9 +356,14 @@ Fallos corregidos después en `fix/trial-findings-step3`:
 - el encargo pasaba las cifras con todos sus decimales (4,784377542717657) y los informes las copiaban; ahora usan el mismo formato que la aplicación (`blocks-brief-7`);
 - los dos fallos del cálculo rápido descritos en su documento.
 
-Quedan para decidir con el propietario:
-- el segundo informe volvió a proponer la auditoría que el propietario había marcado como comprobada, sin decirlo, y algo parecido al tema cerrado (los cerrados no se le pasan);
-- su comprobación independiente solo cubrió 8 de 410 cifras, frente a 508 de 513 en el primero, sin causa clara.
+Corregidos después en `fix/followups-and-check-coverage`, a petición del propietario:
+- **El segundo informe volvió a proponer la auditoría que el propietario había marcado como comprobada, sin decirlo, y algo parecido al tema cerrado.**
+  - Causa: el encargo no llevaba la nota del propietario («Lo he mirado con el indicador guardado.») y los temas cerrados solo se contaban. Tampoco pedía decir que un tema ya estaba comprobado.
+  - Corrección: la nota viaja con cada tema, los cerrados se listan aparte (titular, título y nota) y el encargo pide no volver a presentar como nuevo lo comprobado o cerrado (`business-knowledge-4`, `blocks-brief-8`, `conversation-v24`).
+- **La comprobación independiente del segundo informe solo cubrió 8 de 410 cifras, frente a 508 de 513 en el primero.**
+  - Causa, leída en las observaciones guardadas del comprobador: no le faltó presupuesto (18 de 20 llamadas y 168 de 300 segundos), pero dejó fuera los gráficos y las tablas, donde estaban casi todas las cifras. Recalculó buena parte, pero escribió un item por prioridad que solo citaba la primera frase. Antes había intentado citar cada prioridad entera, falló al cuadrar las posiciones y se quedó con la frase. Nada le decía cuántas cifras dejaba sin cubrir.
+  - Corrección: `prioridades.json` incluye ahora, en `lineas`, cada línea con cifras y sus posiciones exactas. Además, el comprobador tiene `/inputs/herramientas/comprobar_cobertura.py`, congelado por hash en el perfil como el validador del autor. La herramienta valida el fichero como lo hará la plataforma y lista las líneas con cifras sin item. Las instrucciones piden cubrir también gráficos y tablas, un item por línea, y ejecutar la herramienta antes de terminar. La plataforma y la herramienta cuentan con el mismo código (`check_coverage`). El ordinal del título («Prioridad: 1.») ya no cuenta como cifra.
+  - Comprobado sin coste con lo guardado de la prueba: con la salida real de su comprobador, la herramienta habría avisado de que faltaban 399 de 407 cifras, línea a línea. En el primer informe, de 2 de 510. Los límites del comprobador no cambian (20 llamadas, 300 segundos). Falta una prueba con el modelo real.
 
 ## Orden de trabajo y commits
 

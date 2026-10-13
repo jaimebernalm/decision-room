@@ -226,7 +226,7 @@ class HistoryTests(unittest.TestCase):
         self.assertIn(brief_module().HISTORY, run['prompt'])
         self.assertIn('Prioridad: Revisar la recogida en local', run['prompt'])
         self.assertIn('Prioridad: Revisar la recogida en local', run['brief']['checker_context'])
-        self.assertEqual(run['brief']['version'], 'blocks-brief-7')
+        self.assertEqual(run['brief']['version'], 'blocks-brief-8')
         self.assertEqual([r['document_id'] for r in run['brief']['prior_reports']], [str(first['report_document_id'])])
         self.assertEqual(set(run['input_context']) - {'panorama.md'},
                          {'informes-anteriores/01.txt', 'informes-anteriores/manifest.json'})

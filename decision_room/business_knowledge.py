@@ -10,9 +10,10 @@ said is that report's statement, not current evidence.
 """
 from .memory import context
 
-VERSION = 'business-knowledge-3'
+VERSION = 'business-knowledge-4'
 INDICATORS_BYTES = 4 * 1024
-FOLLOW_UPS_BYTES = 6 * 1024
+FOLLOW_UPS_BYTES = 8 * 1024
+CLOSED_BYTES = 2 * 1024
 CATALOG_LIMIT = 20
 
 
@@ -120,20 +121,32 @@ def indicators(db, business):
 
 
 def follow_ups(db, business):
-    """Open topics from earlier native reports, verbatim, newest report first; closed ones only counted."""
+    """Topics from earlier native reports, newest report first, with the owner's state and note.
+
+    Open ones verbatim with their branches; closed ones by headline, title and note only (their own
+    smaller budget), so a new report knows what the owner already closed instead of proposing it again."""
     from . import follow_ups as register
-    items = []
-    rows = register.listing(db, business)
-    reports = register.report_states(db, business, rows)
+    items, closed = [], []
+    rows = register.listing(db, business, include_closed=True)
+    open_rows = [r for r in rows if r['state'] != 'closed']
+    reports = register.report_states(db, business, open_rows)
     for row in rows:
         item = dict(id=str(row['id']), state=row['state'], headline=row['headline'], date=row['report_date'].date().isoformat(),
-                    priority=row['priority_title'], labels=row['content']['labels'],
+                    priority=row['priority_title'])
+        if row['note']:
+            item['note'] = row['note']
+        if row['state'] == 'closed':
+            closed.append(item)
+            continue
+        item.update(labels=row['content']['labels'],
                     **{k: row['content'][k] for k in register.BRANCHES if row['content'][k] is not None},
                     report=reports[row['document_id']])
         if row['link']:
             item['link'] = {k: v for k, v in register.link_view(row['link']).items() if v is not None}
         items.append(item)
+    closed = _bounded(closed, CLOSED_BYTES, lambda kept, omitted: dict(items=kept, omitted=omitted))
     counts = register.counts(db, business)
     return _bounded(items, FOLLOW_UPS_BYTES, lambda kept, omitted: dict(
-        items=kept, omitted=omitted, counts=counts,
-        use="Earlier reports' proposals with the owner's state; 'checked' is the owner's declaration, not a verification."))
+        items=kept, omitted=omitted, closed=closed, counts=counts,
+        use="Earlier reports' proposals with the owner's state and note; 'checked' is the owner's declaration, not a "
+            "verification. 'closed' lists topics the owner closed: not to be proposed again as new."))
