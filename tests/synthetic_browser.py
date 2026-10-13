@@ -26,7 +26,7 @@ def chrome_binary():
 
 
 class SyntheticBrowser:
-    def __init__(self, binary=None, timeout=30):
+    def __init__(self, binary=None, timeout=30, startup_timeout=90):
         self.timeout = timeout
         self.profile = tempfile.mkdtemp(prefix='synthetic-frame-test-')
         r, self.writer = os.pipe()
@@ -58,6 +58,16 @@ os.execv(sys.argv[3], sys.argv[3:])
         finally:
             os.close(r); os.close(w)
         self.buffer, self.counter = b'', 0
+        # A cold start (a loaded CI runner) can exceed the per-command timeout:
+        # wait for the first answer with its own allowance, then apply `timeout`.
+        try:
+            self.timeout = startup_timeout
+            self.call('Browser.getVersion')
+        except BaseException:
+            self.close()
+            raise
+        finally:
+            self.timeout = timeout
 
     def call(self, method, params=None, session=None):
         self.counter += 1
