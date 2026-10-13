@@ -125,7 +125,9 @@ class DataKnowledgeTests(unittest.TestCase):
         from decision_room.data_knowledge.discovery import discover
         analysis,row=self.tables({'Workbook.xlsx [Movimientos].csv':'ref,area,fecha,valor\n01,a,2026-06-01 00:00:00,2\n01,a,2026-08-31 12:30:00,3\n',
                                  'opaque.csv':'code,region,label\n01,a,One\n02,b,Two\n'})
-        a,b=row['body']['tables']
+        # By content, not position: the table order follows the database collation.
+        a=next(t for t in row['body']['tables'] if any(c['name']=='fecha' for c in t['columns']))
+        b=next(t for t in row['body']['tables'] if t is not a)
         date=next(c for c in a['columns'] if c['name']=='fecha')
         self.assertEqual(date['logical_type'],'date')
         self.assertEqual(date['period'],{'from':'2026-06-01','until':'2026-08-31'})
