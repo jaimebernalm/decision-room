@@ -49,6 +49,16 @@ class IndicatorTests(qc.ChatCalculationTests):
         with connect(self.config) as db:
             return db.execute('SELECT * FROM indicator_values WHERE indicator_id=%s ORDER BY dataset_version', (indicator,)).fetchall()
 
+    def competitor(self, analysis):
+        """A second ready file with the same name in that analysis; no frozen table changes."""
+        with connect(self.config) as db:
+            table = db.execute('SELECT * FROM prepared_tables WHERE analysis_id=%s ORDER BY id LIMIT 1', (analysis,)).fetchone()
+            source, copy = uuid4(), uuid4()
+            db.execute('''INSERT INTO sources SELECT (jsonb_populate_record(NULL::sources, to_jsonb(s) ||
+                jsonb_build_object('id', %s::text, 'sha256', md5(random()::text)))).* FROM sources s WHERE id=%s''', (source, table['source_id']))
+            db.execute('''INSERT INTO prepared_tables SELECT (jsonb_populate_record(NULL::prepared_tables, to_jsonb(p) ||
+                jsonb_build_object('id', %s::text, 'source_id', %s::text))).* FROM prepared_tables p WHERE id=%s''', (copy, source, table['id']))
+
     def declare(self, analysis, **column):
         head = knowledge.ensure(self.config, self.b, analysis)
         table = next(t for t in head['body']['tables'] if 'unidades' in [c['name'] for c in t['columns']])
@@ -256,6 +266,24 @@ class IndicatorTests(qc.ChatCalculationTests):
         self.assertEqual([(a['outcome'], a['reason']) for a in attempts], [('structural', 'identity_changed'), ('completed', None)])
         self.assertEqual(self.values(created['indicator_id'])[-1]['status'], 'completed')
 
+    def test_a_competing_file_before_admission_is_never_run(self):
+        created, _ = self.saved()
+        newer = self.update()
+        real = indicators._freeze
+
+        def freeze(db, *args):
+            attempt = real(db, *args)
+            self.competitor(newer)
+            return attempt
+        with patch.object(indicators, '_freeze', side_effect=freeze):
+            indicators.work_once(self.config)
+        self.assertEqual(len(self.backend.runs), 1)
+        with connect(self.config) as db:
+            attempt = db.execute('SELECT admission,reason FROM indicator_attempts WHERE analysis_id=%s', (newer,)).fetchone()
+        self.assertEqual((attempt['admission'], attempt['reason']), ('refused', 'identity_changed'))
+        indicators.work_once(self.config)  # The next attempt sees the ambiguity itself.
+        self.assertEqual(self.values(created['indicator_id'])[-1]['reason'], 'ambiguous_table')
+
     def test_a_table_changed_before_admission_is_never_run(self):
         created, _ = self.saved()
         newer = self.update()
@@ -385,6 +413,23 @@ class RepairTests(IndicatorTests):
         self.assertNotEqual(again['baseline']['analysis_id'], str(newer))
         self.confirm(created, proposed, active)
 
+    def test_a_competing_file_while_comparing_is_never_sealed(self):
+        created, _ = self.saved()
+        proposed, _ = self.proposal(created)
+        real = execution.execute
+
+        def competing(*args, **kwargs):
+            result = real(*args, **kwargs)
+            self.competitor(self.analysis)  # The baseline's analysis: frozen tables untouched.
+            return result
+        with patch.object(execution, 'execute', side_effect=competing):
+            self.assertTrue(indicators._compare_once(self.config))
+        self.assertEqual(self.version(proposed['version_id'])['comparison']['state'], 'pending')
+        with connect(self.config) as db:
+            [attempt] = db.execute("SELECT outcome,reason FROM indicator_attempts WHERE purpose='comparison' AND version_id=%s",
+                                   (proposed['version_id'],)).fetchall()
+        self.assertEqual((attempt['outcome'], attempt['reason']), ('structural', 'identity_changed'))
+
     def test_confirm_with_a_stale_baseline_really_queues_the_comparison_again(self):
         created, _ = self.saved()
         proposed, active = self.proposal(created)
@@ -437,6 +482,26 @@ class RepairTests(IndicatorTests):
         self.assertLessEqual(indicators._size(seen), indicators.INSPECT_BYTES)
         self.assertEqual(seen['values'], [dict(dataset_version=2, status='completed', omitted=True)])
         self.assertEqual(seen['values_omitted'], 1)
+
+    def test_inspect_fits_at_the_maximum_accepted_code_keys_and_names(self):
+        import hashlib
+        created, _ = self.saved()
+        code = 'x = "' + '😀' * 2040 + '"'
+        self.assertLessEqual(len(json.dumps(code, ensure_ascii=False).encode()), 8192)
+        keys = [('😀' * 79) + str(i) for i in range(10)]
+        with connect(self.config) as db:  # The largest values create() accepts: code, ten 80-character keys, a 120-character name.
+            db.execute("UPDATE saved_indicators SET name=%s WHERE id=%s", ('😀' * 120, created['indicator_id']))
+            db.execute("UPDATE indicator_versions SET code=%s,code_sha256=%s,metric_keys=%s WHERE indicator_id=%s",
+                       (code, hashlib.sha256(code.encode()).hexdigest(), json.dumps(keys), created['indicator_id']))
+            db.execute("UPDATE indicator_values SET metrics=%s WHERE indicator_id=%s",
+                       (json.dumps({k: 1.5 for k in keys}), created['indicator_id']))
+            seen = indicators.inspect(db, self.b, created['indicator_id'])
+        self.assertLessEqual(indicators._size(seen), indicators.INSPECT_BYTES)
+        self.assertTrue(seen['values'])
+        self.assertTrue(seen['version']['code_omitted'] or seen['version']['code'] == code)
+        if seen['version']['code_omitted']:
+            self.assertIsNone(seen['version']['code'])
+            self.assertEqual(seen['version']['code_sha256'], hashlib.sha256(code.encode()).hexdigest())
 
     def test_a_proposal_whose_own_data_was_corrected_is_refused(self):
         created, _ = self.saved()

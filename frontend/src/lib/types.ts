@@ -485,6 +485,7 @@ export type FollowUp = {
     metric_key: string;
     value: unknown;
     dataset_version: number;
+    meanings?: string | null;
   } | null;
   report?: {
     stale_reason: string | null;

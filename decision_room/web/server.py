@@ -409,7 +409,7 @@ class Handler(BaseHTTPRequestHandler):
                         rows = follow_ups.listing(db, business, include_closed=True)  # Closed ones too, so they can be reopened.
                         reports = follow_ups.report_states(db, business, rows)
                         topics = [{**row, 'id': str(row['id']), 'document_id': str(row['document_id']),
-                                   'report': reports[row['document_id']]} for row in rows]
+                                   'link': follow_ups.link_view(row['link']), 'report': reports[row['document_id']]} for row in rows]
                         counts = follow_ups.counts(db, business)
                     self.send(200, dict(indicators=items, follow_ups=dict(items=topics, counts=counts), label=indicators.LABEL))
                     return

@@ -154,10 +154,12 @@ const overview: IndicatorsOverview = {
           if_not: null,
         },
         link: {
-          indicator_id: "i1",
+          indicator_id: "i9",
           metric_key: "unidades",
           value: 180,
           dataset_version: 1,
+          meanings:
+            "Calculado con la fórmula y los significados guardados de la versión 7; esos significados no están confirmados en esta versión.",
         },
       },
     ],
@@ -261,6 +263,10 @@ it("shows closed topics on request so they can be reopened, with their note and 
   expect(screen.getByText("Ya lo miré.")).toBeInTheDocument();
   expect(
     screen.getByText("unidades = 180 con la versión 1 de los datos"),
+  ).toBeInTheDocument();
+  // The linked indicator is not on the page (retired or hidden): its caveat still shows.
+  expect(
+    screen.getByText(/de la versión 7; esos significados/),
   ).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Reabrir" }));
   await waitFor(() => expect(posts).toHaveLength(1));

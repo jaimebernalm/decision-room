@@ -4,7 +4,7 @@ Fecha: 12 de octubre de 2026.
 
 Desarrolla el paso 3 del [plan de contexto compartido y cálculo rápido](<../product/contexto-compartido-y-calculo-rapido-plan.md>). El plan lo acordaron Claude y Codex en cuatro versiones; Codex aprobó la cuarta. Claude lo implementa y Codex revisa los cambios. La prueba real final necesita la aprobación del propietario.
 
-**Estado: implementado en `feature/saved-indicators`, con las correcciones de la primera revisión de Codex; pendiente de su nueva revisión y de la prueba real.**
+**Estado: implementado, con las correcciones de dos revisiones de Codex. La última tanda de correcciones se integró a petición del propietario sin una tercera revisión. La prueba real está pendiente.**
 
 - Un commit por parte (1 a 6).
 - **Puntos de entrada:**
@@ -41,6 +41,11 @@ Además:
 - Los valores llevan su análisis y su periodo declarado al chat, al encargo y a la vista del propietario.
 - `current_meanings_confirmed` cubre solo los elementos declarados al guardar la fórmula: las columnas nunca declaradas siguen desconocidas y se listan en `undeclared`.
 - La memoria de la firma se toma sin acotar el periodo, a propósito: cualquier cambio de una definición aplicable, sea del periodo que sea, para el indicador. Es la opción conservadora.
+
+Segunda revisión de Codex (`7d2a9c14` v2, *revise*): aprobó estas correcciones y dejó tres residuales, corregidos después:
+1. **El mapeo también se revalida en las comparaciones.** Antes de admitir un intento y antes de publicar o sellar se comprueba que el mapeo actual elige exactamente las tablas congeladas, para valores y comparaciones. Un archivo nuevo con el mismo nombre lo vuelve ambiguo aunque las tablas congeladas no cambien. Si ocurre, el intento termina como `identity_changed` sin sellar nada.
+2. **`inspect_indicator` nunca falla con entradas aceptadas.** Primero reserva sitio para el estado del último valor. Si la base no cabe, la recorta en un orden fijo y lo declara: propuestas, nombres de archivo, código (se queda su hash, con `code_omitted`) y, por último, claves de cifra. Sin código ni claves la base ocupa unos cientos de bytes, así que siempre cabe. El chat sabe que una parte marcada como omitida no se adivina.
+3. **La tarjeta del tema muestra el aviso de significados heredados del enlace.** El servidor lo redacta con `follow_ups.link_view`, que también usan el núcleo y el encargo, y la tarjeta lo muestra aunque el indicador ya no esté visible.
 
 ## Decisiones del propietario
 

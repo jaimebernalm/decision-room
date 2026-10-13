@@ -467,9 +467,14 @@ def _freeze(db, business, value, version):
     return attempt
 
 
-def _tables_unchanged(db, business, attempt):
-    """Every table the attempt froze still has the metadata version it froze (data, columns, profile, names, status)."""
-    return all(ctx.table_version(db, business, t['table_id']) == t['metadata_version'] for t in attempt['identity']['tables'])
+def _identity_holds(db, business, attempt, version):
+    """Every table the attempt froze keeps its metadata version (data, columns, profile, names, status) and the
+    current one-to-one mapping still picks exactly those tables: a new competing file makes it ambiguous."""
+    frozen = attempt['identity']['tables']
+    if any(ctx.table_version(db, business, t['table_id']) != t['metadata_version'] for t in frozen):
+        return False
+    rows, _ = mapping(db, business, attempt['analysis_id'], version['tables'])
+    return bool(rows) and {a: str(r['id']) for a, r in rows.items()} == {t['alias']: t['table_id'] for t in frozen}
 
 
 def _run(config, business, attempt, version):
@@ -478,7 +483,7 @@ def _run(config, business, attempt, version):
     with connect(config) as db:
         found = attempt['execution_id'] or (db.execute('SELECT id FROM executions WHERE business_id=%s AND analysis_id=%s AND request_key=%s',
                                                        (business, attempt['analysis_id'], key)).fetchone() or {}).get('id')
-        if found is None and not _tables_unchanged(db, business, attempt):
+        if found is None and not _identity_holds(db, business, attempt, version):
             return None, 'identity_changed'  # Never admitted: the next attempt freezes the current tables.
     if found is None:
         try:
@@ -545,7 +550,7 @@ def _publish(db, business, value, version, attempt, result, refusal):
     """Record the attempt's effect only if version, data and meanings still match it."""
     if value['status'] != 'pending':
         return 'structural', 'superseded'
-    if refusal == 'identity_changed' or (result is not None and not _tables_unchanged(db, business, attempt)):
+    if refusal == 'identity_changed' or (result is not None and not _identity_holds(db, business, attempt, version)):
         return 'structural', 'identity_changed'  # The value stays pending; a new attempt freezes the current tables.
     if result is None:
         if refusal == 'input_too_large':
@@ -579,8 +584,6 @@ def _publish(db, business, value, version, attempt, result, refusal):
     if current['state'] != 'active' or not source or source['corrected']:
         return 'structural', 'superseded'
     rows, failure = mapping(db, business, value['analysis_id'], version['tables'])
-    if rows and {a: str(r['id']) for a, r in rows.items()} != {t['alias']: t['table_id'] for t in attempt['identity']['tables']}:
-        return 'structural', 'identity_changed'
     reason, detail, basis = check(db, business, version['signature'], value['analysis_id'], rows) if rows else (failure[0], failure[1], None)
     if reason:
         _unavailable(db, business, value, reason, detail)
@@ -765,7 +768,7 @@ def _stale_comparison(db, business, version, attempt, refusal):
         return 'superseded'
     if not _baseline_valid(db, business, attempt['identity']['baseline']):
         return 'baseline_changed'
-    if refusal == 'identity_changed' or not _tables_unchanged(db, business, attempt):
+    if refusal == 'identity_changed' or not _identity_holds(db, business, attempt, version):
         return 'identity_changed'
     return None
 
@@ -887,17 +890,21 @@ def _size(value):
 def inspect(db, business, indicator_id):
     """One indicator for the chat, at most INSPECT_BYTES of the whole serialized object.
 
-    The base (code, at most 8 KiB, and capped names and proposals) always fits. Values go latest first; if
-    the latest does not fit whole, a minimal record with its state takes its place and nothing older is
-    offered instead. Definitions only when the whole object still fits."""
+    Room for the latest value's state is reserved first. If the base does not fit with it, it is cut in a
+    fixed order, each cut said explicitly: proposals, then file names, then the code (its hash stays), then the
+    metric keys. Without code and keys the base is a few hundred bytes, so this always ends inside the budget.
+    Values go latest first; if the latest does not fit whole, a minimal record with its state takes its place
+    and nothing older is offered instead. Definitions only when the whole object still fits."""
     indicator = _indicator(db, business, indicator_id)
     version = _active(db, indicator_id)
     if not version:
         raise WebError('Ese indicador no tiene una versión activa.', 409)
     proposals = db.execute("SELECT version,comparison FROM indicator_versions WHERE indicator_id=%s AND state='proposed' "
                            'ORDER BY version DESC', (indicator_id,)).fetchall()
+    values = current_values(db, business, indicator_id)
     result = dict(indicator=dict(id=str(indicator['id']), name=indicator['name'], status=indicator['status'], label=LABEL),
-                  version=dict(version=version['version'], code=version['code'], metric_keys=version['metric_keys'],
+                  version=dict(version=version['version'], code=version['code'], code_sha256=version['code_sha256'],
+                               code_omitted=False, metric_keys=version['metric_keys'], metric_keys_omitted=False,
                                applies_from=version['applies_from'],
                                tables=[dict(alias=t['alias'], original_names=[n[:INSPECT_NAME_CHARS] for n in t['original_names'][:INSPECT_NAMES]],
                                             names_omitted=max(0, len(t['original_names']) - INSPECT_NAMES)) for t in version['tables']]),
@@ -905,7 +912,21 @@ def inspect(db, business, indicator_id):
                             for p in proposals[:INSPECT_PROPOSALS]],
                   proposed_omitted=max(0, len(proposals) - INSPECT_PROPOSALS),
                   values=[], values_omitted=0, definitions_omitted=True)
-    values = current_values(db, business, indicator_id)
+    latest = values[0] if values else None
+    reserve = [dict(dataset_version=latest['dataset_version'], status=latest['status'], omitted=True)] if latest else []
+
+    def fits(candidate):
+        return _size({**candidate, 'values': reserve, 'values_omitted': len(values)}) <= INSPECT_BYTES
+
+    cuts = [lambda r: r.update(proposed=[], proposed_omitted=len(proposals)),
+            lambda r: r['version'].update(tables=[dict(alias=t['alias'], original_names=[], names_omitted=len(t['original_names']))
+                                                  for t in version['tables']]),
+            lambda r: r['version'].update(code=None, code_omitted=True),
+            lambda r: r['version'].update(metric_keys=[], metric_keys_omitted=True)]
+    for cut in cuts:
+        if fits(result):
+            break
+        cut(result)
     for index, value in enumerate(values):
         item = dict(dataset_version=value['dataset_version'], analysis_id=str(value['analysis_id']),
                     period=period_of(db, business, value['analysis_id']), status=value['status'], metrics=value['metrics'],
@@ -917,13 +938,12 @@ def inspect(db, business, indicator_id):
             result['values'].append(item)
             continue
         if index == 0:
-            result['values'].append(dict(dataset_version=value['dataset_version'], status=value['status'], omitted=True))
+            result['values'] = reserve
         result['values_omitted'] = len(values) - len(result['values'])
         break
     with_definitions = {**result, 'definitions': version['definitions'], 'definitions_omitted': False}
     if _size(with_definitions) <= INSPECT_BYTES:
         result = with_definitions
-    assert _size(result) <= INSPECT_BYTES
     return result
 
 

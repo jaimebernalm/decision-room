@@ -313,6 +313,11 @@ function Topic({
           })}
         </p>
       )}
+      {item.link?.meanings && (
+        <p className="rounded-md bg-amber-500/10 px-2 py-1 text-xs text-amber-900 dark:text-amber-200">
+          {item.link.meanings}
+        </p>
+      )}
       {checking ? (
         <div className="space-y-2 rounded-md bg-muted/50 p-3">
           <label className="block space-y-1">

@@ -122,7 +122,6 @@ def indicators(db, business):
 def follow_ups(db, business):
     """Open topics from earlier native reports, verbatim, newest report first; closed ones only counted."""
     from . import follow_ups as register
-    from . import indicators as store
     items = []
     rows = register.listing(db, business)
     reports = register.report_states(db, business, rows)
@@ -132,10 +131,7 @@ def follow_ups(db, business):
                     **{k: row['content'][k] for k in register.BRANCHES if row['content'][k] is not None},
                     report=reports[row['document_id']])
         if row['link']:
-            link = row['link']
-            item['link'] = {k: link[k] for k in ('indicator_id', 'version_id', 'value_id', 'metric_key', 'value', 'dataset_version')}
-            if store.meanings_note(link.get('meanings_basis')):
-                item['link']['meanings'] = store.meanings_note(link['meanings_basis'])
+            item['link'] = {k: v for k, v in register.link_view(row['link']).items() if v is not None}
         items.append(item)
     counts = register.counts(db, business)
     return _bounded(items, FOLLOW_UPS_BYTES, lambda kept, omitted: dict(

@@ -227,6 +227,11 @@ class ConsumerTests(RegisterTests):
         self.assertEqual(linked['link']['meanings'], indicators.INHERITED.format(1))
         self.assertIn(indicators.INHERITED.format(1), '\n'.join(brief.follow_up_lines(core)))
         self.assertIn('check_state', linked['report'])
+        # The owner's card gets the same server-owned caveat, even if the indicator is no longer shown.
+        from decision_room import follow_ups as register
+        with connect(self.config) as db:
+            stored = next(t for t in register.listing(db, b) if t['id'] == item['id'])['link']
+        self.assertEqual(register.link_view(stored)['meanings'], indicators.INHERITED.format(1))
 
     def _drop_indicator(self, indicator, analysis):
         with connect(self.config) as db:

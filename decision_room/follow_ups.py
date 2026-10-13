@@ -126,6 +126,15 @@ def sync_document(db, business, document_id):
     _mark(db, business, document_id, revision, present)
 
 
+def link_view(link):
+    """A frozen link as consumers show it: the figure and its identity, with the server-owned meanings caveat."""
+    if not link:
+        return None
+    from .indicators import meanings_note
+    return {**{k: link[k] for k in ('indicator_id', 'version_id', 'value_id', 'metric_key', 'value', 'dataset_version')},
+            'meanings': meanings_note(link.get('meanings_basis'))}
+
+
 def report_state(db, business, document, revision_id):
     """The report's current staleness and the state of its independent check, for one revision."""
     from .engine import check_contract, native_checks
