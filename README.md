@@ -152,11 +152,12 @@ GitHub Actions runs `.github/workflows/checks.yml` on every pull request into
 `master` and every push to `master`:
 
 - **Frontend:** `tsc -b`, `vitest run` and `oxlint`.
-- **Backend:** the Python suite on PostgreSQL 18 with pgvector.
+- **Backend:** the Python suite on PostgreSQL 18 with pgvector, after building
+  the web assets and the calculation sandbox image.
 
-No secrets are needed: the tests use stand-in models. Tests that need the engine
-image, the calculation sandbox or the contained report browser skip themselves
-there and run locally. Locally:
+No secrets are needed: the tests use stand-in models. Tests that need the pinned
+engine image or the contained report browser skip themselves there and run
+locally. Locally:
 
 ```sh
 PYTHONPATH=.:tests .venv/bin/python -m unittest discover -s tests -t .
