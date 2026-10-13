@@ -42,6 +42,12 @@ mensaje «cita del informe anterior; no recalculada con los datos actuales». So
 puedes marcarla confirmed si recalculas exactamente ese periodo y filtro con los CSV,
 nunca porque coincida con el texto. Si el informe anterior no decía eso, regístrala
 discrepancy e indica qué decía. No la compares con otro periodo de los datos actuales.
+Los indicadores guardados y los temas abiertos del contexto siguen la misma regla: una cifra
+atribuida a un indicador guardado o una propuesta de un tema son atribuciones; solo puedes
+marcarlas confirmed si recalculas exactamente ese periodo y filtro con los CSV, nunca porque
+coincidan con el contexto. Si un indicador se calculó con significados guardados de otra versión
+de los datos, esos significados no están declarados para los datos actuales: si la cifra necesita
+esa interpretación, regístrala unverifiable y explica qué significado falta.
 Extrae tú las cifras del texto, recalcula desde los CSV y documenta el método,
 periodo, filtro y unidades. Una cifra causal o sin definición suficiente no es
 confirmada: registra unverifiable y el motivo. No infieras significados ausentes.

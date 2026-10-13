@@ -12,7 +12,9 @@ from .service import digest, encoded, lock
 
 class Request(BaseModel):
     model_config = ConfigDict(extra='forbid')
-    tool: Literal['search_datasets', 'inspect_dataset', 'search_memory', 'search_reports', 'open_report', 'open_evidence', 'search_chats', 'open_chat']
+    # inspect_indicator is dispatched by the chat itself; the research agent never uses it.
+    tool: Literal['search_datasets', 'inspect_dataset', 'search_memory', 'search_reports', 'open_report', 'open_evidence', 'search_chats', 'open_chat',
+                  'inspect_indicator']
     query: str = Field(max_length=300)
     id: str = Field(max_length=36)
     limit: int = Field(ge=1, le=10)
@@ -235,6 +237,8 @@ def engine_current(db, business, dependency):
 
 def retrieve(config, db, session_id, request, *, manifest=None, opened=None):
     r = Request.model_validate(request)
+    if r.tool == 'inspect_indicator':
+        raise ValueError('inspect_indicator is a chat tool, dispatched by the conversation.')
     m = manifest or ctx.manifest(db, session_id)
     if session_id:
         ctx.ensure(db, session_id)

@@ -193,6 +193,11 @@ def fresh(db, saved, ignore_origins=None):
     from .reports import history
     if not history.current(db, saved['business_id'], (saved.get('knowledge') or {}).get('history')):
         return False
+    known = (saved.get('knowledge') or {}).get('heads')
+    if known is not None:
+        from . import business_knowledge  # Saved indicators and the follow-up register as the chat saw them.
+        if business_knowledge.heads(db, saved['business_id']) != known:
+            return False
     return all(
         ctx.table_version(db, saved['business_id'], key) == value for key, value in saved['tables'].items()
     )
@@ -282,6 +287,10 @@ def dependencies_current(config, db, saved, events):
                 and ctx.watch(ctx.effective(db, saved['business_id']), dep['selection']) != dep['watch']
             ):
                 return False
+            if dep['kind'] == 'indicators':
+                from . import business_knowledge
+                if business_knowledge.heads(db, saved['business_id'])['indicators'] != dep['revision']:
+                    return False
             if dep['kind'] == 'engine_report':
                 from .memory.retrieval import engine_current
                 if not engine_current(db, saved['business_id'], dep):
@@ -1238,6 +1247,11 @@ class Conversations:
         result = quick_calc.resolve(self.config, self.business, row)
         return quick_calc.observation(row, result), (row['dependencies'] if result else [])
 
+    def _inspect_indicator(self, db, indicator_id):
+        from . import business_knowledge, indicators
+        data = indicators.inspect(db, self.business, identifier(indicator_id))
+        return data, [dict(kind='indicators', revision=business_knowledge.heads(db, self.business)['indicators'])]
+
     def _continuation(self, db, turn, context):
         """Historical context for a report, frozen when it is offered. Quotes must still be current."""
         quotes = list(context['recent_owner_messages'])
@@ -1672,6 +1686,11 @@ class Conversations:
                             try:
                                 if duplicate:
                                     response, deps = dict(error=f'Identical lookup already performed at tool/{duplicate["ordinal"]}. Use its result or choose another tool; do not repeat.', items=[]), duplicate['dependencies']
+                                elif action.retrieval.tool == 'inspect_indicator':
+                                    response, deps = self._inspect_indicator(db, action.retrieval.id)
+                                    if quick_calc.next_context_bytes(context, dict(ordinal=ordinal, request=action.retrieval.model_dump(),
+                                                                                   response=response)) > ctx.CONTEXT_BYTES:
+                                        response, deps = dict(error='No room in this message for the indicator details; answer with what you have.', items=[]), []
                                 else:
                                     response, deps = retrieval.retrieve(
                                         self.config,
@@ -1718,6 +1737,12 @@ class Conversations:
                                         Jsonb(deps),
                                     ),
                                 )
+                        if action.retrieval.tool == 'inspect_indicator':
+                            event = next((e for e in self.events(db, turn) if e['ordinal'] == ordinal), None)
+                            if event and quick_calc.next_context_bytes(context, event) > ctx.CONTEXT_BYTES:
+                                with db.transaction():  # Not even the refusal fits: a fixed reply, no further model call.
+                                    self._save(db, turn, 'completed', dict(kind='answer', text=quick_calc.NO_ROOM))
+                                return
                         continue
                     if action.action == 'calculate':
                         if action.retrieval is not None or not action.calculation:

@@ -296,6 +296,9 @@ def invalidate(db, business_id):
 
     from ..reports.store import invalidate as invalidate_reports
     invalidate_reports(db, business_id)
+    # Saved indicators: a completed value whose data, meanings or basis changed stops being current.
+    from .. import indicators
+    indicators.revalidate(db, business_id)
 
 
 def delivered(db, session_id):

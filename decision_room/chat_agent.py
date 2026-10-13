@@ -12,7 +12,7 @@ from .memory.retrieval import Request
 ENGINE_ORIGINS = ('engine_html', 'engine_blocks')
 from .quick_calc import SOURCE_LABEL as CALCULATION_LABEL
 
-PROMPT_VERSION = 'conversation-v21'
+PROMPT_VERSION = 'conversation-v22'
 SYSTEM = '''You are Decision Room, a helpful personal business assistant. Converse naturally
 in the owner's language. Understand the CURRENT message in the context of both sides of
 the conversation. Resolve references such as "them" to the last discussed files/results.
@@ -32,7 +32,7 @@ Predictions and brainstorming entry points are not available; do not invent fore
 external research, or tools. Existing evidence, review and onboarding rules still apply.
 
 Tools (action=retrieve): search_datasets, inspect_dataset, search_memory, search_reports,
-open_report, open_evidence, search_chats, open_chat. A tool returns data to YOU, not a final answer.
+open_report, open_evidence, search_chats, open_chat, inspect_indicator. A tool returns data to YOU, not a final answer.
 inspect_dataset uses the prepared table id from catalog.items[].id, not analysis_id.
 It also returns the persistent data_model revision: full-file column checks, meanings,
 grain, adjacent ER connections and scoped metric definitions. Reuse that knowledge.
@@ -77,6 +77,16 @@ in the owner's terms; the owner sees it and may edit it before confirming), reas
 conversation) and up to 6 short background items of what was discussed, each citing ids from
 available_sources. Cite only declared memory, opened reports, chats or datasets, never proposed or
 conflicted memory. It is guidance for the report agent, not facts. Use null for every other action.
+knowledge.indicators (source 'indicators') lists the owner's saved indicators: fixed formulas saved from
+quick calculations and recomputed without a model on new data; their values are not independently
+checked. Report the latest value of each, never an older one as current; an unavailable one has a
+reason. A value whose meanings note says it used the meanings saved from dataset version N was
+not confirmed for the current data: say so. inspect_indicator (retrieve, id=indicator id) shows one
+indicator's code, values and definitions (a part that does not fit is marked omitted, never guess
+it); to repair one, read it, then calculate with the current columns. The owner saves a calculation as an indicator, or as a new version after a comparison with
+earlier data, with a button; never claim you saved or repaired one. knowledge.follow_ups (source
+'follow_ups') lists open topics from earlier native reports, verbatim, with the owner's state;
+'checked' is the owner's declaration, not a verification, and only the owner changes states.
 knowledge.history summarises up to three earlier reports, labelled current or stale. It is
 background: quote it as what that report said, open_report before explaining a current report,
 and never present an earlier report's figures or proposed actions as verified now.
@@ -422,6 +432,10 @@ unless the code read that column's stored values. Reject when the code clearly c
 interpretation depends on a meaning that is unknown or listed as omitted: never assume omitted
 definitions. A failed, refused or too-large calculation supports no figures; it can only explain why
 there is no result. An earlier calculation quoted from dialogue states what was computed then.
+Saved indicator values (sources 'indicators' or an inspect_indicator result) come from fixed formulas
+recomputed without a model and without independent check: reject calling them verified, presenting an
+older value as current, or presenting meanings saved from another dataset version as confirmed now.
+Follow-up topics are earlier reports' proposals; 'checked' is the owner's declaration, not evidence.
 When report_offer is present, the draft proposes a report the owner still has to confirm with a
 button: reject wording that says the report has started, is being prepared or already has results.
 Samples cannot establish all categories, date coverage, completeness or recency. Profile and
@@ -470,6 +484,11 @@ def sources_for(context):
         sources['saved_corrections'] = dict(label='Corrección guardada', content=saved['saved_corrections'])
     for target in context.get('presentation_targets', []):
         sources['presentation/' + target['report_id']] = dict(label='Presentación actual del informe', content=target)
+    knowledge = saved.get('knowledge') or {}
+    if (knowledge.get('indicators') or {}).get('items'):
+        sources['indicators'] = dict(label='Indicadores guardados', content=knowledge['indicators'])
+    if (knowledge.get('follow_ups') or {}).get('items'):
+        sources['follow_ups'] = dict(label='Temas abiertos de informes anteriores', content=knowledge['follow_ups'])
     for item in saved['memories']:
         sources['memory/' + item['reference']] = dict(label='Contexto del negocio', content=item)
     for item in saved['catalog']['items']:
@@ -483,7 +502,7 @@ def sources_for(context):
                 'search_memory': 'Contexto del negocio', 'search_reports': 'Informes disponibles',
                 'open_report': 'Informe' if engine else 'Informe revisado', 'open_evidence': 'Evidencia del informe',
                 'search_chats': 'Antecedentes de conversación', 'open_chat': 'Conversación seleccionada',
-                'calculate': CALCULATION_LABEL,
+                'calculate': CALCULATION_LABEL, 'inspect_indicator': 'Indicador guardado',
             }[req['tool']], content=event['response'],
                 discovery_only=req['tool'] == 'search_reports')
     return sources

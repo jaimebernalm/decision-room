@@ -16,7 +16,7 @@ from ..engine import blocks
 from ..memory import service as memory
 from . import store
 
-VERSION = 'prior-reports-1'
+VERSION = 'prior-reports-2'
 MAX_REPORTS = 3
 CANDIDATES = 50
 SUMMARY_BYTES = 6 * 1024
@@ -112,12 +112,10 @@ def _sections(row, derived):
         for label, text in (('Texto', texts[0] if texts else None), ('Texto final', texts[-1] if len(texts) > 1 else None)):
             if text is not None:
                 lines.append(f'  {label}: ' + clip(' '.join(blocks.block_lines(text))))
-        for child in blocks.walk(block['blocks']):
-            if child['type'] == 'action':
-                for key, field in (('check', 'check'), ('if_confirmed', 'if_confirmed'), ('if_not', 'if_not')):
-                    if child[field] is not None:
-                        lines.append(f"  {blocks.action_label(child, key)} (propuesta de ese informe): "
-                                     + clip(' '.join(blocks._content_lines(child[field]))))
+        actions = sum(1 for child in blocks.walk(block['blocks']) if child['type'] == 'action')
+        if actions:
+            # Verbatim actions and their owner state live in the follow-up register, never repeated here as pending.
+            lines.append(f'  Acciones propuestas: {actions}; están en el registro de seguimiento con el estado que les dio el propietario.')
         sections.append(lines)
     return sections
 

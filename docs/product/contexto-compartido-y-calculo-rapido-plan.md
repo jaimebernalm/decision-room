@@ -5,7 +5,7 @@ Fecha: 12 de octubre de 2026.
 **Estado:**
 
 - Pasos 0, 1 y 2 terminados. Paso 2, cálculo rápido en el chat: implementado, revisado por Codex y validado con el modelo real ([calculo-rapido-implementacion.md](../technical/calculo-rapido-implementacion.md)).
-- Siguiente: paso 3, indicadores guardados y registro de seguimiento.
+- Paso 3, indicadores guardados y registro de seguimiento: implementado y revisado dos veces por Codex ([indicadores-seguimiento-implementacion.md](../technical/indicadores-seguimiento-implementacion.md)). Las correcciones de su segunda revisión se integraron a petición del propietario sin una tercera revisión. La prueba con el modelo real está pendiente.
 - Orden revisado con el propietario el 12 de octubre de 2026: se añade el paso 3 (indicadores guardados y registro de seguimiento) y las predicciones pasan a ser el paso 4.
 
 Este plan continúa el trabajo de informes nativos. El formato nativo de bloques
@@ -19,7 +19,7 @@ estilo desde el PR #10. Sigue al [plan de implementación](<Decision Room - Plan
 | 0 | ~~Diagnosticar los fallos del motor nativo~~ (hecho) | No era un fallo del código: el Mac se suspendió durante la prueba. |
 | 1 | ~~Contexto compartido e informes anteriores~~ (hecho) | El chat y los informes saben lo mismo del cliente, y cada informe recibe los anteriores. |
 | 2 | ~~Cálculo rápido en el chat~~ (hecho) | Lo que más se nota en el uso diario. Genera las fórmulas que el paso 3 permitirá guardar. |
-| 3 | Indicadores guardados y registro de seguimiento | Hace que el contexto no crezca aunque haya muchos informes, y recalcula las cifras recurrentes sin modelo. |
+| 3 | ~~Indicadores guardados y registro de seguimiento~~ (hecho, sin la prueba real) | Hace que el contexto no crezca aunque haya muchos informes, y recalcula las cifras recurrentes sin modelo. |
 | 4 | Predicciones | Necesita las series fijas del paso 3 para probarse contra el pasado. Se planificará aparte. |
 | Más adelante | Buscador de informes anteriores para el agente de informes | Solo hace falta cuando un negocio acumule decenas de informes. |
 
@@ -152,6 +152,11 @@ El chat lee datos, memoria e informes, pero no calcula. Cualquier cifra nueva ex
 ## Paso 3. Indicadores guardados y registro de seguimiento
 
 Pensado para cuando un negocio tenga muchos informes.
+
+**Plan técnico acordado el 12 de octubre de 2026:** [indicadores-seguimiento-implementacion.md](../technical/indicadores-seguimiento-implementacion.md). Precisa dos cosas de lo escrito abajo, con las decisiones del propietario:
+
+- **Reparación de un indicador.** Si falla por la estructura de los datos, queda no disponible con el motivo. El chat propone una fórmula nueva, se compara con la cifra guardada sobre los datos anteriores y el propietario la confirma con un botón. Los fallos pasajeros se reintentan solos con la misma fórmula.
+- **Cifras de informe.** No pueden pasar directamente a indicador, porque el informe no guarda su fórmula. Primero se recalculan con un cálculo rápido del chat.
 
 ### Situación actual
 

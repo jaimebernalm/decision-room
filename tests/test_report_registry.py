@@ -82,7 +82,7 @@ class RegistryTests(unittest.TestCase):
             business=create_business(config,'Upgrade fixture')['id']
             csv=self.root/'upgrade.csv'; csv.write_text('quantity\n4\n')
             # Emulate the pre-F1 writer while building old-schema fixtures.
-            with patch('decision_room.reports.store.invalidate'):
+            with patch('decision_room.reports.store.invalidate'),patch('decision_room.indicators.revalidate'):
                 imported=import_batch(config,business,[csv])
             with patch('decision_room.reports.store.capture'):
                 run,token=receipts.admission.create_run(config,business,imported['analysis']['id'],

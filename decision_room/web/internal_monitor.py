@@ -164,6 +164,10 @@ def detail(ws,trace_id,kind,object_id,*,event_id=None):
                     path=Storage(ws.config.storage).path(business,ex['code_key'])
                     content['execution']={k:ex[k] for k in ('id','status','result','logs','runtime','duration_seconds','issue','inputs','definitions')}
                     calc=db.execute('SELECT conversation_id,turn_id,attempt,ordinal,request FROM chat_calculations WHERE business_id=%s AND execution_id=%s',(business,ex['id'])).fetchone()
+                    attempt=db.execute('SELECT purpose,value_id,version_id,attempt_no FROM indicator_attempts WHERE business_id=%s AND execution_id=%s',(business,ex['id'])).fetchone()
+                    if attempt:
+                        content['provenance']=dict(kind='saved_indicator_'+attempt['purpose'],version_id=str(attempt['version_id']),
+                                                   value_id=str(attempt['value_id']) if attempt['value_id'] else None,attempt=attempt['attempt_no'],independent_check='none')
                     if calc:
                         content['provenance']=dict(kind='quick_chat_calculation',conversation_id=str(calc['conversation_id']),turn_id=str(calc['turn_id']),
                                                    attempt=calc['attempt'],ordinal=calc['ordinal'],purpose=calc['request']['purpose'],independent_check='none')
