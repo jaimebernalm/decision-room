@@ -153,7 +153,10 @@ GitHub Actions runs `.github/workflows/checks.yml` on every pull request into
 
 - **Frontend:** `tsc -b`, `vitest run` and `oxlint`.
 - **Backend:** the Python suite on PostgreSQL 18 with pgvector, after building
-  the web assets and the calculation sandbox image.
+  the web assets and the calculation sandbox image. It runs as four parallel
+  shards balanced by `scripts/checks/test_shards.py` from the recorded module
+  times in `scripts/checks/test_timings.json` (rerun its `time` command when the
+  suite changes a lot); "Backend (all shards)" is the single result to require.
 
 No secrets are needed: the tests use stand-in models. Tests that need the pinned
 engine image or the contained report browser skip themselves there and run

@@ -40,9 +40,15 @@ jobs:
       - run: npx oxlint
 
   backend:
-    name: Backend (Python suite on PostgreSQL)
+    # The suite is split into balanced shards (scripts/checks/test_shards.py), each
+    # with its own database; "Backend (all shards)" is the single result to require.
+    name: Backend (shard ${{ matrix.shard }} of 4)
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     services:
       postgres:
         # The schema needs pgvector (CREATE EXTENSION vector); local development uses PostgreSQL 18.
@@ -90,4 +96,13 @@ jobs:
       - name: Let headless Chrome keep its own sandbox on Ubuntu 24.04
         # AppArmor blocks the unprivileged user namespaces Chrome's sandbox needs.
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-      - run: python -m unittest discover -s tests -t .
+      - name: Run this shard's test modules
+        run: python -m unittest $(python scripts/checks/test_shards.py list 4 $(( ${{ matrix.shard }} - 1 )))
+
+  backend-result:
+    name: Backend (all shards)
+    if: always()
+    needs: backend
+    runs-on: ubuntu-24.04
+    steps:
+      - run: test "${{ needs.backend.result }}" = success
