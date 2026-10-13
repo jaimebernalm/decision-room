@@ -7,12 +7,13 @@ checker/controller delivery never creates another session, allowance or send.
 import json
 import secrets
 import time
+from pathlib import Path
 from uuid import UUID, uuid4
 from psycopg.types.json import Jsonb
 from ..database import connect
 from ..memory import service as memory
 from ..reports import store as registry
-from . import admission, blocks, check_contract as contract, control, store
+from . import admission, blocks, check_contract as contract, check_coverage as coverage, control, store
 from .export import folder
 
 
@@ -63,7 +64,13 @@ def inputs(config,run,receipt,projection):
     # calls have only their owner_context, never a split of delivery instructions.
     owner=run['brief'].get('checker_context') or (run['owner_context']+'\n'+brief.DATA+'\n'+brief.UNKNOWN+'\n'+brief.LIMITS)
     files['contexto/definiciones.txt']=owner.encode()
-    files['prioridades.json']=admission.canonical(dict(revision_sha256=receipt['raw_sha256'],priorities=blocks.priorities(projection)))
+    # Each line with figures and its exact offsets, so whole lines are quoted without counting characters.
+    priorities=[dict(p,lineas=coverage.lines(p['text'])) for p in blocks.priorities(projection)]
+    files['prioridades.json']=admission.canonical(dict(revision_sha256=receipt['raw_sha256'],priorities=priorities))
+    tool=Path(coverage.__file__).read_bytes()
+    if admission.sha(tool)!=run['profile'].get('checks',{}).get('coverage_sha256'):
+        raise ValueError('The frozen coverage self-check is unavailable.')
+    files['herramientas/comprobar_cobertura.py']=tool
     return files
 
 
@@ -88,7 +95,8 @@ def run_check(config,run,receipt,projection, *, final=False):
     from . import api
     expected=dict(version=contract.VERSION,prompt_sha256=admission.sha(contract.PROMPT.encode()),
                   correction_sha256=admission.sha(contract.CORRECTION.encode()),
-                  format_repair_sha256=admission.sha(contract.FORMAT_REPAIR.encode()),calls=20,seconds=300)
+                  format_repair_sha256=admission.sha(contract.FORMAT_REPAIR.encode()),
+                  coverage_sha256=admission.sha(Path(coverage.__file__).read_bytes()),calls=20,seconds=300)
     if run['profile'].get('checks')!=expected:
         raise ValueError('Frozen checker policy is unavailable.')
     files=inputs(config,run,receipt,projection)
