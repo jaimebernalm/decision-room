@@ -70,6 +70,7 @@ class ProductTrialTests(unittest.TestCase):
         with self.assertRaises(ValueError), patch.object(trial.Config,'load',return_value=self.base):
             trial.initialize(self.source,self.root/'other')
 
+    @unittest.skipUnless((ROOT/'.local/report-browser-runtime.json').is_file(),'Build the contained report browser for this trial test.')
     def test_legacy_questions_get_bounded_stand_in_answers_and_are_never_retried(self):
         manifest=self.initialize();code=next(j['code'] for j in manifest['jobs'] if j['arm']=='legacy')
         self.assertEqual(manifest['owners']['units'],{'today':'11 de octubre de 2026','description':'quantity records units per row.','goal':'Sum the units.'})
