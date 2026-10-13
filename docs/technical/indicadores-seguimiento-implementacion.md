@@ -337,6 +337,24 @@ Requiere aprobación de gasto y el Mac despierto.
 2. Romper una columna a propósito: el indicador queda no disponible, se repara con el chat y se confirma la versión 2.
 3. Un informe recibe los indicadores y los temas abiertos y los trata como lo que son.
 
+**Resultado (13 de octubre de 2026, `master` `d558a34`, 0,36 USD):** el paso funciona como se diseñó.
+- **Guardar:** el indicador se guardó desde un cálculo del chat copiando su valor.
+- **Datos nuevos:** la versión nueva de los datos se recalculó sin ninguna llamada al modelo y con las cifras exactas (12.290 citas, 10.790 realizadas, 4,78 %).
+- **Columna renombrada:** el indicador quedó no disponible por `schema_changed`, sin ejecutarse.
+- **Reparación:** el chat la hizo con `inspect_indicator` y un cálculo, y el propietario confirmó la versión. La comparación con los datos anteriores no estuvo disponible, como es de esperar tras renombrar una columna.
+- **Comparación:** en otra reparación detectó una diferencia real (0,0 % frente a 4,40 %).
+- **Informe 1:** recalculó la cifra del indicador y dijo que coincide.
+- **Informe 2:** recibió los temas abiertos tal cual, con el estado del propietario, el enlace y el estado del informe de origen; el tema cerrado solo contado.
+
+Fallos corregidos después en `fix/trial-findings-step3`:
+- el motivo de una comparación no disponible llegaba a la interfaz como código; ahora es una frase (`comparison_reason`);
+- el encargo pasaba las cifras con todos sus decimales (4,784377542717657) y los informes las copiaban; ahora usan el mismo formato que la aplicación (`blocks-brief-7`);
+- los dos fallos del cálculo rápido descritos en su documento.
+
+Quedan para decidir con el propietario:
+- el segundo informe volvió a proponer la auditoría que el propietario había marcado como comprobada, sin decirlo, y algo parecido al tema cerrado (los cerrados no se le pasan);
+- su comprobación independiente solo cubrió 8 de 410 cifras, frente a 508 de 513 en el primero, sin causa clara.
+
 ## Orden de trabajo y commits
 
 1. Esquema, creación, intentos y proceso de recálculo, correspondencia y firma, correcciones y el ayudante de ejecuciones que no son de informes.

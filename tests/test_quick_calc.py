@@ -33,15 +33,16 @@ class FakeBackend:
     """Stands in for Docker: returns a worker payload without running code."""
     manifest = {'image': 'sha256:' + 'f' * 64, 'context': 'fake'}
 
-    def __init__(self, payload=None, status='completed', stderr=''):
+    def __init__(self, payload=None, status='completed', stderr='', stdout=''):
         self.payload, self.status, self.stderr, self.runs, self.removed = payload or result(), status, stderr, [], []
+        self.stdout = stdout
 
     def run(self, execution_id, stage, timeout):
         self.runs.append(execution_id)
         files = ([dict(name='result.json', base64=base64.b64encode(json.dumps(self.payload).encode()).decode())]
                  if self.status == 'completed' else [])
         payload = dict(protocol=1, status=self.status, exit_code=0 if self.status == 'completed' else 1, files=files,
-                       logs=dict(stdout='', stderr=self.stderr, stdout_truncated=False, stderr_truncated=False))
+                       logs=dict(stdout=self.stdout, stderr=self.stderr, stdout_truncated=False, stderr_truncated=False))
         return dict(forced_status=None, payload=json.dumps(payload).encode(), transport_stderr='', runtime={})
 
     def remove(self, execution_id):
@@ -51,9 +52,9 @@ class FakeBackend:
 class ObservationTests(unittest.TestCase):
     row = dict(id=uuid4(), refusal=None, request=dict(purpose='Unidades «vendidas» en \\"enero\\"\n' * 8))
 
-    def execution(self, status='completed', data=None, stderr=''):
+    def execution(self, status='completed', data=None, stderr='', stdout=''):
         return dict(id=uuid4(), status=status, result=data, issue=None if status == 'completed' else 'Program failed.',
-                    logs=dict(stdout='', stderr=stderr))
+                    logs=dict(stdout=stdout, stderr=stderr))
 
     def test_completed_projection_is_labelled_and_bounded_in_real_bytes(self):
         evidence = [dict(metric='unidades', tables=['ventas'], operation='SELECT "ñ\\\\"\t' * 400) for _ in range(30)]
@@ -82,6 +83,15 @@ class ObservationTests(unittest.TestCase):
             shown = quick_calc.observation(self.row, self.execution(data=result({'m': 'ñ' * (length // 2)}, evidence, ['n' * 90] * 12)))
             self.assertLessEqual(quick_calc.size(shown), quick_calc.OBSERVATION_BYTES, length)
             self.assertTrue(shown.get('metrics') == {'m': 'ñ' * (length // 2)} or shown['status'] == 'output_too_large')
+
+    def test_a_completed_run_returns_the_tail_of_what_it_printed_within_the_bound(self):
+        printed = 'ruido\n' * 2000 + "[('cancelada',), ('no_presentado',), ('realizada',)]"
+        shown = quick_calc.observation(self.row, self.execution(data=result({'pct': 0.0}), stdout=printed))
+        self.assertTrue(shown['stdout'].endswith("('realizada',)]"))
+        self.assertLessEqual(len(shown['stdout'].encode()), quick_calc.LOG_BYTES)
+        evidence = [dict(metric='m', tables=['ventas'], operation='SELECT "x" ' * 50) for _ in range(40)]
+        full = quick_calc.observation(self.row, self.execution(data=result({'m': 1}, evidence, ['n' * 90] * 12), stdout=printed))
+        self.assertLessEqual(quick_calc.size(full), quick_calc.OBSERVATION_BYTES)  # Printed output never breaks the bound.
 
     def test_failure_keeps_a_bounded_log_tail_and_refusal_explains_itself(self):
         shown = quick_calc.observation(self.row, self.execution('failed', stderr='línea\n' * 2000 + 'ZeroDivisionError'))
@@ -436,6 +446,32 @@ class ChatCalculationTests(CalculationTests):
         self.assertIn('unidades = 180', earlier)
         from decision_room.conversation_context import assistant_text
         self.assertIn('Operación: SELECT 1', assistant_text(shown['response']))
+
+    def test_the_model_and_the_reviewer_see_what_the_program_printed(self):
+        self.backend.stdout = "[('cancelada',), ('no_presentado',), ('realizada',)]"
+        turn, shown = self.send()
+        self.assertEqual(shown['status'], 'completed', shown)
+        self.assertIn('no_presentado', self.contexts[-1]['retrievals'][0]['response']['stdout'])
+        cited = next(v for v in self.reviews[-1]['cited_sources'].values() if v['label'] == quick_calc.SOURCE_LABEL)
+        self.assertIn('no_presentado', cited['content']['observation']['stdout'])
+        self.assertNotIn('stdout', shown['response']['calculations'][0])  # Not shown to the owner as a result.
+
+    def test_an_incomplete_report_offer_is_fed_back_instead_of_failing_the_turn(self):
+        def script(context):
+            if not context['validation_feedback']:
+                return dict(action='offer_report', retrieval=None, analysis_id=str(self.analysis), text='Puedo preparar un informe.',
+                            sources=[], calculation=None, include_report=False, onboarding=None, presentation_edit=None,
+                            investigation_brief=None)
+            return answer('Te lo explico sin informe.', [])
+        self.script = script
+        turn, shown = self.send('¿Me haces un informe?')
+        self.assertEqual(shown['status'], 'completed', shown)
+        self.assertIn('Your previous decision was invalid', str(self.contexts[-1]['validation_feedback']))
+        with connect(self.config) as db:
+            rejected = db.execute("SELECT response FROM chat_answer_reviews WHERE turn_id=%s AND context ? 'decision_validation'",
+                                  (turn,)).fetchone()
+        self.assertFalse(rejected['response']['approved'])
+        self.assertEqual(len(self.reviews), 1)  # The rejection itself made no review call.
 
     def test_a_failed_calculation_is_never_recorded_as_a_result(self):
         self.backend.status, self.backend.stderr = 'failed', 'Traceback: ZeroDivisionError'

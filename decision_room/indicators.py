@@ -612,6 +612,18 @@ def _values_once(config):
 # ---- Repair: proposed version, comparison, confirmation -------------------------------
 
 POLICY = 'indicator-compare-1'
+COMPARISON_REASONS = {
+    'program_failed': 'La fórmula nueva falla con los datos anteriores; pasa, por ejemplo, si una columna cambió de nombre.',
+    'no_baseline': 'No hay un valor anterior calculado con el que comparar.',
+    'metric_missing': 'Con los datos anteriores, la fórmula nueva no devuelve todas las cifras guardadas.',
+}
+
+
+def comparison_reason(code):
+    """The owner-facing sentence for why a comparison is unavailable; never a bare code."""
+    if not code:
+        return None
+    return COMPARISON_REASONS.get(code) or REASONS.get(code) or 'No se ha podido ejecutar la comparación.'
 
 
 def same(a, b):
@@ -959,7 +971,10 @@ def overview(db, business):
                                display={k: display(v) for k, v in (value['metrics'] or {}).items()},
                                reason=REASONS.get(value['reason'], value['reason']) if value['reason'] else None,
                                detail=value['detail'], computed_at=value['computed_at'], meanings=meanings_note(value['meanings_basis'])))
-        proposals = [dict(id=str(p['id']), version=p['version'], comparison={k: v for k, v in (p['comparison'] or {}).items() if k != 'history'},
+        proposals = [dict(id=str(p['id']), version=p['version'],
+                          comparison={**{k: v for k, v in (p['comparison'] or {}).items() if k != 'history'},
+                                      'reason': comparison_reason((p['comparison'] or {}).get('reason')),
+                                      'reason_code': (p['comparison'] or {}).get('reason')},
                           code=p['code'], created_at=p['created_at'])
                      for p in db.execute("SELECT * FROM indicator_versions WHERE indicator_id=%s AND state='proposed' ORDER BY version",
                                          (row['id'],)).fetchall()]
@@ -987,12 +1002,14 @@ def period_of(db, business, analysis):
 
 
 def display(value):
-    """Owner-facing formatting of a metric value; the raw value is kept alongside."""
+    """Owner-facing (and brief) formatting of a metric value; the raw value is kept alongside.
+
+    Floats keep two decimals, or four below 1 so a ratio such as 0.0478 is not shown as 0,05."""
     from .engine import blocks
     if isinstance(value, bool):
         return 'sí' if value else 'no'
     if isinstance(value, int):
         return blocks.format_number(value, 0)
     if isinstance(value, float):
-        return blocks.format_number(value, 2)
+        return blocks.format_number(value, 2 if abs(value) >= 1 or value == 0 else 4)
     return '—' if value is None else str(value)

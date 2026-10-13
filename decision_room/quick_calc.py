@@ -298,6 +298,11 @@ def observation(row, result):
             base['notes_omitted'] += 1
         else:
             base['notes'].append(note)
+    # What the program printed (its tail), so the model and the answer review can see the stored
+    # values it read; a filter on a value that is not among them is visible, not silently zero.
+    stdout = _tail((result['logs'] or {}).get('stdout'), LOG_BYTES)
+    if stdout and size({**base, 'stdout': stdout}) <= OBSERVATION_BYTES:
+        base['stdout'] = stdout
     # Exact final bound on the real JSON: a counter can gain a digit after its check.
     while size(base) > OBSERVATION_BYTES:
         if base['notes']:

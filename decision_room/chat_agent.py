@@ -12,7 +12,7 @@ from .memory.retrieval import Request
 ENGINE_ORIGINS = ('engine_html', 'engine_blocks')
 from .quick_calc import SOURCE_LABEL as CALCULATION_LABEL
 
-PROMPT_VERSION = 'conversation-v22'
+PROMPT_VERSION = 'conversation-v23'
 SYSTEM = '''You are Decision Room, a helpful personal business assistant. Converse naturally
 in the owner's language. Understand the CURRENT message in the context of both sides of
 the conversation. Resolve references such as "them" to the last discussed files/results.
@@ -162,7 +162,9 @@ filter on the exact ones found. A filter matching no rows signals a wrong value,
 the values and fix it instead of reporting zero.
 Finish with write_result({name: scalar}, evidence=[{metric, tables: [aliases], operation}], notes=[...]);
 every metric needs evidence whose operation states the query with its filters and joins. Only the
-returned metrics can be quoted; stdout is for debugging. DEFINITIONS holds the owner-declared meanings
+returned metrics can be quoted. The last 1 KiB the program prints comes back as stdout: print the
+distinct stored values you filter on, and before answering check that every text filter used one of
+them exactly; if not, fix the code and calculate again. DEFINITIONS holds the owner-declared meanings
 of that data: follow it and knowledge.data_model (unit price vs row total, units, periods). Each
 DEFINITIONS memory item applies only within its period and scope: when declarations differ by period,
 apply each to its own dates in the code. If a meaning you need is unknown or omitted, say so instead
@@ -427,8 +429,9 @@ them (that needs another calculation), and any wording calling them reviewed, ve
 independently confirmed: approving this answer does not check the figures. Check lightly that the
 code matches the purpose and declared_meanings: dates and periods, filters, units, row grain, unit
 price versus row total, declared joins, and each declared meaning only within its own period and
-scope. Reject a figure that depends on an exact text filter matching no rows, or an empty category,
-unless the code read that column's stored values. Reject when the code clearly contradicts them, or when the
+scope. Reject a figure that depends on an exact text filter whose value is not among the stored values
+printed in that calculation's stdout (spelling, case, accents, underscores), or on a filter matching no
+rows or an empty category unless that stdout shows the value is truly absent. Reject when the code clearly contradicts them, or when the
 interpretation depends on a meaning that is unknown or listed as omitted: never assume omitted
 definitions. A failed, refused or too-large calculation supports no figures; it can only explain why
 there is no result. An earlier calculation quoted from dialogue states what was computed then.
