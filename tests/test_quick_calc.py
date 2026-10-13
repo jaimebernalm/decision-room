@@ -52,9 +52,9 @@ class FakeBackend:
 class ObservationTests(unittest.TestCase):
     row = dict(id=uuid4(), refusal=None, request=dict(purpose='Unidades «vendidas» en \\"enero\\"\n' * 8))
 
-    def execution(self, status='completed', data=None, stderr='', stdout=''):
+    def execution(self, status='completed', data=None, stderr='', stdout='', stdout_truncated=False):
         return dict(id=uuid4(), status=status, result=data, issue=None if status == 'completed' else 'Program failed.',
-                    logs=dict(stdout=stdout, stderr=stderr))
+                    logs=dict(stdout=stdout, stderr=stderr, stdout_truncated=stdout_truncated, stderr_truncated=False))
 
     def test_completed_projection_is_labelled_and_bounded_in_real_bytes(self):
         evidence = [dict(metric='unidades', tables=['ventas'], operation='SELECT "ñ\\\\"\t' * 400) for _ in range(30)]
@@ -84,14 +84,26 @@ class ObservationTests(unittest.TestCase):
             self.assertLessEqual(quick_calc.size(shown), quick_calc.OBSERVATION_BYTES, length)
             self.assertTrue(shown.get('metrics') == {'m': 'ñ' * (length // 2)} or shown['status'] == 'output_too_large')
 
-    def test_a_completed_run_returns_the_tail_of_what_it_printed_within_the_bound(self):
-        printed = 'ruido\n' * 2000 + "[('cancelada',), ('no_presentado',), ('realizada',)]"
-        shown = quick_calc.observation(self.row, self.execution(data=result({'pct': 0.0}), stdout=printed))
-        self.assertTrue(shown['stdout'].endswith("('realizada',)]"))
-        self.assertLessEqual(len(shown['stdout'].encode()), quick_calc.LOG_BYTES)
+    def test_a_completed_run_returns_what_it_printed_with_its_completeness(self):
+        values = "[('cancelada',), ('no_presentado',), ('realizada',)]"
+        shown = quick_calc.observation(self.row, self.execution(data=result({'pct': 0.0}), stdout=values))
+        self.assertEqual((shown['stdout'], shown['stdout_state']), (values, 'complete'))
+        # Cut by the 1 KiB tail: the first printed value is gone, and the state says so.
+        cut = quick_calc.observation(self.row, self.execution(data=result({'pct': 0.0}), stdout="('no_presentado',)\n" + 'ruido\n' * 2000))
+        self.assertNotIn('no_presentado', cut['stdout'])
+        self.assertEqual(cut['stdout_state'], 'partial')
+        self.assertLessEqual(len(cut['stdout'].encode()), quick_calc.LOG_BYTES)
+        # Cut by the worker even though the excerpt itself is short.
+        worker = quick_calc.observation(self.row, self.execution(data=result({'pct': 0.0}), stdout=values, stdout_truncated=True))
+        self.assertEqual(worker['stdout_state'], 'partial')
+        # No room left by evidence and notes: no excerpt, explicitly omitted, and still within the bound.
         evidence = [dict(metric='m', tables=['ventas'], operation='SELECT "x" ' * 50) for _ in range(40)]
-        full = quick_calc.observation(self.row, self.execution(data=result({'m': 1}, evidence, ['n' * 90] * 12), stdout=printed))
-        self.assertLessEqual(quick_calc.size(full), quick_calc.OBSERVATION_BYTES)  # Printed output never breaks the bound.
+        full = quick_calc.observation(self.row, self.execution(data=result({'m': 1}, evidence, ['n' * 90] * 12), stdout=values * 20))
+        self.assertNotIn('stdout', full)
+        self.assertEqual(full['stdout_state'], 'omitted')
+        self.assertLessEqual(quick_calc.size(full), quick_calc.OBSERVATION_BYTES)
+        silent = quick_calc.observation(self.row, self.execution(data=result({'pct': 0.0})))
+        self.assertEqual((silent.get('stdout'), silent['stdout_state']), (None, 'empty'))
 
     def test_failure_keeps_a_bounded_log_tail_and_refusal_explains_itself(self):
         shown = quick_calc.observation(self.row, self.execution('failed', stderr='línea\n' * 2000 + 'ZeroDivisionError'))
@@ -454,6 +466,7 @@ class ChatCalculationTests(CalculationTests):
         self.assertIn('no_presentado', self.contexts[-1]['retrievals'][0]['response']['stdout'])
         cited = next(v for v in self.reviews[-1]['cited_sources'].values() if v['label'] == quick_calc.SOURCE_LABEL)
         self.assertIn('no_presentado', cited['content']['observation']['stdout'])
+        self.assertEqual(cited['content']['observation']['stdout_state'], 'complete')  # The reviewer gets the same qualification.
         self.assertNotIn('stdout', shown['response']['calculations'][0])  # Not shown to the owner as a result.
 
     def test_an_incomplete_report_offer_is_fed_back_instead_of_failing_the_turn(self):

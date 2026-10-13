@@ -283,7 +283,8 @@ def observation(row, result):
     too_large = {**base, 'status': 'output_too_large',
                  'issue': 'The result is too large for a quick calculation. Offer a report instead.'}
     metrics = data.get('metrics', {})
-    base.update(metrics=metrics, evidence=[], evidence_omitted=0, notes=[], notes_omitted=0)
+    # Room for the server-owned stdout state is reserved from the start; 'omitted' until it fits.
+    base.update(metrics=metrics, evidence=[], evidence_omitted=0, notes=[], notes_omitted=0, stdout_state='omitted')
     if size(metrics) > METRICS_BYTES or size(base) > OBSERVATION_BYTES:
         return too_large
     for item in data.get('evidence', []):
@@ -299,10 +300,17 @@ def observation(row, result):
         else:
             base['notes'].append(note)
     # What the program printed (its tail), so the model and the answer review can see the stored
-    # values it read; a filter on a value that is not among them is visible, not silently zero.
-    stdout = _tail((result['logs'] or {}).get('stdout'), LOG_BYTES)
-    if stdout and size({**base, 'stdout': stdout}) <= OBSERVATION_BYTES:
-        base['stdout'] = stdout
+    # values it read. Its state says whether it is all of it: a value missing from a partial or
+    # omitted output proves nothing about the stored column.
+    logs = result['logs'] or {}
+    raw = logs.get('stdout') or ''
+    if not raw:
+        base['stdout_state'] = 'empty'
+    else:
+        stdout = _tail(raw, LOG_BYTES)
+        state = 'partial' if logs.get('stdout_truncated') or len(raw.encode()) > LOG_BYTES else 'complete'
+        if size({**base, 'stdout': stdout, 'stdout_state': state}) <= OBSERVATION_BYTES:
+            base.update(stdout=stdout, stdout_state=state)
     # Exact final bound on the real JSON: a counter can gain a digit after its check.
     while size(base) > OBSERVATION_BYTES:
         if base['notes']:

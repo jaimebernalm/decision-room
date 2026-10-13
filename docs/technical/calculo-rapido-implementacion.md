@@ -120,7 +120,13 @@ Todos los límites de esta sección se miden en bytes del JSON real codificado e
   - las métricas, que deben caber enteras en 6 KiB. Si no caben, el estado es `output_too_large` y el cálculo no puede citarse;
   - la evidencia, con cada operación recortada a 600 caracteres, un número máximo de elementos y la cuenta de los omitidos;
   - notas de hasta 1 KiB, con la cuenta de las omitidas;
-  - extractos de stdout y stderr de hasta 1 KiB cada uno, solo si el cálculo no terminó bien. Desde `conversation-v23`, un cálculo terminado también devuelve el final de su stdout (hasta 1 KiB), si cabe en el límite de la observación. No se muestra al propietario;
+  - extractos de stdout y stderr de hasta 1 KiB cada uno, solo si el cálculo no terminó bien. Desde `conversation-v23`, un cálculo terminado también devuelve el final de su stdout (hasta 1 KiB), si cabe en el límite de la observación. Lo acompaña `stdout_state`, que pone el servidor y tiene reservado su espacio en el límite:
+    - `complete`;
+    - `partial`, si lo recortaron el trabajador o el extracto;
+    - `omitted`, si no cabe;
+    - `empty`.
+
+    Un valor que no aparece en una salida parcial u omitida nunca prueba que falte en los datos. No se muestra al propietario;
   - los ids de la ejecución y del cálculo;
   - `independent_check: 'none'`.
 
@@ -299,7 +305,8 @@ Solo un cálculo terminado del mismo turno e intento, con las métricas completa
 
 - la observación incluye el final de lo que imprime el programa;
 - el chat debe imprimir los valores por los que filtra y comprobarlos antes de responder;
-- la revisión rechaza un filtro de texto cuyo valor no aparece entre los valores impresos.
+- la revisión rechaza un filtro de texto cuyo valor no aparece entre los valores impresos;
+- un filtro sin coincidencias solo se acepta si `stdout_state` es `complete` y los valores impresos muestran que ese valor no existe. Lo pidió Codex al revisar la corrección.
 
 En la misma prueba, cuando el modelo devolvía una propuesta de informe incompleta, el turno fallaba. Ahora esa decisión se rechaza sin llamar al revisor y se devuelve al modelo para que la corrija, como una respuesta rechazada.
 
