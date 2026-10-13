@@ -136,7 +136,7 @@ class MasterMigrationTests(unittest.TestCase):
                 business = create_business(config, 'Migration fixture')['id']
                 csv = Path(root)/'units.csv'; csv.write_text('quantity\n2\n3\n')
                 # Bootstrap pre-F1 data using the old writer's lack of a registry hook.
-                with patch('decision_room.reports.store.invalidate'):
+                with patch('decision_room.reports.store.invalidate'), patch('decision_room.indicators.revalidate'):
                     analysis = import_batch(config, business, [csv])['analysis']['id']
                 with connect(config) as db:
                     db.execute('UPDATE analyses SET library_hidden=true WHERE id=%s', (analysis,))

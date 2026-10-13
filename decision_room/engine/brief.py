@@ -151,17 +151,23 @@ def _metrics(metrics):
     return ', '.join(f'{key} = {value}' for key, value in metrics.items())
 
 
+def _data(latest):
+    period = latest.get('period') or {}
+    span = f" (del {period['from']} al {period['until']})" if period.get('from') and period.get('until') else ''
+    return f"la versión {latest['dataset_version']} de los datos{span}"
+
+
 def indicator_lines(core):
     lines = []
     for item in (core or {}).get('items', []):
         latest = item.get('latest') or {}
         head = f"- {item['name']} (versión {item['version']} de la fórmula)"
         if latest.get('status') == 'completed':
-            line = f"{head}: {_metrics(latest['metrics'])}, con la versión {latest['dataset_version']} de los datos."
+            line = f"{head}: {_metrics(latest['metrics'])}, con {_data(latest)}."
             if latest.get('meanings'):
                 line += ' ' + latest['meanings']
         elif latest.get('status') == 'unavailable':
-            line = f"{head}: no disponible con la versión {latest['dataset_version']} de los datos ({latest['reason']})"
+            line = f"{head}: no disponible con {_data(latest)} ({latest['reason']})"
         elif latest:
             line = f"{head}: pendiente de recalcular con la versión {latest['dataset_version']} de los datos."
         else:
@@ -174,14 +180,21 @@ def indicator_lines(core):
 
 def follow_up_lines(core):
     from ..follow_ups import STATE_LABELS
+    from ..reports.history import CHECKS, STALE
     lines = []
     for item in (core or {}).get('items', []):
         parts = [f"{item['labels'][k]}: {' / '.join(item[k])}" for k in ('check', 'if_confirmed', 'if_not') if item.get(k)]
         line = f"- «{item['headline']}» ({item['date']}) · {item['priority']}: " + ' · '.join(parts)
+        report = item.get('report') or {}
+        stale = report.get('stale_reason')
+        warnings = f" con {report['warnings']} aviso(s)" if report.get('warnings') else ''
+        line += (f" [informe {'caducado: ' + STALE.get(stale, stale) if stale else 'vigente'}; comprobación independiente "
+                 f"{CHECKS.get(report.get('check_state'), 'no disponible')}{warnings}]")
         line += f" [estado: {STATE_LABELS[item['state']]}]"
         if item.get('link'):
             link = item['link']
-            line += f" [lo enlacé a un indicador: {link['metric_key']} = {link['value']} con la versión {link['dataset_version']} de los datos]"
+            line += f" [lo enlacé a un indicador: {link['metric_key']} = {link['value']} con la versión {link['dataset_version']} de los datos"
+            line += f"; {link['meanings']}]" if link.get('meanings') else ']'
         lines.append(line)
     extra = []
     if (core or {}).get('omitted'):
@@ -221,7 +234,7 @@ def compose(*, name, description, goal, model, memory, panorama, questions=False
     if measured:
         paragraphs.append(INDICATORS + '\n' + '\n'.join(measured))
     pending = follow_up_lines(follow_ups)
-    if (follow_ups or {}).get('items'):
+    if pending:  # Also when every topic is closed or omitted: the counts are still said.
         paragraphs.append(FOLLOW_UPS + '\n' + '\n'.join(pending))
     prior = (history or {}).get('reports') or []
     if prior:
@@ -284,7 +297,9 @@ def build_inputs(db, business, analysis, *, goal, panorama, name=None, descripti
                       # The exact indicator values and topic states this report received.
                       indicators=[dict(indicator_id=i['id'], **{k: i['latest'][k] for k in ('value_id', 'version_id', 'dataset_version', 'status')})
                                   for i in core['indicators']['items'] if i.get('latest')],
-                      follow_ups=[dict(id=f['id'], state=f['state']) for f in core['follow_ups']['items']])
+                      follow_ups=[dict(id=f['id'], state=f['state'],
+                                       **({'link': {k: f['link'][k] for k in ('value_id', 'version_id')}} if f.get('link') else {}))
+                                  for f in core['follow_ups']['items']])
     if format == 'blocks':
         provenance['checker_context'] = compose(name=owner['name'],description=owner['description'],goal=goal,
             model=model,memory=memory,panorama=False,questions=False,format=format,include_delivery=False,

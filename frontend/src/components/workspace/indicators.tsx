@@ -129,12 +129,35 @@ function Indicator({
             {tr("Versión propuesta {0}", { "0": proposal.version })}
           </p>
           <p>{tr(comparisonText[proposal.comparison.state])}</p>
+          {proposal.comparison.baseline && (
+            <p className="text-xs text-muted-foreground">
+              {tr("Comparada con la versión {0} de los datos.", {
+                "0": proposal.comparison.baseline.dataset_version,
+              })}
+            </p>
+          )}
+          {proposal.comparison.baseline?.meanings && (
+            <p className="rounded-md bg-amber-500/10 px-2 py-1 text-xs text-amber-900 dark:text-amber-200">
+              {proposal.comparison.baseline.meanings}
+            </p>
+          )}
+          {proposal.comparison.state === "unavailable" &&
+            proposal.comparison.reason && (
+              <p className="text-xs text-muted-foreground">
+                {proposal.comparison.reason}
+              </p>
+            )}
           {proposal.comparison.metrics?.map((row) => (
             <p key={row.metric} className="text-xs text-muted-foreground">
               {row.metric}: {String(row.before)} →{" "}
               {row.present ? String(row.after) : "—"}
             </p>
           ))}
+          <Disclosure subtle title={tr("Ver la fórmula propuesta")}>
+            <pre className="max-h-80 max-w-full overflow-auto rounded-md bg-muted p-3 font-mono text-xs leading-5">
+              <code>{proposal.code}</code>
+            </pre>
+          </Disclosure>
           {proposal.comparison.state !== "pending" && item.version && (
             <>
               <p className="text-xs text-muted-foreground">
@@ -189,27 +212,59 @@ const stateText: Record<FollowUp["state"], string> = {
   closed: "Cerrado",
 };
 
+// The latest completed value of each active indicator: the only figures a topic can be linked to.
+function linkable(indicators: SavedIndicator[]) {
+  return indicators.flatMap((indicator) => {
+    const latest = indicator.values[0];
+    if (indicator.status !== "active" || latest?.status !== "completed")
+      return [];
+    return Object.entries(latest.display).map(([metric, shown]) => ({
+      key: `${indicator.id}|${metric}|${latest.id}`,
+      label: `${indicator.name}: ${metric} = ${shown}`,
+      link: {
+        indicator_id: indicator.id,
+        metric_key: metric,
+        value_id: latest.id,
+      },
+    }));
+  });
+}
+
 function Topic({
   item,
   business,
+  indicators,
   onChange,
 }: {
   item: FollowUp;
   business: string;
+  indicators: SavedIndicator[];
   onChange: () => void;
 }) {
   useLanguage();
   const action = useAction();
   const key = useKeys();
-  const move = (state: FollowUp["state"]) =>
+  const [checking, setChecking] = useState(false);
+  const [note, setNote] = useState(item.note ?? "");
+  const [target, setTarget] = useState("");
+  const options = linkable(indicators);
+  const move = (
+    state: FollowUp["state"],
+    extra: { note?: string; link?: object } = {},
+  ) =>
     action.run(async () => {
+      // A different note or link is a different request: it never reuses a key.
       await api(`/api/follow-ups/${item.id}/state`, {
         business_id: business,
-        request_key: key(`${state}:${item.revision}`),
+        request_key: key(JSON.stringify([state, item.revision, extra])),
         state,
         expected_revision: item.revision,
+        ...extra,
       });
-      if (action.isMounted()) onChange();
+      if (action.isMounted()) {
+        setChecking(false);
+        onChange();
+      }
     });
   const branches = (["check", "if_confirmed", "if_not"] as const).filter(
     (branch) => item.content[branch],
@@ -226,6 +281,11 @@ function Topic({
         <Badge variant="outline">{tr(stateText[item.state])}</Badge>
       </div>
       <p className="font-medium break-words">{item.priority_title}</p>
+      {item.report?.stale_reason && (
+        <p className="text-xs text-muted-foreground">
+          {tr("El informe de origen está desactualizado.")}
+        </p>
+      )}
       {branches.map((branch) => (
         <div key={branch}>
           <p className="text-xs font-medium text-muted-foreground">
@@ -238,38 +298,110 @@ function Topic({
           ))}
         </div>
       ))}
-      <div className="flex flex-wrap gap-2 pt-1">
-        {item.state !== "checked" && (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={action.busy}
-            onClick={() => void move("checked")}
-          >
-            {tr("Marcar como comprobado")}
-          </Button>
-        )}
-        {item.state !== "closed" && (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={action.busy}
-            onClick={() => void move("closed")}
-          >
-            {tr("Cerrar")}
-          </Button>
-        )}
-        {item.state !== "proposed" && (
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={action.busy}
-            onClick={() => void move("proposed")}
-          >
-            {tr("Reabrir")}
-          </Button>
-        )}
-      </div>
+      {item.note && (
+        <p className="break-words text-xs">
+          <span className="font-medium">{tr("Tu nota:")}</span> {item.note}
+        </p>
+      )}
+      {item.link && (
+        <p className="break-words text-xs">
+          <span className="font-medium">{tr("Enlazado a:")}</span>{" "}
+          {tr("{0} = {1} con la versión {2} de los datos", {
+            "0": item.link.metric_key,
+            "1": String(item.link.value),
+            "2": item.link.dataset_version,
+          })}
+        </p>
+      )}
+      {checking ? (
+        <div className="space-y-2 rounded-md bg-muted/50 p-3">
+          <label className="block space-y-1">
+            <span className="text-xs font-medium">{tr("Nota (opcional)")}</span>
+            <textarea
+              className="w-full rounded-md border bg-background px-2 py-1"
+              maxLength={300}
+              rows={2}
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+            />
+          </label>
+          {options.length > 0 && (
+            <label className="block space-y-1">
+              <span className="text-xs font-medium">
+                {tr("Enlazar con la cifra actual de un indicador (opcional)")}
+              </span>
+              <select
+                className="w-full rounded-md border bg-background px-2 py-1"
+                value={target}
+                onChange={(event) => setTarget(event.target.value)}
+              >
+                <option value="">{tr("Sin enlace")}</option>
+                {options.map((option) => (
+                  <option key={option.key} value={option.key}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              disabled={action.busy}
+              onClick={() => {
+                const link = options.find((o) => o.key === target)?.link;
+                void move("checked", {
+                  ...(note.trim() ? { note: note.trim() } : {}),
+                  ...(link ? { link } : {}),
+                });
+              }}
+            >
+              {tr("Guardar como comprobado")}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={action.busy}
+              onClick={() => setChecking(false)}
+            >
+              {tr("Cancelar")}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-2 pt-1">
+          {item.state !== "checked" && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={action.busy}
+              onClick={() => setChecking(true)}
+            >
+              {tr("Marcar como comprobado")}
+            </Button>
+          )}
+          {item.state !== "closed" && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={action.busy}
+              onClick={() => void move("closed")}
+            >
+              {tr("Cerrar")}
+            </Button>
+          )}
+          {item.state !== "proposed" && (
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={action.busy}
+              onClick={() => void move("proposed")}
+            >
+              {tr("Reabrir")}
+            </Button>
+          )}
+        </div>
+      )}
       <Notice error>{action.error}</Notice>
     </section>
   );
@@ -281,6 +413,7 @@ export function IndicatorsPanel() {
   const resource = useResource<IndicatorsOverview>("/api/indicators", 15000);
   const business = workspace.business?.id;
   const [showRetired, setShowRetired] = useState(false);
+  const [showClosed, setShowClosed] = useState(false);
   const data = resource.data;
   // Hidden until the overview loads (or if the endpoint returns something else).
   if (!business || !Array.isArray(data?.indicators) || !data.follow_ups)
@@ -327,21 +460,30 @@ export function IndicatorsPanel() {
             {tr("Temas abiertos de informes anteriores")}
           </h3>
           <div className="grid gap-3 lg:grid-cols-2">
-            {data.follow_ups.items.map((item) => (
-              <Topic
-                key={item.id}
-                item={item}
-                business={business}
-                onChange={resource.refresh}
-              />
-            ))}
+            {data.follow_ups.items
+              .filter((item) => showClosed || item.state !== "closed")
+              .map((item) => (
+                <Topic
+                  key={item.id}
+                  item={item}
+                  business={business}
+                  indicators={data.indicators}
+                  onChange={resource.refresh}
+                />
+              ))}
           </div>
           {data.follow_ups.counts.closed > 0 && (
-            <p className="text-xs text-muted-foreground">
-              {tr("{0} tema(s) cerrado(s).", {
-                "0": data.follow_ups.counts.closed,
-              })}
-            </p>
+            <Button
+              variant="link"
+              size="sm"
+              onClick={() => setShowClosed(!showClosed)}
+            >
+              {showClosed
+                ? tr("Ocultar cerrados")
+                : tr("Ver {0} tema(s) cerrado(s)", {
+                    "0": data.follow_ups.counts.closed,
+                  })}
+            </Button>
           )}
         </div>
       )}

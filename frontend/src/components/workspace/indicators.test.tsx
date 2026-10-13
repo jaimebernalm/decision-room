@@ -133,9 +133,35 @@ const overview: IndicatorsOverview = {
           if_not: ["Mantener el horario."],
         },
         link: null,
+        report: {
+          stale_reason: "data_changed",
+          check_state: "complete",
+          warnings: 0,
+        },
+      },
+      {
+        id: "f2",
+        state: "closed",
+        note: "Ya lo miré.",
+        revision: 5,
+        headline: "Informe de marzo",
+        report_date: "2026-09-01T10:00:00",
+        priority_title: "Revisar devoluciones",
+        content: {
+          labels: { check: "Qué comprobar", if_confirmed: "Si", if_not: "No" },
+          check: ["Mirar las devoluciones."],
+          if_confirmed: null,
+          if_not: null,
+        },
+        link: {
+          indicator_id: "i1",
+          metric_key: "unidades",
+          value: 180,
+          dataset_version: 1,
+        },
       },
     ],
-    counts: { open: 1, closed: 2, withdrawn: 0 },
+    counts: { open: 1, closed: 1, withdrawn: 0 },
   },
 };
 
@@ -179,6 +205,7 @@ it("shows values with their labels, reasons and meanings basis, and confirms onl
     screen.getByText("Las columnas de un archivo han cambiado."),
   ).toBeInTheDocument();
   expect(screen.getByText(/Da un resultado distinto/)).toBeInTheDocument();
+  expect(screen.getByText("Ver la fórmula propuesta")).toBeInTheDocument();
   expect(document.querySelector("b")).toBeNull();
   await userEvent.click(
     screen.getByRole("button", { name: "Confirmar esta versión" }),
@@ -203,7 +230,9 @@ it("changes a topic's state with its expected revision and reuses the key on a d
   expect(
     await screen.findByText("Contar las recogidas de abril."),
   ).toBeInTheDocument();
-  expect(screen.getByText("2 tema(s) cerrado(s).")).toBeInTheDocument();
+  expect(
+    screen.getByText("El informe de origen está desactualizado."),
+  ).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Cerrar" }));
   await waitFor(() => expect(posts.length).toBeGreaterThanOrEqual(1));
   await userEvent.click(screen.getByRole("button", { name: "Cerrar" }));
@@ -213,6 +242,69 @@ it("changes a topic's state with its expected revision and reuses the key on a d
     expected_revision: 3,
   });
   expect(posts[1].body.request_key).toBe(posts[0].body.request_key);
+});
+
+it("shows closed topics on request so they can be reopened, with their note and link", async () => {
+  setLanguage("es");
+  const posts = serve();
+  render(
+    <WorkspaceState.Provider value={context}>
+      <IndicatorsPanel />
+    </WorkspaceState.Provider>,
+  );
+  await screen.findByText("Contar las recogidas de abril.");
+  expect(screen.queryByText("Mirar las devoluciones.")).toBeNull();
+  await userEvent.click(
+    screen.getByRole("button", { name: "Ver 1 tema(s) cerrado(s)" }),
+  );
+  expect(screen.getByText("Mirar las devoluciones.")).toBeInTheDocument();
+  expect(screen.getByText("Ya lo miré.")).toBeInTheDocument();
+  expect(
+    screen.getByText("unidades = 180 con la versión 1 de los datos"),
+  ).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Reabrir" }));
+  await waitFor(() => expect(posts).toHaveLength(1));
+  expect(posts[0].url).toBe("/api/follow-ups/f2/state");
+  expect(posts[0].body).toMatchObject({
+    state: "proposed",
+    expected_revision: 5,
+  });
+});
+
+it("marks a topic as checked with a note and the indicator figure the owner sees", async () => {
+  setLanguage("es");
+  const posts = serve();
+  render(
+    <WorkspaceState.Provider value={context}>
+      <IndicatorsPanel />
+    </WorkspaceState.Provider>,
+  );
+  await screen.findByText("Contar las recogidas de abril.");
+  await userEvent.click(
+    screen.getByRole("button", { name: "Marcar como comprobado" }),
+  );
+  await userEvent.type(
+    screen.getByRole("textbox", { name: "Nota (opcional)" }),
+    "Coincide con abril.",
+  );
+  await userEvent.selectOptions(
+    screen.getByRole("combobox", {
+      name: "Enlazar con la cifra actual de un indicador (opcional)",
+    }),
+    "Unidades vendidas: unidades = 200",
+  );
+  // Only the latest completed value of an active indicator can be linked.
+  expect(screen.queryByRole("option", { name: /Cancelaciones/ })).toBeNull();
+  await userEvent.click(
+    screen.getByRole("button", { name: "Guardar como comprobado" }),
+  );
+  await waitFor(() => expect(posts).toHaveLength(1));
+  expect(posts[0].body).toMatchObject({
+    state: "checked",
+    expected_revision: 3,
+    note: "Coincide con abril.",
+    link: { indicator_id: "i1", metric_key: "unidades", value_id: "x2" },
+  });
 });
 
 it("saves a published calculation as an indicator from its card", async () => {

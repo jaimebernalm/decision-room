@@ -82,16 +82,16 @@ def heads(db, business):
     return dict(indicators=row['indicators_revision'] if row else 0, follow_ups=row['follow_ups_revision'] if row else 0)
 
 
-def _bounded(items, limit):
-    """Whole items within a real serialized byte budget; the rest only counted."""
+def _bounded(items, limit, wrap):
+    """Whole items while the WHOLE returned object fits a real serialized byte budget; the rest only counted.
+
+    Each trial is measured with the largest omitted count it could end with, so the final object never grows."""
     from .memory.service import encoded
-    kept, omitted = [], 0
-    for item in items:
-        if len(encoded([*kept, item]).encode()) <= limit:
+    kept = []
+    for index, item in enumerate(items):
+        if len(encoded(wrap([*kept, item], len(items) - len(kept) - 1)).encode()) <= limit:
             kept.append(item)
-        else:
-            omitted += 1
-    return kept, omitted
+    return wrap(kept, len(items) - len(kept))
 
 
 def indicators(db, business):
@@ -105,32 +105,39 @@ def indicators(db, business):
         latest = values[0] if values else None
         item = dict(id=str(row['id']), name=row['name'], version=version['version'] if version else None, label=store.LABEL)
         if latest:
-            basis = latest['meanings_basis'] or {}
             item['latest'] = dict(value_id=str(latest['id']), version_id=str(latest['version_id']),
-                                  dataset_version=latest['dataset_version'], status=latest['status'])
+                                  analysis_id=str(latest['analysis_id']), dataset_version=latest['dataset_version'],
+                                  period=store.period_of(db, business, latest['analysis_id']), status=latest['status'])
             if latest['status'] == 'completed':
                 item['latest']['metrics'] = latest['metrics']
-                if basis and not basis.get('current_meanings_confirmed', True):
-                    item['latest']['meanings'] = store.INHERITED.format(basis.get('dataset_version'))
+                if store.meanings_note(latest['meanings_basis']):
+                    item['latest']['meanings'] = store.meanings_note(latest['meanings_basis'])
             elif latest['status'] == 'unavailable':
                 item['latest']['reason'] = store.REASONS.get(latest['reason'], latest['reason'])
         items.append(item)
-    kept, omitted = _bounded(items, INDICATORS_BYTES)
-    return dict(items=kept, omitted=omitted,
-                use='Saved fixed formulas recomputed without a model; not independently checked.')
+    return _bounded(items, INDICATORS_BYTES, lambda kept, omitted: dict(
+        items=kept, omitted=omitted, use='Saved fixed formulas recomputed without a model; not independently checked.'))
 
 
 def follow_ups(db, business):
     """Open topics from earlier native reports, verbatim, newest report first; closed ones only counted."""
     from . import follow_ups as register
+    from . import indicators as store
     items = []
-    for row in register.listing(db, business):
+    rows = register.listing(db, business)
+    reports = register.report_states(db, business, rows)
+    for row in rows:
         item = dict(id=str(row['id']), state=row['state'], headline=row['headline'], date=row['report_date'].date().isoformat(),
                     priority=row['priority_title'], labels=row['content']['labels'],
-                    **{k: row['content'][k] for k in register.BRANCHES if row['content'][k] is not None})
+                    **{k: row['content'][k] for k in register.BRANCHES if row['content'][k] is not None},
+                    report=reports[row['document_id']])
         if row['link']:
-            item['link'] = {k: row['link'][k] for k in ('indicator_id', 'metric_key', 'value', 'dataset_version')}
+            link = row['link']
+            item['link'] = {k: link[k] for k in ('indicator_id', 'version_id', 'value_id', 'metric_key', 'value', 'dataset_version')}
+            if store.meanings_note(link.get('meanings_basis')):
+                item['link']['meanings'] = store.meanings_note(link['meanings_basis'])
         items.append(item)
-    kept, omitted = _bounded(items, FOLLOW_UPS_BYTES)
-    return dict(items=kept, omitted=omitted, counts=register.counts(db, business),
-                use="Earlier reports' proposals with the owner's state; 'checked' is the owner's declaration, not a verification.")
+    counts = register.counts(db, business)
+    return _bounded(items, FOLLOW_UPS_BYTES, lambda kept, omitted: dict(
+        items=kept, omitted=omitted, counts=counts,
+        use="Earlier reports' proposals with the owner's state; 'checked' is the owner's declaration, not a verification."))

@@ -25,6 +25,7 @@ LABEL = 'Indicador guardado · fórmula fija recalculada sin modelo · sin compr
 INHERITED = ('Calculado con la fórmula y los significados guardados de la versión {}; '
              'esos significados no están confirmados en esta versión.')
 MAX_METRICS = 10
+MAX_KEY_CHARS = 80
 TIMEOUT = quick_calc.TIMEOUT
 MAX_INPUT_BYTES = quick_calc.MAX_INPUT_BYTES
 BACKOFF = (60, 300, 900, 3600)
@@ -134,13 +135,13 @@ def owner_touched(db, business, analysis, table_ids):
     return touched
 
 
-def memory_set(db, business, analysis, rows_by_alias):
+def memory_set(db, business, analysis, rows_by_alias, effective=None):
     """Applicable declared definitions/availability, scoped with this analysis' own ids; no ids kept."""
     from . import business_knowledge
     sources = [str(r['id']) for r in db.execute('SELECT id FROM sources WHERE business_id=%s AND analysis_id=%s',
                                                  (business, analysis)).fetchall()]
     by_source = {str(r['source_id']): alias for alias, r in rows_by_alias.items()}
-    rows = business_knowledge.declared(ctx.scoped(ctx.effective(db, business),
+    rows = business_knowledge.declared(ctx.scoped(effective if effective is not None else ctx.effective(db, business),
                                                   dict(analysis_id=str(analysis), source_ids=sources, period=ctx.period())))
     items = []
     for row in rows:
@@ -157,22 +158,22 @@ def memory_set(db, business, analysis, rows_by_alias):
     return sorted(items, key=memory.encoded)
 
 
-def signature(db, business, analysis, rows_by_alias):
+def signature(db, business, analysis, rows_by_alias, effective=None):
     from .data_knowledge import service as knowledge
     head = knowledge.latest(db, business, analysis)
     body = head['body'] if head else None
     return dict(version=VERSION,
                 schema={alias: [c['name'] for c in r['columns']] for alias, r in sorted(rows_by_alias.items())},
                 elements={alias: declared_elements(body, r['id']) for alias, r in sorted(rows_by_alias.items())},
-                memory=memory_set(db, business, analysis, rows_by_alias),
+                memory=memory_set(db, business, analysis, rows_by_alias, effective),
                 basis=dict(analysis_id=str(analysis), data_model_revision=head['revision'] if head else None,
                            tables={alias: str(r['id']) for alias, r in sorted(rows_by_alias.items())}))
 
 
-def check(db, business, frozen, analysis, rows_by_alias):
+def check(db, business, frozen, analysis, rows_by_alias, effective=None):
     """Compare the frozen signature with this analysis. Returns (reason, detail, meanings_basis)."""
     from .data_knowledge import service as knowledge
-    current = signature(db, business, analysis, rows_by_alias)
+    current = signature(db, business, analysis, rows_by_alias, effective)
     for alias in frozen['schema']:
         if frozen['schema'][alias] != current['schema'].get(alias):
             return 'schema_changed', alias, None
@@ -248,9 +249,9 @@ def published(db, business, turn_id, calculation_id, metric_keys):
     if not done or item['code'] != row['request']['code'] or str(done['id']) != item['execution_id']:
         raise WebError('Ese cálculo no está disponible para guardarlo.', 409)
     if (not isinstance(metric_keys, list) or not 1 <= len(metric_keys) <= MAX_METRICS or len(set(metric_keys)) != len(metric_keys)
-            or any(not isinstance(k, str) or k not in item['metrics'] or done['result']['metrics'].get(k) != item['metrics'][k]
-                   for k in metric_keys)):
-        raise WebError(f'Elige entre 1 y {MAX_METRICS} cifras distintas de ese cálculo.')
+            or any(not isinstance(k, str) or len(k) > MAX_KEY_CHARS or k not in item['metrics']
+                   or done['result']['metrics'].get(k) != item['metrics'][k] for k in metric_keys)):
+        raise WebError(f'Elige entre 1 y {MAX_METRICS} cifras distintas de ese cálculo, con nombres de hasta {MAX_KEY_CHARS} caracteres.')
     source = dataset_of(db, business, row['analysis_id'])
     if not source or source['corrected'] or any(ctx.table_version(db, business, t['id']) != t['metadata_version']
                                                 for t in row['request']['tables']):
@@ -340,8 +341,42 @@ def revoke(db, business, analysis):
     """A corrected dataset version: its values stay for audit but are never current or a baseline."""
     count = db.execute("""UPDATE indicator_values SET status='revoked',reason='corrected',metrics=NULL,updated_at=now()
         WHERE business_id=%s AND analysis_id=%s AND status<>'revoked'""", (business, analysis)).rowcount
-    requeue_comparisons(db, business, analysis)
+    requeue_comparisons(db, business)
     return count
+
+
+def revalidate(db, business):
+    """Business knowledge changed (inside its writer transaction and memory.lock): every completed value is checked
+    again against its version. One whose data, meanings or basis no longer match stops with the reason; a stop is
+    never undone here, the repair is the owner's new version. Unchanged values keep their state."""
+    values = db.execute("""SELECT v.* FROM indicator_values v JOIN indicator_versions x ON x.id=v.version_id
+        WHERE v.business_id=%s AND v.status='completed' AND x.state='active' ORDER BY v.id""", (business,)).fetchall()
+    if not values:
+        return 0
+    effective, versions, changed = ctx.effective(db, business), {}, 0
+    for value in values:
+        version = versions.get(value['version_id']) or db.execute('SELECT * FROM indicator_versions WHERE id=%s',
+                                                                  (value['version_id'],)).fetchone()
+        versions[value['version_id']] = version
+        source = dataset_of(db, business, value['analysis_id'])
+        if not source or source['corrected']:
+            db.execute("UPDATE indicator_values SET status='revoked',reason='corrected',metrics=NULL,updated_at=now() WHERE id=%s",
+                       (value['id'],))
+            changed += 1
+            continue
+        rows, failure = mapping(db, business, value['analysis_id'], version['tables'])
+        reason, detail, basis = check(db, business, version['signature'], value['analysis_id'], rows, effective) if rows else (*failure, None)
+        if reason:
+            db.execute("""UPDATE indicator_values SET status='unavailable',reason=%s,detail=%s,metrics=NULL,next_attempt_at=NULL,
+                updated_at=now() WHERE id=%s""", (reason, (detail or '')[:500], value['id']))
+            changed += 1
+        elif basis != value['meanings_basis']:
+            db.execute('UPDATE indicator_values SET meanings_basis=%s,updated_at=now() WHERE id=%s', (Jsonb(basis), value['id']))
+            changed += 1
+    requeue_comparisons(db, business)
+    if changed:
+        bump(db, business)
+    return changed
 
 
 # ---- Projection and freshness --------------------------------------------------------
@@ -432,12 +467,19 @@ def _freeze(db, business, value, version):
     return attempt
 
 
+def _tables_unchanged(db, business, attempt):
+    """Every table the attempt froze still has the metadata version it froze (data, columns, profile, names, status)."""
+    return all(ctx.table_version(db, business, t['table_id']) == t['metadata_version'] for t in attempt['identity']['tables'])
+
+
 def _run(config, business, attempt, version):
     """Outside any transaction: the terminal execution of this attempt, None when refused, raises if open."""
     key = PREFIX + str(attempt['id'])
     with connect(config) as db:
         found = attempt['execution_id'] or (db.execute('SELECT id FROM executions WHERE business_id=%s AND analysis_id=%s AND request_key=%s',
                                                        (business, attempt['analysis_id'], key)).fetchone() or {}).get('id')
+        if found is None and not _tables_unchanged(db, business, attempt):
+            return None, 'identity_changed'  # Never admitted: the next attempt freezes the current tables.
     if found is None:
         try:
             result = execution.execute(config, business, attempt['analysis_id'], code=version['code'],
@@ -503,6 +545,8 @@ def _publish(db, business, value, version, attempt, result, refusal):
     """Record the attempt's effect only if version, data and meanings still match it."""
     if value['status'] != 'pending':
         return 'structural', 'superseded'
+    if refusal == 'identity_changed' or (result is not None and not _tables_unchanged(db, business, attempt)):
+        return 'structural', 'identity_changed'  # The value stays pending; a new attempt freezes the current tables.
     if result is None:
         if refusal == 'input_too_large':
             _unavailable(db, business, value, 'resource_limit', 'Los datos superan el límite del cálculo.')
@@ -535,6 +579,8 @@ def _publish(db, business, value, version, attempt, result, refusal):
     if current['state'] != 'active' or not source or source['corrected']:
         return 'structural', 'superseded'
     rows, failure = mapping(db, business, value['analysis_id'], version['tables'])
+    if rows and {a: str(r['id']) for a, r in rows.items()} != {t['alias']: t['table_id'] for t in attempt['identity']['tables']}:
+        return 'structural', 'identity_changed'
     reason, detail, basis = check(db, business, version['signature'], value['analysis_id'], rows) if rows else (failure[0], failure[1], None)
     if reason:
         _unavailable(db, business, value, reason, detail)
@@ -663,8 +709,10 @@ def compare(config, business, version_id):
                 number = (db.execute("SELECT max(attempt_no) AS n FROM indicator_attempts WHERE purpose='comparison' AND version_id=%s",
                                      (version_id,)).fetchone()['n'] or 0) + 1
                 identity = dict(code_sha256=version['code_sha256'], definitions_sha256=digest(version['definitions']),
-                                baseline=dict(value_id=str(base['id']), analysis_id=str(base['analysis_id']),
-                                              dataset_version=base['dataset_version'], metrics=base['metrics']),
+                                baseline=dict(value_id=str(base['id']), version_id=str(base['version_id']),
+                                              analysis_id=str(base['analysis_id']), dataset_version=base['dataset_version'],
+                                              metrics=base['metrics'], meanings_basis=base['meanings_basis'],
+                                              meanings=meanings_note(base['meanings_basis'])),
                                 tables=[dict(alias=a, table_id=str(r['id']), metadata_version=ctx.table_version(db, business, r['id']))
                                         for a, r in sorted(rows.items())])
                 attempt = db.execute('''INSERT INTO indicator_attempts(id,business_id,purpose,version_id,analysis_id,attempt_no,identity,admission)
@@ -678,7 +726,11 @@ def compare(config, business, version_id):
             memory.lock(db, business)
             version = db.execute('SELECT * FROM indicator_versions WHERE id=%s', (version_id,)).fetchone()
             outcome, reason = ('transient', refusal) if result is None else _classify(result)
-            if outcome in ('transient', 'resource') and attempt['attempt_no'] <= len(BACKOFF) and refusal != 'input_too_large':
+            stale = _stale_comparison(db, business, version, attempt, refusal)
+            if stale:
+                # Nothing is sealed from a stale run; a pending comparison takes a new baseline on its next attempt.
+                outcome, reason = 'structural', stale
+            elif outcome in ('transient', 'resource') and attempt['attempt_no'] <= len(BACKOFF) and refusal != 'input_too_large':
                 delay = BACKOFF[min(attempt['attempt_no'] - 1, len(BACKOFF) - 1)]
                 db.execute("UPDATE indicator_versions SET comparison=comparison || %s WHERE id=%s",
                            (Jsonb(dict(next_attempt_at=(now() + timedelta(seconds=delay)).isoformat())), version_id))
@@ -701,6 +753,23 @@ def compare(config, business, version_id):
     return True
 
 
+def _baseline_valid(db, business, base):
+    """A receipt's baseline is still a completed value of uncorrected data."""
+    value = db.execute('SELECT status FROM indicator_values WHERE business_id=%s AND id=%s', (business, base['value_id'])).fetchone()
+    source = dataset_of(db, business, base['analysis_id'])
+    return bool(value and value['status'] == 'completed' and source and not source['corrected'])
+
+
+def _stale_comparison(db, business, version, attempt, refusal):
+    if version['state'] != 'proposed' or (version['comparison'] or {}).get('state') != 'pending':
+        return 'superseded'
+    if not _baseline_valid(db, business, attempt['identity']['baseline']):
+        return 'baseline_changed'
+    if refusal == 'identity_changed' or not _tables_unchanged(db, business, attempt):
+        return 'identity_changed'
+    return None
+
+
 def _seal(db, business, version, body):
     """A comparison receipt is immutable; a revoked one is kept in history."""
     sealed = _sealed(dict(body, policy=POLICY, created_at=now().isoformat()))
@@ -709,14 +778,19 @@ def _seal(db, business, version, body):
     bump(db, business)
 
 
-def requeue_comparisons(db, business, analysis):
-    """A corrected baseline revokes the receipts that used it: keep them as history and compare again."""
+def requeue_comparisons(db, business):
+    """A receipt whose baseline stopped being a completed value of uncorrected data is kept as history; compare again."""
     for version in db.execute("""SELECT * FROM indicator_versions WHERE business_id=%s AND state='proposed'
-            AND comparison->'baseline'->>'analysis_id'=%s""", (business, str(analysis))).fetchall():
+            AND comparison ? 'baseline'""", (business,)).fetchall():
+        base = version['comparison']['baseline']
+        if _baseline_valid(db, business, base):
+            continue
+        source = dataset_of(db, business, base['analysis_id'])
         old = {k: v for k, v in version['comparison'].items() if k != 'history'}
+        why = 'baseline_corrected' if not source or source['corrected'] else 'baseline_changed'
         db.execute('UPDATE indicator_versions SET comparison=%s WHERE id=%s',
                    (Jsonb(dict(state='pending', policy=POLICY, history=[*version['comparison'].get('history', []),
-                                                                         dict(old, revoked='baseline_corrected')])), version['id']))
+                                                                         dict(old, revoked=why)])), version['id']))
 
 
 def confirm(config, business, indicator_id, version_id, data):
@@ -726,49 +800,56 @@ def confirm(config, business, indicator_id, version_id, data):
     expected = identifier(data.get('expected_active_version_id'))
     comparison_sha = data.get('comparison_sha')
     request = dict(indicator_id=str(indicator_id), version_id=str(version_id), expected=str(expected), comparison_sha=comparison_sha)
-    with connect(config) as db, db.transaction():
-        memory.lock(db, business)
-        prior, sha = receipt(db, business, key, 'confirm', request)
-        if prior:
-            return prior
-        indicator = _indicator(db, business, indicator_id, lock=True)
-        active = _active(db, indicator_id)
-        version = db.execute("SELECT * FROM indicator_versions WHERE business_id=%s AND id=%s AND indicator_id=%s",
-                             (business, version_id, indicator_id)).fetchone()
-        if indicator['status'] != 'active' or not active or active['id'] != expected or not version or version['state'] != 'proposed':
-            raise WebError('El indicador ha cambiado. Recarga antes de confirmar.', 409)
-        comparison = version['comparison'] or {}
-        if comparison.get('state') == 'pending':
-            raise WebError('La comparación con los datos anteriores todavía se está haciendo.', 409)
-        base = comparison.get('baseline')
-        source = base and dataset_of(db, business, base['analysis_id'])
-        if base and (not source or source['corrected']):
-            requeue_comparisons(db, business, base['analysis_id'])
-            raise WebError('Los datos de la comparación se corrigieron. Se está repitiendo; vuelve a revisarla.', 409)
-        if comparison.get('sha256') != comparison_sha:
-            raise WebError('La comparación ha cambiado. Revísala antes de confirmar.', 409)
-        provenance = version['provenance']
-        row, done, calc_source, rows = published(db, business, identifier(provenance['turn_id']),
-                                                 identifier(provenance['calculation_id']), version['metric_keys'])
-        reason, _, basis = check(db, business, version['signature'], row['analysis_id'], rows)
-        if reason or calc_source['dataset_version'] != provenance['dataset_version']:
-            raise WebError('Los datos o los significados de ese cálculo han cambiado. Pide un cálculo nuevo.', 409)
-        db.execute("UPDATE indicator_versions SET state='superseded' WHERE id=%s", (active['id'],))
-        db.execute("UPDATE indicator_versions SET state='discarded' WHERE indicator_id=%s AND state='proposed' AND id<>%s",
-                   (indicator_id, version_id))
-        db.execute("UPDATE indicator_versions SET state='active',confirmed_at=now(),applies_from=%s WHERE id=%s",
-                   (calc_source['dataset_version'], version_id))
-        db.execute('''INSERT INTO indicator_values(id,business_id,indicator_id,version_id,analysis_id,dataset_version,status,metrics,
-            meanings_basis,execution_id,computed_at) VALUES (%s,%s,%s,%s,%s,%s,'completed',%s,%s,%s,now())
-            ON CONFLICT (indicator_id,version_id,analysis_id) DO NOTHING''',
-                   (uuid4(), business, indicator_id, version_id, row['analysis_id'], calc_source['dataset_version'],
-                    Jsonb({k: done['result']['metrics'][k] for k in version['metric_keys']}), Jsonb(basis), done['id']))
-        db.execute('UPDATE saved_indicators SET revision=revision+1 WHERE id=%s', (indicator_id,))
-        reconcile(db, business)
-        bump(db, business)
-        result = dict(indicator_id=str(indicator_id), version_id=str(version_id), state='active')
-        remember(db, business, key, 'confirm', sha, result)
+    with connect(config) as db:
+        with db.transaction():
+            memory.lock(db, business)
+            prior, sha = receipt(db, business, key, 'confirm', request)
+            if prior:
+                return prior
+            indicator = _indicator(db, business, indicator_id, lock=True)
+            active = _active(db, indicator_id)
+            version = db.execute("SELECT * FROM indicator_versions WHERE business_id=%s AND id=%s AND indicator_id=%s",
+                                 (business, version_id, indicator_id)).fetchone()
+            if indicator['status'] != 'active' or not active or active['id'] != expected or not version or version['state'] != 'proposed':
+                raise WebError('El indicador ha cambiado. Recarga antes de confirmar.', 409)
+            comparison = version['comparison'] or {}
+            if comparison.get('state') == 'pending':
+                raise WebError('La comparación con los datos anteriores todavía se está haciendo.', 409)
+            stale = bool(comparison.get('baseline')) and not _baseline_valid(db, business, comparison['baseline'])
+            if stale:  # Committed before refusing, so the comparison really is repeated.
+                requeue_comparisons(db, business)
+                bump(db, business)
+            else:
+                result = _activate(db, business, indicator_id, version, active, comparison_sha)
+                remember(db, business, key, 'confirm', sha, result)
+        if stale:
+            raise WebError('Los datos de la comparación han cambiado. Se está repitiendo; vuelve a revisarla.', 409)
     return result
+
+
+def _activate(db, business, indicator_id, version, active, comparison_sha):
+    if (version['comparison'] or {}).get('sha256') != comparison_sha:
+        raise WebError('La comparación ha cambiado. Revísala antes de confirmar.', 409)
+    provenance = version['provenance']
+    row, done, calc_source, rows = published(db, business, identifier(provenance['turn_id']),
+                                             identifier(provenance['calculation_id']), version['metric_keys'])
+    reason, _, basis = check(db, business, version['signature'], row['analysis_id'], rows)
+    if reason or calc_source['dataset_version'] != provenance['dataset_version']:
+        raise WebError('Los datos o los significados de ese cálculo han cambiado. Pide un cálculo nuevo.', 409)
+    db.execute("UPDATE indicator_versions SET state='superseded' WHERE id=%s", (active['id'],))
+    db.execute("UPDATE indicator_versions SET state='discarded' WHERE indicator_id=%s AND state='proposed' AND id<>%s",
+               (indicator_id, version['id']))
+    db.execute("UPDATE indicator_versions SET state='active',confirmed_at=now(),applies_from=%s WHERE id=%s",
+               (calc_source['dataset_version'], version['id']))
+    db.execute('''INSERT INTO indicator_values(id,business_id,indicator_id,version_id,analysis_id,dataset_version,status,metrics,
+        meanings_basis,execution_id,computed_at) VALUES (%s,%s,%s,%s,%s,%s,'completed',%s,%s,%s,now())
+        ON CONFLICT (indicator_id,version_id,analysis_id) DO NOTHING''',
+               (uuid4(), business, indicator_id, version['id'], row['analysis_id'], calc_source['dataset_version'],
+                Jsonb({k: done['result']['metrics'][k] for k in version['metric_keys']}), Jsonb(basis), done['id']))
+    db.execute('UPDATE saved_indicators SET revision=revision+1 WHERE id=%s', (indicator_id,))
+    reconcile(db, business)
+    bump(db, business)
+    return dict(indicator_id=str(indicator_id), version_id=str(version['id']), state='active')
 
 
 def retire(config, business, indicator_id, data):
@@ -793,35 +874,57 @@ def retire(config, business, indicator_id, data):
 INSPECT_BYTES = 12 * 1024
 
 
+INSPECT_NAMES = 2
+INSPECT_NAME_CHARS = 100
+INSPECT_PROPOSALS = 3
+INSPECT_VALUES = 5
+
+
+def _size(value):
+    return len(memory.encoded(value).encode())
+
+
 def inspect(db, business, indicator_id):
-    """One indicator for the chat, at most 12 KiB serialized: code first, then recent values, then definitions."""
+    """One indicator for the chat, at most INSPECT_BYTES of the whole serialized object.
+
+    The base (code, at most 8 KiB, and capped names and proposals) always fits. Values go latest first; if
+    the latest does not fit whole, a minimal record with its state takes its place and nothing older is
+    offered instead. Definitions only when the whole object still fits."""
     indicator = _indicator(db, business, indicator_id)
     version = _active(db, indicator_id)
     if not version:
         raise WebError('Ese indicador no tiene una versión activa.', 409)
+    proposals = db.execute("SELECT version,comparison FROM indicator_versions WHERE indicator_id=%s AND state='proposed' "
+                           'ORDER BY version DESC', (indicator_id,)).fetchall()
     result = dict(indicator=dict(id=str(indicator['id']), name=indicator['name'], status=indicator['status'], label=LABEL),
                   version=dict(version=version['version'], code=version['code'], metric_keys=version['metric_keys'],
                                applies_from=version['applies_from'],
-                               tables=[dict(alias=t['alias'], original_names=t['original_names']) for t in version['tables']]),
-                  values=[], values_omitted=0, definitions_omitted=True,
+                               tables=[dict(alias=t['alias'], original_names=[n[:INSPECT_NAME_CHARS] for n in t['original_names'][:INSPECT_NAMES]],
+                                            names_omitted=max(0, len(t['original_names']) - INSPECT_NAMES)) for t in version['tables']]),
                   proposed=[dict(version=p['version'], comparison=(p['comparison'] or {}).get('state'))
-                            for p in db.execute("SELECT version,comparison FROM indicator_versions WHERE indicator_id=%s AND state='proposed' "
-                                                'ORDER BY version', (indicator_id,)).fetchall()])
-    for value in current_values(db, business, indicator_id):
-        basis = value['meanings_basis'] or {}
-        item = dict(dataset_version=value['dataset_version'], status=value['status'], metrics=value['metrics'],
+                            for p in proposals[:INSPECT_PROPOSALS]],
+                  proposed_omitted=max(0, len(proposals) - INSPECT_PROPOSALS),
+                  values=[], values_omitted=0, definitions_omitted=True)
+    values = current_values(db, business, indicator_id)
+    for index, value in enumerate(values):
+        item = dict(dataset_version=value['dataset_version'], analysis_id=str(value['analysis_id']),
+                    period=period_of(db, business, value['analysis_id']), status=value['status'], metrics=value['metrics'],
                     reason=REASONS.get(value['reason'], value['reason']) if value['reason'] else None,
-                    detail=(value['detail'] or '')[:300] or None,
-                    meanings=INHERITED.format(basis.get('dataset_version')) if basis and not basis.get('current_meanings_confirmed', True) else None)
-        if len(memory.encoded({**result, 'values': [*result['values'], item]}).encode()) <= INSPECT_BYTES and len(result['values']) < 5:
+                    detail=(value['detail'] or '')[:300] or None, meanings=meanings_note(value['meanings_basis']))
+        # Room for the final omitted count, whatever it turns out to be.
+        trial = {**result, 'values': [*result['values'], item], 'values_omitted': len(values)}
+        if len(result['values']) < INSPECT_VALUES and _size(trial) <= INSPECT_BYTES:
             result['values'].append(item)
-        else:
-            result['values_omitted'] += 1
+            continue
+        if index == 0:
+            result['values'].append(dict(dataset_version=value['dataset_version'], status=value['status'], omitted=True))
+        result['values_omitted'] = len(values) - len(result['values'])
+        break
     with_definitions = {**result, 'definitions': version['definitions'], 'definitions_omitted': False}
-    if len(memory.encoded(with_definitions).encode()) <= INSPECT_BYTES:
+    if _size(with_definitions) <= INSPECT_BYTES:
         result = with_definitions
+    assert _size(result) <= INSPECT_BYTES
     return result
-
 
 
 def overview(db, business):
@@ -831,13 +934,11 @@ def overview(db, business):
         active = _active(db, row['id'])
         values = []
         for value in current_values(db, business, row['id'])[:12]:
-            basis = value['meanings_basis'] or {}
             values.append(dict(id=str(value['id']), dataset_version=value['dataset_version'], status=value['status'],
-                               metrics=value['metrics'],
-                               display={k: display(v) for k, v in (value['metrics'] or {}).items()}, reason=REASONS.get(value['reason'], value['reason']) if value['reason'] else None,
-                               detail=value['detail'], computed_at=value['computed_at'],
-                               meanings=INHERITED.format(basis.get('dataset_version'))
-                               if basis and not basis.get('current_meanings_confirmed', True) else None))
+                               period=period_of(db, business, value['analysis_id']), metrics=value['metrics'],
+                               display={k: display(v) for k, v in (value['metrics'] or {}).items()},
+                               reason=REASONS.get(value['reason'], value['reason']) if value['reason'] else None,
+                               detail=value['detail'], computed_at=value['computed_at'], meanings=meanings_note(value['meanings_basis'])))
         proposals = [dict(id=str(p['id']), version=p['version'], comparison={k: v for k, v in (p['comparison'] or {}).items() if k != 'history'},
                           code=p['code'], created_at=p['created_at'])
                      for p in db.execute("SELECT * FROM indicator_versions WHERE indicator_id=%s AND state='proposed' ORDER BY version",
@@ -848,6 +949,21 @@ def overview(db, business):
                           values=values, proposals=proposals))
     return items
 
+
+
+def meanings_note(basis):
+    """The owner-visible caveat of a value computed with inherited meanings, or None.
+
+    current_meanings_confirmed covers the elements declared when the formula was saved; columns never
+    declared stay unknown either way (listed in `undeclared`), so it is never a confirmation of every column."""
+    return INHERITED.format(basis.get('dataset_version')) if basis and not basis.get('current_meanings_confirmed', True) else None
+
+
+def period_of(db, business, analysis):
+    row = db.execute('SELECT period_from,period_until FROM dataset_versions WHERE business_id=%s AND analysis_id=%s',
+                     (business, analysis)).fetchone()
+    return {'from': row['period_from'].isoformat() if row and row['period_from'] else None,
+            'until': row['period_until'].isoformat() if row and row['period_until'] else None}
 
 
 def display(value):

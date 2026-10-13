@@ -4,7 +4,7 @@ Fecha: 12 de octubre de 2026.
 
 Desarrolla el paso 3 del [plan de contexto compartido y cálculo rápido](<../product/contexto-compartido-y-calculo-rapido-plan.md>). El plan lo acordaron Claude y Codex en cuatro versiones; Codex aprobó la cuarta. Claude lo implementa y Codex revisa los cambios. La prueba real final necesita la aprobación del propietario.
 
-**Estado: implementado en `feature/saved-indicators`, pendiente de la revisión de Codex y de la prueba real.**
+**Estado: implementado en `feature/saved-indicators`, con las correcciones de la primera revisión de Codex; pendiente de su nueva revisión y de la prueba real.**
 
 - Un commit por parte (1 a 6).
 - **Puntos de entrada:**
@@ -19,6 +19,28 @@ Desarrolla el paso 3 del [plan de contexto compartido y cálculo rápido](<../pr
 - **Detalles de la implementación:**
   - Las cifras de los indicadores se muestran con formato español (enteros con separador de miles, decimales con dos cifras), pero se guarda el valor exacto.
   - Las ejecuciones de indicador no cuelgan de ningún turno en la actividad, porque el proceso de trabajo no tiene traza. El monitor interno muestra su procedencia.
+
+### Revisión de Codex y correcciones
+
+Codex revisó la implementación (resultado `7d2a9c14` v1, veredicto *revise*) con siete hallazgos, reproducidos por separado. Correcciones:
+
+1. **Revalidación de valores completados.** Cada escritura que cambia el conocimiento del negocio (correcciones del modelo de datos de cualquier análisis, memoria declarada y correcciones de datos) pasa por `context.invalidate`, que ahora llama a `indicators.revalidate` en la misma transacción. Un valor completado cuya firma, significados o base ya no coinciden queda no disponible con el motivo; el intento y su ejecución se conservan para auditoría. **Una parada nunca se deshace sola**: aunque el propietario restaure el significado, la reparación es una versión nueva confirmada por él, como en el resto del plan.
+2. **Carrera de la comparación.** Antes de sellar, la comparación comprueba bajo el bloqueo que la propuesta sigue pendiente, que su base sigue siendo un valor completado de datos sin corregir y que las tablas no han cambiado. Si no, el intento termina como `baseline_changed` o `identity_changed`, no se sella nada y el siguiente intento elige otra base. Un recibo cuya base deja de valer, por el motivo que sea, se reencola. Confirmar con una base caducada guarda primero la reencolación y después rechaza.
+3. **Identidad de las tablas del intento.** Antes de admitir un intento y antes de publicar o sellar su resultado se compara `metadata_version` de todas las tablas congeladas, y el mapeo actual con los identificadores del intento. Si algo cambió, el intento termina como `identity_changed`, el valor sigue pendiente y otro intento congela las tablas actuales. Una ejecución ya terminada se lee sin repetirla, pero no se publica.
+4. **El aviso de significados heredados no se pierde.** Viaja en los enlaces de los temas (núcleo y encargo) y en la base de cada comparación, que la interfaz muestra. La procedencia del encargo guarda el valor y la versión enlazados. Cada tema lleva el estado actual de su informe: caducidad, calculada al leer, y estado de su comprobación independiente con el número de avisos. `follow_up_actions.metadata` guarda ese estado tal como estaba al sincronizar, como auditoría.
+5. **Flujo del propietario en el registro.** `GET /api/indicators` devuelve también los temas cerrados. La interfaz los muestra a petición, con «Reabrir». Al marcar como comprobado se puede añadir una nota y enlazar la cifra actual de un indicador. El enlace envía el valor que el propietario vio y se rechaza si ya no es el último completado: nunca se sustituye por una cifra anterior.
+6. **Límites exactos.** `inspect_indicator` mide el objeto entero:
+   - acota propuestas, nombres de archivo y nombres de cifra (hasta 80 caracteres al guardar);
+   - prioriza el último valor; si no cabe entero, deja un registro mínimo con su estado y no ofrece uno anterior en su lugar.
+
+   El núcleo compartido mide la proyección completa con sus contadores, no solo la lista.
+7. **Solo cerrados u omitidos.** El encargo dice cuántos temas están cerrados u omitidos aunque no quepa ninguno.
+
+Además:
+- La interfaz muestra la fórmula propuesta, la versión de datos de la base y el motivo de una comparación no disponible.
+- Los valores llevan su análisis y su periodo declarado al chat, al encargo y a la vista del propietario.
+- `current_meanings_confirmed` cubre solo los elementos declarados al guardar la fórmula: las columnas nunca declaradas siguen desconocidas y se listan en `undeclared`.
+- La memoria de la firma se toma sin acotar el periodo, a propósito: cualquier cambio de una definición aplicable, sea del periodo que sea, para el indicador. Es la opción conservadora.
 
 ## Decisiones del propietario
 

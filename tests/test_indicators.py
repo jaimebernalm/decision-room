@@ -1,5 +1,6 @@
 """Saved indicators: created from a published calculation, recomputed without a model, never adapted."""
 import json
+import unittest
 from datetime import date, timedelta
 from unittest.mock import patch
 from uuid import uuid4
@@ -25,6 +26,8 @@ class IndicatorTests(qc.ChatCalculationTests):
         self.b = self.business['id']
         with connect(self.config) as db:  # The class shares one database: earlier tests' queues are not this test's.
             db.execute("UPDATE indicator_values SET status='unavailable',reason='test_isolation' WHERE status='pending'")
+            db.execute("""UPDATE indicator_versions SET comparison=jsonb_build_object('state','unavailable','reason','test_isolation')
+                WHERE state='proposed' AND comparison->>'state'='pending'""")
 
     def saved(self, metric_keys=('unidades',), key=None):
         turn, shown = self.send()
@@ -201,6 +204,75 @@ class IndicatorTests(qc.ChatCalculationTests):
         indicators.work_once(self.config)
         self.assertEqual(self.values(created['indicator_id'])[-1]['reason'], 'basis_changed')
 
+    def test_a_completed_value_stops_as_soon_as_its_basis_changes_and_is_not_revived(self):
+        from decision_room import business_knowledge
+        self.declare(self.analysis, meaning='unidades vendidas', unit='paquetes')
+        created, _ = self.saved()
+        newer = self.update()
+        self.backend.payload = qc.result({'unidades': 200})
+        indicators.work_once(self.config)
+        self.assertEqual(self.values(created['indicator_id'])[-1]['status'], 'completed')
+        self.declare(self.analysis, meaning='unidades vendidas', unit='cajas')  # The basis the new value inherited.
+        first, second = self.values(created['indicator_id'])
+        self.assertEqual((first['status'], first['reason']), ('unavailable', 'meanings_changed'))
+        self.assertEqual((second['status'], second['reason'], second['metrics']), ('unavailable', 'basis_changed', None))
+        with connect(self.config) as db, db.transaction():
+            self.assertEqual(indicators.current_values(db, self.b, created['indicator_id'])[0]['status'], 'unavailable')
+            core = business_knowledge.build(db, self.b, dict(analysis_id=str(newer), source_ids=[], period={'from': None, 'until': None}))
+            attempt = db.execute('SELECT outcome FROM indicator_attempts WHERE value_id=%s', (second['id'],)).fetchone()
+        self.assertEqual(core['indicators']['items'][0]['latest']['status'], 'unavailable')
+        self.assertEqual(attempt['outcome'], 'completed')  # The earlier result stays for audit.
+        self.declare(self.analysis, meaning='unidades vendidas', unit='paquetes')  # Restored: still the owner's repair.
+        self.assertEqual([v['status'] for v in self.values(created['indicator_id'])], ['unavailable', 'unavailable'])
+
+    def test_withdrawing_an_inherited_meaning_in_the_new_version_stops_its_value(self):
+        self.declare(self.analysis, meaning='unidades vendidas', unit='paquetes')
+        created, _ = self.saved()
+        newer = self.update()
+        indicators.work_once(self.config)
+        self.declare(newer, meaning='unidades vendidas', unit='paquetes')
+        self.assertTrue(self.values(created['indicator_id'])[-1]['meanings_basis']['current_meanings_confirmed'])
+        self.declare(newer, meaning='', unit='', conversion='')
+        self.assertEqual(self.values(created['indicator_id'])[-1]['reason'], 'meanings_unknown')
+
+    def test_a_table_changed_after_the_run_is_not_published_and_is_run_again(self):
+        created, _ = self.saved()
+        newer = self.update()
+        real = execution.execute
+
+        def changing(*args, **kwargs):
+            result = real(*args, **kwargs)
+            with connect(self.config) as db:
+                db.execute('UPDATE prepared_tables SET row_count=row_count+1 WHERE analysis_id=%s', (newer,))
+            return result
+        with patch.object(execution, 'execute', side_effect=changing):
+            self.assertTrue(indicators.work_once(self.config))
+        value = self.values(created['indicator_id'])[-1]
+        self.assertEqual(value['status'], 'pending')
+        self.assertTrue(indicators.work_once(self.config))
+        with connect(self.config) as db:
+            attempts = db.execute('SELECT attempt_no,outcome,reason FROM indicator_attempts WHERE value_id=%s ORDER BY attempt_no',
+                                  (value['id'],)).fetchall()
+        self.assertEqual([(a['outcome'], a['reason']) for a in attempts], [('structural', 'identity_changed'), ('completed', None)])
+        self.assertEqual(self.values(created['indicator_id'])[-1]['status'], 'completed')
+
+    def test_a_table_changed_before_admission_is_never_run(self):
+        created, _ = self.saved()
+        newer = self.update()
+        real = indicators._freeze
+
+        def freeze(db, *args):
+            attempt = real(db, *args)
+            db.execute('UPDATE prepared_tables SET row_count=row_count+1 WHERE analysis_id=%s', (newer,))
+            return attempt
+        with patch.object(indicators, '_freeze', side_effect=freeze):
+            indicators.work_once(self.config)
+        self.assertEqual(len(self.backend.runs), 1)  # Only the chat calculation.
+        with connect(self.config) as db:
+            attempt = db.execute('SELECT admission,outcome,reason FROM indicator_attempts WHERE analysis_id=%s', (newer,)).fetchone()
+        self.assertEqual((attempt['admission'], attempt['outcome'], attempt['reason']), ('refused', 'structural', 'identity_changed'))
+        self.assertEqual(self.values(created['indicator_id'])[-1]['status'], 'pending')
+
 
 class RepairTests(IndicatorTests):
     for name in [n for n in dir(IndicatorTests) if n.startswith('test_')]:
@@ -281,6 +353,90 @@ class RepairTests(IndicatorTests):
         again = self.version(proposed['version_id'])['comparison']
         self.assertNotEqual(again['baseline']['analysis_id'], str(newer))
         self.confirm(created, proposed, active)
+
+    def test_a_baseline_corrected_while_comparing_is_never_sealed(self):
+        created, _ = self.saved()
+        proposed, active = self.proposal(created)
+        with connect(self.config) as db:
+            db.execute('''UPDATE indicator_versions SET comparison=comparison || '{"next_attempt_at": "2999-01-01T00:00:00+00:00"}'
+                WHERE id=%s''', (proposed['version_id'],))
+        newer = self.update()
+        indicators.work_once(self.config)
+        with connect(self.config) as db:
+            db.execute("UPDATE indicator_versions SET comparison=comparison - 'next_attempt_at' WHERE id=%s", (proposed['version_id'],))
+        real = execution.execute
+
+        def correcting(*args, **kwargs):
+            result = real(*args, **kwargs)
+            self.update(mode='correction', previous=newer)  # Between the run and the seal.
+            return result
+        with patch.object(execution, 'execute', side_effect=correcting):
+            self.assertTrue(indicators._compare_once(self.config))
+        comparison = self.version(proposed['version_id'])['comparison']
+        self.assertEqual(comparison['state'], 'pending')
+        with connect(self.config) as db:
+            [attempt] = db.execute("SELECT outcome,reason,identity FROM indicator_attempts WHERE purpose='comparison' AND version_id=%s",
+                                   (proposed['version_id'],)).fetchall()
+        self.assertEqual((attempt['outcome'], attempt['reason']), ('structural', 'baseline_changed'))
+        self.assertEqual(attempt['identity']['baseline']['analysis_id'], str(newer))
+        while indicators.work_once(self.config):
+            pass
+        again = self.version(proposed['version_id'])['comparison']
+        self.assertNotEqual(again['baseline']['analysis_id'], str(newer))
+        self.confirm(created, proposed, active)
+
+    def test_confirm_with_a_stale_baseline_really_queues_the_comparison_again(self):
+        created, _ = self.saved()
+        proposed, active = self.proposal(created)
+        indicators.work_once(self.config)
+        receipt = self.version(proposed['version_id'])['comparison']
+        with connect(self.config) as db:  # The baseline stopped being current without passing through a hook.
+            db.execute("UPDATE indicator_values SET status='unavailable',reason='program_failed',metrics=NULL WHERE id=%s",
+                       (receipt['baseline']['value_id'],))
+        with self.assertRaises(WebError) as refused:
+            self.confirm(created, proposed, active, sha=receipt['sha256'])
+        self.assertEqual(refused.exception.status, 409)
+        comparison = self.version(proposed['version_id'])['comparison']
+        self.assertEqual(comparison['state'], 'pending')  # Committed, not rolled back with the refusal.
+        self.assertEqual(comparison['history'][-1]['revoked'], 'baseline_changed')
+
+    def test_a_comparison_shows_the_meanings_basis_of_its_baseline(self):
+        self.declare(self.analysis, meaning='unidades vendidas', unit='paquetes')
+        created, _ = self.saved()
+        proposed, _ = self.proposal(created)
+        with connect(self.config) as db:
+            db.execute('''UPDATE indicator_versions SET comparison=comparison || '{"next_attempt_at": "2999-01-01T00:00:00+00:00"}'
+                WHERE id=%s''', (proposed['version_id'],))
+        self.update()
+        indicators.work_once(self.config)  # The inherited value on the newer version becomes the baseline.
+        with connect(self.config) as db:
+            db.execute("UPDATE indicator_versions SET comparison=comparison - 'next_attempt_at' WHERE id=%s", (proposed['version_id'],))
+        indicators.work_once(self.config)
+        baseline = self.version(proposed['version_id'])['comparison']['baseline']
+        self.assertEqual(baseline['meanings'], indicators.INHERITED.format(1))
+        self.assertFalse(baseline['meanings_basis']['current_meanings_confirmed'])
+
+    def test_inspect_fits_with_many_proposals_and_never_offers_an_older_value_instead(self):
+        created, _ = self.saved()
+        newer = self.update()
+        indicators.work_once(self.config)
+        with connect(self.config) as db:
+            db.execute('''INSERT INTO indicator_versions(id,business_id,indicator_id,version,state,code,code_sha256,tables,metric_keys,
+                definitions,signature,signature_sha256,provenance,comparison)
+                SELECT gen_random_uuid(),business_id,indicator_id,version+g,'proposed',code,code_sha256,tables,metric_keys,definitions,
+                    signature,signature_sha256,provenance,'{"state": "unavailable", "reason": "no_baseline"}'
+                FROM indicator_versions, generate_series(1,450) g WHERE indicator_id=%s AND state='active' ''',
+                       (created['indicator_id'],))
+            seen = indicators.inspect(db, self.b, created['indicator_id'])
+            self.assertLessEqual(indicators._size(seen), indicators.INSPECT_BYTES)
+            self.assertEqual((len(seen['proposed']), seen['proposed_omitted']), (indicators.INSPECT_PROPOSALS, 450 - indicators.INSPECT_PROPOSALS))
+            self.assertEqual([v['dataset_version'] for v in seen['values']], [2, 1])
+            db.execute("UPDATE indicator_values SET metrics=%s WHERE indicator_id=%s AND analysis_id=%s",
+                       (json.dumps({'unidades': 'ñ' * 9000}), created['indicator_id'], newer))
+            seen = indicators.inspect(db, self.b, created['indicator_id'])
+        self.assertLessEqual(indicators._size(seen), indicators.INSPECT_BYTES)
+        self.assertEqual(seen['values'], [dict(dataset_version=2, status='completed', omitted=True)])
+        self.assertEqual(seen['values_omitted'], 1)
 
     def test_a_proposal_whose_own_data_was_corrected_is_refused(self):
         created, _ = self.saved()
@@ -379,3 +535,15 @@ class IndicatorApiTests(IndicatorTests):
                                                                                  expected_revision=item['revision']))
         self.assertEqual(retired.status_code, 200, retired.text)
         self.assertEqual([i for i in home.collect(self.ws.scoped(self.b))['items'] if i['source'].get('origin') == 'indicator'], [])
+
+
+class BoundTests(unittest.TestCase):
+    def test_the_whole_projection_fits_its_budget_with_its_counters(self):
+        from decision_room import business_knowledge
+        from decision_room.memory.service import encoded
+        for count in (1, 7, 40):
+            items = [dict(text='ñandú ' * (8 + i % 5)) for i in range(count)]
+            for limit in (200, 1000, business_knowledge.INDICATORS_BYTES):
+                out = business_knowledge._bounded(items, limit, lambda kept, omitted: dict(items=kept, omitted=omitted, use='x' * 60))
+                self.assertLessEqual(len(encoded(out).encode()), limit)
+                self.assertEqual(len(out['items']) + out['omitted'], count)

@@ -430,6 +430,7 @@ export type IndicatorValue = {
   reason: string | null;
   detail: string | null;
   meanings: string | null;
+  period?: { from: string | null; until: string | null };
 };
 export type IndicatorComparison = {
   state: "pending" | "match" | "mismatch" | "unavailable";
@@ -442,7 +443,7 @@ export type IndicatorComparison = {
     present: boolean;
     same: boolean;
   }[];
-  baseline?: { dataset_version: number };
+  baseline?: { dataset_version: number; meanings?: string | null };
 };
 export type SavedIndicator = {
   id: string;
@@ -479,7 +480,17 @@ export type FollowUp = {
     if_confirmed: string[] | null;
     if_not: string[] | null;
   };
-  link: { metric_key: string; value: unknown; dataset_version: number } | null;
+  link: {
+    indicator_id: string;
+    metric_key: string;
+    value: unknown;
+    dataset_version: number;
+  } | null;
+  report?: {
+    stale_reason: string | null;
+    check_state: string;
+    warnings: number;
+  };
 };
 export type IndicatorsOverview = {
   indicators: SavedIndicator[];

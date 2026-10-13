@@ -406,8 +406,10 @@ class Handler(BaseHTTPRequestHandler):
                         raise WebError('Selecciona un negocio.', 409)
                     with connect(ws.config) as db:
                         items = indicators.overview(db, business)
-                        topics = [{**row, 'id': str(row['id']), 'document_id': str(row['document_id'])}
-                                  for row in follow_ups.listing(db, business)]
+                        rows = follow_ups.listing(db, business, include_closed=True)  # Closed ones too, so they can be reopened.
+                        reports = follow_ups.report_states(db, business, rows)
+                        topics = [{**row, 'id': str(row['id']), 'document_id': str(row['document_id']),
+                                   'report': reports[row['document_id']]} for row in rows]
                         counts = follow_ups.counts(db, business)
                     self.send(200, dict(indicators=items, follow_ups=dict(items=topics, counts=counts), label=indicators.LABEL))
                     return

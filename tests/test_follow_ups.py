@@ -3,6 +3,8 @@ import json
 import unittest
 from uuid import uuid4
 
+from psycopg.types.json import Jsonb
+
 from decision_room import follow_ups
 from decision_room.database import connect
 from decision_room.web.errors import WebError
@@ -162,7 +164,8 @@ class ConsumerTests(RegisterTests):
         self.assertEqual(provenance['follow_ups'], [dict(id=str(item['id']), state='checked')])
         self.assertIn('Los indicadores guardados y los temas abiertos', check_contract.PROMPT)
         self.assertEqual([i['id'] for i in core['follow_ups']['items']], [str(item['id'])])
-        self.assertLessEqual(len(json.dumps(core['follow_ups'], ensure_ascii=False).encode()), business_knowledge.FOLLOW_UPS_BYTES + 200)
+        from decision_room.memory.service import encoded
+        self.assertLessEqual(len(encoded(core['follow_ups']).encode()), business_knowledge.FOLLOW_UPS_BYTES)
         sources = chat_agent.sources_for(dict(chat_context=saved, retrievals=[]))
         self.assertEqual(sources['follow_ups']['label'], 'Temas abiertos de informes anteriores')
         # A later owner change makes that snapshot stale.
@@ -171,3 +174,64 @@ class ConsumerTests(RegisterTests):
         self.state(next(t for t in self.topics() if t['id'] == item['id']), 'proposed')
         with connect(self.config) as db:
             self.assertFalse(conversations.fresh(db, saved))
+
+    def test_closed_only_or_omitted_only_registers_are_still_reported(self):
+        from decision_room.engine import brief
+        args = dict(name='Tienda', description='Una tienda.', goal='Qué revisar.', model=None, memory=[], panorama=False,
+                    data_meanings=([], False))
+        closed = brief.compose(**args, follow_ups=dict(items=[], omitted=0, counts=dict(open=0, closed=2, withdrawn=0)))
+        self.assertIn(brief.FOLLOW_UPS, closed)
+        self.assertIn('2 tema(s) cerrado(s) no se incluyen', closed)
+        omitted = brief.compose(**args, follow_ups=dict(items=[], omitted=1, counts=dict(open=1, closed=0, withdrawn=0)))
+        self.assertIn('1 tema(s) abierto(s) más no caben aquí', omitted)
+        self.assertNotIn(brief.FOLLOW_UPS, brief.compose(**args, follow_ups=dict(items=[], omitted=0, counts={})))
+
+    def test_a_link_freezes_the_current_value_the_owner_saw_with_its_meanings_caveat(self):
+        from decision_room import business_knowledge, indicators
+        from decision_room.engine import brief
+        job = self.deliver()
+        item = self.topics()[0]
+        b, analysis = self.business['id'], job['analysis_id']
+        indicator, version, old, new = uuid4(), uuid4(), uuid4(), uuid4()
+        inherited = dict(dataset_version=1, current_meanings_confirmed=False, confirmed=[], inherited=['ventas: column:unidades'])
+        with connect(self.config) as db:
+            db.execute("INSERT INTO saved_indicators(id,business_id,dataset_id,name,status) VALUES (%s,%s,%s,'Unidades','active')",
+                       (indicator, b, analysis))
+            db.execute('''INSERT INTO indicator_versions(id,business_id,indicator_id,version,state,code,code_sha256,tables,metric_keys,
+                definitions,signature,signature_sha256,provenance) VALUES (%s,%s,%s,1,'proposed','x','x','[]','["unidades"]','{}','{}','x','{}')''',
+                       (version, b, indicator))
+            other = uuid4()  # A second dataset version: a copy of the analysis row under a new id.
+            db.execute('''INSERT INTO analyses SELECT (jsonb_populate_record(NULL::analyses, to_jsonb(a) || jsonb_build_object('id', %s::text, 'batch_sha256', md5(random()::text)))).*
+                FROM analyses a WHERE id=%s''', (other, analysis))
+            db.execute('''INSERT INTO indicator_values(id,business_id,indicator_id,version_id,analysis_id,dataset_version,status,metrics,
+                meanings_basis) VALUES (%s,%s,%s,%s,%s,1,'completed','{"unidades": 180}',%s),
+                (%s,%s,%s,%s,%s,2,'pending',NULL,NULL)''',
+                       (old, b, indicator, version, analysis, Jsonb(inherited), new, b, indicator, version, other))
+            # Activated only now so no revalidation of this hand-made version runs in between.
+            db.execute("UPDATE indicator_versions SET state='active' WHERE id=%s", (version,))
+        self.addCleanup(self._drop_indicator, indicator, other)
+        link = dict(indicator_id=str(indicator), metric_key='unidades', value_id=str(old))
+        with self.assertRaises(WebError) as stale:  # The latest value is pending: no fallback to the older figure.
+            self.state(item, 'checked', link=link)
+        self.assertEqual(stale.exception.status, 409)
+        with connect(self.config) as db:
+            db.execute("UPDATE indicator_values SET status='completed',metrics='{\"unidades\": 200}',meanings_basis=%s WHERE id=%s",
+                       (Jsonb(inherited), new))
+        with self.assertRaises(WebError):  # The owner saw the older one: refused, not silently replaced.
+            self.state(item, 'checked', link=link)
+        self.state(item, 'checked', link={**link, 'value_id': str(new)}, note='Visto con el indicador.')
+        with connect(self.config) as db, db.transaction():
+            core = business_knowledge.follow_ups(db, b)
+        [linked] = [t for t in core['items'] if t['id'] == str(item['id'])]
+        self.assertEqual((linked['link']['value'], linked['link']['value_id']), (200, str(new)))
+        self.assertEqual(linked['link']['meanings'], indicators.INHERITED.format(1))
+        self.assertIn(indicators.INHERITED.format(1), '\n'.join(brief.follow_up_lines(core)))
+        self.assertIn('check_state', linked['report'])
+
+    def _drop_indicator(self, indicator, analysis):
+        with connect(self.config) as db:
+            db.execute('UPDATE follow_ups SET link=NULL')
+            db.execute('UPDATE follow_up_events SET link=NULL')
+            for table in ('indicator_values', 'indicator_versions', 'saved_indicators'):
+                db.execute(f"DELETE FROM {table} WHERE {'id' if table == 'saved_indicators' else 'indicator_id'}=%s", (indicator,))
+            db.execute('DELETE FROM analyses WHERE id=%s', (analysis,))

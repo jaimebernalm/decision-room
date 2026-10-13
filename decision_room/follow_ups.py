@@ -92,13 +92,14 @@ def sync_document(db, business, document_id):
             AND f.availability='withdrawn' AND f.withdrawn_reason='source_unavailable'""", (revision, business, document_id))
         _mark(db, business, document_id, revision, present)
         return
+    audit = report_state(db, business, document, revision)  # As it was at this sync; consumers read report_states().
     for item in items:
         db.execute('''INSERT INTO follow_up_actions(id,business_id,document_id,revision_id,block_id,position,priority_title,content,
             content_sha256,headline,report_date,dataset_id,analysis_id,metadata) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             ON CONFLICT (revision_id,block_id) DO NOTHING''',
                    (uuid4(), business, document_id, revision, item['block_id'], item['position'], item['priority_title'],
                     Jsonb(item['content']), item['content_sha256'], item['headline'], document['delivered_at'],
-                    document['dataset_id'], document['analysis_id'], Jsonb(dict(stale_reason=document['stale_reason']))))
+                    document['dataset_id'], document['analysis_id'], Jsonb(audit)))
     new = db.execute('SELECT * FROM follow_up_actions WHERE revision_id=%s AND topic_id IS NULL ORDER BY position',
                      (revision,)).fetchall()
     # Only the topics of the previously synced revision can follow into this one.
@@ -123,6 +124,26 @@ def sync_document(db, business, document_id):
                 VALUES (%s,%s,%s,%s,%s,'proposed','available')''', (topic, business, document_id, action['content_sha256'], action['id']))
             db.execute('UPDATE follow_up_actions SET topic_id=%s WHERE id=%s', (topic, action['id']))
     _mark(db, business, document_id, revision, present)
+
+
+def report_state(db, business, document, revision_id):
+    """The report's current staleness and the state of its independent check, for one revision."""
+    from .engine import check_contract, native_checks
+    from .reports import store
+    checks = native_checks.read(db, business, document['source_run_id'], revision_id)
+    return dict(stale_reason=store.reason(db, document), check_state=checks['state'],
+                warnings=len(check_contract.visible(checks)['items']))
+
+
+def report_states(db, business, rows):
+    """Per document of these topics, computed now (staleness changes after delivery)."""
+    states = {}
+    for row in rows:
+        key = (row['document_id'], row['revision_id'])
+        if key not in states:
+            document = db.execute('SELECT * FROM report_documents WHERE business_id=%s AND id=%s', (business, row['document_id'])).fetchone()
+            states[key] = report_state(db, business, document, row['revision_id'])
+    return {k[0]: v for k, v in states.items()}
 
 
 def _match(old, new):
@@ -194,14 +215,16 @@ def set_state(config, business, follow_up_id, data):
             raise WebError('El tema ha cambiado. Recarga antes de guardarlo.', 409)
         frozen = None
         if link is not None:
-            if state != 'checked' or not isinstance(link, dict) or set(link) != {'indicator_id', 'metric_key'}:
+            if state != 'checked' or not isinstance(link, dict) or set(link) != {'indicator_id', 'metric_key', 'value_id'}:
                 raise WebError('Enlaza un indicador y una de sus cifras solo al marcarlo como comprobado.')
             indicator = identifier(link['indicator_id'])
-            values = [v for v in indicators.current_values(db, business, indicator) if v['status'] == 'completed']
+            values = indicators.current_values(db, business, indicator)
             version = db.execute("SELECT id,metric_keys FROM indicator_versions WHERE business_id=%s AND indicator_id=%s AND state='active'",
                                  (business, indicator)).fetchone()
-            if not version or link['metric_key'] not in version['metric_keys'] or not values:
-                raise WebError('Ese indicador no tiene esa cifra disponible.')
+            # Only the latest value, as the owner saw it; never an older completed one in its place.
+            if (not version or link['metric_key'] not in version['metric_keys'] or not values or values[0]['status'] != 'completed'
+                    or str(values[0]['id']) != str(identifier(link['value_id']))):
+                raise WebError('Esa cifra del indicador ya no es la actual. Recarga antes de enlazarla.', 409)
             value = values[0]
             frozen = dict(indicator_id=str(indicator), version_id=str(value['version_id']), value_id=str(value['id']),
                           metric_key=link['metric_key'], value=value['metrics'][link['metric_key']],
