@@ -166,7 +166,10 @@ Este plan no pide nada cifra a cifra.
   - los CSV congelados;
   - el texto de las prioridades;
   - las definiciones, alias, semántica y declaraciones del dueño congeladas que hagan falta para
-    entenderlos.
+    entenderlos;
+  - desde octubre de 2026, cada línea de las prioridades que tiene cifras, con su posición exacta,
+    y una herramienta que valida su resultado y lista las cifras que quedarían sin comprobar
+    (ver la prueba real del paso 3 en `indicadores-seguimiento-implementacion.md`).
 - **Qué no recibe:** el panorama calculado, los resultados del autor ni ningún oráculo.
 - **Qué devuelve:** extrae por sí misma las cifras de las prioridades y liga cada comprobación al
   id de bloque, al fragmento con su posición y al hash de la revisión. Para cada cifra registra

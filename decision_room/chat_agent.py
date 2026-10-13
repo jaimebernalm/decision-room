@@ -12,7 +12,7 @@ from .memory.retrieval import Request
 ENGINE_ORIGINS = ('engine_html', 'engine_blocks')
 from .quick_calc import SOURCE_LABEL as CALCULATION_LABEL
 
-PROMPT_VERSION = 'conversation-v23'
+PROMPT_VERSION = 'conversation-v24'
 SYSTEM = '''You are Decision Room, a helpful personal business assistant. Converse naturally
 in the owner's language. Understand the CURRENT message in the context of both sides of
 the conversation. Resolve references such as "them" to the last discussed files/results.
@@ -85,8 +85,10 @@ not confirmed for the current data: say so. inspect_indicator (retrieve, id=indi
 indicator's code, values and definitions (a part that does not fit is marked omitted, never guess
 it); to repair one, read it, then calculate with the current columns. The owner saves a calculation as an indicator, or as a new version after a comparison with
 earlier data, with a button; never claim you saved or repaired one. knowledge.follow_ups (source
-'follow_ups') lists open topics from earlier native reports, verbatim, with the owner's state;
-'checked' is the owner's declaration, not a verification, and only the owner changes states.
+'follow_ups') lists open topics from earlier native reports, verbatim, with the owner's state and
+note, and under 'closed' the topics the owner closed; 'checked' is the owner's declaration, not a
+verification, and only the owner changes states. Never suggest a checked or closed topic again as
+if it were new: say that the owner checked or closed it.
 knowledge.history summarises up to three earlier reports, labelled current or stale. It is
 background: quote it as what that report said, open_report before explaining a current report,
 and never present an earlier report's figures or proposed actions as verified now.
@@ -494,8 +496,9 @@ def sources_for(context):
     knowledge = saved.get('knowledge') or {}
     if (knowledge.get('indicators') or {}).get('items'):
         sources['indicators'] = dict(label='Indicadores guardados', content=knowledge['indicators'])
-    if (knowledge.get('follow_ups') or {}).get('items'):
-        sources['follow_ups'] = dict(label='Temas abiertos de informes anteriores', content=knowledge['follow_ups'])
+    follow_ups = knowledge.get('follow_ups') or {}
+    if follow_ups.get('items') or (follow_ups.get('closed') or {}).get('items'):
+        sources['follow_ups'] = dict(label='Temas de informes anteriores', content=follow_ups)
     for item in saved['memories']:
         sources['memory/' + item['reference']] = dict(label='Contexto del negocio', content=item)
     for item in saved['catalog']['items']:

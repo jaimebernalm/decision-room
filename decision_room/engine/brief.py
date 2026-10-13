@@ -78,7 +78,10 @@ INDICATORS = ('Estos son indicadores que guardé: cada uno es una fórmula fija 
               'di que es la del indicador guardado; si la recalculas con los datos, di si coincide:')
 FOLLOW_UPS = ('Estos son temas abiertos que dejaron informes anteriores, copiados tal cual y con el estado que les di '
               '(«comprobado» quiere decir que yo lo di por comprobado, no que esté verificado). Dime qué muestran ahora '
-              'los datos sobre ellos, sin dar por hecho lo que proponían:')
+              'los datos sobre ellos, sin dar por hecho lo que proponían. Si vuelves a proponer algo que ya di por '
+              'comprobado, dilo y ten en cuenta mi nota; no lo presentes como un tema nuevo:')
+CLOSED = ('Estos temas de informes anteriores los cerré yo. No los vuelvas a proponer salvo que los datos actuales '
+          'muestren algo nuevo; si lo haces, di que yo lo había cerrado y qué ha cambiado:')
 HISTORY = ('Estos son informes anteriores que me hiciste. Lo que dicen son afirmaciones de esos informes, no datos '
            'comprobados ahora, y sus acciones eran propuestas: no sé si se llevaron a cabo. Tienes su texto en '
            '/inputs/contexto/informes-anteriores/ (manifest.json indica cuál es cada uno). Si retomas algo de ellos, '
@@ -193,19 +196,28 @@ def follow_up_lines(core):
         line += (f" [informe {'caducado: ' + STALE.get(stale, stale) if stale else 'vigente'}; comprobación independiente "
                  f"{CHECKS.get(report.get('check_state'), 'no disponible')}{warnings}]")
         line += f" [estado: {STATE_LABELS[item['state']]}]"
+        if item.get('note'):
+            line += f" [mi nota: «{' '.join(item['note'].split())}»]"
         if item.get('link'):
             link = item['link']
             line += f" [lo enlacé a un indicador: {_metrics({link['metric_key']: link['value']})} con la versión {link['dataset_version']} de los datos"
             line += f"; {link['meanings']}]" if link.get('meanings') else ']'
         lines.append(line)
-    extra = []
     if (core or {}).get('omitted'):
-        extra.append(f"{core['omitted']} tema(s) abierto(s) más no caben aquí")
-    counts = (core or {}).get('counts') or {}
-    if counts.get('closed'):
-        extra.append(f"{counts['closed']} tema(s) cerrado(s) no se incluyen")
-    if extra:
-        lines.append('(' + '; '.join(extra) + '.)')
+        lines.append(f"({core['omitted']} tema(s) abierto(s) más no caben aquí.)")
+    return lines
+
+
+def closed_lines(core):
+    closed = (core or {}).get('closed') or {}
+    lines = []
+    for item in closed.get('items', []):
+        line = f"- «{item['headline']}» ({item['date']}) · {item['priority']}"
+        if item.get('note'):
+            line += f" [mi nota: «{' '.join(item['note'].split())}»]"
+        lines.append(line)
+    if closed.get('omitted'):
+        lines.append(f"({closed['omitted']} tema(s) cerrado(s) más no caben aquí.)")
     return lines
 
 
@@ -236,8 +248,11 @@ def compose(*, name, description, goal, model, memory, panorama, questions=False
     if measured:
         paragraphs.append(INDICATORS + '\n' + '\n'.join(measured))
     pending = follow_up_lines(follow_ups)
-    if pending:  # Also when every topic is closed or omitted: the counts are still said.
+    if pending:  # Also when every open topic is omitted: the count is still said.
         paragraphs.append(FOLLOW_UPS + '\n' + '\n'.join(pending))
+    closed = closed_lines(follow_ups)
+    if closed:
+        paragraphs.append(CLOSED + '\n' + '\n'.join(closed))
     prior = (history or {}).get('reports') or []
     if prior:
         paragraphs.append(HISTORY + '\n' + '\n\n'.join(r['summary'] for r in prior))
@@ -290,7 +305,7 @@ def build_inputs(db, business, analysis, *, goal, panorama, name=None, descripti
                    panorama=panorama, questions=questions, format=format, data_meanings=data_meanings, history=prior,
                    chat_brief=investigation_brief, catalog=core['catalog'], analysis=analysis,
                    indicators=core['indicators'], follow_ups=core['follow_ups'])
-    provenance = dict(version=('blocks-brief-7q' if questions else 'blocks-brief-7') if format == 'blocks' else (QUESTIONS_VERSION if questions else VERSION), profile='job' if frozen else 'current', profile_revision=owner['profile_revision'],
+    provenance = dict(version=('blocks-brief-8q' if questions else 'blocks-brief-8') if format == 'blocks' else (QUESTIONS_VERSION if questions else VERSION), profile='job' if frozen else 'current', profile_revision=owner['profile_revision'],
                       data_model=dict(analysis_id=str(analysis), revision=data['revision']) if data['revision'] else None,
                       memory=sorted(r['reference'] for r in memory if facts([r])),
                       panorama=bool(panorama), knowledge=core['version'], chat_brief=bool(investigation_brief),
@@ -301,7 +316,8 @@ def build_inputs(db, business, analysis, *, goal, panorama, name=None, descripti
                                   for i in core['indicators']['items'] if i.get('latest')],
                       follow_ups=[dict(id=f['id'], state=f['state'],
                                        **({'link': {k: f['link'][k] for k in ('value_id', 'version_id')}} if f.get('link') else {}))
-                                  for f in core['follow_ups']['items']])
+                                  for f in core['follow_ups']['items']]
+                                 + [dict(id=f['id'], state='closed') for f in core['follow_ups']['closed']['items']])
     if format == 'blocks':
         provenance['checker_context'] = compose(name=owner['name'],description=owner['description'],goal=goal,
             model=model,memory=memory,panorama=False,questions=False,format=format,include_delivery=False,

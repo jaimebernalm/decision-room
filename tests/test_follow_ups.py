@@ -158,16 +158,29 @@ class ConsumerTests(RegisterTests):
         self.assertIn(brief.FOLLOW_UPS, prompt)
         self.assertIn('Revisar la recogida en local', prompt)
         self.assertIn('comprobado con datos (declarado por el propietario)', prompt)
-        self.assertIn('1 tema(s) cerrado(s) no se incluyen', prompt)
-        self.assertNotIn('Qué revisar en abril', prompt.split(brief.FOLLOW_UPS)[1].split('\n\n')[0])
+        # The owner's note travels with the checked topic, so a report does not re-propose it as new.
+        self.assertIn('[mi nota: «Comprobado con las ventas de marzo.»]', prompt)
+        opened = prompt.split(brief.FOLLOW_UPS)[1].split('\n\n')[0]
+        self.assertNotIn('Qué revisar en abril', opened)
+        self.assertNotIn(closed['priority_title'], opened)
+        # A closed topic is listed apart, by headline and title only, never as open.
+        shut = prompt.split(brief.CLOSED)[1].split('\n\n')[0]
+        self.assertIn(closed['priority_title'], shut)
+        self.assertNotIn(closed['content']['check'][0], shut)
+        self.assertNotIn('no se incluyen', prompt)
         self.assertIn(brief.FOLLOW_UPS, provenance['checker_context'])
-        self.assertEqual(provenance['follow_ups'], [dict(id=str(item['id']), state='checked')])
+        self.assertIn(brief.CLOSED, provenance['checker_context'])
+        self.assertEqual(provenance['follow_ups'], [dict(id=str(item['id']), state='checked'), dict(id=str(closed['id']), state='closed')])
         self.assertIn('Los indicadores guardados y los temas abiertos', check_contract.PROMPT)
         self.assertEqual([i['id'] for i in core['follow_ups']['items']], [str(item['id'])])
+        self.assertEqual(core['follow_ups']['items'][0]['note'], 'Comprobado con las ventas de marzo.')
+        self.assertEqual([i['id'] for i in core['follow_ups']['closed']['items']], [str(closed['id'])])
+        self.assertEqual(set(core['follow_ups']['closed']['items'][0]), {'id', 'state', 'headline', 'date', 'priority'})
         from decision_room.memory.service import encoded
         self.assertLessEqual(len(encoded(core['follow_ups']).encode()), business_knowledge.FOLLOW_UPS_BYTES)
         sources = chat_agent.sources_for(dict(chat_context=saved, retrievals=[]))
-        self.assertEqual(sources['follow_ups']['label'], 'Temas abiertos de informes anteriores')
+        self.assertEqual(sources['follow_ups']['label'], 'Temas de informes anteriores')
+        self.assertIn("under 'closed' the topics the owner closed", chat_agent.SYSTEM)
         # A later owner change makes that snapshot stale.
         with connect(self.config) as db:
             self.assertTrue(conversations.fresh(db, saved))
@@ -179,12 +192,34 @@ class ConsumerTests(RegisterTests):
         from decision_room.engine import brief
         args = dict(name='Tienda', description='Una tienda.', goal='Qué revisar.', model=None, memory=[], panorama=False,
                     data_meanings=([], False))
-        closed = brief.compose(**args, follow_ups=dict(items=[], omitted=0, counts=dict(open=0, closed=2, withdrawn=0)))
-        self.assertIn(brief.FOLLOW_UPS, closed)
-        self.assertIn('2 tema(s) cerrado(s) no se incluyen', closed)
-        omitted = brief.compose(**args, follow_ups=dict(items=[], omitted=1, counts=dict(open=1, closed=0, withdrawn=0)))
+        shut = dict(id='x', state='closed', headline='Titular', date='2026-10-12', priority='2. Separar cancelaciones',
+                    note='Ya lo\nseparamos.')
+        closed = brief.compose(**args, follow_ups=dict(items=[], omitted=0, closed=dict(items=[shut], omitted=1),
+                                                      counts=dict(open=0, closed=2, withdrawn=0)))
+        self.assertNotIn(brief.FOLLOW_UPS, closed)
+        self.assertIn(brief.CLOSED + '\n- «Titular» (2026-10-12) · 2. Separar cancelaciones [mi nota: «Ya lo separamos.»]', closed)
+        self.assertIn('1 tema(s) cerrado(s) más no caben aquí', closed)
+        omitted = brief.compose(**args, follow_ups=dict(items=[], omitted=1, closed=dict(items=[], omitted=0),
+                                                       counts=dict(open=1, closed=0, withdrawn=0)))
         self.assertIn('1 tema(s) abierto(s) más no caben aquí', omitted)
-        self.assertNotIn(brief.FOLLOW_UPS, brief.compose(**args, follow_ups=dict(items=[], omitted=0, counts={})))
+        self.assertNotIn(brief.CLOSED, omitted)
+        empty = brief.compose(**args, follow_ups=dict(items=[], omitted=0, closed=dict(items=[], omitted=0), counts={}))
+        self.assertNotIn(brief.FOLLOW_UPS, empty)
+        self.assertNotIn(brief.CLOSED, empty)
+
+    def test_closed_topics_have_their_own_budget_inside_the_register_bound(self):
+        from decision_room import business_knowledge
+        from decision_room.memory.service import encoded
+        self.deliver()
+        for topic in self.topics():
+            self.state(topic, 'closed', note='n' * 300)
+        with connect(self.config) as db:
+            register = business_knowledge.follow_ups(db, self.business['id'])
+        self.assertEqual(register['items'], [])
+        self.assertTrue(register['closed']['items'])
+        self.assertLessEqual(len(encoded(register['closed']).encode()), business_knowledge.CLOSED_BYTES)
+        self.assertLessEqual(len(encoded(register).encode()), business_knowledge.FOLLOW_UPS_BYTES)
+        self.assertEqual(len(register['closed']['items']) + register['closed']['omitted'], register['counts']['closed'])
 
     def test_a_link_freezes_the_current_value_the_owner_saw_with_its_meanings_caveat(self):
         from decision_room import business_knowledge, indicators

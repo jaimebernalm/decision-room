@@ -1,5 +1,6 @@
 """Native cycle recovery, delegated authority and quotas on a real disposable DB."""
 import json
+from pathlib import Path
 from unittest.mock import patch
 from uuid import uuid4
 import unittest
@@ -54,10 +55,20 @@ class CheckTests(unittest.TestCase):
         run,token,receipt,row=self.native()
         files=checks.inputs(self.config,row,receipt,blocks.parse(receipt['raw']))
         self.assertTrue(any(k.startswith('datos/') for k in files))
-        self.assertEqual(set(k for k in files if not k.startswith('datos/')),{'manifest.json','prioridades.json','contexto/definiciones.txt'})
+        self.assertEqual(set(k for k in files if not k.startswith('datos/')),
+                         {'manifest.json','prioridades.json','contexto/definiciones.txt','herramientas/comprobar_cobertura.py'})
         self.assertNotIn('panorama.md',files)
         priorities=json.loads(files['prioridades.json'])
         self.assertEqual(priorities['revision_sha256'],receipt['raw_sha256'])
+        # Every line with figures, with exact offsets the checker can quote whole.
+        from decision_room.engine import check_coverage as coverage
+        for p in priorities['priorities']:
+            self.assertEqual(p['lineas'],coverage.lines(p['text']))
+            self.assertTrue(all(p['text'][x['start']:x['end']]==x['texto'] for x in p['lineas']))
+        self.assertEqual(files['herramientas/comprobar_cobertura.py'],Path(coverage.__file__).read_bytes())
+        # The mounted self-check is the frozen one, or nothing is mounted at all.
+        changed=dict(row,profile=dict(row['profile'],checks=dict(row['profile']['checks'],coverage_sha256='0'*64)))
+        with self.assertRaises(ValueError):checks.inputs(self.config,changed,receipt,blocks.parse(receipt['raw']))
         self.assertNotIn('state',files)
         self.assertNotIn('informe.json', files['contexto/definiciones.txt'].decode())
         self.assertNotIn('comprobar_informe', files['contexto/definiciones.txt'].decode())

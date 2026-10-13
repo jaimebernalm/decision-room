@@ -38,7 +38,7 @@ def configuration(*, model=None, image=None, questions=False, usd_cap_micro=None
         result['usd_ceiling'] = {'version': api_budget.VERSION, 'cap_micro_usd': usd_cap_micro,
                                 'reservation': 'model-maxima'}
     if format == 'blocks':
-        from . import blocks, check_contract
+        from . import blocks, check_contract, check_coverage
         import hashlib
         version = 'blocks-v1-questions-1' if questions else 'blocks-v1-1'
         if usd_cap_micro is not None:
@@ -49,7 +49,8 @@ def configuration(*, model=None, image=None, questions=False, usd_cap_micro=None
                       guide_sha256=hashlib.sha256(blocks.FORMAT_GUIDE.encode()).hexdigest(),
                       checks=dict(version=check_contract.VERSION,prompt_sha256=hashlib.sha256(check_contract.PROMPT.encode()).hexdigest(),
                                   correction_sha256=hashlib.sha256(check_contract.CORRECTION.encode()).hexdigest(),
-                                  format_repair_sha256=hashlib.sha256(check_contract.FORMAT_REPAIR.encode()).hexdigest(),calls=20,seconds=300))
+                                  format_repair_sha256=hashlib.sha256(check_contract.FORMAT_REPAIR.encode()).hexdigest(),
+                                  coverage_sha256=hashlib.sha256(Path(check_coverage.__file__).read_bytes()).hexdigest(),calls=20,seconds=300))
     return result
 
 
