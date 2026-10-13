@@ -2,6 +2,7 @@
 import importlib.util
 import json
 import sqlite3
+import sys
 import tempfile
 import unittest
 import unittest.mock
@@ -162,6 +163,7 @@ class KitSelectionTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             self.build(f'{short}:clinica')
 
+    @unittest.skipUnless(sys.platform == 'darwin', 'Platform PDF pages are rendered with macOS PDFKit (scripts/f5/pdf_pages.swift).')
     def test_blocks_arm_reads_platform_pdf_pages(self):
         from decision_room.engine import blocks
         from decision_room.reports import blocks_pdf
